@@ -465,7 +465,19 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 			s.log.ErrorContext(s.closeContext, "Received event broadcast without component name, this is a bug!", "event", event.Name)
 			break
 		}
-		s.processState.update(s.closeContext, s.log, s.clock.Now(), event.Name, componentName)
+		updateResult := s.processState.update(s.clock.Now(), event.Name, componentName)
+		switch updateResult {
+		case updateStarting:
+			s.log.DebugContext(s.closeContext, "Teleport component is starting", "component", componentName)
+		case updateStarted:
+			s.log.DebugContext(s.closeContext, "Teleport component has started.", "component", componentName)
+		case updateDegraded:
+			s.log.InfoContext(s.closeContext, "Detected Teleport component is running in a degraded state.", "component", componentName)
+		case updateRecovering:
+			s.log.InfoContext(s.closeContext, "Teleport component is recovering from a degraded state.", "component", componentName)
+		case updateRecovered:
+			s.log.InfoContext(s.closeContext, "Teleport component has recovered from a degraded state.", "component", componentName)
+		}
 	}
 
 	s.events[event.Name] = event

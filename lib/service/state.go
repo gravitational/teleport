@@ -19,9 +19,7 @@
 package service
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"sync"
@@ -73,8 +71,22 @@ type componentState struct {
 	state        componentStateEnum
 }
 
-// update the state of a Teleport component.
-func (f *processState) update(ctx context.Context, log *slog.Logger, now time.Time, event, component string) {
+type updateResult int
+
+const (
+	_ updateResult = iota
+
+	updateStarting
+	updateStarted
+	updateDegraded
+	updateRecovering
+	updateRecovered
+)
+
+// update the state of a Teleport component. Returns a value depending on what
+// changed in the state of the component if something changed, or 0 if nothing
+// changed.
+func (f *processState) update(now time.Time, event, component string) updateResult {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	defer f.updateGauge()
@@ -91,11 +103,11 @@ func (f *processState) update(ctx context.Context, log *slog.Logger, now time.Ti
 
 	switch event {
 	case TeleportStartingEvent:
-		log.DebugContext(ctx, "Teleport component is starting", "component", component)
+		return updateStarting
 	// If a degraded event was received, always change the state to degraded.
 	case TeleportDegradedEvent:
 		s.state = stateDegraded
-		log.InfoContext(ctx, "Detected Teleport component is running in a degraded state.", "component", component)
+		return updateDegraded
 	// If the current state is degraded, and a OK event has been
 	// received, change the state to recovering. If the current state is
 	// recovering and a OK events is received, if it's been longer
@@ -105,18 +117,19 @@ func (f *processState) update(ctx context.Context, log *slog.Logger, now time.Ti
 		switch s.state {
 		case stateStarting:
 			s.state = stateOK
-			log.DebugContext(ctx, "Teleport component has started.", "component", component)
+			return updateStarted
 		case stateDegraded:
 			s.state = stateRecovering
 			s.recoveryTime = now
-			log.InfoContext(ctx, "Teleport component is recovering from a degraded state.", "component", component)
+			return updateRecovering
 		case stateRecovering:
 			if now.Sub(s.recoveryTime) > defaults.HeartbeatCheckPeriod*2 {
 				s.state = stateOK
-				log.InfoContext(ctx, "Teleport component has recovered from a degraded state.", "component", component)
+				return updateRecovered
 			}
 		}
 	}
+	return 0
 }
 
 // getStateLocked returns the overall process state based on the state of
