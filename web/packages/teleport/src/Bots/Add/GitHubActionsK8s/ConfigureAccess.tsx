@@ -221,7 +221,9 @@ export function ConfigureAccess(props: FlowStepProps) {
       </FormContainer>
 
       <CodeContainer>
-        <CodePanel />
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SConfigureAccess}
+        />
       </CodeContainer>
     </Container>
   );

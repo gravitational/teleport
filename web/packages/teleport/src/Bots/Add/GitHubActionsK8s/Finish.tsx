@@ -119,7 +119,9 @@ export function Finish(props: FlowStepProps) {
       </Box>
 
       <CodeContainer>
-        <CodePanel />
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SSetupWorkflow}
+        />
       </CodeContainer>
 
       <Dialog open={showDoneCheck} onClose={() => setShowDoneCheck(false)}>

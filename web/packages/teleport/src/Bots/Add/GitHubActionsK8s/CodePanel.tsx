@@ -21,12 +21,21 @@ import { useState } from 'react';
 import { Tabs } from 'shared/components/Editor/Tabs';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
 
+import {
+  IntegrationEnrollCodeType,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
+
+import { useTracking } from '../Shared/useTracking';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
-export function CodePanel() {
+export function CodePanel(props: { trackingStep: IntegrationEnrollStep }) {
+  const { trackingStep } = props;
   const [activeCodeTab, setActiveCodeTab] = useState(0);
 
   const { template } = useGitHubK8sFlow();
+
+  const tracking = useTracking();
 
   const handleCodeTabChanged = (index: number) => {
     setActiveCodeTab(index);
@@ -56,12 +65,22 @@ export function CodePanel() {
         copyButton={true}
         downloadButton={true}
         downloadFileName={files[activeCodeTab]}
+        onCopy={() => {
+          tracking.codeCopy(trackingStep, trackingTypes[activeCodeTab]);
+        }}
+        onDownload={() => {
+          tracking.codeCopy(trackingStep, trackingTypes[activeCodeTab]);
+        }}
       />
     </>
   );
 }
 
 const files = ['main.tf', 'gha-workflow.yaml'];
+const trackingTypes = [
+  IntegrationEnrollCodeType.Terraform,
+  IntegrationEnrollCodeType.GitHubActionsYAML,
+];
 
 function makeTerraformContent(
   template: ReturnType<typeof useGitHubK8sFlow>['template']

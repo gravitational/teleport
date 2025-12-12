@@ -316,7 +316,9 @@ export function ConnectGitHub(props: FlowStepProps) {
       </FormContainer>
 
       <CodeContainer>
-        <CodePanel />
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SConnectGitHub}
+        />
       </CodeContainer>
     </Container>
   );
