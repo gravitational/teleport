@@ -29,6 +29,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
+	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -116,15 +119,16 @@ func withChallenge(challenge string) challengeResponseOption {
 }
 
 type iamJoinTestCase struct {
-	desc                     string
-	authServer               *authtest.Server
-	tokenName                string
-	requestTokenName         string
-	tokenSpec                types.ProvisionTokenSpecV2
-	stsClient                utils.HTTPDoClient
-	challengeResponseOptions []challengeResponseOption
-	challengeResponseErr     error
-	assertError              require.ErrorAssertionFunc
+	desc                        string
+	authServer                  *authtest.Server
+	tokenName                   string
+	requestTokenName            string
+	tokenSpec                   types.ProvisionTokenSpecV2
+	stsClient                   utils.HTTPDoClient
+	describeAccountClientGetter iamjoin.DescribeAccountClientGetter
+	challengeResponseOptions    []challengeResponseOption
+	challengeResponseErr        error
+	assertError                 require.ErrorAssertionFunc
 }
 
 func TestJoinIAM(t *testing.T) {
@@ -146,7 +150,7 @@ func TestJoinIAM(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, regularServer.Shutdown(ctx)) })
+	t.Cleanup(func() { assert.NoError(t, fipsServer.Shutdown(ctx)) })
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -177,6 +181,38 @@ func TestJoinIAM(t *testing.T) {
 					Account: "1234",
 					Arn:     "arn:aws::1111",
 				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "using organizations",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-allowedorg",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			describeAccountClientGetter: func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
+				return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+					return &organizations.DescribeAccountOutput{
+						Account: &organizationstypes.Account{
+							Arn: aws.String("arn:aws:organizations::123456789012:account/o-allowedorg/1234"),
+						},
+					}, nil
+				}, nil
 			},
 			assertError: require.NoError,
 		},
@@ -641,6 +677,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	ctx := t.Context()
 	// Set mock client.
 	tc.authServer.Auth().SetHTTPClientForAWSSTS(tc.stsClient)
+	tc.authServer.Auth().SetAWSOrganizationsDescribeAccountClientGetter(tc.describeAccountClientGetter)
 
 	// Add token to auth server.
 	token, err := types.NewProvisionTokenFromSpec(
