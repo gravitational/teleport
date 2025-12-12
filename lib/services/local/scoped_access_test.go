@@ -818,3 +818,223 @@ func TestScopedRoleAssignmentInteraction(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 }
+
+// TestScopedAccessListBasicCRUD tests the basic access list CRUD operations of
+// the ScopedAccessService, excluding the more non-trivial scenarios involving
+// access lists with active members, which are tested separately.
+func TestScopedAccessListBasicCRUD(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+	})
+	require.NoError(t, err)
+
+	defer backend.Close()
+
+	service := NewScopedAccessService(backend)
+
+	// Prereq: set up some basic roles for access lists to reference
+	basicRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "rootrole",
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/", "/**"},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "foorole",
+			},
+			Scope: "/foo",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/foo/**"},
+			},
+			Version: types.V1,
+		},
+	}
+
+	// Prereq: create the roles in the backend
+	for _, role := range basicRoles {
+		_, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: role,
+		})
+		require.NoError(t, err)
+	}
+
+	// Set up some basic access lists
+	basicAccessLists := []*scopedaccessv1.ScopedAccessList{
+		{
+			Kind: scopedaccess.KindScopedAccessList,
+			Metadata: &headerv1.Metadata{
+				Name: "rootlist",
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedAccessListSpec{
+				Title: "root",
+				Grants: &scopedaccessv1.ScopedAccessListGrants{
+					ScopedRoles: []*scopedaccessv1.ScopedRoleGrant{
+						{
+							Role:  "rootrole",
+							Scope: "/",
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedAccessList,
+			Metadata: &headerv1.Metadata{
+				Name: "foolist",
+			},
+			Scope: "/foo",
+			Spec: &scopedaccessv1.ScopedAccessListSpec{
+				Title: "foo",
+				Grants: &scopedaccessv1.ScopedAccessListGrants{
+					ScopedRoles: []*scopedaccessv1.ScopedRoleGrant{
+						{
+							Role:  "foorole",
+							Scope: "/foo/bar",
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	var revisions []string
+
+	// verify the expected behavior of CreateScopedAccessList
+	for _, list := range basicAccessLists {
+		crsp, err := service.CreateScopedAccessList(ctx, &scopedaccessv1.CreateScopedAccessListRequest{
+			List: list,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, crsp.List.Metadata.Revision)
+		require.Empty(t, cmp.Diff(list, crsp.List, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+		// Check that the list can be retrieved.
+		grsp, err := service.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+			Name: list.Metadata.Name,
+		})
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(crsp.List, grsp.List, protocmp.Transform() /* deliberately not ignoring revision */))
+
+		revisions = append(revisions, grsp.List.Metadata.Revision)
+	}
+
+	require.Len(t, revisions, len(basicAccessLists))
+
+	// verify that create fails if the list already exists
+	_, err = service.CreateScopedAccessList(ctx, &scopedaccessv1.CreateScopedAccessListRequest{
+		List: basicAccessLists[0],
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify a basic allowable update
+	basic01Mod := apiutils.CloneProtoMsg(basicAccessLists[0])
+	basic01Mod.Spec.Description = "test description"
+	basic01Mod.Metadata.Revision = revisions[0]
+
+	ursp, err := service.UpdateScopedAccessList(ctx, &scopedaccessv1.UpdateScopedAccessListRequest{
+		List: basic01Mod,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, ursp.List.Metadata.Revision)
+	require.Empty(t, cmp.Diff(basic01Mod, ursp.List, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// verify that update really happened
+	grsp, err := service.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+		Name: basic01Mod.Metadata.Name,
+	})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ursp.List, grsp.List, protocmp.Transform() /* deliberately not ignoring revision */))
+
+	// verify that update fails if the revision is wrong
+	_, err = service.UpdateScopedAccessList(ctx, &scopedaccessv1.UpdateScopedAccessListRequest{
+		List: basic01Mod,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify that update is rejected if the list's scope is changed
+	basic01Mod = apiutils.CloneProtoMsg(ursp.List)
+	basic01Mod.Scope = "/foo"
+
+	_, err = service.UpdateScopedAccessList(ctx, &scopedaccessv1.UpdateScopedAccessListRequest{
+		List: basic01Mod,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// verify that update fails if the access list does not exist
+	_, err = service.UpdateScopedAccessList(ctx, &scopedaccessv1.UpdateScopedAccessListRequest{
+		List: &scopedaccessv1.ScopedAccessList{
+			Kind: scopedaccess.KindScopedAccessList,
+			Metadata: &headerv1.Metadata{
+				Name:     "non-existent",
+				Revision: revisions[0],
+			},
+			Scope: "/",
+			Spec: &scopedaccessv1.ScopedAccessListSpec{
+				Title: "non existent",
+			},
+			Version: types.V1,
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify that delete fails if the list does not exist
+	_, err = service.DeleteScopedAccessList(ctx, &scopedaccessv1.DeleteScopedAccessListRequest{
+		Name: "non-existent",
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify that delete fails if the revision does not match
+	_, err = service.DeleteScopedAccessList(ctx, &scopedaccessv1.DeleteScopedAccessListRequest{
+		Name:     basicAccessLists[0].Metadata.Name,
+		Revision: revisions[0],
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
+
+	// verify successful unconditional delete
+	_, err = service.DeleteScopedAccessList(ctx, &scopedaccessv1.DeleteScopedAccessListRequest{
+		Name: basicAccessLists[0].Metadata.Name,
+	})
+	require.NoError(t, err)
+
+	// verify that the access list is gone
+	_, err = service.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+		Name: basicAccessLists[0].Metadata.Name,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// verify successful conditional delete
+	_, err = service.DeleteScopedAccessList(ctx, &scopedaccessv1.DeleteScopedAccessListRequest{
+		Name: basicAccessLists[1].Metadata.Name,
+		//Revision: revisions[1],
+	})
+	require.NoError(t, err)
+
+	// verify that the access list is gone
+	_, err = service.GetScopedAccessList(ctx, &scopedaccessv1.GetScopedAccessListRequest{
+		Name: basicAccessLists[1].Metadata.Name,
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+}
