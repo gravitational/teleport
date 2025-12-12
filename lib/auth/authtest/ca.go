@@ -34,9 +34,3 @@ func NewCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte)
 	}
 	return ca
 }
-
-// NewCAWithConfig generates a new certificate authority with the specified
-// configuration.
-func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
-	return authcatest.NewCAWithConfig(config)
-}

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -406,7 +407,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("CA cluster name does not match subject organization", func(t *testing.T) {
-		ca, err := authtest.NewCAWithConfig(authtest.CAConfig{
+		ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
 			Type:                types.HostCA,
 			ClusterName:         "remoteCluster",
 			SubjectOrganization: "commonName",
