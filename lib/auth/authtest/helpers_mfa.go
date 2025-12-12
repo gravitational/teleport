@@ -20,6 +20,7 @@ package authtest
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,8 +48,53 @@ type Device struct {
 	passwordless bool
 }
 
+var (
+	_ json.Marshaler   = (*Device)(nil)
+	_ json.Unmarshaler = (*Device)(nil)
+)
+
+func (d *Device) MarshalJSON() ([]byte, error) {
+	type Alias Device
+	s := struct {
+		*Alias
+		Origin       string
+		Passwordless bool
+	}{
+		Alias:        (*Alias)(d),
+		Origin:       d.origin,
+		Passwordless: d.passwordless,
+	}
+
+	return json.Marshal(&s)
+}
+
+func (d *Device) UnmarshalJSON(data []byte) error {
+	type Alias Device
+	var s struct {
+		*Alias
+		Origin       string
+		Passwordless bool
+	}
+
+	if err := json.Unmarshal(data, &s); err != nil {
+		return trace.Wrap(err)
+	}
+
+	*d = Device(*s.Alias)
+	d.origin = s.Origin
+	d.passwordless = s.Passwordless
+	d.clock = clockwork.NewRealClock()
+	return nil
+}
+
 // TestDeviceOpt is a creation option for TestDevice.
 type TestDeviceOpt func(d *Device)
+
+func WithOrigin(origin string) TestDeviceOpt {
+	return func(d *Device) {
+		d.origin = origin
+	}
+}
 
 func WithTestDeviceClock(clock clockwork.Clock) TestDeviceOpt {
 	return func(d *Device) {
