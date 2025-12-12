@@ -14,6 +14,8 @@
         "annotations",
         "tolerations",
         "affinity",
+        "extraArgs",
+        "extraEnv",
         "teleport",
         "fluentd"
     ],
@@ -132,6 +134,16 @@
             },
             "additionalProperties": true
         },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
         "resources": {
             "$id": "#/properties/resources",
             "type": "object",
@@ -247,6 +259,27 @@
                 },
                 "pod": {
                     "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$id": "#/properties/extraLabels/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/extraLabels/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/extraLabels/properties/pod",
                     "type": "object",
                     "default": {}
                 }

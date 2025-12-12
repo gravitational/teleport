@@ -9,7 +9,6 @@ tests:
         tag: v98.76.54
     asserts:
       - matchSnapshot: {}
-
   - it: uses the recreate strategy if a PV is mounted
     set:
       persistentVolumeClaim:
@@ -18,7 +17,6 @@ tests:
       - equal:
           path: spec.strategy.type
           value: Recreate
-
   - it: should mount tls.existingCASecretName and set environment when set in values
     template: deployment.yaml
     values:
@@ -43,14 +41,12 @@ tests:
             value: /etc/teleport-tls-ca/ca.pem
       - matchSnapshot:
           path: spec.template.spec
-
   - it: should not contain deployment or pod annotations when not defined
     asserts:
       - isNull:
           path: metadata.annotations
       - isNull:
           path: spec.template.metadata.annotations
-
   - it: should contain deployment annotations when defined
     set:
       annotations:
@@ -65,7 +61,6 @@ tests:
             keyB: valB
       - isNull:
           path: spec.template.metadata.annotations
-
   - it: should contain pod annotations when defined
     set:
       annotations:
@@ -80,7 +75,6 @@ tests:
             keyB: valB
       - isNull:
           path: metadata.annotations
-
   - it: should contain both annotations when defined
     set:
       annotations:
@@ -101,3 +95,38 @@ tests:
           value:
             keyA: valA'
             keyC: valC
+  - it: sets extraLabels when set in values
+    set:
+      extraLabels:
+        deployment:
+          test-key: test-label-deployment
+        pod:
+          test-key: test-label-pod
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            test-key: test-label-deployment
+      - isSubset:
+          path: spec.template.metadata.labels
+          content:
+            test-key: test-label-pod
+  - it: sets extraArgs when set in values
+    set:
+      extraArgs:
+        - --extra-arg
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --extra-arg
+  - it: sets extraEnv when set in values
+    set:
+      extraEnv:
+        - name: TEST_ENV
+          value: test-value
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TEST_ENV
+            value: test-value
