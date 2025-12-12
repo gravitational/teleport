@@ -85,10 +85,13 @@ type Key struct {
 	counter uint32
 }
 
-var _ json.Marshaler = (*Key)(nil)
+var (
+	_ json.Marshaler   = (*Key)(nil)
+	_ json.Unmarshaler = (*Key)(nil)
+)
 
 func (k *Key) MarshalJSON() ([]byte, error) {
-	type Alias Key
+	type alias Key
 
 	privateKey, err := x509.MarshalECPrivateKey(k.PrivateKey)
 	if err != nil {
@@ -97,21 +100,21 @@ func (k *Key) MarshalJSON() ([]byte, error) {
 	s := struct {
 		PrivateKey []byte `json:"PrivateKey"`
 		Counter    uint32 `json:"Counter"`
-		*Alias
+		*alias
 	}{
 		PrivateKey: privateKey,
 		Counter:    k.counter,
-		Alias:      (*Alias)(k),
+		alias:      (*alias)(k),
 	}
 	return json.Marshal(s)
 }
 
 func (k *Key) UnmarshalJSON(data []byte) error {
-	type Alias Key
+	type alias Key
 	var s struct {
 		PrivateKey []byte `json:"PrivateKey"`
 		Counter    uint32 `json:"Counter"`
-		*Alias
+		*alias
 	}
 	if err := json.Unmarshal(data, &s); err != nil {
 		return trace.Wrap(err)
@@ -122,7 +125,7 @@ func (k *Key) UnmarshalJSON(data []byte) error {
 		return trace.Wrap(err, "parsing private key")
 	}
 
-	*k = Key(*s.Alias)
+	*k = Key(*s.alias)
 	k.PrivateKey = privateKey
 	k.counter = s.Counter
 	return nil
