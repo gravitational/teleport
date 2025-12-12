@@ -1115,6 +1115,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		labels = req.Labels
 	}
 	labels[constants.AWSAccountIDLabel] = parsedRoleARN.AccountID
+	labels[types.IntegrationLabel] = integrationName
 
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr, labels)
 	if err != nil {
