@@ -644,7 +644,7 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	ca, err := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
 	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
@@ -704,7 +704,7 @@ func TestWatchers(t *testing.T) {
 
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
-	filteredCa, err := NewTestCA(types.HostCA, "example.net")
+	filteredCa, err := authcatest.NewCA(types.HostCA, "example.net")
 	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
@@ -800,7 +800,7 @@ func TestCompletenessInit(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca, err := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca, err := authcatest.NewCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
@@ -894,7 +894,7 @@ func TestCompletenessReset(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca, err := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca, err := authcatest.NewCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
@@ -1217,7 +1217,7 @@ func initStrategy(t *testing.T) {
 	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	ca, err := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
 	require.NoError(t, err)
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
@@ -1280,7 +1280,7 @@ func TestRecovery(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	ca, err := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
 	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
@@ -1300,7 +1300,7 @@ func TestRecovery(t *testing.T) {
 	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
-	ca2, err := NewTestCA(types.UserCA, "example2.com")
+	ca2, err := authcatest.NewCA(types.UserCA, "example2.com")
 	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
@@ -2806,12 +2806,6 @@ func listResource(ctx context.Context, lister resourcesLister, kind string, page
 		return nil, "", trace.Wrap(err)
 	}
 	return resp.Resources, resp.NextKey, nil
-}
-
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) (*types.CertAuthorityV2, error) {
-	return authcatest.NewCA(caType, clusterName, privateKeys...)
 }
 
 // NewServer creates a new server resource
