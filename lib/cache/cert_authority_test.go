@@ -38,11 +38,14 @@ func TestCA(t *testing.T) {
 	t.Cleanup(p.Close)
 	ctx := context.Background()
 
-	userCA := NewTestCA(types.UserCA, "example.com")
+	userCA, err := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, userCA))
-	dbCA := NewTestCA(types.DatabaseCA, "example.com")
+	dbCA, err := NewTestCA(types.DatabaseCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, dbCA))
-	dbClientCA := NewTestCA(types.DatabaseClientCA, "example.com")
+	dbClientCA, err := NewTestCA(types.DatabaseClientCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, dbClientCA))
 	const totalCAs = 3
 
@@ -129,7 +132,8 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, types.OpInit, fetchEvent().Type)
 
 	// upsert and delete a local host CA, we expect to see a Put and a Delete event
-	localCA := NewTestCA(types.HostCA, "example.com")
+	localCA, err := NewTestCA(types.HostCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
 
@@ -144,7 +148,8 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, "example.com", ev.Resource.GetName())
 
 	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
-	nonlocalCA := NewTestCA(types.HostCA, "example.net")
+	nonlocalCA, err := NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
 
@@ -154,7 +159,8 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.Equal(t, "example.net", ev.Resource.GetName())
 
 	// whereas we expect to see the Put and Delete for a trusted *user* CA
-	trustedUserCA := NewTestCA(types.UserCA, "example.net")
+	trustedUserCA, err := NewTestCA(types.UserCA, "example.net")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
 
@@ -217,7 +223,8 @@ func TestCAWatcherFilters(t *testing.T) {
 	}
 
 	// generate an OpPut event.
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	const fetchTimeout = time.Second

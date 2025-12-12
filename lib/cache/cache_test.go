@@ -644,7 +644,8 @@ func TestWatchers(t *testing.T) {
 		t.Fatalf("Timeout waiting for event.")
 	}
 
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -703,7 +704,8 @@ func TestWatchers(t *testing.T) {
 
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
-	filteredCa := NewTestCA(types.HostCA, "example.net")
+	filteredCa, err := NewTestCA(types.HostCA, "example.net")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
@@ -798,7 +800,8 @@ func TestCompletenessInit(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca, err := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		require.NoError(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -891,7 +894,8 @@ func TestCompletenessReset(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := range caCount {
-		ca := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		ca, err := NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
+		require.NoError(t, err)
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
@@ -1213,7 +1217,8 @@ func initStrategy(t *testing.T) {
 	_, err = p.cache.GetCertAuthorities(ctx, types.UserCA, false)
 	require.True(t, trace.IsConnectionProblem(err))
 
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
@@ -1275,7 +1280,8 @@ func TestRecovery(t *testing.T) {
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := NewTestCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
@@ -1294,7 +1300,8 @@ func TestRecovery(t *testing.T) {
 	waitForRestart(t, p.eventsC)
 
 	// add modification and expect the resource to recover
-	ca2 := NewTestCA(types.UserCA, "example2.com")
+	ca2, err := NewTestCA(types.UserCA, "example2.com")
+	require.NoError(t, err)
 	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
@@ -2803,13 +2810,8 @@ func listResource(ctx context.Context, lister resourcesLister, kind string, page
 
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	ca, err := authcatest.NewCA(caType, clusterName, privateKeys...)
-	// TODO(codingllama): Propagate error instead of panicking.
-	if err != nil {
-		panic(err)
-	}
-	return ca
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) (*types.CertAuthorityV2, error) {
+	return authcatest.NewCA(caType, clusterName, privateKeys...)
 }
 
 // NewServer creates a new server resource
