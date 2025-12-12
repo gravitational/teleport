@@ -58,6 +58,8 @@ spec:
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
   {{- end }}
+        - name: "TELEPORT_UPDATE_CONFIG_FILE"
+          value: "/etc/updater-config/update.yaml"
 {{- end }}
         args:
           - "--agent-name={{ include "teleport-kube-updater.app.fullname" . }}"
@@ -112,6 +114,9 @@ spec:
 {{- end }}
 {{- if or $updater.tls.existingCASecretName .Values.extraVolumeMounts }}
         volumeMounts:
+          - mountPath: /etc/updater-config
+            name: "updater-config"
+            readOnly: true
   {{- if $updater.tls.existingCASecretName }}
           - mountPath: /etc/teleport-tls-ca
             name: "teleport-tls-ca"
@@ -123,6 +128,9 @@ spec:
 {{- end }}
 {{- if or $updater.tls.existingCASecretName .Values.extraVolumes }}
       volumes:
+        - name: "updater-config"
+          configMap:
+            name: {{ include "teleport-kube-updater.app.fullname" . }}
   {{- if .Values.extraVolumes }}
         {{- toYaml $updater.extraVolumes | nindent 8 }}
   {{- end }}

@@ -155,6 +155,15 @@ rbac:
 extraLabels:
   # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
   roleBinding: { }
+  # extraLabels.role(object) -- are labels to set on the Role.
+  role: { }
+  # extraLabels.pod(object) -- are labels to set on the Pods created by the
+  # Deployment, StatefulSet, or Job.
+  pod: { }
+  # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
+  deployment: { }
+  # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
+  serviceAccount: { }
 
 
 # serviceAccountName(string) -- is deprecated and will be removed in a future

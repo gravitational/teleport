@@ -4,25 +4,53 @@ kind: Role
 metadata:
   name: {{ template "teleport-kube-updater.fullname" . }}-role
   namespace: {{ include "teleport-kube-updater.namespace" . }}
+{{- if .Values.extraLabels.role }}
+  labels: {{ toYaml .Values.extraLabels.role | nindent 4 }}
+{{- end }}
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["secrets"]
-  verbs: ["get"]
-- apiGroups: [""]
-  resources: ["events"]
-  verbs: ["create", "patch"]
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "watch", "patch", "update"]
-- apiGroups: ["apps"]
-  resources: ["statefulsets"]
-  verbs: ["get", "list", "watch", "patch", "update"]
-- apiGroups: ["coordination.k8s.io"]
-  resources: ["leases"]
-  verbs: ["get", "create", "update", "patch"]
+  # the updater needs to list pods to check their health
+  # it also needs to delete pods to unstuck Statefulset rollouts
+- apiGroups:
+    - ""
+  resources:
+    - pods
+  verbs:
+    - get
+    - watch
+    - list
+    - delete
+- apiGroups:
+    - ""
+  resources:
+    - pods/status
+  verbs:
+    - get
+    - watch
+    - list
+  # the updater needs to get the secret created by the agent containing the
+  # maintenance window
+- apiGroups:
+    - ""
+  resources:
+    - secrets
+  verbs:
+    - watch
+    - list
+- apiGroups:
+    - ""
+  resources:
+    - secrets
+  verbs:
+    - get
+  resourceNames:
+    - {{ .Release.Name }}-shared-state
+- apiGroups:
+    - ""
+  resources:
+    - events
+  verbs:
+    - create
+    - patch
   # the updater needs to create, get, and update the configmap containing updater state
 - apiGroups:
     - ""
@@ -41,4 +69,42 @@ rules:
     - update
   resourceNames:
     - {{ template "teleport-kube-updater.fullname" . }}
+  # the controller in the updater must be able to watch deployments and
+  # statefulsets and get the one it should reconcile
+- apiGroups:
+    - "apps"
+  resources:
+    - deployments
+    - statefulsets
+    - deployments/status
+    - statefulsets/status
+  verbs:
+    - get
+    - watch
+    - list
+  # However the updater should only update the resource it is watching
+- apiGroups:
+    - "apps"
+  resources:
+    - deployments
+    - statefulsets
+  verbs:
+    - update
+  resourceNames:
+    - {{ .Release.Name }}
+- apiGroups:
+    - coordination.k8s.io
+  resources:
+    - leases
+  verbs:
+    - create
+- apiGroups:
+    - coordination.k8s.io
+  resourceNames:
+    - {{ .Release.Name }}
+  resources:
+    - leases
+  verbs:
+    - get
+    - update
 {{- end -}}

@@ -79,7 +79,7 @@ It is also used as a failover when fetching the version using the webapi protoco
 | `string` | `""` |
 
 `group` is the update group used when fetching the version using the webapi protocol.
-When unset, the group defaults to `update.releaseChannel`.
+When unset, the group defaults to `default`.
 
 ## `image`
 
@@ -222,6 +222,39 @@ $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.p
 | `object` | `{}` |
 
 `extraLabels.roleBinding` are labels to set on the RoleBinding.
+
+### `extraLabels.role`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.role` are labels to set on the Role.
+
+### `extraLabels.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.pod` are labels to set on the Pods created by the
+Deployment, StatefulSet, or Job.
+
+### `extraLabels.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.deployment` are labels to set on the Deployment or StatefulSet.
+
+### `extraLabels.serviceAccount`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.serviceAccount` are labels to set on the ServiceAccount.
 
 ## `serviceAccountName`
 
