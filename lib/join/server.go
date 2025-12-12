@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	joinauthz "github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -90,6 +91,7 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
+	GetAWSOrganizationsDescribeAccountClientGetter() iamjoin.DescribeAccountClientGetter
 	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
@@ -111,11 +113,12 @@ type AuthService interface {
 
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
-	AuthService        AuthService
-	Authorizer         authz.Authorizer
-	FIPS               bool
-	ScopedTokenService services.ScopedTokenService
-	OracleHTTPClient   utils.HTTPDoClient
+	AuthService                                 AuthService
+	Authorizer                                  authz.Authorizer
+	FIPS                                        bool
+	ScopedTokenService                          services.ScopedTokenService
+	OracleHTTPClient                            utils.HTTPDoClient
+	AWSOrganizationsDescribeAccountClientGetter iamjoin.DescribeAccountClientGetter
 }
 
 // Server implements cluster joining for nodes and bots.

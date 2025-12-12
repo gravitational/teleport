@@ -49,6 +49,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
@@ -104,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
 	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -124,6 +126,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
@@ -572,6 +575,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
+	if cfg.AWSOrganizationsDescribeAccountClientGetter == nil {
+		cachedProvider, err := awsconfig.NewCache()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cfg.AWSOrganizationsDescribeAccountClientGetter = organizationsClientUsingAmbientCredentials(cachedProvider)
+	}
+
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
 	if cfg.KubeWaitingContainers == nil {
@@ -712,6 +723,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 		recordingMetadataProvider: cfg.RecordingMetadataProvider,
+		awsOrganizationsDescribeAccountClientGetter: cfg.AWSOrganizationsDescribeAccountClientGetter,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -888,6 +900,31 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	return as, nil
+}
+
+// organizationsClientUsingAmbientCredentials returns an AWS Organizations client getter
+// that uses ambient credentials to create the client.
+func organizationsClientUsingAmbientCredentials(awsConfigProvider awsconfig.Provider) iamjoin.DescribeAccountClientGetter {
+	return func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
+		// For IAM Join flow, the join token might allow instances under an Organization to join the cluster.
+		// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
+		// This requires AWS credentials to be accessible to the Auth Service.
+		//
+		// Currently, only ambient credentials are supported, which are not available when running within Teleport Cloud.
+		// In that scenario a NotImplemented error is returned.
+		if modules.GetModules().Features().Cloud {
+			return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not supported in Teleport Cloud")
+		}
+
+		// Use cached AWS config without specifying a region, as Organizations is a global service.
+		const noRegion = ""
+		awsCfg, err := awsConfigProvider.GetConfig(ctx, noRegion, awsconfig.WithAmbientCredentials())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return organizations.NewFromConfig(awsCfg).DescribeAccount, nil
+	}
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1337,6 +1374,10 @@ type Server struct {
 	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
 	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
+
+	// awsOrganizationsDescribeAccountClientGetter provides an AWS client that can call organizations:DescribeAccount.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	awsOrganizationsDescribeAccountClientGetter iamjoin.DescribeAccountClientGetter
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
