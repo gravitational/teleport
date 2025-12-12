@@ -173,6 +173,13 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 
+// UpsertAccessListWithPreset upserts an access list (with members) with a preset. A preset is a pre-determined
+// set of actions that Teleport performs depending on the "preset_type" requested.
+// This is not implemented in the local service.
+func (a *AccessListService) UpsertAccessListWithPreset(context.Context, *accesslistv1.UpsertAccessListWithPresetRequest) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
+	return nil, nil, trace.NotImplemented("UpsertAccessListWithPreset should not be called")
+}
+
 // ListAccessLists returns a paginated list of access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	return a.service.ListResources(ctx, pageSize, nextToken)

@@ -38,6 +38,84 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// PresetType describes what type of preset was requested.
+type PresetType int32
+
+const (
+	// PRESET_TYPE_UNSPECIFIED is the zero value.
+	PresetType_PRESET_TYPE_UNSPECIFIED PresetType = 0
+	// PRESET_TYPE_LONG_TERM describes a preset where members are granted roles
+	// that grants long term access to resources. Teleport will create the
+	// following type of roles and modify the access list accordingly:
+	//   - access: Roles related to allowing access to resources (there can be
+	//     more than one role created). The access specs is determined by admin
+	//     input. These roles are directly assigned to members of this access list
+	//     (as member grants).
+	//   - requester: A role that allows requesting for the resources defined in
+	//     the "access" roles. This role is not automatically assigned to any user
+	//     and is a role an admin can optionally assign to any user not assigned
+	//     as a member to this access list.
+	//   - reviewer: A role that allows reviewing access requests to resources
+	//     defined in the "access" roles. This role is directly assigned to owners
+	//     of this access list (as owner grants).
+	PresetType_PRESET_TYPE_LONG_TERM PresetType = 1
+	// PRESET_TYPE_SHORT_TERM describes a preset where members are granted
+	// roles that require them to request for access and upon approval gain short
+	// term access. Teleport will create the following type of roles and modify
+	// the access list accordingly:
+	//   - access: Roles related to allowing access to resources (there can be
+	//     more than one role created). The access specs is determined by admin
+	//     input. These roles are NOT directly assigned to anyone.
+	//   - requester: A role that allows requesting for the resources defined in
+	//     the "access" roles. This role is directly assigned to members of this
+	//     access list (as member grants).
+	//   - reviewer: A role that allows reviewing access requests to resources
+	//     defined in the "access" roles. This role is directly assigned to owners
+	//     of this access list (as owner grants).
+	PresetType_PRESET_TYPE_SHORT_TERM PresetType = 2
+)
+
+// Enum value maps for PresetType.
+var (
+	PresetType_name = map[int32]string{
+		0: "PRESET_TYPE_UNSPECIFIED",
+		1: "PRESET_TYPE_LONG_TERM",
+		2: "PRESET_TYPE_SHORT_TERM",
+	}
+	PresetType_value = map[string]int32{
+		"PRESET_TYPE_UNSPECIFIED": 0,
+		"PRESET_TYPE_LONG_TERM":   1,
+		"PRESET_TYPE_SHORT_TERM":  2,
+	}
+)
+
+func (x PresetType) Enum() *PresetType {
+	p := new(PresetType)
+	*p = x
+	return p
+}
+
+func (x PresetType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PresetType) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_accesslist_v1_accesslist_service_proto_enumTypes[0].Descriptor()
+}
+
+func (PresetType) Type() protoreflect.EnumType {
+	return &file_teleport_accesslist_v1_accesslist_service_proto_enumTypes[0]
+}
+
+func (x PresetType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PresetType.Descriptor instead.
+func (PresetType) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{0}
+}
+
 // GetAccessListsRequest is the request for getting all access lists.
 type GetAccessListsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1277,6 +1355,245 @@ func (x *UpsertAccessListWithMembersResponse) GetMembers() []*Member {
 	return nil
 }
 
+// Role describes a role to be upserted by Teleport for an access list.
+type Role struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name_prefix is the prefix of the role name and allows the client to
+	// control part of the role name so clients like the web UI can make some
+	// assumptions based on this prefix e.g. what purpose the access role was
+	// created for. For the final role name however, Teleport will add a suffix
+	// to this name_prefix before upserting the role. The suffix serves to:
+	//   - ensure uniqueness by including the access list UID which also
+	//     ties this role to that access list making it easier to query.
+	//   - add a infix like "acl-preset" that easily identifies that this role
+	//     belongs to an access list that was created using a preset.
+	NamePrefix string `protobuf:"bytes,1,opt,name=name_prefix,json=namePrefix,proto3" json:"name_prefix,omitempty"`
+	// spec defines the access to resources.
+	Spec          *types.RoleSpecV6 `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Role) Reset() {
+	*x = Role{}
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Role) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Role) ProtoMessage() {}
+
+func (x *Role) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Role.ProtoReflect.Descriptor instead.
+func (*Role) Descriptor() ([]byte, []int) {
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *Role) GetNamePrefix() string {
+	if x != nil {
+		return x.NamePrefix
+	}
+	return ""
+}
+
+func (x *Role) GetSpec() *types.RoleSpecV6 {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+// UpsertAccessListWithPresetRequest is the request for upserting an access
+// list with a preset. Using this API will not allow certain access list fields
+// to be set or updated:
+//   - Member and owner grants: Teleport will always overwrite these fields
+//     with the roles Teleport upserted.
+type UpsertAccessListWithPresetRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// preset_type describes what preset type was requested and determines
+	// what set of actions Teleport will perform.
+	PresetType PresetType `protobuf:"varint,1,opt,name=preset_type,json=presetType,proto3,enum=teleport.accesslist.v1.PresetType" json:"preset_type,omitempty"`
+	// access_roles is a list of role specs that defines the "access" to
+	// resources. The access roles are either assigned directly or indirectly to
+	// member or owners depending on preset type requested (see PresetType).
+	//
+	// Teleport will perform the following role create/update/delete (CUD)
+	// operations:
+	//   - delete: Roles tied to this access list not supplied in this request
+	//     will be deleted. All roles that were deleted will also be removed from
+	//     any member/owner grants or other related roles referencing it
+	//     (e.g. requester/reviewer roles)
+	//   - create: If a role didn't exist, it will be created. Member/owner grants
+	//     or other related roles (e.g. requester/reviewer roles) will be updated
+	//     to include this new role.
+	//   - update: If a role exists, the role will be updated with the role spec
+	//     replaced. Updates to the access list is not needed.
+	//
+	// Defining multiple role specs is allowed to support defining access
+	// to resources where it's metadata (e.g. labels) cannot be modified
+	// by a user. One such resource is an application resource sub_kind
+	// `aws_ic_account`. AWS IC app labels are set by Teleport and does
+	// not support modifying labels.
+	//
+	// Example use case of multi roles:
+	// Lets say user wants to define access to application resource with app
+	// label `env: staging`. A user also wants to define access to a AWS IC app
+	// with a Teleport defined label `origin: aws-ic`. Since multi labels is an
+	// "AND" operation, we cannot merge these two labels in one role, so two
+	// roles are created:
+	//   - first role defines access to apps with app_labels set to
+	//     `env: staging` giving access to any apps with `env: staging`
+	//   - second role defines access to apps with app_labels set to
+	//     `origin: aws-ic` giving access specifically for AWS IC app
+	//
+	// With these two roles, users can now have access to both types of apps.
+	AccessRoles []*Role `protobuf:"bytes,2,rep,name=access_roles,json=accessRoles,proto3" json:"access_roles,omitempty"`
+	// access_list is the access list to upsert.
+	AccessList *AccessList `protobuf:"bytes,3,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
+	// members is the list of access list members to upsert.
+	Members       []*Member `protobuf:"bytes,4,rep,name=members,proto3" json:"members,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertAccessListWithPresetRequest) Reset() {
+	*x = UpsertAccessListWithPresetRequest{}
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertAccessListWithPresetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertAccessListWithPresetRequest) ProtoMessage() {}
+
+func (x *UpsertAccessListWithPresetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertAccessListWithPresetRequest.ProtoReflect.Descriptor instead.
+func (*UpsertAccessListWithPresetRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *UpsertAccessListWithPresetRequest) GetPresetType() PresetType {
+	if x != nil {
+		return x.PresetType
+	}
+	return PresetType_PRESET_TYPE_UNSPECIFIED
+}
+
+func (x *UpsertAccessListWithPresetRequest) GetAccessRoles() []*Role {
+	if x != nil {
+		return x.AccessRoles
+	}
+	return nil
+}
+
+func (x *UpsertAccessListWithPresetRequest) GetAccessList() *AccessList {
+	if x != nil {
+		return x.AccessList
+	}
+	return nil
+}
+
+func (x *UpsertAccessListWithPresetRequest) GetMembers() []*Member {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+// UpsertAccessListWithPresetResponse is the response for upserting
+// an access list with members and roles.
+type UpsertAccessListWithPresetResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// access_list is the access list that was upserted.
+	AccessList *AccessList `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
+	// members is the list of access list members that were upserted.
+	Members []*Member `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
+	// roles is a list of all the roles that Teleport upserted.
+	Roles         []*types.RoleV6 `protobuf:"bytes,3,rep,name=roles,proto3" json:"roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertAccessListWithPresetResponse) Reset() {
+	*x = UpsertAccessListWithPresetResponse{}
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertAccessListWithPresetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertAccessListWithPresetResponse) ProtoMessage() {}
+
+func (x *UpsertAccessListWithPresetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertAccessListWithPresetResponse.ProtoReflect.Descriptor instead.
+func (*UpsertAccessListWithPresetResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *UpsertAccessListWithPresetResponse) GetAccessList() *AccessList {
+	if x != nil {
+		return x.AccessList
+	}
+	return nil
+}
+
+func (x *UpsertAccessListWithPresetResponse) GetMembers() []*Member {
+	if x != nil {
+		return x.Members
+	}
+	return nil
+}
+
+func (x *UpsertAccessListWithPresetResponse) GetRoles() []*types.RoleV6 {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
 // GetAccessListMemberRequest is the request for retrieving an access_list_member.
 type GetAccessListMemberRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1290,7 +1607,7 @@ type GetAccessListMemberRequest struct {
 
 func (x *GetAccessListMemberRequest) Reset() {
 	*x = GetAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[24]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1302,7 +1619,7 @@ func (x *GetAccessListMemberRequest) String() string {
 func (*GetAccessListMemberRequest) ProtoMessage() {}
 
 func (x *GetAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[24]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1315,7 +1632,7 @@ func (x *GetAccessListMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*GetAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{24}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetAccessListMemberRequest) GetAccessList() string {
@@ -1346,7 +1663,7 @@ type GetStaticAccessListMemberRequest struct {
 
 func (x *GetStaticAccessListMemberRequest) Reset() {
 	*x = GetStaticAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[25]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1358,7 +1675,7 @@ func (x *GetStaticAccessListMemberRequest) String() string {
 func (*GetStaticAccessListMemberRequest) ProtoMessage() {}
 
 func (x *GetStaticAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[25]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1371,7 +1688,7 @@ func (x *GetStaticAccessListMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStaticAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*GetStaticAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{25}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *GetStaticAccessListMemberRequest) GetAccessList() string {
@@ -1400,7 +1717,7 @@ type GetStaticAccessListMemberResponse struct {
 
 func (x *GetStaticAccessListMemberResponse) Reset() {
 	*x = GetStaticAccessListMemberResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[26]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1412,7 +1729,7 @@ func (x *GetStaticAccessListMemberResponse) String() string {
 func (*GetStaticAccessListMemberResponse) ProtoMessage() {}
 
 func (x *GetStaticAccessListMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[26]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1425,7 +1742,7 @@ func (x *GetStaticAccessListMemberResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use GetStaticAccessListMemberResponse.ProtoReflect.Descriptor instead.
 func (*GetStaticAccessListMemberResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{26}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *GetStaticAccessListMemberResponse) GetMember() *Member {
@@ -1447,7 +1764,7 @@ type GetAccessListOwnersRequest struct {
 
 func (x *GetAccessListOwnersRequest) Reset() {
 	*x = GetAccessListOwnersRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[27]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1459,7 +1776,7 @@ func (x *GetAccessListOwnersRequest) String() string {
 func (*GetAccessListOwnersRequest) ProtoMessage() {}
 
 func (x *GetAccessListOwnersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[27]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1472,7 +1789,7 @@ func (x *GetAccessListOwnersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccessListOwnersRequest.ProtoReflect.Descriptor instead.
 func (*GetAccessListOwnersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{27}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetAccessListOwnersRequest) GetAccessList() string {
@@ -1495,7 +1812,7 @@ type GetAccessListOwnersResponse struct {
 
 func (x *GetAccessListOwnersResponse) Reset() {
 	*x = GetAccessListOwnersResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[28]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1507,7 +1824,7 @@ func (x *GetAccessListOwnersResponse) String() string {
 func (*GetAccessListOwnersResponse) ProtoMessage() {}
 
 func (x *GetAccessListOwnersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[28]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1520,7 +1837,7 @@ func (x *GetAccessListOwnersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAccessListOwnersResponse.ProtoReflect.Descriptor instead.
 func (*GetAccessListOwnersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{28}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetAccessListOwnersResponse) GetOwners() []*AccessListOwner {
@@ -1542,7 +1859,7 @@ type UpsertAccessListMemberRequest struct {
 
 func (x *UpsertAccessListMemberRequest) Reset() {
 	*x = UpsertAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[29]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1554,7 +1871,7 @@ func (x *UpsertAccessListMemberRequest) String() string {
 func (*UpsertAccessListMemberRequest) ProtoMessage() {}
 
 func (x *UpsertAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[29]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1567,7 +1884,7 @@ func (x *UpsertAccessListMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*UpsertAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{29}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *UpsertAccessListMemberRequest) GetMember() *Member {
@@ -1589,7 +1906,7 @@ type UpsertStaticAccessListMemberRequest struct {
 
 func (x *UpsertStaticAccessListMemberRequest) Reset() {
 	*x = UpsertStaticAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[30]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1601,7 +1918,7 @@ func (x *UpsertStaticAccessListMemberRequest) String() string {
 func (*UpsertStaticAccessListMemberRequest) ProtoMessage() {}
 
 func (x *UpsertStaticAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[30]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1614,7 +1931,7 @@ func (x *UpsertStaticAccessListMemberRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use UpsertStaticAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*UpsertStaticAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{30}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *UpsertStaticAccessListMemberRequest) GetMember() *Member {
@@ -1636,7 +1953,7 @@ type UpsertStaticAccessListMemberResponse struct {
 
 func (x *UpsertStaticAccessListMemberResponse) Reset() {
 	*x = UpsertStaticAccessListMemberResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[31]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1648,7 +1965,7 @@ func (x *UpsertStaticAccessListMemberResponse) String() string {
 func (*UpsertStaticAccessListMemberResponse) ProtoMessage() {}
 
 func (x *UpsertStaticAccessListMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[31]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1661,7 +1978,7 @@ func (x *UpsertStaticAccessListMemberResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use UpsertStaticAccessListMemberResponse.ProtoReflect.Descriptor instead.
 func (*UpsertStaticAccessListMemberResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{31}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *UpsertStaticAccessListMemberResponse) GetMember() *Member {
@@ -1683,7 +2000,7 @@ type UpdateAccessListMemberRequest struct {
 
 func (x *UpdateAccessListMemberRequest) Reset() {
 	*x = UpdateAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[32]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1695,7 +2012,7 @@ func (x *UpdateAccessListMemberRequest) String() string {
 func (*UpdateAccessListMemberRequest) ProtoMessage() {}
 
 func (x *UpdateAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[32]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1708,7 +2025,7 @@ func (x *UpdateAccessListMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{32}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *UpdateAccessListMemberRequest) GetMember() *Member {
@@ -1732,7 +2049,7 @@ type DeleteAccessListMemberRequest struct {
 
 func (x *DeleteAccessListMemberRequest) Reset() {
 	*x = DeleteAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[33]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1744,7 +2061,7 @@ func (x *DeleteAccessListMemberRequest) String() string {
 func (*DeleteAccessListMemberRequest) ProtoMessage() {}
 
 func (x *DeleteAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[33]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1757,7 +2074,7 @@ func (x *DeleteAccessListMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{33}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *DeleteAccessListMemberRequest) GetAccessList() string {
@@ -1788,7 +2105,7 @@ type DeleteStaticAccessListMemberRequest struct {
 
 func (x *DeleteStaticAccessListMemberRequest) Reset() {
 	*x = DeleteStaticAccessListMemberRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[34]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1800,7 +2117,7 @@ func (x *DeleteStaticAccessListMemberRequest) String() string {
 func (*DeleteStaticAccessListMemberRequest) ProtoMessage() {}
 
 func (x *DeleteStaticAccessListMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[34]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1813,7 +2130,7 @@ func (x *DeleteStaticAccessListMemberRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use DeleteStaticAccessListMemberRequest.ProtoReflect.Descriptor instead.
 func (*DeleteStaticAccessListMemberRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{34}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DeleteStaticAccessListMemberRequest) GetAccessList() string {
@@ -1840,7 +2157,7 @@ type DeleteStaticAccessListMemberResponse struct {
 
 func (x *DeleteStaticAccessListMemberResponse) Reset() {
 	*x = DeleteStaticAccessListMemberResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[35]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1852,7 +2169,7 @@ func (x *DeleteStaticAccessListMemberResponse) String() string {
 func (*DeleteStaticAccessListMemberResponse) ProtoMessage() {}
 
 func (x *DeleteStaticAccessListMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[35]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1865,7 +2182,7 @@ func (x *DeleteStaticAccessListMemberResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use DeleteStaticAccessListMemberResponse.ProtoReflect.Descriptor instead.
 func (*DeleteStaticAccessListMemberResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{35}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{38}
 }
 
 // DeleteAllAccessListMembersForAccessListRequest is the request for deleting
@@ -1880,7 +2197,7 @@ type DeleteAllAccessListMembersForAccessListRequest struct {
 
 func (x *DeleteAllAccessListMembersForAccessListRequest) Reset() {
 	*x = DeleteAllAccessListMembersForAccessListRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[36]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1892,7 +2209,7 @@ func (x *DeleteAllAccessListMembersForAccessListRequest) String() string {
 func (*DeleteAllAccessListMembersForAccessListRequest) ProtoMessage() {}
 
 func (x *DeleteAllAccessListMembersForAccessListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[36]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1905,7 +2222,7 @@ func (x *DeleteAllAccessListMembersForAccessListRequest) ProtoReflect() protoref
 
 // Deprecated: Use DeleteAllAccessListMembersForAccessListRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllAccessListMembersForAccessListRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{36}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DeleteAllAccessListMembersForAccessListRequest) GetAccessList() string {
@@ -1925,7 +2242,7 @@ type DeleteAllAccessListMembersRequest struct {
 
 func (x *DeleteAllAccessListMembersRequest) Reset() {
 	*x = DeleteAllAccessListMembersRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[37]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1937,7 +2254,7 @@ func (x *DeleteAllAccessListMembersRequest) String() string {
 func (*DeleteAllAccessListMembersRequest) ProtoMessage() {}
 
 func (x *DeleteAllAccessListMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[37]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1950,7 +2267,7 @@ func (x *DeleteAllAccessListMembersRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use DeleteAllAccessListMembersRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllAccessListMembersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{37}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{40}
 }
 
 // ListAccessListReviewsRequest is the request for getting paginated access list
@@ -1969,7 +2286,7 @@ type ListAccessListReviewsRequest struct {
 
 func (x *ListAccessListReviewsRequest) Reset() {
 	*x = ListAccessListReviewsRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[38]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1981,7 +2298,7 @@ func (x *ListAccessListReviewsRequest) String() string {
 func (*ListAccessListReviewsRequest) ProtoMessage() {}
 
 func (x *ListAccessListReviewsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[38]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1994,7 +2311,7 @@ func (x *ListAccessListReviewsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccessListReviewsRequest.ProtoReflect.Descriptor instead.
 func (*ListAccessListReviewsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{38}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *ListAccessListReviewsRequest) GetAccessList() string {
@@ -2032,7 +2349,7 @@ type ListAccessListReviewsResponse struct {
 
 func (x *ListAccessListReviewsResponse) Reset() {
 	*x = ListAccessListReviewsResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[39]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2044,7 +2361,7 @@ func (x *ListAccessListReviewsResponse) String() string {
 func (*ListAccessListReviewsResponse) ProtoMessage() {}
 
 func (x *ListAccessListReviewsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[39]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2057,7 +2374,7 @@ func (x *ListAccessListReviewsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAccessListReviewsResponse.ProtoReflect.Descriptor instead.
 func (*ListAccessListReviewsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{39}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ListAccessListReviewsResponse) GetReviews() []*Review {
@@ -2088,7 +2405,7 @@ type ListAllAccessListReviewsRequest struct {
 
 func (x *ListAllAccessListReviewsRequest) Reset() {
 	*x = ListAllAccessListReviewsRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[40]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2100,7 +2417,7 @@ func (x *ListAllAccessListReviewsRequest) String() string {
 func (*ListAllAccessListReviewsRequest) ProtoMessage() {}
 
 func (x *ListAllAccessListReviewsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[40]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2113,7 +2430,7 @@ func (x *ListAllAccessListReviewsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAllAccessListReviewsRequest.ProtoReflect.Descriptor instead.
 func (*ListAllAccessListReviewsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{40}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListAllAccessListReviewsRequest) GetPageSize() int32 {
@@ -2144,7 +2461,7 @@ type ListAllAccessListReviewsResponse struct {
 
 func (x *ListAllAccessListReviewsResponse) Reset() {
 	*x = ListAllAccessListReviewsResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[41]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2156,7 +2473,7 @@ func (x *ListAllAccessListReviewsResponse) String() string {
 func (*ListAllAccessListReviewsResponse) ProtoMessage() {}
 
 func (x *ListAllAccessListReviewsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[41]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2169,7 +2486,7 @@ func (x *ListAllAccessListReviewsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAllAccessListReviewsResponse.ProtoReflect.Descriptor instead.
 func (*ListAllAccessListReviewsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{41}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *ListAllAccessListReviewsResponse) GetReviews() []*Review {
@@ -2198,7 +2515,7 @@ type CreateAccessListReviewRequest struct {
 
 func (x *CreateAccessListReviewRequest) Reset() {
 	*x = CreateAccessListReviewRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[42]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2210,7 +2527,7 @@ func (x *CreateAccessListReviewRequest) String() string {
 func (*CreateAccessListReviewRequest) ProtoMessage() {}
 
 func (x *CreateAccessListReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[42]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2223,7 +2540,7 @@ func (x *CreateAccessListReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAccessListReviewRequest.ProtoReflect.Descriptor instead.
 func (*CreateAccessListReviewRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{42}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CreateAccessListReviewRequest) GetReview() *Review {
@@ -2247,7 +2564,7 @@ type CreateAccessListReviewResponse struct {
 
 func (x *CreateAccessListReviewResponse) Reset() {
 	*x = CreateAccessListReviewResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[43]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2259,7 +2576,7 @@ func (x *CreateAccessListReviewResponse) String() string {
 func (*CreateAccessListReviewResponse) ProtoMessage() {}
 
 func (x *CreateAccessListReviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[43]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2272,7 +2589,7 @@ func (x *CreateAccessListReviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAccessListReviewResponse.ProtoReflect.Descriptor instead.
 func (*CreateAccessListReviewResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{43}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *CreateAccessListReviewResponse) GetReviewName() string {
@@ -2303,7 +2620,7 @@ type DeleteAccessListReviewRequest struct {
 
 func (x *DeleteAccessListReviewRequest) Reset() {
 	*x = DeleteAccessListReviewRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[44]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2315,7 +2632,7 @@ func (x *DeleteAccessListReviewRequest) String() string {
 func (*DeleteAccessListReviewRequest) ProtoMessage() {}
 
 func (x *DeleteAccessListReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[44]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2328,7 +2645,7 @@ func (x *DeleteAccessListReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAccessListReviewRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAccessListReviewRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{44}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *DeleteAccessListReviewRequest) GetReviewName() string {
@@ -2361,7 +2678,7 @@ type AccessRequestPromoteRequest struct {
 
 func (x *AccessRequestPromoteRequest) Reset() {
 	*x = AccessRequestPromoteRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[45]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2373,7 +2690,7 @@ func (x *AccessRequestPromoteRequest) String() string {
 func (*AccessRequestPromoteRequest) ProtoMessage() {}
 
 func (x *AccessRequestPromoteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[45]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2386,7 +2703,7 @@ func (x *AccessRequestPromoteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestPromoteRequest.ProtoReflect.Descriptor instead.
 func (*AccessRequestPromoteRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{45}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *AccessRequestPromoteRequest) GetRequestId() string {
@@ -2422,7 +2739,7 @@ type AccessRequestPromoteResponse struct {
 
 func (x *AccessRequestPromoteResponse) Reset() {
 	*x = AccessRequestPromoteResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[46]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2434,7 +2751,7 @@ func (x *AccessRequestPromoteResponse) String() string {
 func (*AccessRequestPromoteResponse) ProtoMessage() {}
 
 func (x *AccessRequestPromoteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[46]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2447,7 +2764,7 @@ func (x *AccessRequestPromoteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessRequestPromoteResponse.ProtoReflect.Descriptor instead.
 func (*AccessRequestPromoteResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{46}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *AccessRequestPromoteResponse) GetAccessRequest() *types.AccessRequestV3 {
@@ -2469,7 +2786,7 @@ type GetSuggestedAccessListsRequest struct {
 
 func (x *GetSuggestedAccessListsRequest) Reset() {
 	*x = GetSuggestedAccessListsRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[47]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2481,7 +2798,7 @@ func (x *GetSuggestedAccessListsRequest) String() string {
 func (*GetSuggestedAccessListsRequest) ProtoMessage() {}
 
 func (x *GetSuggestedAccessListsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[47]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2494,7 +2811,7 @@ func (x *GetSuggestedAccessListsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSuggestedAccessListsRequest.ProtoReflect.Descriptor instead.
 func (*GetSuggestedAccessListsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{47}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GetSuggestedAccessListsRequest) GetAccessRequestId() string {
@@ -2516,7 +2833,7 @@ type GetSuggestedAccessListsResponse struct {
 
 func (x *GetSuggestedAccessListsResponse) Reset() {
 	*x = GetSuggestedAccessListsResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[48]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2528,7 +2845,7 @@ func (x *GetSuggestedAccessListsResponse) String() string {
 func (*GetSuggestedAccessListsResponse) ProtoMessage() {}
 
 func (x *GetSuggestedAccessListsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[48]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2541,7 +2858,7 @@ func (x *GetSuggestedAccessListsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSuggestedAccessListsResponse.ProtoReflect.Descriptor instead.
 func (*GetSuggestedAccessListsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{48}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GetSuggestedAccessListsResponse) GetAccessLists() []*AccessList {
@@ -2567,7 +2884,7 @@ type ListUserAccessListsRequest struct {
 
 func (x *ListUserAccessListsRequest) Reset() {
 	*x = ListUserAccessListsRequest{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[49]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2579,7 +2896,7 @@ func (x *ListUserAccessListsRequest) String() string {
 func (*ListUserAccessListsRequest) ProtoMessage() {}
 
 func (x *ListUserAccessListsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[49]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2592,7 +2909,7 @@ func (x *ListUserAccessListsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserAccessListsRequest.ProtoReflect.Descriptor instead.
 func (*ListUserAccessListsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{49}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListUserAccessListsRequest) GetUsername() string {
@@ -2632,7 +2949,7 @@ type ListUserAccessListsResponse struct {
 
 func (x *ListUserAccessListsResponse) Reset() {
 	*x = ListUserAccessListsResponse{}
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[50]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2644,7 +2961,7 @@ func (x *ListUserAccessListsResponse) String() string {
 func (*ListUserAccessListsResponse) ProtoMessage() {}
 
 func (x *ListUserAccessListsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[50]
+	mi := &file_teleport_accesslist_v1_accesslist_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2657,7 +2974,7 @@ func (x *ListUserAccessListsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUserAccessListsResponse.ProtoReflect.Descriptor instead.
 func (*ListUserAccessListsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{50}
+	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ListUserAccessListsResponse) GetAccessLists() []*AccessList {
@@ -2758,7 +3075,23 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"#UpsertAccessListWithMembersResponse\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x128\n" +
-	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"^\n" +
+	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"N\n" +
+	"\x04Role\x12\x1f\n" +
+	"\vname_prefix\x18\x01 \x01(\tR\n" +
+	"namePrefix\x12%\n" +
+	"\x04spec\x18\x02 \x01(\v2\x11.types.RoleSpecV6R\x04spec\"\xa8\x02\n" +
+	"!UpsertAccessListWithPresetRequest\x12C\n" +
+	"\vpreset_type\x18\x01 \x01(\x0e2\".teleport.accesslist.v1.PresetTypeR\n" +
+	"presetType\x12?\n" +
+	"\faccess_roles\x18\x02 \x03(\v2\x1c.teleport.accesslist.v1.RoleR\vaccessRoles\x12C\n" +
+	"\vaccess_list\x18\x03 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
+	"accessList\x128\n" +
+	"\amembers\x18\x04 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\"\xc8\x01\n" +
+	"\"UpsertAccessListWithPresetResponse\x12C\n" +
+	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
+	"accessList\x128\n" +
+	"\amembers\x18\x02 \x03(\v2\x1e.teleport.accesslist.v1.MemberR\amembers\x12#\n" +
+	"\x05roles\x18\x03 \x03(\v2\r.types.RoleV6R\x05roles\"^\n" +
 	"\x1aGetAccessListMemberRequest\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
 	"accessList\x12\x1f\n" +
@@ -2847,7 +3180,12 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"\faccess_lists\x18\x01 \x03(\v2\".teleport.accesslist.v1.AccessListR\vaccessLists\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12\x1f\n" +
 	"\vtotal_count\x18\x03 \x01(\x05R\n" +
-	"totalCount2\xc8\x1e\n" +
+	"totalCount*`\n" +
+	"\n" +
+	"PresetType\x12\x1b\n" +
+	"\x17PRESET_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15PRESET_TYPE_LONG_TERM\x10\x01\x12\x1a\n" +
+	"\x16PRESET_TYPE_SHORT_TERM\x10\x022\xde\x1f\n" +
 	"\x11AccessListService\x12o\n" +
 	"\x0eGetAccessLists\x12-.teleport.accesslist.v1.GetAccessListsRequest\x1a..teleport.accesslist.v1.GetAccessListsResponse\x12w\n" +
 	"\x0fListAccessLists\x12..teleport.accesslist.v1.ListAccessListsRequest\x1a/.teleport.accesslist.v1.ListAccessListsResponse\"\x03\x88\x02\x01\x12x\n" +
@@ -2871,7 +3209,8 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"\x1cDeleteStaticAccessListMember\x12;.teleport.accesslist.v1.DeleteStaticAccessListMemberRequest\x1a<.teleport.accesslist.v1.DeleteStaticAccessListMemberResponse\x12\x89\x01\n" +
 	"'DeleteAllAccessListMembersForAccessList\x12F.teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest\x1a\x16.google.protobuf.Empty\x12o\n" +
 	"\x1aDeleteAllAccessListMembers\x129.teleport.accesslist.v1.DeleteAllAccessListMembersRequest\x1a\x16.google.protobuf.Empty\x12\x96\x01\n" +
-	"\x1bUpsertAccessListWithMembers\x12:.teleport.accesslist.v1.UpsertAccessListWithMembersRequest\x1a;.teleport.accesslist.v1.UpsertAccessListWithMembersResponse\x12\x84\x01\n" +
+	"\x1bUpsertAccessListWithMembers\x12:.teleport.accesslist.v1.UpsertAccessListWithMembersRequest\x1a;.teleport.accesslist.v1.UpsertAccessListWithMembersResponse\x12\x93\x01\n" +
+	"\x1aUpsertAccessListWithPreset\x129.teleport.accesslist.v1.UpsertAccessListWithPresetRequest\x1a:.teleport.accesslist.v1.UpsertAccessListWithPresetResponse\x12\x84\x01\n" +
 	"\x15ListAccessListReviews\x124.teleport.accesslist.v1.ListAccessListReviewsRequest\x1a5.teleport.accesslist.v1.ListAccessListReviewsResponse\x12\x8d\x01\n" +
 	"\x18ListAllAccessListReviews\x127.teleport.accesslist.v1.ListAllAccessListReviewsRequest\x1a8.teleport.accesslist.v1.ListAllAccessListReviewsResponse\x12\x87\x01\n" +
 	"\x16CreateAccessListReview\x125.teleport.accesslist.v1.CreateAccessListReviewRequest\x1a6.teleport.accesslist.v1.CreateAccessListReviewResponse\x12g\n" +
@@ -2893,165 +3232,182 @@ func file_teleport_accesslist_v1_accesslist_service_proto_rawDescGZIP() []byte {
 	return file_teleport_accesslist_v1_accesslist_service_proto_rawDescData
 }
 
-var file_teleport_accesslist_v1_accesslist_service_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_teleport_accesslist_v1_accesslist_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_teleport_accesslist_v1_accesslist_service_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
 var file_teleport_accesslist_v1_accesslist_service_proto_goTypes = []any{
-	(*GetAccessListsRequest)(nil),                          // 0: teleport.accesslist.v1.GetAccessListsRequest
-	(*GetAccessListsResponse)(nil),                         // 1: teleport.accesslist.v1.GetAccessListsResponse
-	(*ListAccessListsRequest)(nil),                         // 2: teleport.accesslist.v1.ListAccessListsRequest
-	(*ListAccessListsResponse)(nil),                        // 3: teleport.accesslist.v1.ListAccessListsResponse
-	(*ListAccessListsV2Request)(nil),                       // 4: teleport.accesslist.v1.ListAccessListsV2Request
-	(*AccessListsFilter)(nil),                              // 5: teleport.accesslist.v1.AccessListsFilter
-	(*ListAccessListsV2Response)(nil),                      // 6: teleport.accesslist.v1.ListAccessListsV2Response
-	(*GetInheritedGrantsRequest)(nil),                      // 7: teleport.accesslist.v1.GetInheritedGrantsRequest
-	(*GetInheritedGrantsResponse)(nil),                     // 8: teleport.accesslist.v1.GetInheritedGrantsResponse
-	(*GetAccessListRequest)(nil),                           // 9: teleport.accesslist.v1.GetAccessListRequest
-	(*UpsertAccessListRequest)(nil),                        // 10: teleport.accesslist.v1.UpsertAccessListRequest
-	(*UpdateAccessListRequest)(nil),                        // 11: teleport.accesslist.v1.UpdateAccessListRequest
-	(*DeleteAccessListRequest)(nil),                        // 12: teleport.accesslist.v1.DeleteAccessListRequest
-	(*DeleteAllAccessListsRequest)(nil),                    // 13: teleport.accesslist.v1.DeleteAllAccessListsRequest
-	(*GetAccessListsToReviewRequest)(nil),                  // 14: teleport.accesslist.v1.GetAccessListsToReviewRequest
-	(*GetAccessListsToReviewResponse)(nil),                 // 15: teleport.accesslist.v1.GetAccessListsToReviewResponse
-	(*CountAccessListMembersRequest)(nil),                  // 16: teleport.accesslist.v1.CountAccessListMembersRequest
-	(*CountAccessListMembersResponse)(nil),                 // 17: teleport.accesslist.v1.CountAccessListMembersResponse
-	(*ListAccessListMembersRequest)(nil),                   // 18: teleport.accesslist.v1.ListAccessListMembersRequest
-	(*ListAccessListMembersResponse)(nil),                  // 19: teleport.accesslist.v1.ListAccessListMembersResponse
-	(*ListAllAccessListMembersRequest)(nil),                // 20: teleport.accesslist.v1.ListAllAccessListMembersRequest
-	(*ListAllAccessListMembersResponse)(nil),               // 21: teleport.accesslist.v1.ListAllAccessListMembersResponse
-	(*UpsertAccessListWithMembersRequest)(nil),             // 22: teleport.accesslist.v1.UpsertAccessListWithMembersRequest
-	(*UpsertAccessListWithMembersResponse)(nil),            // 23: teleport.accesslist.v1.UpsertAccessListWithMembersResponse
-	(*GetAccessListMemberRequest)(nil),                     // 24: teleport.accesslist.v1.GetAccessListMemberRequest
-	(*GetStaticAccessListMemberRequest)(nil),               // 25: teleport.accesslist.v1.GetStaticAccessListMemberRequest
-	(*GetStaticAccessListMemberResponse)(nil),              // 26: teleport.accesslist.v1.GetStaticAccessListMemberResponse
-	(*GetAccessListOwnersRequest)(nil),                     // 27: teleport.accesslist.v1.GetAccessListOwnersRequest
-	(*GetAccessListOwnersResponse)(nil),                    // 28: teleport.accesslist.v1.GetAccessListOwnersResponse
-	(*UpsertAccessListMemberRequest)(nil),                  // 29: teleport.accesslist.v1.UpsertAccessListMemberRequest
-	(*UpsertStaticAccessListMemberRequest)(nil),            // 30: teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
-	(*UpsertStaticAccessListMemberResponse)(nil),           // 31: teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
-	(*UpdateAccessListMemberRequest)(nil),                  // 32: teleport.accesslist.v1.UpdateAccessListMemberRequest
-	(*DeleteAccessListMemberRequest)(nil),                  // 33: teleport.accesslist.v1.DeleteAccessListMemberRequest
-	(*DeleteStaticAccessListMemberRequest)(nil),            // 34: teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
-	(*DeleteStaticAccessListMemberResponse)(nil),           // 35: teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
-	(*DeleteAllAccessListMembersForAccessListRequest)(nil), // 36: teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
-	(*DeleteAllAccessListMembersRequest)(nil),              // 37: teleport.accesslist.v1.DeleteAllAccessListMembersRequest
-	(*ListAccessListReviewsRequest)(nil),                   // 38: teleport.accesslist.v1.ListAccessListReviewsRequest
-	(*ListAccessListReviewsResponse)(nil),                  // 39: teleport.accesslist.v1.ListAccessListReviewsResponse
-	(*ListAllAccessListReviewsRequest)(nil),                // 40: teleport.accesslist.v1.ListAllAccessListReviewsRequest
-	(*ListAllAccessListReviewsResponse)(nil),               // 41: teleport.accesslist.v1.ListAllAccessListReviewsResponse
-	(*CreateAccessListReviewRequest)(nil),                  // 42: teleport.accesslist.v1.CreateAccessListReviewRequest
-	(*CreateAccessListReviewResponse)(nil),                 // 43: teleport.accesslist.v1.CreateAccessListReviewResponse
-	(*DeleteAccessListReviewRequest)(nil),                  // 44: teleport.accesslist.v1.DeleteAccessListReviewRequest
-	(*AccessRequestPromoteRequest)(nil),                    // 45: teleport.accesslist.v1.AccessRequestPromoteRequest
-	(*AccessRequestPromoteResponse)(nil),                   // 46: teleport.accesslist.v1.AccessRequestPromoteResponse
-	(*GetSuggestedAccessListsRequest)(nil),                 // 47: teleport.accesslist.v1.GetSuggestedAccessListsRequest
-	(*GetSuggestedAccessListsResponse)(nil),                // 48: teleport.accesslist.v1.GetSuggestedAccessListsResponse
-	(*ListUserAccessListsRequest)(nil),                     // 49: teleport.accesslist.v1.ListUserAccessListsRequest
-	(*ListUserAccessListsResponse)(nil),                    // 50: teleport.accesslist.v1.ListUserAccessListsResponse
-	(*AccessList)(nil),                                     // 51: teleport.accesslist.v1.AccessList
-	(*types.SortBy)(nil),                                   // 52: types.SortBy
-	(*AccessListGrants)(nil),                               // 53: teleport.accesslist.v1.AccessListGrants
-	(*Member)(nil),                                         // 54: teleport.accesslist.v1.Member
-	(*AccessListOwner)(nil),                                // 55: teleport.accesslist.v1.AccessListOwner
-	(*Review)(nil),                                         // 56: teleport.accesslist.v1.Review
-	(*timestamppb.Timestamp)(nil),                          // 57: google.protobuf.Timestamp
-	(*types.AccessRequestV3)(nil),                          // 58: types.AccessRequestV3
-	(*emptypb.Empty)(nil),                                  // 59: google.protobuf.Empty
+	(PresetType)(0),                             // 0: teleport.accesslist.v1.PresetType
+	(*GetAccessListsRequest)(nil),               // 1: teleport.accesslist.v1.GetAccessListsRequest
+	(*GetAccessListsResponse)(nil),              // 2: teleport.accesslist.v1.GetAccessListsResponse
+	(*ListAccessListsRequest)(nil),              // 3: teleport.accesslist.v1.ListAccessListsRequest
+	(*ListAccessListsResponse)(nil),             // 4: teleport.accesslist.v1.ListAccessListsResponse
+	(*ListAccessListsV2Request)(nil),            // 5: teleport.accesslist.v1.ListAccessListsV2Request
+	(*AccessListsFilter)(nil),                   // 6: teleport.accesslist.v1.AccessListsFilter
+	(*ListAccessListsV2Response)(nil),           // 7: teleport.accesslist.v1.ListAccessListsV2Response
+	(*GetInheritedGrantsRequest)(nil),           // 8: teleport.accesslist.v1.GetInheritedGrantsRequest
+	(*GetInheritedGrantsResponse)(nil),          // 9: teleport.accesslist.v1.GetInheritedGrantsResponse
+	(*GetAccessListRequest)(nil),                // 10: teleport.accesslist.v1.GetAccessListRequest
+	(*UpsertAccessListRequest)(nil),             // 11: teleport.accesslist.v1.UpsertAccessListRequest
+	(*UpdateAccessListRequest)(nil),             // 12: teleport.accesslist.v1.UpdateAccessListRequest
+	(*DeleteAccessListRequest)(nil),             // 13: teleport.accesslist.v1.DeleteAccessListRequest
+	(*DeleteAllAccessListsRequest)(nil),         // 14: teleport.accesslist.v1.DeleteAllAccessListsRequest
+	(*GetAccessListsToReviewRequest)(nil),       // 15: teleport.accesslist.v1.GetAccessListsToReviewRequest
+	(*GetAccessListsToReviewResponse)(nil),      // 16: teleport.accesslist.v1.GetAccessListsToReviewResponse
+	(*CountAccessListMembersRequest)(nil),       // 17: teleport.accesslist.v1.CountAccessListMembersRequest
+	(*CountAccessListMembersResponse)(nil),      // 18: teleport.accesslist.v1.CountAccessListMembersResponse
+	(*ListAccessListMembersRequest)(nil),        // 19: teleport.accesslist.v1.ListAccessListMembersRequest
+	(*ListAccessListMembersResponse)(nil),       // 20: teleport.accesslist.v1.ListAccessListMembersResponse
+	(*ListAllAccessListMembersRequest)(nil),     // 21: teleport.accesslist.v1.ListAllAccessListMembersRequest
+	(*ListAllAccessListMembersResponse)(nil),    // 22: teleport.accesslist.v1.ListAllAccessListMembersResponse
+	(*UpsertAccessListWithMembersRequest)(nil),  // 23: teleport.accesslist.v1.UpsertAccessListWithMembersRequest
+	(*UpsertAccessListWithMembersResponse)(nil), // 24: teleport.accesslist.v1.UpsertAccessListWithMembersResponse
+	(*Role)(nil), // 25: teleport.accesslist.v1.Role
+	(*UpsertAccessListWithPresetRequest)(nil),              // 26: teleport.accesslist.v1.UpsertAccessListWithPresetRequest
+	(*UpsertAccessListWithPresetResponse)(nil),             // 27: teleport.accesslist.v1.UpsertAccessListWithPresetResponse
+	(*GetAccessListMemberRequest)(nil),                     // 28: teleport.accesslist.v1.GetAccessListMemberRequest
+	(*GetStaticAccessListMemberRequest)(nil),               // 29: teleport.accesslist.v1.GetStaticAccessListMemberRequest
+	(*GetStaticAccessListMemberResponse)(nil),              // 30: teleport.accesslist.v1.GetStaticAccessListMemberResponse
+	(*GetAccessListOwnersRequest)(nil),                     // 31: teleport.accesslist.v1.GetAccessListOwnersRequest
+	(*GetAccessListOwnersResponse)(nil),                    // 32: teleport.accesslist.v1.GetAccessListOwnersResponse
+	(*UpsertAccessListMemberRequest)(nil),                  // 33: teleport.accesslist.v1.UpsertAccessListMemberRequest
+	(*UpsertStaticAccessListMemberRequest)(nil),            // 34: teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
+	(*UpsertStaticAccessListMemberResponse)(nil),           // 35: teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
+	(*UpdateAccessListMemberRequest)(nil),                  // 36: teleport.accesslist.v1.UpdateAccessListMemberRequest
+	(*DeleteAccessListMemberRequest)(nil),                  // 37: teleport.accesslist.v1.DeleteAccessListMemberRequest
+	(*DeleteStaticAccessListMemberRequest)(nil),            // 38: teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
+	(*DeleteStaticAccessListMemberResponse)(nil),           // 39: teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
+	(*DeleteAllAccessListMembersForAccessListRequest)(nil), // 40: teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
+	(*DeleteAllAccessListMembersRequest)(nil),              // 41: teleport.accesslist.v1.DeleteAllAccessListMembersRequest
+	(*ListAccessListReviewsRequest)(nil),                   // 42: teleport.accesslist.v1.ListAccessListReviewsRequest
+	(*ListAccessListReviewsResponse)(nil),                  // 43: teleport.accesslist.v1.ListAccessListReviewsResponse
+	(*ListAllAccessListReviewsRequest)(nil),                // 44: teleport.accesslist.v1.ListAllAccessListReviewsRequest
+	(*ListAllAccessListReviewsResponse)(nil),               // 45: teleport.accesslist.v1.ListAllAccessListReviewsResponse
+	(*CreateAccessListReviewRequest)(nil),                  // 46: teleport.accesslist.v1.CreateAccessListReviewRequest
+	(*CreateAccessListReviewResponse)(nil),                 // 47: teleport.accesslist.v1.CreateAccessListReviewResponse
+	(*DeleteAccessListReviewRequest)(nil),                  // 48: teleport.accesslist.v1.DeleteAccessListReviewRequest
+	(*AccessRequestPromoteRequest)(nil),                    // 49: teleport.accesslist.v1.AccessRequestPromoteRequest
+	(*AccessRequestPromoteResponse)(nil),                   // 50: teleport.accesslist.v1.AccessRequestPromoteResponse
+	(*GetSuggestedAccessListsRequest)(nil),                 // 51: teleport.accesslist.v1.GetSuggestedAccessListsRequest
+	(*GetSuggestedAccessListsResponse)(nil),                // 52: teleport.accesslist.v1.GetSuggestedAccessListsResponse
+	(*ListUserAccessListsRequest)(nil),                     // 53: teleport.accesslist.v1.ListUserAccessListsRequest
+	(*ListUserAccessListsResponse)(nil),                    // 54: teleport.accesslist.v1.ListUserAccessListsResponse
+	(*AccessList)(nil),                                     // 55: teleport.accesslist.v1.AccessList
+	(*types.SortBy)(nil),                                   // 56: types.SortBy
+	(*AccessListGrants)(nil),                               // 57: teleport.accesslist.v1.AccessListGrants
+	(*Member)(nil),                                         // 58: teleport.accesslist.v1.Member
+	(*types.RoleSpecV6)(nil),                               // 59: types.RoleSpecV6
+	(*types.RoleV6)(nil),                                   // 60: types.RoleV6
+	(*AccessListOwner)(nil),                                // 61: teleport.accesslist.v1.AccessListOwner
+	(*Review)(nil),                                         // 62: teleport.accesslist.v1.Review
+	(*timestamppb.Timestamp)(nil),                          // 63: google.protobuf.Timestamp
+	(*types.AccessRequestV3)(nil),                          // 64: types.AccessRequestV3
+	(*emptypb.Empty)(nil),                                  // 65: google.protobuf.Empty
 }
 var file_teleport_accesslist_v1_accesslist_service_proto_depIdxs = []int32{
-	51, // 0: teleport.accesslist.v1.GetAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	51, // 1: teleport.accesslist.v1.ListAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	52, // 2: teleport.accesslist.v1.ListAccessListsV2Request.sort_by:type_name -> types.SortBy
-	5,  // 3: teleport.accesslist.v1.ListAccessListsV2Request.filter:type_name -> teleport.accesslist.v1.AccessListsFilter
-	51, // 4: teleport.accesslist.v1.ListAccessListsV2Response.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	53, // 5: teleport.accesslist.v1.GetInheritedGrantsResponse.grants:type_name -> teleport.accesslist.v1.AccessListGrants
-	51, // 6: teleport.accesslist.v1.UpsertAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	51, // 7: teleport.accesslist.v1.UpdateAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	51, // 8: teleport.accesslist.v1.GetAccessListsToReviewResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	54, // 9: teleport.accesslist.v1.ListAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	54, // 10: teleport.accesslist.v1.ListAllAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	51, // 11: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
-	54, // 12: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.members:type_name -> teleport.accesslist.v1.Member
-	51, // 13: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
-	54, // 14: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.members:type_name -> teleport.accesslist.v1.Member
-	54, // 15: teleport.accesslist.v1.GetStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
-	55, // 16: teleport.accesslist.v1.GetAccessListOwnersResponse.owners:type_name -> teleport.accesslist.v1.AccessListOwner
-	54, // 17: teleport.accesslist.v1.UpsertAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
-	54, // 18: teleport.accesslist.v1.UpsertStaticAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
-	54, // 19: teleport.accesslist.v1.UpsertStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
-	54, // 20: teleport.accesslist.v1.UpdateAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
-	56, // 21: teleport.accesslist.v1.ListAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
-	56, // 22: teleport.accesslist.v1.ListAllAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
-	56, // 23: teleport.accesslist.v1.CreateAccessListReviewRequest.review:type_name -> teleport.accesslist.v1.Review
-	57, // 24: teleport.accesslist.v1.CreateAccessListReviewResponse.next_audit_date:type_name -> google.protobuf.Timestamp
-	58, // 25: teleport.accesslist.v1.AccessRequestPromoteResponse.access_request:type_name -> types.AccessRequestV3
-	51, // 26: teleport.accesslist.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	51, // 27: teleport.accesslist.v1.ListUserAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	0,  // 28: teleport.accesslist.v1.AccessListService.GetAccessLists:input_type -> teleport.accesslist.v1.GetAccessListsRequest
-	2,  // 29: teleport.accesslist.v1.AccessListService.ListAccessLists:input_type -> teleport.accesslist.v1.ListAccessListsRequest
-	4,  // 30: teleport.accesslist.v1.AccessListService.ListAccessListsV2:input_type -> teleport.accesslist.v1.ListAccessListsV2Request
-	9,  // 31: teleport.accesslist.v1.AccessListService.GetAccessList:input_type -> teleport.accesslist.v1.GetAccessListRequest
-	10, // 32: teleport.accesslist.v1.AccessListService.UpsertAccessList:input_type -> teleport.accesslist.v1.UpsertAccessListRequest
-	11, // 33: teleport.accesslist.v1.AccessListService.UpdateAccessList:input_type -> teleport.accesslist.v1.UpdateAccessListRequest
-	12, // 34: teleport.accesslist.v1.AccessListService.DeleteAccessList:input_type -> teleport.accesslist.v1.DeleteAccessListRequest
-	13, // 35: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:input_type -> teleport.accesslist.v1.DeleteAllAccessListsRequest
-	14, // 36: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:input_type -> teleport.accesslist.v1.GetAccessListsToReviewRequest
-	16, // 37: teleport.accesslist.v1.AccessListService.CountAccessListMembers:input_type -> teleport.accesslist.v1.CountAccessListMembersRequest
-	18, // 38: teleport.accesslist.v1.AccessListService.ListAccessListMembers:input_type -> teleport.accesslist.v1.ListAccessListMembersRequest
-	20, // 39: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:input_type -> teleport.accesslist.v1.ListAllAccessListMembersRequest
-	24, // 40: teleport.accesslist.v1.AccessListService.GetAccessListMember:input_type -> teleport.accesslist.v1.GetAccessListMemberRequest
-	25, // 41: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:input_type -> teleport.accesslist.v1.GetStaticAccessListMemberRequest
-	27, // 42: teleport.accesslist.v1.AccessListService.GetAccessListOwners:input_type -> teleport.accesslist.v1.GetAccessListOwnersRequest
-	29, // 43: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:input_type -> teleport.accesslist.v1.UpsertAccessListMemberRequest
-	30, // 44: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:input_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
-	32, // 45: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:input_type -> teleport.accesslist.v1.UpdateAccessListMemberRequest
-	33, // 46: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:input_type -> teleport.accesslist.v1.DeleteAccessListMemberRequest
-	34, // 47: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:input_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
-	36, // 48: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
-	37, // 49: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersRequest
-	22, // 50: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:input_type -> teleport.accesslist.v1.UpsertAccessListWithMembersRequest
-	38, // 51: teleport.accesslist.v1.AccessListService.ListAccessListReviews:input_type -> teleport.accesslist.v1.ListAccessListReviewsRequest
-	40, // 52: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:input_type -> teleport.accesslist.v1.ListAllAccessListReviewsRequest
-	42, // 53: teleport.accesslist.v1.AccessListService.CreateAccessListReview:input_type -> teleport.accesslist.v1.CreateAccessListReviewRequest
-	44, // 54: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:input_type -> teleport.accesslist.v1.DeleteAccessListReviewRequest
-	45, // 55: teleport.accesslist.v1.AccessListService.AccessRequestPromote:input_type -> teleport.accesslist.v1.AccessRequestPromoteRequest
-	47, // 56: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:input_type -> teleport.accesslist.v1.GetSuggestedAccessListsRequest
-	7,  // 57: teleport.accesslist.v1.AccessListService.GetInheritedGrants:input_type -> teleport.accesslist.v1.GetInheritedGrantsRequest
-	49, // 58: teleport.accesslist.v1.AccessListService.ListUserAccessLists:input_type -> teleport.accesslist.v1.ListUserAccessListsRequest
-	1,  // 59: teleport.accesslist.v1.AccessListService.GetAccessLists:output_type -> teleport.accesslist.v1.GetAccessListsResponse
-	3,  // 60: teleport.accesslist.v1.AccessListService.ListAccessLists:output_type -> teleport.accesslist.v1.ListAccessListsResponse
-	6,  // 61: teleport.accesslist.v1.AccessListService.ListAccessListsV2:output_type -> teleport.accesslist.v1.ListAccessListsV2Response
-	51, // 62: teleport.accesslist.v1.AccessListService.GetAccessList:output_type -> teleport.accesslist.v1.AccessList
-	51, // 63: teleport.accesslist.v1.AccessListService.UpsertAccessList:output_type -> teleport.accesslist.v1.AccessList
-	51, // 64: teleport.accesslist.v1.AccessListService.UpdateAccessList:output_type -> teleport.accesslist.v1.AccessList
-	59, // 65: teleport.accesslist.v1.AccessListService.DeleteAccessList:output_type -> google.protobuf.Empty
-	59, // 66: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:output_type -> google.protobuf.Empty
-	15, // 67: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:output_type -> teleport.accesslist.v1.GetAccessListsToReviewResponse
-	17, // 68: teleport.accesslist.v1.AccessListService.CountAccessListMembers:output_type -> teleport.accesslist.v1.CountAccessListMembersResponse
-	19, // 69: teleport.accesslist.v1.AccessListService.ListAccessListMembers:output_type -> teleport.accesslist.v1.ListAccessListMembersResponse
-	21, // 70: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:output_type -> teleport.accesslist.v1.ListAllAccessListMembersResponse
-	54, // 71: teleport.accesslist.v1.AccessListService.GetAccessListMember:output_type -> teleport.accesslist.v1.Member
-	26, // 72: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:output_type -> teleport.accesslist.v1.GetStaticAccessListMemberResponse
-	28, // 73: teleport.accesslist.v1.AccessListService.GetAccessListOwners:output_type -> teleport.accesslist.v1.GetAccessListOwnersResponse
-	54, // 74: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:output_type -> teleport.accesslist.v1.Member
-	31, // 75: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:output_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
-	54, // 76: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:output_type -> teleport.accesslist.v1.Member
-	59, // 77: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:output_type -> google.protobuf.Empty
-	35, // 78: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:output_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
-	59, // 79: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:output_type -> google.protobuf.Empty
-	59, // 80: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:output_type -> google.protobuf.Empty
-	23, // 81: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:output_type -> teleport.accesslist.v1.UpsertAccessListWithMembersResponse
-	39, // 82: teleport.accesslist.v1.AccessListService.ListAccessListReviews:output_type -> teleport.accesslist.v1.ListAccessListReviewsResponse
-	41, // 83: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:output_type -> teleport.accesslist.v1.ListAllAccessListReviewsResponse
-	43, // 84: teleport.accesslist.v1.AccessListService.CreateAccessListReview:output_type -> teleport.accesslist.v1.CreateAccessListReviewResponse
-	59, // 85: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:output_type -> google.protobuf.Empty
-	46, // 86: teleport.accesslist.v1.AccessListService.AccessRequestPromote:output_type -> teleport.accesslist.v1.AccessRequestPromoteResponse
-	48, // 87: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:output_type -> teleport.accesslist.v1.GetSuggestedAccessListsResponse
-	8,  // 88: teleport.accesslist.v1.AccessListService.GetInheritedGrants:output_type -> teleport.accesslist.v1.GetInheritedGrantsResponse
-	50, // 89: teleport.accesslist.v1.AccessListService.ListUserAccessLists:output_type -> teleport.accesslist.v1.ListUserAccessListsResponse
-	59, // [59:90] is the sub-list for method output_type
-	28, // [28:59] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	55, // 0: teleport.accesslist.v1.GetAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	55, // 1: teleport.accesslist.v1.ListAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	56, // 2: teleport.accesslist.v1.ListAccessListsV2Request.sort_by:type_name -> types.SortBy
+	6,  // 3: teleport.accesslist.v1.ListAccessListsV2Request.filter:type_name -> teleport.accesslist.v1.AccessListsFilter
+	55, // 4: teleport.accesslist.v1.ListAccessListsV2Response.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	57, // 5: teleport.accesslist.v1.GetInheritedGrantsResponse.grants:type_name -> teleport.accesslist.v1.AccessListGrants
+	55, // 6: teleport.accesslist.v1.UpsertAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	55, // 7: teleport.accesslist.v1.UpdateAccessListRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	55, // 8: teleport.accesslist.v1.GetAccessListsToReviewResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	58, // 9: teleport.accesslist.v1.ListAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
+	58, // 10: teleport.accesslist.v1.ListAllAccessListMembersResponse.members:type_name -> teleport.accesslist.v1.Member
+	55, // 11: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	58, // 12: teleport.accesslist.v1.UpsertAccessListWithMembersRequest.members:type_name -> teleport.accesslist.v1.Member
+	55, // 13: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
+	58, // 14: teleport.accesslist.v1.UpsertAccessListWithMembersResponse.members:type_name -> teleport.accesslist.v1.Member
+	59, // 15: teleport.accesslist.v1.Role.spec:type_name -> types.RoleSpecV6
+	0,  // 16: teleport.accesslist.v1.UpsertAccessListWithPresetRequest.preset_type:type_name -> teleport.accesslist.v1.PresetType
+	25, // 17: teleport.accesslist.v1.UpsertAccessListWithPresetRequest.access_roles:type_name -> teleport.accesslist.v1.Role
+	55, // 18: teleport.accesslist.v1.UpsertAccessListWithPresetRequest.access_list:type_name -> teleport.accesslist.v1.AccessList
+	58, // 19: teleport.accesslist.v1.UpsertAccessListWithPresetRequest.members:type_name -> teleport.accesslist.v1.Member
+	55, // 20: teleport.accesslist.v1.UpsertAccessListWithPresetResponse.access_list:type_name -> teleport.accesslist.v1.AccessList
+	58, // 21: teleport.accesslist.v1.UpsertAccessListWithPresetResponse.members:type_name -> teleport.accesslist.v1.Member
+	60, // 22: teleport.accesslist.v1.UpsertAccessListWithPresetResponse.roles:type_name -> types.RoleV6
+	58, // 23: teleport.accesslist.v1.GetStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
+	61, // 24: teleport.accesslist.v1.GetAccessListOwnersResponse.owners:type_name -> teleport.accesslist.v1.AccessListOwner
+	58, // 25: teleport.accesslist.v1.UpsertAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
+	58, // 26: teleport.accesslist.v1.UpsertStaticAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
+	58, // 27: teleport.accesslist.v1.UpsertStaticAccessListMemberResponse.member:type_name -> teleport.accesslist.v1.Member
+	58, // 28: teleport.accesslist.v1.UpdateAccessListMemberRequest.member:type_name -> teleport.accesslist.v1.Member
+	62, // 29: teleport.accesslist.v1.ListAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
+	62, // 30: teleport.accesslist.v1.ListAllAccessListReviewsResponse.reviews:type_name -> teleport.accesslist.v1.Review
+	62, // 31: teleport.accesslist.v1.CreateAccessListReviewRequest.review:type_name -> teleport.accesslist.v1.Review
+	63, // 32: teleport.accesslist.v1.CreateAccessListReviewResponse.next_audit_date:type_name -> google.protobuf.Timestamp
+	64, // 33: teleport.accesslist.v1.AccessRequestPromoteResponse.access_request:type_name -> types.AccessRequestV3
+	55, // 34: teleport.accesslist.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	55, // 35: teleport.accesslist.v1.ListUserAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	1,  // 36: teleport.accesslist.v1.AccessListService.GetAccessLists:input_type -> teleport.accesslist.v1.GetAccessListsRequest
+	3,  // 37: teleport.accesslist.v1.AccessListService.ListAccessLists:input_type -> teleport.accesslist.v1.ListAccessListsRequest
+	5,  // 38: teleport.accesslist.v1.AccessListService.ListAccessListsV2:input_type -> teleport.accesslist.v1.ListAccessListsV2Request
+	10, // 39: teleport.accesslist.v1.AccessListService.GetAccessList:input_type -> teleport.accesslist.v1.GetAccessListRequest
+	11, // 40: teleport.accesslist.v1.AccessListService.UpsertAccessList:input_type -> teleport.accesslist.v1.UpsertAccessListRequest
+	12, // 41: teleport.accesslist.v1.AccessListService.UpdateAccessList:input_type -> teleport.accesslist.v1.UpdateAccessListRequest
+	13, // 42: teleport.accesslist.v1.AccessListService.DeleteAccessList:input_type -> teleport.accesslist.v1.DeleteAccessListRequest
+	14, // 43: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:input_type -> teleport.accesslist.v1.DeleteAllAccessListsRequest
+	15, // 44: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:input_type -> teleport.accesslist.v1.GetAccessListsToReviewRequest
+	17, // 45: teleport.accesslist.v1.AccessListService.CountAccessListMembers:input_type -> teleport.accesslist.v1.CountAccessListMembersRequest
+	19, // 46: teleport.accesslist.v1.AccessListService.ListAccessListMembers:input_type -> teleport.accesslist.v1.ListAccessListMembersRequest
+	21, // 47: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:input_type -> teleport.accesslist.v1.ListAllAccessListMembersRequest
+	28, // 48: teleport.accesslist.v1.AccessListService.GetAccessListMember:input_type -> teleport.accesslist.v1.GetAccessListMemberRequest
+	29, // 49: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:input_type -> teleport.accesslist.v1.GetStaticAccessListMemberRequest
+	31, // 50: teleport.accesslist.v1.AccessListService.GetAccessListOwners:input_type -> teleport.accesslist.v1.GetAccessListOwnersRequest
+	33, // 51: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:input_type -> teleport.accesslist.v1.UpsertAccessListMemberRequest
+	34, // 52: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:input_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberRequest
+	36, // 53: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:input_type -> teleport.accesslist.v1.UpdateAccessListMemberRequest
+	37, // 54: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:input_type -> teleport.accesslist.v1.DeleteAccessListMemberRequest
+	38, // 55: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:input_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberRequest
+	40, // 56: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersForAccessListRequest
+	41, // 57: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:input_type -> teleport.accesslist.v1.DeleteAllAccessListMembersRequest
+	23, // 58: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:input_type -> teleport.accesslist.v1.UpsertAccessListWithMembersRequest
+	26, // 59: teleport.accesslist.v1.AccessListService.UpsertAccessListWithPreset:input_type -> teleport.accesslist.v1.UpsertAccessListWithPresetRequest
+	42, // 60: teleport.accesslist.v1.AccessListService.ListAccessListReviews:input_type -> teleport.accesslist.v1.ListAccessListReviewsRequest
+	44, // 61: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:input_type -> teleport.accesslist.v1.ListAllAccessListReviewsRequest
+	46, // 62: teleport.accesslist.v1.AccessListService.CreateAccessListReview:input_type -> teleport.accesslist.v1.CreateAccessListReviewRequest
+	48, // 63: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:input_type -> teleport.accesslist.v1.DeleteAccessListReviewRequest
+	49, // 64: teleport.accesslist.v1.AccessListService.AccessRequestPromote:input_type -> teleport.accesslist.v1.AccessRequestPromoteRequest
+	51, // 65: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:input_type -> teleport.accesslist.v1.GetSuggestedAccessListsRequest
+	8,  // 66: teleport.accesslist.v1.AccessListService.GetInheritedGrants:input_type -> teleport.accesslist.v1.GetInheritedGrantsRequest
+	53, // 67: teleport.accesslist.v1.AccessListService.ListUserAccessLists:input_type -> teleport.accesslist.v1.ListUserAccessListsRequest
+	2,  // 68: teleport.accesslist.v1.AccessListService.GetAccessLists:output_type -> teleport.accesslist.v1.GetAccessListsResponse
+	4,  // 69: teleport.accesslist.v1.AccessListService.ListAccessLists:output_type -> teleport.accesslist.v1.ListAccessListsResponse
+	7,  // 70: teleport.accesslist.v1.AccessListService.ListAccessListsV2:output_type -> teleport.accesslist.v1.ListAccessListsV2Response
+	55, // 71: teleport.accesslist.v1.AccessListService.GetAccessList:output_type -> teleport.accesslist.v1.AccessList
+	55, // 72: teleport.accesslist.v1.AccessListService.UpsertAccessList:output_type -> teleport.accesslist.v1.AccessList
+	55, // 73: teleport.accesslist.v1.AccessListService.UpdateAccessList:output_type -> teleport.accesslist.v1.AccessList
+	65, // 74: teleport.accesslist.v1.AccessListService.DeleteAccessList:output_type -> google.protobuf.Empty
+	65, // 75: teleport.accesslist.v1.AccessListService.DeleteAllAccessLists:output_type -> google.protobuf.Empty
+	16, // 76: teleport.accesslist.v1.AccessListService.GetAccessListsToReview:output_type -> teleport.accesslist.v1.GetAccessListsToReviewResponse
+	18, // 77: teleport.accesslist.v1.AccessListService.CountAccessListMembers:output_type -> teleport.accesslist.v1.CountAccessListMembersResponse
+	20, // 78: teleport.accesslist.v1.AccessListService.ListAccessListMembers:output_type -> teleport.accesslist.v1.ListAccessListMembersResponse
+	22, // 79: teleport.accesslist.v1.AccessListService.ListAllAccessListMembers:output_type -> teleport.accesslist.v1.ListAllAccessListMembersResponse
+	58, // 80: teleport.accesslist.v1.AccessListService.GetAccessListMember:output_type -> teleport.accesslist.v1.Member
+	30, // 81: teleport.accesslist.v1.AccessListService.GetStaticAccessListMember:output_type -> teleport.accesslist.v1.GetStaticAccessListMemberResponse
+	32, // 82: teleport.accesslist.v1.AccessListService.GetAccessListOwners:output_type -> teleport.accesslist.v1.GetAccessListOwnersResponse
+	58, // 83: teleport.accesslist.v1.AccessListService.UpsertAccessListMember:output_type -> teleport.accesslist.v1.Member
+	35, // 84: teleport.accesslist.v1.AccessListService.UpsertStaticAccessListMember:output_type -> teleport.accesslist.v1.UpsertStaticAccessListMemberResponse
+	58, // 85: teleport.accesslist.v1.AccessListService.UpdateAccessListMember:output_type -> teleport.accesslist.v1.Member
+	65, // 86: teleport.accesslist.v1.AccessListService.DeleteAccessListMember:output_type -> google.protobuf.Empty
+	39, // 87: teleport.accesslist.v1.AccessListService.DeleteStaticAccessListMember:output_type -> teleport.accesslist.v1.DeleteStaticAccessListMemberResponse
+	65, // 88: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembersForAccessList:output_type -> google.protobuf.Empty
+	65, // 89: teleport.accesslist.v1.AccessListService.DeleteAllAccessListMembers:output_type -> google.protobuf.Empty
+	24, // 90: teleport.accesslist.v1.AccessListService.UpsertAccessListWithMembers:output_type -> teleport.accesslist.v1.UpsertAccessListWithMembersResponse
+	27, // 91: teleport.accesslist.v1.AccessListService.UpsertAccessListWithPreset:output_type -> teleport.accesslist.v1.UpsertAccessListWithPresetResponse
+	43, // 92: teleport.accesslist.v1.AccessListService.ListAccessListReviews:output_type -> teleport.accesslist.v1.ListAccessListReviewsResponse
+	45, // 93: teleport.accesslist.v1.AccessListService.ListAllAccessListReviews:output_type -> teleport.accesslist.v1.ListAllAccessListReviewsResponse
+	47, // 94: teleport.accesslist.v1.AccessListService.CreateAccessListReview:output_type -> teleport.accesslist.v1.CreateAccessListReviewResponse
+	65, // 95: teleport.accesslist.v1.AccessListService.DeleteAccessListReview:output_type -> google.protobuf.Empty
+	50, // 96: teleport.accesslist.v1.AccessListService.AccessRequestPromote:output_type -> teleport.accesslist.v1.AccessRequestPromoteResponse
+	52, // 97: teleport.accesslist.v1.AccessListService.GetSuggestedAccessLists:output_type -> teleport.accesslist.v1.GetSuggestedAccessListsResponse
+	9,  // 98: teleport.accesslist.v1.AccessListService.GetInheritedGrants:output_type -> teleport.accesslist.v1.GetInheritedGrantsResponse
+	54, // 99: teleport.accesslist.v1.AccessListService.ListUserAccessLists:output_type -> teleport.accesslist.v1.ListUserAccessListsResponse
+	68, // [68:100] is the sub-list for method output_type
+	36, // [36:68] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_teleport_accesslist_v1_accesslist_service_proto_init() }
@@ -3065,13 +3421,14 @@ func file_teleport_accesslist_v1_accesslist_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_accesslist_v1_accesslist_service_proto_rawDesc), len(file_teleport_accesslist_v1_accesslist_service_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   51,
+			NumEnums:      1,
+			NumMessages:   54,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_accesslist_v1_accesslist_service_proto_goTypes,
 		DependencyIndexes: file_teleport_accesslist_v1_accesslist_service_proto_depIdxs,
+		EnumInfos:         file_teleport_accesslist_v1_accesslist_service_proto_enumTypes,
 		MessageInfos:      file_teleport_accesslist_v1_accesslist_service_proto_msgTypes,
 	}.Build()
 	File_teleport_accesslist_v1_accesslist_service_proto = out.File
