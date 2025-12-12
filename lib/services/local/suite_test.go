@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -220,7 +221,8 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	ctx := context.Background()
-	ca := NewTestCA(types.UserCA, "example.com")
+	ca, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
 	out, err := s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
@@ -246,7 +248,8 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// test compare and swap
-	ca = NewTestCA(types.UserCA, "example.com")
+	ca, err = authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
 	require.NoError(t, s.TrustS.CreateCertAuthority(ctx, ca))
 
 	clock := clockwork.NewFakeClock()
@@ -267,7 +270,8 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// test conditional update
-	ca = NewTestCA(types.UserCA, "update.example.com")
+	ca, err = authcatest.NewCA(types.UserCA, "update.example.com")
+	require.NoError(t, err)
 	rev, err := s.TrustInternalS.CreateCertAuthorities(ctx, ca)
 	require.NoError(t, err)
 
@@ -304,7 +308,9 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	cas = nil
 	for _, cn := range clusterNames {
-		cas = append(cas, NewTestCA(types.UserCA, cn))
+		ca, err := authcatest.NewCA(types.UserCA, cn)
+		require.NoError(t, err)
+		cas = append(cas, ca)
 	}
 
 	rev, err = s.TrustInternalS.CreateCertAuthorities(ctx, cas...)
@@ -1992,7 +1998,8 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				LoadSecrets: true,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
 				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), true)
@@ -2013,7 +2020,8 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				LoadSecrets: false,
 			},
 			crud: func(context.Context) types.Resource {
-				ca := NewTestCA(types.UserCA, "example.com")
+				ca, err := authcatest.NewCA(types.UserCA, "example.com")
+				require.NoError(t, err)
 				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
 				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), false)
