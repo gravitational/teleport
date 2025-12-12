@@ -35,7 +35,7 @@ export function Welcome(props: FlowStepProps) {
 
   const theme = useTheme();
 
-  const welcomeImage: IconSpec = {
+  const welcomeImage: ImageSpec = {
     light: welcomeLight,
     dark: welcomeDark,
   };
@@ -86,6 +86,6 @@ const Container = styled(Flex)`
   gap: ${({ theme }) => theme.space[1]}px;
 `;
 
-type IconSpec = {
+type ImageSpec = {
   [K in Theme['type']]: string;
 };
