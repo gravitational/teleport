@@ -404,6 +404,9 @@ cert_authority_override for the "spiffe-tls" virtual CA.
 
 Unifying the features is considered a stretch goal.
 
+TODO(codingllama): SPIFFE is a target goal, not a stretch. Polish the SPIFFE
+section and add UX examples.
+
 ### Auth service changes
 
 A new Auth-bound gRPC service is responsible for managing
