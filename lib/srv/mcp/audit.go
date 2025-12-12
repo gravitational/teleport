@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -36,7 +35,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -448,32 +446,15 @@ func headersForAudit(h http.Header) http.Header {
 // guessEgressAuthType makes an educated guess on what kind of auth is used to
 // for the remote MCP server.
 func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
-	if rewrite != nil {
-		testJWTTraits := map[string][]string{
-			"jwt": {"test", "jwt"},
-		}
-
-		var rewriteAuth bool
-		for _, rewrite := range rewrite.Headers {
-			if strings.EqualFold(rewrite.Name, "Authorization") {
-				rewriteAuth = true
-			}
-
-			// Check if any header value includes "{{internal.jwt}}".
-			if strings.Contains(rewrite.Value, "internal.jwt") {
-				// Apply fake traits just to be sure. The fake traits will
-				// result two values if applied successfully.
-				if interpolated, _ := services.ApplyValueTraits(rewrite.Value, testJWTTraits); len(interpolated) > 1 {
-					return "app-jwt"
-				}
-			}
-		}
-
-		// Auth header has be defined in the app definition but not using
-		// "{{internal.jwt}}".
-		if rewriteAuth {
-			return "app-defined"
-		}
+	// TODO(greedy52) cache auth details per session.
+	rewriteDetails := newRewriteAuthDetails(rewrite)
+	switch {
+	case rewriteDetails.hasIDTokenTrait:
+		return "app-oidc"
+	case rewriteDetails.hasJWTTrait:
+		return "app-jwt"
+	case rewriteDetails.rewriteAuthHeader:
+		return "app-defined"
 	}
 
 	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is

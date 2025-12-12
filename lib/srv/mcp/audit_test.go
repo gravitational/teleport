@@ -115,6 +115,16 @@ func Test_guessEgressAuthType(t *testing.T) {
 			},
 			expect: "app-jwt",
 		},
+		{
+			name: "app defined with Teleport OIDC token",
+			inputRewrite: &types.Rewrite{
+				Headers: []*types.Header{{
+					Name:  "Authorization",
+					Value: "Bearer {{internal.id_token}}",
+				}},
+			},
+			expect: "app-oidc",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
