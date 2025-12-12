@@ -22,6 +22,7 @@ package accessv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -188,7 +189,12 @@ func (x *ScopedRoleSpec) GetAllow() *ScopedRoleConditions {
 type ScopedRoleConditions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Rules describe basic resource:verb permissions.
-	Rules         []*ScopedRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	Rules []*ScopedRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
+	// Logins is the list of host logins this role allows.
+	Logins []string `protobuf:"bytes,2,rep,name=logins,proto3" json:"logins,omitempty"`
+	// NodeLabels is a map of node labels (used to dynamically grant access to
+	// nodes).
+	NodeLabels    []*v11.Label `protobuf:"bytes,3,rep,name=node_labels,json=nodeLabels,proto3" json:"node_labels,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -226,6 +232,20 @@ func (*ScopedRoleConditions) Descriptor() ([]byte, []int) {
 func (x *ScopedRoleConditions) GetRules() []*ScopedRule {
 	if x != nil {
 		return x.Rules
+	}
+	return nil
+}
+
+func (x *ScopedRoleConditions) GetLogins() []string {
+	if x != nil {
+		return x.Logins
+	}
+	return nil
+}
+
+func (x *ScopedRoleConditions) GetNodeLabels() []*v11.Label {
+	if x != nil {
+		return x.NodeLabels
 	}
 	return nil
 }
@@ -290,7 +310,7 @@ var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\n" +
-	"$teleport/scopes/access/v1/role.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\"\xe4\x01\n" +
+	"$teleport/scopes/access/v1/role.proto\x12\x19teleport.scopes.access.v1\x1a!teleport/header/v1/metadata.proto\x1a\x1dteleport/label/v1/label.proto\"\xe4\x01\n" +
 	"\n" +
 	"ScopedRole\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
@@ -301,9 +321,12 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x84\x01\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
 	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12E\n" +
-	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\"S\n" +
+	"\x05allow\x18\x02 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleConditionsR\x05allow\"\xa6\x01\n" +
 	"\x14ScopedRoleConditions\x12;\n" +
-	"\x05rules\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\"@\n" +
+	"\x05rules\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12\x16\n" +
+	"\x06logins\x18\x02 \x03(\tR\x06logins\x129\n" +
+	"\vnode_labels\x18\x03 \x03(\v2\x18.teleport.label.v1.LabelR\n" +
+	"nodeLabels\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -328,17 +351,19 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRoleConditions)(nil), // 2: teleport.scopes.access.v1.ScopedRoleConditions
 	(*ScopedRule)(nil),           // 3: teleport.scopes.access.v1.ScopedRule
 	(*v1.Metadata)(nil),          // 4: teleport.header.v1.Metadata
+	(*v11.Label)(nil),            // 5: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
 	4, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2, // 2: teleport.scopes.access.v1.ScopedRoleSpec.allow:type_name -> teleport.scopes.access.v1.ScopedRoleConditions
 	3, // 3: teleport.scopes.access.v1.ScopedRoleConditions.rules:type_name -> teleport.scopes.access.v1.ScopedRule
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 4: teleport.scopes.access.v1.ScopedRoleConditions.node_labels:type_name -> teleport.label.v1.Label
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }

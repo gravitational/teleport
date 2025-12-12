@@ -7013,7 +7013,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
-				require.True(t, foundTrace, "expected trace %v was not found", expectedTrace)
+				require.True(t, foundTrace, "expected trace '%v' was not found, got '%v'", expectedTrace, connectionDiagnostic.Traces)
 			}
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
@@ -8590,11 +8590,17 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		}
 	}()
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clustername,
-		AccessPoint: authServer.Auth(),
-		LockWatcher: proxyLockWatcher,
-	})
+	authorizerOpts := authz.AuthorizerOpts{
+		ClusterName:      clustername,
+		AccessPoint:      authServer.Auth(),
+		ScopedRoleReader: authServer.Auth().ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
+	require.NoError(t, err)
+
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	require.NoError(t, err)
 
 	tlscfg, err := authServer.Identity.TLSConfig(utils.DefaultCipherSuites())
@@ -8623,7 +8629,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		UserGetter: &auth.Middleware{
 			ClusterName: authServer.ClusterName(),
 		},
-		Authorizer: authorizer,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: scopedAuthorizer,
 	})
 	require.NoError(t, err)
 
@@ -8649,8 +8656,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
-			return agentless.SignerFromAuthzContext(authzCtx, client, clusterName)
+		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+			}
+
+			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
+				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
+				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
+			}
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),

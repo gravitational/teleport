@@ -660,6 +660,12 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+// are of the scoped access API available in agent access points to only what is necessary.
+func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
+	return c.APIClient.ScopedAccessServiceClient()
+}
+
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, uns *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
 	return c.APIClient.UpsertUserNotificationState(ctx, &notificationsv1.UpsertUserNotificationStateRequest{
@@ -1832,4 +1838,8 @@ type ClientI interface {
 
 	// ListRequestableRoles is a paginated requestable role getter.
 	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
+
+	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+	// are of the scoped access API available in agent access points to only what is necessary.
+	ScopedRoleReader() services.ScopedRoleReader
 }
