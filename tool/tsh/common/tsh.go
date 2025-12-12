@@ -4820,14 +4820,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	if cf.BrowserAuth {
 		if cf.AuthConnector != "" && cf.AuthConnector != constants.BrowserConnector {
-			return nil, trace.BadParameter("either --browserauth or --auth can be specifiec, not both")
+			return nil, trace.BadParameter("either --browserauth or --auth can be specified, not both")
 		}
 
 		cf.AuthConnector = constants.BrowserConnector
 	}
 
-	if cf.AuthConnector == constants.HeadlessConnector {
-		// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
+	if cf.AuthConnector == constants.HeadlessConnector || cf.AuthConnector == constants.BrowserConnector {
+		// When using Headless or Browser authentication, check for missing proxy/user/cluster values from the teleport session env variables.
 		if cf.Proxy == "" {
 			cf.Proxy = os.Getenv(teleport.SSHSessionWebProxyAddr)
 		}
@@ -4838,9 +4838,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			cf.SiteName = os.Getenv(teleport.SSHTeleportClusterName)
 		}
 
-		// When using Headless, user must be provided.
+		// When using Headless or Browser authentication, user must be provided.
 		if cf.Username == "" {
-			return nil, trace.BadParameter("user must be provided for headless login")
+			return nil, trace.BadParameter("user must be provided for %s login", cf.AuthConnector)
 		}
 	}
 
