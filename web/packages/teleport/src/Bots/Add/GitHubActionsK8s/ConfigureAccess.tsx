@@ -101,7 +101,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                   satisfy the labels you specify. Visit the{' '}
                   <Link
                     target="_blank"
-                    href="https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/"
+                    href={K8S_RBAC_LINK}
+                    onClick={() => {
+                      tracking.link(
+                        IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                        K8S_RBAC_LINK
+                      );
+                    }}
                   >
                     Teleport Kubernetes Access Controls
                   </Link>{' '}
@@ -134,7 +140,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                   ClusterRoleBinding resources. See the{' '}
                   <Link
                     target="_blank"
-                    href="https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/"
+                    href={K8S_RBAC_LINK}
+                    onClick={() => {
+                      tracking.link(
+                        IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                        K8S_RBAC_LINK
+                      );
+                    }}
                   >
                     Teleport Kubernetes Access Controls
                   </Link>{' '}
@@ -233,3 +245,6 @@ const CodeContainer = styled(Flex)`
   flex-direction: column;
   overflow: auto;
 `;
+
+const K8S_RBAC_LINK =
+  'https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/';

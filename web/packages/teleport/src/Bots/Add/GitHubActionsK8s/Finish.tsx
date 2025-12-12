@@ -80,7 +80,13 @@ export function Finish(props: FlowStepProps) {
           See the{' '}
           <Link
             target="_blank"
-            href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/"
+            href={IAC_LINK}
+            onClick={() => {
+              tracking.link(
+                IntegrationEnrollStep.MWIGHAK8SSetupWorkflow,
+                IAC_LINK
+              );
+            }}
           >
             Infrastructure as Code
           </Link>{' '}
@@ -91,7 +97,13 @@ export function Finish(props: FlowStepProps) {
           See the{' '}
           <Link
             target="_blank"
-            href="https://goteleport.com/docs/machine-workload-identity/deployment/github-actions/"
+            href={TBOT_GHA_LINK}
+            onClick={() => {
+              tracking.link(
+                IntegrationEnrollStep.MWIGHAK8SSetupWorkflow,
+                TBOT_GHA_LINK
+              );
+            }}
           >
             Deploying tbot on GitHub Actions
           </Link>{' '}
@@ -151,3 +163,8 @@ const CodeContainer = styled(Flex)`
   flex-direction: column;
   overflow: auto;
 `;
+
+const IAC_LINK =
+  'https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/';
+const TBOT_GHA_LINK =
+  '"https://goteleport.com/docs/machine-workload-identity/deployment/github-actions/"';

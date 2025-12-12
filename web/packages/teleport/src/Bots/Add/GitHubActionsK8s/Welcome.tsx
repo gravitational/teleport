@@ -80,7 +80,10 @@ export function Welcome(props: FlowStepProps) {
           See the{' '}
           <Link
             target="_blank"
-            href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/"
+            href={IAC_LINK}
+            onClick={() => {
+              tracking.link(IntegrationEnrollStep.MWIGHAK8SWelcome, IAC_LINK);
+            }}
           >
             Infrastructure as Code
           </Link>{' '}
@@ -107,3 +110,6 @@ const Container = styled(Flex)`
 type IconSpec = {
   [K in Theme['type']]: string;
 };
+
+const IAC_LINK =
+  'https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/';
