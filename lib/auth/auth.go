@@ -8301,6 +8301,11 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
 	}
 
+	// Sanity check that the key set has at least one key.
+	if len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0 {
+		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
+	}
+
 	return keySet, nil
 }
 

@@ -182,5 +182,11 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 		}}
 	}
 
+	// Sanity check that the CA has at least one active key.
+	aks := ca.Spec.ActiveKeys
+	if len(aks.SSH) == 0 && len(aks.TLS) == 0 && len(aks.JWT) == 0 {
+		panic(fmt.Sprintf("No keys generated for CA type %q", config.Type))
+	}
+
 	return ca
 }
