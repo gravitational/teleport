@@ -28,6 +28,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"log/slog"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,7 +97,7 @@ func NewActiveHealthChecker(c ActiveHealthCheckConfig) (*ActiveHealthChecker, er
 }
 
 // ActiveHealthChecker makes signing requests to CAs and reports errors back to
-// the configured callback. CAs are healthchecked one at a time at the given
+// the configured callback. CAs are health checked one at a time at the given
 // interval.
 type ActiveHealthChecker struct {
 	interval        time.Duration
@@ -207,9 +209,10 @@ func (c *ActiveHealthChecker) nextSigner(last *healthSigner) (*healthSigner, err
 		return c.signers[0], nil
 	}
 	for i := range c.signers {
-		if c.signers[i].Equal(last) {
-			return c.signers[(i+1)%n], nil
+		if last.id <= c.signers[i].id {
+			continue
 		}
+		return c.signers[i], nil
 	}
 	return c.signers[0], nil
 }
@@ -230,6 +233,9 @@ func (c *ActiveHealthChecker) watch(ctx context.Context) error {
 			for _, ca := range cas {
 				signers = append(signers, c.getHealthSigners(ctx, ca)...)
 			}
+			slices.SortStableFunc(signers, func(a, b *healthSigner) int {
+				return strings.Compare(a.id, b.id)
+			})
 			c.signers = signers
 			c.mu.Unlock()
 			once.Do(func() {
@@ -248,7 +254,7 @@ func (c *ActiveHealthChecker) getHealthSigners(ctx context.Context, ca types.Cer
 		if err == nil {
 			signers = append(signers, &healthSigner{
 				crypto: signer,
-				caID:   ca.GetID().String(),
+				id:     ca.GetID().String() + "-tls",
 			})
 		}
 	}
@@ -256,8 +262,8 @@ func (c *ActiveHealthChecker) getHealthSigners(ctx context.Context, ca types.Cer
 		signer, err := c.m.GetSSHSigner(ctx, ca)
 		if err == nil {
 			signers = append(signers, &healthSigner{
-				ssh:  signer,
-				caID: ca.GetID().String(),
+				ssh: signer,
+				id:  ca.GetID().String() + "-ssh",
 			})
 		}
 	}
@@ -266,18 +272,20 @@ func (c *ActiveHealthChecker) getHealthSigners(ctx context.Context, ca types.Cer
 		if err == nil {
 			signers = append(signers, &healthSigner{
 				crypto: signer,
-				caID:   ca.GetID().String(),
+				id:     ca.GetID().String() + "-jwt",
 			})
 		}
 	}
 	return signers
 }
 
-// healthSigner wraps a crypto OR ssh signer with the CA ID.
+// healthSigner wraps a crypto OR ssh signer with an ID. The ID is the CA ID plus
+// a suffix to indicate the signer type of "-tls", "-ssh", "-jwt". This suffix
+// is necessary to differentiate signers associated with the same CA.
 type healthSigner struct {
+	id     string
 	crypto crypto.Signer
 	ssh    ssh.Signer
-	caID   string
 }
 
 // sign performs a signing request given a healthSigner.
@@ -297,19 +305,19 @@ func sign(s *healthSigner) error {
 			digest = msg
 			opts = &ed25519.Options{}
 		default:
-			return trace.Errorf("failed signing with crypto signer: %s unexpected key type %T", s.caID, pub)
+			return trace.Errorf("failed signing with crypto signer: %s unexpected key type %T", s.id, pub)
 		}
 		_, err := s.crypto.Sign(rand.Reader, digest, opts)
 		if err != nil {
-			return trace.Wrap(err, "failed signing with crypto signer: %s", s.caID)
+			return trace.Wrap(err, "failed signing with crypto signer: %s", s.id)
 		}
 	} else if s.ssh != nil {
 		_, err := s.ssh.Sign(rand.Reader, msg)
 		if err != nil {
-			return trace.Wrap(err, "failed signing with ssh signer: %s", s.caID)
+			return trace.Wrap(err, "failed signing with ssh signer: %s", s.id)
 		}
 	} else {
-		return trace.Errorf("unable to test key signing: missing signer: %s", s.caID)
+		return trace.Errorf("unable to test key signing: missing signer: %s", s.id)
 	}
 	return nil
 }
