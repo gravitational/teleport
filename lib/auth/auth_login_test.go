@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1025,12 +1026,15 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	var assignmentIDs []string
 	for _, role := range scopedRoles {
+		assignmentID := uuid.NewString()
+		assignmentIDs = append(assignmentIDs, assignmentID)
 		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind: scopedaccess.KindScopedRoleAssignment,
 				Metadata: &headerv1.Metadata{
-					Name: uuid.NewString(),
+					Name: assignmentID,
 				},
 				Scope: role.GetScope(),
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
@@ -1046,6 +1050,26 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+	}
+
+	// wait for assignment cache propagation
+	timeout := time.After(30 * time.Second)
+	for {
+		unseen := slices.Clone(assignmentIDs)
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+			require.NoError(t, err)
+			id := assignment.GetMetadata().GetName()
+			unseen = slices.DeleteFunc(unseen, func(unseenID string) bool { return id == unseenID })
+		}
+		if len(unseen) == 0 {
+			break
+		}
+		select {
+		case <-timeout:
+			t.Fatalf("timed out waiting for scoped role assignments to be visible: %v", unseen)
+		case <-time.After(200 * time.Millisecond):
+			// retry
+		}
 	}
 
 	// the same authentication request should now succeed
