@@ -581,6 +581,14 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		reader:       nil,
 	}
 
+	defer func() {
+		if err != nil {
+			if err := upload.Close(); err != nil {
+				log.WarnContext(ctx, "Failed to close upload.", "error", err)
+			}
+		}
+	}()
+
 	if err := u.uploadEncrypted(ctx, upload); err != nil {
 		if !errors.Is(err, errSkipEncryptedUpload) {
 			u.emitEvent(events.UploadEvent{
@@ -588,7 +596,6 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 				Error:     err,
 				Created:   u.cfg.Clock.Now().UTC(),
 			})
-			upload.Close()
 			return trace.Wrap(err)
 		}
 	} else {
@@ -605,9 +612,6 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		if err := upload.Close(); err != nil {
-			log.WarnContext(ctx, "Failed to close upload.", "error", err)
-		}
 		return trace.ConvertSystemError(err)
 	}
 
