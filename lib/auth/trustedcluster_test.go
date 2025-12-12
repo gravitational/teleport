@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -249,34 +250,38 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("more than one CA", func(t *testing.T) {
+		ca1, err := authcatest.NewCA(types.HostCA, "rc1")
+		require.NoError(t, err)
+		ca2, err := authcatest.NewCA(types.HostCA, "rc2")
+		require.NoError(t, err)
+
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
-			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.HostCA, "rc1"),
-				authtest.NewTestCA(types.HostCA, "rc2"),
-			},
+			CAs:   []types.CertAuthority{ca1, ca2},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "expected exactly one")
 	})
 
 	t.Run("wrong CA type", func(t *testing.T) {
+		ca, err := authcatest.NewCA(types.UserCA, "rc3")
+		require.NoError(t, err)
+
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
-			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.UserCA, "rc3"),
-			},
+			CAs:   []types.CertAuthority{ca},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "expected host certificate authority")
 	})
 
 	t.Run("wrong CA name", func(t *testing.T) {
+		ca, err := authcatest.NewCA(types.HostCA, localClusterName)
+		require.NoError(t, err)
+
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
-			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.HostCA, localClusterName),
-			},
+			CAs:   []types.CertAuthority{ca},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "same name as this cluster")
@@ -291,18 +296,21 @@ func TestValidateTrustedCluster(t *testing.T) {
 		_, err = a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 		require.NoError(t, err)
 
+		ca, err := authcatest.NewCA(types.HostCA, trustedCluster.GetName())
+		require.NoError(t, err)
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
-			CAs: []types.CertAuthority{
-				authtest.NewTestCA(types.HostCA, trustedCluster.GetName()),
-			},
+			CAs:   []types.CertAuthority{ca},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "same name as trusted cluster")
 	})
 
 	t.Run("all CAs are returned when v10+", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(authtest.NewTestCA(types.HostCA, "leafcluster-1"))
+		ca, err := authcatest.NewCA(types.HostCA, "leafcluster-1")
+		require.NoError(t, err)
+
+		leafClusterCA := types.CertAuthority(ca)
 		resp, err := a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -377,7 +385,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(authtest.NewTestCA(types.HostCA, "leafcluster-2"))
+		ca, err := authcatest.NewCA(types.HostCA, "leafcluster-2")
+		require.NoError(t, err)
+
+		leafClusterCA := types.CertAuthority(ca)
 		resp, err := a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token:           validToken,
 			CAs:             []types.CertAuthority{leafClusterCA},
@@ -408,15 +419,16 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("CA cluster name does not match subject organization", func(t *testing.T) {
+		ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
+			Type:                types.HostCA,
+			ClusterName:         "remoteCluster",
+			SubjectOrganization: "commonName",
+		})
+		require.NoError(t, err)
+
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
-			CAs: []types.CertAuthority{
-				authtest.NewTestCAWithConfig(authtest.TestCAConfig{
-					Type:                types.HostCA,
-					ClusterName:         "remoteCluster",
-					SubjectOrganization: "commonName",
-				}),
-			},
+			CAs:   []types.CertAuthority{ca},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "the subject organization of a CA certificate does not match the cluster name of the CA")
@@ -504,7 +516,8 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster("trustedcluster", trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := authtest.NewTestCA(types.UserCA, "trustedcluster")
+	ca, err := authcatest.NewCA(types.UserCA, "trustedcluster")
+	require.NoError(t, err)
 
 	auth.ConfigureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 
@@ -644,7 +657,8 @@ func TestUpdateTrustedCluster(t *testing.T) {
 	trustedCluster, err := types.NewTrustedCluster(testClusterName, trustedClusterSpec)
 	require.NoError(t, err)
 
-	ca := authtest.NewTestCA(types.UserCA, testClusterName)
+	ca, err := authcatest.NewCA(types.UserCA, testClusterName)
+	require.NoError(t, err)
 
 	auth.ConfigureCAsForTrustedCluster(trustedCluster, []types.CertAuthority{ca})
 

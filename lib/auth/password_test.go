@@ -42,6 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -909,14 +910,20 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "me.localhost"))
+	userCA, err := authcatest.NewCA(types.UserCA, "me.localhost")
 	if err != nil {
-		return req, err
+		return nil, trace.Wrap(err)
+	}
+	if err := s.a.UpsertCertAuthority(ctx, userCA); err != nil {
+		return nil, err
 	}
 
-	err = s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "me.localhost"))
+	hostCA, err := authcatest.NewCA(types.HostCA, "me.localhost")
 	if err != nil {
-		return req, err
+		return nil, err
+	}
+	if err := s.a.UpsertCertAuthority(ctx, hostCA); err != nil {
+		return nil, err
 	}
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -924,21 +931,18 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		SecondFactor: secondFactorType,
 	})
 	if err != nil {
-		return req, err
+		return nil, err
 	}
 
-	_, err = s.a.UpsertAuthPreference(ctx, ap)
-	if err != nil {
-		return req, err
+	if _, err := s.a.UpsertAuthPreference(ctx, ap); err != nil {
+		return nil, err
 	}
 
-	_, _, err = authtest.CreateUserAndRole(s.a, user, []string{user}, nil)
-	if err != nil {
-		return req, err
+	if _, _, err := authtest.CreateUserAndRole(s.a, user, []string{user}, nil); err != nil {
+		return nil, err
 	}
-	err = s.a.UpsertPassword(user, pass)
-	if err != nil {
-		return req, err
+	if err := s.a.UpsertPassword(user, pass); err != nil {
+		return nil, err
 	}
 
 	return req, nil

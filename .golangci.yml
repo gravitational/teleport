@@ -192,17 +192,18 @@ linters:
         test_packages:
           files:
             - '!$test'
-            - '!**/integrations/operator/controllers/resources/testlib/**.go'
             - '!**/e/lib/aws/identitycenter/test/**'
             - '!**/e/lib/devicetrust/testenv/**'
-            - '!**/e/lib/jamf/testenv/**'
-            - '!**/e/lib/intune/testenv/**'
             - '!**/e/lib/idp/saml/testenv/**'
+            - '!**/e/lib/intune/testenv/**'
+            - '!**/e/lib/jamf/testenv/**'
             - '!**/e/lib/operatortest/**'
             - '!**/e/tests/**'
             - '!**/integration/db/fixture.go'
             - '!**/integration/helpers/**'
             - '!**/integrations/lib/testing/**'
+            - '!**/integrations/operator/controllers/resources/testlib/**.go'
+            - '!**/lib/auth/authtest/**'
           deny:
             - pkg: github.com/gravitational/teleport/e/lib/aws/identitycenter/test
               desc: testing packages should not be imported outside of _test.go files
@@ -227,6 +228,8 @@ linters:
             - pkg: github.com/gravitational/teleport/lib/modules/modulestest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
+              desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/auth/authcatest
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/auth/authtest
               desc: testing packages should not be imported outside of _test.go files
