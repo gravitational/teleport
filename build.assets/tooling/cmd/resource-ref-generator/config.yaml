@@ -11,6 +11,10 @@ resources:
     package: types
     yaml_kind: installer
     yaml_version: v1
+  - type: KubernetesClusterV3
+    package: types
+    yaml_kind: kube_cluster
+    yaml_version: v3
   - type: OIDCConnectorV3
     package: types
     yaml_kind: oidc
