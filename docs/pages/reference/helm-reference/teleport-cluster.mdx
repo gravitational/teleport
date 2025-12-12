@@ -1548,7 +1548,7 @@ in the pod logs.
 You should create the secret in the same namespace as Teleport using a command like this:
 
 ```code
-kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+$ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
 `values.yaml` example:
