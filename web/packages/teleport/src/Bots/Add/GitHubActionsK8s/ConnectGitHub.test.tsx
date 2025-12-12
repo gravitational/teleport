@@ -24,6 +24,7 @@ import selectEvent from 'react-select-event';
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  act,
   render,
   screen,
   testQueryClient,
@@ -34,7 +35,10 @@ import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { captureSuccess } from 'teleport/test/helpers/userEvents';
 
+import { trackingTester } from '../Shared/tracking-tester';
+import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
 
@@ -45,9 +49,17 @@ beforeAll(() => {
 
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
+  server.use(captureSuccess());
+
+  jest.useFakeTimers();
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+  server.close();
+
+  jest.useRealTimers();
+  jest.resetAllMocks();
+});
 
 describe('ConnectGitHub', () => {
   test('renders', async () => {
@@ -125,15 +137,30 @@ describe('ConnectGitHub', () => {
   });
 
   test('input github url', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Repository URL');
     await user.type(input, 'https://github.com/foo/bar');
 
     expect(input).toHaveValue('https://github.com/foo/bar');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL'
+    );
   });
 
   test('input branch', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Branch');
@@ -141,10 +168,21 @@ describe('ConnectGitHub', () => {
 
     expect(input).toHaveValue('main');
     expect(screen.getByLabelText('Git Ref')).toHaveValue('main');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH'
+    );
   });
 
   test('toggle allow any branch', async () => {
-    const { user } = renderComponent();
+    const { user } = renderComponent({ disableTracking: true });
 
     const input = screen.getByLabelText('Branch');
     await user.type(input, 'main');
@@ -156,24 +194,52 @@ describe('ConnectGitHub', () => {
   });
 
   test('input workflow', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Workflow');
     await user.type(input, 'my-workflow');
 
     expect(input).toHaveValue('my-workflow');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW'
+    );
   });
 
   test('input environment', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Environment');
     await user.type(input, 'production');
 
     expect(input).toHaveValue('production');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT'
+    );
   });
 
   test('input ref', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Git Ref');
@@ -181,19 +247,51 @@ describe('ConnectGitHub', () => {
 
     expect(input).toHaveValue('release-*');
     expect(screen.getByLabelText('Branch')).toHaveValue('release-*');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF'
+    );
   });
 
   test('input ref type', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Git Ref');
     await user.type(input, 'release-*');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF'
+    );
 
     const select = screen.getByLabelText('Ref Type');
     await selectEvent.select(select, ['Tag']);
 
     expect(input).toHaveValue('release-*');
     expect(screen.getByLabelText('Branch')).toHaveValue('');
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF'
+    );
   });
 
   test('input slug disabled', async () => {
@@ -204,6 +302,8 @@ describe('ConnectGitHub', () => {
   });
 
   test('input slug', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent({
       isEnterprise: true,
     });
@@ -212,6 +312,17 @@ describe('ConnectGitHub', () => {
     await user.type(input, 'octo-enterprise');
 
     expect(input).toHaveValue('octo-enterprise');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG'
+    );
   });
 
   test('input jwks disabled', async () => {
@@ -222,6 +333,8 @@ describe('ConnectGitHub', () => {
   });
 
   test('input jwks', async () => {
+    const tracking = trackingTester();
+
     const { user } = renderComponent({
       isEnterprise: true,
     });
@@ -230,14 +343,28 @@ describe('ConnectGitHub', () => {
     await user.type(input, '{{"keys":[[]}'); // Note escaping of "{" and "["
 
     expect(input).toHaveValue('{"keys":[]}');
+
+    // Skip start event
+    tracking.skip();
+
+    // Field tracking is debounced, so move time along to send the event
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS'
+    );
   });
 });
 
 function renderComponent(opts?: {
   initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
   isEnterprise?: boolean;
+  disableTracking?: boolean;
 }) {
-  const user = userEvent.setup();
+  const user = userEvent.setup({
+    advanceTimers: t => jest.advanceTimersByTime(t),
+  });
   const onNextStep = jest.fn();
   const onPrevStep = jest.fn();
   return {
@@ -253,8 +380,9 @@ function renderComponent(opts?: {
 function makeWrapper(opts?: {
   initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
   isEnterprise?: boolean;
+  disableTracking?: boolean;
 }) {
-  const { initialState, isEnterprise = false } = opts ?? {};
+  const { initialState, isEnterprise = false, disableTracking } = opts ?? {};
 
   cfg.isEnterprise = isEnterprise;
   cfg.edition = isEnterprise ? 'ent' : 'oss';
@@ -266,9 +394,11 @@ function makeWrapper(opts?: {
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
           <ConfiguredThemeProvider theme={darkTheme}>
-            <GitHubK8sFlowProvider intitialState={initialState}>
-              {children}
-            </GitHubK8sFlowProvider>
+            <TrackingProvider disabled={disableTracking}>
+              <GitHubK8sFlowProvider intitialState={initialState}>
+                {children}
+              </GitHubK8sFlowProvider>
+            </TrackingProvider>
           </ConfiguredThemeProvider>
         </ContextProvider>
       </QueryClientProvider>

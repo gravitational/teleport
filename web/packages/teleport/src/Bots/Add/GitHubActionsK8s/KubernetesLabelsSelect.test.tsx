@@ -36,7 +36,10 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
+import { captureSuccess } from 'teleport/test/helpers/userEvents';
 
+import { trackingTester } from '../Shared/tracking-tester';
+import { TrackingProvider } from '../Shared/useTracking';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 
 const server = setupServer();
@@ -45,14 +48,23 @@ beforeAll(() => {
   server.listen();
 });
 
+beforeEach(() => {
+  server.use(captureSuccess());
+});
+
 afterEach(async () => {
   server.resetHandlers();
+
   await testQueryClient.resetQueries();
 
   jest.clearAllMocks();
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+  server.close();
+
+  jest.resetAllMocks();
+});
 
 describe('KubernetesLabelsSelect', () => {
   test('renders', async () => {
@@ -82,6 +94,8 @@ describe('KubernetesLabelsSelect', () => {
   });
 
   test('edit action', async () => {
+    const tracking = trackingTester();
+
     withListUnifiedResourcesSuccess();
 
     const { user } = renderComponent();
@@ -94,6 +108,12 @@ describe('KubernetesLabelsSelect', () => {
     expect(
       within(modal).getByText('Select one or more labels to configure access.')
     ).toBeInTheDocument();
+
+    tracking.assertSection(
+      expect.any(String),
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+      'INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER'
+    );
   });
 
   test('cluster list empty', async () => {
@@ -348,8 +368,10 @@ describe('KubernetesLabelsSelect', () => {
 
 function renderComponent(opts?: {
   props?: Partial<ComponentProps<typeof KubernetesLabelsSelect>>;
+  customAcl?: ReturnType<typeof makeAcl>;
+  disableTracking?: boolean;
 }) {
-  const { props } = opts ?? {};
+  const { props, customAcl, disableTracking } = opts ?? {};
   const { selected = [], onChange = () => {} } = props ?? {};
 
   const user = userEvent.setup();
@@ -358,14 +380,20 @@ function renderComponent(opts?: {
     ...render(
       <KubernetesLabelsSelect selected={selected} onChange={onChange} />,
       {
-        wrapper: makeWrapper(),
+        wrapper: makeWrapper({
+          customAcl,
+          disableTracking,
+        }),
       }
     ),
     user,
   };
 }
 
-function makeWrapper(opts?: { customAcl?: ReturnType<typeof makeAcl> }) {
+function makeWrapper(opts?: {
+  customAcl?: ReturnType<typeof makeAcl>;
+  disableTracking?: boolean;
+}) {
   const {
     customAcl = makeAcl({
       kubeServers: {
@@ -374,6 +402,7 @@ function makeWrapper(opts?: { customAcl?: ReturnType<typeof makeAcl> }) {
         list: true,
       },
     }),
+    disableTracking,
   } = opts ?? {};
 
   const ctx = createTeleportContext({
@@ -385,7 +414,9 @@ function makeWrapper(opts?: { customAcl?: ReturnType<typeof makeAcl> }) {
       <QueryClientProvider client={testQueryClient}>
         <ConfiguredThemeProvider theme={darkTheme}>
           <ContextProvider ctx={ctx}>
-            <Validation>{children}</Validation>
+            <TrackingProvider disabled={disableTracking}>
+              <Validation>{children}</Validation>
+            </TrackingProvider>
           </ContextProvider>
         </ConfiguredThemeProvider>
       </QueryClientProvider>
