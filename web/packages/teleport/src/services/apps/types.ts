@@ -123,6 +123,7 @@ export type PermissionSet = {
    * eg: 1234--AdministratorAccess
    */
   assignmentId: string;
+  requiresRequest?: boolean;
 };
 
 /**
