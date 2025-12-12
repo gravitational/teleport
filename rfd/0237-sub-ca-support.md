@@ -34,6 +34,14 @@ the more "visible" Teleport CAs to their own self-managed roots.
 
 ## UX
 
+### Auth server prerequisites
+
+All Auth servers should be upgraded to a version that supports Sub CAs /
+certificate overrides before any override is created.
+
+It's recommended to backup the cluster state database, prior to creating an
+override, in case a Teleport downgrade is ever required.
+
 <a id="ux1"></a>
 ### Alice configures "db-client" as a sub CA
 
