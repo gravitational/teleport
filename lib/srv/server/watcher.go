@@ -140,13 +140,12 @@ type Watcher[Instances any] struct {
 func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *Watcher[Instances] {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher[Instances]{
-		fetcherMap:    newSyncMap[Fetcher[Instances]](),
-		ctx:           cancelCtx,
-		cancel:        cancelFn,
-		clock:         clockwork.NewRealClock(),
-		pollInterval:  time.Minute,
-		triggerFetchC: make(<-chan struct{}),
-		InstancesC:    make(chan Instances),
+		fetcherMap:   newSyncMap[Fetcher[Instances]](),
+		ctx:          cancelCtx,
+		cancel:       cancelFn,
+		clock:        clockwork.NewRealClock(),
+		pollInterval: time.Minute,
+		InstancesC:   make(chan Instances),
 	}
 	for _, opt := range opts {
 		opt(&watcher)
@@ -195,10 +194,6 @@ func (w *Watcher[Instances]) fetchAndSubmit() {
 func (w *Watcher[Instances]) Run() {
 	pollTimer := w.clock.NewTimer(w.pollInterval)
 	defer pollTimer.Stop()
-
-	if w.triggerFetchC == nil {
-		w.triggerFetchC = make(<-chan struct{})
-	}
 
 	w.fetchAndSubmit()
 
