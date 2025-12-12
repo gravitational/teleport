@@ -20,7 +20,6 @@ tests:
     asserts:
       - isNull:
           path: metadata.annotations
-
   - it: should contain annotations when defined
     set:
       annotations:
