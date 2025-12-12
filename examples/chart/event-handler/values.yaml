@@ -128,6 +128,18 @@ persistentVolumeClaim:
   existingClaim: ""
   volumeName: "storage"
 
+# annotations -- contains annotations to apply to the different Kubernetes
+# objects created by the chart. See [the Kubernetes annotation
+# documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+# for more details.
+annotations:
+  # annotations.config(object) -- are annotations to set on the ConfigMap.
+  config: {}
+  # annotations.deployment(object) -- are annotations to set on the Deployment.
+  deployment: {}
+  # annotations.pod(object) -- are annotations to set on the Pods.
+  pod: {}
+  
 # extraLabels -- contains additional Kubernetes labels to apply on the resources
 # created by the chart. See [the Kubernetes label documentation
 # ](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
@@ -180,6 +192,7 @@ nameOverride: ""
 # fullnameOverride(string) -- optionally overrides the full name of resources.
 fullnameOverride: ""
 
+# Deprecated way to set pod annotations. `annotations.pod` should be preferred.
 podAnnotations: {}
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.

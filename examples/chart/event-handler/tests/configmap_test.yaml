@@ -16,6 +16,23 @@ tests:
           keyPath: myclient.key
     asserts:
       - matchSnapshot: {}
+  - it: should not contain annotations when not defined
+    asserts:
+      - isNull:
+          path: metadata.annotations
+
+  - it: should contain annotations when defined
+    set:
+      annotations:
+        config:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            keyA: valA
+            keyB: valB
   - it: sets extraLabels when set in values
     set:
       extraLabels:

@@ -171,6 +171,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	conn, err := h.cfg.Router.DialHost(
 		ctx,
+		ident.ScopePin,
 		&utils.NetAddr{Addr: r.RemoteAddr},
 		&h.cfg.ProxyWebAddr,
 		req.serverID,

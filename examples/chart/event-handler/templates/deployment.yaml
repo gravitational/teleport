@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "event-handler.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "event-handler.labels" . | nindent 4 }}
     {{- with .Values.extraLabels.deployment }}
@@ -18,12 +22,12 @@ spec:
       {{- include "event-handler.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "event-handler.selectorLabels" . | nindent 8 }}
+        {{- include "event-handler.labels" . | nindent 8 }}
         {{- with .Values.extraLabels.pod }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
