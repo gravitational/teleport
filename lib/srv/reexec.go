@@ -298,13 +298,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
-		// discard std{out,err}. If this was not done, things like MOTD would be
-		// printed for "exec" requests.
+		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
+		// otherwise discard std{out,err}. If this was not done, things like MOTD
+		// would be printed for non-interactive "exec" requests.
 		var stdin io.Reader
 		var stdout io.Writer
 		var stderr io.Writer
-		if c.RequestType == sshutils.ShellRequest {
+		if tty != nil {
 			stdin = tty
 			stdout = tty
 			stderr = tty
