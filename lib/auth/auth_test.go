@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -214,14 +215,19 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
+	clusterName := p.clusterName.GetClusterName()
+	for _, caType := range []types.CertAuthType{
+		types.UserCA,
+		types.HostCA,
+		types.OpenSSHCA,
+	} {
+		ca, err := authcatest.NewCA(caType, clusterName)
+		if err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
+		if err := p.a.UpsertCertAuthority(ctx, ca); err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
 	}
 
 	return p, nil
@@ -1305,8 +1311,12 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "test")))
+	userCA, err := authcatest.NewCA(types.UserCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, userCA))
+	hostCA, err := authcatest.NewCA(types.HostCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, hostCA))
 
 	err = s.a.CreateReverseTunnel(ctx, tc)
 	require.NoError(t, err)
@@ -4051,7 +4061,9 @@ func TestCAGeneration(t *testing.T) {
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := authtest.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			ca, err := authcatest.NewCA(caType, clusterName, privKey)
+			require.NoError(t, err)
+			testKeySet := ca.Spec.ActiveKeys
 			keySet, err := auth.NewKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
