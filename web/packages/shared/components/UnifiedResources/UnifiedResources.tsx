@@ -69,6 +69,7 @@ import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
   IncludedResourceMode,
   PinningSupport,
+  ResourceLabelConfig,
   SharedUnifiedResource,
   UnifiedResourceDefinition,
   UnifiedResourcesPinning,
@@ -226,6 +227,13 @@ export interface UnifiedResourcesProps {
   onShowStatusInfo(resource: UnifiedResourceDefinition): void;
 
   /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
+  /**
    * onLabelClick is a custom label click handler.
    *
    * Default behavior is to append clicked label to
@@ -271,6 +279,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     visibleFilterPanelFields,
     visibleResourceItemFields,
     onLabelClick,
+    resourceLabelConfig,
     className,
     forceNoResources,
   } = props;
@@ -711,6 +720,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                       availabilityFilter?.mode === 'requestable',
                   },
                 }),
+                resourceLabelConfig,
                 key: generateUnifiedResourceKey(resource),
                 onShowStatusInfo: () => onShowStatusInfo(resource),
                 showingStatusInfo:

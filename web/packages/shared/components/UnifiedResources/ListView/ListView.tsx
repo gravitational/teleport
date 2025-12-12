@@ -35,6 +35,7 @@ export function ListView({
   isProcessing,
   expandAllLabels,
   visibleInputFields,
+  resourceLabelConfig,
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
@@ -53,6 +54,7 @@ export function ListView({
             onShowStatusInfo={onShowStatusInfo}
             showingStatusInfo={showingStatusInfo}
             visibleInputFields={visibleInputFields}
+            resourceLabelConfig={resourceLabelConfig}
           />
         )
       )}
