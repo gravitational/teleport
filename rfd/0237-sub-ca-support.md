@@ -45,7 +45,7 @@ override, in case a Teleport downgrade is ever required.
 <a id="ux1"></a>
 ### Alice configures "db-client" as a sub CA
 
-1. First, Alice issues CSRs for the desired CA / cluster.
+1. First, Alice issues CSRs for the desired CA
 
     ```shell
     $ tctl auth create-override-csr --type=db-client
@@ -109,10 +109,6 @@ spec:
       ----- BEGIN CERTIFICATE -----
       (...)
       ----- END CERTIFICATE -----
-    # Informative, must match certificate if present.
-    public_key: 8D:53:F4:BF:54:63:B9:B6:C8:C1:84:A4:08:5B:B1:F1:07:67:96:DF
-    # Informative, must match certificate if present.
-    cluster_name: zarquon2
 EOF
 ```
 
@@ -246,17 +242,13 @@ message CertificateOverride {
   // Informative if certificate is present.
   string public_key = 1;
 
-  // Informative. Cluster of the CA.
-  string cluster_name = 2;
-
   // Certificate to present, in PEM form.
   //
-  // The public key must match an existing (CA,cluster) pair.
+  // The public key must match an existing CA certificate.
   // It must also match the public_key field, if present.
   //
   // The Subject's "O=" field must match the CA cluster.
-  // It must also match the cluster_name field, if present.
-  string certificate = 3;
+  string certificate = 2;
 
   // Certificate chain, in PEM form.
   //
@@ -264,7 +256,7 @@ message CertificateOverride {
   //
   // If present Teleport may supply the chain along with the certificate in
   // appropriate situations.
-  repeated string chain = 4;
+  repeated string chain = 3;
 
   // TBD.
   // bool exclude_sub_ca_from_client_chains = n;
@@ -272,7 +264,7 @@ message CertificateOverride {
   // If true disables the override.
   // A disabled override may exist simply to mark a certain public key as not
   // overridden. In this case the certificate may be absent.
-  bool disabled = 5;
+  bool disabled = 4;
 }
 
 message CertAuthorityOverrideStatus {
@@ -448,12 +440,9 @@ message CreateCSRRequest {
   // Required.
   string ca_type = 1;
 
-  // Optional. Targets all clusters if empty.
-  string cluster_name = 2;
-
-  // Targets a (CA,cluster) pair by its public key.
+  // Targets a CA certificate by its public key.
   // Optional.
-  string public_key = 3;
+  string public_key = 2;
 
   // Customized certificate Subject.
   // Eg: `O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA`.
@@ -461,8 +450,8 @@ message CreateCSRRequest {
   // Teleport CA Subject restrictions still apply. The system may modify the
   // Subject or reject the request if restrictions cannot be fulfilled.
   //
-  // Optional. If present the request must target a single cluster.
-  DistinguishedName custom_subject = 4;
+  // Optional. If present the request must target a single certificate.
+  DistinguishedName custom_subject = 3;
 }
 
 message DistinguishedName {
@@ -487,7 +476,7 @@ message CertificateSigningRequest {
 }
 
 message AddCertificateOverrideRequest {
-  CertificateOverrideTarget target = 1;
+  string ca_type = 1;
 
   // Value to add or modify.
   // Patches are always additive.
@@ -502,24 +491,13 @@ message AddCertificateOverrideResponse {
 
 message RemoveCertificateOverrideRequest {
   // Certificate override to delete.
-  CertificateOverrideTarget target = 1;
+  string ca_type = 1;
+  string public_key = 2;
 
-  bool force_immediate_delete = 2;
+  bool force_immediate_delete = 3;
 }
 
 message RemoveCertificateOverrideResponse {}
-
-message CertificateOverrideTarget {
-  // CA type per api/types.CertAuthType.
-  // Required.
-  string ca_type = 1;
-
-  // Targets a (CA,cluster) override by name.
-  string cluster_name = 2;
-
-  // Targets a (CA,cluster) override by its public key.
-  string public_key = 3;
-}
 
 // Upsert/Get/List/Delete requests/responses per RFD 0153.
 // Upsert is unmasked.
