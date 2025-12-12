@@ -28,6 +28,7 @@ import Validator, { Validation } from 'shared/components/Validation/Validation';
 
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 import {
+  IntegrationEnrollSection,
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
 } from 'teleport/services/userEvent';
@@ -145,6 +146,12 @@ export function ConfigureAccess(props: FlowStepProps) {
                 }
                 validation={{
                   valid: true,
+                }}
+                onExpand={() => {
+                  tracking.section(
+                    IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                    IntegrationEnrollSection.MWIGHAK8SKubernetesAdvancedOptions
+                  );
                 }}
               >
                 <FieldSelectCreatable

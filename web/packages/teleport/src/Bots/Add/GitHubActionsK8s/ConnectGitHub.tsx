@@ -31,6 +31,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import cfg from 'teleport/config';
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 import {
+  IntegrationEnrollSection,
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
 } from 'teleport/services/userEvent';
@@ -149,6 +150,12 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 validation={{
                   valid: true,
+                }}
+                onExpand={() => {
+                  tracking.section(
+                    IntegrationEnrollStep.MWIGHAK8SConnectGitHub,
+                    IntegrationEnrollSection.MWIGHAK8SGitHubAdvancedOptions
+                  );
                 }}
               >
                 <FieldInput
