@@ -41,7 +41,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
-import { trackingTester } from '../Shared/tracking-tester';
+import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubActionsK8sWithoutTracking } from './GitHubActionsK8s';
 

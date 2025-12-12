@@ -38,7 +38,7 @@ import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
-import { trackingTester } from '../Shared/tracking-tester';
+import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { ConfigureAccess } from './ConfigureAccess';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';

@@ -38,7 +38,7 @@ import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
-import { trackingTester } from '../Shared/tracking-tester';
+import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 
