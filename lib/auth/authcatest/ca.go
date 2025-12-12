@@ -19,8 +19,8 @@ package authcatest
 
 import (
 	"crypto/x509/pkix"
-	"fmt"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -45,7 +45,11 @@ type CAConfig struct {
 }
 
 // NewCA returns new test authority with a test key as a public and signing key.
-func NewCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+func NewCA(
+	caType types.CertAuthType,
+	clusterName string,
+	privateKeys ...[]byte,
+) (*types.CertAuthorityV2, error) {
 	return NewCAWithConfig(CAConfig{
 		Type:        caType,
 		ClusterName: clusterName,
@@ -58,7 +62,7 @@ func NewCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte)
 // configuration.
 //
 // Keep this function in-sync with lib/auth.newKeySet().
-func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
+func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 	switch config.Type {
 	case
 		types.HostCA,
@@ -75,7 +79,7 @@ func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 		types.BoundKeypairCA:
 		// OK, known CA type.
 	default:
-		panic(fmt.Sprintf("Cannot generate new key set for unknown CA type %q", config.Type))
+		return nil, trace.BadParameter("cannot generate new key set for unknown CA type %q", config.Type)
 	}
 
 	var keyPEM []byte
@@ -106,7 +110,7 @@ func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 		var err error
 		key, err = keys.ParsePrivateKey(keyPEM)
 		if err != nil {
-			panic(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		// If config.PrivateKeys was not set and this CA does not exclusively
@@ -115,11 +119,11 @@ func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 		// fixture.
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
-			panic(err)
+			return nil, trace.Wrap(err)
 		}
 		key, err = keys.NewPrivateKey(signer)
 		if err != nil {
-			panic(err)
+			return nil, trace.Wrap(err)
 		}
 		keyPEM = key.PrivateKeyPEM()
 	}
@@ -160,7 +164,7 @@ func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 			Clock: config.Clock,
 		})
 		if err != nil {
-			panic(err)
+			return nil, trace.Wrap(err)
 		}
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
 			Key:  keyPEM,
@@ -173,7 +177,7 @@ func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
-			panic(err)
+			return nil, trace.Wrap(err)
 		}
 		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
 			PrivateKey: keyPEM,
@@ -184,8 +188,8 @@ func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
 	// Sanity check that the CA has at least one active key.
 	aks := ca.Spec.ActiveKeys
 	if len(aks.SSH) == 0 && len(aks.TLS) == 0 && len(aks.JWT) == 0 {
-		panic(fmt.Sprintf("No keys generated for CA type %q", config.Type))
+		return nil, trace.BadParameter("no keys generated for CA type %q", config.Type)
 	}
 
-	return ca
+	return ca, nil
 }

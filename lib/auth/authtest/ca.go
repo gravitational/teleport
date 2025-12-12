@@ -27,11 +27,16 @@ type CAConfig = authcatest.CAConfig
 
 // NewCA returns new test authority with a test key as a public and signing key.
 func NewCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return authcatest.NewCA(caType, clusterName, privateKeys...)
+	ca, err := authcatest.NewCA(caType, clusterName, privateKeys...)
+	// TODO(codingllama): Propagate error instead of panicking.
+	if err != nil {
+		panic(err)
+	}
+	return ca
 }
 
 // NewCAWithConfig generates a new certificate authority with the specified
 // configuration.
-func NewCAWithConfig(config CAConfig) *types.CertAuthorityV2 {
+func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 	return authcatest.NewCAWithConfig(config)
 }

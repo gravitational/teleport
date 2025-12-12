@@ -406,15 +406,15 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("CA cluster name does not match subject organization", func(t *testing.T) {
+		ca, err := authtest.NewCAWithConfig(authtest.CAConfig{
+			Type:                types.HostCA,
+			ClusterName:         "remoteCluster",
+			SubjectOrganization: "commonName",
+		})
+		require.NoError(t, err)
 		_, err = a.ValidateTrustedCluster(ctx, &authclient.ValidateTrustedClusterRequest{
 			Token: validToken,
-			CAs: []types.CertAuthority{
-				authtest.NewCAWithConfig(authtest.CAConfig{
-					Type:                types.HostCA,
-					ClusterName:         "remoteCluster",
-					SubjectOrganization: "commonName",
-				}),
-			},
+			CAs:   []types.CertAuthority{ca},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "the subject organization of a CA certificate does not match the cluster name of the CA")

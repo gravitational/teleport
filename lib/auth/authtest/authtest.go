@@ -412,11 +412,15 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	// Setup certificate and signing authorities.
 	for _, caType := range types.CertAuthTypes {
-		if err = srv.AuthServer.UpsertCertAuthority(ctx, NewCAWithConfig(CAConfig{
+		ca, err := NewCAWithConfig(CAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
 			Clock:       cfg.Clock,
-		})); err != nil {
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = srv.AuthServer.UpsertCertAuthority(ctx, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

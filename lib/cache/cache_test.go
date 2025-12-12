@@ -2804,19 +2804,12 @@ func listResource(ctx context.Context, lister resourcesLister, kind string, page
 // NewTestCA returns new test authority with a test key as a public and
 // signing key
 func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return authcatest.NewCA(caType, clusterName, privateKeys...)
-}
-
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig struct {
-	Type        types.CertAuthType
-	PrivateKeys [][]byte
-	Clock       clockwork.Clock
-	ClusterName string
-	// the below string fields default to ClusterName if left empty
-	ResourceName        string
-	SubjectOrganization string
+	ca, err := authcatest.NewCA(caType, clusterName, privateKeys...)
+	// TODO(codingllama): Propagate error instead of panicking.
+	if err != nil {
+		panic(err)
+	}
+	return ca
 }
 
 // NewServer creates a new server resource
