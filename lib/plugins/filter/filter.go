@@ -190,18 +190,18 @@ func NewFromInputs(in Inputs) (Filters, error) {
 func ToInputs(in []*types.PluginSyncFilter) Inputs {
 	var out Inputs
 
-	for _, i := range in {
-		if i.GetId() != "" {
-			out.ID = append(out.ID, i.GetId())
+	for _, v := range in {
+		if v.GetId() != "" {
+			out.ID = append(out.ID, v.GetId())
 		}
-		if i.GetNameRegex() != "" {
-			out.NameRegex = append(out.NameRegex, i.GetNameRegex())
+		if v.GetNameRegex() != "" {
+			out.NameRegex = append(out.NameRegex, v.GetNameRegex())
 		}
-		if i.GetExcludeId() != "" {
-			out.ExcludeID = append(out.ExcludeID, i.GetExcludeId())
+		if v.GetExcludeId() != "" {
+			out.ExcludeID = append(out.ExcludeID, v.GetExcludeId())
 		}
-		if i.GetExcludeNameRegex() != "" {
-			out.ExcludeNameRegex = append(out.ExcludeNameRegex, i.GetExcludeNameRegex())
+		if v.GetExcludeNameRegex() != "" {
+			out.ExcludeNameRegex = append(out.ExcludeNameRegex, v.GetExcludeNameRegex())
 		}
 	}
 
