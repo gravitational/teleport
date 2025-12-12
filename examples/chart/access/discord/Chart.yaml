@@ -1,4 +1,4 @@
-.version: &version "17.7.11"
+.version: &version "17.7.11-dev.rhammonds.removewasmpack.1"
 
 apiVersion: v2
 name: teleport-plugin-discord
