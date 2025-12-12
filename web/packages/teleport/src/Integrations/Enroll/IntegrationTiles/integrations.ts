@@ -66,6 +66,15 @@ const integrations: IntegrationTileSpec[] = [
     name: 'AWS IAM Roles Anywhere',
     tags: ['resourceaccess'],
   },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AwsCloud,
+    icon: 'aws',
+    name: 'Amazon Web Services (AWS)',
+    description:
+      'Connect your AWS account to automatically discover resources.',
+    tags: ['cloud', 'resourceaccess'],
+  },
 ];
 
 export function installableIntegrations() {
