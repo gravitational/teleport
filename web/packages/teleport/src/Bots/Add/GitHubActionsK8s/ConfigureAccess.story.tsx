@@ -30,7 +30,7 @@ import {
   genWizardCiCdSuccess,
 } from 'teleport/test/helpers/bots';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { TrackingProvider } from '../Shared/useTracking';
 import { ConfigureAccess } from './ConfigureAccess';
@@ -54,7 +54,7 @@ export const Happy: Story = {
       handlers: [
         genWizardCiCdSuccess(),
         fetchUnifiedResourcesSuccess(),
-        captureSuccess(),
+        userEventCaptureSuccess(),
       ],
     },
   },
@@ -66,7 +66,7 @@ export const TemplateFetchFailed: Story = {
       handlers: [
         genWizardCiCdError(500, 'something went wrong'),
         fetchUnifiedResourcesSuccess(),
-        captureSuccess(),
+        userEventCaptureSuccess(),
       ],
     },
   },
@@ -78,7 +78,7 @@ export const TemplateFetching: Story = {
       handlers: [
         genWizardCiCdForever(),
         fetchUnifiedResourcesSuccess(),
-        captureSuccess(),
+        userEventCaptureSuccess(),
       ],
     },
   },

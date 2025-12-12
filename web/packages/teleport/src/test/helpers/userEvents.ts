@@ -21,13 +21,13 @@ import { http, HttpResponse } from 'msw';
 import cfg from 'teleport/config';
 import { JsonObject } from 'teleport/types';
 
-export const captureSuccess = () => {
+export const userEventCaptureSuccess = () => {
   return http.post(cfg.api.captureUserEventPath, async () => {
     return HttpResponse.json();
   });
 };
 
-export const captureError = (
+export const userEventCaptureError = (
   status: number,
   error: string | null = null,
   extras: JsonObject = {}
@@ -39,7 +39,7 @@ export const captureError = (
     );
   });
 
-export const captureForever = () =>
+export const userEventCaptureForever = () =>
   http.post(
     cfg.api.captureUserEventPath,
     () =>

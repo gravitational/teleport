@@ -39,7 +39,7 @@ import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/tracking-tester';
 import { TrackingProvider } from '../Shared/useTracking';
@@ -51,7 +51,7 @@ beforeAll(() => {
   server.listen();
 
   server.use(genWizardCiCdSuccess());
-  server.use(captureSuccess());
+  server.use(userEventCaptureSuccess());
 
   jest.useFakeTimers();
 });

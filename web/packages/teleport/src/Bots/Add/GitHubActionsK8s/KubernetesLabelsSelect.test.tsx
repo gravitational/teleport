@@ -36,7 +36,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/tracking-tester';
 import { TrackingProvider } from '../Shared/useTracking';
@@ -49,7 +49,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  server.use(captureSuccess());
+  server.use(userEventCaptureSuccess());
 });
 
 afterEach(async () => {

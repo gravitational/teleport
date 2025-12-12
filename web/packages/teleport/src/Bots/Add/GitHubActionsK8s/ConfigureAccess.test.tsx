@@ -36,7 +36,7 @@ import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/tracking-tester';
 import { TrackingProvider } from '../Shared/useTracking';
@@ -51,7 +51,7 @@ beforeAll(() => {
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
   server.use(fetchUnifiedResourcesSuccess());
-  server.use(captureSuccess());
+  server.use(userEventCaptureSuccess());
 
   jest.useFakeTimers();
 });

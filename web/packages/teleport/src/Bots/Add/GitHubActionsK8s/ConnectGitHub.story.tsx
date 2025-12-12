@@ -29,7 +29,7 @@ import {
   genWizardCiCdForever,
   genWizardCiCdSuccess,
 } from 'teleport/test/helpers/bots';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
@@ -50,7 +50,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdSuccess(), captureSuccess()],
+      handlers: [genWizardCiCdSuccess(), userEventCaptureSuccess()],
     },
   },
 };
@@ -60,7 +60,7 @@ export const TemplateFetchFailed: Story = {
     msw: {
       handlers: [
         genWizardCiCdError(500, 'something went wrong'),
-        captureSuccess(),
+        userEventCaptureSuccess(),
       ],
     },
   },
@@ -69,7 +69,7 @@ export const TemplateFetchFailed: Story = {
 export const TemplateFetching: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdForever(), captureSuccess()],
+      handlers: [genWizardCiCdForever(), userEventCaptureSuccess()],
     },
   },
 };

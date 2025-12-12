@@ -32,7 +32,7 @@ import {
   fetchUnifiedResourcesForever,
   fetchUnifiedResourcesSuccess,
 } from 'teleport/test/helpers/resources';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { KubernetesLabel } from '../Shared/kubernetes';
 import { TrackingProvider } from '../Shared/useTracking';
@@ -53,7 +53,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [fetchUnifiedResourcesSuccess(), captureSuccess()],
+      handlers: [fetchUnifiedResourcesSuccess(), userEventCaptureSuccess()],
     },
   },
 };
@@ -63,7 +63,7 @@ export const FetchResourcesError: Story = {
     msw: {
       handlers: [
         fetchUnifiedResourcesError(500, 'something went wrong'),
-        captureSuccess(),
+        userEventCaptureSuccess(),
       ],
     },
   },
@@ -72,7 +72,7 @@ export const FetchResourcesError: Story = {
 export const FetchResourcesForever: Story = {
   parameters: {
     msw: {
-      handlers: [fetchUnifiedResourcesForever(), captureSuccess()],
+      handlers: [fetchUnifiedResourcesForever(), userEventCaptureSuccess()],
     },
   },
 };

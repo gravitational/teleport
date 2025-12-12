@@ -27,7 +27,7 @@ import { testQueryClient } from 'design/utils/testing';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
-import { captureSuccess } from 'teleport/test/helpers/userEvents';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
@@ -39,7 +39,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  server.use(captureSuccess());
+  server.use(userEventCaptureSuccess());
 
   // The templates API call is debounced, so we'll need to time travel a little.
   jest.useFakeTimers();
