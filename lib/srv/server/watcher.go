@@ -5,7 +5,7 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * (at your Option[Instances]) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,15 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Instances contains information about discovered cloud instances from any provider.
-type Instances struct {
-	EC2   *EC2Instances
-	Azure *AzureInstances
-	GCP   *GCPInstances
-}
-
 // Fetcher fetches instances from a particular cloud provider.
-type Fetcher interface {
+type Fetcher[Instances any] interface {
 	// GetInstances gets a list of cloud instances.
 	GetInstances(ctx context.Context, rotation bool) ([]Instances, error)
 	// GetMatchingInstances finds Instances from the list of nodes
@@ -51,43 +45,124 @@ type Fetcher interface {
 	IntegrationName() string
 }
 
+// Option is a functional option for the Watcher.
+type Option[Instances any] func(*Watcher[Instances])
+
+// WithPollInterval sets the interval at which the watcher will fetch
+// instances from AWS.
+func WithPollInterval[Instances any](interval time.Duration) Option[Instances] {
+	return func(w *Watcher[Instances]) {
+		w.pollInterval = interval
+	}
+}
+
 // WithTriggerFetchC sets a poll trigger to manual start a resource polling.
-func WithTriggerFetchC(triggerFetchC <-chan struct{}) Option {
-	return func(w *Watcher) {
+func WithTriggerFetchC[Instances any](triggerFetchC <-chan struct{}) Option[Instances] {
+	return func(w *Watcher[Instances]) {
 		w.triggerFetchC = triggerFetchC
 	}
 }
 
 // WithPreFetchHookFn sets a function that gets called before each new iteration.
-func WithPreFetchHookFn(f func()) Option {
-	return func(w *Watcher) {
+func WithPreFetchHookFn[Instances any](f func(fetchers []Fetcher[Instances])) Option[Instances] {
+	return func(w *Watcher[Instances]) {
 		w.preFetchHookFn = f
 	}
 }
 
 // WithClock sets a clock that is used to periodically fetch new resources.
-func WithClock(clock clockwork.Clock) Option {
-	return func(w *Watcher) {
+func WithClock[Instances any](clock clockwork.Clock) Option[Instances] {
+	return func(w *Watcher[Instances]) {
 		w.clock = clock
 	}
 }
 
+// WithMissedRotation sets the missed rotation channel.
+// Specialized for EC2Instances since this functionality is specific to EC2 servers.
+func WithMissedRotation(missedRotation <-chan []types.Server) Option[EC2Instances] {
+	return func(w *Watcher[EC2Instances]) {
+		w.missedRotation = missedRotation
+	}
+}
+
+type syncMap[T any] struct {
+	mu sync.RWMutex
+	m  map[string][]T
+}
+
+func newSyncMap[T any]() *syncMap[T] {
+	return &syncMap[T]{
+		m: make(map[string][]T),
+	}
+}
+
+func (sm *syncMap[T]) set(key string, f []T) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	sm.m[key] = f
+}
+
+func (sm *syncMap[T]) delete(key string) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	delete(sm.m, key)
+}
+
+func (sm *syncMap[T]) getAll() []T {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	var all []T
+	for _, elems := range sm.m {
+		all = append(all, elems...)
+	}
+	return all
+}
+
 // Watcher allows callers to discover cloud instances matching specified filters.
-type Watcher struct {
+type Watcher[Instances any] struct {
 	// InstancesC can be used to consume newly discovered instances.
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetchersFn     func() []Fetcher
+	fetcherMap *syncMap[Fetcher[Instances]]
+
 	pollInterval   time.Duration
 	clock          clockwork.Clock
 	triggerFetchC  <-chan struct{}
 	ctx            context.Context
 	cancel         context.CancelFunc
-	preFetchHookFn func()
+	preFetchHookFn func(fetchers []Fetcher[Instances])
 }
 
-func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) {
+func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *Watcher[Instances] {
+	cancelCtx, cancelFn := context.WithCancel(ctx)
+	watcher := Watcher[Instances]{
+		fetcherMap:    newSyncMap[Fetcher[Instances]](),
+		ctx:           cancelCtx,
+		cancel:        cancelFn,
+		clock:         clockwork.NewRealClock(),
+		pollInterval:  time.Minute,
+		triggerFetchC: make(<-chan struct{}),
+		InstancesC:    make(chan Instances),
+	}
+	for _, opt := range opts {
+		opt(&watcher)
+	}
+	return &watcher
+}
+
+func (w *Watcher[Instances]) SetFetchers(dcName string, fetchers []Fetcher[Instances]) {
+	w.fetcherMap.set(dcName, fetchers)
+}
+
+func (w *Watcher[Instances]) DeleteFetchers(dcName string) {
+	w.fetcherMap.delete(dcName)
+}
+
+func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, err error) {
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return
@@ -104,18 +179,20 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 }
 
 // fetchAndSubmit fetches the resources and submits them for processing.
-func (w *Watcher) fetchAndSubmit() {
+func (w *Watcher[Instances]) fetchAndSubmit() {
+	fetchers := w.fetcherMap.getAll()
+
 	if w.preFetchHookFn != nil {
-		w.preFetchHookFn()
+		w.preFetchHookFn(fetchers)
 	}
 
-	for _, fetcher := range w.fetchersFn() {
+	for _, fetcher := range fetchers {
 		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
 	}
 }
 
 // Run starts the watcher's main watch loop.
-func (w *Watcher) Run() {
+func (w *Watcher[Instances]) Run() {
 	pollTimer := w.clock.NewTimer(w.pollInterval)
 	defer pollTimer.Stop()
 
@@ -128,7 +205,14 @@ func (w *Watcher) Run() {
 	for {
 		select {
 		case insts := <-w.missedRotation:
-			for _, fetcher := range w.fetchersFn() {
+			fetchers := w.fetcherMap.getAll()
+
+			// TODO: consider calling preFetchHookFn
+			//if w.preFetchHookFn != nil {
+			//	w.preFetchHookFn(fetchers)
+			//}
+
+			for _, fetcher := range fetchers {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(w.ctx, insts, true))
 			}
 
@@ -152,6 +236,6 @@ func (w *Watcher) Run() {
 }
 
 // Stop stops the watcher.
-func (w *Watcher) Stop() {
+func (w *Watcher[Instances]) Stop() {
 	w.cancel()
 }
