@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -44,6 +45,11 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// AlertHandler handles creating cluster alerts.
+type AlertHandler interface {
+	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+}
 
 // UploaderConfig sets up configuration for uploader service
 type UploaderConfig struct {
@@ -76,10 +82,14 @@ type UploaderConfig struct {
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
-	// ServerID is the id of the audit log server, for logging.
+	// ServerID is the server ID of the teleport process uploading session recordings, used for logging.
 	ServerID string
+	// Hostname is the hostname of the teleport process uploading session recordings.
+	Hostname string
+	// SystemRoles are the process types running in this instance.
+	SystemRoles []types.SystemRole
 	// AlertHandler handles creating cluster alerts.
-	AlertHandler events.AlertHandler
+	AlertHandler AlertHandler
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -294,12 +304,19 @@ func (u *Uploader) periodicSpaceMonitor(ctx context.Context) {
 			if usedPercent > float64(events.DiskAlertThreshold) {
 				u.log.WarnContext(ctx, "Free disk space for audit log is running low", "percentage_used", usedPercent)
 				if u.cfg.AlertHandler != nil {
+					instanceType := fmt.Sprintf("node %q", u.cfg.Hostname)
+					if slices.Contains(u.cfg.SystemRoles, types.RoleAuth) {
+						instanceType = fmt.Sprintf("auth instance %q", u.cfg.ServerID)
+					} else if slices.Contains(u.cfg.SystemRoles, types.RoleProxy) {
+						instanceType = fmt.Sprintf("proxy instance %q", u.cfg.ServerID)
+					}
+
 					alert, err := types.NewClusterAlert(
 						"audit-log-disk-usage/"+u.cfg.ServerID,
 						fmt.Sprintf(
-							"Available disk space for audit logs on node %q is running low (%.2f%% remaining). "+
+							"Available disk space for audit logs on %s is running low (%.2f%% remaining). "+
 								"Increase disk space or clean up old logs to avoid service disruption.",
-							u.cfg.ServerID, 100-usedPercent,
+							instanceType, 100-usedPercent,
 						),
 						types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindInstance, types.VerbRead)),
 						types.WithAlertLabel(types.AlertOnLogin, "yes"),

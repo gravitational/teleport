@@ -2342,7 +2342,6 @@ func (process *TeleportProcess) initAuthService() error {
 			Decrypter:                 encryptedIO,
 			SessionSummarizerProvider: sessionSummarizerProvider,
 			RecordingMetadataProvider: recordingMetadataProvider,
-			AlertHandler:              local.NewStatusService(b),
 		}
 		auditServiceConfig.UID, auditServiceConfig.GID, err = adminCreds()
 		if err != nil {
@@ -3759,7 +3758,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		events.Streamer
 		events.AuditLogSessionStreamer
 		services.SessionTrackerService
-		events.AlertHandler
+		filesessions.AlertHandler
 	}
 
 	// use the local auth server for uploads if auth happens to be
@@ -3837,8 +3836,8 @@ func (process *TeleportProcess) initUploaderService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
+	systemRoles := process.getInstanceRoles()
+	uploaderCfg := filesessions.UploaderConfig{
 		Streamer:                        uploaderClient,
 		ScanDir:                         uploadsDir,
 		CorruptedDir:                    corruptedDir,
@@ -3847,8 +3846,17 @@ func (process *TeleportProcess) initUploaderService() error {
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
 		ServerID:                        hostUUID,
-		AlertHandler:                    uploaderClient,
-	})
+		Hostname:                        process.Config.Hostname,
+		SystemRoles:                     systemRoles,
+	}
+	isAuth := slices.Contains(systemRoles, types.RoleAuth)
+	isProxy := slices.Contains(systemRoles, types.RoleProxy)
+	// Don't send alerts for auth/proxy in cloud.
+	if !(process.GetClusterFeatures().Cloud && (isAuth || isProxy)) {
+		uploaderCfg.AlertHandler = uploaderClient
+	}
+
+	fileUploader, err := filesessions.NewUploader(uploaderCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
