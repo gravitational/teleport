@@ -388,6 +388,8 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	tlsServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 	defer tlsServer.Close()
@@ -998,6 +1000,8 @@ func TestInstanceSelfRepair(t *testing.T) {
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	tlsServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 	defer tlsServer.Close()

@@ -458,6 +458,7 @@ func mockAuth(t *testing.T) *authtest.TLSServer {
 		AuditLog:     &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	srv, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)

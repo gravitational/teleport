@@ -395,10 +395,15 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				}
 				testAuthServer, err := authtest.NewAuthServer(cfg)
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 				tlsServer, err := testAuthServer.NewTestTLSServer()
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
 				clt, err := tlsServer.NewClient(authtest.TestAdmin())
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 				for _, suiteValue := range types.SignatureAlgorithmSuite_value {
 					suite := types.SignatureAlgorithmSuite(suiteValue)
