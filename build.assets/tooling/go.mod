@@ -20,7 +20,7 @@ require (
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c
 	golang.org/x/mod v0.29.0
-	golang.org/x/oauth2 v0.28.0
+	golang.org/x/oauth2 v0.30.0
 	google.golang.org/protobuf v1.36.6
 	helm.sh/helm/v3 v3.18.5
 	howett.net/plist v1.0.1
