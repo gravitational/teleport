@@ -212,7 +212,11 @@ A new Terraform-friendly resource is added to configure CA overrides. The new
 resource avoids direct changes to cert_authority, a sensitive Teleport-managed
 resource.
 
-Creating a new override automatically generates the corresponding empty CRL.
+Certificates supplied to an override are validated to make sure they can
+function as CA certificates and fulfill Teleport's requirements (see [Subject
+customization](#subject-customization)).
+
+Creating an override automatically generates the corresponding empty CRL.
 
 ```proto
 package teleport.subca.v1;
@@ -339,6 +343,7 @@ authn - [public docs][mssql-pub] and [sources][mssql-sources].)
 [mssql-pub]: https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/sql-server-ad-pkinit/
 [mssql-sources]: https://github.com/gravitational/teleport/blob/99843ebb0ed5ddc4f4e9e34d1cb23e008afac0f8/lib/auth/db.go#L160
 
+<a id="subject-customization"></a>
 ### Subject customization and CA restrictions
 
 Teleport makes a single demand of CA certificates: the "O=" field [must contain
