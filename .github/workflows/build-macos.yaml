@@ -66,7 +66,7 @@ jobs:
         run: |
           rustup override set ${{ env.RUST_VERSION }}
 
-      - name: Install wasm-pack
+      - name: Install wasm-deps
         run: make ensure-wasm-deps
 
       - name: Build

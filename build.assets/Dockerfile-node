@@ -49,8 +49,6 @@ RUN apt-get -y update && \
     # Used during tag builds to build the RPM package of Connect.
     rpm \
     && \
-    # Manually install the wasm-opt binary from the binaryen package on ARM64.
-    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
     rm -rf /var/lib/apt/lists/*
@@ -83,6 +81,7 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup target add wasm32-unknown-unknown && \
     if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
 
-# Install wasm-pack for targeting WebAssembly from Rust.
-ARG WASM_PACK_VERSION
-RUN cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}
+ARG WASM_OPT_VERSION
+ARG WASM_BINDGEN_VERSION
+# Install wasm-bindgen-ci and wasm-opt for bulding rust webassembly module.
+RUN cargo install --locked wasm-opt@${WASM_OPT_VERSION} wasm-bindgen-cli@${WASM_BINDGEN_VERSION}

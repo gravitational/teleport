@@ -344,26 +344,6 @@
         }
       }
     },
-    "wasm-pack@latest": {
-      "last_modified": "2023-12-13T22:54:10Z",
-      "resolved": "github:NixOS/nixpkgs/fd04bea4cbf76f86f244b9e2549fca066db8ddff#wasm-pack",
-      "source": "devbox-search",
-      "version": "0.12.1",
-      "systems": {
-        "aarch64-darwin": {
-          "store_path": "/nix/store/nc5066l6dy3h98fq9nphha44wgibzg10-wasm-pack-0.12.1"
-        },
-        "aarch64-linux": {
-          "store_path": "/nix/store/x4hg3a0fc9bgzlsgp0i63xs7maal3d01-wasm-pack-0.12.1"
-        },
-        "x86_64-darwin": {
-          "store_path": "/nix/store/0qy7hbczxfawq3f1fvf31yynqfycvfyk-wasm-pack-0.12.1"
-        },
-        "x86_64-linux": {
-          "store_path": "/nix/store/b1f3w3sk72m1fpgz5mn5dwnn6bnd19jz-wasm-pack-0.12.1"
-        }
-      }
-    },
     "yamllint@latest": {
       "last_modified": "2023-06-30T04:44:22Z",
       "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#yamllint",
