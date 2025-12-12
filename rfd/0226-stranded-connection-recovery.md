@@ -288,10 +288,10 @@ message HealthCheckConfig {
 
 ### Proxy Reconnects
 
-#### Background on reversetunnels
+#### Background on Reverse Tunnels
 
 The agent connections we are concerned with for Proxy reconnects are the
-reversetunnel connections. These provide user connectivity to the agent. 
+reverse tunnel connections. These provide user connectivity to the agent. 
 They are long-lived connections that only disconnect when the Proxy 
 service itself shuts down or the underlying TCP connection is disrupted.
 
@@ -307,7 +307,7 @@ roughly equal to the quarterly downtime budget when targeting `99.99` availabili
 
 #### Proposed Improvements
 
-We will continue to use the reversetunnel server's Proxy discovery requests to communicate Proxy health.
+We will continue to use the reverse tunnel server's Proxy discovery requests to communicate Proxy health.
 
 To speed up this process we will support configuring a lower `ServerAnnounceTTL`.
 
@@ -334,7 +334,7 @@ type Proxy struct {
 
 	ProxyGroupID         string        `json:"gid,omitempty"`
 	ProxyGroupGeneration uint64        `json:"ggen,omitempty"`
-+    TTL                 time.Duration `json:"ttl,omitempty"`
++   TTL                  time.Duration `json:"ttl,omitempty"`
 }
 ```
 
@@ -372,20 +372,20 @@ value when events are received by the `ProxyWatcher *services.GenericWatcher[typ
 
 This behavior is backwards compatible with existing agent Proxy tracking.
 
-If one of the Agents reversetunnels is connected to an expired Proxy. The agent will
+If one of the Agents reverse tunnels is connected to an expired Proxy. The agent will
 begin creating new connections attempting to reach a non-expired Proxy.
 
 #### Closing Connections
 
-Today the agent never closes reversetunnel connections. This can lead to more reversetunnel connections open than expected when proxies become unhealthy and recover. 
-To solve this agents will close reversetunnels based on their configured
+Today the agent never closes reverse tunnel connections. This can lead to more reverse tunnel connections open than expected when proxies become unhealthy and recover. 
+To solve this agents will close reverse tunnels based on their configured
 desired connection count.
 
 Connections will only be closed if the Proxy is expired or there are excess connections to the desired Proxy set. This avoids disconnecting from proxies during a rollout. We will only consider closing connections after exceeding these conditions for 30 to 60 minutes to mitigate the chances of an agent becoming unreachable.
 
-Enabling agent disconnects will be done through the `ClusterNetworkingConfig.GracefulTunnelClosing: true`. This config is used today to push other changes to agents like the reversetunnel connection count so adding an additional field is straight forward.
+Enabling agent disconnects will be done through the `ClusterNetworkingConfig.GracefulTunnelClosing: true`. This config is used today to push other changes to agents like the reverse tunnel connection count so adding an additional field is straight forward.
 
-### Additonal Thoughts and Considerations
+### Additional Thoughts and Considerations
 
 #### Auth HTTP Clients
 HTTP client connections to auth need to be handled during failures.
@@ -403,10 +403,10 @@ and support backwards compatibility across 1 major version.
 
 |api                       |used |description                                                |
 |--------------------------|-----|-----------------------------------------------------------|
-|UpsertTunnelConnection    |TRUE |used by leaf cluster reversetunnel                         |
+|UpsertTunnelConnection    |TRUE |used by leaf cluster reverse tunnel                         |
 |GetTunnelConnections      |TRUE |used by remote cluster cache                               |
-|GetAllTunnelConnections   |TRUE |used by remote cluster cache and leaf cluster reversetunnel|
-|DeleteTunnelConnection    |TRUE |used by leaf cluster reversetunnel                         |
+|GetAllTunnelConnections   |TRUE |used by remote cluster cache and leaf cluster reverse tunnel|
+|DeleteTunnelConnection    |TRUE |used by leaf cluster reverse tunnel                         |
 |DeleteTunnelConnections   |FALSE|unused except in testing                                   |
 |UpsertAuthServer          |FALSE|unused except in testing                                   |
 |GetAuthServers            |TRUE |used by tctl and proxy webapi                              |
@@ -482,7 +482,7 @@ graceful than the option described above.
 > Periodic tunnel reconnects was discussed but no decision was made. We will revisit
 > this after implementing [Proxy Reconnects](#proxy-reconnects) as described above.
 
-Reconnecting reversetunnels during a failure can lead to imbalanced and suboptimal
+Reconnecting reverse tunnels during a failure can lead to imbalanced and suboptimal
 routing that should be addressed when the Teleport cluster recovers. To address
 this we need a way to trigger periodic reconnects. This can be achieved by having
 the proxy send reconnects at a specific interval + jitter.
@@ -496,9 +496,9 @@ connection that received a reconnect signal.
 
 #### Alternative Approaches to Auth Reconnects
 Alternative approaches such as closing the agent's connection server side or
-using a HTTP2 GOAWAY to signal an agent to reconnect were quickly rejected.
+using a `HTTP2 GOAWAY` to signal an agent to reconnect were quickly rejected.
 Closing the connection server side allows for no graceful draining behavior to
-be used. Sending an HTTP2 GOAWAY is not exposed by the standard go http/grpc
+be used. Sending an `HTTP2 GOAWAY` is not exposed by the standard go http/grpc
 libraries.
 
 [^1]: https://grpc.io/docs/guides/health-checking/
