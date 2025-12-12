@@ -618,7 +618,7 @@
     {
       "source": "/enroll-resources/machine-id/deployment/linux-tpm/",
       "destination": "/machine-workload-identity/deployment/linux-tpm/",
-      "permanent": true
+      "permanent"n: true
     },
     {
       "source": "/enroll-resources/machine-id/deployment/linux/",
@@ -646,8 +646,8 @@
       "permanent": true
     },
     {
-      "source": "/enroll-resources/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/manifesto/",
+      "source": "/machine-workload-identity/manifesto/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
@@ -657,57 +657,57 @@
     },
     {
       "source": "/enroll-resources/workload-identity/aws-oidc-federation/",
-      "destination": "/machine-workload-identity/workload-identity/aws-oidc-federation/",
+      "destination": "/machine-workload-identity/deployment/aws-oidc-federation/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/aws-roles-anywhere/",
-      "destination": "/machine-workload-identity/workload-identity/aws-roles-anywhere/",
+      "destination": "/machine-workload-identity/deployment/aws-roles-anywhere/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/azure-federated-credentials/",
-      "destination": "/machine-workload-identity/workload-identity/azure-federated-credentials/",
+      "destination": "/machine-workload-identity/deployment/azure-federated-credentials/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/best-practices/",
-      "destination": "/machine-workload-identity/workload-identity/best-practices/",
+      "destination": "/machine-workload-identity/spiffe/best-practices/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/federation/",
-      "destination": "/machine-workload-identity/workload-identity/federation/",
+      "destination": "/machine-workload-identity/federation/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/gcp-workload-identity-federation-jwt/",
-      "destination": "/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt/",
+      "destination": "/machine-workload-identity/deployment/gcp-workload-identity-federation-jwt/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/getting-started/",
-      "destination": "/machine-workload-identity/workload-identity/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/introduction/",
-      "destination": "/machine-workload-identity/workload-identity/introduction/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/jwt-svids/",
-      "destination": "/machine-workload-identity/workload-identity/jwt-svids/",
+      "destination": "/machine-workload-identity/jwt-svids/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/spiffe/",
-      "destination": "/machine-workload-identity/workload-identity/spiffe/",
+      "destination": "/machine-workload-identity/use-cases/spiffe-workload-api/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/workload-identity/tsh/",
-      "destination": "/machine-workload-identity/workload-identity/tsh/",
+      "destination": "/machine-workload-identity/tsh/",
       "permanent": true
     },
     {
@@ -2316,8 +2316,7 @@
       "permanent": true
     },
     {
-      "source": "/machine-workload-identity/machine-id/manifesto/",
-      "destination": "/machine-workload-identity/manifesto/",
+      "destination": "/machine-workload-identity/introduction/",
       "permanent": true
     },
     {
@@ -2443,6 +2442,66 @@
     {
       "source": "/machine-workload-identity/machine-id/deployment/linux/",
       "destination": "/machine-workload-identity/deployment/linux/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/aws-oidc-federation/",
+      "destination": "/machine-workload-identity/spiffe/aws-oidc-federation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/aws-roles-anywhere/",
+      "destination": "/machine-workload-identity/spiffe/aws-roles-anywhere/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/azure-federated-credentials/",
+      "destination": "/machine-workload-identity/deployment/azure-federated-credentials/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/gcp-workload-identity-federation-jwt/",
+      "destination": "/machine-workload-identity/deployment/gcp-workload-identity-federation-jwt/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/federation/",
+      "destination": "/machine-workload-identity/federation/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/best-practices/",
+      "destination": "/machine-workload-identity/best-practices/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/introduction/",
+      "destination": "/machine-workload-identity/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/spiffe/",
+      "destination": "/machine-workload-identity/use-cases/spiffe-workload-api/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/jwt-svids/",
+      "destination": "/machine-workload-identity/jwt-svids/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/tsh/",
+      "destination": "/machine-workload-identity/tsh/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/getting-started/",
+      "destination": "/machine-workload-identity/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-workload-identity/workload-identity/",
+      "destination": "/machine-workload-identity/",
       "permanent": true
     },
     {
