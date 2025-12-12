@@ -596,6 +596,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return trace.Wrap(err)
 	}
 
+	s.caRotationCh = make(chan []types.Server)
+
 	s.ec2Watcher = server.NewWatcher[server.EC2Instances](
 		s.ctx,
 		server.WithMissedRotation(s.caRotationCh),
@@ -605,8 +607,6 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithClock[server.EC2Instances](s.clock),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
-
-	s.caRotationCh = make(chan []types.Server)
 
 	if s.ec2Installer == nil {
 		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
