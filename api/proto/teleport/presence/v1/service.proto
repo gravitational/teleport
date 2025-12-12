@@ -47,6 +47,11 @@ service PresenceService {
   rpc ListRelayServers(ListRelayServersRequest) returns (ListRelayServersResponse);
   // DeleteRelayServer deletes a relay_server resource by name.
   rpc DeleteRelayServer(DeleteRelayServerRequest) returns (DeleteRelayServerResponse);
+
+  // ListAuthServers returns a page of Auth servers.
+  rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
+  // ListProxyServers returns a page of Proxy servers.
+  rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
 }
 
 // Request for GetRemoteCluster
@@ -161,3 +166,39 @@ message DeleteRelayServerRequest {
 
 // Response message for the PresenceService.DeleteRelayServer rpc.
 message DeleteRelayServerResponse {}
+
+// Request message for the PresenceService.ListAuthServers rpc.
+message ListAuthServersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response message for the PresenceService.ListAuthServers rpc.
+message ListAuthServersResponse {
+  // A list of auth server resources.
+  repeated types.ServerV2 servers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request message for the PresenceService.ListProxyServers rpc.
+message ListProxyServersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response message for the PresenceService.ListProxyServers rpc.
+message ListProxyServersResponse {
+  // A list of proxy server resources.
+  repeated types.ServerV2 servers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
