@@ -44,9 +44,8 @@ type mockAuthClient struct {
 	deleteCh chan string
 }
 
-func newMockAuthClient(client authclient.ClientI) *mockAuthClient {
+func newMockAuthClient() *mockAuthClient {
 	return &mockAuthClient{
-		ClientI:  client,
 		deleteCh: make(chan string, 1),
 	}
 }
@@ -70,6 +69,8 @@ func TestWatcher(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	reconcileCh := make(chan types.KubeClusters)
+
+	authClient := newMockAuthClient()
 	// Setup kubernetes server that proxies one static kube cluster and
 	// watches for kube_clusters with label group=a.
 	testCtx := SetupTestContext(ctx, t, TestConfig{
@@ -86,9 +87,11 @@ func TestWatcher(t *testing.T) {
 				return
 			}
 		},
+		WrapAuthClient: func(client authclient.ClientI) authclient.ClientI {
+			authClient.ClientI = client
+			return authClient
+		},
 	})
-	authClient := newMockAuthClient(testCtx.KubeServer.AuthClient)
-	testCtx.KubeServer.AuthClient = authClient
 
 	require.Len(t, testCtx.KubeServer.fwd.kubeClusters(), 1)
 	kube0 := testCtx.KubeServer.fwd.kubeClusters()[0]
