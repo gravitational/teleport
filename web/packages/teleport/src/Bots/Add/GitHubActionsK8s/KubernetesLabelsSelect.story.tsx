@@ -32,8 +32,10 @@ import {
   fetchUnifiedResourcesForever,
   fetchUnifiedResourcesSuccess,
 } from 'teleport/test/helpers/resources';
+import { captureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { KubernetesLabel } from '../Shared/kubernetes';
+import { TrackingProvider } from '../Shared/useTracking';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 
 const meta = {
@@ -51,7 +53,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [fetchUnifiedResourcesSuccess()],
+      handlers: [fetchUnifiedResourcesSuccess(), captureSuccess()],
     },
   },
 };
@@ -59,7 +61,10 @@ export const Happy: Story = {
 export const FetchResourcesError: Story = {
   parameters: {
     msw: {
-      handlers: [fetchUnifiedResourcesError(500, 'something went wrong')],
+      handlers: [
+        fetchUnifiedResourcesError(500, 'something went wrong'),
+        captureSuccess(),
+      ],
     },
   },
 };
@@ -67,7 +72,7 @@ export const FetchResourcesError: Story = {
 export const FetchResourcesForever: Story = {
   parameters: {
     msw: {
-      handlers: [fetchUnifiedResourcesForever()],
+      handlers: [fetchUnifiedResourcesForever(), captureSuccess()],
     },
   },
 };
@@ -109,16 +114,18 @@ function Wrapper() {
   return (
     <QueryClientProvider client={queryClient}>
       <TeleportProviderBasic teleportCtx={ctx}>
-        <Validation>
-          {({ validator }) => (
-            <Container>
-              <KubernetesLabelsSelect
-                selected={labels}
-                onChange={labels => handleLabelsChanged(labels, validator)}
-              />
-            </Container>
-          )}
-        </Validation>
+        <TrackingProvider>
+          <Validation>
+            {({ validator }) => (
+              <Container>
+                <KubernetesLabelsSelect
+                  selected={labels}
+                  onChange={labels => handleLabelsChanged(labels, validator)}
+                />
+              </Container>
+            )}
+          </Validation>
+        </TrackingProvider>
       </TeleportProviderBasic>
     </QueryClientProvider>
   );
