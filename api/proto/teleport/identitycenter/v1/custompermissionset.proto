@@ -1,0 +1,80 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.identitycenter.v1;
+
+import "google/protobuf/struct.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
+
+// CustomPermissionSet represents a Teleport-managed permission set
+message CustomPermissionSet {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  CustomPermissionSetSpec spec = 5;
+}
+
+// CustomPermissionSetSpec holds static data about the permission set
+message CustomPermissionSetSpec {
+  // ARN is the unique ARN of the permission set as assigned by AWS
+  string arn = 1;
+
+  // Name is the human-readable name of the permission set
+  string name = 2;
+
+  string description = 3;
+
+  // Inline Policy holds any inline policy associated with the PermissionSet
+  google.protobuf.Struct inline_policy = 4;
+}
+
+// ManagedResource represents a discovered AWS resource that Identity Center can
+// grant access to
+message ManagedResource {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  ManagedResourceSpec spec = 5;
+}
+
+// AWSResourceSpec holds information about an AWS resource
+message ManagedResourceSpec {
+  string arn = 1;
+  string name = 2;
+  // Dependencies holds a list of ARNs containing resources that this resource
+  // depends on.
+  repeated string dependencies = 3;
+}
+
+// AccessProfile describes a set of allowed actions on an AWS resource
+message AccessProfile {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AccessProfileSpec spec = 5;
+}
+
+// AccessProfile describes a set of allowed actions on an AWS resource
+message AccessProfileSpec {
+  string resource_type = 1;
+  string display_name = 2;
+  repeated string action = 3;
+}

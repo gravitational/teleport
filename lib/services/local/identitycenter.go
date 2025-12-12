@@ -40,6 +40,9 @@ const (
 	awsPermissionSetPrefix       = "permission_sets"
 	awsPrincipalAssignmentPrefix = "principal_assignments"
 	awsAccountAssignmentPrefix   = "account_assignments"
+	awsCustomPermissionSetPrefix = "custom_permission_sets"
+	awsManagedResourcePrefix     = "managed_resources"
+	awsAccessProfilePrefix       = "access_profiles"
 )
 
 // IdentityCenterServiceConfig provides configuration parameters for an
@@ -74,6 +77,9 @@ type IdentityCenterService struct {
 	permissionSets       *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
 	principalAssignments *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
 	accountAssignments   *generic.ServiceWrapper[*identitycenterv1.AccountAssignment]
+	managedResources     *generic.ServiceWrapper[*identitycenterv1.ManagedResource]
+	customPermissionSets *generic.ServiceWrapper[*identitycenterv1.CustomPermissionSet]
+	accessProfiles       *generic.ServiceWrapper[*identitycenterv1.AccessProfile]
 }
 
 // compile-time assertion that the IdentityCenterService implements the
@@ -135,11 +141,50 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating account assignments service")
 	}
 
+	managedResourcesSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.ManagedResource]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterManagedResource,
+		BackendPrefix: backend.NewKey(awsResourcePrefix, awsManagedResourcePrefix),
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.ManagedResource],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.ManagedResource],
+		PageLimit:     identityCenterPageSize,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating AWS resource service")
+	}
+
+	customPermissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.CustomPermissionSet]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterCustomPermissionSet,
+		BackendPrefix: backend.NewKey(awsResourcePrefix, awsCustomPermissionSetPrefix),
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.CustomPermissionSet],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.CustomPermissionSet],
+		PageLimit:     identityCenterPageSize,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating custom permission sets service")
+	}
+
+	accessProfileSvc, err := generic.NewServiceWrapper(generic.ServiceConfig[*identitycenterv1.AccessProfile]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterAccessProfile,
+		BackendPrefix: backend.NewKey(awsResourcePrefix, awsAccessProfilePrefix),
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.AccessProfile],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.AccessProfile],
+		PageLimit:     identityCenterPageSize,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating access profiles service")
+	}
+
 	svc := &IdentityCenterService{
 		accounts:             accountsSvc,
 		permissionSets:       permissionSetSvc,
 		principalAssignments: principalsSvc,
 		accountAssignments:   accountAssignmentsSvc,
+		managedResources:     managedResourcesSvc,
+		customPermissionSets: customPermissionSetSvc,
+		accessProfiles:       accessProfileSvc,
 	}
 
 	return svc, nil
@@ -382,4 +427,34 @@ func (svc *IdentityCenterService) DeleteAllAccountAssignments(ctx context.Contex
 // DeleteAllIdentityCenterAccountAssignments deletes all known account assignments
 func (svc *IdentityCenterService) DeleteAllIdentityCenterAccountAssignments(ctx context.Context) error {
 	return trace.Wrap(svc.accountAssignments.DeleteAllResources(ctx))
+}
+
+func (svc *IdentityCenterService) CreateCustomPermissionSet(ctx context.Context, cps *identitycenterv1.CustomPermissionSet) (*identitycenterv1.CustomPermissionSet, error) {
+	created, err := svc.customPermissionSets.CreateResource(ctx, cps)
+	return created, trace.Wrap(err)
+}
+
+func (svc *IdentityCenterService) GetCustomPermissionSet(ctx context.Context, name string) (*identitycenterv1.CustomPermissionSet, error) {
+	cps, err := svc.customPermissionSets.GetResource(ctx, name)
+	return cps, trace.Wrap(err)
+}
+
+func (svc *IdentityCenterService) CreateIdentityCenterManagedResource(ctx context.Context, r *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error) {
+	created, err := svc.managedResources.CreateResource(ctx, r)
+	return created, trace.Wrap(err)
+}
+
+func (svc *IdentityCenterService) GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.ManagedResource, error) {
+	r, err := svc.managedResources.GetResource(ctx, name)
+	return r, trace.Wrap(err)
+}
+
+func (svc *IdentityCenterService) CreateIdentityCenterAccessProfile(ctx context.Context, r *identitycenterv1.AccessProfile) (*identitycenterv1.AccessProfile, error) {
+	created, err := svc.accessProfiles.CreateResource(ctx, r)
+	return created, trace.Wrap(err)
+}
+
+func (svc *IdentityCenterService) GetIdentityCenterAccessProfile(ctx context.Context, name string) (*identitycenterv1.AccessProfile, error) {
+	r, err := svc.accessProfiles.GetResource(ctx, name)
+	return r, trace.Wrap(err)
 }

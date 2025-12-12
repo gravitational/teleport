@@ -224,12 +224,34 @@ type IdentityCenterAccountAssignments interface {
 	DeleteAllAccountAssignments(context.Context) error
 }
 
+type IdentityCenterCustomPermissionSetGetter interface {
+	GetCustomPermissionSet(context.Context, string) (*identitycenterv1.CustomPermissionSet, error)
+}
+
+type IdentityCenterCustomPermissionSets interface {
+	IdentityCenterCustomPermissionSetGetter
+	CreateCustomPermissionSet(context.Context, *identitycenterv1.CustomPermissionSet) (*identitycenterv1.CustomPermissionSet, error)
+}
+
+type IdentityCenterManagedResources interface {
+	GetIdentityCenterManagedResource(context.Context, string) (*identitycenterv1.ManagedResource, error)
+	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error)
+}
+
+type IdentityCenterAccessProfiles interface {
+	GetIdentityCenterAccessProfile(context.Context, string) (*identitycenterv1.AccessProfile, error)
+	CreateIdentityCenterAccessProfile(context.Context, *identitycenterv1.AccessProfile) (*identitycenterv1.AccessProfile, error)
+}
+
 // IdentityCenter combines all the resource managers used by the Identity Center plugin
 type IdentityCenter interface {
 	IdentityCenterAccounts
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
 	IdentityCenterAccountAssignments
+	IdentityCenterCustomPermissionSets
+	IdentityCenterManagedResources
+	IdentityCenterAccessProfiles
 }
 
 func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.AppServerV3 {
