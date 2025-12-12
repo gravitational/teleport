@@ -1220,7 +1220,7 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		reply, payload, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
 		if err != nil {
 			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
-		} else if !reply && payload != nil {
+		} else if !reply && len(payload) != 0 {
 			// If the target node replies with a payload, this means that the connection itself has been rejected,
 			// presumably due to an authz error, and the server is trying to communicate the error with the first
 			// req/chan received.
