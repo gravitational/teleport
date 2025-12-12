@@ -119,6 +119,12 @@ spec:
                 description: ForceAuthn specified whether re-authentication should
                   be forced on login. UNSPECIFIED is treated as NO.
                 x-kubernetes-int-or-string: true
+              include_subject:
+                description: 'IncludeSubject is a flag that indicates whether the
+                  Subject element is included in the SAML authentication request.
+                  Defaults to false. Note: Some IdPs will reject requests that contain
+                  a Subject.'
+                type: boolean
               issuer:
                 description: Issuer is the identity provider issuer.
                 type: string
