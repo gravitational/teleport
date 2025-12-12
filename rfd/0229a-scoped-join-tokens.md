@@ -103,16 +103,14 @@ to facilitate existing provisioning semantics.
 +  string mode = 4;
 +
 +  // Immutable labels that should be applied to any resulting resources
-+  // provisioned by using this token.
++  // provisioned using this token.
 +  ImmutableLabels immutable_labels = 5;
 +}
 +
 +// A set of configurations for immutable labels.
 +message ImmutableLabels {
-+  oneof labels {
-+    // A map of labels that should be used when a simple, static set of labels
-+    // is sufficient.
-+    map<string, string> simple = 1;
++    // Labels that should be applied to SSH nodes.
++    map<string, string> ssh = 1;
 +  }
 +}
 +
@@ -195,8 +193,8 @@ Scoped tokens should also support automatic assignment of immutable labels to
 any provisioned Teleport SSH agents. This document only proposes support for
 Teleport SSH agents as applying them to other scoped Teleport services (i.e.
 Application, Database, etc.) introduces significant complexity. However the
-proposed message structure is intended to allow extension for more complex
-cases. The `immutable_labels` field of a `ScopedToken` will be encoded into the
+proposed message structure allows for easy extension for more agent types.
+The `immutable_labels` field of a `ScopedToken` will be encoded into the
 resulting host certificates in much the same way as the `assigned_scope`. These
 labels will be extracted while registering the inventory control stream and
 applied as a new `token_labels` field stored in `ServerSpecV2`. Future
