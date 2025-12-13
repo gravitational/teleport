@@ -588,11 +588,10 @@ tls:
   # ```code
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
   # ```
-  #
-  # <Admonition type="warning" title="Root CA filename">
-  #   The key containing the root CA in the secret must be `ca.pem`.
-  # </Admonition>
   existingCASecretName: ""
+  # tls.existingCASecretKeyName(string) -- determines which key in the CA secret
+  # will be used as a trusted CA bundle file.
+  existingCASecretKeyName: "ca.pem"
 
 # updater -- controls whether the Kube Agent Updater should be deployed alongside
 # the `teleport-kube-agent`. The updater fetches the target version, validates the

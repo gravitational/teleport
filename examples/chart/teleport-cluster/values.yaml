@@ -585,8 +585,9 @@ tls:
   # Useful for building trust when using intermediate certificate authorities.
   # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
-  # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
+  # (optional) Name of an existing key in the CA secret which will be used as a trusted CA bundle file.
+  existingCASecretKeyName: "ca.pem"
 
 ##################################################
 # Values that you shouldn't need to change.
