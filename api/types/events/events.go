@@ -2353,6 +2353,18 @@ func (m *SFTPSummary) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *CloudClusterCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CloudClusterUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CloudClusterDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *AutoUpdateConfigCreate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
