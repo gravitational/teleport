@@ -594,6 +594,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case VnetConfigDeleteEvent:
 		e = &events.VnetConfigDelete{}
 
+	case CloudClusterCreateEvent:
+		e = &events.CloudClusterCreate{}
+	case CloudClusterUpdateEvent:
+		e = &events.CloudClusterUpdate{}
+	case CloudClusterDeleteEvent:
+		e = &events.CloudClusterDelete{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

@@ -988,6 +988,13 @@ const (
 	VnetConfigUpdateEvent = "vnet.config.update"
 	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
 	VnetConfigDeleteEvent = "vnet.config.delete"
+
+	// CloudClusterCreateEvent is emitted when a CloudCluster resource is created.
+	CloudClusterCreateEvent = "cloud_cluster.create"
+	// CloudClusterUpdateEvent is emitted when a CloudCluster resource is updated.
+	CloudClusterUpdateEvent = "cloud_cluster.update"
+	// CloudClusterDeleteEvent is emitted when a CloudCluster resource is deleted.
+	CloudClusterDeleteEvent = "cloud_cluster.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
