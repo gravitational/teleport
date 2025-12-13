@@ -690,6 +690,9 @@ const (
 	// KindAppAuthConfig is the resource kind for app auth configs.
 	KindAppAuthConfig = "app_auth_config"
 
+	// KindCloudCluster is the resource with cloudcluster configuration.
+	KindCloudCluster = "cloud_cluster"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
