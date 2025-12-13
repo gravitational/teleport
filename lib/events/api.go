@@ -981,6 +981,13 @@ const (
 	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
 	// fails.
 	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
+
+	// CloudClusterCreateEvent is emitted when a CloudCluster resource is created.
+	CloudClusterCreateEvent = "cloud_cluster.create"
+	// CloudClusterUpdateEvent is emitted when a CloudCluster resource is updated.
+	CloudClusterUpdateEvent = "cloud_cluster.update"
+	// CloudClusterDeleteEvent is emitted when a CloudCluster resource is deleted.
+	CloudClusterDeleteEvent = "cloud_cluster.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

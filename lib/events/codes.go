@@ -825,6 +825,13 @@ const (
 	// code.
 	AppAuthConfigVerifyFailureCode = "TAAC004E"
 
+	// CloudClusterCreateCode is the auto update create event code.
+	CloudClusterCreateCode = "CC001I"
+	// CloudClusterUpdateCode is the auto update update event code.
+	CloudClusterUpdateCode = "CC002I"
+	// CloudClusterDeleteCode is the auto update delete event code.
+	CloudClusterDeleteCode = "CC003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
