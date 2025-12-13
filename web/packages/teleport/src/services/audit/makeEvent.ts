@@ -2409,6 +2409,24 @@ export const formatters: Formatters = {
         ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
         : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
+  [eventCodes.CLOUD_CLUSTER_CREATE]: {
+    type: 'cloud_cluster.create',
+    desc: 'Cloud Cluster Created',
+    format: ({ name }) =>
+      `Cloud Cluster [${name}] has been created`,
+  },
+  [eventCodes.CLOUD_CLUSTER_UPDATE]: {
+    type: 'cloud_cluster.update',
+    desc: 'Cloud Cluster Updated',
+    format: ({ name }) =>
+      `Cloud Cluster [${name}] has been updated`,
+  },
+  [eventCodes.CLOUD_CLUSTER_DELETE]: {
+    type: 'cloud_cluster.delete',
+    desc: 'Cloud Cluster Deleted',
+    format: ({ name }) =>
+      `Cloud Cluster [${name}] has been deleted`,
+  },
 };
 
 const unknownFormatter = {

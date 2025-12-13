@@ -357,6 +357,9 @@ export const eventCodes = {
   SCIM_RESOURCE_LIST: 'TSCIM005I',
   SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
+  CLOUD_CLUSTER_CREATE: 'CC001I',
+  CLOUD_CLUSTER_UPDATE: 'CC002I',
+  CLOUD_CLUSTER_DELETE: 'CC003I',
 } as const;
 
 /**
@@ -2106,6 +2109,15 @@ export type RawEvents = {
       client_ip_restrictions: string[];
       success: boolean;
     }
+  >;
+  [eventCodes.CLOUD_CLUSTER_CREATE]: RawEventAccess<
+    typeof eventCodes.CLOUD_CLUSTER_CREATE
+  >;
+  [eventCodes.CLOUD_CLUSTER_UPDATE]: RawEventAccess<
+    typeof eventCodes.CLOUD_CLUSTER_UPDATE
+  >;
+  [eventCodes.CLOUD_CLUSTER_DELETE]: RawEventAccess<
+    typeof eventCodes.CLOUD_CLUSTER_DELETE
   >;
 };
 
