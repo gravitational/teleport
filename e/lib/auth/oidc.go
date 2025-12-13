@@ -833,6 +833,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			LoginUserAgent:       req.ClientUserAgent,
 			AttestWebSession:     true,
 			CreateDeviceWebToken: true,
+			Scope:                req.Scope,
 		})
 		if err != nil {
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create web session.")
@@ -853,6 +854,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			LoginIP:                 req.ClientLoginIP,
 			SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(req.SshAttestationStatement),
 			TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(req.TlsAttestationStatement),
+			Scope:                   req.Scope,
 		})
 		if err != nil {
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create session certificate.")

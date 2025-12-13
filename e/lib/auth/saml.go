@@ -861,6 +861,11 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return resp, loginIP, nil
 	}
 
+	var scope string
+	if request != nil {
+		scope = request.Scope
+	}
+
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
 		session, err := sas.auth.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
@@ -873,6 +878,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			LoginUserAgent:       userAgent,
 			AttestWebSession:     true,
 			CreateDeviceWebToken: true,
+			Scope:                scope,
 		})
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create web session.")
@@ -894,6 +900,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			LoginIP:                 loginIP,
 			SSHAttestationStatement: hardwarekey.AttestationStatementFromProto(request.SshAttestationStatement),
 			TLSAttestationStatement: hardwarekey.AttestationStatementFromProto(request.TlsAttestationStatement),
+			Scope:                   scope,
 		})
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create session certificate.")

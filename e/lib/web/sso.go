@@ -117,6 +117,7 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 		ProxyAddress:            r.Host,
 		ClientLoginIP:           remoteAddr,
 		ClientUserAgent:         r.UserAgent(),
+		Scope:                   req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create OIDC auth request", "error", err)
@@ -320,6 +321,7 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		ClientLoginIP:           remoteAddr,
 		ClientUserAgent:         r.UserAgent(),
 		ClientVersion:           req.ClientVersion,
+		Scope:                   req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create SAML auth request", "error", err)
