@@ -1,0 +1,21 @@
+{{- if .Values.enabled -}}
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "teleport-kube-updater.fullname" . }}-role
+  namespace: {{ .Release.Namespace }}
+{{- if .Values.extraLabels.roleBinding }}
+  labels:
+  {{- toYaml .Values.extraLabels.roleBinding | nindent 4 }}
+{{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "teleport-kube-updater.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "teleport-kube-updater.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end -}}
+{{- end -}}

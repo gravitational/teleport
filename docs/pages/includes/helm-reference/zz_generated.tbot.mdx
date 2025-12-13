@@ -24,6 +24,16 @@ Bot will join. You can retrieve it by running `tctl status`.
 
 For example: `clusterName: "test.teleport.sh"`
 
+## `containerName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"tbot"` |
+
+`containerName` sets the name of the main container in the tbot pod.
+This value is used to identify the container in Kubernetes and is typically set to "tbot"
+for the tbot chart.
+
 ## `teleportProxyAddress`
 
 | Type | Default |

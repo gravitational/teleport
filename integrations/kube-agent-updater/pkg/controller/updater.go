@@ -37,6 +37,7 @@ type VersionUpdater struct {
 	imageValidators     img.Validators
 	maintenanceTriggers maintenance.Triggers
 	baseImage           reference.Named
+	containerName       string
 }
 
 // GetVersion does all the version update logic: checking if a maintenance is allowed,
@@ -86,12 +87,13 @@ func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, curr
 
 // NewVersionUpdater returns a version updater using the given version.Getter,
 // img.Validators, maintenance.Triggers and baseImage.
-func NewVersionUpdater(v version.Getter, i img.Validators, t maintenance.Triggers, b reference.Named) VersionUpdater {
+func NewVersionUpdater(v version.Getter, i img.Validators, t maintenance.Triggers, b reference.Named, n string) VersionUpdater {
 	// TODO: do checks to see if not nil/empty ?
 	return VersionUpdater{
 		versionGetter:       v,
 		imageValidators:     i,
 		maintenanceTriggers: t,
 		baseImage:           b,
+		containerName:       n,
 	}
 }

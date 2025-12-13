@@ -1,0 +1,146 @@
+{{- if .Values.enabled }}
+{{- $versionServerOverride := and .Values.versionServer (ne .Values.versionServer "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "teleport-kube-updater.fullname" . }}
+  namespace: {{ include "teleport-kube-updater.namespace" . }}
+  labels:
+    app: {{ include "teleport-kube-updater.app.fullname" . }}
+{{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+{{- end }}
+{{- if .Values.annotations.deployment }}
+  annotations: {{- toYaml .Values.annotations.deployment | nindent 4 }}
+{{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "teleport-kube-updater.app.fullname" . }}
+  template:
+    metadata:
+      annotations:
+{{- if .Values.annotations.pod }}
+  {{- toYaml .Values.annotations.pod | nindent 8 }}
+{{- end }}
+      labels:
+        app: {{ include "teleport-kube-updater.app.fullname" . }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
+    spec:
+{{- if .Values.affinity }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+{{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+{{- end }}
+{{- if .Values.nodeSelector }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
+      containers:
+      - name: "kube-agent-updater"
+        image: "{{ .Values.image }}:{{ include "teleport-kube-updater.version" . }}"
+{{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
+{{- end }}
+{{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
+        env:
+  {{- if (gt (len .Values.extraEnv) 0) }}
+    {{- toYaml .Values.extraEnv | nindent 8 }}
+  {{- end }}
+  {{- if .Values.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+  {{- end }}
+        - name: "TELEPORT_UPDATE_CONFIG_FILE"
+          value: "/etc/updater-config/update.yaml"
+{{- end }}
+        args:
+          - "--agent-name={{ include "teleport-kube-updater.app.fullname" . }}"
+          - "--agent-namespace={{ include "teleport-kube-updater.namespace" . }}"
+          - "--base-image={{ include "teleport-kube-updater.app.baseImage" . }}"
+          - "--container-name={{ include "teleport-kube-updater.app.containerName" . }}"
+          - "--sync-period={{ include "teleport-kube-updater.app.syncPeriod" . }}"
+  {{- if .Values.versionServer}}
+          - "--version-server={{ tpl .Values.versionServer . }}"
+          - "--version-channel={{ .Values.releaseChannel }}"
+  {{- end }}
+  {{- /* We don't want to enable the RFD-184 update protocol if the user has set a custom versionServer as this
+    would be a breaking change when the teleport proxy starts override the explicitly set RFD-109 version server */ -}}
+  {{- if and .Values.proxyAddr (not $versionServerOverride)}}
+          - "--proxy-address={{ include "teleport-kube-updater.proxyAddr" . }}"
+          - "--update-group={{ default "default" .Values.group }}"
+  {{- end }}
+{{- if .Values.pullCredentials }}
+          - "--pull-credentials={{ .Values.pullCredentials }}"
+{{- end }}
+{{- if .Values.extraArgs }}
+          {{- toYaml .Values.extraArgs | nindent 10 }}
+{{- end }}
+{{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+{{- end }}
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        - name: healthz
+          containerPort: 8081
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 6 # consider unready after 30s
+          timeoutSeconds: 5
+{{- if .Values.resources }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
+{{- end }}
+{{- if or .Values.tls.existingCASecretName .Values.extraVolumeMounts }}
+        volumeMounts:
+          - mountPath: /etc/updater-config
+            name: "updater-config"
+            readOnly: true
+  {{- if .Values.tls.existingCASecretName }}
+          - mountPath: /etc/teleport-tls-ca
+            name: "teleport-tls-ca"
+            readOnly: true
+  {{- end }}
+  {{- if .Values.extraVolumeMounts }}
+          {{- toYaml .Values.extraVolumeMounts | nindent 10 }}
+  {{- end }}
+{{- end }}
+{{- if or .Values.tls.existingCASecretName .Values.extraVolumes }}
+      volumes:
+        - name: "updater-config"
+          configMap:
+            name: {{ include "teleport-kube-updater.app.fullname" . }}
+  {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+  {{- end }}
+  {{- if .Values.tls.existingCASecretName }}
+        - name: "teleport-tls-ca"
+          secret:
+            secretName: {{ .Values.tls.existingCASecretName }}
+  {{- end }}
+{{- end }}
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+      serviceAccountName: {{ template "teleport-kube-updater.serviceAccountName" . }}
+{{- end -}}

@@ -152,7 +152,7 @@ spec:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       containers:
-      - name: "teleport"
+      - name: {{ .Values.containerName}}
         image: {{ include "teleport-kube-agent.image" . | quote }}
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
@@ -177,12 +177,6 @@ spec:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
             value: {{ .Release.Name }}
-          {{- if .Values.updater.enabled }}
-          - name: TELEPORT_EXT_UPGRADER
-            value: kube
-          - name: TELEPORT_EXT_UPGRADER_VERSION
-            value: {{ include "teleport-kube-agent.version" . }}
-          {{- end }}
           {{- if .Values.clusterDomain }}
           - name: TELEPORT_KUBE_CLUSTER_DOMAIN
             value: {{ .Values.clusterDomain | quote }}
@@ -197,10 +191,6 @@ spec:
           {{- if .Values.teleportClusterName }}
           - name: KUBERNETES_TOKEN_PATH
             value: /var/run/secrets/tokens/join-sa-token
-          {{- end }}
-          {{- if .Values.updater.enabled }}
-          - name: "TELEPORT_UPDATE_CONFIG_FILE"
-            value: "/etc/updater-config/update.yaml"
           {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -266,11 +256,6 @@ spec:
           name: "jamf-api-credentials"
           readOnly: true
 {{- end }}
-{{- if .Values.updater.enabled }}
-        - mountPath: /etc/updater-config
-          name: "updater-config"
-          readOnly: true
-{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -310,11 +295,6 @@ spec:
       - name: "jamf-api-credentials"
         secret:
           secretName: {{ .Values.jamfCredentialsSecret.name }}
-{{- end }}
-{{- if .Values.updater.enabled }}
-      - name: "updater-config"
-        configMap:
-          name: {{ .Release.Name }}-updater
 {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
