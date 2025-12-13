@@ -215,6 +215,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
+		{Kind: types.KindCloudCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -773,6 +774,10 @@ type Config struct {
 	Plugin             services.Plugins
 	// RecordingEncryption manages state surrounding session recording encryption
 	RecordingEncryption services.RecordingEncryption
+	// Plugins is the plugin service used to retrieve plugin information.
+	Plugin services.Plugins
+	// CloudCluster is a cloud cluster service
+	CloudClusterService services.CloudClusterService
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
