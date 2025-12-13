@@ -2465,6 +2465,21 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.CLOUD_CLUSTER_CREATE]: {
+    type: 'cloud_cluster.create',
+    desc: 'Cloud Cluster Created',
+    format: ({ name }) => `Cloud Cluster [${name}] has been created`,
+  },
+  [eventCodes.CLOUD_CLUSTER_UPDATE]: {
+    type: 'cloud_cluster.update',
+    desc: 'Cloud Cluster Updated',
+    format: ({ name }) => `Cloud Cluster [${name}] has been updated`,
+  },
+  [eventCodes.CLOUD_CLUSTER_DELETE]: {
+    type: 'cloud_cluster.delete',
+    desc: 'Cloud Cluster Deleted',
+    format: ({ name }) => `Cloud Cluster [${name}] has been deleted`,
+  },
 };
 
 const unknownFormatter = {
