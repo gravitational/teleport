@@ -671,7 +671,7 @@ updater:
   releaseChannel: "stable/cloud"
 
   # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
-  # When unset, the group defaults to `update.releaseChannel`.
+  # When unset, the group defaults to `default`.
   group: ""
 
   # updater.image(string) -- sets the container image used for Teleport updater

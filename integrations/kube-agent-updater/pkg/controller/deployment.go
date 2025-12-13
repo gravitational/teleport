@@ -36,6 +36,7 @@ import (
 // DeploymentVersionUpdater Reconciles a podSpec by changing its image
 type DeploymentVersionUpdater struct {
 	VersionUpdater
+	StatusWriter
 	kclient.Client
 	Scheme *runtime.Scheme
 }
@@ -73,6 +74,10 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 			log.Info("Teleport container found, but failed to get version from the img tag. Will continue and do a version update.")
 		default:
 			log.Error(err, "Unexpected error, not updating.")
+			if err := r.writeStatus(ctx, &obj, "", true); err != nil {
+				// If this fails, keep trying to ensure the pod starts.
+				return ctrl.Result{}, trace.Wrap(err)
+			}
 			return requeueLater, nil
 		}
 	}
@@ -87,17 +92,29 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	case errors.As(err, &noNewVersionErr):
 		// Error contains the detected versions
 		log.Info("Deployment is already up-to-date, not updating.", "err", err)
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), false); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	case errors.As(err, &maintenanceErr):
 		// Not logging the error because it provides no other information than its type.
 		log.Info("No maintenance triggered, not updating.", "currentVersion", currentVersion)
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), false); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	case errors.As(err, &trustErr):
 		// Logging as error as image verification should not fail under normal use
 		log.Error(trustErr.OrigError(), "Image verification failed, not updating.")
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	case err != nil:
 		log.Error(err, "Unexpected error, not updating.")
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	}
 
@@ -105,12 +122,20 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
 	if err != nil {
 		log.Error(err, "Unexpected error, not updating.")
+		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
+			return ctrl.Result{}, trace.Wrap(err)
+		}
 		return requeueLater, nil
 	}
 
 	if err = r.Update(ctx, &obj); err != nil {
 		log.Error(err, "Unexpected error, not updating.")
 		return requeueNow, nil
+	}
+	// If this fails on conflict, the next call to writeStatus will detect the version change
+	// and record the update as successful.
+	if err := r.writeStatus(ctx, &obj, image.Tag(), false); err != nil {
+		return ctrl.Result{}, trace.Wrap(err)
 	}
 	return requeueLater, nil
 }

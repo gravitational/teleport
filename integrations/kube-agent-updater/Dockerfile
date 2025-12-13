@@ -17,6 +17,7 @@ RUN go mod download
 
 # Copy in code
 COPY lib/ lib/
+COPY entitlements/ entitlements/
 COPY *.go ./
 COPY integrations/kube-agent-updater/ integrations/kube-agent-updater/
 
