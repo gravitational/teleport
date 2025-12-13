@@ -1257,42 +1257,58 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var stream *streamproto.SessionStream
-	// Close the stream when we exit to ensure no goroutines are leaked and
-	// to ensure the client gets a close message in case of an error.
+
+	stream, err := streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
+	if err != nil {
+		msg := gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error())
+		if err := ws.WriteControl(gwebsocket.CloseMessage, msg, time.Now().Add(time.Second*10)); err != nil {
+			f.log.WarnContext(req.Context(), "Failed to send early-exit websocket close message", "error", err)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
 	defer func() {
-		if stream != nil {
-			stream.Close()
+		if err != nil {
+			msg := gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error())
+			if err := ws.WriteControl(gwebsocket.CloseMessage, msg, time.Now().Add(time.Second*10)); err != nil {
+				f.log.WarnContext(req.Context(), "Failed to send early-exit websocket close message", "error", err)
+			}
+		}
+
+		if err := stream.Close(); err != nil {
+			f.log.WarnContext(req.Context(), "Failed to close websocket", "error", err)
 		}
 	}()
-	if err := func() error {
-		stream, err = streamproto.NewSessionStream(ws, streamproto.ServerHandshake{MFARequired: session.PresenceEnabled})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
-		client := &websocketClientStreams{uuid.New(), stream}
-		party := newParty(*ctx, stream.Mode, client)
+	wsClient := &websocketClientStreams{uuid.New(), stream}
+	localAddr, remoteAddr := stream.ConnAddrs()
+	f.log.DebugContext(req.Context(), "Join websocket established",
+		"session_id", sessionID,
+		"party_id", wsClient.id,
+		"user", ctx.User.GetName(),
+		"remote_addr", remoteAddr,
+		"local_addr", localAddr,
+	)
 
-		err = session.join(party, true /* emitSessionJoinEvent */)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		closeC := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			select {
-			case <-stream.Done():
-				party.InformClose(trace.BadParameter("websocket connection closed"))
-			case <-closeC:
-				return
-			}
-		}()
+	party := newParty(*ctx, stream.Mode, wsClient)
 
-		err = <-party.closeC
-		close(closeC)
+	if err := session.join(party, true /* emitSessionJoinEvent */); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	select {
+	case <-stream.Done():
+		localAddr, remoteAddr := stream.ConnAddrs()
+		f.log.DebugContext(req.Context(), "Join session stream Done channel closed",
+			"session_id", sessionID,
+			"party_id", party.ID,
+			"user", ctx.User.GetName(),
+			"remote_addr", remoteAddr,
+			"local_addr", localAddr,
+			"stream_closed_flag", stream.Closed(),
+		)
+		party.InformClose(trace.BadParameter("websocket connection closed"))
 
 		if _, err := session.leave(party.ID); err != nil {
 			f.log.DebugContext(req.Context(), "Participant was unable to leave session",
@@ -1301,17 +1317,30 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				"error", err,
 			)
 		}
-		wg.Wait()
 
-		return trace.Wrap(err)
-	}(); err != nil {
-		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
-		if writeErr != nil {
-			f.log.WarnContext(req.Context(), "Failed to send early-exit websocket close message", "error", writeErr)
+		return nil, nil
+	case err := <-party.closeC:
+		localAddr, remoteAddr := stream.ConnAddrs()
+		f.log.DebugContext(req.Context(), "Party closed",
+			"session_id", sessionID,
+			"party_id", party.ID,
+			"user", ctx.User.GetName(),
+			"error", err,
+			"remote_addr", remoteAddr,
+			"local_addr", localAddr,
+			"stream_closed_flag", stream.Closed(),
+		)
+
+		if _, err := session.leave(party.ID); err != nil {
+			f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+				"participant_id", party.ID,
+				"session_id", session.id,
+				"error", err,
+			)
 		}
-	}
 
-	return nil, nil
+		return nil, trace.Wrap(err)
+	}
 }
 
 // getSession retrieves the session from in-memory database.
@@ -2255,20 +2284,23 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-	spdyExec, err := f.getSPDYExecutor(sess, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to create spdy executor")
-	}
-	return remotecommand.NewFallbackExecutor(
-		wsExec,
-		spdyExec,
-		func(err error) bool {
-			// If the error is a known upgrade failure, we can retry with the other protocol.
-			return httpstream.IsUpgradeFailure(err) ||
-				httpstream.IsHTTPSProxyError(err) ||
-				kubeerrors.IsForbidden(err) ||
-				isTeleportUpgradeFailure(err)
-		})
+
+	return wsExec, nil
+
+	// spdyExec, err := f.getSPDYExecutor(sess, req)
+	// if err != nil {
+	// 	return nil, trace.Wrap(err, "unable to create spdy executor")
+	// }
+	// return remotecommand.NewFallbackExecutor(
+	// 	wsExec,
+	// 	spdyExec,
+	// 	func(err error) bool {
+	// 		// If the error is a known upgrade failure, we can retry with the other protocol.
+	// 		return httpstream.IsUpgradeFailure(err) ||
+	// 			httpstream.IsHTTPSProxyError(err) ||
+	// 			kubeerrors.IsForbidden(err) ||
+	// 			isTeleportUpgradeFailure(err)
+	// 	})
 }
 
 func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {

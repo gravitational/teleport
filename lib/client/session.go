@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"maps"
 	"net"
 	"os"
@@ -722,14 +723,33 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 		})
 	}
 
-	_, err := io.Copy(remoteStdin, stdin)
-	if err != nil {
-		log.DebugContext(context.Background(), "Error copying data to remote peer", "error", err)
-		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
-		forceDisconnect = true
+	buf := make([]byte, 1024)
+	var total int64
+	for {
+		n, rerr := stdin.Read(buf)
+		if n > 0 {
+			total += int64(n)
+			slog.DebugContext(context.Background(), "Read from peer stdin", "bytes_read", n, "total_copied", total)
+			if _, werr := remoteStdin.Write(buf[:n]); werr != nil {
+				slog.DebugContext(context.Background(), "Error copying data to remote peer", "error", werr, "bytes_copied", total)
+				fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
+				forceDisconnect = true
+				return forceDisconnect
+			}
+		}
+		if rerr != nil {
+			if rerr == io.EOF {
+				slog.DebugContext(context.Background(), "Peer stdin reached EOF", "bytes_copied", total)
+			} else {
+				slog.DebugContext(context.Background(), "Error reading from peer stdin", "error", rerr, "bytes_copied", total)
+			}
+			if rerr != io.EOF {
+				forceDisconnect = true
+			}
+			return forceDisconnect
+		}
 	}
 
-	return forceDisconnect
 }
 
 // pipeInOut launches two goroutines: one to pipe the local input into the remote shell,

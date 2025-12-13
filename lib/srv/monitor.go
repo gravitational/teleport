@@ -374,6 +374,13 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 				if !clientLastActive.IsZero() {
 					reason = fmt.Sprintf("Client exceeded idle timeout of %v", w.ClientIdleTimeout)
 				}
+				w.Logger.WarnContext(w.Context, "Idle timeout reached, disconnecting client",
+					"user", w.TeleportUser,
+					"server_id", w.ServerID,
+					"remote_addr", w.Conn.RemoteAddr().String(),
+					"idle_timeout", w.ClientIdleTimeout,
+					"last_active_ago", since,
+				)
 				if w.MessageWriter != nil {
 					msg := w.IdleTimeoutMessage
 					if msg == "" {
