@@ -364,6 +364,9 @@ export const eventCodes = {
   APPAUTHCONFIG_DELETE: 'TAAC003I',
   APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
   APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
+  CLOUD_CLUSTER_CREATE: 'CC001I',
+  CLOUD_CLUSTER_UPDATE: 'CC002I',
+  CLOUD_CLUSTER_DELETE: 'CC003I',
 } as const;
 
 /**
@@ -2139,6 +2142,15 @@ export type RawEvents = {
       app_auth_config: string;
       error: string;
     }
+  >;
+  [eventCodes.CLOUD_CLUSTER_CREATE]: RawEventAccess<
+    typeof eventCodes.CLOUD_CLUSTER_CREATE
+  >;
+  [eventCodes.CLOUD_CLUSTER_UPDATE]: RawEventAccess<
+    typeof eventCodes.CLOUD_CLUSTER_UPDATE
+  >;
+  [eventCodes.CLOUD_CLUSTER_DELETE]: RawEventAccess<
+    typeof eventCodes.CLOUD_CLUSTER_DELETE
   >;
 };
 

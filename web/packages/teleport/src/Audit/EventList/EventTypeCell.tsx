@@ -343,6 +343,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.APPAUTHCONFIG_DELETE]: Icons.Info,
   [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: Icons.Info,
   [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: Icons.Warning,
+  [eventCodes.CLOUD_CLUSTER_CREATE]: Icons.Info,
+  [eventCodes.CLOUD_CLUSTER_UPDATE]: Icons.Info,
+  [eventCodes.CLOUD_CLUSTER_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {
