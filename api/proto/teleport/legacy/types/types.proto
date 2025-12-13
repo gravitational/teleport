@@ -5642,6 +5642,10 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -5851,6 +5855,10 @@ message SAMLAuthRequest {
   bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
   // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
   string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -5996,6 +6004,10 @@ message GithubAuthRequest {
   // OAuth flow is used to retrieve GitHub identity info which will be added to
   // the existing user.
   string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 24;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
