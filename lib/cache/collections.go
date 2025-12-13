@@ -25,6 +25,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	cloudclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -119,6 +120,7 @@ type collections struct {
 	accessListMembers                  *collection[*accesslist.AccessListMember, accessListMemberIndex]
 	accessListReviews                  *collection[*accesslist.Review, accessListReviewIndex]
 	crownJewels                        *collection[*crownjewelv1.CrownJewel, crownJewelIndex]
+	cloudClusters                      *collection[*cloudclusterv1.CloudCluster, cloudClusterIndex]
 	accessGraphSettings                *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
 	integrations                       *collection[types.Integration, integrationIndex]
 	pluginStaticCredentials            *collection[types.PluginStaticCredentials, pluginStaticCredentialsIndex]
@@ -562,6 +564,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.accessListReviews = collect
 			out.byKind[resourceKind] = out.accessListReviews
+		case types.KindCloudCluster:
+			collect, err := newCloudClusterCollection(c.CloudClusterService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.cloudClusters = collect
+			out.byKind[resourceKind] = out.cloudClusters
 		case types.KindCrownJewel:
 			collect, err := newCrownJewelCollection(c.CrownJewels, watch)
 			if err != nil {
