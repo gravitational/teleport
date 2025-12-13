@@ -925,6 +925,163 @@ func TestJoinAzureClaims(t *testing.T) {
 	}
 }
 
+func TestAzureIssuerCert(t *testing.T) {
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		}})
+	require.NoError(t, err)
+	a := server.Auth()
+
+	nopClient, err := server.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testtoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodAzure,
+		Roles:      types.SystemRoles{types.RoleNode},
+		Azure: &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "testsubscription",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.UpsertToken(t.Context(), token))
+
+	caChain := newFakeAzureCAChain(t)
+
+	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	instanceID := vmResourceID("testsubscription", "testgroup", "testid")
+
+	accessToken, err := makeToken(instanceID, instanceID, a.GetClock().Now())
+	require.NoError(t, err)
+
+	defaultSubscription := uuid.NewString()
+	defaultResourceGroup := "my-resource-group"
+	defaultVMName := "test-vm"
+	defaultVMID := "my-vm-id"
+	defaultVMResourceID := vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
+	vmClient := &mockAzureVMClient{
+		vms: map[string]*azure.VirtualMachine{
+			defaultVMResourceID: {
+				ID:            defaultVMResourceID,
+				Name:          defaultVMName,
+				Subscription:  defaultSubscription,
+				ResourceGroup: defaultResourceGroup,
+				VMID:          defaultVMID,
+			},
+		},
+	}
+	getVMClient := makeVMClientGetter(map[string]*mockAzureVMClient{
+		defaultSubscription: vmClient,
+	})
+
+	isAccessDenied := func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError), msgAndArgs...)
+	}
+	for _, tc := range []struct {
+		desc                      string
+		commonName                string
+		issuerURL                 string
+		errorAssertion            require.ErrorAssertionFunc
+		expecteRequestedIssuingCA bool
+	}{
+		{
+			desc:                      "passing",
+			commonName:                "instance.metadata.azure.com",
+			issuerURL:                 "http://www.microsoft.com/pkiops/certs/testca.crt",
+			errorAssertion:            require.NoError,
+			expecteRequestedIssuingCA: true,
+		},
+		{
+			desc:       "bad common name",
+			commonName: "instance.metadata.bad.example.com",
+			issuerURL:  "http://www.microsoft.com/pkiops/certs/testca.crt",
+			errorAssertion: func(t require.TestingT, err error, msgAndArgs ...any) {
+				isAccessDenied(t, err, msgAndArgs...)
+				require.ErrorContains(t, err, "certificate common name does not match allow-list")
+			},
+		},
+		{
+			desc:       "bad issuer host",
+			commonName: "instance.metadata.azure.com",
+			issuerURL:  "http://www.bad.example.com/pkiops/certs/testca.crt",
+			errorAssertion: func(t require.TestingT, err error, msgAndArgs ...any) {
+				isAccessDenied(t, err, msgAndArgs...)
+				require.ErrorContains(t, err, "validating issuing certificate URL")
+				require.ErrorContains(t, err, "invalid host")
+			},
+		},
+		{
+			desc:       "bad cert path",
+			commonName: "instance.metadata.azure.com",
+			issuerURL:  "http://www.microsoft.com/pkiops/badcerts/badca.crt",
+			errorAssertion: func(t require.TestingT, err error, msgAndArgs ...any) {
+				isAccessDenied(t, err, msgAndArgs...)
+				require.ErrorContains(t, err, "validating issuing certificate URL")
+				require.ErrorContains(t, err, "invalid path")
+			},
+		},
+		{
+			desc:       "bad url scheme",
+			commonName: "instance.metadata.azure.com",
+			issuerURL:  "bad://www.microsoft.com/pkiops/certs/testca.crt",
+			errorAssertion: func(t require.TestingT, err error, msgAndArgs ...any) {
+				isAccessDenied(t, err, msgAndArgs...)
+				require.ErrorContains(t, err, "validating issuing certificate URL")
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Generate an azure instance cert with the common name and issuer URL for the testcase.
+			instanceCert := caChain.issueLeafCert(t, instanceKey.Public(), tc.commonName, tc.issuerURL)
+			imdsClient := &fakeIMDSClient{
+				accessToken:  accessToken,
+				signingCert:  instanceCert,
+				signingKey:   instanceKey,
+				subscription: "testsubscription",
+				vmID:         instanceID,
+			}
+
+			// Fake the HTTP client used to fetch the issuer CA.
+			httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+			a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+				CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+				Verify:                 mockVerifyToken(nil),
+				GetVMClient:            getVMClient,
+				IssuerHTTPClient:       httpClient,
+			})
+
+			// Join via the legacy join service.
+			_, err = joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
+				Token:      "testtoken",
+				JoinMethod: types.JoinMethodAzure,
+				ID: state.IdentityID{
+					Role:     types.RoleInstance,
+					HostUUID: "testuuid",
+				},
+				AuthClient: nopClient,
+				AzureParams: joinclient.AzureParams{
+					ClientID:   instanceID,
+					IMDSClient: imdsClient,
+				},
+			})
+			tc.errorAssertion(t, err)
+
+			if tc.expecteRequestedIssuingCA {
+				require.Equal(t, 1, httpClient.called, "expected issuing CA to be requested once")
+			} else {
+				require.Equal(t, 0, httpClient.called, "expected issuing CA not to be requested")
+			}
+		})
+	}
+}
+
 type fakeIMDSClient struct {
 	accessToken    string
 	accessTokenErr error
