@@ -693,6 +693,9 @@ const (
 	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
 	KindValidatedMFAChallenge = "validated_mfa_challenge"
 
+	// KindCloudCluster is the resource with cloudcluster configuration.
+	KindCloudCluster = "cloud_cluster"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
