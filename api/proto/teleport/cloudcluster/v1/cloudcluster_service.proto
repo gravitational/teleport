@@ -1,0 +1,87 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.cloudcluster.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/cloudcluster/v1/cloudcluster.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1;cloudcluster";
+
+// CloudClusterService provides an API to manage CloudClusters.
+service CloudClusterService {
+  // GetCloudCluster gets a CloudCluster
+  rpc GetCloudCluster(GetCloudClusterRequest) returns (CloudCluster);
+
+  // CreateCloudCluster creates a new CloudCluster.
+  rpc CreateCloudCluster(CreateCloudClusterRequest) returns (CloudCluster);
+
+  // ListCloudClusters returns CloudClusters
+  rpc ListCloudClusters(ListCloudClustersRequest) returns (ListCloudClustersResponse);
+
+  // CreateCloudCluster updates CloudClusters.
+  rpc UpdateCloudCluster(UpdateCloudClusterRequest) returns (CloudCluster);
+
+  // UpsertCloudCluster creates a new CloudCluster or replaces an existing CloudCluster.
+  rpc UpsertCloudCluster(UpsertCloudClusterRequest) returns (CloudCluster);
+
+  // DeleteCloudCluster hard deletes the specified CloudCluster.
+  rpc DeleteCloudCluster(DeleteCloudClusterRequest) returns (google.protobuf.Empty);
+}
+
+// Request for GetCloudCluster.
+message GetCloudClusterRequest {
+  string name = 1;
+}
+
+// Request for CreateCloudCluster.
+message CreateCloudClusterRequest {
+  CloudCluster cluster = 1;
+}
+
+// Request for UpdateCloudCluster.
+message UpdateCloudClusterRequest {
+  CloudCluster cluster = 1;
+}
+
+// Request for UpsertCloudCluster.
+message UpsertCloudClusterRequest {
+  CloudCluster cluster = 1;
+}
+
+// Request for DeleteCloudCluster.
+message DeleteCloudClusterRequest {
+  string name = 1;
+}
+
+// Request for ListCloudClusters.
+message ListCloudClustersRequest {
+  // page_size is the size of the page to request.
+  int32 page_size = 1;
+
+  // page_token is the page token.
+  string page_token = 2;
+}
+
+// Response for ListCloudClusters.
+message ListCloudClustersResponse {
+  repeated CloudCluster clusters = 1;
+
+  // NextPageToken is the key for the next page of CloudClusters.
+  string next_page_token = 2;
+  // TotalCount is the total number of cloudclusters in all pages.
+  int32 total_count = 3;
+}
