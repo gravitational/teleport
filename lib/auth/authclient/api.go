@@ -32,6 +32,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -1320,6 +1321,12 @@ type Cache interface {
 
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
+
+	// GetCloudCluster gets the CloudCluster from the backend.
+	GetCloudCluster(ctx context.Context, name string) (*cloudcluster.CloudCluster, error)
+
+	// ListCloudCluster lists the CloudClusters from the backend.
+	ListCloudClusters(ctx context.Context, pageSize int, pageToken string) ([]*cloudcluster.CloudCluster, string, error)
 
 	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
