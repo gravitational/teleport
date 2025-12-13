@@ -91,25 +91,33 @@
         },
         "apps": {
             "$id": "#/properties/apps",
-            "type": "array",
-            "default": [],
-            "required": [
-                "name",
-                "uri"
-            ],
-            "properties": {
-                "name": {
-                    "$id": "#/properties/apps/name",
+            "oneOf": [
+                {
+                    "type": "array",
+                    "default": [],
+                    "required": [
+                        "name",
+                        "uri"
+                    ],
+                    "properties": {
+                        "name": {
+                            "$id": "#/properties/apps/name",
+                            "type": "string",
+                            "default": ""
+                        },
+                        "uri": {
+                            "$id": "#/properties/apps/uri",
+                            "type": "string",
+                            "default": ""
+                        },
+                        "additionalProperties": true
+                    }
+                },
+                {
                     "type": "string",
                     "default": ""
-                },
-                "uri": {
-                    "$id": "#/properties/apps/uri",
-                    "type": "string",
-                    "default": ""
-                },
-                "additionalProperties": true
-            }
+                }
+            ]
         },
         "appResources": {
             "$id": "#/properties/appResources",
