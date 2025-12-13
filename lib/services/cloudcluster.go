@@ -19,8 +19,36 @@
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 )
+
+// CloudClusterServiceGetter defines only read-only service methods.
+type CloudClusterServiceGetter interface {
+	// GetCloudCluster gets the CloudCluster singleton resource.
+	GetCloudCluster(ctx context.Context, name string) (*cloudcluster.CloudCluster, error)
+
+	// ListCloudClusters returns a CloudCluster page.
+	ListCloudClusters(ctx context.Context, pageSize int, pageToken string) ([]*cloudcluster.CloudCluster, string, error)
+}
+
+// CloudClusterService stores the autoupdate service.
+type CloudClusterService interface {
+	CloudClusterServiceGetter
+
+	// CreateCloudCluster creates the CloudCluster singleton resource.
+	CreateCloudCluster(ctx context.Context, config *cloudcluster.CloudCluster) (*cloudcluster.CloudCluster, error)
+
+	// UpdateCloudCluster updates the CloudCluster singleton resource.
+	UpdateCloudCluster(ctx context.Context, config *cloudcluster.CloudCluster) (*cloudcluster.CloudCluster, error)
+
+	// UpsertCloudCluster sets the CloudCluster singleton resource.
+	UpsertCloudCluster(ctx context.Context, c *cloudcluster.CloudCluster) (*cloudcluster.CloudCluster, error)
+
+	// DeleteCloudCluster deletes the CloudCluster singleton resource.
+	DeleteCloudCluster(ctx context.Context, name string) error
+}
 
 // MarshalCrownJewel marshals the CrownJewel object into a JSON byte array.
 func MarshalCloudCluster(object *cloudcluster.CloudCluster, opts ...MarshalOption) ([]byte, error) {

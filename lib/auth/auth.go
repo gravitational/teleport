@@ -316,6 +316,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.CloudClusterService == nil {
+		cfg.CloudClusterService, err = local.NewCloudClusterService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
@@ -676,6 +682,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
+		CloudClusterService:             cfg.CloudClusterService,
 	}
 
 	as = &Server{
@@ -950,6 +957,7 @@ type Services struct {
 	events.MultipartHandler
 	services.Summarizer
 	services.ScopedTokenService
+	services.CloudClusterService
 }
 
 // GetWebSession returns existing web session described by req.

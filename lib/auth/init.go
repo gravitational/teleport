@@ -181,6 +181,9 @@ type InitConfig struct {
 	// AutoUpdateService is a service of autoupdate configuration and version.
 	AutoUpdateService services.AutoUpdateService
 
+	// CloudClusterService is a service of autoupdate configuration and version.
+	CloudClusterService services.CloudClusterService
+
 	// Restrictions is a service to access network restrictions, etc
 	Restrictions services.Restrictions
 
