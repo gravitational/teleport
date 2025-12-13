@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
@@ -104,6 +105,7 @@ type AuthService interface {
 	GetSpaceliftIDTokenValidator() spacelift.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
+	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
 }
 
@@ -302,6 +304,8 @@ func (s *Server) handleJoinMethod(
 	joinMethod types.JoinMethod,
 ) (messages.Response, error) {
 	switch joinMethod {
+	case types.JoinMethodAzure:
+		return s.handleAzureJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodAzureDevops:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
 	case types.JoinMethodBitbucket:
