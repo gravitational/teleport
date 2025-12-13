@@ -24,6 +24,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -124,10 +125,9 @@ func (x *CloudCluster) GetStatus() *CloudClusterStatus {
 // CloudClusterSpec configures where a CloudCluster should be created and the initial bot
 type CloudClusterSpec struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AuthRegion    string                 `protobuf:"bytes,1,opt,name=auth_region,json=authRegion,proto3" json:"auth_region,omitempty"`
-	BotName       string                 `protobuf:"bytes,2,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
-	JoinMethod    string                 `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
-	Allow         []*IAMAllow            `protobuf:"bytes,4,rep,name=allow,proto3" json:"allow,omitempty"`
+	Auth          *Auth                  `protobuf:"bytes,1,opt,name=auth,proto3" json:"auth,omitempty"`
+	Bot           *Bot                   `protobuf:"bytes,2,opt,name=bot,proto3" json:"bot,omitempty"`
+	Token         *Token                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -162,28 +162,164 @@ func (*CloudClusterSpec) Descriptor() ([]byte, []int) {
 	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *CloudClusterSpec) GetAuthRegion() string {
+func (x *CloudClusterSpec) GetAuth() *Auth {
 	if x != nil {
-		return x.AuthRegion
+		return x.Auth
+	}
+	return nil
+}
+
+func (x *CloudClusterSpec) GetBot() *Bot {
+	if x != nil {
+		return x.Bot
+	}
+	return nil
+}
+
+func (x *CloudClusterSpec) GetToken() *Token {
+	if x != nil {
+		return x.Token
+	}
+	return nil
+}
+
+// Auth configures auth for the Cloud Tenant
+type Auth struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Region        string                 `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Auth) Reset() {
+	*x = Auth{}
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Auth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Auth) ProtoMessage() {}
+
+func (x *Auth) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Auth.ProtoReflect.Descriptor instead.
+func (*Auth) Descriptor() ([]byte, []int) {
+	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Auth) GetRegion() string {
+	if x != nil {
+		return x.Region
 	}
 	return ""
 }
 
-func (x *CloudClusterSpec) GetBotName() string {
+// Bot configures a bot for the Cloud Tenant
+type Bot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Bot) Reset() {
+	*x = Bot{}
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Bot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Bot) ProtoMessage() {}
+
+func (x *Bot) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[3]
 	if x != nil {
-		return x.BotName
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Bot.ProtoReflect.Descriptor instead.
+func (*Bot) Descriptor() ([]byte, []int) {
+	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Bot) GetName() string {
+	if x != nil {
+		return x.Name
 	}
 	return ""
 }
 
-func (x *CloudClusterSpec) GetJoinMethod() string {
+// Token configures a token for a bot
+type Token struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	JoinMethod    string                 `protobuf:"bytes,1,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	Allow         []*IAMAllow            `protobuf:"bytes,2,rep,name=allow,proto3" json:"allow,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Token) Reset() {
+	*x = Token{}
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Token) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Token) ProtoMessage() {}
+
+func (x *Token) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Token.ProtoReflect.Descriptor instead.
+func (*Token) Descriptor() ([]byte, []int) {
+	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Token) GetJoinMethod() string {
 	if x != nil {
 		return x.JoinMethod
 	}
 	return ""
 }
 
-func (x *CloudClusterSpec) GetAllow() []*IAMAllow {
+func (x *Token) GetAllow() []*IAMAllow {
 	if x != nil {
 		return x.Allow
 	}
@@ -192,15 +328,24 @@ func (x *CloudClusterSpec) GetAllow() []*IAMAllow {
 
 // CloudClusterStatus is populated with status from Teleport Cloud
 type CloudClusterStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// state is the status of the Teleport Cluster running in Teleport Cloud
+	State string `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
+	// domain is the Teleport Proxy address of the Teleport Cluster running in Teleport Cloud
+	Domain string `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	// state_changed_at is the last time the reconciler saw a change to state
+	StateChangedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=state_changed_at,json=stateChangedAt,proto3" json:"state_changed_at,omitempty"`
+	// finalizers instruct the service to not delete the resource until all finalizers are removed
+	Finalizers []string `protobuf:"bytes,4,rep,name=finalizers,proto3" json:"finalizers,omitempty"`
+	// deletion_timestamp is the time a request to delete the cloud_cluster was received
+	DeletionTimestamp *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=deletion_timestamp,json=deletionTimestamp,proto3" json:"deletion_timestamp,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *CloudClusterStatus) Reset() {
 	*x = CloudClusterStatus{}
-	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[2]
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -212,7 +357,7 @@ func (x *CloudClusterStatus) String() string {
 func (*CloudClusterStatus) ProtoMessage() {}
 
 func (x *CloudClusterStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[2]
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -225,14 +370,42 @@ func (x *CloudClusterStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloudClusterStatus.ProtoReflect.Descriptor instead.
 func (*CloudClusterStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{2}
+	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *CloudClusterStatus) GetStatus() string {
+func (x *CloudClusterStatus) GetState() string {
 	if x != nil {
-		return x.Status
+		return x.State
 	}
 	return ""
+}
+
+func (x *CloudClusterStatus) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *CloudClusterStatus) GetStateChangedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StateChangedAt
+	}
+	return nil
+}
+
+func (x *CloudClusterStatus) GetFinalizers() []string {
+	if x != nil {
+		return x.Finalizers
+	}
+	return nil
+}
+
+func (x *CloudClusterStatus) GetDeletionTimestamp() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DeletionTimestamp
+	}
+	return nil
 }
 
 // IAMAllow configures an IAM join token
@@ -246,7 +419,7 @@ type IAMAllow struct {
 
 func (x *IAMAllow) Reset() {
 	*x = IAMAllow{}
-	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[3]
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -258,7 +431,7 @@ func (x *IAMAllow) String() string {
 func (*IAMAllow) ProtoMessage() {}
 
 func (x *IAMAllow) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[3]
+	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -271,7 +444,7 @@ func (x *IAMAllow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IAMAllow.ProtoReflect.Descriptor instead.
 func (*IAMAllow) Descriptor() ([]byte, []int) {
-	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{3}
+	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *IAMAllow) GetAwsAccount() string {
@@ -292,23 +465,34 @@ var File_teleport_cloudcluster_v1_cloudcluster_proto protoreflect.FileDescriptor
 
 const file_teleport_cloudcluster_v1_cloudcluster_proto_rawDesc = "" +
 	"\n" +
-	"+teleport/cloudcluster/v1/cloudcluster.proto\x12\x18teleport.cloudcluster.v1\x1a!teleport/header/v1/metadata.proto\"\x97\x02\n" +
+	"+teleport/cloudcluster/v1/cloudcluster.proto\x12\x18teleport.cloudcluster.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\x97\x02\n" +
 	"\fCloudCluster\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
 	"\x04spec\x18\x05 \x01(\v2*.teleport.cloudcluster.v1.CloudClusterSpecR\x04spec\x12D\n" +
-	"\x06status\x18\x06 \x01(\v2,.teleport.cloudcluster.v1.CloudClusterStatusR\x06status\"\xa9\x01\n" +
-	"\x10CloudClusterSpec\x12\x1f\n" +
-	"\vauth_region\x18\x01 \x01(\tR\n" +
-	"authRegion\x12\x19\n" +
-	"\bbot_name\x18\x02 \x01(\tR\abotName\x12\x1f\n" +
-	"\vjoin_method\x18\x03 \x01(\tR\n" +
+	"\x06status\x18\x06 \x01(\v2,.teleport.cloudcluster.v1.CloudClusterStatusR\x06status\"\xae\x01\n" +
+	"\x10CloudClusterSpec\x122\n" +
+	"\x04auth\x18\x01 \x01(\v2\x1e.teleport.cloudcluster.v1.AuthR\x04auth\x12/\n" +
+	"\x03bot\x18\x02 \x01(\v2\x1d.teleport.cloudcluster.v1.BotR\x03bot\x125\n" +
+	"\x05token\x18\x03 \x01(\v2\x1f.teleport.cloudcluster.v1.TokenR\x05token\"\x1e\n" +
+	"\x04Auth\x12\x16\n" +
+	"\x06region\x18\x01 \x01(\tR\x06region\"\x19\n" +
+	"\x03Bot\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"b\n" +
+	"\x05Token\x12\x1f\n" +
+	"\vjoin_method\x18\x01 \x01(\tR\n" +
 	"joinMethod\x128\n" +
-	"\x05allow\x18\x04 \x03(\v2\".teleport.cloudcluster.v1.IAMAllowR\x05allow\",\n" +
-	"\x12CloudClusterStatus\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\"D\n" +
+	"\x05allow\x18\x02 \x03(\v2\".teleport.cloudcluster.v1.IAMAllowR\x05allow\"\xf3\x01\n" +
+	"\x12CloudClusterStatus\x12\x14\n" +
+	"\x05state\x18\x01 \x01(\tR\x05state\x12\x16\n" +
+	"\x06domain\x18\x02 \x01(\tR\x06domain\x12D\n" +
+	"\x10state_changed_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x0estateChangedAt\x12\x1e\n" +
+	"\n" +
+	"finalizers\x18\x04 \x03(\tR\n" +
+	"finalizers\x12I\n" +
+	"\x12deletion_timestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x11deletionTimestamp\"D\n" +
 	"\bIAMAllow\x12\x1f\n" +
 	"\vaws_account\x18\x01 \x01(\tR\n" +
 	"awsAccount\x12\x17\n" +
@@ -326,24 +510,33 @@ func file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP() []byte {
 	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescData
 }
 
-var file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_cloudcluster_v1_cloudcluster_proto_goTypes = []any{
-	(*CloudCluster)(nil),       // 0: teleport.cloudcluster.v1.CloudCluster
-	(*CloudClusterSpec)(nil),   // 1: teleport.cloudcluster.v1.CloudClusterSpec
-	(*CloudClusterStatus)(nil), // 2: teleport.cloudcluster.v1.CloudClusterStatus
-	(*IAMAllow)(nil),           // 3: teleport.cloudcluster.v1.IAMAllow
-	(*v1.Metadata)(nil),        // 4: teleport.header.v1.Metadata
+	(*CloudCluster)(nil),          // 0: teleport.cloudcluster.v1.CloudCluster
+	(*CloudClusterSpec)(nil),      // 1: teleport.cloudcluster.v1.CloudClusterSpec
+	(*Auth)(nil),                  // 2: teleport.cloudcluster.v1.Auth
+	(*Bot)(nil),                   // 3: teleport.cloudcluster.v1.Bot
+	(*Token)(nil),                 // 4: teleport.cloudcluster.v1.Token
+	(*CloudClusterStatus)(nil),    // 5: teleport.cloudcluster.v1.CloudClusterStatus
+	(*IAMAllow)(nil),              // 6: teleport.cloudcluster.v1.IAMAllow
+	(*v1.Metadata)(nil),           // 7: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
 }
 var file_teleport_cloudcluster_v1_cloudcluster_proto_depIdxs = []int32{
-	4, // 0: teleport.cloudcluster.v1.CloudCluster.metadata:type_name -> teleport.header.v1.Metadata
+	7, // 0: teleport.cloudcluster.v1.CloudCluster.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.cloudcluster.v1.CloudCluster.spec:type_name -> teleport.cloudcluster.v1.CloudClusterSpec
-	2, // 2: teleport.cloudcluster.v1.CloudCluster.status:type_name -> teleport.cloudcluster.v1.CloudClusterStatus
-	3, // 3: teleport.cloudcluster.v1.CloudClusterSpec.allow:type_name -> teleport.cloudcluster.v1.IAMAllow
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	5, // 2: teleport.cloudcluster.v1.CloudCluster.status:type_name -> teleport.cloudcluster.v1.CloudClusterStatus
+	2, // 3: teleport.cloudcluster.v1.CloudClusterSpec.auth:type_name -> teleport.cloudcluster.v1.Auth
+	3, // 4: teleport.cloudcluster.v1.CloudClusterSpec.bot:type_name -> teleport.cloudcluster.v1.Bot
+	4, // 5: teleport.cloudcluster.v1.CloudClusterSpec.token:type_name -> teleport.cloudcluster.v1.Token
+	6, // 6: teleport.cloudcluster.v1.Token.allow:type_name -> teleport.cloudcluster.v1.IAMAllow
+	8, // 7: teleport.cloudcluster.v1.CloudClusterStatus.state_changed_at:type_name -> google.protobuf.Timestamp
+	8, // 8: teleport.cloudcluster.v1.CloudClusterStatus.deletion_timestamp:type_name -> google.protobuf.Timestamp
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_cloudcluster_v1_cloudcluster_proto_init() }
@@ -357,7 +550,7 @@ func file_teleport_cloudcluster_v1_cloudcluster_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_cloudcluster_v1_cloudcluster_proto_rawDesc), len(file_teleport_cloudcluster_v1_cloudcluster_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.cloudcluster.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1;cloudcluster";
@@ -33,15 +34,39 @@ message CloudCluster {
 
 // CloudClusterSpec configures where a CloudCluster should be created and the initial bot
 message CloudClusterSpec {
-  string auth_region = 1;
-  string bot_name = 2;
-  string join_method = 3;
-  repeated IAMAllow allow = 4;
+  Auth auth = 1;
+  Bot bot = 2;
+  Token token = 3;
+}
+
+// Auth configures auth for the Cloud Tenant
+message Auth {
+  string region = 1;
+}
+
+// Bot configures a bot for the Cloud Tenant
+message Bot {
+  string name = 1;
+}
+
+// Token configures a token for a bot
+message Token {
+  string join_method = 1;
+  repeated IAMAllow allow = 2;
 }
 
 // CloudClusterStatus is populated with status from Teleport Cloud
 message CloudClusterStatus {
-  string status = 1;
+  // state is the status of the Teleport Cluster running in Teleport Cloud
+  string state = 1;
+  // domain is the Teleport Proxy address of the Teleport Cluster running in Teleport Cloud
+  string domain = 2;
+  // state_changed_at is the last time the reconciler saw a change to state
+  google.protobuf.Timestamp state_changed_at = 3;
+  // finalizers instruct the service to not delete the resource until all finalizers are removed
+  repeated string finalizers = 4;
+  // deletion_timestamp is the time a request to delete the cloud_cluster was received
+  google.protobuf.Timestamp deletion_timestamp = 5;
 }
 
 // IAMAllow configures an IAM join token
