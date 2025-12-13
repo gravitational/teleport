@@ -19,8 +19,36 @@
 package services
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 )
+
+// CloudClusterServiceGetter defines only read-only service methods.
+type CloudClusterServiceGetter interface {
+	// GetCloudCluster gets the requested CloudCluster resource.
+	GetCloudCluster(ctx context.Context, name string) (*cloudcluster.CloudCluster, error)
+
+	// ListCloudClusters returns a CloudCluster page.
+	ListCloudClusters(ctx context.Context, pageSize int, pageToken string) ([]*cloudcluster.CloudCluster, string, error)
+}
+
+// CloudClusterService manges CloudCluster resources.
+type CloudClusterService interface {
+	CloudClusterServiceGetter
+
+	// CreateCloudCluster creates the requested CloudCluster resource.
+	CreateCloudCluster(ctx context.Context, config *cloudcluster.CloudCluster) (*cloudcluster.CloudCluster, error)
+
+	// UpdateCloudCluster updates the requested CloudCluster resource.
+	UpdateCloudCluster(ctx context.Context, config *cloudcluster.CloudCluster) (*cloudcluster.CloudCluster, error)
+
+	// UpsertCloudCluster sets the requested CloudCluster resource.
+	UpsertCloudCluster(ctx context.Context, c *cloudcluster.CloudCluster) (*cloudcluster.CloudCluster, error)
+
+	// DeleteCloudCluster deletes the requested CloudCluster resource.
+	DeleteCloudCluster(ctx context.Context, name string) error
+}
 
 // MarshalCloudCluster marshals the CloudCluster object into a JSON byte array.
 func MarshalCloudCluster(object *cloudcluster.CloudCluster, opts ...MarshalOption) ([]byte, error) {

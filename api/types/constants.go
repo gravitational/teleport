@@ -400,6 +400,9 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
+	// MetaNameCloudCluster is the name of a configuration resource for cloudcluster.
+	MetaNameCloudCluster = "cloudcluster"
+
 	// MetaNameWatchStatus is the name of a watch status resource.
 	MetaNameWatchStatus = "watch-status"
 

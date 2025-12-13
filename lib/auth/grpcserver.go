@@ -56,6 +56,7 @@ import (
 	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	cloudclusterv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	clusterconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -101,6 +102,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
+	"github.com/gravitational/teleport/lib/auth/cloudcluster/cloudclusterv1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -6513,6 +6515,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 
 		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
+	}
+
+	// start a cloud cluster service that returns errors for all RPCs when not running on Teleport Cloud
+	if !modules.GetModules().Features().Cloud {
+		cloudClusterServiceServer := cloudclusterv1.NewService()
+		cloudclusterv1pb.RegisterCloudClusterServiceServer(server, cloudClusterServiceServer)
 	}
 
 	recordingMetadataService, err := recordingmetadatav1.NewService(recordingmetadatav1.ServiceConfig{
