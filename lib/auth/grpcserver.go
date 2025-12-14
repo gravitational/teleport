@@ -6236,17 +6236,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	crownjewelv1pb.RegisterCrownJewelServiceServer(server, crownJewel)
 
-	cloudClusterServiceServer, err := cloudclusterv1.NewService(cloudclusterv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Emitter:    cfg.Emitter,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cloudclusterv1pb.RegisterCloudClusterServiceServer(server, cloudClusterServiceServer)
-
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
 		Backend:    cfg.AuthServer.Services,
@@ -6401,6 +6390,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 
 		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
+
+		cloudClusterServiceServer, err := cloudclusterv1.NewService()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cloudclusterv1pb.RegisterCloudClusterServiceServer(server, cloudClusterServiceServer)
 	}
 
 	recordingMetadataService, err := recordingmetadatav1.NewService(recordingmetadatav1.ServiceConfig{
