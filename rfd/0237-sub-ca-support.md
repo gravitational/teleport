@@ -112,6 +112,13 @@ spec:
 EOF
 ```
 
+### Alice configures a SPIFFE TLS override
+
+Alice begins with the following command, then [continues as the first
+example](#ux1).
+
+`tctl auth create-override-csr --type=spiffe-tls`
+
 ### Alice disables the "db_client" override
 
 Disabling an override makes it inactive, falling back to the corresponding
@@ -196,11 +203,10 @@ allows overrides to take effect without a CA rotation.
 
 Unlike RFD 0194, the override is conceptually generic (it may apply to any
 Teleport CA) and works at a more fundamental system layer. For the initial
-release only the "db_client" and "windows" CAs may be targeted, but support
-could be seamlessly expanded in the future. It could even be applied to the
-SPIFFE TLS CA, replacing a workload_identity_x509_issuer_override.
+release only the "db_client", "windows" and "spiffe-tls" CAs may be targeted,
+but support could be seamlessly expanded in the future.
 
-Overrides for client facing CAs, like "db_client" and "windows", take effect
+Overrides for client facing CAs (the only ones supported so far) take effect
 immediately. The customer holds all necessary certificates before creating the
 override, so they may take the necessary steps (like updating trusted roots).
 
@@ -402,15 +408,24 @@ the necessary overrides during the "init" phase of the rotation.
 
 (CA,cluster) pairs without existing overrides are unaffected.
 
+<a id="spiffe-override"></a>
 ### SPIFFE issuer overrides
 
-SPIFFE issuer overrides ([RFD 0194][rfd0194]) could be represented as a
-cert_authority_override for the "spiffe-tls" virtual CA.
+SPIFFE issuer overrides are consolidated under the cert_authority_override
+entity. The CA name, unlike other CAs, includes the protocol: "spiffe-tls". This
+calls attention to the nature of the override and leaves design space for other
+types of overrides.
 
-Unifying the features is considered a stretch goal.
+[Workload overrides][rfd0194] are considered deprecated and cannot be created
+anew. Existing workload overrides are transparently migrated into the
+corresponding cert_authority_override entity.
 
-TODO(codingllama): SPIFFE is a target goal, not a stretch. Polish the SPIFFE
-section and add UX examples.
+Workload override commands will remain for one full release, during which they
+will error and direct the user to the Sub CA feature. On release N+1 the
+commands are removed from the CLI.
+
+Workload override API endpoints, similarly, will error for a full release and be
+removed on N+1.
 
 ### Auth service changes
 
@@ -620,9 +635,12 @@ how to mint certificates from the CSR.
         external root CA (ie, clients correctly pass the TLS chain)
 - [ ] Create an override for the "windows" CA
   - [ ] Verify that overriding the "windows" CA does not affect the "tls-user" CA
+- [ ] Create an override for the "spiffe-tls" CA
+- [ ] (N-1 upgrade) Create SPIFFE TLS workload overrides, verify migration to
+      cert_authority_override
 - [ ] Verify overridden CA certificates using `tctl auth export`
 - [ ] Perform a CA rotation, reconfigure trust roots if necessary, and re-verify
-     access.
+      access.
 - [ ] Exercise tctl commands, verify that audit events are issued
   - [ ] `tctl auth create-override`
   - [ ] `tctl auth disable-override`
@@ -670,3 +688,34 @@ interacting with a local script to issue new certificates.
 
 PKCS#11, while convenient, is not desirable when interacting with offline CAs,
 and is therefore considered out of scope.
+
+### Linked workload overrides
+
+Instead of fully replacing workload_identity_x509_issuer_override, both
+cert_authority_override and workload override entity could coexist.
+
+The concept of a "linked" workload override is introduced to
+cert_authority_override:
+
+```diff
+ message CertificateOverride {
+   // (...)
++
++  // Name of the linked workload identity override.
++  // Eg: "default".
++  string linked_workload_identity_override = n;
+ }
+```
+
+The workload override entity is the de-facto implementation of the feature for
+SPIFFE. The feature can be interacted with either via workload override or Sub
+CA commands - the latter will cause the corresponding changes to a workload
+override entity.
+
+Create operations on workload override the corresponding "linked"
+cert_authority_override. Deletes on a workload override "cascade" in a similar
+manner.
+
+The linked overrides concept was discarded in favor of the more straightforward
+[replacement with cert_authority_override](#spiffe-override), which promotes a
+simpler product and simpler UX long-term.
