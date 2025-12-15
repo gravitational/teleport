@@ -35,6 +35,7 @@ type ClientConn interface {
 	// ID through the peer proxy managed by the clientConn.
 	Dial(
 		nodeID string,
+		scope string,
 		src net.Addr,
 		dst net.Addr,
 		tunnelType types.TunnelType,

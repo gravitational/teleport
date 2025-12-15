@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package azurejoin
 
 import (
 	"context"
@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,14 +48,9 @@ func isAllowedDomain(cn string, domains []string) bool {
 }
 
 // getAzureIssuerCert fetches a x509 certificate's issuing certificate.
-func getAzureIssuerCert(ctx context.Context, cert *x509.Certificate) (*x509.Certificate, error) {
+func getAzureIssuerCert(ctx context.Context, cert *x509.Certificate, httpClient utils.HTTPDoClient) (*x509.Certificate, error) {
 	if len(cert.IssuingCertificateURL) == 0 {
 		return nil, nil
-	}
-
-	httpClient, err := defaults.HTTPClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Azure sends only one issuing cert.
