@@ -2388,10 +2388,11 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	err = teleport.Start()
 	require.NoError(t, err)
-	defer teleport.StopAll()
-
+	t.Cleanup(func() {
+		_ = teleport.StopAll()
+	})
 	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	// set up kube configuration using proxy
 	proxyClient, proxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
@@ -2409,14 +2410,17 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// interactive command, allocate pty
 	term := NewTerminal(250)
+	t.Cleanup(func() {
+		_ = term.Close()
+	})
 
 	out := &bytes.Buffer{}
 
-	group := &errgroup.Group{}
+	group, ctx := errgroup.WithContext(ctx)
 
 	// Start the main session.
 	group.Go(func() error {
-		err := kubeExec(t.Context(), proxyClientConfig, execInContainer, kubeExecArgs{
+		err := kubeExec(ctx, proxyClientConfig, execInContainer, kubeExecArgs{
 			podName:      pod.Name,
 			podNamespace: pod.Namespace,
 			container:    pod.Spec.Containers[0].Name,
@@ -2442,11 +2446,25 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	}, 10*time.Second, time.Second)
 
 	participantStdinR, participantStdinW := io.Pipe()
-	participantStdoutR, participantStdoutW, err := os.Pipe()
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = participantStdinW.Close()
+		_ = participantStdinR.Close()
+	})
+	participantStdoutR, participantStdoutW := net.Pipe()
+	t.Cleanup(func() {
+		_ = participantStdoutW.Close()
+		_ = participantStdoutR.Close()
+	})
 
-	observerCaptures := make([]*bytes.Buffer, 2)
+	type observer struct {
+		username string
+		capture  *bytes.Buffer
+	}
+	observerCaptures := make([]observer, 2)
 	albProxy := helpers.MustStartMockALBProxy(t, teleport.Config.Proxy.WebAddr.Addr)
+	t.Cleanup(func() {
+		albProxy.Close()
+	})
 
 	// join peer by KubeProxyAddr
 	group.Go(func() error {
@@ -2499,7 +2517,10 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			_ = stream.Close()
 		})
 
-		observerCaptures[0] = capture
+		observerCaptures[0] = observer{
+			username: observer1Username,
+			capture:  capture,
+		}
 		stream.Wait()
 		return nil
 	})
@@ -2511,7 +2532,10 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			_ = stream.Close()
 		})
 
-		observerCaptures[1] = capture
+		observerCaptures[1] = observer{
+			username: observer2Username,
+			capture:  capture,
+		}
 		stream.Wait()
 		return nil
 	})
@@ -2524,7 +2548,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// send a test message from the participant
-	participantStdinW.Write([]byte("\ahi from peer\n\r"))
+	participantStdinW.Write([]byte("echo \"hi from peer\"\n\r"))
 
 	// validate that the output from both messages above is
 	// written to the participant stdout in the expected order.
@@ -2532,12 +2556,14 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// type "hi from term" followed by "enter" to broadcast data
 	// to all participants.
-	term.Type("\ahi from term\n\r")
+	term.Type("\aecho \"hi from term\"\n\r")
 
 	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from term"))
 
 	// send exit command to close the session
-	term.Type("exit 0\n\r\a")
+	term.Type("\aexit 0\n\r")
+
+	_ = term.Close()
 
 	// wait for all clients to finish
 	require.NoError(t, group.Wait())
@@ -2546,16 +2572,19 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	require.Contains(t, out.String(), "hi from peer")
 
 	// Verify observers.
-	for _, capture := range observerCaptures {
-		output := capture.String()
-		assert.Contains(t, output, "hi from peer")
-		assert.Contains(t, output, "hi from term")
+	for _, observer := range observerCaptures {
+		output := observer.capture.String()
+		assert.Contains(t, output, "hi from peer", "observer %q did not receive peer message", observer.username)
+		assert.Contains(t, output, "hi from term", "observer %q did not receive term message", observer.username)
 	}
 }
 
 func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) error {
 	var prev string
 	out := make([]byte, int64(len(expected)*3))
+	defer func() {
+		slog.DebugContext(ctx, "waitForOutput final read", "output", prev, "expected", expected)
+	}()
 	for {
 		select {
 		case <-ctx.Done():
@@ -2572,6 +2601,8 @@ func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) e
 		n, err := r.Read(out)
 		outStr := removeSpace(string(out[:n]))
 
+		prev += outStr
+		slog.DebugContext(ctx, "waitForOutput read", "output", prev, "expected", expected)
 		// Check for [expected] before checking the error,
 		// as it's valid for n > 0 even when there is an error.
 		// The [expected] is checked against the current and previous
@@ -2579,13 +2610,13 @@ func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) e
 		// across two reads. While we try to prevent this by reading
 		// twice the length of [expected] there are no guarantees the
 		// whole thing will arrive in a single read.
-		if n > 0 && strings.Contains(prev+outStr, expected) {
+		if n > 0 && strings.Contains(prev, expected) {
 			return nil
 		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		prev = outStr
+
 	}
 }
 
