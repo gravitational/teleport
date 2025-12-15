@@ -4,7 +4,6 @@ module "aws_discovery" {
   teleport_proxy_public_addr    = "example.teleport.sh:443"
   teleport_discovery_group_name = "cloud-discovery-group"
 
-  create                   = true
   match_aws_tags           = { "*" : ["*"] }
   match_aws_resource_types = ["ec2"]
   name_prefix              = "example-tf"
