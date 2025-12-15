@@ -8,7 +8,7 @@ terraform {
     }
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "~> 18.5"
+      version = "~> 18.7"
     }
   }
 }
@@ -20,8 +20,14 @@ locals {
   discovery_resource_groups = var.discovery_resource_group_names
   proxy_addr                = var.proxy_addr
   discovery_group           = var.discovery_group_name
-  identity_resource_group   = var.identity_resource_group_name != "" ? var.identity_resource_group_name : local.discovery_resource_groups[0]
-  tags                      = var.tags
+  # Use the specified identity resource group, or default to the first discovery resource group
+  # if none is provided. This allows managed identity groups to be in a separate resource group
+  # from where VMs are discovered.
+  identity_resource_group = coalesce(
+    var.identity_resource_group_name,
+    local.discovery_resource_groups[0]
+  )
+  tags = var.tags
 
   names = {
     identity         = "${var.prefix}-discovery-identity"
@@ -32,7 +38,8 @@ locals {
     role             = "${var.prefix}-discovery-role"
   }
 
-  issuer = "https://${replace(local.proxy_addr, ":443", "")}"
+  # Extract the host from proxy_addr (format: host:port) to construct the OIDC issuer URL
+  issuer = "https://${split(":", local.proxy_addr)[0]}"
 }
 
 # User-assigned managed identity for discovery

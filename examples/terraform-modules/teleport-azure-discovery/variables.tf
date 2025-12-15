@@ -38,7 +38,7 @@ variable "tags" {
 variable "identity_resource_group_name" {
   type        = string
   description = "Resource group to place identity resources; defaults to first discovery RG when empty."
-  default     = ""
+  default     = null
 }
 
 variable "discovery_group_name" {

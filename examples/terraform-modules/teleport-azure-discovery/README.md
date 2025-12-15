@@ -2,12 +2,12 @@
 
 This Terraform module creates the Azure and Teleport cluster resources necessary for a Teleport cluster to discover Azure virtual machines:
 
-- Azure user-assigned managed identity for Teleport Discovery Service to use.
-- Azure federated identity credential that trusts the Teleport proxy as an issuer.
-- Azure custom role definition and assignment that grant the minimum VM discovery and install permissions.
-- Teleport `discovery_config` cluster resource that configures Teleport for Azure VM discovery.
-- Teleport `integration` cluster resource for Azure OIDC.
-- Teleport `token` cluster resource that allows Teleport nodes to join the cluster using Azure credentials.
+- **Azure user-assigned managed identity**: Used by the Teleport Discovery Service to authenticate to Azure APIs for scanning and managing VMs in the specified resource groups.
+- **Azure federated identity credential**: Establishes trust between Azure and your Teleport cluster by allowing the managed identity to authenticate using OIDC tokens issued by your Teleport proxy.
+- **Azure custom role definition and assignment**: Grants the managed identity the minimum required permissions to discover VMs and run installation commands on them.
+- **Teleport `discovery_config` cluster resource**: Configures the discovery parameters (subscriptions, resource groups, tags) that determine which Azure VMs will be discovered and enrolled.
+- **Teleport `integration` cluster resource**: Stores the Azure OIDC integration configuration in your Teleport cluster, linking the Azure tenant and client ID to enable authentication.
+- **Teleport `token` cluster resource**: Provides the join token that discovered Azure VMs will use to authenticate and join your Teleport cluster.
 
 ## Prerequisites
 
@@ -31,14 +31,14 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement_terraform) | >= 1.6.0 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement_azurerm) | ~> 4.0 |
-| <a name="requirement_teleport"></a> [teleport](#requirement_teleport) | ~> 18.5 |
+| <a name="requirement_teleport"></a> [teleport](#requirement_teleport) | ~> 18.7 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_azurerm"></a> [azurerm](#provider_azurerm) | ~> 4.0 |
-| <a name="provider_teleport"></a> [teleport](#provider_teleport) | ~> 18.5 |
+| <a name="provider_teleport"></a> [teleport](#provider_teleport) | ~> 18.7 |
 
 ## Modules
 
