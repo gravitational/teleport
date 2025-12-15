@@ -2,17 +2,6 @@
 # Required variables
 ################################################################################
 
-variable "teleport_cluster_name" {
-  description = "Teleport cluster name."
-  type        = string
-  nullable    = false
-
-  validation {
-    condition     = var.teleport_cluster_name != ""
-    error_message = "Must not be empty."
-  }
-}
-
 variable "teleport_proxy_public_addr" {
   description = "Teleport cluster proxy public address."
   type        = string

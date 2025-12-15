@@ -11,11 +11,22 @@ locals {
     # this is the origin we set for resources created by the AWS OIDC integration web UI wizard.
     "teleport.dev/origin" = "integration_awsoidc"
   })
-  teleport_cluster_name      = var.teleport_cluster_name
+  teleport_ping              = try(jsondecode(data.http.teleport_ping[0].response_body), null)
+  teleport_cluster_name      = try(local.teleport_ping.cluster_name, "")
   teleport_proxy_public_addr = var.teleport_proxy_public_addr
   teleport_proxy_public_url  = "https://${local.teleport_proxy_public_addr}"
 }
 
+data "http" "teleport_ping" {
+  count = local.create ? 1 : 0
+
+  url = "${local.teleport_proxy_public_url}/webapi/ping"
+
+  # Optional request headers
+  request_headers = {
+    Accept = "application/json"
+  }
+}
 ################################################################################
 # AWS IAM OIDC Provider
 ################################################################################
