@@ -5,7 +5,7 @@ locals {
     ? "${trimsuffix(var.name_prefix, "-")}-"
     : ""
   )
-  tags = merge(var.tags, {
+  apply_aws_tags = merge(var.apply_aws_tags, {
     "teleport.dev/cluster"     = local.teleport_cluster_name
     "teleport.dev/integration" = local.teleport_integration_name
     # this is the origin we set for resources created by the AWS OIDC integration web UI wizard.
@@ -53,7 +53,7 @@ resource "aws_iam_openid_connect_provider" "teleport" {
   url             = local.aws_iam_oidc_provider_url
   client_id_list  = [local.aws_iam_oidc_provider_aud]
   thumbprint_list = [data.tls_certificate.teleport_proxy[0].certificates[0].sha1_fingerprint]
-  tags            = local.tags
+  tags            = local.apply_aws_tags
 }
 
 ################################################################################
@@ -99,8 +99,14 @@ resource "aws_iam_role" "teleport_discovery_service" {
   assume_role_policy   = data.aws_iam_policy_document.teleport_discovery_service_iam_role_trust_policy.json
   description          = "AWS IAM role that Teleport Discovery Service will assume."
   max_session_duration = 3600
-  name                 = local.teleport_discovery_service_iam_role_name
-  tags                 = local.tags
+  name                 = local.aws_iam_role_name
+  tags                 = local.apply_aws_tags
+}
+
+data "aws_iam_role" "teleport_discovery_service" {
+  count = local.create && !local.create_aws_iam_role ? 1 : 0
+
+  name = local.aws_iam_role_name
 }
 
 ################################################################################
@@ -139,8 +145,27 @@ resource "aws_iam_policy" "teleport_discovery_service" {
   description = "AWS IAM policy that grants the permissions needed for Teleport to discover resources in AWS."
   name        = local.teleport_discovery_service_iam_policy_name
   path        = "/"
-  policy      = data.teleport_discovery_service_single_account_iam_policy.json
-  tags        = local.tags
+  policy      = data.aws_iam_policy_document.teleport_discovery_service_single_account[0].json
+  tags        = local.apply_aws_tags
+}
+
+data "aws_iam_policy" "teleport_discovery_service" {
+  count = local.create && !local.create_aws_iam_policy ? 1 : 0
+
+  name = local.aws_iam_policy_name
+}
+
+################################################################################
+# AWS IAM policy attachment for Teleport Discovery Service
+################################################################################
+
+locals {
+  create_aws_iam_policy_attachment = local.create && (local.create_aws_iam_policy || var.create_aws_iam_policy_attachment)
+  discovery_aws_iam_policy_arn = try(
+    aws_iam_policy.teleport_discovery_service[0].arn,
+    data.aws_iam_policy.teleport_discovery_service[0].arn,
+    ""
+  )
 }
 
 resource "aws_iam_role_policy_attachment" "teleport_discovery_service" {
@@ -270,9 +295,8 @@ resource "teleport_discovery_config" "aws" {
       ssm = {
         document_name = "AWS-RunShellScript"
       }
-      integration = one(teleport_integration.aws_oidc[*].metadata.name)
-      tags        = local.match_aws_tags
-      types       = local.match_aws_types
+      tags  = local.match_aws_tags
+      types = local.match_aws_types
     }]
   }
 }

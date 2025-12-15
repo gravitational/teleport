@@ -67,6 +67,20 @@ variable "match_aws_resource_types" {
 # Optional variables
 ################################################################################
 
+variable "apply_aws_tags" {
+  description = "Additional AWS tags to apply to all created AWS resources."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "apply_teleport_resource_labels" {
+  description = "Additional Teleport resource labels to apply to all created Teleport."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 variable "create" {
   description = "Toggle resource creation."
   type        = bool
@@ -82,7 +96,7 @@ variable "match_aws_regions" {
 }
 
 variable "match_aws_tags" {
-  description = "AWS resource tags to match when registering discovered resources with Teleport. The default matches all discovered AWS resources."
+  description = "AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources."
   type        = map(list(string))
   default     = { "*" : ["*"] }
   nullable    = false
@@ -92,13 +106,6 @@ variable "name_prefix" {
   description = "Prefix to include in resource names."
   type        = string
   default     = ""
-  nullable    = false
-}
-
-variable "tags" {
-  description = "Tags to apply to AWS resources."
-  type        = map(string)
-  default     = {}
   nullable    = false
 }
 
@@ -137,9 +144,4 @@ variable "teleport_provision_token_name" {
   nullable    = false
 }
 
-variable "teleport_resource_labels" {
-  description = "Additional labels to apply to Teleport cluster resources."
-  type        = map(string)
-  default     = {}
-  nullable    = false
 }
