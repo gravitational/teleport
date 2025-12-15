@@ -177,9 +177,9 @@ export function Aws() {
               Connect your AWS account to automatically discover and enroll
               resources in your Teleport Cluster.
             </Subtitle1>
-            <Container flexDirection="column" p={6}>
+            <Container flexDirection="column" p={6} mb={3}>
               <H2>Integration Details</H2>
-              <Text>
+              <Text mb={2}>
                 A unique name to identify this AWS integration. This will be
                 used to reference the integration in Teleport.
               </Text>
@@ -191,7 +191,6 @@ export function Aws() {
                 label="Integration name"
                 placeholder="Integration Name"
                 maxWidth={360}
-                mt={2}
                 onChange={e =>
                   setIntegration(prev => ({
                     ...prev,
@@ -213,7 +212,7 @@ export function Aws() {
                 terraformConfig={terraformConfig}
               />
             </Container>
-            <Box mt={3}>
+            <Box mb={2}>
               <IntegrationButton
                 integrationName={integration.name}
                 integrationKind={IntegrationKind.AwsOidc}
@@ -232,12 +231,6 @@ export function Aws() {
               >
                 Back
               </ButtonSecondary>
-              <Text mt={2} color="text.secondary">
-                or{' '}
-                <Text as="a" href={cfg.routes.integrations} color="text.main">
-                  view all integrations
-                </Text>
-              </Text>
             </Box>
           </Box>
           <Box
