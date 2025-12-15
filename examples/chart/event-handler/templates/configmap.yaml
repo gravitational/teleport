@@ -8,6 +8,9 @@ metadata:
   {{- end }}
   labels:
     {{- include "event-handler.labels" . | nindent 4 }}
+    {{- with .Values.extraLabels.config }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 data:
   teleport-event-handler.toml: |
     storage = {{ .Values.eventHandler.storagePath | toJson }}
