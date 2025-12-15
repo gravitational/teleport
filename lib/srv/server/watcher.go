@@ -21,13 +21,15 @@ package server
 import (
 	"context"
 	"log/slog"
-	"sync"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Fetcher fetches instances from a particular cloud provider.
@@ -85,49 +87,13 @@ func WithMissedRotation(missedRotation <-chan []types.Server) Option[EC2Instance
 	}
 }
 
-type syncMap[T any] struct {
-	mu sync.RWMutex
-	m  map[string][]T
-}
-
-func newSyncMap[T any]() *syncMap[T] {
-	return &syncMap[T]{
-		m: make(map[string][]T),
-	}
-}
-
-func (sm *syncMap[T]) set(key string, f []T) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	sm.m[key] = f
-}
-
-func (sm *syncMap[T]) delete(key string) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
-	delete(sm.m, key)
-}
-
-func (sm *syncMap[T]) getAll() []T {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
-	var all []T
-	for _, elems := range sm.m {
-		all = append(all, elems...)
-	}
-	return all
-}
-
 // Watcher allows callers to discover cloud instances matching specified filters.
 type Watcher[Instances any] struct {
 	// InstancesC can be used to consume newly discovered instances.
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetcherMap *syncMap[Fetcher[Instances]]
+	fetcherMap *utils.SyncMap[string, []Fetcher[Instances]]
 
 	pollInterval   time.Duration
 	clock          clockwork.Clock
@@ -140,7 +106,7 @@ type Watcher[Instances any] struct {
 func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *Watcher[Instances] {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher[Instances]{
-		fetcherMap:   newSyncMap[Fetcher[Instances]](),
+		fetcherMap:   &utils.SyncMap[string, []Fetcher[Instances]]{},
 		ctx:          cancelCtx,
 		cancel:       cancelFn,
 		clock:        clockwork.NewRealClock(),
@@ -154,11 +120,11 @@ func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *
 }
 
 func (w *Watcher[Instances]) SetFetchers(dcName string, fetchers []Fetcher[Instances]) {
-	w.fetcherMap.set(dcName, fetchers)
+	w.fetcherMap.Store(dcName, fetchers)
 }
 
 func (w *Watcher[Instances]) DeleteFetchers(dcName string) {
-	w.fetcherMap.delete(dcName)
+	w.fetcherMap.Delete(dcName)
 }
 
 func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, err error) {
@@ -179,7 +145,8 @@ func (w *Watcher[Instances]) sendInstancesOrLogError(instancesColl []Instances, 
 
 // fetchAndSubmit fetches the resources and submits them for processing.
 func (w *Watcher[Instances]) fetchAndSubmit() {
-	fetchers := w.fetcherMap.getAll()
+	cloned := w.fetcherMap.Clone()
+	fetchers := slices.Concat(slices.Collect(maps.Values(cloned))...)
 
 	if w.preFetchHookFn != nil {
 		w.preFetchHookFn(fetchers)
@@ -200,7 +167,8 @@ func (w *Watcher[Instances]) Run() {
 	for {
 		select {
 		case insts := <-w.missedRotation:
-			fetchers := w.fetcherMap.getAll()
+			cloned := w.fetcherMap.Clone()
+			fetchers := slices.Concat(slices.Collect(maps.Values(cloned))...)
 
 			// TODO: consider calling preFetchHookFn
 			//if w.preFetchHookFn != nil {
