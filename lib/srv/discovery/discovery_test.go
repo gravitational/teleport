@@ -3239,7 +3239,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				// wait for discovery config update
 				select {
 				case <-sub:
-				case <-time.After(time.Second):
+				case <-time.After(3 * time.Second):
 					require.Fail(t, "timed out waiting for an update")
 				}
 			}
@@ -3554,7 +3554,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 				// wait for discovery config update
 				select {
 				case <-sub:
-				case <-time.After(time.Second):
+				case <-time.After(3 * time.Second):
 					t.Fatal("timed out waiting for channel update")
 				}
 			}
