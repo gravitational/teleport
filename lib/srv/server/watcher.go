@@ -170,11 +170,6 @@ func (w *Watcher[Instances]) Run() {
 			cloned := w.fetcherMap.Clone()
 			fetchers := slices.Concat(slices.Collect(maps.Values(cloned))...)
 
-			// TODO: consider calling preFetchHookFn
-			//if w.preFetchHookFn != nil {
-			//	w.preFetchHookFn(fetchers)
-			//}
-
 			for _, fetcher := range fetchers {
 				w.sendInstancesOrLogError(fetcher.GetMatchingInstances(w.ctx, insts, true))
 			}
