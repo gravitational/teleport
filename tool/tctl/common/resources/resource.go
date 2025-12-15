@@ -36,6 +36,7 @@ func Handlers() map[string]Handler {
 	return map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
+		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),

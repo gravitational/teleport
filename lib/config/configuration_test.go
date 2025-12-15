@@ -2020,7 +2020,7 @@ func TestLicenseFileNoConfig(t *testing.T) {
 }
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
-// FedRAMP/FIPS 140-2 mode.
+// FedRAMP/FIPS mode.
 func TestFIPS(t *testing.T) {
 	tests := []struct {
 		inConfigString string

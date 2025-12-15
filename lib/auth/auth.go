@@ -1275,7 +1275,7 @@ type Server struct {
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
 
-	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// fips means FedRAMP/FIPS compliant configuration was requested.
 	fips bool
 
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
@@ -4435,7 +4435,7 @@ func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) 
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.newUserToken(tokenReq)
+	token, err := a.newUserToken(ctx, tokenReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4474,7 +4474,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
 		}
 
-		otpKey, otpOpts, err := a.newTOTPKey(req.username)
+		otpKey, otpOpts, err := a.newTOTPKey(ctx, req.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7517,7 +7517,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
-		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		ProxyPublicAddr:         a.getProxyPublicAddr(ctx),
 		IsBoring:                modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
@@ -8247,8 +8247,28 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/services/suite/suite.go:NewTestCAWithConfig().
+// Keep this function in sync with lib/auth/authcatest.NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
+	switch caID.Type {
+	case
+		types.HostCA,
+		types.UserCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.OpenSSHCA,
+		types.JWTSigner,
+		types.SAMLIDPCA,
+		types.OIDCIdPCA,
+		types.SPIFFECA,
+		types.OktaCA,
+		types.AWSRACA,
+		types.BoundKeypairCA:
+		// OK, known CA type.
+	default:
+		return types.CAKeySet{}, trace.BadParameter(
+			"cannot generate new key set for unknown CA type %q", caID.Type)
+	}
+
 	var keySet types.CAKeySet
 
 	// Add SSH keys if necessary.
@@ -8279,6 +8299,11 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
+	// Sanity check that the key set has at least one key.
+	if len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0 {
+		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
 	}
 
 	return keySet, nil
@@ -8444,8 +8469,10 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
-func (a *Server) getProxyPublicAddr() string {
-	if proxies, err := a.GetProxies(); err == nil {
+func (a *Server) getProxyPublicAddr(ctx context.Context) string {
+	if proxies, err := iterstream.Collect(
+		clientutils.Resources(ctx, a.ListProxyServers),
+	); err == nil {
 		for _, p := range proxies {
 			addr := p.GetPublicAddr()
 			if addr == "" {

@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -596,7 +597,6 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 			},
 		)
 	}
-
 }
 
 // testKubePortForwardPodDisconnect tests Kubernetes port forwarding
@@ -760,7 +760,6 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 			},
 		)
 	}
-
 }
 
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
@@ -2003,7 +2002,6 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		err = ws.Close()
 		require.NoError(t, err)
 	})
-
 }
 
 type ReaderWithDeadline interface {
@@ -2035,24 +2033,28 @@ type sessionMetadataResponse struct {
 func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Logger = s.log
-	tconf.SSH.Enabled = true
+	tconf.SSH.Enabled = false
 	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.DisableDatabaseProxy = true
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
+	tconf.Proxy.IdP.SAMLIdP.Enabled = false
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
 	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, newPortStr())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 	tconf.Proxy.Kube.LegacyKubeProxy = true
-	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	return tconf
 }
 
-// teleKubeConfig sets up teleport with kubernetes turned on
-func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
+// teleAuthConfig sets up teleport with Auth turned on
+func (s *KubeSuite) teleAuthConfig() *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Logger = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
@@ -2061,6 +2063,7 @@ func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf.Proxy.Enabled = false
 	tconf.SSH.Enabled = false
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.DebugService.Enabled = false
 
 	return tconf
 }
@@ -2444,8 +2447,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		session = sessions[0]
 	}, 10*time.Second, time.Second)
 
-	participantStdinR, participantStdinW, err := os.Pipe()
-	require.NoError(t, err)
+	participantStdinR, participantStdinW := io.Pipe()
 	participantStdoutR, participantStdoutW, err := os.Pipe()
 	require.NoError(t, err)
 
@@ -2530,13 +2532,14 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// send a test message from the participant
 	participantStdinW.Write([]byte("\ahi from peer\n\r"))
 
+	// validate that the output from both messages above is
+	// written to the participant stdout in the expected order.
+	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from peer"))
+
 	// type "hi from term" followed by "enter" to broadcast data
 	// to all participants.
 	term.Type("\ahi from term\n\r")
 
-	// validate that the output from both messages above is
-	// written to the participant stdout in the expected order.
-	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from peer"))
 	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from term"))
 
 	// send exit command to close the session
@@ -2958,7 +2961,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 	teleport.AddUserWithRole(userUsername, userRole)
-	authTconf := suite.teleAuthConfig(Host)
+	authTconf := suite.teleAuthConfig()
 	err = teleport.CreateEx(t, nil, authTconf)
 	require.NoError(t, err)
 	err = teleport.Start()

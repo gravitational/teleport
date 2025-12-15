@@ -11,8 +11,11 @@
         "podSecurityContext",
         "securityContext",
         "nodeSelector",
+        "annotations",
         "tolerations",
         "affinity",
+        "extraArgs",
+        "extraEnv",
         "teleport",
         "fluentd"
     ],
@@ -131,6 +134,16 @@
             },
             "additionalProperties": true
         },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
         "resources": {
             "$id": "#/properties/resources",
             "type": "object",
@@ -224,6 +237,53 @@
             "type": "object",
             "default": {},
             "additionalProperties": true
+        },
+        "annotations": {
+            "$id": "#/properties/annotations",
+            "type": "object",
+            "required": [
+                "config",
+                "deployment",
+                "pod"
+            ],
+            "properties": {
+                "config": {
+                    "$id": "#/properties/annotations/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/annotations/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "properties": {
+                "config": {
+                    "$id": "#/properties/extraLabels/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/extraLabels/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/extraLabels/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
         },
         "tls": {
             "$id": "#/properties/tls",
