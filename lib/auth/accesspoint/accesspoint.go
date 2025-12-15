@@ -114,6 +114,7 @@ type Config struct {
 	HealthCheckConfig       services.HealthCheckConfigReader
 	Plugin                  services.Plugins
 	RecordingEncryption     services.RecordingEncryption
+	CloudClusterService     services.CloudClusterService
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -200,6 +201,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		BotInstanceService:      cfg.BotInstance,
 		Plugin:                  cfg.Plugin,
 		RecordingEncryption:     cfg.RecordingEncryption,
+		CloudClusterService:     cfg.CloudClusterService,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))
