@@ -40,6 +40,40 @@ variable "teleport_discovery_group_name" {
   }
 }
 
+locals {
+  allowed_match_aws_resource_types = [
+    # TODO(gavin): add module support for all resource types
+    # "docdb",
+    "ec2",
+    # "eks",
+    # "elasticache-serverless",
+    # "elasticache",
+    # "memorydb",
+    # "opensearch",
+    # "rds",
+    # "rdsproxy",
+    # "redshift-serverless",
+    # "redshift"
+  ]
+}
+
+variable "match_aws_resource_types" {
+  description = "AWS resource types to match when discovering resources with Teleport."
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for rt in var.match_aws_resource_types :
+      contains(local.allowed_match_aws_resource_types, rt)
+    ])
+    error_message = format(
+      "Allowed values for match_aws_resource_types are: %s.",
+      join(", ", local.allowed_match_aws_resource_types)
+    )
+  }
+}
+
 ################################################################################
 # Optional variables
 ################################################################################

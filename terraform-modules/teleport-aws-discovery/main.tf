@@ -1,5 +1,5 @@
 locals {
-  create                = var.create
+  create = var.create
   name_prefix = (
     var.name_prefix != ""
     ? "${trimsuffix(var.name_prefix, "-")}-"
@@ -217,10 +217,14 @@ resource "teleport_integration" "aws_oidc" {
 ################################################################################
 
 locals {
-  create_teleport_discovery_config_aws = local.create
-  match_aws_regions                    = var.match_aws_regions
-  match_aws_tags                       = var.match_aws_tags
-  match_aws_types                      = ["ec2"]
+  assume_role = try({
+    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn
+    external_id = var.discovery_service_iam_credential_source.trust_role.external_id
+  })
+  create_teleport_discovery_config = local.create
+  match_aws_regions                = var.match_aws_regions
+  match_aws_tags                   = var.match_aws_tags
+  match_aws_types                  = var.match_aws_resource_types
   teleport_discovery_config_name = "${local.name_prefix}${coalesce(
     var.teleport_discovery_config_name,
     local.default_teleport_resource_name,
@@ -256,8 +260,8 @@ resource "teleport_discovery_config" "aws" {
         document_name = "AWS-RunShellScript"
       }
       integration = one(teleport_integration.aws_oidc[*].metadata.name)
-      tags  = local.match_aws_tags
-      types = local.match_aws_types
+      tags        = local.match_aws_tags
+      types       = local.match_aws_types
     }]
   }
 }

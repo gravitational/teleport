@@ -30,16 +30,16 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
-| <a name="requirement_teleport"></a> [teleport](#requirement\_teleport) | >= 18.4.0 |
+| <a name="requirement_teleport"></a> [teleport](#requirement\_teleport) | 19.0.0-dev |
 | <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
-| <a name="provider_teleport"></a> [teleport](#provider\_teleport) | >= 18.4.0 |
-| <a name="provider_tls"></a> [tls](#provider\_tls) | ~> 4.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_teleport"></a> [teleport](#provider\_teleport) | 19.0.0-dev |
+| <a name="provider_tls"></a> [tls](#provider\_tls) | 4.1.0 |
 
 ## Modules
 
@@ -57,6 +57,8 @@ No modules.
 | teleport_integration.aws_oidc | resource |
 | teleport_provision_token.aws_iam | resource |
 | [aws_caller_identity.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.teleport_discovery_service_iam_role_trust_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.teleport_discovery_service_single_account_iam_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [tls_certificate.teleport_proxy](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/data-sources/certificate) | data source |
 
 ## Inputs
@@ -64,9 +66,8 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_create"></a> [create](#input\_create) | Toggle resource creation. | `bool` | `true` | no |
-| <a name="input_exclude_aws_organizational_units"></a> [exclude\_aws\_organizational\_units](#input\_exclude\_aws\_organizational\_units) | AWS organizational units (OU) to exclude from Teleport discovery. The default does not exclude any OUs. | `list(string)` | `[]` | no |
-| <a name="input_include_aws_organizational_units"></a> [include\_aws\_organizational\_units](#input\_include\_aws\_organizational\_units) | AWS Organizational Units (OU) to include in Teleport AWS Organization discovery. The default matches all AWS OUs. | `list(string)` | <pre>[<br/>  "*"<br/>]</pre> | no |
 | <a name="input_match_aws_regions"></a> [match\_aws\_regions](#input\_match\_aws\_regions) | AWS regions to discover. The default matches all AWS regions. | `list(string)` | <pre>[<br/>  "*"<br/>]</pre> | no |
+| <a name="input_match_aws_resource_types"></a> [match\_aws\_resource\_types](#input\_match\_aws\_resource\_types) | AWS resource types to match when discovering resources with Teleport. | `list(string)` | n/a | yes |
 | <a name="input_match_aws_tags"></a> [match\_aws\_tags](#input\_match\_aws\_tags) | AWS resource tags to match when registering discovered resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | <pre>{<br/>  "*": [<br/>    "*"<br/>  ]<br/>}</pre> | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to include in resource names. | `string` | `""` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to AWS resources. | `map(string)` | `{}` | no |
