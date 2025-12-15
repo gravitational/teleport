@@ -103,6 +103,7 @@ type Watcher[Instances any] struct {
 	preFetchHookFn func(fetchers []Fetcher[Instances])
 }
 
+// NewWatcher initializes a new instances of Watcher.
 func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *Watcher[Instances] {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher[Instances]{
