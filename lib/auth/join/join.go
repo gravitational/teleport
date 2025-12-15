@@ -160,7 +160,7 @@ type RegisterParams struct {
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	// Ignored if AuthClient is provided.
 	CircuitBreakerConfig breaker.Config
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	// Ignored if AuthClient is provided.
 	FIPS bool
 	// IDToken is a token retrieved from a workload identity provider for

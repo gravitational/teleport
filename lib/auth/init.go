@@ -266,7 +266,7 @@ type InitConfig struct {
 	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.

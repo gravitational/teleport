@@ -69,7 +69,7 @@ we recommend using a [configuration file](../config.mdx) in production.
 | `--bootstrap` | none | **string** `.yaml` filepath | bootstrap configured YAML resources {/* TODO link how to configure this file */} |
 | `--labels` | none | **string** comma-separated list | assigns a set of labels to a node, for example env=dev,app=web. See the explanation of labeling mechanism in the [Labeling Nodes](../../zero-trust-access/management/admin/labels.mdx) section. |
 | `--insecure` | none | none | disable certificate validation on Proxy Service, validation still occurs on Auth Service. |
-| `--fips` | none | none | start Teleport in FedRAMP/FIPS 140-2 mode. |
+| `--fips` | none | none | start Teleport in FedRAMP/FIPS mode. |
 | `--skip-version-check` | `false` | `true` or `false` | Skips version checks between the Auth Service and this Teleport instance |
 | `--diag-addr` | none | none | Enable diagnostic endpoints |
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session. |

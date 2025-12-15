@@ -138,7 +138,7 @@ type Config struct {
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue float64
 
-	// UseFIPSEndpoint uses AWS FedRAMP/FIPS 140-2 mode endpoints.
+	// UseFIPSEndpoint uses AWS FedRAMP/FIPS mode endpoints.
 	// to determine its behavior:
 	// Unset - allows environment variables or AWS config to set the value
 	// Enabled - explicitly enabled
