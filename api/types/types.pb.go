@@ -24178,7 +24178,7 @@ type AWSOrganizationUnitsMatcher struct {
 	Include []string `protobuf:"bytes,1,rep,name=Include,proto3" json:"include,omitempty"`
 	// Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
 	// Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
-	// Only exact matches or wildcard (*) are supported.
+	// Only exact matches are supported.
 	// Optional. If empty, no OUs are excluded.
 	Exclude              []string `protobuf:"bytes,2,rep,name=Exclude,proto3" json:"exclude,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`

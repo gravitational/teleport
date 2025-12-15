@@ -47,7 +47,7 @@ func organizationIDFromARN(orgARN string, resourceType string) (string, error) {
 		return "", trace.BadParameter("unexpected resource received in ARN from organizations API call: %s", orgARN)
 	}
 	if resourceSplitted[0] != resourceType {
-		return "", trace.BadParameter("unexpected resource type received in ARN from organizations API call: %s", orgARN)
+		return "", trace.BadParameter("expected resource type %s but received unexpected resource type %s in ARN from organizations API call: %s", resourceType, resourceSplitted[0], orgARN)
 	}
 	organizationID := resourceSplitted[1]
 

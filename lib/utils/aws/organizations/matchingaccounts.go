@@ -63,13 +63,13 @@ type MatchingAccountsFilter struct {
 	OrganizationID string
 
 	// IncludeOUs is the list of Organizational Unit IDs to include.
-	// If empty or contains "*", all OUs are included (except those in ExcludeOUs).
-	// If contains specific OU IDs, only those OUs and their children OUs are included.
-	// Optional.
+	// If it contains "*", all OUs are included (except those in ExcludeOUs).
+	// If it contains specific OU IDs, only those OUs and their children OUs are included.
+	// Required.
 	IncludeOUs []string
 
 	// ExcludeOUs is the list of Organizational Unit IDs to exclude.
-	// If contains "*", all OUs are excluded.
+	// If it contains "*", all OUs are excluded.
 	// Optional.
 	ExcludeOUs []string
 }
@@ -87,8 +87,8 @@ func (m *MatchingAccountsFilter) checkAndSetDefaults() error {
 		return trace.BadParameter("IncludeOUs cannot contain '*' along with other OU IDs")
 	}
 
-	if len(m.ExcludeOUs) > 1 && slices.Contains(m.ExcludeOUs, allOrganizationalUnits) {
-		return trace.BadParameter("ExcludeOUs cannot contain '*' along with other OU IDs")
+	if slices.Contains(m.ExcludeOUs, allOrganizationalUnits) {
+		return trace.BadParameter("excluding all OUs is not supported")
 	}
 
 	return nil
@@ -99,7 +99,7 @@ func (m *MatchingAccountsFilter) isIncludeNothing() bool {
 }
 
 func (m *MatchingAccountsFilter) isIncludeAll() bool {
-	return len(m.ExcludeOUs) == 0 && (len(m.IncludeOUs) == 0 || (len(m.IncludeOUs) == 1 && m.IncludeOUs[0] == allOrganizationalUnits))
+	return len(m.ExcludeOUs) == 0 && (len(m.IncludeOUs) == 1 && m.IncludeOUs[0] == allOrganizationalUnits)
 }
 
 // MatchingAccounts returns the list of account IDs that are part of the organization and match the filter.
@@ -125,8 +125,8 @@ func MatchingAccounts(ctx context.Context, orgsClient OrganizationsClient, filte
 	}
 
 	// Then: iterate over the tree and collect the included accounts.
-	includeEverything := len(filter.IncludeOUs) == 0 || filter.IncludeOUs[0] == allOrganizationalUnits
-	return collectIncludedAccounts(orgTree, filter.IncludeOUs, includeEverything), nil
+	includeRootAndChildrenAccounts := filter.IncludeOUs[0] == allOrganizationalUnits
+	return collectIncludedAccounts(orgTree, filter.IncludeOUs, includeRootAndChildrenAccounts), nil
 }
 
 func collectIncludedAccounts(orgItem *awsOrgItem, included []string, isParentIncluded bool) []string {

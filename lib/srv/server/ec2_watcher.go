@@ -577,7 +577,7 @@ func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWi
 	}
 
 	if f.Matcher.AssumeRole == nil || f.Matcher.AssumeRole.RoleName == "" {
-		return nil, trace.BadParameter("assume role name is required when using account discovery (under an organization)")
+		return nil, trace.BadParameter("assume role name is required when using AWS organization discovery")
 	}
 
 	accountIDs, err := f.fetchAccountIDsUnderOrganization(ctx)

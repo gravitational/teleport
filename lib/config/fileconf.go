@@ -1866,7 +1866,6 @@ type AWSOrganizationMatcher struct {
 type AWSOrganizationUnitsMatcher struct {
 	// Include is a list of AWS Organizational Unit IDs to match.
 	// Only exact matches or wildcard (*) are supported.
-	// If empty, all Organizational Units are included by default.
 	Include []string `yaml:"include,omitempty"`
 
 	// Exclude is a list of AWS Organizational Unit IDs to exclude.

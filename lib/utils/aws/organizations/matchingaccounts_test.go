@@ -153,7 +153,7 @@ func TestMatchingAccounts(t *testing.T) {
 			expectedAccounts: []string{"o1-r1-01", "o1-r1-02"},
 		},
 		{
-			name: "include nothing returns no accounts",
+			name: "exclude everything returns an error",
 			filter: MatchingAccountsFilter{
 				OrganizationID: "o-1",
 				ExcludeOUs:     []string{"*"},
@@ -168,7 +168,7 @@ func TestMatchingAccounts(t *testing.T) {
 					},
 				},
 			},
-			errCheck:         require.NoError,
+			errCheck:         require.Error,
 			expectedAccounts: []string{},
 		},
 		{

@@ -9093,7 +9093,7 @@ message AWSOrganizationUnitsMatcher {
 
   // Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
   // Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
-  // Only exact matches or wildcard (*) are supported.
+  // Only exact matches are supported.
   // Optional. If empty, no OUs are excluded.
   repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
 }

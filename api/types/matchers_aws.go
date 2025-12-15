@@ -293,7 +293,7 @@ func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 		// If no organization is set, accounts filter cannot be set.
 		if m.Organization.OrganizationalUnits != nil {
 			if len(m.Organization.OrganizationalUnits.Exclude) > 0 || len(m.Organization.OrganizationalUnits.Include) > 0 {
-				return trace.BadParameter("organization id is required when using accounts filter")
+				return trace.BadParameter("organization id is required when using organizational units filter")
 			}
 		}
 
@@ -302,6 +302,10 @@ func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 
 	if m.AssumeRole == nil || m.AssumeRole.RoleName == "" {
 		return trace.BadParameter("assume role name is required when organization id is set")
+	}
+
+	if m.AssumeRole.RoleARN != "" {
+		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts")
 	}
 
 	if err := awsapiutils.IsValidIAMRoleName(m.AssumeRole.RoleName); err != nil {
