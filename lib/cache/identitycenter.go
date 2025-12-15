@@ -121,6 +121,37 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pa
 	return accounts, "", nil
 }
 
+func (c *Cache) ListIdentityCenterAccountsWithFilter(ctx context.Context, pageSize int, pageToken string, filter func(*identitycenterv1.Account) bool) ([]*identitycenterv1.Account, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccountsWithFilter")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.identityCenterAccounts)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		accounts, next, err := c.Config.IdentityCenter.ListIdentityCenterAccountsWithFilter(ctx, pageSize, pageToken, filter)
+		return accounts, next, trace.Wrap(err)
+	}
+
+	if pageSize == 0 {
+		pageSize = 100
+	}
+
+	var accounts []*identitycenterv1.Account
+	for account := range rg.store.resources(identityCenterAccountNameIndex, pageToken, "") {
+		if len(accounts) == pageSize {
+			return accounts, account.Metadata.GetName(), nil
+		}
+
+		accounts = append(accounts, utils.CloneProtoMsg(account))
+
+	}
+	return accounts, "", nil
+}
+
 type identityCenterAccountAssignmentIndex string
 
 const identityCenterAccountAssignmentNameIndex identityCenterAccountAssignmentIndex = "name"
@@ -155,18 +186,6 @@ func newIdentityCenterAccountAssignmentCollection(ic services.IdentityCenter, w 
 		},
 		watch: w,
 	}, nil
-}
-
-func (c *Cache) GetAccountAssignment(ctx context.Context, id services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccountAssignment")
-	defer span.End()
-
-	assignment, err := c.GetIdentityCenterAccountAssignment(ctx, string(id))
-	if err != nil {
-		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err)
-	}
-
-	return services.IdentityCenterAccountAssignment{AccountAssignment: assignment}, nil
 }
 
 func (c *Cache) GetIdentityCenterAccountAssignment(ctx context.Context, id string) (*identitycenterv1.AccountAssignment, error) {

@@ -1847,7 +1847,7 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 }
 
 func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLabels, error) {
-	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
+	account, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
 		item.Value,
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
@@ -1856,9 +1856,7 @@ func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLa
 		return nil, trace.Wrap(err)
 	}
 
-	return types.Resource153ToResourceWithLabels(
-		services.IdentityCenterAccount{Account: assignment},
-	), nil
+	return types.Resource153ToResourceWithLabels(account), nil
 }
 
 func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
@@ -1870,9 +1868,7 @@ func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.Reso
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return types.Resource153ToResourceWithLabels(
-		services.IdentityCenterAccountAssignment{AccountAssignment: assignment},
-	), nil
+	return types.Resource153ToResourceWithLabels(assignment), nil
 }
 
 func newRelayServerParser() resourceParser {

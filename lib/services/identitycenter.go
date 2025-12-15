@@ -27,33 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// IdentityCenterAccount wraps a raw identity center record in a new type to
-// allow it to implement the interfaces required for use with the Unified
-// Resource listing.
-//
-// IdentityCenterAccount simply wraps a pointer to the underlying
-// identitycenterv1.Account record, and can be treated as a reference-like type.
-// Copies of an IdentityCenterAccount will point to the same record.
-type IdentityCenterAccount struct {
-	// This wrapper needs to:
-	//  - implement the interfaces required for use with the Unified Resource
-	//    service.
-	//  - expose the existing interfaces & methods on the underlying
-	//    identitycenterv1.Account
-	//  - avoid copying the underlying identitycenterv1.Account due to embedded
-	//    mutexes in the protobuf-generated code
-	//
-	// Given those requirements, storing an embedded pointer seems to be the
-	// least-bad approach.
-
-	*identitycenterv1.Account
-}
-
-// GetDisplayName returns a human-readable name for the account for UI display.
-func (a IdentityCenterAccount) GetDisplayName() string {
-	return a.Account.GetSpec().GetName()
-}
-
 // IdentityCenterAccountID is a strongly-typed Identity Center account ID.
 type IdentityCenterAccountID string
 
@@ -161,28 +134,6 @@ type IdentityCenterPermissionSets interface {
 
 	// DeleteAllPermissionSets deletes all Identity Center PermissionSets.
 	DeleteAllPermissionSets(context.Context) error
-}
-
-// IdentityCenterAccountAssignment wraps a raw identitycenterv1.AccountAssignment
-// record in a new type to allow it to implement the interfaces required for use
-// with the Unified Resource listing. IdentityCenterAccountAssignment simply
-// wraps a pointer to the underlying account record, and can be treated as a
-// reference-like type.
-//
-// Copies of an IdentityCenterAccountAssignment will point to the same record.
-type IdentityCenterAccountAssignment struct {
-	// This wrapper needs to:
-	//  - implement the interfaces required for use with the Unified Resource
-	//    service.
-	//  - expose the existing interfaces & methods on the underlying
-	//    identitycenterv1.AccountAssignment
-	//  - avoid copying the underlying identitycenterv1.AccountAssignment due to
-	//    embedded mutexes in the protobuf-generated code
-	//
-	// Given those requirements, storing an embedded pointer seems to be the
-	// least-bad approach.
-
-	*identitycenterv1.AccountAssignment
 }
 
 // IdentityCenterAccountAssignmentID is a strongly typed ID for an
@@ -293,7 +244,7 @@ func NewIdentityCenterAppMatcher(app types.Application) *IdentityCenterAccountMa
 
 // NewIdentityCenterAccountMatcher creates a new [RoleMatcher] configured to
 // match the supplied [IdentityCenterAccount].
-func NewIdentityCenterAccountMatcher(account IdentityCenterAccount) *IdentityCenterAccountMatcher {
+func NewIdentityCenterAccountMatcher(account *identitycenterv1.Account) *IdentityCenterAccountMatcher {
 	return &IdentityCenterAccountMatcher{
 		accountID: account.GetSpec().GetId(),
 	}
@@ -329,7 +280,7 @@ func (m *IdentityCenterAccountMatcher) String() string {
 
 // NewIdentityCenterAccountAssignmentMatcher creates a new [IdentityCenterAccountAssignmentMatcher]
 // configured to match the supplied [IdentityCenterAccountAssignment].
-func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
+func NewIdentityCenterAccountAssignmentMatcher(assignment *identitycenterv1.AccountAssignment) *IdentityCenterAccountAssignmentMatcher {
 	return &IdentityCenterAccountAssignmentMatcher{
 		accountID:        assignment.GetSpec().GetAccountId(),
 		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,

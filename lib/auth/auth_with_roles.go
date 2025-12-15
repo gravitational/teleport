@@ -1662,15 +1662,13 @@ func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app
 		return nil
 	}
 
-	assignment := services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
-			Kind:     types.KindIdentityCenterAccountAssignment,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
-				AccountId:     appV3.GetName(),
-				PermissionSet: &identitycenterv1.PermissionSetInfo{},
-			},
+	assignment := &identitycenterv1.AccountAssignment{
+		Kind:     types.KindIdentityCenterAccountAssignment,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{},
+		Spec: &identitycenterv1.AccountAssignmentSpec{
+			AccountId:     appV3.GetName(),
+			PermissionSet: &identitycenterv1.PermissionSetInfo{},
 		},
 	}
 	permissionSetQuery := assignment.Spec.PermissionSet
@@ -2139,12 +2137,13 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 			nil, /* cluster auth preference will be checked during connection */
 			state,
 		)
-	case types.Resource153UnwrapperT[services.IdentityCenterAccount]:
+
+	case types.Resource153UnwrapperT[*identitycenterv1.Account]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountMatcher(rr.UnwrapT()))
 		}
-	case types.Resource153UnwrapperT[services.IdentityCenterAccountAssignment]:
+	case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))

@@ -1780,9 +1780,7 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			filter,
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.Account])
-				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccount{
-					Account: proto.CloneOf(unwrapper.UnwrapT()),
-				})
+				return types.Resource153ToResourceWithLabels(proto.CloneOf(unwrapper.UnwrapT()))
 			},
 		)
 		return resp, trace.Wrap(err)
@@ -1799,9 +1797,7 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			filter,
 			func(r types.ResourceWithLabels) types.ResourceWithLabels {
 				unwrapper := r.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment])
-				return types.Resource153ToResourceWithLabels(services.IdentityCenterAccountAssignment{
-					AccountAssignment: proto.CloneOf(unwrapper.UnwrapT()),
-				})
+				return types.Resource153ToResourceWithLabels(proto.CloneOf(unwrapper.UnwrapT()))
 			},
 		)
 		return resp, trace.Wrap(err)

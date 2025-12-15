@@ -1451,7 +1451,7 @@ type Cache interface {
 
 	// ListIdentityCenterAccountsWithFilter returns a paginated list of all
 	// Identity Center Accounts in the cache that match the supplied predicate
-	ListIdentityCenterAccountsWithFilter(context.Context, int, string, func(services.IdentityCenterAccount) bool) ([]services.IdentityCenterAccount, string, error)
+	ListIdentityCenterAccountsWithFilter(context.Context, int, string, func(*identitycenterv1.Account) bool) ([]*identitycenterv1.Account, string, error)
 
 	// GetAccountAssignment fetches specific IdentityCenter Account Assignment
 	GetIdentityCenterAccountAssignment(context.Context, string) (*identitycenterv1.AccountAssignment, error)
