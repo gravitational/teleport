@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -2028,24 +2029,28 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Console = nil
 	tconf.Log = s.log
-	tconf.SSH.Enabled = true
+	tconf.SSH.Enabled = false
 	tconf.Proxy.DisableWebInterface = true
+	tconf.Proxy.DisableDatabaseProxy = true
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	tconf.DebugService.Enabled = false
+	tconf.Proxy.IdP.SAMLIdP.Enabled = false
 
 	// set kubernetes specific parameters
 	tconf.Proxy.Kube.Enabled = true
 	tconf.Proxy.Kube.ListenAddr.Addr = net.JoinHostPort(hostname, newPortStr())
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 	tconf.Proxy.Kube.LegacyKubeProxy = true
-	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	return tconf
 }
 
-// teleKubeConfig sets up teleport with kubernetes turned on
-func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
+// teleAuthConfig sets up teleport with Auth turned on
+func (s *KubeSuite) teleAuthConfig() *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Console = nil
 	tconf.Log = s.log
@@ -2055,6 +2060,7 @@ func (s *KubeSuite) teleAuthConfig(hostname string) *servicecfg.Config {
 	tconf.Proxy.Enabled = false
 	tconf.SSH.Enabled = false
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.DebugService.Enabled = false
 
 	return tconf
 }
@@ -2952,7 +2958,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	})
 	require.NoError(t, err)
 	teleport.AddUserWithRole(userUsername, userRole)
-	authTconf := suite.teleAuthConfig(Host)
+	authTconf := suite.teleAuthConfig()
 	err = teleport.CreateEx(t, nil, authTconf)
 	require.NoError(t, err)
 	err = teleport.Start()
