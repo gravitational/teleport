@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -36,6 +37,13 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils/once"
 )
+
+// ErrScopedIdentity is returned when a component intended for use only with unscoped identities receives a scoped
+// identity. Methods that implement scoping support may check for this error and fallback to scoped authorization
+// as appropriate.
+var ErrScopedIdentity = &trace.AccessDeniedError{
+	Message: "scoped identities not supported",
+}
 
 // ScopedAccessCheckerContext is the top-level scoped access checker state. It builds and caches scoped access
 // checkers "at" specific scopes, based on a user's identity.
@@ -106,6 +114,27 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 
 		for checkerScope := range scopes.DescendingScopes(scope) {
 			checker, err := c.cachedCheckerForScope(ctx, checkerScope)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			if !yield(checker, nil) {
+				return
+			}
+		}
+	}
+}
+
+// RiskyEnumerateCheckers returns a stream of all possible scoped access checkers for the identity in an undefined order. This method
+// is not relevant for traditional access-control decisions as it yields checkers unrelated to any particular resource scope, but is
+// necessary for examining the full set of possible permissions during certain operations, such as when determining the full set of
+// ssh logins that a use might have access to. Note that use of this method should be treated with extreme caution.  Accidental misuse
+// could easily result in a scope isolation violation.
+func (c *ScopedAccessCheckerContext) RiskyEnumerateCheckers(ctx context.Context) stream.Stream[*ScopedAccessChecker] {
+	return func(yield func(*ScopedAccessChecker, error) bool) {
+		for scope := range c.builder.info.ScopePin.Assignments {
+			checker, err := c.cachedCheckerForScope(ctx, scope)
 			if err != nil {
 				yield(nil, trace.Wrap(err))
 				return
@@ -326,6 +355,142 @@ func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) con
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	return c.checker.info
+}
+
+// HostSudoers returns the sudoers rules for the host.
+func (c *ScopedAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	// scoped roles do not currently support host sudoers, but we don't currently foresee
+	// issues with mirroring the classic role interface here since host sudoers are not
+	// certificate-bound and are not calculated pre-access-check. depeding on wether or not
+	// we end up permitting scoped roles side-effects, the server parameter may be unnecessary.
+	return c.checker.HostSudoers(srv)
+}
+
+// EnhancedRecordingSet returns the set of enhanced session recording
+// events to capture.
+func (c *ScopedAccessChecker) EnhancedRecordingSet() map[string]bool {
+	// scoped roles do not currently support enhanced session recording, but we don't currently
+	// foresee issues with mirroring the classic role interface here since enhanced session
+	// recording settings are not certificate-bound and are not calculated pre-access-check.
+	return c.checker.EnhancedRecordingSet()
+}
+
+// HostUsers returns host user information matching a server or nil if
+// a role disallows host user creation
+func (c *ScopedAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInfo, error) {
+	// scoped roles do not currently support host users, but we don't currently foresee
+	// issues with mirroring the classic role interface here since host users are not
+	// certificate-bound and are not calculated pre-access-check. depeding on wether or not
+	// we end up permitting scoped roles side-effects, the server parameter may be unnecessary.
+	return c.checker.HostUsers(srv)
+}
+
+// CheckAgentForward checks if the role can request to forward the SSH agent
+// for this user.
+func (c *ScopedAccessChecker) CheckAgentForward(login string) error {
+	// scoped roles do not currently support agent forwarding, but we don't currently foresee
+	// issues with mirroring the classic role interface for the login-dependant variant of the
+	// check since this variant of the check is not related to the certificate-bound agent forwarding
+	// permission, and is not calculated pre-access-check. depeding on wether or not
+	// we end up permitting scoped roles side-effects, the login parameter may be unnecessary.
+	return c.checker.CheckAgentForward(login)
+}
+
+// MaxConnections returns the maximum number of concurrent ssh connections
+// allowed.  If MaxConnections is zero then no maximum was defined
+// and the number of concurrent connections is unconstrained.
+func (c *ScopedAccessChecker) MaxConnections() int64 {
+	// scoped roles do not currently support max connections, but we don't currently foresee
+	// issues with mirroring the classic role interface here since max connections is not
+	// certificate-bound and is not calculated pre-access-check.
+	return c.checker.MaxConnections()
+}
+
+// MaxSessions returns the maximum number of concurrent ssh sessions
+// per connection.  If MaxSessions is zero then no maximum was defined
+// and the number of sessions is unconstrained.
+func (c *ScopedAccessChecker) MaxSessions() int64 {
+	// scoped roles do not currently support max sessions, but we don't currently foresee
+	// issues with mirroring the classic role interface here since max sessions is not
+	// certificate-bound and is not calculated pre-access-check.
+	return c.checker.MaxSessions()
+}
+
+// CanCopyFiles returns true if the role set has enabled remote file
+// operations via SCP or SFTP.
+func (c *ScopedAccessChecker) CanCopyFiles() bool {
+	// scoped roles do not currently support remote file operations, but we don't currently foresee
+	// issues with mirroring the classic role interface here since remote file operation permission
+	// is not certificate-bound and is not calculated pre-access-check.
+	return c.checker.CanCopyFiles()
+}
+
+// SSHPortForwardMode returns the SSHPortForwardMode.
+func (c *ScopedAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
+	// scoped roles do not currently support port forwarding modes, but we don't currently foresee
+	// issues with mirroring the classic role interface here sine this method is not certificate-bound
+	// and is not calculated pre-access-check. note that due to the fact that the more general
+	// CanPortForward() method does affect certificate parameters, this method's behavior is currently
+	// determined by some hard-coding in ../scopes/access/compat.go. this method isn't currently useful
+	// as a result, but resolution of questions around the port forwarding certificate parameter will
+	// unblock this method.
+	return c.checker.SSHPortForwardMode()
+}
+
+// AdjustClientIdleTimeout adjusts requested idle timeout
+// to the lowest max allowed timeout, the most restrictive
+// option will be picked, negative values will be assumed as 0
+func (c *ScopedAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) time.Duration {
+	// scoped roles do not currently support client idle timeouts, but we don't currently foresee
+	// issues with mirroring the classic role interface here and this method is not used to
+	// derive certificate parameters.  *however*, there are some usages of this method that
+	// are not pre-access-check. This method can be used now for post-access-check adjustments,
+	// but further work will need to be done to determine how we want to handle client idle
+	// timeouts in the context of scoped roles. See ../scopes/access/compat.go for more
+	// discussion.
+	return c.checker.AdjustClientIdleTimeout(timeout)
+}
+
+// AdjustDisconnectExpiredCert adjusts the value based on the role set
+// the most restrictive option will be picked
+func (c *ScopedAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	// scoped roles do not currently support disconnect on expired certs, but we don't currently foresee
+	// issues with mirroring the classic role interface here since this method is not used to
+	// derive certificate parameters. *however*, there are some usages of this method that
+	// are not pre-access-check. This method can be used now for post-access-check adjustments,
+	// but further work will need to be done to determine how we want to handle disconnect on
+	// expired certs in the context of scoped roles. See ../scopes/access/compat.go for more
+	// discussion.
+	return c.checker.AdjustDisconnectExpiredCert(disconnect)
+}
+
+// SessionRecordingMode returns the recording mode for a specific service.
+func (c *ScopedAccessChecker) SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode {
+	// scoped roles do not currently support session recording modes, but we don't currently foresee
+	// issues with mirroring the classic role interface here since session recording mode is not
+	// certificate-bound and is not calculated pre-access-check.
+	return c.checker.SessionRecordingMode(service)
+}
+
+// CheckAccessToSSHServer checks access to an SSH server with optional role matchers. Note that this function
+// is a thin wrapper around the standard [AccessChecker.CheckAccess] method. The purpose of this method is to
+// provide a more constrained access-checking API since the majority of access-checkable resources are not
+// supported by scopes yet.
+func (c *ScopedAccessChecker) CheckAccessToSSHServer(target types.Server, state AccessState, osUser string) error {
+	return c.checker.CheckAccess(
+		target,
+		state,
+		NewLoginMatcher(osUser),
+	)
+}
+
+// CanAccessSSHServer is a helper method that checkes whether access to the specified SSH server is possible.
+// This method is used to determine read access to SSH servers, and does not take into account elements like
+// MFA state or os login. This helper is based on the behavior of auth.resourceChecker.CanAccess. The purpose
+// of this method is to provide a more constrained access-checking API since the majority of access-checkable
+// resources are not supported by scopes yet.
+func (c *ScopedAccessChecker) CanAccessSSHServer(target types.Server) error {
+	return c.checker.CheckAccess(target, AccessState{MFAVerified: true})
 }
 
 // fetchAndConvertScopedRoles fetches scoped roles by name and converts them to classic roles.
