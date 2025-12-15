@@ -96,7 +96,7 @@ func (s *TerraformSuiteOSS) TestRole() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
 					resource.TestCheckNoResourceAttr(name, "spec.options"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "anonymous"),
 				),
 			},
@@ -119,7 +119,7 @@ func (s *TerraformSuiteOSS) TestRole() {
 					resource.TestCheckResourceAttr(name, "spec.allow.node_labels.example.0", "yes"),
 					resource.TestCheckResourceAttr(name, "spec.allow.node_labels.example.1", "no"),
 
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 				),
 			},
 			{
@@ -263,7 +263,7 @@ func (s *TerraformSuiteOSS) TestRoleLoginsSplitBrain() {
 				Config: s.getFixture("role_drift_0.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "one"),
 				),
 			},
@@ -287,7 +287,7 @@ func (s *TerraformSuiteOSS) TestRoleLoginsSplitBrain() {
 				Config: s.getFixture("role_drift_0.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "one"),
 				),
 			},
@@ -579,9 +579,9 @@ func (s *TerraformSuiteOSS) TestRoleWithKubernetesVerbs() {
 				Config: s.getFixture("role_with_kube_verbs.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
-					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "onev6"),
-					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "pod"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
+					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "onev8"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "pods"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.name", "*"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.namespace", "myns"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.verbs.0", "get"),
