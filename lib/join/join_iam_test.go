@@ -217,6 +217,38 @@ func TestJoinIAM(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			desc:             "using organizations - organization id is not allowed",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-allowedorg",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			describeAccountClientGetter: func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
+				return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+					return &organizations.DescribeAccountOutput{
+						Account: &organizationstypes.Account{
+							Arn: aws.String("arn:aws:organizations::123456789012:account/o-not-allowed/1234"),
+						},
+					}, nil
+				}, nil
+			},
+			assertError: require.Error,
+		},
+		{
 			desc:             "wildcard arn 1",
 			authServer:       regularServer,
 			tokenName:        "test-token",

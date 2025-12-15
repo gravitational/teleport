@@ -113,12 +113,11 @@ type AuthService interface {
 
 // ServerConfig holds configuration parameters for [Server].
 type ServerConfig struct {
-	AuthService                                 AuthService
-	Authorizer                                  authz.Authorizer
-	FIPS                                        bool
-	ScopedTokenService                          services.ScopedTokenService
-	OracleHTTPClient                            utils.HTTPDoClient
-	AWSOrganizationsDescribeAccountClientGetter iamjoin.DescribeAccountClientGetter
+	AuthService        AuthService
+	Authorizer         authz.Authorizer
+	FIPS               bool
+	ScopedTokenService services.ScopedTokenService
+	OracleHTTPClient   utils.HTTPDoClient
 }
 
 // Server implements cluster joining for nodes and bots.
