@@ -120,10 +120,12 @@ func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *
 	return &watcher
 }
 
+// SetFetchers sets the fetcher set for a given discovery config.
 func (w *Watcher[Instances]) SetFetchers(dcName string, fetchers []Fetcher[Instances]) {
 	w.fetcherMap.Store(dcName, fetchers)
 }
 
+// DeleteFetchers removes the fetchers for a given discovery config.
 func (w *Watcher[Instances]) DeleteFetchers(dcName string) {
 	w.fetcherMap.Delete(dcName)
 }
