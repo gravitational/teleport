@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/usertasks"
@@ -220,6 +221,42 @@ func TestHandlers(t *testing.T) {
 				r.SetExpiry(time.Now().Add(time.Minute))
 				return r
 			},
+			checkMFARequired: require.False,
+		},
+		{
+			kind: types.KindAccessMonitoringRule,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				accessMonitoringRule, err := services.NewAccessMonitoringRuleWithLabels(name, nil, &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+					Subjects:  []string{types.KindAccessRequest},
+					Condition: "true",
+					Notification: &accessmonitoringrulesv1.Notification{
+						Name:       name + "-notification",
+						Recipients: []string{"recipient"},
+					},
+					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+						Integration: name + "-review",
+						Decision:    types.RequestState_APPROVED.String(),
+					},
+					DesiredState: types.AccessMonitoringRuleStateReviewed,
+					Schedules: map[string]*accessmonitoringrulesv1.Schedule{
+						"default": {
+							Time: &accessmonitoringrulesv1.TimeSchedule{
+								Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+									{
+										Weekday: time.Monday.String(),
+										Start:   "00:00",
+										End:     "23:59",
+									},
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				return types.ProtoResource153ToLegacy(accessMonitoringRule)
+			},
+			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
 		},
 	}

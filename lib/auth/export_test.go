@@ -70,8 +70,6 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
-
-	AzureAccessTokenAudience = azureAccessTokenAudience
 )
 
 var (
@@ -98,8 +96,8 @@ func (a *Server) CreateRecoveryToken(ctx context.Context, username, tokenType st
 	return a.createRecoveryToken(ctx, username, tokenType, usage)
 }
 
-func (a *Server) NewUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	return a.newUserToken(req)
+func (a *Server) NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+	return a.newUserToken(ctx, req)
 }
 
 func CreatePrivilegeToken(ctx context.Context, srv *Server, username, tokenKind string) (*types.UserTokenV3, error) {
@@ -248,7 +246,7 @@ func ValidServerHostname(hostname string) bool {
 }
 
 func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(s, username, authHostname)
+	return formatAccountName(context.TODO(), s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
@@ -307,10 +305,6 @@ func TrimUserAgent(userAgent string) string {
 	return trimUserAgent(userAgent)
 }
 
-func IsAllowedDomain(cn string, domains []string) bool {
-	return isAllowedDomain(cn, domains)
-}
-
 func GetSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
 	return getSnowflakeJWTParams(ctx, accountName, userName, publicKey)
 }
@@ -336,31 +330,6 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 }
 
 type GitHubManager = githubManager
-type AttestedData = attestedData
-type SignedAttestedData = signedAttestedData
-type AzureRegisterOption = azureRegisterOption
-type AzureRegisterConfig = azureRegisterConfig
-type AzureVMClientGetter = vmClientGetter
-type AzureVerifyTokenFunc = azureVerifyTokenFunc
-type AccessTokenClaims = accessTokenClaims
-
-func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.certificateAuthorities = certs
-	}
-}
-
-func WithAzureVerifyFunc(verify azureVerifyTokenFunc) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.verify = verify
-	}
-}
-
-func WithAzureVMClientGetter(getVMClient vmClientGetter) AzureRegisterOption {
-	return func(cfg *AzureRegisterConfig) {
-		cfg.getVMClient = getVMClient
-	}
-}
 
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer

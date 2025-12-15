@@ -1902,6 +1902,7 @@ type testDynamicallyConfigurableRBACParams struct {
 func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurableRBACParams) {
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 
 	testOperation := func(op func(*auth.ServerWithRoles) error, allowRules []types.Rule, expectErr, withConfigFile bool) func(*testing.T) {
 		return func(t *testing.T) {
@@ -2655,6 +2656,7 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 
 	as, err := authtest.NewAuthServer(authServerConfig)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
@@ -3725,6 +3727,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
@@ -3993,6 +3996,7 @@ func TestKindClusterConfig(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
 		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I))
@@ -4785,6 +4789,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
@@ -4894,6 +4899,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -7354,6 +7360,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err, trace.DebugReport(err))
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	roles := types.LocalServiceMappings()
 	for _, role := range roles {
@@ -8932,6 +8939,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	_, err = authtest.CreateRole(ctx, srv.AuthServer.Services, "rolename", types.RoleSpecV6{})
 	require.NoError(t, err)

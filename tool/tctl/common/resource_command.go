@@ -39,7 +39,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
@@ -60,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -130,7 +130,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:                 rc.createIntegration,
 		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
-		types.KindAccessMonitoringRule:        rc.createAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
 		types.KindPlugin:                      rc.createPlugin,
@@ -140,7 +139,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:             rc.createInferencePolicy,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindAccessMonitoringRule:        rc.updateAccessMonitoringRule,
 		types.KindCrownJewel:                  rc.updateCrownJewel,
 		types.KindVnetConfig:                  rc.updateVnetConfig,
 		types.KindPlugin:                      rc.updatePlugin,
@@ -971,11 +969,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
-	case types.KindAccessMonitoringRule:
-		if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
 	case scopedaccess.KindScopedRole:
 		if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
 			Name: rc.ref.Name,
@@ -1475,20 +1468,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			startKey = resp.NextKey
 		}
 		return &pluginCollection{plugins: plugins}, nil
-	case types.KindAccessMonitoringRule:
-		if rc.ref.Name != "" {
-			rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &accessMonitoringRuleCollection{items: []*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}}, nil
-		}
-
-		rules, err := stream.Collect(clientutils.Resources(ctx, client.AccessMonitoringRuleClient().ListAccessMonitoringRules))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &accessMonitoringRuleCollection{items: rules}, nil
 
 	case types.KindHealthCheckConfig:
 		if rc.ref.Name != "" {
@@ -1519,21 +1498,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleCollection{items: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRole
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Roles...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
@@ -1548,21 +1515,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return &scopedRoleAssignmentCollection{items: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
 		}
 
-		var items []*scopedaccessv1.ScopedRoleAssignment
-		var cursor string
-		for {
-			rsp, err := client.ScopedAccessServiceClient().ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
-				PageToken: cursor,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			items = append(items, rsp.Assignments...)
-			cursor = rsp.NextPageToken
-			if cursor == "" {
-				break
-			}
+		items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
 	case types.KindRelayServer:
@@ -1648,40 +1603,6 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func (rc *ResourceCommand) createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.IsForced() {
-		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
-		return nil
-	}
-
-	if _, err = client.AccessMonitoringRuleClient().CreateAccessMonitoringRule(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 

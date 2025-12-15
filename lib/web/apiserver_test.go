@@ -581,6 +581,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Wait for proxy to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := s.proxyClient.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) != 0 {
@@ -8403,6 +8404,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) == numProxies {
@@ -10904,7 +10906,11 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 }
 
 func TestGithubConnector(t *testing.T) {
-	ctx := context.Background()
+	// We run this test as a Teleport Enterprise server to bypass the check for whether
+	// the GitHub org uses SSO.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]

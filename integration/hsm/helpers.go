@@ -221,7 +221,7 @@ func newAuthConfig(t *testing.T, log *slog.Logger, clock clockwork.Clock) *servi
 	config.Proxy.Enabled = false
 	config.Logger = log
 	config.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	config.MaxRetryPeriod = 25 * time.Millisecond
+	config.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(25 * time.Millisecond)
 	config.PollingPeriod = 2 * time.Second
 	config.Clock = clock
 
@@ -264,7 +264,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log *slog.Logger, cloc
 	config.SetAuthServerAddress(authAddr)
 	config.Logger = log
 	config.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	config.MaxRetryPeriod = 25 * time.Millisecond
+	config.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(25 * time.Millisecond)
 	config.PollingPeriod = 2 * time.Second
 	config.Clock = clock
 
