@@ -20,7 +20,15 @@ import { useMemo, useRef, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, ButtonPrimary, Flex, H2, Subtitle1, Text } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H2,
+  Subtitle1,
+  Text,
+} from 'design';
 import { Spinner } from 'design/Icon';
 import { rotate360 } from 'design/keyframes';
 import FieldInput from 'shared/components/FieldInput';
@@ -217,6 +225,13 @@ export function Aws() {
                   }
                 }}
               />
+              <ButtonSecondary
+                ml={3}
+                as={InternalLink}
+                to={cfg.getIntegrationEnrollRoute(null)}
+              >
+                Back
+              </ButtonSecondary>
               <Text mt={2} color="text.secondary">
                 or{' '}
                 <Text as="a" href={cfg.routes.integrations} color="text.main">
