@@ -40,6 +40,20 @@ type LockGetter interface {
 	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
+// AtomicRoleOperationParams contains the roles to create, update, and delete in a single atomic operation.
+// RolesToCreate contains new roles to create (must not exist).
+// RolesToUpdate contains roles to update (must exist with matching revision for optimistic locking).
+// RolesToDelete contains names of roles to delete (must exist).
+// If any condition fails, the entire atomic operation fails.
+type AtomicRoleOperationParams struct {
+	// RolesToCreate contains new roles to create atomically.
+	RolesToCreate []types.Role
+	// RolesToUpdate contains roles to update atomically with optimistic locking via revision.
+	RolesToUpdate []types.Role
+	// RolesToDelete contains names of roles to delete atomically.
+	RolesToDelete []string
+}
+
 // Access service manages roles and permissions.
 type Access interface {
 	// GetRoles returns a list of roles.
@@ -64,6 +78,13 @@ type Access interface {
 	DeleteLock(context.Context, string) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
+}
+
+type AccessInternal interface {
+	Access
+	// AtomicRoleOperations performs atomic create, update, and delete operations on roles.
+	// All operations succeed or fail together atomically. Returns the revision from the atomic write.
+	AtomicRoleOperations(ctx context.Context, params AtomicRoleOperationParams) (string, error)
 }
 
 var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)

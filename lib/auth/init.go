@@ -169,7 +169,7 @@ type InitConfig struct {
 	Identity services.Identity
 
 	// Access is service controlling access to resources
-	Access services.Access
+	Access services.AccessInternal
 
 	// DynamicAccessExt is a service that manages dynamic RBAC.
 	DynamicAccessExt services.DynamicAccessExt
@@ -1753,13 +1753,13 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.ProvisionToken:
 			err = service.Provisioner.UpsertToken(ctx, r)
 		case types.User:
-			err = services.ValidateUserRoles(ctx, r, service.Access)
+			err = services.ValidateUserRoles(ctx, r, service.AccessInternal)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			_, err = service.Identity.UpsertUser(ctx, r)
 		case types.Role:
-			_, err = service.Access.UpsertRole(ctx, r)
+			_, err = service.AccessInternal.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:

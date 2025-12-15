@@ -20,17 +20,17 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // CreateRole creates a role and emits a related audit event.
@@ -102,14 +102,9 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) (types.Role, e
 	return upserted, nil
 }
 
-var (
-	errDeleteRoleUser       = errors.New("failed to delete a role that is still in use by a user, check the system server logs for more details")
-	errDeleteRoleCA         = errors.New("failed to delete a role that is still in use by a certificate authority, check the system server logs for more details")
-	errDeleteRoleAccessList = errors.New("failed to delete a role that is still in use by an access list, check the system server logs for more details")
-)
-
-// DeleteRole deletes a role and emits a related audit event.
-func (a *Server) DeleteRole(ctx context.Context, name string) error {
+// checkRoleInUse checks if a role is currently in use by users, certificate authorities,
+// or access lists. Returns an error if the role is in use.
+func (a *Server) checkRoleInUse(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Services.GetUsers(ctx, false)
 	if err != nil {
@@ -144,45 +139,111 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 		}
 	}
 
-	var nextToken string
-	for {
-		var accessLists []*accesslist.AccessList
-		var err error
-		accessLists, nextToken, err = a.Services.AccessListsInternal.ListAccessLists(ctx, 0 /* default page size */, nextToken)
+	for accessList, err := range clientutils.Resources(ctx, a.Services.AccessListsInternal.ListAccessLists) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		for _, accessList := range accessLists {
-			if slices.Contains(accessList.Spec.Grants.Roles, name) {
-				a.logger.WarnContext(
-					ctx, "Failed to delete role: role is granted by access list",
-					"role", name, "access_list", accessList.GetName(),
-				)
-				return trace.Wrap(errDeleteRoleAccessList)
-			}
-
-			if slices.Contains(accessList.Spec.MembershipRequires.Roles, name) {
-				a.logger.WarnContext(
-					ctx, "Failed to delete role: role is required by members of access list",
-					"role", name, "access_list", accessList.GetName(),
-				)
-				return trace.Wrap(errDeleteRoleAccessList)
-			}
-
-			if slices.Contains(accessList.Spec.OwnershipRequires.Roles, name) {
-				a.logger.WarnContext(
-					ctx,
-					"Failed to delete role: role is required by owners of access list",
-					"role", name, "access_list", accessList.GetName(),
-				)
-				return trace.Wrap(errDeleteRoleAccessList)
-			}
+		var usedIn []string
+		if slices.Contains(accessList.Spec.Grants.Roles, name) {
+			usedIn = append(usedIn, "spec.grants.roles")
 		}
-
-		if nextToken == "" {
-			break
+		if slices.Contains(accessList.Spec.MembershipRequires.Roles, name) {
+			usedIn = append(usedIn, "spec.membership_requires.roles")
 		}
+		if slices.Contains(accessList.Spec.OwnershipRequires.Roles, name) {
+			usedIn = append(usedIn, "spec.ownership_requires.roles")
+		}
+		if len(usedIn) > 0 {
+			a.logger.WarnContext(
+				ctx,
+				"Failed to delete role: role is referenced by access list",
+				"role", name,
+				"access_list_name", accessList.GetName(),
+				"access_list_title", accessList.Spec.Title,
+				"used_in", usedIn,
+			)
+			return newRoleInUseError(
+				"cannot delete role %q: role is referenced by access list %q (%s) in fields: %v "+
+					"Remove the role from the access list before deleting it",
+				name, accessList.GetName(), accessList.Spec.Title, usedIn)
+		}
+	}
+
+	return nil
+}
+
+func (a *Server) UpdateRolesForAccessListPreset(ctx context.Context, toCreate, toUpdate []types.Role, toDelete []string) (string, error) {
+	for _, role := range toDelete {
+		if err := a.checkRoleInUse(ctx, role); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+	params := services.AtomicRoleOperationParams{
+		RolesToCreate: toCreate,
+		RolesToUpdate: toUpdate,
+		RolesToDelete: toDelete,
+	}
+	rev, err := a.Services.AtomicRoleOperations(ctx, params)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	a.emitEventForAtomicRoleOperations(ctx, params)
+	return rev, nil
+}
+
+func (a *Server) emitEventForAtomicRoleOperations(ctx context.Context, params services.AtomicRoleOperationParams) {
+	for _, role := range params.RolesToCreate {
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+			Metadata: apievents.Metadata{
+				Type: events.RoleCreatedEvent,
+				Code: events.RoleCreatedCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: role.GetName(),
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		}); err != nil {
+			a.logger.WarnContext(ctx, "Failed to emit role create event.", "error", err)
+		}
+	}
+	for _, role := range params.RolesToUpdate {
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+			Metadata: apievents.Metadata{
+				Type: events.RoleUpdatedEvent,
+				Code: events.RoleUpdatedCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: role.GetName(),
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		}); err != nil {
+			a.logger.WarnContext(ctx, "Failed to emit role update event.", "error", err)
+		}
+	}
+
+	for _, role := range params.RolesToDelete {
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.RoleCreate{
+			Metadata: apievents.Metadata{
+				Type: events.RoleDeletedEvent,
+				Code: events.RoleDeletedCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: role,
+			},
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+		}); err != nil {
+			a.logger.WarnContext(ctx, "Failed to emit role delete event.", "error", err)
+		}
+	}
+}
+
+// DeleteRole deletes a role and emits a related audit event.
+func (a *Server) DeleteRole(ctx context.Context, name string) error {
+	if err := a.checkRoleInUse(ctx, name); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := a.Services.DeleteRole(ctx, name); err != nil {

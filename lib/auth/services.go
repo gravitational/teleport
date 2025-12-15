@@ -36,7 +36,7 @@ type Services struct {
 	services.PresenceInternal
 	services.Provisioner
 	services.Identity
-	services.Access
+	services.AccessInternal
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions

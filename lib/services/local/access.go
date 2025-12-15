@@ -226,6 +226,73 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// AtomicRoleOperations performs an atomic role operation using Compare-And-Swap.
+// All operations succeed or fail together. Roles to create use NotExists() condition,
+// roles to update use Revision() condition for optimistic concurrency control,
+// and deletions use Exists() condition.
+//
+// The same error conditions as backend.AtomicWrite apply: the operation will fail if there are
+// no items, too many items (exceeds backend limit), or multiple items with the same key.
+//
+// On success, all roles in param.RolesToCreate and param.RolesToUpdate have their revision updated.
+// Returns the revision from the atomic write.
+func (s *AccessService) AtomicRoleOperations(ctx context.Context, param services.AtomicRoleOperationParams) (string, error) {
+	var condActions []backend.ConditionalAction
+
+	// Create new roles with NotExists condition
+	for _, role := range param.RolesToCreate {
+		item, err := roleToBackendItem(role)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		condActions = append(condActions, backend.ConditionalAction{
+			Key:       item.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(item),
+		})
+	}
+
+	// Update existing roles with Revision condition for optimistic locking
+	for _, role := range param.RolesToUpdate {
+		item, err := roleToBackendItem(role)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		condActions = append(condActions, backend.ConditionalAction{
+			Key:       item.Key,
+			Condition: backend.Revision(role.GetRevision()),
+			Action:    backend.Put(item),
+		})
+	}
+
+	// Delete roles with Exists condition
+	for _, roleName := range param.RolesToDelete {
+		condActions = append(condActions, backend.ConditionalAction{
+			Key:       backend.NewKey(rolesPrefix, roleName, paramsPrefix),
+			Condition: backend.Exists(),
+			Action:    backend.Delete(),
+		})
+	}
+
+	// Execute all operations atomically
+	// If any condition fails, none of the operations are applied
+	revision, err := s.AtomicWrite(ctx, condActions)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Update all roles with the revision from the atomic write.
+	// All roles share the same revision since they were written in a single transaction.
+	// This allows callers to immediately use these roles for subsequent updates.
+	for _, r := range param.RolesToCreate {
+		r.SetRevision(revision)
+	}
+	for _, r := range param.RolesToUpdate {
+		r.SetRevision(revision)
+	}
+	return revision, nil
+}
+
 // GetLock gets a lock by name.
 func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	if name == "" {

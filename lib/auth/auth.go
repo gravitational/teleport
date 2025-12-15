@@ -644,7 +644,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		PresenceInternal:                cfg.Presence,
 		Provisioner:                     cfg.Provisioner,
 		Identity:                        cfg.Identity,
-		Access:                          cfg.Access,
+		AccessInternal:                  cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,

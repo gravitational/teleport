@@ -166,7 +166,7 @@ type Config struct {
 	Identity services.Identity
 
 	// Access is a service that controls access
-	Access services.Access
+	Access services.AccessInternal
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
