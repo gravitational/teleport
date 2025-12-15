@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-terraform';
 import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
@@ -159,7 +160,9 @@ function getMode(docType) {
   if (docType === 'json') {
     return 'ace/mode/json';
   }
-
+  if (docType === 'terraform') {
+    return 'ace/mode/terraform';
+  }
   return 'ace/mode/yaml';
 }
 

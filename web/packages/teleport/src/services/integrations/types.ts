@@ -80,6 +80,8 @@ export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   /* AWS Roles Anywhere */
   AwsRa = 'aws-ra',
+  /* AWS Cloud (OIDC Integration + Discover Config) */
+  AwsCloud = 'aws-cloud',
   AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
   GitHub = 'github',
