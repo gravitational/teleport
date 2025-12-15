@@ -8,24 +8,24 @@ tags:
 - zero-trust
 ---
 
-This guide demonstrates how to run a GitHub MCP server and connect it via
-Teleport.
+(!docs/pages/includes/mcp-access/integration-intro.mdx serviceName="GitHub" !)
 
 ## How it works
 
 The [GitHub MCP server](https://github.com/github/github-mcp-server) uses a
 personal access token of a service account to access GitHub and
-[`mcp-proxy`](https://github.com/sparfenyuk/mcp-proxy) exposes it to Teleport
-over a streamable-HTTP endpoint by translating the original transport. Teleport
-proxies all client requests to the server, which interacts with GitHub using the
-permissions granted to the service account.
+[`mcp-proxy`](https://github.com/sparfenyuk/mcp-proxy) exposes it to the
+Teleport Application Service over a streamable-HTTP endpoint by translating the
+original transport. Teleport proxies all client requests to the server, which
+interacts with GitHub using the permissions granted to the service account.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
 - Access to a service account to your GitHub organization.
 - A host to run the MCP server that is reachable by the Teleport Application Service.
-- Running [Teleport Application Service](../getting-started.mdx).
+- A running Teleport Application Service. If you have not yet done this, follow
+  the [Getting Started guide](../getting-started.mdx).
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
@@ -113,7 +113,7 @@ token for the `Authorization` header:
 $ tsh mcp config github-mcp --client-config claude --header "Authorization: Bearer <Var name="github_personal_access_token" />"
 ```
 
-## Next Steps
+## Next steps
 
 - Review [Enroll a Streamable-HTTP MCP Server](../enrolling-mcp-servers/streamable-http.mdx).
 - See the [dynamic registration](../dynamic-registration.mdx) guide.

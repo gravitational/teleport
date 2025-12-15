@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -1370,6 +1371,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqSearch.Flag("roles", "List requestable roles instead of searching for resources. Mutually exclusive with --kind.").BoolVar(&cf.RequestableRoles)
 	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
 		if cf.RequestableRoles && cf.ResourceKind != "" {
 			return trace.BadParameter("only one of --kind and --roles may be specified")
@@ -1962,6 +1964,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	if trace.IsNotImplemented(err) {
 		return handleUnimplementedError(ctx, err, cf)
+	}
+
+	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
+	var fipsErr *sshutils.FIPSError
+	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+		return trace.Wrap(err,
+			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
+		)
 	}
 
 	return trace.Wrap(err)

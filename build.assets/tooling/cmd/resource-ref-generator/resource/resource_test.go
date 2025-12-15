@@ -713,6 +713,85 @@ active: true
 			},
 		},
 		{
+			description: "embedded struct with struct field",
+			declInfo: PackageInfo{
+				DeclName:    "MyResource",
+				PackageName: "mypkg",
+			},
+			source: `package mypkg
+// MyResource is a resource declared for testing.
+type MyResource struct{
+  // Alias is another name to call the resource.
+  Alias string BACKTICKjson:"alias"BACKTICK
+  types.Header
+}
+`,
+			declSources: []string{
+				`package types
+type Header struct {
+    // Metadata is the resource metadata
+    Metadata Metadata BACKTICKjson:"metadata"BACKTICK
+}
+
+// Metadata describes information about a dynamic resource. Every dynamic
+// resource in Teleport has a metadata object.
+type Metadata struct {
+    // Name is the name of the resource.
+    Name string BACKTICKprotobuf:"bytes,1,opt,name=Name,proto3" json:"name"BACKTICK
+    // Active indicates whether the resource is currently in use.
+    Active bool BACKTICKjson:"active"BACKTICK
+}`,
+			},
+			expected: map[PackageInfo]ReferenceEntry{
+				PackageInfo{
+					DeclName:    "MyResource",
+					PackageName: "mypkg",
+				}: {
+					SectionName: "My Resource",
+					Description: "A resource declared for testing.",
+					SourcePath:  "src/myfile.go",
+					Fields: []Field{
+						{
+							Name:        "alias",
+							Description: "Another name to call the resource.",
+							Type:        "string",
+						},
+						{
+							Name:        "metadata",
+							Description: "The resource metadata",
+							Type:        "[Metadata](#metadata)",
+						},
+					},
+					YAMLExample: `alias: "string"
+metadata: # [...]
+`,
+				},
+				PackageInfo{
+					DeclName:    "Metadata",
+					PackageName: "types",
+				}: {
+					SectionName: "Metadata",
+					SourcePath:  "src/myfile0.go",
+					Description: "Describes information about a dynamic resource. Every dynamic resource in Teleport has a metadata object.",
+					Fields: []Field{
+						{
+							Name:        "active",
+							Description: "Indicates whether the resource is currently in use.",
+							Type:        "Boolean",
+						},
+						{
+							Name:        "name",
+							Description: "The name of the resource.",
+							Type:        "string",
+						},
+					},
+					YAMLExample: `name: "string"
+active: true
+`,
+				},
+			},
+		},
+		{
 			description: "embedded struct with base in the same package",
 			declInfo: PackageInfo{
 				DeclName:    "MyResource",
