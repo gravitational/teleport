@@ -20,7 +20,8 @@
  * `makeKubernetesAccessChecker` creates a checker from the provided labels. Regexes are
  * compiled and reused for subsequent checks.
  *
- * Mimics the backend logic and should be kept in sync; lib/services/role.go
+ * Mimics the backend logic and should be kept in sync;
+ *  - lib/services/role.go:1204
  *
  * Label names are always treated as literals and must match fully.
  *
