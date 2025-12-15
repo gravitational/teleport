@@ -47,7 +47,7 @@ type CertChecker struct {
 	ssh.CertChecker
 
 	// FIPS means in addition to checking the validity of the key or
-	// certificate, also check that FIPS 140-2 algorithms were used.
+	// certificate, also check that FIPS algorithms were used.
 	FIPS bool
 
 	// OnCheckCert is called when validating host certificate.
