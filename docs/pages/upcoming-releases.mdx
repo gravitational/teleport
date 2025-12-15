@@ -32,37 +32,9 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.5.0  | Week of December 1, 2025   |
 | 18.6.0  | Week of December 15, 2025  |
 | 18.7.0  | Week of January 26, 2026   |
 | 19.0.0  | August 2026                |
-
-### 18.5.0
-
-#### Kubernetes support for Relay Service
-
-The relay service will be extended to facilitate Kubernetes connections.
-
-#### Shared state between `tsh` and Teleport Connect
-
-Teleport Connect and `tsh` will share the same local state.
-Logins from one app will automatically be reflected in the other.
-
-#### User details view in web UI
-
-Teleport Users page in web UI will allow to view detailed information about
-users such as their status, assigned roles and traits, and access list
-memberships.
-
-#### SCIM PATCH support in SailPoint integration
-
-Teleport SCIM server will natively support PATCH operation to improve reliability
-of bulk SCIM operations in integrations like SailPoint.
-
-#### Entra ID integration and Access List performance improvements
-
-Teleport Entra ID integration will be able to handle the sync of large directories on the order
-of 20K groups with 200 members each.
 
 ### 18.6.0
 
@@ -81,6 +53,37 @@ connect to Teleport-protected Kubernetes clusters without secrets.
 #### VNet for Linux
 
 Teleport VNet support will be extended to Linux workstations.
+
+#### Session timeline view for Identity Security
+
+Session player for Identity Security users will receive an enhanced timeline view with
+per-command session breakdown.
+
+#### Improvements to access list creation UX
+
+Teleport will provide guided in-product UX for creating common types of access lists
+centered around granting users permissions to resources and permissions to request
+access to resources.
+
+#### Terraform-native flow for configuration of AWS EC2 auto-discovery
+
+Teleport will provide in-product UX for configuring EC2 auto-discovery in a single AWS
+account using terraform module.
+
+#### Access requests privilege escalation UX for AWS
+
+Teleport users will be able to see specific IAM roles available to them when requesting
+elevated access to AWS CLI/console. Future releases will extend support for specific
+principal selection to access requests for other resource types as well.
+
+#### RoleV8 support in terraform provider
+
+Teleport terraform provider will support RoleV8 out of the box.
+
+#### Entra ID integration status page
+
+Teleport users will be able to see status of the configured Entra ID integration in the
+web UI.
 
 ## Teleport Cloud
 
