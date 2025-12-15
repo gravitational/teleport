@@ -36,12 +36,13 @@ spec:
 {{- with $proxy.service.spec }}
   {{- toYaml . | nindent 2 }}
 {{- end }}
+{{- if and (not .Values.service.skipPorts) (empty .Values.service.spec.ports) }}
   ports:
   - name: tls
     port: 443
     targetPort: 3080
     protocol: TCP
-{{- if ne $proxy.proxyListenerMode "multiplex" }}
+  {{- if ne $proxy.proxyListenerMode "multiplex" }}
   - name: sshproxy
     port: 3023
     targetPort: 3023
@@ -58,17 +59,18 @@ spec:
     port: 3036
     targetPort: 3036
     protocol: TCP
-  {{- if $proxy.separatePostgresListener }}
+    {{- if $proxy.separatePostgresListener }}
   - name: postgres
     port: 5432
     targetPort: 5432
     protocol: TCP
-  {{- end }}
-  {{- if $proxy.separateMongoListener }}
+    {{- end }}
+    {{- if $proxy.separateMongoListener }}
   - name: mongo
     port: 27017
     targetPort: 27017
     protocol: TCP
+    {{- end }}
   {{- end }}
 {{- end }}
   selector: {{- include "teleport-cluster.proxy.selectorLabels" . | nindent 4 }}
