@@ -27,6 +27,7 @@ type EnhancedSummary struct {
 	CompromiseIndicators  bool              `json:"compromiseIndicators,omitempty"`
 	NotableCommandIndexes []int32           `json:"notableCommandIndexes,omitempty"`
 	Commands              []CommandAnalysis `json:"commands,omitempty"`
+	NeedsFurtherReview    string            `json:"needsFurtherReview,omitempty"`
 }
 
 type CommandAnalysis struct {
@@ -85,6 +86,18 @@ func makeEnhancedSummary(es *summarizerv1.EnhancedSummary) *EnhancedSummary {
 		CompromiseIndicators:  es.GetCompromiseIndicators(),
 		NotableCommandIndexes: es.GetNotableCommandIndexes(),
 		Commands:              makeCommandAnalyses(es.GetCommands()),
+		NeedsFurtherReview:    makeNeedsFurtherReview(es.GetNeedsFurtherReview()),
+	}
+}
+
+func makeNeedsFurtherReview(reason summarizerv1.NeedsReviewReason) string {
+	switch reason {
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED:
+		return ""
+	case summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE:
+		return "too_large"
+	default:
+		return "unknown"
 	}
 }
 

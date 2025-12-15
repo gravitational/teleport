@@ -18,6 +18,8 @@ var (
 	commandPromptObfuscated []byte
 	//go:embed prompt-root.bin
 	rootPromptObfuscated []byte
+	//go:embed prompt-summary.bin
+	summaryPromptObfuscated []byte
 
 	// Prompt for summarizing SSH sessions.
 	SSHPrompt string
@@ -27,6 +29,8 @@ var (
 	CommandPrompt string
 	// Prompt to add to the command prompt when the user is root.
 	RootPrompt string
+	// Prompt for summarizing multiple commands in a session.
+	SummaryPrompt string
 )
 
 func init() {
@@ -34,6 +38,7 @@ func init() {
 	DatabasePrompt = deobfuscate(databasePromptObfuscated)
 	CommandPrompt = deobfuscate(commandPromptObfuscated)
 	RootPrompt = deobfuscate(rootPromptObfuscated)
+	SummaryPrompt = deobfuscate(summaryPromptObfuscated)
 }
 
 // Obfuscates a byte slice by XOR'ing it with a random sequence of a given

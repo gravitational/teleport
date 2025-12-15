@@ -240,6 +240,35 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 	return &analysis, nil
 }
 
+// SummarizeMultipleCommands summarizes the result of multiple commands using OpenAI.
+func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing multiple commands from session", "session_id", sessionID)
+
+	systemPrompt := schema.SummarizeMultipleCommandsSystemPrompt(username, loginName)
+
+	res, err := p.makeStructuredRequest(ctx, sessionID, "SessionAnalysis", schema.SessionAnalysisSchema, systemPrompt, prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Summary of multiple commands generated",
+		"session_id", sessionID,
+		"prompt_length", len(prompt),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	var analysis schema.SessionAnalysis
+	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
+		return nil, trace.Wrap(summarizererrors.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	return &analysis, nil
+}
+
 func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, systemPrompt, message string) (*response, error) {
 	schemaParam := openai.ResponseFormatJSONSchemaJSONSchemaParam{
 		Name:   schemaName,

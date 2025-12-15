@@ -360,7 +360,7 @@ func (c *commandRecreator) generateTerminalSnapshot(timestamp time.Duration) lin
 		lineNumber: -1,
 		content:    content,
 		timestamp:  timestamp,
-		tokenCount: countTokens(content),
+		tokenCount: CountTokens(content),
 	}
 }
 
@@ -448,7 +448,7 @@ func (c *commandRecreator) trackLineChanges(changedLines []int, previousActiveCo
 					lineNumber: lineNum,
 					content:    content,
 					timestamp:  timestamp,
-					tokenCount: countTokens(content),
+					tokenCount: CountTokens(content),
 				})
 
 				c.completedLines[lineNum] = previousContent
@@ -473,7 +473,7 @@ func (c *commandRecreator) trackLineChanges(changedLines []int, previousActiveCo
 				lineNumber: lineNum,
 				content:    content,
 				timestamp:  timestamp,
-				tokenCount: countTokens(content),
+				tokenCount: CountTokens(content),
 			})
 
 			c.completedLines[lineNum] = currentContent

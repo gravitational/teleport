@@ -1,5 +1,9 @@
 package schema
 
+import (
+	"time"
+)
+
 // This file defines the schema for command analysis results.
 // It should be kept in sync with `api/proto/teleport/summarizer/v1/summarizer.proto`
 
@@ -38,6 +42,9 @@ type CommandAnalysis struct {
 	PrivilegeEscalation bool `json:"privilege_escalation" jsonschema:"required" jsonschema_description:"True if privilege escalation was attempted or achieved (sudo to root, setuid, capability manipulation)"`
 	DataExfiltration    bool `json:"data_exfiltration" jsonschema:"required" jsonschema_description:"True if data was transferred externally (scp, curl POST, base64 encoding for transfer)"`
 	Persistence         bool `json:"persistence" jsonschema:"required" jsonschema_description:"True if persistence mechanisms were created (cron jobs, systemd services, shell profiles, SSH keys)"`
+
+	StartOffset time.Duration
+	EndOffset   time.Duration
 }
 
 var CommandAnalysisSchema = generateSchema[CommandAnalysis]()

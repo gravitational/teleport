@@ -91,6 +91,9 @@ type InferenceProvider interface {
 	) (string, error)
 	// SummarizeCommand summarizes a single command and returns the analysis.
 	SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, command string) (*schema.CommandAnalysis, error)
+	// SummarizeMultipleCommands summarizes multiple commands and returns the
+	// overall session analysis.
+	SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error)
 }
 
 // SessionSummarizer summarizes session recordings using language model

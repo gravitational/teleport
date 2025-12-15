@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -232,7 +233,7 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 	}
 
 	var analysis schema.CommandAnalysis
-	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
+	if err := json.Unmarshal([]byte(stripMarkdownCodeBlock(res.result)), &analysis); err != nil {
 		return nil, trace.Wrap(summarizererrors.BadResponseError{
 			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
 		})
@@ -249,13 +250,42 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 	return &analysis, nil
 }
 
+// SummarizeMultipleCommands summarizes the result of multiple commands using Bedrock.
+func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing multiple commands from session", "session_id", sessionID)
+
+	systemPrompt := schema.SummarizeMultipleCommandsSystemPrompt(username, loginName)
+
+	res, err := p.makeStructuredRequest(ctx, sessionID, schema.SessionAnalysisSchema, systemPrompt, prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var analysis schema.SessionAnalysis
+	if err := json.Unmarshal([]byte(stripMarkdownCodeBlock(res.result)), &analysis); err != nil {
+		return nil, trace.Wrap(summarizererrors.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	p.logger.DebugContext(ctx, "Summary of multiple commands generated",
+		"session_id", sessionID,
+		"prompt_length", len(prompt),
+		"input_tokens", res.inputTokens,
+		"output_tokens", res.outputTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
 func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schema any, systemPrompt, message string) (*response, error) {
 	schemaBytes, err := json.Marshal(schema)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	jsonPrompt := "Generate a JSON response that compiles with the provided schema. If required fields are missing, return available fields with `null` for missing ones."
+	jsonPrompt := "Generate a JSON response that compiles with the provided schema. If required fields are missing, return available fields with `null` for missing ones. Only respond with JSON matching the schema, no additional text or formatting.\n\nSchema:\n"
 
 	convInput := bedrockruntime.ConverseInput{
 		ModelId: &p.bedrockModelID,
@@ -369,4 +399,20 @@ func (p *InferenceProvider) makeRequest(ctx context.Context, sessionID session.I
 			Message: fmt.Sprintf("model returned unexpected stop reason: %q", resp.StopReason),
 		})
 	}
+}
+
+// stripMarkdownCodeBlock removes Markdown code block formatting from a string. Sometimes, the model
+// can return JSON wrapped in Markdown code blocks, e.g.:
+//
+//	```json
+//	{
+//	  "key": "value"
+//	}
+//	```
+func stripMarkdownCodeBlock(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimPrefix(s, "json")
+	s = strings.TrimSuffix(s, "```")
+	return strings.TrimSpace(s)
 }

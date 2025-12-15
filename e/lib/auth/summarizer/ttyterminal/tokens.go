@@ -50,9 +50,9 @@ func initTokenizer() (*tiktoken.Tiktoken, error) {
 	return tke, tkeErr
 }
 
-// countTokens counts the number of tokens in a string using the o200k_base encoding.
+// CountTokens counts the number of tokens in a string using the o200k_base encoding.
 // If the tokenizer fails to initialize, it returns 0.
-func countTokens(text string) int {
+func CountTokens(text string) int {
 	tk, err := initTokenizer()
 	if err != nil {
 		return 0
@@ -166,8 +166,3 @@ func (b *bpeLoader) verifyHash(data []byte) error {
 
 	return nil
 }
-
-var (
-	_ = initTokenizer
-	_ = countTokens
-)

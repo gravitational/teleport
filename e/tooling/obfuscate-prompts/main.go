@@ -24,7 +24,7 @@ const promptSeed uint64 = %d
 )
 
 func main() {
-	stems := []string{"prompt-db", "prompt-ssh", "prompt-command", "prompt-root"}
+	stems := []string{"prompt-db", "prompt-ssh", "prompt-command", "prompt-root", "prompt-summary"}
 	seed := uint64(time.Now().Unix())
 
 	for _, stem := range stems {
