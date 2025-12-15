@@ -3043,7 +3043,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/zero-trust-access/management/admin/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/index.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -3267,7 +3267,7 @@ Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/authen
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/deploy-a-cluster/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -3605,7 +3605,7 @@ teleport:
 ```
 
 Rotate the cluster CA, following [these
-docs](docs/pages/zero-trust-access/management/operations/ca-rotation.mdx).
+docs](docs/pages/zero-trust-access/management/security/ca-rotation.mdx).
 
 ##### Web UI
 
@@ -3636,7 +3636,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/management/operations/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/deploy-a-cluster/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 
@@ -3767,7 +3767,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/deploy-a-cluster/trustedclusters.mdx).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.11
@@ -3999,7 +3999,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/zero-trust-access/management/operations/scaling.mdx)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/reference/deployment/scaling.mdx)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 

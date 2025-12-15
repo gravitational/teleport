@@ -897,7 +897,7 @@
     },
     {
       "source": "/reference/architecture/proxy-peering/",
-      "destination": "/zero-trust-access/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
       "permanent": true
     },
     {
@@ -1347,12 +1347,12 @@
     },
     {
       "source": "/admin-guides/management/admin/",
-      "destination": "/zero-trust-access/management/admin/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/daemon/",
-      "destination": "/zero-trust-access/management/admin/daemon/",
+      "destination": "/zero-trust-access/management/daemon/",
       "permanent": true
     },
     {
@@ -1362,32 +1362,27 @@
     },
     {
       "source": "/admin-guides/management/admin/self-signed-certs/",
-      "destination": "/zero-trust-access/management/admin/self-signed-certs/",
+      "destination": "/zero-trust-access/deploy-a-cluster/self-signed-certs/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/troubleshooting/",
-      "destination": "/zero-trust-access/management/admin/troubleshooting/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guides/management/admin/trusted-cluster-address-lookup/",
-      "destination": "/zero-trust-access/management/admin/trusted-cluster-address-lookup/",
+      "destination": "/zero-trust-access/management/diagnostics/troubleshooting/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/trustedclusters/",
-      "destination": "/zero-trust-access/management/admin/trustedclusters/",
+      "destination": "/zero-trust-access/deploy-a-cluster/trustedclusters/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/uninstall-teleport/",
-      "destination": "/zero-trust-access/management/admin/uninstall-teleport/",
+      "destination": "/installation/uninstall-teleport/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/users/",
-      "destination": "/zero-trust-access/management/admin/users/",
+      "destination": "/zero-trust-access/rbac-get-started/users/",
       "permanent": true
     },
     {
@@ -1482,17 +1477,17 @@
     },
     {
       "source": "/admin-guides/management/guides/awsoidc-integration-rds/",
-      "destination": "/zero-trust-access/management/guides/awsoidc-integration-rds/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration-rds/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/awsoidc-integration/",
-      "destination": "/zero-trust-access/management/guides/awsoidc-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/datadog/",
-      "destination": "/zero-trust-access/management/guides/datadog/",
+      "destination": "/zero-trust-access/management/diagnostics/datadog/",
       "permanent": true
     },
     {
@@ -1507,12 +1502,12 @@
     },
     {
       "source": "/admin-guides/management/guides/github-integration/",
-      "destination": "/zero-trust-access/management/guides/github-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/github-integration/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/",
-      "destination": "/zero-trust-access/management/guides/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
@@ -1537,37 +1532,42 @@
     },
     {
       "source": "/admin-guides/management/operations/backup-restore/",
-      "destination": "/zero-trust-access/management/operations/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/breakglass-access/",
+      "destination": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/ca-rotation/",
-      "destination": "/zero-trust-access/management/operations/ca-rotation/",
+      "destination": "/zero-trust-access/management/security/ca-rotation/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/db-ca-migrations/",
-      "destination": "/zero-trust-access/management/operations/db-ca-migrations/",
+      "destination": "/zero-trust-access/management/security/db-ca-migrations/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/",
-      "destination": "/zero-trust-access/management/operations/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/proxy-peering/",
-      "destination": "/zero-trust-access/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/scaling/",
-      "destination": "/zero-trust-access/management/operations/scaling/",
+      "destination": "/reference/deployment/scaling/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/tls-routing/",
-      "destination": "/zero-trust-access/management/operations/tls-routing/",
+      "destination": "/zero-trust-access/deploy-a-cluster/tls-routing/",
       "permanent": true
     },
     {
@@ -3288,6 +3288,111 @@
     {
       "source": "/enroll-resources/server-access/guides/ansible/",
       "destination": "/connect-your-client/third-party/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/datadog/",
+      "destination": "/zero-trust-access/management/diagnostics/datadog/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/awsoidc-integration-console/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration-console/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/awsoidc-integration-rds/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration-rds/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/awsoidc-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/github-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/github-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/ca-rotation/",
+      "destination": "/zero-trust-access/management/security/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/db-ca-migrations/",
+      "destination": "/zero-trust-access/management/security/db-ca-migrations/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/users/",
+      "destination": "/zero-trust-access/rbac-get-started/users/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/uninstall-teleport/",
+      "destination": "/installation/uninstall-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/self-signed-certs/",
+      "destination": "/zero-trust-access/deploy-a-cluster/self-signed-certs/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/trustedclusters/",
+      "destination": "/zero-trust-access/deploy-a-cluster/trustedclusters/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/tls-routing/",
+      "destination": "/zero-trust-access/deploy-a-cluster/tls-routing/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/",
+      "destination": "/zero-trust-access/management/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/troubleshooting/",
+      "destination": "/zero-trust-access/management/diagnostics/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/",
+      "destination": "/zero-trust-access/management/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/scaling/",
+      "destination": "/reference/deployment/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/daemon/",
+      "destination": "/zero-trust-access/management/daemon/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/trusted-cluster-address-lookup/",
+      "destination": "/zero-trust-access/deploy-a-cluster/trustedclusters/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     }
   ]
