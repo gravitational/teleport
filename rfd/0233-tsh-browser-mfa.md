@@ -211,7 +211,7 @@ sequenceDiagram
         proxy->>web: login success
     end
 
-    web->>auth: rpc GetBrowserAuthentication(request_id)
+    web->>auth: rpc GetHeadlessAuthentication(request_id)
     auth->>backend: read /browser_authentication/<request_id>
     auth->>web: Browser Authentication details {request_id, user, ip, request_type}
 
@@ -219,7 +219,7 @@ sequenceDiagram
     web->>auth: rpc CreateAuthenticateChallenge
     auth->>web: MFA Challenge
     Note over web: User auths with biometrics/passkey
-    web->>auth: rpc UpdateBrowserAuthenticationState<br/>with signed MFA challenge response
+    web->>auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
     auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice}
 
     backend->>-auth: unblock on state change
@@ -247,8 +247,8 @@ The flow is similar to the [login flow](#login-flow) except for a few key
 changes:
 1. The flow is started when a user connects to a per-session MFA protected
    resource.
-1. The certificate that `tsh` receives is stored in memory and has a TTL of 1
-   minute, to allow the user to connect to the resource and nothing more.
+1. The certificate that `tsh` receives is a short-lived "session" certificate,
+   which is kept in-memory
 
 ### Security
 
@@ -258,13 +258,13 @@ The endpoint that the unauthenticated `tsh` client will make a request to will
 need to be unauthenticated. This exposes the proxy to the risk of DoS attacks.
 
 To mitigate this risk, the endpoint will be rate limited and the
-`BrowserAuthentication` object will be unique per user. The 
-A `BrowserAuthentication` resource needs to be created on the backend to store
+`HeadlessAuthentication` object will be unique per user. A
+`HeadlessAuthentication` resource needs to be created on the backend to store
 information about the request. Instead of creating the resource when the
 unauthenticated `tsh` client sends a request, it will be created when the
-authenticated user calls `rpc GetBrowserAuthentication`, which is called during
-the browser authentication flow. Initially, `GetBrowserAuthentication` creates
-an empty `BrowserAuthentication`, if it doesn't already exist. The details are
+authenticated user calls `rpc GetHeadlessAuthentication`, which is called during
+the browser authentication flow. Initially, `GetHeadlessAuthentication` creates
+an empty `HeadlessAuthentication`, if it doesn't already exist. The details are
 then updated by the auth service once it detects that the resource has been
 created.
 
@@ -283,7 +283,7 @@ match.
 ### Scale
 
 This will increase load on auth servers with watchers that are waiting for
-the `BrowserAuthentication` object on the backend to be created when an
+the `HeadlessAuthentication` object on the backend to be created when an
 unauthenticated `tsh` client initiates a login request. To limit the impact of
 this, the watcher will be only be created once per client as described [above](#unauthenticated-webapiloginbrowser-endpoint). The watcher will also timeout
 after 5 minutes, the same TTL as the user has to authenticate their request.
