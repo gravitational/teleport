@@ -210,7 +210,7 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// SkipVersionCheck means the version checking between server and client
@@ -576,7 +576,7 @@ func (cfg *Config) DebugDumpToYAML() string {
 	return string(out)
 }
 
-// ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
+// ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
 // compliant.
 func ApplyFIPSDefaults(cfg *Config) {
 	cfg.FIPS = true
@@ -588,12 +588,12 @@ func ApplyFIPSDefaults(cfg *Config) {
 	cfg.MACAlgorithms = defaults.FIPSMACAlgorithms
 
 	// Only SSO based authentication is supported in FIPS mode. The SSO
-	// provider is where any FedRAMP/FIPS 140-2 compliance (like password
+	// provider is where any FedRAMP/FIPS compliance (like password
 	// complexity) should be enforced.
 	cfg.Auth.Preference.SetAllowLocalAuth(false)
 
 	// Update cluster configuration to record sessions at node, this way the
-	// entire cluster is FedRAMP/FIPS 140-2 compliant.
+	// entire cluster is FedRAMP/FIPS compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
 

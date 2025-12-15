@@ -5282,8 +5282,8 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 	return nil
 }
 
-// isFIPS returns if the binary was build with BoringCrypto, which implies
-// FedRAMP/FIPS 140-2 mode for tsh.
+// isFIPS returns if the binary was built with a FIPS validated
+// module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
 }
