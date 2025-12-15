@@ -1238,26 +1238,24 @@ message DeleteRoleRequest {
   string Name = 1;
 }
 
-// AtomicRoleOperationsRequest performs atomic role operations using Compare-And-Swap.
-// All operations succeed or fail together. Roles without a revision are created with NotExists()
-// condition, roles with a revision are updated with Revision() condition for optimistic concurrency
-// control, and deletions use Exists() condition.
-message AtomicRoleWriteRequest {
-  // RolesToCreateUpdate contains roles to create (if no revision) or update (if revision is set).
-  // Roles without a revision will be created only if they don't exist.
-  // Roles with a revision will be updated using Compare-And-Swap with the provided revision.
-  repeated types.RoleV6 RolesToCreateUpdate = 1 [(gogoproto.jsontag) = "roles_to_create_update,omitempty"];
-
-  // RoleNamesDelete contains names of roles to delete atomically with the creates/updates.
-  // All roles must exist for the operation to succeed.
-  repeated string RoleNamesDelete = 2 [(gogoproto.jsontag) = "role_names_delete,omitempty"];
+// Request message for AtomicWriteRoles.
+message AtomicWriteRolesRequest {
+  // Roles to create.
+  repeated types.RoleV6 roles_to_create = 1;
+  // Roles to update.
+  repeated types.RoleV6 roles_to_update = 2;
+  // Roles to delete.
+  repeated string role_names_to_delete = 3;
 }
 
-// AtomicRoleWriteResponse returns the updated roles with their new revisions.
-message AtomicRoleWriteResponse {
-  // UpdatedRoles contains all roles that were created or updated with their new revisions.
+// Response message for AtomicWriteRoles.
+message AtomicWriteRolesResponse {
+  // Updated contains all roles that were created.
   // All roles share the same revision since they were written in a single transaction.
-  repeated types.RoleV6 UpdatedRoles = 1 [(gogoproto.jsontag) = "updated_roles"];
+  repeated types.RoleV6 created = 1;
+  // Updated contains all roles that were updated.
+  // All roles share the same revision since they were written in a single transaction.
+  repeated types.RoleV6 updated = 2;
 }
 
 // DeviceType describes supported MFA device types.
@@ -3312,18 +3310,21 @@ service AuthService {
   // DeleteRole deletes an existing role in a backend described by the given request.
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
 
-  // AtomicRoleWrite performs atomic role create/update/delete operations using Compare-And-Swap.
+  // AtomicWriteRoles performs atomic role create/update/delete operations using Compare-And-Swap.
   //
-  // This method allows multiple role operations to be executed atomically - all operations
-  // succeed or fail together as a single transaction. This prevents partial state changes
+  // All operations succeed or fail together as a single transaction. This prevents partial state changes
   // in critical role management scenarios.
   //
+  // Roles in roles_to_create are created with NotExists() condition, roles in roles_to_update are updated
+  // with Revision() condition for optimistic concurrency control, and roles in role_names_delete are
+  // deleted using Exists() condition.
+  //
   // Use cases: For transactional UI operations where a single user action triggers multiple role changes,
-  // atomicity ensures the backend state matches user intent,
-  // guaranteeing that either the entire operation succeeds or nothing changes and the user can safely
-  // retry. Without atomicity, partial failures can leave the system in an inconsistent state requiring
-  // manual intervention to identify and fix incomplete operations.
-  rpc AtomicRoleWrite(AtomicRoleWriteRequest) returns (AtomicRoleWriteResponse);
+  // atomicity ensures the backend state matches user intent, guaranteeing that either the entire operation
+  // succeeds or nothing changes and the user can safely retry. Without atomicity, partial failures can
+  // leave the system in an inconsistent state requiring manual intervention to identify and fix incomplete
+  // operations.
+  rpc AtomicWriteRoles(AtomicWriteRolesRequest) returns (AtomicWriteRolesResponse);
 
   // AddMFADevice adds an MFA device for the user calling this RPC.
   //
