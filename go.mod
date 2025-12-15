@@ -52,7 +52,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue v1.18.0
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.3
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.11
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.74
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.75
 	github.com/aws/aws-sdk-go-v2/service/account v1.29.3
 	github.com/aws/aws-sdk-go-v2/service/applicationautoscaling v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/athena v1.50.4
@@ -163,7 +163,7 @@ require (
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/jcmturner/gokrb5/v8 v8.4.4
-	github.com/johannesboyne/gofakes3 v0.0.0-20240217095638-c55a48f17be6
+	github.com/johannesboyne/gofakes3 v0.0.0-20250916175020-ebf3e50324d3
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/joshlf/go-acl v0.0.0-20200411065538-eae00ae38531
 	github.com/json-iterator/go v1.1.12
@@ -310,7 +310,6 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
@@ -535,7 +534,6 @@ require (
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.1 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
-	github.com/shabbyrobe/gocovmerge v0.0.0-20230507112040-c3350d9342df // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
@@ -583,6 +581,7 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.36.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.37.0 // indirect
+	go.shabbyrobe.org/gocovmerge v0.0.0-20230507111327-fa4f82cfbf4d // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
