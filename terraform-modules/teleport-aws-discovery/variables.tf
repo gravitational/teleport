@@ -82,10 +82,53 @@ variable "apply_teleport_resource_labels" {
 }
 
 variable "create" {
-  description = "Toggle resource creation."
+  description = "Toggle creation of all resources."
   type        = bool
   default     = true
   nullable    = false
+}
+
+variable "create_aws_iam_openid_connect_provider" {
+  description = "Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist."
+  type        = bool
+  default     = true
+  nullable    = false
+
+  validation {
+    condition     = !(var.create && var.create_aws_iam_openid_connect_provider && !var.create_aws_iam_role)
+    error_message = "If the AWS IAM OIDC provider will be created, then the AWS IAM role for discovery must also be created so that the OIDC provider is included in the role's trust policy."
+  }
+}
+
+variable "create_aws_iam_policy_attachment" {
+  description = "Toggle AWS IAM policy attachment to the Discovery Service AWS IAM role. If false, then the AWS IAM policy must already be attached."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "create_aws_iam_policy" {
+  description = "Toggle AWS IAM policy creation. If false, then the IAM policy for discovery must already exist."
+  type        = bool
+  default     = true
+  nullable    = false
+
+  validation {
+    condition     = !(var.create && var.create_aws_iam_policy && !var.create_aws_iam_policy_attachment)
+    error_message = "If the AWS IAM policy for discovery will be created, then it must also be attached to the AWS IAM role for discovery."
+  }
+}
+
+variable "create_aws_iam_role" {
+  description = "Toggle creation of the AWS IAM role for Teleport Discovery Service. If false, then the IAM role must already exist."
+  type        = bool
+  default     = true
+  nullable    = false
+
+  validation {
+    condition     = !(var.create && var.create_aws_iam_role && !var.create_aws_iam_policy_attachment)
+    error_message = "If the AWS IAM role for discovery will be created, then the AWS IAM policy for discovery must also be attached to it."
+  }
 }
 
 variable "match_aws_regions" {
@@ -103,45 +146,78 @@ variable "match_aws_tags" {
 }
 
 variable "name_prefix" {
-  description = "Prefix to include in resource names."
+  description = "Prefix to include in resource names. This prefix is also added to any resource name overrides."
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
+variable "aws_iam_policy_name" {
+  description = "Optional name override for the AWS IAM policy for discovery."
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
+variable "aws_iam_role_name" {
+  description = "Optional name override for the AWS IAM role for discovery."
   type        = string
   default     = ""
   nullable    = false
 }
 
 variable "teleport_discovery_config_name" {
-  description = "Teleport discovery config name to use instead of a generated name."
-  type        = string
-  default     = ""
-  nullable    = false
-}
-
-variable "teleport_discovery_service_iam_policy_name" {
-  description = "Teleport discovery AWS IAM policy name to use instead of a generated name."
-  type        = string
-  default     = ""
-  nullable    = false
-}
-
-variable "teleport_discovery_service_iam_role_name" {
-  description = "Teleport discovery AWS IAM role name to use instead of a generated name."
+  description = "Optional name override for the `teleport_discovery_config` resource."
   type        = string
   default     = ""
   nullable    = false
 }
 
 variable "teleport_integration_name" {
-  description = "Teleport integration name to use instead of a generated name."
+  description = "Optional name override for the `teleport_integration` resource."
   type        = string
   default     = ""
   nullable    = false
 }
 
 variable "teleport_provision_token_name" {
-  description = "Teleport provisioning token name to use instead of a generated name."
+  description = "Optional name override for the `teleport_provision_token` resource."
   type        = string
   default     = ""
   nullable    = false
 }
 
+variable "discovery_service_iam_credential_source" {
+  description = "Configure the intended credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration."
+  type = object({
+    use_oidc_integration = optional(bool, true) # the default
+    trust_role = optional(object({
+      role_arn    = string
+      external_id = string
+    }))
+  })
+  default  = {}
+  nullable = false
+
+  validation {
+    condition = !(
+      var.create
+      && var.discovery_service_iam_credential_source.use_oidc_integration
+      && var.discovery_service_iam_credential_source.trust_role != null
+    )
+    error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID. If the AWS IAM role for discovery will be attached directly to the discovery service instance outside of this module, then set `use_oidc_integration` to false and leave `trust_role` unset."
+  }
+
+  validation {
+    condition = !(
+      var.create
+      && !var.discovery_service_iam_credential_source.use_oidc_integration
+      && var.discovery_service_iam_credential_source.trust_role != null
+      && (
+        var.discovery_service_iam_credential_source.trust_role.role_arn == ""
+        || var.discovery_service_iam_credential_source.trust_role.external_id == ""
+      )
+    )
+    error_message = "`trust_role` must include non-empty values for both the trusted role's ARN and an external ID to use in the trust policy of the AWS IAM role for discovery."
+  }
 }
