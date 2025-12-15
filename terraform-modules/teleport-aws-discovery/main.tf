@@ -308,10 +308,10 @@ resource "teleport_integration" "aws_oidc" {
 ################################################################################
 
 locals {
-  assume_role = try({
-    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn
-    external_id = var.discovery_service_iam_credential_source.trust_role.external_id
-  })
+  trust_role = try({
+    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,
+    external_id = var.discovery_service_iam_credential_source.trust_role.external_id,
+  }, null)
   create_teleport_discovery_config = local.create
   match_aws_regions                = var.match_aws_regions
   match_aws_tags                   = var.match_aws_tags
@@ -338,7 +338,7 @@ resource "teleport_discovery_config" "aws" {
   spec = {
     discovery_group = local.teleport_discovery_group_name
     aws = [{
-      assume_role = local.assume_role
+      assume_role = local.trust_role
       install = {
         enroll_mode      = 1 # INSTALL_PARAM_ENROLL_MODE_SCRIPT
         install_teleport = true
