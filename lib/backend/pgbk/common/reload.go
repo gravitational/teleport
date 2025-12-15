@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -33,7 +34,7 @@ import (
 
 // CreateClientCertReloader creates a client reloader for postgres compatible connections. The
 // connString is expected to be in a url format.
-func CreateClientCertReloader(ctx context.Context, connString string, reloadInterval time.Duration) (func(*tls.CertificateRequestInfo) (*tls.Certificate, error), error) {
+func CreateClientCertReloader(ctx context.Context, name, connString string, reloadInterval time.Duration, expiry prometheus.Gauge) (func(*tls.CertificateRequestInfo) (*tls.Certificate, error), error) {
 	u, err := url.Parse(connString)
 	if err != nil {
 		return nil, trace.WrapWithMessage(err, "conn_string must be in url format when reload interval is set")
@@ -41,14 +42,17 @@ func CreateClientCertReloader(ctx context.Context, connString string, reloadInte
 	vals := u.Query()
 
 	reloader := certreloader.New(certreloader.Config{
-		KeyPairs: []servicecfg.KeyPairPath{
+		KeyPairsWithMetric: []certreloader.KeyPairWithMetric{
 			{
-				PrivateKey:  vals.Get("sslkey"),
-				Certificate: vals.Get("sslcert"),
+				KeyPairPath: servicecfg.KeyPairPath{
+					PrivateKey:  vals.Get("sslkey"),
+					Certificate: vals.Get("sslcert"),
+				},
+				Expiry: expiry,
 			},
 		},
 		KeyPairsReloadInterval: reloadInterval,
-	}, teleport.ComponentAuth)
+	}, name, teleport.ComponentAuth)
 	if err := reloader.Run(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}

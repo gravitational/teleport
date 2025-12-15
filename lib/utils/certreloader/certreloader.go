@@ -34,11 +34,22 @@ import (
 
 // Config contains the configuration of the certificate reloader.
 type Config struct {
-	// KeyPairs are the key and certificate pairs that the proxy will load.
-	KeyPairs []servicecfg.KeyPairPath
+	// KeyPairsWithMetric are the key and certificate pairs that the reloader will load along with exipry metric.
+	KeyPairsWithMetric []KeyPairWithMetric
 	// KeyPairsReloadInterval is the interval between attempts to reload
 	// x509 key pairs. If set to 0, then periodic reloading is disabled.
 	KeyPairsReloadInterval time.Duration
+}
+
+type KeyPairWithMetric struct {
+	// KeyPairPath is the path to the key and certificate pairs
+	KeyPairPath servicecfg.KeyPairPath
+	// Expiry is a setter for when the cert expires
+	Expiry expirySetter
+}
+
+type expirySetter interface {
+	Set(float64)
 }
 
 // CertReloader periodically reloads a list of cert key-pair paths.
@@ -55,9 +66,9 @@ type CertReloader struct {
 }
 
 // New initializes a new certificate reloader.
-func New(cfg Config, component string) *CertReloader {
+func New(cfg Config, name, component string) *CertReloader {
 	return &CertReloader{
-		logger: slog.With(teleport.ComponentKey, teleport.Component(component, "certreloader")),
+		logger: slog.With(teleport.ComponentKey, teleport.Component(component, "certreloader"), "name", name),
 		cfg:    cfg,
 	}
 }
@@ -97,21 +108,28 @@ func (c *CertReloader) Run(ctx context.Context) error {
 	return nil
 }
 
+type expiryMetric struct {
+	notAfter time.Time
+	expiry   expirySetter
+}
+
 // loadCertificates loads certificate keys pairs.
 // It returns an error if any of the certificate key pairs fails to load.
 // If any of the key pairs fails to load, none of the certificates are updated.
 func (c *CertReloader) loadCertificates(ctx context.Context) error {
-	certs := make([]tls.Certificate, 0, len(c.cfg.KeyPairs))
-	for _, pair := range c.cfg.KeyPairs {
+	certs := make([]tls.Certificate, 0, len(c.cfg.KeyPairsWithMetric))
+
+	var expiries []expiryMetric
+	for _, kpm := range c.cfg.KeyPairsWithMetric {
 		c.logger.DebugContext(ctx, "Loading TLS certificate",
-			"public_key", pair.Certificate,
-			"private_key", pair.PrivateKey,
+			"public_key", kpm.KeyPairPath.Certificate,
+			"private_key", kpm.KeyPairPath.PrivateKey,
 		)
 
-		certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+		certificate, err := tls.LoadX509KeyPair(kpm.KeyPairPath.Certificate, kpm.KeyPairPath.PrivateKey)
 		if err != nil {
 			// If one certificate fails to load, then no certificate is updated.
-			return trace.WrapWithMessage(err, "TLS certificate %v and key %v failed to load", pair.Certificate, pair.PrivateKey)
+			return trace.WrapWithMessage(err, "TLS certificate %v and key %v failed to load", kpm.KeyPairPath.Certificate, kpm.KeyPairPath.PrivateKey)
 		}
 
 		// Parse the end entity cert and add it to certificate.Leaf.
@@ -120,11 +138,22 @@ func (c *CertReloader) loadCertificates(ctx context.Context) error {
 		leaf, err := x509.ParseCertificate(certificate.Certificate[0])
 		if err != nil {
 			// If one certificate fails to load, then no certificate is updated.
-			return trace.WrapWithMessage(err, "TLS certificate %v and key %v failed to be parsed", pair.Certificate, pair.PrivateKey)
+			return trace.WrapWithMessage(err, "TLS certificate %v and key %v failed to be parsed", kpm.KeyPairPath.Certificate, kpm.KeyPairPath.PrivateKey)
 		}
 		certificate.Leaf = leaf
 
 		certs = append(certs, certificate)
+
+		if kpm.Expiry != nil {
+			expiries = append(expiries, expiryMetric{
+				notAfter: certificate.Leaf.NotAfter,
+				expiry:   kpm.Expiry,
+			})
+		}
+	}
+
+	for _, e := range expiries {
+		e.expiry.Set(float64(e.notAfter.Unix()))
 	}
 
 	c.mu.Lock()
