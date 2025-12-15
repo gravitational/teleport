@@ -79,7 +79,7 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moder
 		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
 			var sb strings.Builder
 			if n, _ := io.Copy(&sb, pe); n > 0 {
-				return nil, trace.Errorf("%s", sb.String())
+				return nil, trace.Errorf("%s", strings.TrimSpace(sb.String()))
 			}
 		}
 		return nil, trace.Wrap(err)
@@ -104,7 +104,7 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moder
 		// the subsystem for a more actionable error.
 		var sb strings.Builder
 		if n, _ := io.Copy(&sb, pe); n > 0 {
-			return nil, trace.Errorf("%s", sb.String())
+			return nil, trace.Errorf("%s", strings.TrimSpace(sb.String()))
 		}
 		return nil, trace.Wrap(err)
 	}
