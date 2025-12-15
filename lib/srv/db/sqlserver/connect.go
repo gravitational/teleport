@@ -20,21 +20,18 @@ package sqlserver
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net"
 	"strconv"
 
 	"github.com/gravitational/trace"
-	"github.com/jcmturner/gokrb5/v8/client"
 	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/microsoft/go-mssqldb/azuread"
 	"github.com/microsoft/go-mssqldb/msdsn"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver/kinit"
+	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
@@ -56,38 +53,13 @@ type Connector interface {
 type connector struct {
 	// Auth is the database auth client
 	DBAuth common.Auth
-	// AuthClient is the teleport client
-	AuthClient windows.AuthInterface
-	// DataDir is the Teleport data directory
-	DataDir string
 
-	kinitCommandGenerator kinit.CommandGenerator
-}
-
-var errBadKerberosConfig = errors.New("configuration must have either keytab or kdc_host_name and ldap_cert")
-
-func (c *connector) getKerberosClient(ctx context.Context, sessionCtx *common.Session) (*client.Client, error) {
-	switch {
-	case sessionCtx.Database.GetAD().KeytabFile != "":
-		kt, err := c.keytabClient(sessionCtx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return kt, nil
-	case sessionCtx.Database.GetAD().KDCHostName != "" && sessionCtx.Database.GetAD().LDAPCert != "":
-		kt, err := c.kinitClient(ctx, sessionCtx, c.AuthClient, c.DataDir)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return kt, nil
-
-	}
-	return nil, trace.Wrap(errBadKerberosConfig)
+	kerberos kerberos.ClientProvider
 }
 
 // Connect connects to the target SQL Server with Kerberos authentication.
 func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, loginPacket *protocol.Login7Packet) (io.ReadWriteCloser, []mssql.Token, error) {
-	host, port, err := net.SplitHostPort(sessionCtx.Database.GetURI())
+	host, port, err := getHostPort(sessionCtx.Database)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -154,7 +126,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 // getKerberosConnector generates a Kerberos connector using proper Kerberos
 // client.
 func (c *connector) getKerberosConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
-	kc, err := c.getKerberosClient(ctx, sessionCtx)
+	kc, err := c.kerberos.GetKerberosClient(ctx, sessionCtx.Database.GetAD(), sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,7 +135,7 @@ func (c *connector) getKerberosConnector(ctx context.Context, sessionCtx *common
 		return nil, trace.Wrap(err)
 	}
 
-	return mssql.NewConnectorConfig(dsnConfig, dbAuth), nil
+	return mssql.NewConnectorConfigCustomAuth(dsnConfig, dbAuth), nil
 }
 
 // getAzureConnector generates a connector that authenticates using Azure AD.
@@ -192,4 +164,14 @@ func (c *connector) getAccessTokenConnector(ctx context.Context, sessionCtx *com
 	return mssql.NewSecurityTokenConnector(dsnConfig, func(ctx context.Context) (string, error) {
 		return c.DBAuth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	})
+}
+
+// getHostPort returns the host and port of the database URI.
+// The URI must specify a port.
+func getHostPort(db types.Database) (string, string, error) {
+	host, port, err := net.SplitHostPort(db.GetURI())
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to parse database URI")
+	}
+	return host, port, nil
 }

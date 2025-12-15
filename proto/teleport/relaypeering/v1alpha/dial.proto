@@ -1,0 +1,51 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.relaypeering.v1alpha;
+
+import "google/rpc/status.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/relaypeering/v1alpha;relaypeeringv1alpha";
+
+// the message sent by the client at the beginning of a connection
+message DialRequest {
+  // the target agent for the connection attempt; should be "<host id>.<cluster name>"
+  string target_host_id = 1;
+  // the type of the connection as defined by api/types.TunnelType ("node",
+  // "app", "kube"...)
+  string connection_type = 2;
+
+  Addr source = 3;
+  Addr destination = 4;
+}
+
+// the message sent by the server as a response to a DialRequest; in case of
+// success (status is missing or reports "ok") the connection data follows on
+// the same stream, otherwise the stream ends and any data sent by the client is
+// to be treated as silently discarded
+message DialResponse {
+  google.rpc.Status status = 1;
+}
+
+// a stringy Go net.Addr, usually converted to and from lib/utils.NetAddr
+message Addr {
+  // likely always "tcp"
+  string network = 1;
+  // depending on the network, likely "<ip address>:<port>"
+  string addr = 2;
+}

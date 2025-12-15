@@ -19,17 +19,18 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
+import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import {
   INTERNAL_RESOURCE_ID_LABEL_KEY,
   JoinToken,
 } from 'teleport/services/joinToken';
-import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
 interface PingTeleportContextState<T> {
   active: boolean;
   start: (tokenOrTerm: JoinToken | string) => void;
   result: T | null;
+  stop: () => void;
 }
 
 const pingTeleportContext =
@@ -117,6 +118,7 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
+        stop: () => setActive(false),
       }}
     >
       {props.children}
@@ -137,6 +139,8 @@ export function usePingTeleport<T>(tokenOrTerm: JoinToken | string) {
     if (!ctx.active && !ctx.result) {
       ctx.start(tokenOrTerm);
     }
+
+    return () => ctx.stop();
   }, []);
 
   return ctx;

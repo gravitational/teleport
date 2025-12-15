@@ -19,20 +19,81 @@
 package slices
 
 import (
-	"cmp"
 	"slices"
+
+	"github.com/gravitational/trace"
 )
 
 // FilterMapUnique applies a function to all elements of a slice and collects them.
 // The function returns the value to collect and whether the current element should be included.
-// Returned values are sorted and deduplicated.
-func FilterMapUnique[T any, S cmp.Ordered](ts []T, fn func(T) (s S, include bool)) []S {
+// Returned values are deduplicated.
+func FilterMapUnique[T any, S comparable](ts []T, fn func(T) (s S, include bool)) []S {
 	ss := make([]S, 0, len(ts))
+	seen := make(map[S]struct{}, len(ts))
 	for _, t := range ts {
 		if s, include := fn(t); include {
-			ss = append(ss, s)
+			if _, found := seen[s]; !found {
+				seen[s] = struct{}{}
+				ss = append(ss, s)
+			}
 		}
 	}
-	slices.Sort(ss)
-	return slices.Compact(ss)
+
+	return ss
+}
+
+// Map calls the provided function on each element of a slice, and returns a slice containin the results.
+func Map[T, S any](items []T, fn func(T) S) []S {
+	result := make([]S, len(items))
+	for i, item := range items {
+		result[i] = fn(item)
+	}
+	return result
+}
+
+// ToPointers converts a slice of values to a slice of pointers to those values
+func ToPointers[T any](in []T) []*T {
+	out := make([]*T, len(in))
+	for i := range in {
+		out[i] = &in[i]
+	}
+	return out
+}
+
+// ContainsAll checks whether haystack contains all needles, reporting
+// error indicating the first unmatched value.
+func ContainsAll[S ~[]E, E comparable](haystack S, needles S) error {
+	for _, needle := range needles {
+		if !slices.Contains(haystack, needle) {
+			return trace.BadParameter("%v not in set", needle)
+		}
+	}
+	return nil
+}
+
+// FromPointers converts a slice of pointers to values to a slice of values.
+// Nil pointers are converted to zero-values.
+func FromPointers[T any](in []*T) []T {
+	out := make([]T, len(in))
+	for i := range in {
+		if in[i] == nil {
+			continue
+		}
+		out[i] = *in[i]
+	}
+	return out
+}
+
+// DeduplicateKey returns a deduplicated slice by comparing key values from the key function
+func DeduplicateKey[T any](s []T, key func(T) string) []T {
+	out := make([]T, 0, len(s))
+	seen := make(map[string]struct{})
+	for _, v := range s {
+		if _, ok := seen[key(v)]; ok {
+			continue
+		}
+		seen[key(v)] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }

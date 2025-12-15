@@ -1,0 +1,10 @@
+teleportConfig:
+  app_service:
+    enabled: true
+    debug_app: true
+    apps:
+    - name: "metrics"
+      uri: "http://127.0.0.1:3000/metrics"
+    resources:
+    - labels:
+        '*': '*'

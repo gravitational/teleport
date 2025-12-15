@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -40,7 +41,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMigrateProcessDataObjects(t *testing.T) {
@@ -60,7 +62,7 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          utils.NewLoggerForTests(),
+			Logger:          logtest.NewLogger(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -131,7 +133,7 @@ func TestLargeEventsParse(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          utils.NewLoggerForTests(),
+			Logger:          logtest.NewLogger(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -221,7 +223,7 @@ func TestMigrationCheckpoint(t *testing.T) {
 
 	noOfWorkers := 3
 	defaultConfig := Config{
-		Logger:          utils.NewLoggerForTests(),
+		Logger:          logtest.NewLogger(),
 		NoOfEmitWorkers: noOfWorkers,
 		bufferSize:      noOfWorkers * 5,
 		CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -511,7 +513,7 @@ func generateDynamoExportData(n int) string {
 	}
 	lineFmt := `{ "Item": { "EventIndex": { "N": "2147483647" }, "SessionID": { "S": "4298bd54-a747-4d53-b850-83ba17caae5a" }, "CreatedAtDate": { "S": "2023-05-22" }, "FieldsMap": { "M": { "cluster_name": { "S": "test.example.local" }, "uid": { "S": "%s" }, "code": { "S": "T2005I" }, "ei": { "N": "2147483647" }, "time": { "S": "2023-05-22T12:12:21.966Z" }, "event": { "S": "session.upload" }, "sid": { "S": "4298bd54-a747-4d53-b850-83ba17caae5a" } } }, "EventType": { "S": "session.upload" }, "EventNamespace": { "S": "default" }, "CreatedAt": { "N": "1684757541" } } }`
 	sb := strings.Builder{}
-	for i := 0; i < n; i++ {
+	for range n {
 		sb.WriteString(fmt.Sprintf(lineFmt+"\n", uuid.NewString()))
 	}
 	return sb.String()
@@ -549,7 +551,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithoutTime,
 				}
 			},
-			wantLog: "is invalid: empty event time",
+			wantLog: "empty event time",
 			wantErr: "1 invalid",
 		},
 		{
@@ -561,7 +563,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithInvalidUUID,
 				}
 			},
-			wantLog: "is invalid: invalid uid format: invalid UUID length",
+			wantLog: "invalid uid format: invalid UUID length",
 			wantErr: "1 invalid",
 		},
 	}
@@ -569,8 +571,9 @@ func TestMigrationDryRunValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Migration cli logs output from validation to logger.
 			var logBuffer bytes.Buffer
-			log := utils.NewLoggerForTests()
-			log.SetOutput(&logBuffer)
+			log := slog.New(logutils.NewSlogJSONHandler(&logBuffer, logutils.SlogJSONHandlerConfig{
+				Level: slog.LevelDebug,
+			}))
 
 			tr := &task{
 				Config: Config{

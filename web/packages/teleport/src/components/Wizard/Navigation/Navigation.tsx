@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { Flex } from 'design';
 
 import { BaseView } from '../flow';
-
-import { StepTitle, StepsContainer } from './Shared';
 import { Bullet } from './Bullet';
+import { StepsContainer, StepTitle } from './Shared';
 import { StepList } from './StepList';
 
 export type StepIcon = {

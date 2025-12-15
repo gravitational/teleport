@@ -18,14 +18,15 @@
 
 import React, {
   ReactElement,
+  useCallback,
   useEffect,
   useRef,
   useState,
-  useCallback,
 } from 'react';
+import styled, { css } from 'styled-components';
+
 import { Flex } from 'design';
 import { IconProps } from 'design/Icon/Icon';
-import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
@@ -57,7 +58,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
     onBack,
     addWindowEventListener,
   } = props;
-  const activeItemRef = useRef<HTMLDivElement>();
+  const activeItemRef = useRef<HTMLDivElement>(null);
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const pickAndResetActiveItem = useCallback(
     (item: T) => {

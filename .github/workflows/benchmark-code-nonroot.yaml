@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -43,14 +43,14 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare workspace
         id: prepare

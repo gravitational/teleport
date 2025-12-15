@@ -17,9 +17,9 @@
  */
 
 import { useEffect, useState } from 'react';
+
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
@@ -27,15 +27,13 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
-
-import { useFeatures } from 'teleport/FeaturesContext';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { useFeatures } from 'teleport/FeaturesContext';
+import useTeleport from 'teleport/useTeleport';
 
 import ClusterList from './ClusterList';
 import { buildACL } from './utils';
-import { ManageCluster } from './ManageCluster';
 
 export function Clusters() {
   return (
@@ -45,11 +43,6 @@ export function Clusters() {
         exact
         path={cfg.routes.clusters}
         component={ClusterListPage}
-      />
-      <Route
-        key="cluster-management"
-        path={cfg.routes.manageCluster}
-        component={ManageCluster}
       />
     </Switch>
   );

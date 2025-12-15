@@ -29,15 +29,18 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	"github.com/mitchellh/mapstructure"
+	"github.com/jonboulle/clockwork"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	tokenclaims "github.com/gravitational/teleport/lib/kube/token/claims"
+	"github.com/gravitational/teleport/lib/oidc"
 )
 
 const (
@@ -60,24 +63,14 @@ type ValidationResult struct {
 	// This will be prepended with `system:serviceaccount:` for service
 	// accounts.
 	Username string `json:"username"`
+	attrs    *workloadidentityv1pb.JoinAttrsKubernetes
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *ValidationResult) JoinAuditAttributes() (map[string]interface{}, error) {
-	res := map[string]interface{}{}
-	d, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &res,
-		Squash:  true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := d.Decode(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res, nil
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *ValidationResult) JoinAttrs() *workloadidentityv1pb.JoinAttrsKubernetes {
+	return c.attrs
 }
 
 // TokenReviewValidator validates a Kubernetes Service Account JWT using the
@@ -131,7 +124,7 @@ func unsafeGetTokenAudiences(token string) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	claims := &ServiceAccountClaims{}
+	claims := &tokenclaims.ServiceAccountClaims{}
 	err = jwt.UnsafeClaimsWithoutVerification(claims)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -180,8 +173,11 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 
 	// Check the Username is a service account.
 	// A user token would not match rules anyway, but we can produce a more relevant error message here.
-	if !strings.HasPrefix(reviewResult.Status.User.Username, ServiceAccountNamePrefix) {
-		return nil, trace.BadParameter("token user is not a service account: %s", reviewResult.Status.User.Username)
+	namespace, serviceAccount, err := serviceAccountFromUsername(
+		reviewResult.Status.User.Username,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if !slices.Contains(reviewResult.Status.User.Groups, serviceAccountGroup) {
@@ -203,18 +199,45 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 
 	// We know if the token is bound to a pod if its name is in the Extra userInfo.
 	// If the token is not bound while Kubernetes supports bound tokens we abort.
-	if _, ok := reviewResult.Status.User.Extra[extraDataPodNameField]; !ok && boundTokenSupport {
+	podName, podNamePresent := reviewResult.Status.User.Extra[extraDataPodNameField]
+	if !podNamePresent && boundTokenSupport {
 		return nil, trace.BadParameter(
 			"legacy SA tokens are not accepted as kubernetes version %s supports bound tokens",
 			kubeVersion.String(),
 		)
 	}
 
+	attrs := &workloadidentityv1pb.JoinAttrsKubernetes{
+		Subject: reviewResult.Status.User.Username,
+		ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+			Name:      serviceAccount,
+			Namespace: namespace,
+		},
+	}
+	if podNamePresent && len(podName) == 1 {
+		attrs.Pod = &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			Name: podName[0],
+		}
+	}
+
 	return &ValidationResult{
 		Raw:      reviewResult.Status,
 		Type:     types.KubernetesJoinTypeInCluster,
 		Username: reviewResult.Status.User.Username,
+		attrs:    attrs,
 	}, nil
+}
+
+func serviceAccountFromUsername(username string) (namespace, name string, err error) {
+	cut, hasPrefix := strings.CutPrefix(username, ServiceAccountNamePrefix+":")
+	if !hasPrefix {
+		return "", "", trace.BadParameter("token user is not a service account: %s", username)
+	}
+	parts := strings.Split(cut, ":")
+	if len(parts) != 2 {
+		return "", "", trace.BadParameter("token user has malformed service account name: %s", username)
+	}
+	return parts[0], parts[1], nil
 }
 
 func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
@@ -229,32 +252,6 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	}
 
 	return kubeVersion.AtLeast(minKubeVersion), nil
-}
-
-// PodSubClaim are the Pod-specific claims we expect to find on a Kubernetes Service Account JWT.
-type PodSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-// ServiceAccountSubClaim are the Service Account-specific claims we expect to find on a Kubernetes Service Account JWT.
-type ServiceAccountSubClaim struct {
-	Name string `json:"name"`
-	UID  string `json:"uid"`
-}
-
-// KubernetesSubClaim are the Kubernetes-specific claims (under kubernetes.io)
-// we expect to find on a Kubernetes Service Account JWT.
-type KubernetesSubClaim struct {
-	Namespace      string                  `json:"namespace"`
-	ServiceAccount *ServiceAccountSubClaim `json:"serviceaccount"`
-	Pod            *PodSubClaim            `json:"pod"`
-}
-
-// ServiceAccountClaims are the claims we expect to find on a Kubernetes Service Account JWT.
-type ServiceAccountClaims struct {
-	josejwt.Claims
-	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
 }
 
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
@@ -275,7 +272,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := ServiceAccountClaims{}
+	claims := tokenclaims.ServiceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
@@ -319,5 +316,79 @@ func ValidateTokenWithJWKS(
 		Raw:      claims,
 		Type:     types.KubernetesJoinTypeStaticJWKS,
 		Username: claims.Subject,
+		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+			Subject: claims.Subject,
+			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				Name: claims.Kubernetes.Pod.Name,
+			},
+			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+				Name:      claims.Kubernetes.ServiceAccount.Name,
+				Namespace: claims.Kubernetes.Namespace,
+			},
+		},
+	}, nil
+}
+
+// NewKubernetesOIDCTokenValidator constructs a KubernetesOIDCTokenValidator.
+func NewKubernetesOIDCTokenValidator() (*KubernetesOIDCTokenValidator, error) {
+	validator, err := oidc.NewCachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims](clockwork.NewRealClock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &KubernetesOIDCTokenValidator{
+		validator: validator,
+	}, nil
+}
+
+// KubernetesOIDCTokenValidator is a validator that can validate Kubernetes
+// projected service account tokens against an external OIDC compatible IdP.
+type KubernetesOIDCTokenValidator struct {
+	validator *oidc.CachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims]
+}
+
+// ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
+// OIDC endpoint.
+func (v *KubernetesOIDCTokenValidator) ValidateToken(
+	ctx context.Context,
+	issuerURL string,
+	clusterName string,
+	token string,
+) (*ValidationResult, error) {
+	validator, err := v.validator.GetValidator(ctx, issuerURL, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	claims, err := validator.ValidateToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating OIDC token")
+	}
+
+	// Ensure this is a pod-bound service account token
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
+	}
+
+	// Note: OIDC library requires valid exp and iat.
+	maxAllowedTTL := time.Minute * 30
+	if claims.GetExpiration().Sub(claims.GetIssuedAt()) > maxAllowedTTL {
+		return nil, trace.BadParameter("oidc joining requires the use of a service account token with a TTL of less than %s", maxAllowedTTL)
+	}
+
+	return &ValidationResult{
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeOIDC,
+		Username: claims.GetSubject(),
+		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+			Subject: claims.GetSubject(),
+			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				Name: claims.Kubernetes.Pod.Name,
+			},
+			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+				Name:      claims.Kubernetes.ServiceAccount.Name,
+				Namespace: claims.Kubernetes.Namespace,
+			},
+		},
 	}, nil
 }

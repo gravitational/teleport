@@ -20,9 +20,9 @@ import {
   createContext,
   PropsWithChildren,
   useContext,
-  useState,
   useEffect,
   useRef,
+  useState,
 } from 'react';
 
 interface LayoutContextValue {
@@ -36,7 +36,7 @@ const LayoutContext = createContext<LayoutContextValue>(null);
 export function LayoutContextProvider(props: PropsWithChildren<unknown>) {
   const [hasDockedElement, setHasDockedElement] = useState(false);
   const [currentWidth, setCurrentWidth] = useState(window.innerWidth);
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to

@@ -40,15 +40,15 @@ func TestInventoryControlStreamPipe(t *testing.T) {
 	defer upstream.Close()
 
 	upMsgs := []proto.UpstreamInventoryMessage{
-		proto.UpstreamInventoryHello{},
-		proto.UpstreamInventoryPong{},
-		proto.InventoryHeartbeat{},
+		new(proto.UpstreamInventoryHello),
+		new(proto.UpstreamInventoryPong),
+		new(proto.InventoryHeartbeat),
 	}
 
 	downMsgs := []proto.DownstreamInventoryMessage{
-		proto.DownstreamInventoryHello{},
-		proto.DownstreamInventoryPing{},
-		proto.DownstreamInventoryPing{}, // duplicate to pad downMsgs to same length as upMsgs
+		new(proto.DownstreamInventoryHello),
+		new(proto.DownstreamInventoryPing),
+		new(proto.DownstreamInventoryPing), // duplicate to pad downMsgs to same length as upMsgs
 	}
 
 	go func() {

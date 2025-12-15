@@ -11,6 +11,7 @@
         "podSecurityContext",
         "securityContext",
         "nodeSelector",
+        "annotations",
         "tolerations",
         "affinity",
         "teleport",
@@ -225,6 +226,32 @@
             "default": {},
             "additionalProperties": true
         },
+        "annotations": {
+            "$id": "#/properties/annotations",
+            "type": "object",
+            "required": [
+                "config",
+                "deployment",
+                "pod"
+            ],
+            "properties": {
+                "config": {
+                    "$id": "#/properties/annotations/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/annotations/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
@@ -238,7 +265,7 @@
                     "default": ""
                 }
             }
-        },        
+        },
         "tolerations": {
             "$id": "#/properties/tolerations",
             "type": "array",
@@ -392,7 +419,7 @@
                     "type": "array",
                     "default": "",
                     "examples": [
-                        ["print"]
+                        ["print", "desktop.recording"]
                     ]
                 }
             },

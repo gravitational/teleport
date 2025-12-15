@@ -20,6 +20,8 @@ package srv
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"net"
 	"testing"
 
@@ -29,20 +31,28 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 )
 
 type mockCAandAuthPrefGetter struct {
 	AccessPoint
 
 	authPref types.AuthPreference
-	cas      map[types.CertAuthType]types.CertAuthority
+	cas      map[types.CertAuthType][]types.CertAuthority
 }
 
 func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (types.AuthPreference, error) {
@@ -50,21 +60,60 @@ func (m mockCAandAuthPrefGetter) GetAuthPreference(s_12345678 context.Context) (
 }
 
 func (m mockCAandAuthPrefGetter) GetCertAuthorities(_ context.Context, caType types.CertAuthType, _ bool) ([]types.CertAuthority, error) {
-	ca, ok := m.cas[caType]
+	cas, ok := m.cas[caType]
 	if !ok {
 		return nil, trace.NotFound("CA not found")
 	}
 
-	return []types.CertAuthority{ca}, nil
+	return cas, nil
+}
+
+type mockScopedRoleReaderGetter struct {
+	AccessPoint
+	scopedRoles []*scopedaccessv1.ScopedRole
+}
+
+func (m mockScopedRoleReaderGetter) ScopedRoleReader() services.ScopedRoleReader {
+	return mockScopedRoleGetter{
+		scopedRoles: m.scopedRoles,
+	}
+}
+
+// mockScopedRoleGetter is a mock implementation of ScopedRoleGetter for testing. It implements the entire
+// [services.ScopedRoleReader] interface, but calls to other methods will panic. user key auth should only ever
+// invoke GetScopedRole.
+type mockScopedRoleGetter struct {
+	services.ScopedRoleReader
+	scopedRoles []*scopedaccessv1.ScopedRole
+}
+
+func (m mockScopedRoleGetter) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	for _, role := range m.scopedRoles {
+		if role.Metadata.Name == req.Name {
+			return &scopedaccessv1.GetScopedRoleResponse{
+				Role: role,
+			}, nil
+		}
+	}
+	return nil, trace.NotFound("scoped role %q not found", req.Name)
 }
 
 type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) canLoginWithRBAC(_ *ssh.Certificate, _ types.CertAuthority, _ string, _ types.Server, _, _ string) error {
+func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, error) {
 	m.rbacChecked = true
-	return nil
+	return nil, nil
+}
+
+type mockGitForwardingChecker struct {
+	rbacChecked bool
+}
+
+func (m *mockGitForwardingChecker) evaluateGitForwarding(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server) (*GitForwardingPermit, error) {
+	m.rbacChecked = true
+	return nil, nil
 }
 
 type mockConnMetadata struct{}
@@ -102,39 +151,67 @@ func (m mockConnMetadata) RemoteAddr() net.Addr {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+
+	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+	}, nil)
+	require.NoError(t, err)
+
+	openSSHNode, err := types.NewNode("openssh", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "openssh",
+	}, nil)
+	require.NoError(t, err)
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
-		name            string
-		component       string
-		nodeExists      bool
-		openSSHNode     bool
-		assertRBACCheck require.BoolAssertionFunc
+		name           string
+		component      string
+		targetServer   types.Server
+		loginRBACCheck require.BoolAssertionFunc
+		gitRBACCheck   require.BoolAssertionFunc
 	}{
 		{
-			name:            "teleport node, regular server",
-			component:       teleport.ComponentNode,
-			nodeExists:      true,
-			openSSHNode:     false,
-			assertRBACCheck: require.True,
+			name:           "teleport node, regular server",
+			component:      teleport.ComponentNode,
+			targetServer:   node,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "teleport node, forwarding server",
-			component:       teleport.ComponentForwardingNode,
-			nodeExists:      true,
-			openSSHNode:     false,
-			assertRBACCheck: require.False,
+			name:           "teleport node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   node,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "registered openssh node, forwarding server",
-			component:       teleport.ComponentForwardingNode,
-			nodeExists:      true,
-			openSSHNode:     true,
-			assertRBACCheck: require.True,
+			name:           "registered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   openSSHNode,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
 		},
 		{
-			name:            "unregistered openssh node, forwarding server",
-			component:       teleport.ComponentForwardingNode,
-			nodeExists:      false,
-			assertRBACCheck: require.False,
+			name:           "unregistered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   nil,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "forwarding git",
+			component:      teleport.ComponentForwardingGit,
+			targetServer:   gitServer,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.True,
 		},
 	}
 
@@ -166,45 +243,34 @@ func TestRBAC(t *testing.T) {
 	err = server.auth.SetClusterName(clusterName)
 	require.NoError(t, err)
 
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
 	accessPoint := mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
 		authPref:    types.DefaultAuthPreference(),
-		cas: map[types.CertAuthType]types.CertAuthority{
-			types.UserCA: userCA,
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// create node resource
-			var target types.Server
-			if tt.nodeExists {
-				n, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
-					Addr:     "1.2.3.4:22",
-					Hostname: "testie",
-					Version:  types.V2,
-				})
-				require.NoError(t, err)
-				server, ok := n.(*types.ServerV2)
-				require.True(t, ok)
-				if tt.openSSHNode {
-					server.SubKind = types.SubKindOpenSSHNode
-				}
-				target = server
-			}
-
 			config := &AuthHandlerConfig{
 				Server:       server,
 				Component:    tt.component,
 				Emitter:      &eventstest.MockRecorderEmitter{},
 				AccessPoint:  accessPoint,
-				TargetServer: target,
+				TargetServer: tt.targetServer,
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
 
 			lc := mockLoginChecker{}
 			ah.loginChecker = &lc
+
+			gc := mockGitForwardingChecker{}
+			ah.gitForwardingChecker = &gc
 
 			// create SSH certificate
 			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
@@ -213,11 +279,327 @@ func TestRBAC(t *testing.T) {
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
-			c, err := keygen.GenerateUserCert(services.UserCertParams{
+			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 				CASigner:      caSigner,
 				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-				Username:      "testuser",
-				AllowedLogins: []string{"testuser"},
+				Identity: sshca.Identity{
+					Username:   "testuser",
+					Principals: []string{"testuser"},
+				},
+			})
+			require.NoError(t, err)
+
+			cert, err := sshutils.ParseCertificate(c)
+			require.NoError(t, err)
+
+			// perform public key authentication
+			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+			require.NoError(t, err)
+
+			tt.loginRBACCheck(t, lc.rbacChecked)
+			tt.gitRBACCheck(t, gc.rbacChecked)
+		})
+	}
+}
+
+// TestScopedRBAC verifies that scoped RBAC checks are performed correctly.
+func TestScopedRBAC(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testnode",
+	}, map[string]string{
+		"team": "red",
+	})
+	require.NoError(t, err)
+
+	serverV2 := node.(*types.ServerV2)
+	serverV2.Scope = "/staging/west"
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+
+	// set the mock SSH server's view of itself when performing RBAC
+	// checks in `ComponentNode` mode.
+	server.setInfo(node)
+
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	scopedRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-red",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"testuser"},
+					NodeLabels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-blue",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"testuser"},
+					NodeLabels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"blue"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-east-red",
+			},
+			Scope: "/staging/east",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/east"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"testuser"},
+					NodeLabels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "prod-west-red",
+			},
+			Scope: "/prod/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/prod/west"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"testuser"},
+					NodeLabels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-no-labels",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"testuser"},
+				},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "staging-west-wrong-login",
+			},
+			Scope: "/staging/west",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging/west"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"wronguser"},
+					NodeLabels: []*labelv1.Label{
+						{
+							Name:   "team",
+							Values: []string{"red"},
+						},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	}
+
+	accessPoint := mockScopedRoleReaderGetter{
+		AccessPoint: mockCAandAuthPrefGetter{
+			AccessPoint: server.auth,
+			authPref:    types.DefaultAuthPreference(),
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {userCA},
+			},
+		},
+		scopedRoles: scopedRoles,
+	}
+
+	tts := []struct {
+		name    string
+		pin     *scopesv1.Pin
+		allowed bool
+	}{
+		{
+			name: "basic allow",
+			pin: &scopesv1.Pin{
+				Scope: "/staging",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/staging/west": {
+						Roles: []string{"staging-west-red"},
+					},
+				},
+			},
+			allowed: true,
+		},
+		{
+			name: "too narrow scope",
+			pin: &scopesv1.Pin{
+				Scope: "/staging/west/narrow",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/staging/west": {
+						Roles: []string{"staging-west-red"},
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "label mismatch",
+			pin: &scopesv1.Pin{
+				Scope: "/staging",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/staging/west": {
+						Roles: []string{"staging-west-blue"},
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "scope permission mismatch",
+			pin: &scopesv1.Pin{
+				Scope: "/staging",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/staging/east": {
+						Roles: []string{"staging-east-red"},
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "orthogonal scope",
+			pin: &scopesv1.Pin{
+				Scope: "/prod",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/prod/west": {
+						Roles: []string{"prod-west-red"},
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "no labels",
+			pin: &scopesv1.Pin{
+				Scope: "/staging",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/staging/west": {
+						Roles: []string{"staging-west-no-labels"},
+					},
+				},
+			},
+			allowed: false,
+		},
+		{
+			name: "wrong login",
+			pin: &scopesv1.Pin{
+				Scope: "/staging",
+				Assignments: map[string]*scopesv1.PinnedAssignments{
+					"/staging/west": {
+						Roles: []string{"staging-west-wrong-login"},
+					},
+				},
+			},
+			allowed: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &AuthHandlerConfig{
+				Server:       server,
+				Component:    teleport.ComponentNode,
+				Emitter:      &eventstest.MockRecorderEmitter{},
+				AccessPoint:  accessPoint,
+				TargetServer: node,
+			}
+			ah, err := NewAuthHandlers(config)
+			require.NoError(t, err)
+
+			// create SSH certificate
+			caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+			require.NoError(t, err)
+			keygen := testauthority.New()
+			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			require.NoError(t, err)
+
+			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:      caSigner,
+				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+				Identity: sshca.Identity{
+					Username:   "testuser",
+					Principals: []string{"testuser"},
+					ScopePin:   tt.pin,
+				},
 			})
 			require.NoError(t, err)
 
@@ -226,17 +608,149 @@ func TestRBAC(t *testing.T) {
 
 			// preform public key authentication
 			_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
-			require.NoError(t, err)
-
-			tt.assertRBACCheck(t, lc.rbacChecked)
+			if tt.allowed {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			}
 		})
 	}
+}
+
+// TestForwardingGitLocalOnly verifies that remote identities are categorically rejected
+// by UserKeyAuth when the auth handler is running as a ForwardingGit component.
+func TestForwardingGitLocalOnly(t *testing.T) {
+	t.Parallel()
+
+	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+		Integration:  "org",
+		Organization: "org",
+	})
+	require.NoError(t, err)
+
+	// create local User CA
+	localCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	localCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      localCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     localCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create remote User CA
+	remoteCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	remoteCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "remotehost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      remoteCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     remoteCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	accessPoint := mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    types.DefaultAuthPreference(),
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {remoteCA, localCA},
+		},
+	}
+
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentForwardingGit,
+		Emitter:      &eventstest.MockRecorderEmitter{},
+		AccessPoint:  accessPoint,
+		TargetServer: gitServer,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	gc := mockGitForwardingChecker{}
+	ah.gitForwardingChecker = &gc
+
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	keygen := testauthority.New()
+
+	// create local SSH certificate
+	localCASigner, err := ssh.NewSignerFromKey(localCAPriv)
+	require.NoError(t, err)
+
+	localCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      localCASigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	localCert, err := sshutils.ParseCertificate(localCertRaw)
+	require.NoError(t, err)
+
+	// create remote SSH certificate
+	remoteCASigner, err := ssh.NewSignerFromKey(remoteCAPriv)
+	require.NoError(t, err)
+
+	remoteCertRaw, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      remoteCASigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	remoteCert, err := sshutils.ParseCertificate(remoteCertRaw)
+	require.NoError(t, err)
+
+	// verify that authentication succeeds for local cert but is rejected categorically for remote
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, localCert)
+	require.NoError(t, err)
+	require.True(t, gc.rbacChecked)
+
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, remoteCert)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cross-cluster git forwarding is not supported")
 }
 
 // TestRBACJoinMFA tests that MFA is enforced correctly when joining
 // sessions depending on the cluster auth preference and roles presented.
 func TestRBACJoinMFA(t *testing.T) {
 	t.Parallel()
+
+	ctx := t.Context()
 
 	const clusterName = "localhost"
 	const username = "testuser"
@@ -268,12 +782,11 @@ func TestRBACJoinMFA(t *testing.T) {
 	require.NoError(t, err)
 	err = server.auth.SetClusterName(cn)
 	require.NoError(t, err)
-	ctx := context.Background()
 
 	accessPoint := &mockCAandAuthPrefGetter{
 		AccessPoint: server.auth,
-		cas: map[types.CertAuthType]types.CertAuthority{
-			types.UserCA: userCA,
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
 		},
 	}
 
@@ -331,6 +844,9 @@ func TestRBACJoinMFA(t *testing.T) {
 	_, err = server.auth.CreateRole(ctx, joinRole)
 	require.NoError(t, err)
 
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
 	tests := []struct {
 		name      string
 		authPref  types.AuthPreference
@@ -385,24 +901,177 @@ func TestRBACJoinMFA(t *testing.T) {
 			require.NoError(t, err)
 
 			keygen := testauthority.New()
-			c, err := keygen.GenerateUserCert(services.UserCertParams{
-				CASigner:      caSigner,
-				PublicUserKey: privateKey.MarshalSSHPublicKey(),
-				Username:      username,
-				AllowedLogins: []string{username},
-				Traits: wrappers.Traits{
-					teleport.TraitInternalPrefix: []string{""},
-				},
-				Roles:             []string{tt.role},
+			c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+				CASigner:          caSigner,
+				PublicUserKey:     privateKey.MarshalSSHPublicKey(),
 				CertificateFormat: constants.CertificateFormatStandard,
+				Identity: sshca.Identity{
+					Username:   username,
+					Principals: []string{username},
+					Traits: wrappers.Traits{
+						teleport.TraitInternalPrefix: []string{""},
+					},
+					Roles: []string{tt.role},
+				},
 			})
 			require.NoError(t, err)
 
 			cert, err := sshutils.ParseCertificate(c)
 			require.NoError(t, err)
 
-			err = ah.canLoginWithRBAC(cert, userCA, clusterName, node, username, teleport.SSHSessionJoinPrincipal)
+			ident, err := sshca.DecodeIdentity(cert)
+			require.NoError(t, err)
+
+			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 		})
 	}
+}
+
+func TestAuthorityForCert(t *testing.T) {
+	rawCA1, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca1, err := ssh.NewPublicKey(rawCA1)
+	require.NoError(t, err)
+
+	rawCA2, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca2, err := ssh.NewPublicKey(rawCA2)
+	require.NoError(t, err)
+
+	rawCA3, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	ca3, err := ssh.NewPublicKey(rawCA3)
+	require.NoError(t, err)
+
+	ah := &AuthHandlers{c: &AuthHandlerConfig{
+		Server: (*mockServer)(nil),
+		AccessPoint: mockCAandAuthPrefGetter{
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {&types.CertAuthorityV2{
+					Spec: types.CertAuthoritySpecV2{
+						ActiveKeys: types.CAKeySet{
+							SSH: []*types.SSHKeyPair{
+								{PublicKey: ssh.MarshalAuthorizedKey(ca1)},
+								{PublicKey: ssh.MarshalAuthorizedKey(ca2)},
+							},
+						},
+					},
+				}},
+			},
+		},
+	}}
+
+	cert1 := &ssh.Certificate{
+		Key:          ca1,
+		SignatureKey: ca1,
+	}
+
+	_, err = ah.authorityForCert(types.UserCA, ca1)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca2)
+	require.NoError(t, err)
+	_, err = ah.authorityForCert(types.UserCA, ca3)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = ah.authorityForCert(types.UserCA, cert1)
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError), "a certificate signed by a certificate should not pass validation")
+}
+
+// TestAuthAttemptAuditEvent tests that AuthAttempt audit event returns host id
+// and hostname of target node.
+func TestAuthAttemptAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// create dummy node
+	node, err := types.NewServer("testie_node", types.KindNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "testie",
+		Version:  types.V2,
+	})
+	require.NoError(t, err)
+
+	// create User CA
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: "localhost",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{
+				{
+					PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+					PrivateKey:     userCAPriv.PrivateKeyPEM(),
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// create mock SSH server and add a cluster name
+	server := newMockServer(t)
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	err = server.auth.SetClusterName(clusterName)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	accessPoint := mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    types.DefaultAuthPreference(),
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
+		},
+	}
+
+	// create mock emitter
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	// create auth handler
+	config := &AuthHandlerConfig{
+		Server:       server,
+		Component:    teleport.ComponentNode,
+		Emitter:      emitter,
+		AccessPoint:  accessPoint,
+		TargetServer: node,
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	// create SSH certificate
+	caSigner, err := ssh.NewSignerFromKey(userCAPriv)
+	require.NoError(t, err)
+	keygen := testauthority.New()
+	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	c, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+		CASigner:      caSigner,
+		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+		Identity: sshca.Identity{
+			Username:   "testuser",
+			Principals: []string{"testuser"},
+		},
+	})
+	require.NoError(t, err)
+
+	cert, err := sshutils.ParseCertificate(c)
+	require.NoError(t, err)
+
+	// perform public key authentication, should fail because no login checker set
+	_, err = ah.UserKeyAuth(&mockConnMetadata{}, cert)
+	require.Error(t, err)
+
+	// audit event (AuthAttempt) should include node's host id and hostname
+	authEvent := emitter.LastEvent().(*apievents.AuthAttempt)
+	require.Equal(t, node.GetName(), authEvent.ServerID)
+	require.Equal(t, node.GetHostname(), authEvent.ServerHostname)
 }

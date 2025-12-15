@@ -37,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestJoinOpenSSH(t *testing.T) {
@@ -47,7 +47,7 @@ func TestJoinOpenSSH(t *testing.T) {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.StandardListenerSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -87,6 +87,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	openSSHCfg := servicecfg.MakeDefaultConfig()
 
 	openSSHCfg.OpenSSH.Enabled = true
+	openSSHCfg.DebugService.Enabled = false
 	err = config.ConfigureOpenSSH(&config.CommandLineFlags{
 		DataDir:           teleportDataDir,
 		ProxyServer:       rc.Web,

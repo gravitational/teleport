@@ -19,6 +19,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"reflect"
@@ -49,7 +50,7 @@ func makeTableColumnTitles(row any) (out []string) {
 	re := regexp.MustCompile(`([a-z])([A-Z])`)
 
 	t := reflect.TypeOf(row)
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		title := field.Tag.Get("title")
 		if title == "" {
@@ -65,7 +66,7 @@ func makeTableRows[T any](rows []T) [][]string {
 	for _, row := range rows {
 		var columnValues []string
 		v := reflect.ValueOf(row)
-		for i := 0; i < v.NumField(); i++ {
+		for i := range v.NumField() {
 			columnValues = append(columnValues, fmt.Sprintf("%v", v.Field(i)))
 		}
 		out = append(out, columnValues)
@@ -78,9 +79,20 @@ type printDatabaseTableConfig struct {
 	rows                []databaseTableRow
 	showProxyAndCluster bool
 	verbose             bool
+	// includeColumns specifies a whitelist of columns to include. verbose and
+	// showProxyAndCluster are ignored when includeColumns is provided.
+	includeColumns []string
 }
 
-func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
+func (cfg printDatabaseTableConfig) excludeColumns(allColumns []string) (out []string) {
+	if len(cfg.includeColumns) > 0 {
+		for _, column := range allColumns {
+			if !slices.Contains(cfg.includeColumns, column) {
+				out = append(out, column)
+			}
+		}
+		return
+	}
 	if !cfg.showProxyAndCluster {
 		out = append(out, "Proxy", "Cluster")
 	}
@@ -93,7 +105,7 @@ func (cfg printDatabaseTableConfig) excludeColumns() (out []string) {
 func printDatabaseTable(cfg printDatabaseTableConfig) {
 	allColumns := makeTableColumnTitles(databaseTableRow{})
 	rowsWithAllColumns := makeTableRows(cfg.rows)
-	excludeColumns := cfg.excludeColumns()
+	excludeColumns := cfg.excludeColumns(allColumns)
 
 	var printColumns []string
 	printRows := make([][]string, len(cfg.rows))
@@ -118,7 +130,7 @@ func printDatabaseTable(cfg printDatabaseTableConfig) {
 }
 
 func formatDatabaseRolesForDB(database types.Database, accessChecker services.AccessChecker) string {
-	if database.SupportsAutoUsers() && database.GetAdminUser().Name != "" {
+	if database.IsAutoUsersEnabled() {
 		// may happen if fetching the role set failed for any reason.
 		if accessChecker == nil {
 			return "(unknown)"
@@ -126,7 +138,10 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		autoUser, err := accessChecker.DatabaseAutoUserMode(database)
 		if err != nil {
-			log.Warnf("Failed to get DatabaseAutoUserMode for database %v: %v.", database.GetName(), err)
+			logger.WarnContext(context.Background(), "Failed to get DatabaseAutoUserMode for database",
+				"database", database.GetName(),
+				"error", err,
+			)
 			return ""
 		} else if !autoUser.IsEnabled() {
 			return ""
@@ -134,9 +149,13 @@ func formatDatabaseRolesForDB(database types.Database, accessChecker services.Ac
 
 		roles, err := accessChecker.CheckDatabaseRoles(database, nil)
 		if err != nil {
-			log.Warnf("Failed to CheckDatabaseRoles for database %v: %v.", database.GetName(), err)
+			logger.WarnContext(context.Background(), "Failed to CheckDatabaseRoles for database",
+				"database", database.GetName(),
+				"error", err,
+			)
 			return ""
 		}
+		slices.Sort(roles)
 		return fmt.Sprintf("%v", roles)
 	}
 	return ""

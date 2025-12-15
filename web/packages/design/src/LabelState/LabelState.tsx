@@ -19,17 +19,17 @@
 import styled from 'styled-components';
 
 import {
-  fontSize,
-  FontSizeProps,
   color,
   ColorProps,
-  width,
-  WidthProps,
+  fontSize,
+  FontSizeProps,
   space,
   SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
-import { fade } from 'design/theme/utils/colorManipulator';
 import { Theme } from 'design/theme/themes/types';
+import { fade } from 'design/theme/utils/colorManipulator';
 
 export type LabelKind =
   | 'primary'
@@ -85,11 +85,7 @@ const kinds = ({ theme, kind, shadow }: ThemedKindsProps) => {
 };
 
 interface LabelStateProps
-  extends SpaceProps,
-    KindsProps,
-    WidthProps,
-    ColorProps,
-    FontSizeProps {}
+  extends SpaceProps, KindsProps, WidthProps, ColorProps, FontSizeProps {}
 
 const LabelState = styled.span<LabelStateProps>`
   box-sizing: border-box;

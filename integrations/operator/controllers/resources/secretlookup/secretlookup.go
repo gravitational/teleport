@@ -100,8 +100,8 @@ func isInclusionAllowed(secret *corev1.Secret, name string) error {
 	if annotation == types.Wildcard {
 		return nil
 	}
-	allowedCRs := strings.Split(annotation, ",")
-	for _, allowedCR := range allowedCRs {
+	allowedCRs := strings.SplitSeq(annotation, ",")
+	for allowedCR := range allowedCRs {
 		if strings.TrimSpace(allowedCR) == name {
 			return nil
 		}

@@ -24,7 +24,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -58,7 +57,8 @@ func newMockMailgunServer(concurrency int) *mockMailgunServer {
 	s := httptest.NewUnstartedServer(func(mg *mockMailgunServer) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseMultipartForm(multipartFormBufSize); err != nil {
-				log.Error(err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
 			}
 
 			id := uuid.New().String()

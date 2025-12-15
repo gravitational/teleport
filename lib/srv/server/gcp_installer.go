@@ -20,12 +20,11 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
@@ -41,26 +40,29 @@ type GCPInstaller struct {
 // GCPRunRequest combines parameters for running commands on a set of GCP
 // virtual machines.
 type GCPRunRequest struct {
-	Client          gcp.InstancesClient
-	Instances       []*gcpimds.Instance
-	Params          []string
-	Zone            string
-	ProjectID       string
-	ScriptName      string
-	PublicProxyAddr string
-	SSHKeyAlgo      cryptosuites.Algorithm
+	Client            gcp.InstancesClient
+	Instances         []*gcpimds.Instance
+	InstallerParams   *types.InstallerParams
+	Zone              string
+	ProjectID         string
+	SSHKeyAlgo        cryptosuites.Algorithm
+	PublicProxyGetter func(context.Context) (string, error)
 }
 
 // Run runs a command on a set of virtual machines and then blocks until the
 // commands have completed.
 func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
+	script, err := installerScript(ctx, req.InstallerParams, withProxyAddrGetter(req.PublicProxyGetter))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	g, ctx := errgroup.WithContext(ctx)
 	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
 	// hundreds of nodes at once.
 	g.SetLimit(10)
 
 	for _, inst := range req.Instances {
-		inst := inst
 		g.Go(func() error {
 			runRequest := gcp.RunCommandRequest{
 				Client: req.Client,
@@ -69,23 +71,11 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 					Zone:      inst.Zone,
 					Name:      inst.Name,
 				},
-				Script: getGCPInstallerScript(
-					req.ScriptName,
-					req.PublicProxyAddr,
-					req.Params,
-				),
+				Script:     script,
 				SSHKeyAlgo: req.SSHKeyAlgo,
 			}
 			return trace.Wrap(gcp.RunCommand(ctx, &runRequest))
 		})
 	}
 	return trace.Wrap(g.Wait())
-}
-
-func getGCPInstallerScript(installerName, publicProxyAddr string, params []string) string {
-	return fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%s | bash -s %s",
-		publicProxyAddr,
-		installerName,
-		strings.Join(params, " "),
-	)
 }

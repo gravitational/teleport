@@ -1,0 +1,34 @@
+If flag `--db-user` is not provided, Teleport logs in as the `default` user.
+
+Now, depending on the authentication configurations, you may need to send an
+`AUTH` command to authenticate with the Redis server:
+
+<Tabs>
+  <TabItem label="Redis with ACL">
+    The Database Service automatically authenticates Teleport-managed and
+    IAM-enabled users with the database. No `AUTH` command is required after
+    successful connection.
+
+    If you are connecting as a user that is not managed by Teleport and is not
+    IAM-enabled, the connection normally starts as the `default` user.
+    Now you can authenticate the database user with its password:
+
+    ```
+    AUTH my-database-user <USER_PASSWORD>
+    ```
+  </TabItem>
+
+  <TabItem label="Redis with AUTH token">
+    Now you can authenticate with the shared AUTH token:
+
+    ```
+    AUTH <SHARED_AUTH_TOKEN>
+    ```
+  </TabItem>
+
+  <TabItem label="Redis without AUTH">
+    For Redis or Valkey deployments without the ACL system or legacy
+    `requirepass` directive enabled, no `AUTH` command is required.
+  </TabItem>
+
+</Tabs>

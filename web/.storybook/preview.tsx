@@ -16,27 +16,69 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, PropsWithChildren } from 'react';
-
-import { Preview } from '@storybook/react';
-
+import { Preview } from '@storybook/react-vite';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
 import { initialize, mswLoader } from 'msw-storybook-addon';
+import { ComponentType, PropsWithChildren } from 'react';
+import { sb } from 'storybook/test';
 
-import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
-import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
 import Box from '../packages/design/src/Box';
+import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
+import { Theme } from '../packages/design/src/theme/themes/types';
+import { ConfiguredThemeProvider } from '../packages/design/src/ThemeProvider';
+import cfg from '../packages/teleport/src/config';
+import history from '../packages/teleport/src/services/history/history';
+import { UserContextProvider } from '../packages/teleport/src/User';
+import Logger, { ConsoleService } from '../packages/teleterm/src/logger';
 import { StaticThemeProvider as TeletermThemeProvider } from '../packages/teleterm/src/ui/ThemeProvider';
 import {
   darkTheme as teletermDarkTheme,
   lightTheme as teletermLightTheme,
 } from '../packages/teleterm/src/ui/ThemeProvider/theme';
-import history from '../packages/teleport/src/services/history/history';
-import { UserContextProvider } from '../packages/teleport/src/User';
-import { Theme } from '../packages/design/src/theme/themes/types';
 
-initialize();
+initialize(
+  {
+    onUnhandledRequest(request, print) {
+      try {
+        // Ignores asset related http requests, otherwise
+        // it prints noisy warnings, hiding important ones.
+        const url = new URL(request.url);
+        if (
+          url.pathname.startsWith('/sb-common-assets') ||
+          url.pathname.startsWith('/index.json') ||
+          url.pathname.startsWith('/.storybook') ||
+          url.pathname.endsWith('.png') ||
+          url.pathname.endsWith('.svg') ||
+          url.pathname.endsWith('.css') ||
+          url.pathname.endsWith('.yaml')
+        ) {
+          return;
+        }
+      } catch {
+        /* empty */
+      }
+
+      print.warning();
+    },
+  },
+  [
+    // we emit these for posthog events (ignores any error),
+    // and we don't ever mock them in stories.
+    http.post(cfg.api.captureUserEventPath, () => {
+      return HttpResponse.json({ message: 'ok' });
+    }),
+    http.post(cfg.api.capturePreUserEventPath, () => {
+      return HttpResponse.json({ message: 'ok' });
+    }),
+  ]
+);
+
+sb.mock(import('../packages/teleport/src/services/recordings/metadata.ts'));
 
 history.init();
+
+Logger.init(new ConsoleService());
 
 interface ThemeDecoratorProps {
   theme: string;
@@ -85,6 +127,15 @@ function UserDecorator(props: PropsWithChildren<UserDecoratorProps>) {
   return props.children;
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
+
 const preview: Preview = {
   args: {
     userContext: false,
@@ -99,14 +150,21 @@ const preview: Preview = {
     controls: { expanded: true, disableSaveFromUI: true },
   },
   argTypes: { userContext: { table: { disable: true } } },
-  loaders: [mswLoader],
+  loaders: [
+    mswLoader,
+    () => {
+      queryClient.clear();
+    },
+  ],
   decorators: [
     (Story, meta) => (
-      <UserDecorator userContext={meta.args.userContext}>
-        <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
-          <Story />
-        </ThemeDecorator>
-      </UserDecorator>
+      <QueryClientProvider client={queryClient}>
+        <UserDecorator userContext={meta.args.userContext}>
+          <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
+            <Story />
+          </ThemeDecorator>
+        </UserDecorator>
+      </QueryClientProvider>
     ),
   ],
   globalTypes: {

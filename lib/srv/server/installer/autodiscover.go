@@ -46,6 +46,7 @@ import (
 	awsimds "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	azureimds "github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/linux"
 	"github.com/gravitational/teleport/lib/utils"
@@ -66,6 +67,16 @@ type AutoDiscoverNodeInstallerConfig struct {
 	// ProxyPublicAddr is the proxy public address that the instance will connect to.
 	// Eg, example.platform.sh
 	ProxyPublicAddr string
+
+	// InstallationManagedByTeleportUpdateWithSuffix indicates that a suffix was used to install teleport by teleport-update.
+	// When set, this command will use non-default file system paths:
+	// - teleport binary is located at: /opt/teleport/<suffix>/bin/teleport
+	// - systemd unit is located at: /etc/systemd/system/teleport_<suffix>.service
+	// - configuration must be written to: /etc/teleport_<suffix>.yaml
+	// - data directory must be set to: /var/lib/teleport_<suffix>
+	//
+	// This is in accordance with the teleport-update behavior.
+	InstallationManagedByTeleportUpdateWithSuffix string
 
 	// TeleportPackage contains the teleport package name.
 	// Allowed values: teleport, teleport-ent, teleport-ent-fips
@@ -141,6 +152,13 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 		c.autoUpgradesChannelURL = "https://" + c.ProxyPublicAddr + "/v1/webapi/automaticupgrades/channel/default"
 	}
 
+	if c.InstallationManagedByTeleportUpdateWithSuffix != "" {
+		// Only update it if not already set by the caller (only tests set it).
+		if c.binariesLocation.Teleport == "" {
+			c.binariesLocation.Teleport = filepath.Join(c.fsRootPrefix, "opt", "teleport", c.InstallationManagedByTeleportUpdateWithSuffix, "bin", "teleport")
+		}
+	}
+
 	c.binariesLocation.CheckAndSetDefaults()
 
 	if len(c.imdsProviders) == 0 {
@@ -160,6 +178,9 @@ func (c *AutoDiscoverNodeInstallerConfig) checkAndSetDefaults() error {
 
 				clt, err := gcpimds.NewInstanceMetadataClient(instancesClient)
 				return clt, trace.Wrap(err)
+			},
+			func(ctx context.Context) (imds.Client, error) {
+				return oracleimds.NewInstanceMetadataClient(), nil
 			},
 		}
 	}
@@ -207,6 +228,16 @@ var imdsClientTypeToJoinMethod = map[types.InstanceMetadataType]types.JoinMethod
 
 // Install teleport in the current system.
 func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
+	if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
+		slog.InfoContext(ctx, "Using non-default path for teleport installation",
+			"suffix", ani.InstallationManagedByTeleportUpdateWithSuffix,
+			"teleport_binary", ani.binariesLocation.Teleport,
+			"systemd_unit", ani.buildTeleportSystemdUnitName(),
+			"configuration_file", ani.buildTeleportConfigurationPath(),
+			"data_directory", ani.buildTeleportDataDirPath(),
+		)
+	}
+
 	// Ensure only one installer is running by locking the same file as the script installers.
 	lockFile := ani.buildAbsoluteFilePath(exclusiveInstallFileLock)
 	unlockFn, err := utils.FSTryWriteLock(lockFile)
@@ -226,7 +257,16 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 	ani.Logger.InfoContext(ctx, "Detected cloud provider", "cloud", imdsClient.GetType())
 
 	// Check if teleport is already installed and install it, if it's absent.
+	// In the new autoupdate install flow, teleport-update should have already
+	// taken care of installing teleport.
 	if _, err := os.Stat(ani.binariesLocation.Teleport); err != nil {
+		// If teleport is not present and the installation is managed by teleport-update,
+		// then this is an error because teleport-update should have installed it.
+		// This prevents the installer from installing teleport in a different version and/or location than the one managed by teleport-update.
+		if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
+			return trace.BadParameter("teleport binary not found, ensure teleport-update installed it correctly: %v", err)
+		}
+
 		ani.Logger.InfoContext(ctx, "Installing teleport")
 		if err := ani.installTeleportFromRepo(ctx); err != nil {
 			return trace.Wrap(err)
@@ -258,13 +298,15 @@ func (ani *AutoDiscoverNodeInstaller) Install(ctx context.Context) error {
 // - teleport was just installed and teleport.service is inactive
 // - teleport was already installed but the service is failing
 func (ani *AutoDiscoverNodeInstaller) enableAndRestartTeleportService(ctx context.Context) error {
-	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", "teleport")
+	serviceName := ani.buildTeleportSystemdUnitName()
+
+	systemctlEnableNowCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "enable", serviceName)
 	systemctlEnableNowCMDOutput, err := systemctlEnableNowCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(systemctlEnableNowCMDOutput))
 	}
 
-	systemctlRestartCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "restart", "teleport")
+	systemctlRestartCMD := exec.CommandContext(ctx, ani.binariesLocation.Systemctl, "restart", serviceName)
 	systemctlRestartCMDOutput, err := systemctlRestartCMD.CombinedOutput()
 	if err != nil {
 		return trace.Wrap(err, string(systemctlRestartCMDOutput))
@@ -297,9 +339,13 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 		return trace.BadParameter("Unsupported cloud provider: %v", imdsClient.GetType())
 	}
 
-	teleportYamlConfigurationPath := ani.buildAbsoluteFilePath(defaults.ConfigFilePath)
+	dataDirForNode := ani.buildTeleportDataDirPath()
+
+	teleportYamlConfigurationPath := ani.buildTeleportConfigurationPath()
 	teleportYamlConfigurationPathNew := teleportYamlConfigurationPath + teleportYamlConfigNewExtension
+
 	teleportNodeConfigureArgs := []string{"node", "configure", "--output=file://" + teleportYamlConfigurationPathNew,
+		fmt.Sprintf(`--data-dir=%s`, shsprintf.EscapeDefaultContext(dataDirForNode)),
 		fmt.Sprintf(`--proxy=%s`, shsprintf.EscapeDefaultContext(ani.ProxyPublicAddr)),
 		fmt.Sprintf(`--join-method=%s`, shsprintf.EscapeDefaultContext(string(joinMethod))),
 		fmt.Sprintf(`--token=%s`, shsprintf.EscapeDefaultContext(ani.TokenName)),
@@ -456,6 +502,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		return api.Version
 	}
 
+	// TODO(hugoShaka): convert this to a proxy version getter
 	targetVersion, err := version.NewBasicHTTPVersionGetter(upgradeURL).GetVersion(ctx)
 	if err != nil {
 		ani.Logger.WarnContext(ctx, "Failed to query target version, using api version",
@@ -467,7 +514,7 @@ func (ani *AutoDiscoverNodeInstaller) fetchTargetVersion(ctx context.Context) st
 		"channel_url", ani.autoUpgradesChannelURL,
 		"version", targetVersion)
 
-	return strings.TrimSpace(strings.TrimPrefix(targetVersion, "v"))
+	return strings.TrimSpace(strings.TrimPrefix(targetVersion.String(), "v"))
 }
 
 func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (map[string]string, error) {
@@ -544,6 +591,32 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 // buildAbsoluteFilePath creates the absolute file path
 func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(path string) string {
 	return filepath.Join(ani.fsRootPrefix, path)
+}
+
+func (ani *AutoDiscoverNodeInstaller) buildTeleportConfigurationPath() string {
+	filePath := defaults.ConfigFilePath
+	if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
+		fileName := "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix + ".yaml"
+		filePath = filepath.Join(filepath.Dir(defaults.ConfigFilePath), fileName)
+	}
+	return ani.buildAbsoluteFilePath(filePath)
+}
+
+func (ani *AutoDiscoverNodeInstaller) buildTeleportDataDirPath() string {
+	dataDirPath := defaults.DataDir
+	if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
+		dataDirName := "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix
+		dataDirPath = filepath.Join(filepath.Dir(defaults.DataDir), dataDirName)
+	}
+	return ani.buildAbsoluteFilePath(dataDirPath)
+}
+
+func (ani *AutoDiscoverNodeInstaller) buildTeleportSystemdUnitName() string {
+	if ani.InstallationManagedByTeleportUpdateWithSuffix != "" {
+		return "teleport_" + ani.InstallationManagedByTeleportUpdateWithSuffix
+	}
+
+	return "teleport"
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.

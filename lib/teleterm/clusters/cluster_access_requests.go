@@ -221,7 +221,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, rootClient *client.ClusterClie
 		}
 
 		// keep existing access requests that aren't included in the droprequests
-		for _, reqID := range c.status.ActiveRequests.AccessRequests {
+		for _, reqID := range c.status.ActiveRequests {
 			if !slices.Contains(req.DropRequestIds, reqID) {
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
@@ -234,7 +234,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, rootClient *client.ClusterClie
 		return trace.Wrap(err)
 	}
 
-	err = c.clusterClient.SaveProfile(true)
+	err = SaveProfileAndPreserveSiteName(c.clusterClient, true)
 	return trace.Wrap(err)
 }
 

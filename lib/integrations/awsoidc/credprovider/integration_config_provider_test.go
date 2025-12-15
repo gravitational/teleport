@@ -19,7 +19,6 @@ package credprovider
 import (
 	"context"
 	"crypto"
-	"sync/atomic"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -55,24 +53,6 @@ func TestCreateAWSConfigForIntegration(t *testing.T) {
 			STSClient:             stsClient,
 		})
 		require.NoError(t, err)
-		require.Equal(t, int32(0), atomic.LoadInt32(&stsClient.called))
-
-		creds, err := config.Credentials.Retrieve(ctx)
-		require.NoError(t, err)
-		require.NotEmpty(t, creds.SecretAccessKey)
-	})
-
-	t.Run("should init creds before retrieve call", func(t *testing.T) {
-		stsClient := &fakeSTSClient{clock: clockwork.NewFakeClock()}
-		config, err := CreateAWSConfigForIntegration(ctx, Config{
-			Region:                awsRegion,
-			IntegrationName:       integrationName,
-			IntegrationGetter:     deps,
-			AWSOIDCTokenGenerator: deps,
-			STSClient:             stsClient,
-		}, WithWaitForFirstInit(true))
-		require.NoError(t, err)
-		require.Equal(t, int32(1), atomic.LoadInt32(&stsClient.called))
 
 		creds, err := config.Credentials.Retrieve(ctx)
 		require.NoError(t, err)
@@ -88,19 +68,10 @@ type depsMock struct {
 	proxies []types.Server
 }
 
-func (d *depsMock) GenerateOIDCTokenFn(ctx context.Context, integration string) (string, error) {
-	token, err := awsoidc.GenerateAWSOIDCToken(ctx, d, d, awsoidc.GenerateAWSOIDCTokenRequest{
-		Integration: integrationName,
-		Username:    testUser,
-		Subject:     types.IntegrationAWSOIDCSubject,
-	})
-	return token, trace.Wrap(err)
-}
-
 func (d *depsMock) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, d, d, awsoidc.GenerateAWSOIDCTokenRequest{
 		Integration: integration,
-		Username:    "test-user",
+		Username:    testUser,
 		Subject:     types.IntegrationAWSOIDCSubject,
 	})
 	return token, trace.Wrap(err)
@@ -121,7 +92,11 @@ func (d *depsMock) GetProxies() ([]types.Server, error) {
 	return d.proxies, nil
 }
 
-func (d *depsMock) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
+func (d *depsMock) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return d.proxies, "", nil
+}
+
+func (d *depsMock) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "teleport.example.com", ClusterID: "cluster-id"})
 }
 

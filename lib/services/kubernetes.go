@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -31,6 +32,10 @@ import (
 type KubernetesClusterGetter interface {
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
+	// ListKubernetesClusters returns a page of registered kubernetes clusters.
+	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
+	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
@@ -91,7 +96,7 @@ func UnmarshalKubeServer(data []byte, opts ...MarshalOption) (types.KubeServer, 
 	case types.V3:
 		var s types.KubernetesServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -147,7 +152,7 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 	case types.V3:
 		var s types.KubernetesClusterV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

@@ -23,24 +23,25 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"slices"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
 // urlChecker validates the database has the correct URL.
 type urlChecker struct {
-	clients     cloud.Clients
-	logger      *slog.Logger
-	warnOnError bool
+	// awsConfigProvider provides [aws.Config] for AWS SDK service clients.
+	awsConfigProvider awsconfig.Provider
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
+
+	logger *slog.Logger
 
 	warnAWSOnce sync.Once
 
@@ -52,30 +53,10 @@ type urlChecker struct {
 
 func newURLChecker(cfg DiscoveryResourceCheckerConfig) *urlChecker {
 	return &urlChecker{
-		clients:     cfg.Clients,
-		logger:      cfg.Logger,
-		warnOnError: getWarnOnError(),
+		awsConfigProvider: cfg.AWSConfigProvider,
+		awsClients:        defaultAWSClients{},
+		logger:            cfg.Logger,
 	}
-}
-
-// getWarnOnError returns true if urlChecker should only log a warning instead
-// of returning errors when check fails.
-//
-// DELETE IN 16.0.0 The environement variable is a temporary toggle to disable
-// returning errors by urlChecker, in case Database Service doesn't have proper
-// permissions and basic endpoint checks fail for unknown reasons. Remove after
-// one or two releases when implementation is stable.
-func getWarnOnError() bool {
-	value := os.Getenv("TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR")
-	if value == "" {
-		return false
-	}
-
-	boolValue, err := utils.ParseBool(value)
-	if err != nil {
-		slog.WarnContext(context.Background(), "Invalid bool value for TELEPORT_DATABASE_URL_CHECK_WARN_ON_ERROR", "value", value)
-	}
-	return boolValue
 }
 
 type checkDatabaseFunc func(context.Context, types.Database) error
@@ -93,24 +74,21 @@ func convIsEndpoint(isEndpoint isEndpointFunc) checkDatabaseFunc {
 // Check permforms url checks.
 func (c *urlChecker) Check(ctx context.Context, database types.Database) error {
 	checkersByDatabaseType := map[string]checkDatabaseFunc{
-		types.DatabaseTypeRDS:                c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
-		types.DatabaseTypeRDSProxy:           c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
-		types.DatabaseTypeRedshift:           c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
-		types.DatabaseTypeRedshiftServerless: c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),
-		types.DatabaseTypeElastiCache:        c.checkAWS(c.checkElastiCache, convIsEndpoint(apiawsutils.IsElastiCacheEndpoint)),
-		types.DatabaseTypeMemoryDB:           c.checkAWS(c.checkMemoryDB, convIsEndpoint(apiawsutils.IsMemoryDBEndpoint)),
-		types.DatabaseTypeOpenSearch:         c.checkAWS(c.checkOpenSearch, c.checkOpenSearchEndpoint),
-		types.DatabaseTypeDocumentDB:         c.checkAWS(c.checkDocumentDB, convIsEndpoint(apiawsutils.IsDocumentDBEndpoint)),
-		types.DatabaseTypeAzure:              c.checkAzure,
+		types.DatabaseTypeRDS:                   c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSOracle:             c.checkAWS(c.checkRDS, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRDSProxy:              c.checkAWS(c.checkRDSProxy, convIsEndpoint(apiawsutils.IsRDSEndpoint)),
+		types.DatabaseTypeRedshift:              c.checkAWS(c.checkRedshift, convIsEndpoint(apiawsutils.IsRedshiftEndpoint)),
+		types.DatabaseTypeRedshiftServerless:    c.checkAWS(c.checkRedshiftServerless, convIsEndpoint(apiawsutils.IsRedshiftServerlessEndpoint)),
+		types.DatabaseTypeElastiCache:           c.checkAWS(c.checkElastiCache, convIsEndpoint(apiawsutils.IsElastiCacheEndpoint)),
+		types.DatabaseTypeElastiCacheServerless: c.checkAWS(c.checkElastiCacheServerless, convIsEndpoint(apiawsutils.IsElastiCacheServerlessEndpoint)),
+		types.DatabaseTypeMemoryDB:              c.checkAWS(c.checkMemoryDB, convIsEndpoint(apiawsutils.IsMemoryDBEndpoint)),
+		types.DatabaseTypeOpenSearch:            c.checkAWS(c.checkOpenSearch, c.checkOpenSearchEndpoint),
+		types.DatabaseTypeDocumentDB:            c.checkAWS(c.checkDocumentDB, convIsEndpoint(apiawsutils.IsDocumentDBEndpoint)),
+		types.DatabaseTypeAzure:                 c.checkAzure,
 	}
 
 	if check := checkersByDatabaseType[database.GetType()]; check != nil {
-		err := check(ctx, database)
-		if err != nil && c.warnOnError {
-			c.logger.WarnContext(ctx, "URL check failed for database", "database", database.GetName(), "error", err)
-			return nil
-		}
-		return trace.Wrap(err)
+		return trace.Wrap(check(ctx, database))
 	}
 
 	c.logger.DebugContext(ctx, "URL checker does not support database type", "database_type", database.GetType())
@@ -121,8 +99,8 @@ func requireDatabaseIsEndpoint(ctx context.Context, database types.Database, isE
 	return trace.Wrap(convIsEndpoint(isEndpoint)(ctx, database))
 }
 
-func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int64) error {
-	wantURL := fmt.Sprintf("%v:%v", aws.StringValue(wantURLHost), aws.Int64Value(wantURLPort))
+func requireDatabaseAddressPort(database types.Database, wantURLHost *string, wantURLPort *int32) error {
+	wantURL := fmt.Sprintf("%v:%v", aws.ToString(wantURLHost), aws.ToInt32(wantURLPort))
 	if database.GetURI() != wantURL {
 		return trace.BadParameter("expect database URL %q but got %q for database %q", wantURL, database.GetURI(), database.GetName())
 	}

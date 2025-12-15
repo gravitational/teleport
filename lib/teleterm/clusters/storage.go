@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
@@ -43,13 +42,12 @@ func NewStorage(cfg Config) (*Storage, error) {
 
 // ListProfileNames returns just the names of profiles in s.Dir.
 func (s *Storage) ListProfileNames() ([]string, error) {
-	pfNames, err := profile.ListProfileNames(s.Dir)
-	return pfNames, trace.Wrap(err)
+	return s.ClientStore.ListProfiles()
 }
 
 // ListRootClusters reads root clusters from profiles.
 func (s *Storage) ListRootClusters() ([]*Cluster, error) {
-	pfNames, err := s.ListProfileNames()
+	pfNames, err := s.ClientStore.ListProfiles()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,11 +110,7 @@ func (s *Storage) ResolveCluster(resourceURI uri.ResourceURI) (*Cluster, *client
 
 // Remove removes a cluster
 func (s *Storage) Remove(ctx context.Context, profileName string) error {
-	if err := profile.RemoveProfile(s.Dir, profileName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return s.ClientStore.DeleteProfile(profileName)
 }
 
 // Add adds a cluster
@@ -125,8 +119,10 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 // clusters.Cluster a regular struct with no extra behavior and a much smaller interface.
 // https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
-	profiles, err := profile.ListProfileNames(s.Dir)
-	if err != nil {
+	profiles, err := s.ListProfileNames()
+	// If the tsh directory does not exist, [client.ProfileStore.SaveProfile] will
+	// create it.
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -141,7 +137,7 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 		}
 	}
 
-	cluster, clusterClient, err := s.addCluster(ctx, s.Dir, webProxyAddress)
+	cluster, clusterClient, err := s.addCluster(ctx, webProxyAddress)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -152,19 +148,15 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *c
 // addCluster adds a new cluster. This makes the underlying profile .yaml file to be saved to the
 // tsh home dir without logging in the user yet. Adding a cluster makes it show up in the UI as the
 // list of clusters depends on the profiles in the home dir of tsh.
-func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
+func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	if webProxyAddress == "" {
 		return nil, nil, trace.BadParameter("cluster address is missing")
-	}
-
-	if dir == "" {
-		return nil, nil, trace.BadParameter("cluster directory is missing")
 	}
 
 	profileName := parseName(webProxyAddress)
 	clusterURI := uri.NewClusterURI(profileName)
 
-	cfg := s.makeDefaultClientConfig(clusterURI)
+	cfg := s.makeClientConfig()
 	cfg.WebProxyAddr = webProxyAddress
 
 	clusterClient, err := client.NewClient(cfg)
@@ -178,6 +170,13 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
+	// There's an incorrect default in api/profile.profileFromFile - an empty SiteName is replaced with the profile name.
+	// A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
+	// from the cluster name.
+	// Using this incorrect site name causes login failures in `tsh`, so we proactively set SiteName to the root cluster
+	// name instead.
+	clusterClient.SiteName = pingResponse.ClusterName
 
 	clusterLog := s.Logger.With("cluster", clusterURI)
 
@@ -199,9 +198,9 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		Name:          pingResponse.ClusterName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
-		dir:           s.Dir,
 		clock:         s.Clock,
 		Logger:        clusterLog,
+		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}, clusterClient, nil
 }
 
@@ -214,10 +213,8 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
 
-	profileStore := client.NewFSProfileStore(s.Dir)
-
-	cfg := s.makeDefaultClientConfig(clusterURI)
-	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
+	cfg := s.makeClientConfig()
+	if err := cfg.LoadProfile(profileName); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -225,6 +222,11 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		clusterNameForKey = leafClusterName
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
 		cfg.SiteName = leafClusterName
+	} else {
+		// Reset SiteName as it may reference a leaf cluster (the cluster can be changed
+		// through "tsh login <leaf>").
+		// The correct root cluster value will be set in loadProfileStatusAndClusterKey.
+		cfg.SiteName = ""
 	}
 
 	clusterClient, err := client.NewClient(cfg)
@@ -238,10 +240,10 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		Name:          clusterClient.SiteName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
-		dir:           s.Dir,
 		clock:         s.Clock,
 		statusError:   err,
 		Logger:        s.Logger.With("cluster", clusterURI),
+		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}
 	if status != nil {
 		cluster.status = *status
@@ -255,7 +257,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	status := &client.ProfileStatus{}
 
 	// load profile status if key exists
-	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
+	key, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			s.Logger.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
@@ -264,29 +266,64 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 		}
 	}
 
-	if err == nil && clusterClient.Username != "" {
-		status, err = clusterClient.ProfileStatus()
+	// If the key exists, and clusterClient is a root cluster client,
+	// extract the name from the key.
+	// We don't use SiteName from the profile as it can be changed
+	// through "tsh login <leaf>", so we would return a client that incorrectly
+	// points to the leaf cluster.
+	if err == nil && clusterClient.Config.SiteName == "" {
+		var rootClusterName string
+		rootClusterName, err = key.RootClusterName()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		clusterClient.Config.SiteName = rootClusterName
+		clusterClient.SiteName = rootClusterName
+	}
 
-		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
+	// TODO(gzdunek): If the key doesn't exist, we should still try to read
+	// the profile status.
+	// This creates an inconsistency in how the profile is interpreted after running
+	//`tsh logout --proxy=... --user=...`  by `tsh status` versus Connect.
+	//
+	// tsh will still show a profile that includes the username, while Connect
+	// receives an empty profile status and therefore has no username.
+	// Fixing this requires updating how ClusterLifecycleManager detects logouts.
+	// Right now it assumes that a logout results in an empty username.
+	// After the fix, the username would still be present, so we'll need to rely on
+	// a different field of LoggedInUser (or introduce a new one) to determine logout
+	// state reliably.
+	if err != nil || clusterClient.Username == "" {
+		return status, nil
+	}
+
+	status, err = clusterClient.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load SSH key for the cluster indicated in the profile.
+	// Skip if the profile is empty, the key cannot be found, or the key isn't supported as an agent key.
+	err = clusterClient.LoadKeyForCluster(context.Background(), status.Cluster)
+	if err != nil {
+		if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
 			return nil, trace.Wrap(err)
 		}
+		s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent",
+			"cluster", status.Cluster,
+			"error", err,
+		)
 	}
 
 	return status, nil
 }
 
-func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *client.Config {
-	cfg := client.MakeDefaultConfig()
-
-	cfg.HomePath = s.Dir
-	cfg.KeysDir = s.Dir
+func (s *Storage) makeClientConfig() *client.Config {
+	cfg := &client.Config{}
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.AddKeysToAgent = s.AddKeysToAgent
 	cfg.WebauthnLogin = s.WebauthnLogin
-	cfg.CustomHardwareKeyPrompt = s.HardwareKeyPromptConstructor(rootClusterURI)
+	cfg.ClientStore = s.ClientStore
 	cfg.DTAuthnRunCeremony = dtauthn.NewCeremony().Run
 	cfg.DTAutoEnroll = dtenroll.AutoEnroll
 	return cfg

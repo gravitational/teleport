@@ -1,6 +1,6 @@
-import { TextEncoder, TextDecoder } from 'node:util';
+import { TransformStream, WritableStream } from 'node:stream/web';
+import { TextDecoder, TextEncoder } from 'node:util';
 import { BroadcastChannel } from 'node:worker_threads';
-import { TransformStream } from 'node:stream/web';
 
 import { TestEnvironment as JSDOMEnvironment } from 'jest-environment-jsdom';
 
@@ -25,15 +25,19 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     // TODO(sshah): Remove this once JSDOM provides structuredClone.
     // https://github.com/jsdom/jsdom/issues/3363
     if (!global.structuredClone) {
-      global.structuredClone = val => {
-        return JSON.parse(JSON.stringify(val));
-      };
+      global.structuredClone = structuredClone;
     }
 
     // TODO(gzdunek): Remove this once JSDOM provides scrollIntoView.
     // https://github.com/jsdom/jsdom/issues/1695#issuecomment-449931788
     if (!global.Element.prototype.scrollIntoView) {
       global.Element.prototype.scrollIntoView = () => {};
+    }
+
+    // TODO(ryanclark): Remove this once JSDOM provides scrollTo.
+    // https://github.com/jsdom/jsdom/issues/2751
+    if (!global.Element.prototype.scrollTo) {
+      global.Element.prototype.scrollTo = () => {};
     }
 
     // TODO(gzdunek): Remove this once JSDOM provides matchMedia.
@@ -58,6 +62,30 @@ export default class PatchedJSDOMEnvironment extends JSDOMEnvironment {
     }
     if (!global.TransformStream) {
       global.TransformStream = TransformStream;
+    }
+
+    // If a test actually depends on a working ResizeObserver implementation, call
+    // mockResizeObserver provided by jsdom-testing-mocks.
+    if (!global.ResizeObserver) {
+      function NullResizeObserver() {
+        this.observe = () => {};
+        this.unobserve = () => {};
+        this.disconnect = () => {};
+      }
+
+      global.ResizeObserver = NullResizeObserver;
+    }
+
+    if (!global.navigator.permissions) {
+      global.navigator.permissions = {
+        query: async () => ({
+          onchange: () => {},
+        }),
+      };
+    }
+
+    if (!global.WritableStream) {
+      global.WritableStream = WritableStream;
     }
   }
 }

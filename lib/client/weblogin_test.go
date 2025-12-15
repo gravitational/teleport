@@ -74,7 +74,7 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		// Start an http server (not https) so that the request only succeeds
 		// if the fallback occurs.
 		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-			if r.RequestURI != "/v1/webapi/host/credentials" {
+			if r.RequestURI != "/webapi/host/credentials" {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
@@ -121,7 +121,6 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	t.Parallel()
-	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
@@ -131,12 +130,12 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	ctx := context.Background()
 
 	// Prepare client config, it won't change throughout the test.
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
+	cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 	cfg.AddKeysToAgent = client.AddKeysToAgentNo
 	// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
 	// for Webauthn requests, and Webauthn doesn't take IP addresses.
 	cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
-	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
 	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {

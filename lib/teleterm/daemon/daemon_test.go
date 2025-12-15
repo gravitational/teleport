@@ -19,6 +19,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -39,7 +40,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
@@ -78,11 +78,13 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		KubernetesCluster: params.TargetURI.GetKubeName(),
 	}
 
+	targetURI := params.TargetURI
+
 	config := gateway.Config{
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI.GetDbName() + params.TargetURI.GetKubeName(),
+		TargetName:            cmp.Or(targetURI.GetDbName(), targetURI.GetKubeName(), targetURI.GetAppName()),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		Insecure:              true,
@@ -242,10 +244,55 @@ func TestGatewayCRUD(t *testing.T) {
 				require.Equal(t, wantGateway, actualGateway)
 			},
 		},
+		{
+			name:                   "CreateGateway returns error if db gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:  createdGateway.TargetURI().String(),
+					TargetUser: createdGateway.TargetUser(),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			name:                   "CreateGateway returns error if app gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendApp,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:             createdGateway.TargetURI().String(),
+					TargetSubresourceName: createdGateway.TargetSubresourceName(),
+				})
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			name:                   "SetTargetSubresourceName returns error if db gateway already exists",
+			gatewayNamesToCreate:   []string{"gateway"},
+			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendDB,
+			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
+				createdGateway := c.nameToGateway["gateway"]
+				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
+					TargetURI:             createdGateway.TargetURI().String(),
+					TargetSubresourceName: "4242",
+				})
+				require.NoError(t, err)
+
+				_, err = daemon.SetGatewayTargetSubresourceName(context.Background(),
+					createdGateway.URI().String(), "4242")
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -272,7 +319,6 @@ func TestGatewayCRUD(t *testing.T) {
 			nameToGateway := make(map[string]gateway.Gateway, len(tt.gatewayNamesToCreate))
 
 			for _, gatewayName := range tt.gatewayNamesToCreate {
-				gatewayName := gatewayName
 				gateway, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{
 					TargetURI:             tt.appendGatewayTargetURI(gatewayName).String(),
 					TargetUser:            "alice",
@@ -294,14 +340,9 @@ func TestGatewayCRUD(t *testing.T) {
 }
 
 func TestUpdateTshdEventsServerAddress(t *testing.T) {
-	homeDir := t.TempDir()
-
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                homeDir,
+		ClientStore:        client.NewFSClientStore(t.TempDir()),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -311,11 +352,12 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
 
+	tshdEventsClient := NewTshdEventsClient(createTshdEventsClientCredsFunc)
 	daemon, err := New(Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
-		KubeconfigsDir:                  t.TempDir(),
-		AgentsDir:                       t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -325,20 +367,15 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, daemon.tshdEventsClient)
+	require.NotNil(t, daemon.cfg.TshdEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }
 
 func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
-	homeDir := t.TempDir()
-
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                homeDir,
+		ClientStore:        client.NewFSClientStore(t.TempDir()),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -346,11 +383,12 @@ func TestUpdateTshdEventsServerAddress_CredsErr(t *testing.T) {
 		return nil, trace.Errorf("Error while creating creds")
 	}
 
+	tshdEventsClient := NewTshdEventsClient(createTshdEventsClientCredsFunc)
 	daemon, err := New(Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: createTshdEventsClientCredsFunc,
-		KubeconfigsDir:                  t.TempDir(),
-		AgentsDir:                       t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -433,26 +471,24 @@ func TestRetryWithRelogin(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			storage, err := clusters.NewStorage(clusters.Config{
-				Dir:                t.TempDir(),
+				ClientStore:        client.NewFSClientStore(t.TempDir()),
 				InsecureSkipVerify: true,
-				HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-					return nil
-				},
 			})
 			require.NoError(t, err)
 
+			tshdEventsClient := NewTshdEventsClient(func() (grpc.DialOption, error) {
+				return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+			})
+
 			daemon, err := New(Config{
-				Storage: storage,
-				CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-					return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-				},
-				KubeconfigsDir: t.TempDir(),
-				AgentsDir:      t.TempDir(),
+				Storage:          storage,
+				TshdEventsClient: tshdEventsClient,
+				KubeconfigsDir:   t.TempDir(),
+				AgentsDir:        t.TempDir(),
 				CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
 					return fakeClientCache{}, nil
 				},
@@ -494,21 +530,20 @@ func TestConcurrentHeadlessAuthPrompts(t *testing.T) {
 	ctx := context.Background()
 
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                t.TempDir(),
+		ClientStore:        client.NewFSClientStore(t.TempDir()),
 		InsecureSkipVerify: true,
-		HardwareKeyPromptConstructor: func(rootClusterURI uri.ResourceURI) keys.HardwareKeyPrompt {
-			return nil
-		},
 	})
 	require.NoError(t, err)
 
+	tshdEventsClient := NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemon, err := New(Config{
-		Storage: storage,
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          storage,
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
 			return fakeClientCache{}, nil
 		},
@@ -652,13 +687,15 @@ func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Contex
 func TestGetGatewayCLICommand(t *testing.T) {
 	t.Parallel()
 
+	tshdEventsClient := NewTshdEventsClient(func() (grpc.DialOption, error) {
+		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+	})
+
 	daemon, err := New(Config{
-		Storage: fakeStorage{},
-		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
-			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-		},
-		KubeconfigsDir: t.TempDir(),
-		AgentsDir:      t.TempDir(),
+		Storage:          fakeStorage{},
+		TshdEventsClient: tshdEventsClient,
+		KubeconfigsDir:   t.TempDir(),
+		AgentsDir:        t.TempDir(),
 		CreateClientCacheFunc: func(newClientFunc clientcache.NewClientFunc) (ClientCache, error) {
 			return fakeClientCache{}, nil
 		},
@@ -694,7 +731,7 @@ func TestGetGatewayCLICommand(t *testing.T) {
 		},
 		{
 			name: "kube gateway",
-			inputGateway: fakeGateway{
+			inputGateway: fakeKubeGateway{
 				targetURI: uri.NewClusterURI("profile").AppendKube("kube"),
 			},
 			checkError: require.NoError,
@@ -722,7 +759,7 @@ type fakeGateway struct {
 }
 
 func (m fakeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
-func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() + m.targetURI.GetKubeName() }
+func (m fakeGateway) TargetName() string            { return m.targetURI.GetDbName() }
 func (m fakeGateway) TargetUser() string            { return "alice" }
 func (m fakeGateway) TargetSubresourceName() string { return m.subresourceName }
 func (m fakeGateway) Protocol() string              { return defaults.ProtocolSQLServer }
@@ -730,7 +767,23 @@ func (m fakeGateway) Log() *slog.Logger             { return nil }
 func (m fakeGateway) LocalAddress() string          { return "localhost" }
 func (m fakeGateway) LocalPortInt() int             { return 8888 }
 func (m fakeGateway) LocalPort() string             { return "8888" }
-func (m fakeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
+
+type fakeKubeGateway struct {
+	gateway.Kube
+	targetURI       uri.ResourceURI
+	subresourceName string
+}
+
+func (m fakeKubeGateway) TargetURI() uri.ResourceURI    { return m.targetURI }
+func (m fakeKubeGateway) TargetName() string            { return m.targetURI.GetKubeName() }
+func (m fakeKubeGateway) TargetUser() string            { return "alice" }
+func (m fakeKubeGateway) TargetSubresourceName() string { return m.subresourceName }
+func (m fakeKubeGateway) Protocol() string              { return "" }
+func (m fakeKubeGateway) Log() *slog.Logger             { return nil }
+func (m fakeKubeGateway) LocalAddress() string          { return "localhost" }
+func (m fakeKubeGateway) LocalPortInt() int             { return 8888 }
+func (m fakeKubeGateway) LocalPort() string             { return "8888" }
+func (m fakeKubeGateway) KubeconfigPath() string        { return "test.kubeconfig" }
 
 type fakeStorage struct {
 	Storage

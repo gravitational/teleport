@@ -34,48 +34,48 @@ func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.Discove
 		return nil, trace.BadParameter("discovery config message is nil")
 	}
 
-	if msg.Spec == nil {
+	if msg.GetSpec() == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
-	if msg.Spec.DiscoveryGroup == "" {
+	if msg.GetSpec().GetDiscoveryGroup() == "" {
 		return nil, trace.BadParameter("discovery group is missing")
 	}
 
-	awsMatchers := make([]types.AWSMatcher, 0, len(msg.Spec.Aws))
-	for _, m := range msg.Spec.Aws {
+	awsMatchers := make([]types.AWSMatcher, 0, len(msg.GetSpec().GetAws()))
+	for _, m := range msg.GetSpec().GetAws() {
 		awsMatchers = append(awsMatchers, *m)
 	}
 
-	azureMatchers := make([]types.AzureMatcher, 0, len(msg.Spec.Azure))
-	for _, m := range msg.Spec.Azure {
+	azureMatchers := make([]types.AzureMatcher, 0, len(msg.GetSpec().GetAzure()))
+	for _, m := range msg.GetSpec().GetAzure() {
 		azureMatchers = append(azureMatchers, *m)
 	}
 
-	gcpMatchers := make([]types.GCPMatcher, 0, len(msg.Spec.Gcp))
-	for _, m := range msg.Spec.Gcp {
+	gcpMatchers := make([]types.GCPMatcher, 0, len(msg.GetSpec().GetGcp()))
+	for _, m := range msg.GetSpec().GetGcp() {
 		gcpMatchers = append(gcpMatchers, *m)
 	}
 
-	kubeMatchers := make([]types.KubernetesMatcher, 0, len(msg.Spec.Kube))
-	for _, m := range msg.Spec.Kube {
+	kubeMatchers := make([]types.KubernetesMatcher, 0, len(msg.GetSpec().GetKube()))
+	for _, m := range msg.GetSpec().GetKube() {
 		kubeMatchers = append(kubeMatchers, *m)
 	}
 
 	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
-		headerv1.FromMetadataProto(msg.Header.Metadata),
+		headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()),
 		discoveryconfig.Spec{
-			DiscoveryGroup: msg.Spec.DiscoveryGroup,
+			DiscoveryGroup: msg.GetSpec().GetDiscoveryGroup(),
 			AWS:            awsMatchers,
 			Azure:          azureMatchers,
 			GCP:            gcpMatchers,
 			Kube:           kubeMatchers,
-			AccessGraph:    msg.Spec.AccessGraph,
+			AccessGraph:    msg.GetSpec().GetAccessGraph(),
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	discoveryConfig.Status = StatusFromProto(msg.Status)
+	discoveryConfig.Status = StatusFromProto(msg.GetStatus())
 	return discoveryConfig, nil
 }
 

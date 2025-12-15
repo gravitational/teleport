@@ -16,24 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
+
 import Box from 'design/Box';
-import * as Icons from 'design/Icon';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
+import * as Icons from 'design/Icon';
 import Text from 'design/Text';
-
 import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
 import { IntegrationKind } from 'teleport/services/integrations';
-import useTeleport from 'teleport/useTeleport';
-
-import { CtaEvent } from 'teleport/services/userEvent';
-
 import { storageService } from 'teleport/services/storageService';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { ButtonLockedFeature } from '../ButtonLockedFeature';
 
@@ -61,12 +59,20 @@ export const ExternalAuditStorageCta = () => {
   }
 
   return (
-    <CtaContainer mb={3}>
+    <CtaContainer
+      css={`
+        grid-column: span 2;
+        @media screen and (max-width: ${props =>
+            props.theme.breakpoints.mobile}) {
+          grid-column: auto;
+        }
+      `}
+    >
       <Flex
         justifyContent="space-between"
         css={`
           @media screen and (max-width: ${props =>
-              props.theme.breakpoints.mobile}px) {
+              props.theme.breakpoints.mobile}) {
             flex-direction: column;
             gap: ${props => props.theme.space[3]}px;
           }

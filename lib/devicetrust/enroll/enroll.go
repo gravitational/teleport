@@ -25,9 +25,9 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )

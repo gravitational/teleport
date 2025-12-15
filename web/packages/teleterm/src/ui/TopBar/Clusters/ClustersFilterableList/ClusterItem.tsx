@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect } from 'react';
-import { Flex, Label, Text } from 'design';
-
+import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { ListItem } from 'teleterm/ui/components/ListItem';
-import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { Flex, Label, Text } from 'design';
+
 import { Cluster } from 'teleterm/services/tshd/types';
+import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ListItem } from 'teleterm/ui/components/ListItem';
 
 interface ClusterItemProps {
   index: number;
@@ -37,7 +37,7 @@ export function ClusterItem(props: ClusterItemProps) {
     index: props.index,
     onRun: props.onSelect,
   });
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   const clusterName = props.item.name;
 

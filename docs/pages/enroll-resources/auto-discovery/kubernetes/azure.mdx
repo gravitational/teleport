@@ -1,11 +1,19 @@
 ---
 title: Teleport AKS Auto-Discovery
+sidebar_label: Azure Kubernetes Service
 description: Auto-Discovery of AKS clusters in Azure cloud.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - azure
 ---
 
 AKS Auto-Discovery can automatically
 discover any AKS cluster and enroll it in Teleport if its tags match the
 configured labels.
+
+## How it works
 
 (!docs/pages/includes/discovery/step-description.mdx serviceName="Kubernetes" resourceDesc="cluster" resourceKind="kube_cluster" !)
 
@@ -32,7 +40,7 @@ automatically configure the access to the cluster if you include the necessary
 permissions to do so.
 
 <Tabs>
-  <TabItem label="Azure AD + Azure RBAC (recommended)" >
+  <TabItem label="Microsoft Entra ID + Azure RBAC (recommended)" >
 
 In this scenario, the Teleport's authentication happens through Active Directory,
 and the permissions required to access the Kubernetes cluster are associated with
@@ -73,9 +81,9 @@ you want to guarantee permissions on all subscriptions.
 
   </TabItem>
 
-  <TabItem label="Azure AD + Kubernetes RBAC">
+  <TabItem label="Microsoft Entra ID + Kubernetes RBAC">
 
-When using Azure AD authentication with Kubernetes RBAC mode, Azure is responsible
+When using Microsoft Entra ID authentication with Kubernetes RBAC mode, Azure is responsible
 for user authentication using AD credentials, but permissions management is Kubernetes'
 RBAC responsibility.
 
@@ -117,10 +125,8 @@ following permissions with Teleport's identity.
 
 In all other cases, you must manually set up the required access as described in the guide below.
 
-<Details
-title="Manual configuration of Teleport RBAC permissions"
-opened={false}
->
+<details>
+<summary>Manual configuration of Teleport RBAC permissions</summary>
 
 Connect to every cluster to enroll with admin permissions and create the following resources
 using `kubectl`.
@@ -161,7 +167,8 @@ rules:
 
 ### ClusterRoleBinding
 
-Link the previously created `ClusterRole` into the Teleport AD group id.
+Link the previously created `ClusterRole` into the Microsoft Entra ID group ID
+for Teleport:
 
 ```yaml
 kind: ClusterRoleBinding
@@ -178,10 +185,10 @@ subjects:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-Replace `{azure_ad_group_id}` with the appropriate Azure AD group id
+Replace `{azure_ad_group_id}` with the appropriate Microsoft Entra ID group id
 associated with Teleport identity.
 
-</Details>
+</details>
 
   </TabItem>
     <TabItem label="Local Accounts">
@@ -210,14 +217,29 @@ associated with Teleport identity.
 
 ## Step 2/2. Configure Teleport to discover AKS clusters
 
+### Install Teleport
+
+Install Teleport on the host you are using to run the Kubernetes Service and
+Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Get a join token
+
 Teleport AKS Auto-Discovery requires a valid auth token for the Discovery and
 Kubernetes services to join the cluster. Generate one by running the following
 command against your Teleport Auth Service and save it in `/tmp/token` on the
 machine that will run Kubernetes Discovery:
 
 ```code
-$ tctl tokens add --type=discovery,kube
+$ tctl tokens add --type=discovery,kube --format=text
+(=presets.tokens.first=)
 ```
+
+### Configure the Kubernetes Service and Discovery Service
+
+On the host running the Kubernetes Service and Discovery Service, create a
+Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 Enabling AKS Auto-Discovery requires that the `discovery_service.azure` section
 include at least one entry and that `discovery_service.azure.types` include `aks`.
@@ -234,15 +256,15 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443    
+  proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "aks-prod"
   azure:
   - types: ["aks"]
@@ -252,7 +274,7 @@ discovery_service:
     tags:
       "env": "prod"
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier
@@ -260,6 +282,8 @@ kubernetes_service:
 
 Once you have added this configuration, start Teleport. AKS clusters matching the tags and regions
 specified in the Azure section will be added to the Teleport cluster automatically.
+
+(!docs/pages/includes/start-teleport.mdx service="the Kubernetes and Discovery Services"!)
 
 ## Troubleshooting
 

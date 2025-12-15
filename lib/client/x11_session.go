@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -61,7 +62,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.S
 		return trace.Wrap(err)
 	}
 
-	if err := x11.RequestForwarding(sess.Session, ns.spoofedXAuthEntry); err != nil {
+	if err := x11.RequestForwarding(ctx, sess, ns.spoofedXAuthEntry); err != nil {
 		// Notify the user that x11 forwarding request failed regardless of debug level
 		fmt.Fprintln(os.Stderr, "X11 forwarding request failed")
 		slog.DebugContext(ctx, "X11 forwarding request error", "err", err)
@@ -212,7 +213,8 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 			}
 		}()
 
-		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
+		// Proxy the connection until the connection is closed or the request is canceled.
+		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil && !errors.Is(err, context.Canceled) {
 			slog.DebugContext(ctx, "Encountered error during X11 forwarding", "err", err)
 		}
 	})

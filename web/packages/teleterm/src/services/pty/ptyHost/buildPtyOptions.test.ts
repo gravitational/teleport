@@ -16,19 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Logger, { NullService } from 'teleterm/logger';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
-import Logger, { NullService } from 'teleterm/logger';
-
 import {
-  ShellCommand,
-  TshLoginCommand,
   GatewayCliClientCommand,
   PtyProcessCreationStatus,
+  ShellCommand,
   SshOptions,
+  TshLoginCommand,
 } from '../types';
-
-import { getPtyProcessOptions, buildPtyOptions } from './buildPtyOptions';
+import { buildPtyOptions, getPtyProcessOptions } from './buildPtyOptions';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -69,6 +67,7 @@ describe('getPtyProcessOptions', () => {
           customShellPath: '',
           ssh: makeSshOptions(),
           windowsPty: { useConpty: true },
+          tshHome: '',
         },
         cmd: cmd,
         env: processEnv,
@@ -104,6 +103,7 @@ describe('getPtyProcessOptions', () => {
           customShellPath: '',
           ssh: makeSshOptions(),
           windowsPty: { useConpty: true },
+          tshHome: '',
         },
         cmd: cmd,
         env: processEnv,
@@ -136,6 +136,7 @@ describe('getPtyProcessOptions', () => {
           customShellPath: '',
           ssh: makeSshOptions({ noResume: true }),
           windowsPty: { useConpty: true },
+          tshHome: '',
         },
         cmd: cmd,
         env: processEnv,
@@ -166,6 +167,7 @@ describe('getPtyProcessOptions', () => {
           customShellPath: '',
           ssh: makeSshOptions({ forwardAgent: true }),
           windowsPty: { useConpty: true },
+          tshHome: '',
         },
         cmd: cmd,
         env: processEnv,
@@ -196,6 +198,7 @@ describe('getPtyProcessOptions', () => {
           customShellPath: '',
           ssh: makeSshOptions({ forwardAgent: false }),
           windowsPty: { useConpty: true },
+          tshHome: '',
         },
         cmd: cmd,
         env: processEnv,
@@ -231,6 +234,7 @@ describe('buildPtyOptions', () => {
         customShellPath: '',
         ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
+        tshHome: '',
       },
       cmd,
     });
@@ -258,6 +262,7 @@ describe('buildPtyOptions', () => {
         customShellPath: '/custom/shell/path/better-shell',
         ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
+        tshHome: '',
       },
       cmd,
     });
@@ -285,6 +290,7 @@ describe('buildPtyOptions', () => {
         customShellPath: '',
         ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
+        tshHome: '',
       },
       cmd,
     });
@@ -322,6 +328,7 @@ describe('buildPtyOptions', () => {
         customShellPath: '',
         ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
+        tshHome: '',
       },
       cmd,
       processEnv: {

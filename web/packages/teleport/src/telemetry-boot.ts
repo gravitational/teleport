@@ -16,25 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
-import { registerInstrumentations } from '@opentelemetry/instrumentation';
-import {
-  ConsoleSpanExporter,
-  BatchSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
-import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
-import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
-import { B3Propagator } from '@opentelemetry/propagator-b3';
-import { UserInteractionInstrumentation } from '@opentelemetry/instrumentation-user-interaction';
+import { ZoneContextManager } from '@opentelemetry/context-zone';
 import {
   CompositePropagator,
   W3CTraceContextPropagator,
 } from '@opentelemetry/core';
-import { ZoneContextManager } from '@opentelemetry/context-zone';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
+import { DocumentLoadInstrumentation } from '@opentelemetry/instrumentation-document-load';
+import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
+import { UserInteractionInstrumentation } from '@opentelemetry/instrumentation-user-interaction';
+import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
+import { B3Propagator } from '@opentelemetry/propagator-b3';
+import { Resource } from '@opentelemetry/resources';
+import {
+  BatchSpanProcessor,
+  ConsoleSpanExporter,
+} from '@opentelemetry/sdk-trace-base';
+import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 
 export function instantiateTelemetry() {
   registerInstrumentations({

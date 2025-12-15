@@ -17,28 +17,26 @@
  */
 
 import { Fragment } from 'react';
-
 import styled from 'styled-components';
 
-import { Input, MenuItem } from 'design';
-
-import ButtonLink from '../ButtonLink';
-import ButtonIcon from '../ButtonIcon';
-import * as icons from '../Icon';
-import Flex from '../Flex';
-
-import { ButtonWithMenu } from '../ButtonWithMenu';
+import { Box, Input, Link, MenuItem, P1 } from 'design';
 
 import {
   Button,
-  ButtonPrimary,
-  ButtonSecondary,
-  ButtonWarning,
   ButtonBorder,
-  ButtonText,
-  ButtonProps,
   ButtonFill,
+  ButtonPrimary,
+  ButtonPrimaryBorder,
+  ButtonProps,
+  ButtonSecondary,
+  ButtonText,
+  ButtonWarning,
 } from '.';
+import ButtonIcon from '../ButtonIcon';
+import ButtonLink from '../ButtonLink';
+import { ButtonWithMenu } from '../ButtonWithMenu';
+import Flex, { Stack } from '../Flex';
+import * as icons from '../Icon';
 
 export default {
   title: 'Design/Button',
@@ -87,48 +85,58 @@ export const Buttons = () => {
             </Fragment>
           ))}
         </tbody>
-      </Table>{' '}
+      </Table>
+
       <Flex gap={3}>
         <ButtonPrimary>Primary</ButtonPrimary>
+        <ButtonPrimaryBorder>Primary (border)</ButtonPrimaryBorder>
         <ButtonSecondary>Secondary</ButtonSecondary>
         <ButtonBorder>Border</ButtonBorder>
         <ButtonWarning>Warning</ButtonWarning>
       </Flex>
+
       <Flex gap={3} alignItems="center">
         <Button size="extra-large">Extra large</Button>
         <Button size="large">Large</Button>
         <Button size="medium">Medium</Button>
         <Button size="small">Small</Button>
       </Flex>
+
       <Flex flexDirection="column" gap={3} alignItems="flex-start">
         <Input
           defaultValue="Padding of buttons below should match padding of this input"
           width="480px"
         />
-        <Button size="extra-large" inputAlignment>
+        <Button size="extra-large" $inputAlignment>
           Extra large with input alignment
         </Button>
-        <Button size="large" inputAlignment>
+        <Button size="large" $inputAlignment>
           Large with input alignment
         </Button>
-        <Button size="medium" inputAlignment>
+        <Button size="medium" $inputAlignment>
           Medium with input alignment
         </Button>
-        <Button size="small" inputAlignment>
+        <Button size="small" $inputAlignment>
           Small with input alignment
         </Button>
       </Flex>
+
       <Button block>block = true</Button>
+
       <Flex gap={3}>
         <Button disabled>Disabled</Button>
-        <Button autoFocus>Focused</Button>
+        <Box className="teleport-button__force-focus-visible">
+          <Button>Focused</Button>
+        </Box>
       </Flex>
+
       <Flex gap={3}>
         <ButtonPrimary gap={2}>
           <icons.AddUsers />
           Add users
         </ButtonPrimary>
       </Flex>
+
       <Flex gap={3} alignItems="center">
         <ButtonWithMenu
           text="Button with menu"
@@ -168,6 +176,27 @@ export const Buttons = () => {
           {menuItemsForButtonWithMenu}
         </ButtonWithMenu>
       </Flex>
+
+      <Stack gap={3}>
+        <ButtonWithMenu
+          text={`width={${constantWidth}}`}
+          width={constantWidth}
+          size="small"
+          onClick={() => alert('Button with menu')}
+        >
+          {menuItemsForButtonWithMenu}
+        </ButtonWithMenu>
+
+        <ButtonWithMenu
+          text={`buttonWidth={${constantWidth}}`}
+          buttonWidth={constantWidth}
+          size="small"
+          onClick={() => alert('Button with menu')}
+        >
+          {menuItemsForButtonWithMenu}
+        </ButtonWithMenu>
+      </Stack>
+
       <Flex gap={3}>
         <Button as="a" href="https://example.com" target="_blank">
           Link as button
@@ -182,12 +211,14 @@ export const Buttons = () => {
           <icons.Link />
         </ButtonIcon>
       </Flex>
+
       <Flex gap={3}>
         <ButtonLink href="">Button Link</ButtonLink>
         <ButtonText>Button Text</ButtonText>
       </Flex>
+
       <Flex gap={3} flexDirection="column" alignItems="flex-start">
-        {[2, 1, 0].map(size => (
+        {([2, 1, 0] as const).map(size => (
           <Flex gap={3} key={`size-${size}`}>
             <ButtonIcon size={size}>
               <icons.AddUsers />
@@ -248,3 +279,80 @@ const menuItemsForButtonWithMenu = (
     </MenuItem>
   </>
 );
+
+export const MinWidthFitContent = () => (
+  <Stack gap={5}>
+    <Link
+      target="_blank"
+      href="https://html-css-tip-of-the-week.netlify.app/tip/max-width-fit-content/"
+    >
+      https://html-css-tip-of-the-week.netlify.app/tip/max-width-fit-content/
+    </Link>
+
+    <P1>
+      By default, a button text wraps itself at the first chance it gets,{' '}
+      <Emphasis>even when it doesn't help avoid overflow</Emphasis>.
+    </P1>
+
+    <Stack gap={3}>
+      <Flex gap={2} width="200px" p={2} border={1} borderColor="red">
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+      <Flex gap={2} width="120px" border={1} p={2} flexWrap="wrap">
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+    </Stack>
+
+    <P1>
+      With <code>text-wrap: nowrap</code>, the button text doesn't ever wrap,
+      meaning that at narrow widths it introduces overflow{' '}
+      <Emphasis>even when it could be avoided</Emphasis>.
+    </P1>
+    <Stack
+      gap={3}
+      css={`
+        & button {
+          text-wrap: nowrap;
+        }
+      `}
+    >
+      <Flex gap={2} width="200px" border={1} p={2}>
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+      <Flex
+        gap={2}
+        width="120px"
+        p={2}
+        flexWrap="wrap"
+        border={1}
+        borderColor="red"
+      >
+        <Button>Lorem Ipsum</Button>
+        <Button>Dolor Sit Amet</Button>
+      </Flex>
+    </Stack>
+
+    <P1>
+      With <code>min-width: fit-content</code>, the button text is allowed to
+      wrap as a last resort.
+    </P1>
+    <Flex gap={2} width="200px" border={1} p={2}>
+      <Button minWidth="fit-content">Lorem Ipsum</Button>
+      <Button minWidth="fit-content">Dolor Sit Amet</Button>
+    </Flex>
+    <Flex gap={2} width="120px" border={1} p={2} flexWrap="wrap">
+      <Button minWidth="fit-content">Lorem Ipsum</Button>
+      <Button minWidth="fit-content">Dolor Sit Amet</Button>
+    </Flex>
+  </Stack>
+);
+
+const Emphasis = styled.span`
+  text-decoration-line: underline;
+  text-decoration-color: red;
+`;
+
+const constantWidth = 150;

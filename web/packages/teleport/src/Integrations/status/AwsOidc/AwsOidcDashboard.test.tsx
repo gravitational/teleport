@@ -16,23 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from 'design/utils/testing';
-
 import { within } from '@testing-library/react';
+import { addHours } from 'date-fns';
 
+import { render, screen } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+
+import { ContextProvider } from 'teleport/index';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
-import { IntegrationKind } from 'teleport/services/integrations';
-import { addHours } from 'teleport/components/BannerList/useAlerts';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  IntegrationAwsOidc,
+  IntegrationKind,
+  integrationService,
+  IntegrationWithSummary,
+} from 'teleport/services/integrations';
 
-test('renders header and stats cards', () => {
+jest.spyOn(integrationService, 'fetchIntegrations').mockResolvedValue({
+  items: [],
+  nextKey: '',
+});
+
+test('renders header and stats cards', async () => {
   render(
-    <MockAwsOidcStatusProvider
-      value={{
-        integrationAttempt: {
-          status: 'success',
-          statusText: '',
-          data: {
+    <ContextProvider ctx={createTeleportContext()}>
+      <MockAwsOidcStatusProvider
+        value={{
+          integrationAttempt: makeSuccessAttempt<IntegrationAwsOidc>({
             resourceType: 'integration',
             name: 'integration-one',
             kind: IntegrationKind.AwsOidc,
@@ -40,17 +52,16 @@ test('renders header and stats cards', () => {
               roleArn: 'arn:aws:iam::111456789011:role/bar',
             },
             statusCode: 1,
-          },
-        },
-        statsAttempt: {
-          status: 'success',
-          statusText: '',
-          data: {
+          }),
+          statsAttempt: makeSuccessAttempt<IntegrationWithSummary>({
             name: 'integration-one',
             subKind: IntegrationKind.AwsOidc,
+            awsra: undefined,
+            rolesAnywhereProfileSync: undefined,
             awsoidc: {
               roleArn: 'arn:aws:iam::111456789011:role/bar',
             },
+            unresolvedUserTasks: 1,
             awsec2: {
               rulesCount: 24,
               resourcesFound: 12,
@@ -58,42 +69,56 @@ test('renders header and stats cards', () => {
               resourcesEnrollmentSuccess: 9,
               discoverLastSync: new Date().getTime(),
               ecsDatabaseServiceCount: 0, // irrelevant
+              unresolvedUserTasks: 0,
             },
             awsrds: {
               rulesCount: 14,
               resourcesFound: 5,
               resourcesEnrollmentFailed: 5,
               resourcesEnrollmentSuccess: 0,
-              discoverLastSync: addHours(new Date().getTime(), -4),
+              discoverLastSync: addHours(new Date().getTime(), -4).getTime(),
               ecsDatabaseServiceCount: 8, // relevant
+              unresolvedUserTasks: 0,
             },
             awseks: {
               rulesCount: 33,
               resourcesFound: 3,
               resourcesEnrollmentFailed: 0,
               resourcesEnrollmentSuccess: 3,
-              discoverLastSync: addHours(new Date().getTime(), -48),
+              discoverLastSync: addHours(new Date().getTime(), -48).getTime(),
               ecsDatabaseServiceCount: 0, // irrelevant
+              unresolvedUserTasks: 0,
             },
-          },
-        },
-      }}
-    >
-      <AwsOidcDashboard />
-    </MockAwsOidcStatusProvider>
+          }),
+        }}
+        path=""
+      >
+        <InfoGuidePanelProvider>
+          <AwsOidcDashboard />
+        </InfoGuidePanelProvider>
+      </MockAwsOidcStatusProvider>
+    </ContextProvider>
   );
 
-  expect(screen.getByRole('link', { name: 'back' })).toHaveAttribute(
+  await screen.findByText('Running');
+  const breadcrumbs = screen.getByTestId('aws-oidc-header');
+  expect(within(breadcrumbs).getByText('integration-one')).toBeInTheDocument();
+
+  const title = screen.getByTestId('aws-oidc-title');
+  expect(within(title).getByRole('link', { name: 'back' })).toHaveAttribute(
     'href',
     '/web/integrations'
   );
-  expect(screen.getByText('integration-one')).toBeInTheDocument();
-  expect(screen.getByLabelText('status')).toHaveAttribute('kind', 'success');
-  expect(screen.getByLabelText('status')).toHaveTextContent('Running');
+  expect(within(title).getByLabelText('status')).toHaveAttribute(
+    'kind',
+    'success'
+  );
+  expect(within(title).getByLabelText('status')).toHaveTextContent('Running');
+  expect(within(title).getByText('integration-one')).toBeInTheDocument();
 
   const ec2 = screen.getByTestId('ec2-stats');
   expect(within(ec2).getByTestId('sync')).toHaveTextContent(
-    'Last Sync: 0 seconds ago'
+    /Last Sync: \d+ seconds? ago/
   );
   expect(within(ec2).getByTestId('rules')).toHaveTextContent(
     'Enrollment Rules 24'
@@ -135,4 +160,62 @@ test('renders header and stats cards', () => {
   expect(within(eks).getByTestId('failed')).toHaveTextContent(
     'Failed Clusters 0'
   );
+});
+
+test('renders enroll cards', () => {
+  const zeroCount = {
+    rulesCount: 0,
+    resourcesFound: 0,
+    resourcesEnrollmentFailed: 0,
+    resourcesEnrollmentSuccess: 0,
+    discoverLastSync: new Date().getTime(),
+    ecsDatabaseServiceCount: 0,
+    unresolvedUserTasks: 0,
+  };
+
+  render(
+    <ContextProvider ctx={createTeleportContext()}>
+      <MockAwsOidcStatusProvider
+        value={{
+          integrationAttempt: makeSuccessAttempt({
+            resourceType: 'integration',
+            name: 'integration-one',
+            kind: IntegrationKind.AwsOidc,
+            spec: {
+              roleArn: 'arn:aws:iam::111456789011:role/bar',
+            },
+            statusCode: 1,
+          }),
+          statsAttempt: makeSuccessAttempt({
+            name: 'integration-one',
+            subKind: IntegrationKind.AwsOidc,
+            unresolvedUserTasks: 0,
+            awsra: undefined,
+            rolesAnywhereProfileSync: undefined,
+            awsoidc: {
+              roleArn: 'arn:aws:iam::111456789011:role/bar',
+            },
+            awsec2: zeroCount,
+            awsrds: zeroCount,
+            awseks: zeroCount,
+          }),
+        }}
+        path=""
+      >
+        <InfoGuidePanelProvider>
+          <AwsOidcDashboard />
+        </InfoGuidePanelProvider>
+      </MockAwsOidcStatusProvider>
+    </ContextProvider>
+  );
+
+  expect(
+    within(screen.getByTestId('ec2-enroll')).getByText('Enroll EC2')
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId('rds-enroll')).getByText('Enroll RDS')
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId('eks-enroll')).getByText('Enroll EKS')
+  ).toBeInTheDocument();
 });

@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect } from 'react';
-import styled, { useTheme } from 'styled-components';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import styled, { useTheme } from 'styled-components';
+
+import { Box, ButtonPrimary, Flex, H1, Image, Text } from 'design';
 import { ResourceIcon } from 'design/ResourceIcon';
 import {
   Description,
@@ -29,24 +31,26 @@ import {
   FeatureSlider,
   Title,
 } from 'shared/components/EmptyState/EmptyState';
-import { Box, ButtonPrimary, Flex, H1, Image, Text } from 'design';
 
-import cfg from 'teleport/config';
 import { DisplayTile } from 'teleport/Bots/Add/AddBotsPicker';
-
-import elimiateSecretsImage from './eliminate-secrets.svg';
-import elimiateSecretsLightImage from './eliminate-secrets-light.svg';
-
-import controlWorkflowsImage from './control-workflows.svg';
-import controlWorkflowsLightImage from './control-workflows-light.svg';
+import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 
 import argoCD from './argocd.png';
+import controlWorkflowsLightImage from './control-workflows-light.svg';
+import controlWorkflowsImage from './control-workflows.svg';
+import elimiateSecretsLightImage from './eliminate-secrets-light.svg';
+import elimiateSecretsImage from './eliminate-secrets.svg';
 
 const maxWidth = '1204px';
 
 export function EmptyState() {
   const [currIndex, setCurrIndex] = useState(0);
   const [intervalId, setIntervalId] = useState<any>();
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasAddBotPermissions = flags.addBots;
 
   function handleOnClick(clickedIndex: number) {
     clearInterval(intervalId);
@@ -107,16 +111,18 @@ export function EmptyState() {
         </Box>
       </FeatureContainer>
       {/* setting a max width here to keep it "in the center" with the content above instead of with the screen */}
-      <Box width="100%" maxWidth={maxWidth} textAlign="center" mt={6}>
-        <ButtonPrimary
-          width="280px"
-          as={Link}
-          to={cfg.getBotsNewRoute()}
-          size="large"
-        >
-          Create Your First Bot
-        </ButtonPrimary>
-      </Box>
+      {hasAddBotPermissions && (
+        <Box width="100%" maxWidth={maxWidth} textAlign="center" mt={6}>
+          <ButtonPrimary
+            width="280px"
+            as={Link}
+            to={cfg.getBotsNewRoute()}
+            size="large"
+          >
+            Create Your First Bot
+          </ButtonPrimary>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -232,4 +238,6 @@ const PreviewBox = styled(Box)<{ includeShadow?: boolean }>`
   box-shadow: ${p => {
     return p.includeShadow ? p.theme.boxShadow[1] : 'none';
   }};
+  border-radius: 8px;
+  overflow: hidden;
 `;

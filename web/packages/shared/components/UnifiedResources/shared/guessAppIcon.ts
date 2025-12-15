@@ -17,12 +17,11 @@
  */
 
 import {
+  iconNames,
   ResourceIconName,
   resourceIconSpecs,
-  iconNames,
 } from 'design/ResourceIcon';
-
-import { AppSubKind } from 'teleport/services/apps';
+import { AppSubKind } from 'shared/services';
 
 import { UnifiedResourceApp } from '../types';
 
@@ -41,7 +40,7 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   }
 
   if (awsConsole) {
-    return 'aws';
+    return 'awsidentityandaccessmanagementiam';
   }
   if (subKind === AppSubKind.AwsIcAccount) {
     return 'awsaccount';

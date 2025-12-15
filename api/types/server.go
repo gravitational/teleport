@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -75,6 +76,13 @@ type Server interface {
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 
+	// GetRelayGroup returns the name of the Relay group that the server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the server is
+	// connected to.
+	GetRelayIDs() []string
+
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
@@ -104,6 +112,8 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *GitHubServerMetadata
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewServer creates an instance of Server.
@@ -163,9 +173,18 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 
 // NewGitHubServer creates a new Git server for GitHub.
 func NewGitHubServer(githubSpec GitHubServerMetadata) (Server, error) {
+	return NewGitHubServerWithName(uuid.NewString(), githubSpec)
+}
+
+// NewGitHubServerWithName creates a new Git server for GitHub with provided
+// name.
+func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Server, error) {
 	server := &ServerV2{
 		Kind:    KindGitServer,
 		SubKind: SubKindGitHub,
+		Metadata: Metadata{
+			Name: name,
+		},
 		Spec: ServerSpecV2{
 			GitHub: &githubSpec,
 		},
@@ -372,6 +391,22 @@ func (s *ServerV2) GetProxyIDs() []string {
 // SetProxyID sets the proxy ids this server is connected to.
 func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetRelayGroup implements [Server].
+func (s *ServerV2) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [Server].
+func (s *ServerV2) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
 }
 
 // GetAllLabels returns the full key:value map of both static labels and
@@ -626,6 +661,9 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 		return trace.Wrap(err, "invalid GitHub organization name")
 	}
 
+	// Set SSH host port for connection and "fake" hostname for routing. These
+	// values are hard-coded and cannot be customized.
+	s.Spec.Addr = "github.com:22"
 	s.Spec.Hostname = MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
 	if s.Metadata.Labels == nil {
 		s.Metadata.Labels = make(map[string]string)
@@ -637,28 +675,51 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	if s.GetKind() != KindNode {
+	switch s.Kind {
+	case KindNode, KindGitServer:
+	default:
+		return false
+	}
+Outer:
+	for _, searchV := range values {
+		for key, value := range s.Metadata.Labels {
+			if strcase.Contains(key, searchV) || strcase.Contains(value, searchV) {
+				continue Outer
+			}
+		}
+		for key, cmd := range s.Spec.CmdLabels {
+			if strcase.Contains(key, searchV) || strcase.Contains(cmd.Result, searchV) {
+				continue Outer
+			}
+		}
+
+		if strcase.Contains(s.Metadata.Name, searchV) {
+			continue
+		}
+
+		if strcase.Contains(s.Spec.Hostname, searchV) {
+			continue
+		}
+
+		if strcase.Contains(s.Spec.Addr, searchV) {
+			continue
+		}
+
+		for _, addr := range s.Spec.PublicAddrs {
+			if strcase.Contains(addr, searchV) {
+				continue Outer
+			}
+		}
+
+		if s.GetUseTunnel() && strings.EqualFold(searchV, "tunnel") {
+			continue
+		}
+
+		// When no fields matched a value, prematurely end if we can.
 		return false
 	}
 
-	var custom func(val string) bool
-	if s.GetUseTunnel() {
-		custom = func(val string) bool {
-			return strings.EqualFold(val, "tunnel")
-		}
-	}
-
-	fieldVals := make([]string, 0, (len(s.Metadata.Labels)*2)+(len(s.Spec.CmdLabels)*2)+len(s.Spec.PublicAddrs)+3)
-
-	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
-	for key, value := range labels {
-		fieldVals = append(fieldVals, key, value)
-	}
-
-	fieldVals = append(fieldVals, s.Metadata.Name, s.Spec.Hostname, s.Spec.Addr)
-	fieldVals = append(fieldVals, s.Spec.PublicAddrs...)
-
-	return MatchSearch(fieldVals, values, custom)
+	return true
 }
 
 // DeepCopy creates a clone of this server value
@@ -688,6 +749,11 @@ func (s *ServerV2) GetAWSInfo() *AWSInfo {
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *ServerV2) GetScope() string {
+	return s.Scope
 }
 
 // CommandLabel is a label that has a value as a result of the

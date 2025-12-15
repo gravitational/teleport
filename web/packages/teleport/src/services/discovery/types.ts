@@ -33,7 +33,6 @@ type AwsMatcherTypes = 'rds' | 'eks' | 'ec2';
 
 export enum InstallParamEnrollMode {
   Script = 1,
-  Eice = 2,
 }
 
 // AWSMatcher matches AWS EC2 instances, AWS EKS clusters and AWS Databases
@@ -75,4 +74,4 @@ export type AwsMatcher = {
   ssm?: { documentName: string };
 };
 
-type Labels = Record<string, string[]>;
+export type Labels = Record<string, string[]>;

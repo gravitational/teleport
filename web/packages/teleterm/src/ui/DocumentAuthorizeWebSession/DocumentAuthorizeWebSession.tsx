@@ -16,39 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Alert, ButtonPrimary, H1, ButtonText } from 'design';
+import { Alert, ButtonPrimary, ButtonText, H1, Text } from 'design';
 import Flex from 'design/Flex';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
-import { processRedirectUri } from 'shared/redirects';
-import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { DeviceConfirmationToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_confirmation_token_pb';
+import { DeviceWebToken } from 'gen-proto-ts/teleport/devicetrust/v1/device_web_token_pb';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+import { processRedirectUri } from 'shared/redirects';
 
-import Document from 'teleterm/ui/Document';
-import { routing } from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { WebSessionRequest } from 'teleterm/ui/services/workspacesService';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function DocumentAuthorizeWebSession(props: {
   doc: types.DocumentAuthorizeWebSession;
   visible: boolean;
 }) {
   const ctx = useAppContext();
+  const { tshd } = ctx;
   const { documentsService } = useWorkspaceContext();
   const rootCluster = ctx.clustersService.findCluster(props.doc.rootClusterUri);
-  const [authorizeAttempt, authorize] = useAsync(async () => {
-    const {
-      response: { confirmationToken },
-    } = await retryWithRelogin(ctx, props.doc.rootClusterUri, () =>
-      ctx.clustersService.authenticateWebDevice(
-        props.doc.rootClusterUri,
-        props.doc.webSessionRequest
-      )
-    );
-    return confirmationToken;
-  });
+  const [authorizeAttempt, authorize] = useAsync(() =>
+    retryWithRelogin(ctx, props.doc.rootClusterUri, () =>
+      tshd
+        .authenticateWebDevice({
+          rootClusterUri: props.doc.rootClusterUri,
+          deviceWebToken: DeviceWebToken.create({
+            id: props.doc.webSessionRequest.id,
+            token: props.doc.webSessionRequest.token,
+          }),
+        })
+        .then(({ response: { confirmationToken } }) => confirmationToken)
+    )
+  );
   const clusterName = routing.parseClusterName(props.doc.rootClusterUri);
   const isDeviceTrusted = rootCluster.loggedInUser?.isDeviceTrusted;
   const isRequestedUserLoggedIn =
@@ -149,7 +153,7 @@ export function DocumentAuthorizeWebSession(props: {
             </Alert>
           )}
           <Text>
-            Would you like to authorize a device trust web session for{' '}
+            Would you like to authorize a Device Trust web session for{' '}
             <b>{clusterName}</b>?
             <br />
             The session will automatically open in a new browser tab.

@@ -107,6 +107,23 @@ get_labels() {
   echo "$LABELS"
 }
 
+install_deps() {
+  # shellcheck disable=SC1091
+  . /etc/os-release
+
+  if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
+    sudo apt-get update
+    sudo apt-get install -y jq
+  elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
+    sudo yum install -y jq
+  elif [ "$ID" = "sles" ] || [ "$ID" = "opensuse-tumbleweed" ] || [ "$ID" = "opensuse-leap" ]; then
+    sudo zypper --non-interactive install -y jq
+  else
+    echo "Unsupported distro: $ID"
+    exit 1
+  fi
+}
+
 install_teleport() {
   # shellcheck disable=SC1091
   . /etc/os-release
@@ -123,8 +140,9 @@ install_teleport() {
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
       rm /tmp/teleport-pubkey.asc
     else
-      curl https://apt.releases.teleport.dev/gpg | sudo tee /usr/share/keyrings/teleport-archive-keyring.asc
-      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+      sudo mkdir -p /etc/apt/keyrings
+      curl https://apt.releases.teleport.dev/gpg | sudo tee /etc/apt/keyrings/teleport-archive-keyring.asc
+      echo "deb [signed-by=/etc/apt/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
 
@@ -209,6 +227,7 @@ install_teleport() {
 
   TOKEN="$1"
 
+  install_deps
   if ! test -f /usr/local/bin/teleport; then
     install_teleport
   fi

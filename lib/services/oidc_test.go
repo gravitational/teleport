@@ -159,7 +159,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 			},
 			expect: func(t *testing.T, c types.OIDCConnector, err error) {
 				require.NoError(t, err)
-				require.Equal(t, "", c.GetPrompt())
+				require.Empty(t, c.GetPrompt())
 			},
 		}, {
 			desc: "invalid claims to roles",

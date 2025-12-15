@@ -20,11 +20,14 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,19 +40,23 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/uacc"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/envutils"
@@ -91,8 +98,11 @@ type AccessPoint interface {
 	// Semaphores provides semaphore operations
 	types.Semaphores
 
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
+
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetClusterNetworkingConfig returns cluster networking configuration.
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
@@ -146,12 +156,13 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*servicecfg.PAMConfig, error)
+	GetPAM() *servicecfg.PAMConfig
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
 
 	// GetInfo returns a services.Server that represents this server.
+	// In the case of the Proxy forwarder, this is the node target.
 	GetInfo() types.Server
 
 	// UseTunnel used to determine if this node has connected to this cluster
@@ -165,7 +176,7 @@ type Server interface {
 	Context() context.Context
 
 	// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-	GetUserAccountingPaths() (utmp, wtmp, btmp string)
+	GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string)
 
 	// GetLockWatcher gets the server's lock watcher.
 	GetLockWatcher() *services.LockWatcher
@@ -182,15 +193,52 @@ type Server interface {
 	// sudoer file provisioning
 	GetHostSudoers() HostSudoers
 
-	// TargetMetadata returns metadata about the session target node.
-	TargetMetadata() apievents.ServerMetadata
+	// GetSELinuxEnabled returns whether the node should enable SELinux
+	// support or not.
+	GetSELinuxEnabled() bool
+
+	// EventMetadata returns [events.ServerMetadata] for this server.
+	EventMetadata() apievents.ServerMetadata
+
+	// ChildLogConfig returns the log configuration for handling logs from
+	// child processes.
+	ChildLogConfig() ChildLogConfig
+}
+
+// ChildLogConfig is the log configuration for handling logs from child processes.
+type ChildLogConfig struct {
+	ExecLogConfig
+
+	// Writer is the output writer to use for the logger. May be nil.
+	Writer io.Writer
 }
 
 // IdentityContext holds all identity information associated with the user
 // logged on the connection.
 type IdentityContext struct {
+	// UnmappedIdentity is the base identity of the user derived from the cert, without any
+	// cross-cluster mapping applied.
+	UnmappedIdentity *sshca.Identity
+
+	// AccessPermit encodes the parameters/constraints associated with an authorized ssh access.
+	AccessPermit *decisionpb.SSHAccessPermit
+
+	// ProxyingPermit encodes the parameters/constraints associated with an authorized proxying access.
+	ProxyingPermit *proxyingPermit
+
+	// WebSessionPermit encodes the parameters/constraints associated with an authorized web session (note that
+	// this permit is more of a compatibility layer than a "true" permit, and that most web session logic outside
+	// of this package still relies on passing around an access checker).
+	webSessionPermit *webSessionPermit
+
+	// GitForwardingPermit encodes the parameters/constraints associated with an authorized git forwarding attempt.
+	GitForwardingPermit *GitForwardingPermit
+
 	// TeleportUser is the Teleport user associated with the connection.
 	TeleportUser string
+
+	// ClusterName is the name of the cluster the user authenticated with.
+	OriginClusterName string
 
 	// Impersonator is a user acting on behalf of other user
 	Impersonator string
@@ -198,19 +246,27 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
-	// authorized_keys format.
-	Certificate *ssh.Certificate
-
 	// CertAuthority is the Certificate Authority that signed the Certificate.
 	CertAuthority types.CertAuthority
 
-	// AccessChecker is used to check RBAC permissions.
-	AccessChecker services.AccessChecker
+	// UnstableSessionJoiningAccessChecker is a temporary placeholder until we factor out session
+	// joining logic's depednence on AccessChecker in favor of using AccessPermit fields.
+	UnstableSessionJoiningAccessChecker services.AccessChecker
+
+	// UnstableClusterAccessChecker is a temporary placeholder until we figure out how best to
+	// handle trusted cluster access checking in the PDP-style access control model.
+	UnstableClusterAccessChecker func(types.RemoteCluster) error
 
 	// UnmappedRoles lists the original roles of this Teleport user without
 	// trusted-cluster-related role mapping being applied.
 	UnmappedRoles []string
+
+	// MappedRoles lists the final roles of this Teleport user after
+	// trusted-cluster-related role mapping has been applied.
+	MappedRoles []string
+
+	// Traits are the identity traits derived from the certificate.
+	Traits wrappers.Traits
 
 	// CertValidBefore is set to the expiry time of a certificate, or
 	// empty, if cert does not expire
@@ -229,10 +285,6 @@ type IdentityContext struct {
 	// Renewable indicates this certificate is renewable.
 	Renewable bool
 
-	// Generation counts the number of times this identity's certificate has
-	// been renewed.
-	Generation uint64
-
 	// BotName is the name of the Machine ID bot this identity is associated
 	// with, if any.
 	BotName string
@@ -241,9 +293,10 @@ type IdentityContext struct {
 	// this identity is associated with, if any.
 	BotInstanceID string
 
-	// AllowedResourceIDs lists the resources this identity should be allowed to
-	// access
-	AllowedResourceIDs []types.ResourceID
+	// JoinToken is the name of the join token used to join this bot identity,
+	// if any, and will not be set for bot instances that joined using the
+	// `token` join method.
+	JoinToken string
 
 	// PreviousIdentityExpires is the expiry time of the identity/cert that this
 	// identity/cert was derived from. It is used to determine a session's hard
@@ -280,9 +333,14 @@ type ServerContext struct {
 	// term holds PTY if it was requested by the session.
 	term Terminal
 
-	// sessionID holds the session ID that will be used when a new
-	// session is created.
-	sessionID rsession.ID
+	// sessionParams are parameters associated with this server session.
+	sessionParams *tracessh.SessionParams
+
+	// newSessionID is set if this server context is going to create a new session.
+	// This field must be set through [ServerContext.SetNewSessionID] for non-join
+	// sessions as soon as a session channel is accepted in order to inform
+	// the client of the to-be session ID.
+	newSessionID rsession.ID
 
 	// session holds the active session (if there's an active one).
 	session *session
@@ -357,6 +415,9 @@ type ServerContext struct {
 	cmdr *os.File
 	cmdw *os.File
 
+	// logw is used to send logs from the child process to the parent process.
+	logw *os.File
+
 	// cont{r,w} is used to send the continue signal from the parent process
 	// to the child process.
 	contr *os.File
@@ -406,14 +467,38 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
-	netConfig, err := srv.GetAccessPoint().GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, sessionParams *tracessh.SessionParams, monitorOpts ...func(*MonitorConfig)) (*ServerContext, error) {
 	recConfig, err := srv.GetAccessPoint().GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var (
+		clientIdleTimeout     time.Duration
+		disconnectExpiredCert time.Time
+		lockTargets           []types.LockTarget
+		lockingMode           constants.LockingMode
+	)
+	switch {
+	case identityContext.AccessPermit != nil:
+		clientIdleTimeout = identityContext.AccessPermit.ClientIdleTimeout.AsDuration()
+		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.DisconnectExpiredCert)
+		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.LockTargets)
+		lockingMode = constants.LockingMode(identityContext.AccessPermit.LockingMode)
+
+	case identityContext.ProxyingPermit != nil:
+		clientIdleTimeout = identityContext.ProxyingPermit.ClientIdleTimeout
+		disconnectExpiredCert = identityContext.ProxyingPermit.DisconnectExpiredCert
+		lockTargets = identityContext.ProxyingPermit.LockTargets
+		lockingMode = identityContext.ProxyingPermit.LockingMode
+
+	case identityContext.GitForwardingPermit != nil:
+		clientIdleTimeout = identityContext.GitForwardingPermit.ClientIdleTimeout
+		disconnectExpiredCert = identityContext.GitForwardingPermit.DisconnectExpiredCert
+		lockTargets = identityContext.GitForwardingPermit.LockTargets
+		lockingMode = identityContext.GitForwardingPermit.LockingMode
+	default:
+		return nil, trace.BadParameter("server context requires permit for one of ssh access, proxying, or git forwarding to be set (this is a bug)")
 	}
 
 	cancelContext, cancel := context.WithCancel(ctx)
@@ -422,15 +507,16 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		id:                     int(atomic.AddInt32(&ctxID, int32(1))),
 		env:                    make(map[string]string),
 		srv:                    srv,
+		sessionParams:          sessionParams,
 		ExecResultCh:           make(chan ExecResult, 10),
 		SubsystemResultCh:      make(chan SubsystemResult, 10),
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		SessionRecordingConfig: recConfig,
 		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout:      clientIdleTimeout,
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
+		ServerSubKind:          srv.GetInfo().GetSubKind(),
 	}
 
 	child.Logger = slog.With(
@@ -446,15 +532,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.JoinOnly = true
 	}
 
-	authPref, err := srv.GetAccessPoint().GetAuthPreference(ctx)
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-
-	child.disconnectExpiredCert = getDisconnectExpiredCertFromIdentityContext(
-		identityContext.AccessChecker, authPref, &identityContext,
-	)
+	child.disconnectExpiredCert = disconnectExpiredCert
 
 	// Update log entry fields.
 	if !child.disconnectExpiredCert.IsZero() {
@@ -464,16 +542,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.Logger = child.Logger.With("idle", child.clientIdleTimeout)
 	}
 
-	clusterName, err := srv.GetAccessPoint().GetClusterName()
-	if err != nil {
-		childErr := child.Close()
-		return nil, trace.NewAggregate(err, childErr)
-	}
-
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           ComputeLockTargets(clusterName.GetClusterName(), srv.HostUUID(), identityContext),
-		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
+		LockTargets:           lockTargets,
+		LockingMode:           lockingMode,
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -481,6 +553,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		Conn:                  child.ServerConn,
 		Context:               cancelContext,
 		TeleportUser:          child.Identity.TeleportUser,
+		UserOriginClusterName: child.Identity.OriginClusterName,
 		Login:                 child.Identity.Login,
 		ServerID:              child.srv.ID(),
 		Logger:                child.Logger,
@@ -531,6 +604,34 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
 
+	// If the log writer is a file, we can pass it directly to the child
+	// process to write to. Otherwise, we need to create a pipe to the child
+	// process and stream the logs to the log writer.
+	logCfg := child.srv.ChildLogConfig()
+	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
+		child.logw = fileWriter
+	} else {
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, w, err := os.Pipe()
+		if err != nil {
+			childErr := child.Close()
+			return nil, trace.NewAggregate(err, childErr)
+		}
+
+		child.logw = w
+		child.AddCloser(r)
+		child.AddCloser(w)
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
+			}
+		}()
+	}
+
 	return child, nil
 }
 
@@ -547,58 +648,22 @@ func (c *ServerContext) ID() int {
 }
 
 // SessionID returns the ID of the session in the context.
-func (c *ServerContext) SessionID() rsession.ID {
+//
+// This value is not set until during and after the "shell" / "exec" channel request.
+func (c *ServerContext) SessionID() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.session == nil {
-		return c.sessionID
+
+	if c.session != nil {
+		return string(c.session.id)
 	}
-	return c.session.id
+
+	return ""
 }
 
 // GetServer returns the underlying server which this context was created in.
 func (c *ServerContext) GetServer() Server {
 	return c.srv
-}
-
-// CreateOrJoinSession will look in the SessionRegistry for the session ID. If
-// no session is found, a new one is created. If one is found, it is returned.
-func (c *ServerContext) CreateOrJoinSession(ctx context.Context, reg *SessionRegistry) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// As SSH conversation progresses, at some point a session will be created and
-	// its ID will be added to the environment
-	ssid, found := c.getEnvLocked(sshutils.SessionEnvVar)
-	if !found {
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Will create new session for SSH connection")
-		return nil
-	}
-
-	// make sure whatever session is requested is a valid session
-	id, err := rsession.ParseID(ssid)
-	if err != nil {
-		return trace.BadParameter("invalid session ID")
-	}
-
-	// update ctx with the session if it exists
-	if sess, found := reg.findSession(*id); found {
-		c.sessionID = *id
-		c.session = sess
-		c.Logger.DebugContext(ctx, "Joining active SSH session", "session_id", c.session.id)
-	} else {
-		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
-		// clients should only set TELEPORT_SESSION when they want to
-		// join a session. Always return an error instead of using a
-		// new ID.
-		//
-		// to prevent the user from controlling the session ID, generate
-		// a new one
-		c.sessionID = rsession.NewID()
-		c.Logger.DebugContext(ctx, "Creating new SSH session")
-	}
-
-	return nil
 }
 
 // TrackActivity keeps track of all activity on ssh.Channel. The caller should
@@ -650,39 +715,64 @@ func (c *ServerContext) SetEnv(key, val string) {
 	c.mu.Unlock()
 }
 
-// GetEnv returns a environment variable within this context.
-func (c *ServerContext) GetEnv(key string) (string, bool) {
+// GetSessionParams gets session params for the current session.
+func (c *ServerContext) GetSessionParams() tracessh.SessionParams {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.getEnvLocked(key)
+
+	// Teleport ssh clients should provide session params upfront in the session channel request.
+	if c.sessionParams != nil {
+		return *c.sessionParams
+	}
+
+	// If this is an old client, it will provide session params from
+	// env variables sometime between the session channel request and shell request.
+	// TODO(Joerger): DELETE IN v20.0.0 - just return empty params for an old Teleport client / openSSH client session.
+	sessionParams := tracessh.SessionParams{
+		WebProxyAddr:                   c.env[teleport.SSHSessionWebProxyAddr],
+		Reason:                         c.env[teleport.EnvSSHSessionReason],
+		DisplayParticipantRequirements: utils.AsBool(c.env[teleport.EnvSSHSessionDisplayParticipantRequirements]),
+		JoinSessionID:                  c.env[sshutils.SessionEnvVar],
+		JoinMode:                       types.SessionParticipantMode(c.env[teleport.EnvSSHJoinMode]),
+		ModeratedSessionID:             c.env[sftp.EnvModeratedSessionID],
+	}
+
+	if invitedUsers := c.env[teleport.EnvSSHSessionInvited]; invitedUsers != "" {
+		if err := json.Unmarshal([]byte(invitedUsers), &sessionParams.Invited); err != nil {
+			slog.WarnContext(context.Background(), "Failed to parse invited users", "error", err)
+		}
+	}
+
+	return sessionParams
 }
 
-func (c *ServerContext) getEnvLocked(key string) (string, bool) {
-	val, ok := c.env[key]
-	if ok {
-		return val, true
-	}
-	return c.Parent().GetEnv(key)
+// SetNewSessionID sets the ID for a new session in this server context.
+func (c *ServerContext) SetNewSessionID(ctx context.Context, sid rsession.ID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.newSessionID = sid
+}
+
+// GetNewSessionID gets the ID for a new session in this server context.
+func (c *ServerContext) GetNewSessionID() rsession.ID {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.newSessionID
 }
 
 // setSession sets the context's session
-func (c *ServerContext) setSession(ctx context.Context, sess *session, ch ssh.Channel) {
+func (c *ServerContext) setSession(ctx context.Context, sess *session) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.session = sess
-
-	// inform the client of the session ID that is being used in a new
-	// goroutine to reduce latency
-	go func() {
-		c.Logger.DebugContext(ctx, "Sending current session ID")
-		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
-		if err != nil {
-			c.Logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
-		}
-	}()
 }
 
 // getSession returns the context's session
+//
+// The associated session is not set in the server context until a
+// shell / exec channel has been initiated for the session, so out-of-band
+// session requests that can occur before these channel requests should
+// consider fallback mechanisms.
 func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -700,12 +790,18 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	if !c.AllowFileCopying {
 		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
-	// Check if the user's RBAC role allows remote file operations.
-	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return trace.Wrap(errRoleFileCopyingNotPermitted)
+
+	// check if ssh access permit is defined and authorizes file copying
+	if permit := c.Identity.AccessPermit; permit != nil && permit.SshFileCopy {
+		return nil
 	}
 
-	return nil
+	// check if proxying permit is defined and authorizes file copying
+	if permit := c.Identity.ProxyingPermit; permit != nil && permit.SSHFileCopy {
+		return nil
+	}
+
+	return trace.Wrap(errRoleFileCopyingNotPermitted)
 }
 
 // CheckSFTPAllowed returns an error if remote file operations via SCP
@@ -717,8 +813,11 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	}
 
 	// ensure moderated session policies allow starting an unattended session
-	policySets := c.Identity.AccessChecker.SessionPolicySets()
-	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
+	var policySets []*types.SessionTrackerPolicySet
+	if c.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
+	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
 		return trace.Wrap(err)
@@ -830,7 +929,7 @@ func (c *ServerContext) takeClosers() []io.Closer {
 
 // When the ServerContext (connection) is closed, emit "session.data" event
 // containing how much data was transmitted and received over the net.Conn.
-func (c *ServerContext) reportStats(conn utils.Stater) {
+func (c *ServerContext) reportStats(conn *utils.TrackingConn) {
 	// We may not want to record session data for this connection context, e.g. if this is
 	// for a networking subprocess tied to a shell process.
 	if c.SessionRecordingConfig.GetMode() == types.RecordOff {
@@ -840,7 +939,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Never emit session data events for the proxy or from a Teleport node if
 	// sessions are being recorded at the proxy (this would result in double
 	// events).
-	if c.GetServer().Component() == teleport.ComponentProxy {
+	// Do not emit session data for git commands as they have their own events.
+	if c.GetServer().Component() == teleport.ComponentProxy ||
+		c.GetServer().Component() == teleport.ComponentForwardingGit {
 		return
 	}
 	if services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode()) &&
@@ -861,7 +962,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			Type:  events.SessionDataEvent,
 			Code:  events.SessionDataCode,
 		},
-		ServerMetadata:  c.srv.TargetMetadata(),
+		ServerMetadata:  c.srv.EventMetadata(),
 		SessionMetadata: c.GetSessionMetadata(),
 		UserMetadata:    c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -880,6 +981,15 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// Emit TX and RX bytes to their respective Prometheus counters.
 	serverTX.Add(float64(txBytes))
 	serverRX.Add(float64(rxBytes))
+}
+
+// ShouldHandleRecording returns whether this server context is responsible for
+// recording session events, including session recording, audit events, and session tracking.
+func (c *ServerContext) ShouldHandleSessionRecording() bool {
+	// The only time this server is not responsible for recording the session is when this
+	// is a Teleport Node with Proxy recording mode turned on, where the forwarding node will
+	// handle the recording.
+	return c.srv.Component() != teleport.ComponentNode || !services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode())
 }
 
 func (c *ServerContext) Close() error {
@@ -953,30 +1063,18 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		return nil, nil
 	}
 
-	localPAMConfig, err := c.srv.GetPAM()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// We use nil/empty to figure out if PAM is disabled later.
+	localPAMConfig := c.srv.GetPAM()
 	if !localPAMConfig.Enabled {
 		return nil, nil
 	}
-
-	// If the identity has roles, extract the role names.
-	roleNames := c.Identity.AccessChecker.RoleNames()
 
 	// Fill in the environment variables from the config and interpolate them if needed.
 	environment := make(map[string]string)
 	environment["TELEPORT_USERNAME"] = c.Identity.TeleportUser
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
-	environment["TELEPORT_ROLES"] = strings.Join(roleNames, " ")
+	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.MappedRoles, " ")
 	if localPAMConfig.Environment != nil {
-		traits, err := services.ExtractTraitsFromCert(c.Identity.Certificate)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
 			if err != nil {
@@ -990,7 +1088,7 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				return nil
 			}
 
-			result, err := expr.Interpolate(varValidation, traits)
+			result, err := expr.Interpolate(varValidation, c.Identity.UnmappedIdentity.Traits)
 			if err != nil {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
@@ -1020,9 +1118,6 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
 // an *execCommand which can be re-sent to Teleport.
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
-	// If the identity has roles, extract the role names.
-	roleNames := c.Identity.AccessChecker.RoleNames()
-
 	// Extract the command to be executed. This only exists if command execution
 	// (exec or shell) is being requested, port forwarding has no command to
 	// execute.
@@ -1048,13 +1143,24 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var mappedRoles []string
+	switch {
+	case c.Identity.AccessPermit != nil:
+		mappedRoles = c.Identity.AccessPermit.MappedRoles
+	case c.Identity.ProxyingPermit != nil:
+		mappedRoles = c.Identity.ProxyingPermit.MappedRoles
+	default:
+		return nil, trace.BadParameter("ExecCommand requires permit for one of ssh access or proxying to be set (this is a bug)")
+	}
+
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
+		LogConfig:             c.srv.ChildLogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
 		Username:              c.Identity.TeleportUser,
 		Login:                 c.Identity.Login,
-		Roles:                 roleNames,
+		Roles:                 mappedRoles,
 		Terminal:              c.termAllocated || command == "",
 		TerminalName:          c.ttyName,
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
@@ -1065,26 +1171,8 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
 		UaccMetadata:          *uaccMetadata,
+		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 	}, nil
-}
-
-func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
-	if cert == nil {
-		return nil
-	}
-
-	devID := cert.Extensions[teleport.CertExtensionDeviceID]
-	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
-	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
-	if devID == "" && assetTag == "" && credID == "" {
-		return nil
-	}
-
-	return &apievents.DeviceMetadata{
-		DeviceId:     devID,
-		AssetTag:     assetTag,
-		CredentialId: credID,
-	}
 }
 
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
@@ -1094,14 +1182,17 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	}
 
 	return apievents.UserMetadata{
-		Login:          id.Login,
-		User:           id.TeleportUser,
-		Impersonator:   id.Impersonator,
-		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
-		UserKind:       userKind,
-		BotName:        id.BotName,
-		BotInstanceID:  id.BotInstanceID,
+		Login:           id.Login,
+		User:            id.TeleportUser,
+		Impersonator:    id.Impersonator,
+		AccessRequests:  id.ActiveRequests,
+		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:        userKind,
+		BotName:         id.BotName,
+		BotInstanceID:   id.BotInstanceID,
+		UserClusterName: id.OriginClusterName,
+		UserRoles:       slices.Clone(id.MappedRoles),
+		UserTraits:      id.Traits.Clone(),
 	}
 }
 
@@ -1134,14 +1225,19 @@ func buildEnvironment(ctx *ServerContext) []string {
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))
+			env.AddTrusted(sshutils.SessionEnvVar, string(session.id))
 		}
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
-	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
+	// SSH_TELEPORT_HOST_UUID, SSH_TELEPORT_CLUSTER_NAME, and SSH_SESSION_WEBPROXY_ADDR.
 	env.AddTrusted(teleport.SSHTeleportHostUUID, ctx.srv.ID())
 	env.AddTrusted(teleport.SSHTeleportClusterName, ctx.ClusterName)
 	env.AddTrusted(teleport.SSHTeleportUser, ctx.Identity.TeleportUser)
+
+	if ctx.GetSessionParams().WebProxyAddr != "" {
+		env.AddTrusted(teleport.SSHSessionWebProxyAddr, ctx.GetSessionParams().WebProxyAddr)
+	}
 
 	// At the end gather all dynamically defined environment variables
 	ctx.VisitEnv(env.AddUnique)
@@ -1169,44 +1265,14 @@ func closeAll(closers ...io.Closer) error {
 }
 
 func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
-	addr := c.ConnectionContext.ServerConn.Conn.RemoteAddr()
-	hostname, _, err := net.SplitHostPort(addr.String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	preparedAddr, err := uacc.PrepareAddr(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	utmpPath, wtmpPath, btmpPath := c.srv.GetUserAccountingPaths()
-
+	utmpPath, wtmpPath, btmpPath, wtmpdbPath := c.srv.GetUserAccountingPaths()
 	return &UaccMetadata{
-		Hostname:   hostname,
-		RemoteAddr: preparedAddr,
+		RemoteAddr: utils.FromAddr(c.ConnectionContext.ServerConn.RemoteAddr()),
 		UtmpPath:   utmpPath,
 		WtmpPath:   wtmpPath,
 		BtmpPath:   btmpPath,
+		WtmpdbPath: wtmpdbPath,
 	}, nil
-}
-
-// ComputeLockTargets computes lock targets inferred from the clusterName, serverID and IdentityContext.
-func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []types.LockTarget {
-	lockTargets := []types.LockTarget{
-		{User: id.TeleportUser},
-		{Login: id.Login},
-		{Node: serverID, ServerID: serverID},
-		{Node: authclient.HostFQDN(serverID, clusterName), ServerID: authclient.HostFQDN(serverID, clusterName)},
-	}
-	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
-		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
-	}
-	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
-		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
-	}
-	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
-	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
-	lockTargets = append(lockTargets, services.AccessRequestsToLockTargets(id.ActiveRequests)...)
-	return lockTargets
 }
 
 // SetSSHRequest sets the ssh request that was issued by the client.
@@ -1261,25 +1327,25 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 
 func (c *ServerContext) GetSessionMetadata() apievents.SessionMetadata {
 	return apievents.SessionMetadata{
-		SessionID:        string(c.SessionID()),
-		WithMFA:          c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
-		PrivateKeyPolicy: c.Identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy],
+		SessionID:        c.SessionID(),
+		WithMFA:          c.Identity.UnmappedIdentity.MFAVerified,
+		PrivateKeyPolicy: string(c.Identity.UnmappedIdentity.PrivateKeyPolicy),
 	}
 }
 
-func (c *ServerContext) GetPortForwardEvent() apievents.PortForward {
+func (c *ServerContext) GetPortForwardEvent(evType, code, addr string) apievents.PortForward {
 	sconn := c.ConnectionContext.ServerConn
 	return apievents.PortForward{
 		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
+			Type: evType,
+			Code: code,
 		},
 		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  sconn.LocalAddr().String(),
 			RemoteAddr: sconn.RemoteAddr().String(),
 		},
-		Addr: c.DstAddr,
+		Addr: addr,
 		Status: apievents.Status{
 			Success: true,
 		},
@@ -1304,4 +1370,34 @@ func (c *ServerContext) ConsumeApprovedFileTransferRequest() *FileTransferReques
 	c.approvedFileReq = nil
 
 	return req
+}
+
+// The child does not signal until completing PAM setup, which can take an arbitrary
+// amount of time, so we use a reasonably long timeout to avoid dubious lockouts.
+const childReadyWaitTimeout = 3 * time.Minute
+
+// WaitForChild waits for the child process to signal ready through the named pipe.
+func (c *ServerContext) WaitForChild(ctx context.Context) error {
+	bpfService := c.srv.GetBPF()
+	pam := c.srv.GetPAM()
+
+	// Only wait for the child to be "ready" if BPF and PAM are enabled. This is required
+	// because PAM might inadvertently move the child process to another cgroup
+	// by invoking systemd. If this happens, then the cgroup filter used by BPF
+	// will be looking for events in the wrong cgroup and no events will be captured.
+	// However, unconditionally waiting for the child to be ready results in PAM
+	// deadlocking because stdin/stdout/stderr which it uses to relay details from
+	// PAM auth modules are not properly copied until _after_ the shell request is
+	// replied to.
+	var waitErr error
+	if bpfService.Enabled() && pam.Enabled {
+		if waitErr = waitForSignal(ctx, c.readyr, childReadyWaitTimeout); waitErr != nil {
+			c.Logger.ErrorContext(ctx, "Child process never became ready.", "error", waitErr)
+		}
+	}
+
+	closeErr := c.readyr.Close()
+	// Set to nil so the close in the context doesn't attempt to re-close.
+	c.readyr = nil
+	return trace.NewAggregate(waitErr, closeErr)
 }

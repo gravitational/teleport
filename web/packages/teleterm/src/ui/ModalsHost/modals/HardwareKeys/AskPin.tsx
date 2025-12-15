@@ -18,16 +18,17 @@
 
 import { useState } from 'react';
 
+import { ButtonPrimary, P2, Stack } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
-import { ButtonPrimary, Flex, P2 } from 'design';
+import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { PromptHardwareKeyPINRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
+import { CliCommand } from 'teleterm/ui/components/CliCommand';
 
 import { CommonHeader } from './CommonHeader';
 
@@ -59,19 +60,20 @@ export function AskPin(props: {
           >
             <CommonHeader
               onCancel={props.onCancel}
-              rootClusterUri={props.req.rootClusterUri}
+              proxyHostname={props.req.proxyHostname}
             />
 
             <DialogContent mb={4}>
-              <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <P2 color="text.slightlyMuted">
-                  Enter your YubiKey PIV PIN.
-                  <br />
-                  {props.req.pinOptional &&
-                    'To change the default PIN, leave the field blank.'}
+              <Stack>
+                <P2>
+                  Enter your YubiKey PIV PIN to continue
+                  {props.req.command ? ' with command:' : '.'}
                 </P2>
-
+                {props.req.command && (
+                  <CliCommand cliCommand={props.req.command} wrapContent />
+                )}
                 <FieldInput
+                  mt={3}
                   flex="1"
                   autoFocus
                   type="password"
@@ -86,7 +88,11 @@ export function AskPin(props: {
                   placeholder="123 456"
                   mb={0}
                 />
-              </Flex>
+                <P2 color="text.slightlyMuted">
+                  {props.req.pinOptional &&
+                    'To change the default PIN, leave the field blank.'}
+                </P2>
+              </Stack>
             </DialogContent>
 
             <DialogFooter>

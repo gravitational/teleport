@@ -30,7 +30,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // LegacyDestinationDirArgs is an embeddable struct that provides legacy-style
@@ -72,8 +75,8 @@ func (a *LegacyDestinationDirArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Lo
 		// When using the CLI --destination-dir we configure an Identity type
 		// output for that directory.
 		cfg.Services = []config.ServiceConfig{
-			&config.IdentityOutput{
-				Destination: &config.DestinationDirectory{
+			&identity.OutputConfig{
+				Destination: &destination.Directory{
 					Path: a.DestinationDir,
 				},
 			},
@@ -128,6 +131,15 @@ type LegacyCommand struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
+
+	// DiagSocketForUpdater specifies the diagnostics http service address that
+	// should be exposed to the updater via UNIX domain socket.
+	DiagSocketForUpdater string
+
+	// PIDFile is the path to the PID file. If not set, no PID file will be created.
+	PIDFile string
+
+	oneshotSetByUser bool
 }
 
 // NewLegacyCommand initializes and returns a command supporting
@@ -135,7 +147,7 @@ type LegacyCommand struct {
 func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *LegacyCommand {
 	joinMethodList := fmt.Sprintf(
 		"(%s)",
-		strings.Join(config.SupportedJoinMethods, ", "),
+		strings.Join(onboarding.SupportedJoinMethods, ", "),
 	)
 
 	c := &LegacyCommand{
@@ -150,9 +162,11 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode C
 	c.cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&c.CAPins)
 	c.cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&c.CertificateTTL)
 	c.cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&c.RenewalInterval)
-	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, config.SupportedJoinMethods...)
-	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&c.Oneshot)
+	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, onboarding.SupportedJoinMethods...)
+	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&c.oneshotSetByUser).BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
+	c.cmd.Flag("diag-socket-for-updater", "If set, run the diagnostics service on the specified socket path for teleport-update to consume.").Hidden().StringVar(&c.DiagSocketForUpdater)
+	c.cmd.Flag("pid-file", "Full path to the PID file. By default no PID file will be created.").StringVar(&c.PIDFile)
 
 	return c
 }
@@ -183,34 +197,34 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 		}
 	}
 
-	if c.Oneshot {
-		cfg.Oneshot = true
+	if c.oneshotSetByUser {
+		cfg.Oneshot = c.Oneshot
 	}
 
 	if c.CertificateTTL != 0 {
-		if cfg.CertificateTTL != 0 {
+		if cfg.CredentialLifetime.TTL != 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "certificate-ttl",
-				"config_value", cfg.CertificateTTL,
+				"config_value", cfg.CredentialLifetime.TTL,
 				"cli_value", c.CertificateTTL,
 			)
 		}
-		cfg.CertificateTTL = c.CertificateTTL
+		cfg.CredentialLifetime.TTL = c.CertificateTTL
 	}
 
 	if c.RenewalInterval != 0 {
-		if cfg.RenewalInterval != 0 {
+		if cfg.CredentialLifetime.RenewalInterval != 0 {
 			log.WarnContext(
 				context.TODO(),
 				"CLI parameters are overriding configuration",
 				"flag", "renewal-interval",
-				"config_value", cfg.RenewalInterval,
+				"config_value", cfg.CredentialLifetime.RenewalInterval,
 				"cli_value", c.RenewalInterval,
 			)
 		}
-		cfg.RenewalInterval = c.RenewalInterval
+		cfg.CredentialLifetime.RenewalInterval = c.RenewalInterval
 	}
 
 	// DataDir overrides any previously-configured storage config
@@ -237,7 +251,7 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 	// situation where different fields become set weirdly due to struct
 	// merging)
 	if c.Token != "" || c.JoinMethod != "" || len(c.CAPins) > 0 {
-		if !reflect.DeepEqual(cfg.Onboarding, config.OnboardingConfig{}) {
+		if !reflect.DeepEqual(cfg.Onboarding, onboarding.Config{}) {
 			// To be safe, warn about possible confusion.
 			log.WarnContext(
 				context.TODO(),
@@ -248,7 +262,7 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 			)
 		}
 
-		cfg.Onboarding = config.OnboardingConfig{
+		cfg.Onboarding = onboarding.Config{
 			CAPins:     c.CAPins,
 			JoinMethod: types.JoinMethod(c.JoinMethod),
 		}
@@ -267,6 +281,9 @@ func (c *LegacyCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 		}
 		cfg.DiagAddr = c.DiagAddr
 	}
+
+	cfg.DiagSocketForUpdater = c.DiagSocketForUpdater
+	cfg.PIDFile = c.PIDFile
 
 	return nil
 }

@@ -409,7 +409,7 @@ func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 	return trace.NotImplemented("RemoveSessionTracker is not implemented")
 }
 
-func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (m *mockSessionTrackerService) UpdatePresence(_ context.Context, _, _, _ string) error {
 	return trace.NotImplemented("UpdatePresence is not implemented")
 }
 

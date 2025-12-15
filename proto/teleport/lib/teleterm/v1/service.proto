@@ -33,6 +33,7 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
+import "teleport/lib/teleterm/v1/windows_desktop.proto";
 import "teleport/userpreferences/v1/cluster_preferences.proto";
 import "teleport/userpreferences/v1/unified_resource_preferences.proto";
 
@@ -63,12 +64,8 @@ service TerminalService {
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-  // GetServers returns filtered, sorted, and paginated servers
-  //
-  // Deprecated: Use ListUnifiedResources instead.
-  rpc GetServers(GetServersRequest) returns (GetServersResponse) {
-    option deprecated = true;
-  }
+  // ListDatabaseServers lists allowed users for the given database based on the role set.
+  rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
   // GetAccessRequests lists filtered AccessRequests
   rpc GetAccessRequests(GetAccessRequestsRequest) returns (GetAccessRequestsResponse);
   // GetAccessRequest retreives a single Access Request
@@ -90,11 +87,10 @@ service TerminalService {
   // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
   // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
   rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
-
+  // Lists Kubernetes servers.
+  rpc ListKubernetesServers(ListKubernetesServersRequest) returns (ListKubernetesServersResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
-  // RemoveCluster removes a cluster from profile
-  rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
 
   // ListGateways lists gateways
   rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
@@ -135,8 +131,12 @@ service TerminalService {
   // -> Receive the index number associated with the selected credential in list
   // <- End
   rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
-  // ClusterLogin logs out a user from cluster
+  // Logs the user out of the cluster and cleans up associated resources.
+  // Optionally removes the profile.
+  // This operation is idempotent and can be safely invoked multiple times.
   rpc Logout(LogoutRequest) returns (EmptyResponse);
+  // Closes root and leaf cluster clients that use outdated TLS certificates.
+  rpc ClearStaleClusterClients(ClearStaleClusterClientsRequest) returns (ClearStaleClusterClientsResponse);
   // TransferFile sends a request to download/upload a file
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -177,24 +177,40 @@ service TerminalService {
   // See
   // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-authentication.
   rpc AuthenticateWebDevice(AuthenticateWebDeviceRequest) returns (AuthenticateWebDeviceResponse);
+
+  // GetApp returns details of an app resource. It does not include information about AWS roles and
+  // FQDN.
+  rpc GetApp(GetAppRequest) returns (GetAppResponse);
+
+  // ConnectToDesktop is a bidirectional stream for the desktop connection.
+  rpc ConnectToDesktop(stream ConnectToDesktopRequest) returns (stream ConnectToDesktopResponse);
+  // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
+  // If there is no active desktop session associated with the specified desktop_uri and login,
+  // the RPC returns an error.
+  //
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  // It only registers file system handlers for processing file system-related TDP events.
+  rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
 }
 
 message EmptyResponse {}
-
-// RemoveClusterRequest describes RemoveClusterRequest
-message RemoveClusterRequest {
-  string cluster_uri = 1;
-}
 
 // GetClusterRequest describes GetClusterRequest
 message GetClusterRequest {
   string cluster_uri = 1;
 }
 
-// LogoutRequest describes LogoutRequest
 message LogoutRequest {
   string cluster_uri = 1;
+  // Whether to remove the associated YAML profile after logout.
+  bool remove_profile = 2;
 }
+
+message ClearStaleClusterClientsRequest {
+  string root_cluster_uri = 1;
+}
+
+message ClearStaleClusterClientsResponse {}
 
 message StartHeadlessWatcherRequest {
   string root_cluster_uri = 1;
@@ -249,8 +265,7 @@ message CreateAccessRequestRequest {
   repeated string roles = 3;
   // suggested_reviewers is a suggested list of reviewers that can review a request.
   repeated string suggested_reviewers = 4;
-  // TODO(avatus) remove the resource_ids field once the changes to rely on resources instead is merged
-  // a list of resourceIDs requested in the AccessRequest
+  // List of resources to which access is being requested.
   repeated ResourceID resource_ids = 5;
   // assume_start_time is the time after which the requested access can be assumed.
   google.protobuf.Timestamp assume_start_time = 6;
@@ -346,6 +361,30 @@ message ListKubernetesResourcesResponse {
   repeated KubeResource resources = 1;
   reserved 2;
   reserved "next_key";
+}
+
+// Lists Kubernetes servers request.
+message ListKubernetesServersRequest {
+  // Maximum number of servers to return per page.
+  int32 page_size = 1;
+
+  // Pagination token from a previous response.
+  string page_token = 2;
+
+  // Target Kubernetes cluster URI.
+  string cluster_uri = 3;
+
+  // Additional filters and sorting options.
+  ListResourcesParams params = 4;
+}
+
+// Lists Kubernetes servers response.
+message ListKubernetesServersResponse {
+  // Resources in this page of results.
+  repeated KubeServer resources = 1;
+
+  // Pagination token for the next page.
+  string next_page_token = 2;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -466,6 +505,28 @@ message ListDatabaseUsersResponse {
   repeated string users = 1;
 }
 
+// ListResourcesParams describes different types of params
+// that can be applied when sending a request to a method that
+// uses the ListResources API underneath.
+message ListResourcesParams {
+  string start_key = 1;
+  int32 limit = 2;
+  string predicate_expression = 3;
+  // UseSearchAsRoles indicates that the response should include all resources
+  // the caller is able to request access to using search_as_roles
+  bool use_search_as_roles = 4;
+}
+
+message ListDatabaseServersRequest {
+  string cluster_uri = 1;
+  ListResourcesParams params = 2;
+}
+
+message ListDatabaseServersResponse {
+  repeated DatabaseServer resources = 1;
+  string next_key = 2;
+}
+
 message CreateGatewayRequest {
   string target_uri = 1;
   string target_user = 2;
@@ -491,22 +552,6 @@ message SetGatewayTargetSubresourceNameRequest {
 message SetGatewayLocalPortRequest {
   string gateway_uri = 1;
   string local_port = 2;
-}
-
-message GetServersRequest {
-  string cluster_uri = 1;
-  int32 limit = 2;
-  string start_key = 3;
-  string search = 4;
-  string query = 5;
-  string sort_by = 6;
-  string search_as_roles = 7;
-}
-
-message GetServersResponse {
-  repeated Server agents = 1;
-  int32 total_count = 2;
-  string start_key = 3;
 }
 
 message GetAuthSettingsRequest {
@@ -607,7 +652,7 @@ message SortBy {
 
 message ListUnifiedResourcesResponse {
   repeated PaginatedResource resources = 1;
-  // A key to use as start_key in a ListResourcesRequest to continue retrieving
+  // A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
   // the next pages. If it is empty, there are no more pages.
   string next_key = 2;
 }
@@ -618,6 +663,7 @@ message PaginatedResource {
     Server server = 2;
     Kube kube = 3;
     App app = 4;
+    WindowsDesktop windows_desktop = 6;
   }
   bool requires_request = 5;
 }
@@ -660,3 +706,47 @@ message AuthenticateWebDeviceResponse {
   // authentication attempt.
   teleport.devicetrust.v1.DeviceConfirmationToken confirmation_token = 1;
 }
+
+message GetAppRequest {
+  string app_uri = 1;
+}
+
+message GetAppResponse {
+  App app = 1;
+}
+
+// TargetDesktop contains information about the destination desktop.
+message TargetDesktop {
+  // URI of the desktop to connect to.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+}
+
+// Request for ConnectToDesktop.
+message ConnectToDesktopRequest {
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
+  // Must be empty in the first message and nonempty in subsequent messages.
+  bytes data = 1;
+  // Target desktop and login. Must be set in the first message and unset in subsequent messages.
+  TargetDesktop target_desktop = 2;
+}
+
+// Response for ConnectToDesktop.
+message ConnectToDesktopResponse {
+  // Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
+  bytes data = 1;
+}
+
+// Request for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionRequest {
+  // URI of the desktop.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+  // Path to share with a remote machine. Must be a directory.
+  string path = 3;
+}
+
+// Response for SetSharedDirectoryForDesktopSession.
+message SetSharedDirectoryForDesktopSessionResponse {}

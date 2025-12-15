@@ -17,25 +17,43 @@
  */
 
 import { useCallback, useEffect } from 'react';
-
 import { useLocation, useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
-
 import { AccessDenied } from 'design/CardError';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { UrlLauncherParams } from 'teleport/config';
+import AuthnDialog from 'teleport/components/AuthnDialog';
+import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
+import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
-export function AppLauncher() {
+export function AppLauncher({
+  windowLocation = window.location,
+}: {
+  /** Allows overwriting `window.location` in tests. */
+  windowLocation?: Pick<Location, 'replace'>;
+}) {
   const { attempt, setAttempt } = useAttempt('processing');
 
   const pathParams = useParams<UrlLauncherParams>();
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
   const isRedirectFlow = queryParams.get('required-apps');
+
+  const mfa = useMfa({
+    req: {
+      scope: MfaChallengeScope.USER_SESSION,
+      isMfaRequiredRequest: {
+        app: {
+          fqdn: pathParams.fqdn,
+          cluster_name: pathParams.clusterId,
+          public_addr: pathParams.publicAddr,
+        },
+      },
+    },
+  });
 
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
     let fqdn = params.fqdn;
@@ -87,13 +105,14 @@ export function AppLauncher() {
       // Let the target app know of a new auth exchange.
       const stateToken = queryParams.get('state');
       if (!stateToken) {
-        initiateNewAuthExchange({
+        const url = getNewAuthExchangeUrl({
           fqdn,
           port,
           path,
           params,
           requiredApps,
         });
+        windowLocation.replace(url.toString());
         return;
       }
 
@@ -101,7 +120,15 @@ export function AppLauncher() {
       if (params.arn) {
         params.arn = decodeURIComponent(params.arn);
       }
-      const session = await service.createAppSession(params);
+
+      const createAppSessionParams: CreateAppSessionParams = {
+        fqdn: params.fqdn,
+        cluster_name: params.clusterId,
+        public_addr: params.publicAddr,
+        arn: params.arn,
+        mfaResponse: await mfa.getChallengeResponse(),
+      };
+      const session = await service.createAppSession(createAppSessionParams);
 
       // Set all the fields expected by server to validate request.
       const url = getXTeleportAuthUrl({ fqdn, port });
@@ -118,7 +145,7 @@ export function AppLauncher() {
 
       // This will load an empty HTML with the inline JS containing
       // logic to finish the auth exchange.
-      window.location.replace(url.toString());
+      windowLocation.replace(url.toString());
     } catch (err) {
       let statusText = 'Something went wrong';
 
@@ -142,11 +169,16 @@ export function AppLauncher() {
     createAppSession(pathParams);
   }, [pathParams]);
 
-  if (attempt.status === 'failed') {
-    return <AppLauncherAccessDenied statusText={attempt.statusText} />;
-  }
-
-  return <AppLauncherProcessing />;
+  return (
+    <div>
+      {attempt.status === 'failed' ? (
+        <AppLauncherAccessDenied statusText={attempt.statusText} />
+      ) : (
+        <AppLauncherProcessing />
+      )}
+      <AuthnDialog mfaState={mfa}></AuthnDialog>
+    </div>
+  );
 }
 
 export function AppLauncherProcessing() {
@@ -191,8 +223,7 @@ function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
   }
 }
 
-// initiateNewAuthExchange is the first step to gaining access to an
-// application.
+// Returns the URL to gain access to an application.
 //
 // It can be initiated in two ways:
 //   1) user clicked our "launch" app button from the resource list
@@ -200,7 +231,7 @@ function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
 //   2) user hits the app endpoint directly (eg: cliking on a
 //      bookmarked URL), in which the server will redirect the user
 //      to this launcher.
-function initiateNewAuthExchange({
+function getNewAuthExchangeUrl({
   fqdn,
   port,
   params,
@@ -248,7 +279,7 @@ function initiateNewAuthExchange({
     url.searchParams.set('arn', params.arn);
   }
 
-  window.location.replace(url.toString());
+  return url;
 }
 
 function throwFailedToParseUrlError(err: TypeError) {

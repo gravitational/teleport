@@ -28,6 +28,13 @@ import (
 // https://mariadb.com/kb/en/ok_packet/
 type OK struct {
 	packet
+
+	AffectedRows uint64
+}
+
+// HasAffectedRows returns true if the packet has non-zero affected rows.
+func (o *OK) HasAffectedRows() bool {
+	return o.packet.Bytes()[packetHeaderAndTypeSize] > 0
 }
 
 // Error represents the ERR packet.

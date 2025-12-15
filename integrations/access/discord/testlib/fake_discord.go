@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/discord"
 )
@@ -188,6 +187,6 @@ func (s *FakeDiscord) CheckMessageUpdateByResponding(ctx context.Context) (disco
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panicf("%v at %v", err, string(debug.Stack()))
+		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
 	}
 }

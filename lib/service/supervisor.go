@@ -22,15 +22,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Supervisor implements the simple service logic - registering
@@ -103,6 +107,9 @@ type Supervisor interface {
 	// GracefulExitContext returns context that will be closed when
 	// a graceful or hard TeleportExitEvent is broadcast.
 	GracefulExitContext() context.Context
+
+	// HandleReadiness is the HTTP handler for "/readyz".
+	HandleReadiness(http.ResponseWriter, *http.Request)
 }
 
 // EventMapping maps a sequence of incoming
@@ -130,10 +137,8 @@ func (e EventMapping) matches(currentEvent string, m map[string]Event) (bool, er
 		}
 	}
 	// current event that is firing should match one of the expected events
-	for _, in := range e.In {
-		if currentEvent == in {
-			return true, nil
-		}
+	if slices.Contains(e.In, currentEvent) {
+		return true, nil
 	}
 
 	// mapping not satisfied, and this event is not part of the mapping
@@ -165,11 +170,23 @@ type LocalSupervisor struct {
 	id            string
 
 	// log specifies the logger
-	log logrus.FieldLogger
+	log *slog.Logger
+
+	// clock is used as a source of time, to support fake clocks in tests.
+	clock clockwork.Clock
+
+	// processState is the process state machine tracking if the process is
+	// healthy or not.
+	processState processState
 }
 
 // NewSupervisor returns new instance of initialized supervisor
-func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
+func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) (*LocalSupervisor, error) {
+	// used by processState
+	if err := metrics.RegisterPrometheusCollectors(stateGauge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx := context.TODO()
 
 	closeContext, cancel := context.WithCancel(ctx)
@@ -179,6 +196,10 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 	// graceful exit context is a subcontext of exit context since any work that terminates
 	// in the event of graceful exit must also terminate in the event of an immediate exit.
 	gracefulExitContext, signalGracefulExit := context.WithCancel(exitContext)
+
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 
 	srv := &LocalSupervisor{
 		state:        stateCreated,
@@ -196,17 +217,20 @@ func NewSupervisor(id string, parentLog logrus.FieldLogger) Supervisor {
 		gracefulExitContext: gracefulExitContext,
 		signalGracefulExit:  signalGracefulExit,
 
-		log: parentLog.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+		log: parentLog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, id)),
+
+		clock: clock,
 	}
+
 	go srv.fanOut()
-	return srv
+	return srv, nil
 }
 
 // Event is a special service event that can be generated
 // by various goroutines in the supervisor
 type Event struct {
 	Name    string
-	Payload interface{}
+	Payload any
 }
 
 func (e *Event) String() string {
@@ -214,7 +238,7 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	s.log.WithField("service", srv.Name()).Debug("Adding service to supervisor.")
+	s.log.Log(s.closeContext, logutils.TraceLevel, "Adding service to supervisor", "service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -246,17 +270,17 @@ func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn Func) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	l := s.log.WithField("service", srv.Name())
+	l := s.log.With("service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {
 		if el == srv {
-			s.services = append(s.services[:i], s.services[i+1:]...)
-			l.Debug("Service is completed and removed.")
+			s.services = slices.Delete(s.services, i, i+1)
+			l.Log(s.closeContext, logutils.TraceLevel, "Service is completed and removed")
 			return nil
 		}
 	}
-	l.Warning("Service is completed but not found.")
+	l.WarnContext(s.closeContext, "Service is completed but not found")
 	return trace.NotFound("service %v is not found", srv)
 }
 
@@ -283,6 +307,7 @@ var metricsServicesRunningMap = map[string]string{
 	"ssh.node":             "ssh_service",
 	"auth.tls":             "auth_service",
 	"proxy.web":            "proxy_service",
+	"relay.run":            "relay_service",
 	"kube.init":            "kubernetes_service",
 	"apps.start":           "application_service",
 	"db.init":              "database_service",
@@ -291,7 +316,27 @@ var metricsServicesRunningMap = map[string]string{
 	"jamf.init":            "jamf_service",
 }
 
+// isShuttingDown returns true if the supervisor is in the process of shutting down
+// either gracefully or immediately.
+// Should be called with the lock held to make sure the state doesn't change
+func (s *LocalSupervisor) isShuttingDown() bool {
+	select {
+	case <-s.exitContext.Done():
+		return true
+	case <-s.gracefulExitContext.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// server starts the service in a separate goroutine.
+// Should be called with the lock held.
 func (s *LocalSupervisor) serve(srv Service) {
+	if s.isShuttingDown() {
+		s.log.WarnContext(s.closeContext, "Not starting new service, process is shutting down")
+		return
+	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -302,15 +347,15 @@ func (s *LocalSupervisor) serve(srv Service) {
 			defer metricsServicesRunning.WithLabelValues(label).Dec()
 		}
 
-		l := s.log.WithField("service", srv.Name())
-		l.Debug("Service has started.")
+		l := s.log.With("service", srv.Name())
+		l.Log(s.closeContext, logutils.TraceLevel, "Service has started")
 		err := srv.Serve()
 		if err != nil {
 			if errors.Is(err, ErrTeleportExited) {
-				l.Info("Teleport process has shut down.")
+				l.InfoContext(s.closeContext, "Teleport process has shut down")
 			} else {
 				if s.ExitContext().Err() == nil {
-					l.WithError(err).Warning("Teleport process has exited with error.")
+					l.WarnContext(s.closeContext, "Teleport process has exited with error", "error", err)
 				}
 				s.BroadcastEvent(Event{
 					Name:    ServiceExitedWithErrorEvent,
@@ -327,7 +372,7 @@ func (s *LocalSupervisor) Start() error {
 	s.state = stateStarted
 
 	if len(s.services) == 0 {
-		s.log.Warning("Supervisor has no services to run. Exiting.")
+		s.log.WarnContext(s.closeContext, "Supervisor has no services to run - exiting")
 		return nil
 	}
 
@@ -354,6 +399,9 @@ func (s *LocalSupervisor) Services() []string {
 	return out
 }
 
+// Wait blocks until all registered services have exited.
+// It is invoked during process shutdown to ensure
+// that all registered services have exited.
 func (s *LocalSupervisor) Wait() error {
 	defer s.signalClose()
 	s.wg.Wait()
@@ -379,13 +427,23 @@ func (s *LocalSupervisor) GracefulExitContext() context.Context {
 	return s.gracefulExitContext
 }
 
+// HandleReadiness implements [Supervisor].
+func (s *LocalSupervisor) HandleReadiness(w http.ResponseWriter, r *http.Request) {
+	s.processState.handleReadiness(w, r)
+}
+
 // BroadcastEvent generates event and broadcasts it to all
 // subscribed parties.
 func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	s.Lock()
 	defer s.Unlock()
 
-	if event.Name == TeleportExitEvent {
+	// some events have additional handling here because they affect the
+	// behavior or status of the process as a whole: Exit begins the shutdown by
+	// causing contexts to be closed, and Degraded/OK/Starting update the
+	// process' health.
+	switch event.Name {
+	case TeleportExitEvent:
 		// if exit event includes a context payload, it is a "graceful" exit, and
 		// we need to hold off closing the supervisor's exit context until after
 		// the graceful context has closed.  If not, it is an immediate exit.
@@ -401,6 +459,25 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 		} else {
 			s.signalExit()
 		}
+	case TeleportDegradedEvent, TeleportOKEvent, TeleportStartingEvent:
+		componentName, ok := event.Payload.(string)
+		if !ok {
+			s.log.ErrorContext(s.closeContext, "Received event broadcast without component name, this is a bug!", "event", event.Name)
+			break
+		}
+		updateResult := s.processState.update(s.clock.Now(), event.Name, componentName)
+		switch updateResult {
+		case updateStarting:
+			s.log.DebugContext(s.closeContext, "Teleport component is starting", "component", componentName)
+		case updateStarted:
+			s.log.DebugContext(s.closeContext, "Teleport component has started.", "component", componentName)
+		case updateDegraded:
+			s.log.InfoContext(s.closeContext, "Detected Teleport component is running in a degraded state.", "component", componentName)
+		case updateRecovering:
+			s.log.InfoContext(s.closeContext, "Teleport component is recovering from a degraded state.", "component", componentName)
+		case updateRecovered:
+			s.log.InfoContext(s.closeContext, "Teleport component has recovered from a degraded state.", "component", componentName)
+		}
 	}
 
 	s.events[event.Name] = event
@@ -408,7 +485,7 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	// Log all events other than recovered events to prevent the logs from
 	// being flooded.
 	if event.String() != TeleportOKEvent {
-		s.log.WithField("event", event.String()).Debug("Broadcasting event.")
+		s.log.DebugContext(s.closeContext, "Broadcasting event", "event", logutils.StringerAttr(&event))
 	}
 
 	go func() {
@@ -430,12 +507,12 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 					return
 				}
 			}(mappedEvent)
-			s.log.WithFields(logrus.Fields{
-				"in":  event.String(),
-				"out": m.String(),
-			}).Debug("Broadcasting mapped event.")
+			s.log.DebugContext(s.closeContext, "Broadcasting mapped event",
+				"in", logutils.StringerAttr(&event),
+				"out", logutils.StringerAttr(m),
+			)
 		} else if err != nil {
-			s.log.Debugf("Teleport not yet ready: %v", err)
+			s.log.DebugContext(s.closeContext, "Teleport not yet ready", "error", err)
 		}
 	}
 }

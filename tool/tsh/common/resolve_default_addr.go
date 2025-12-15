@@ -62,7 +62,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 
 	rsp, err := cli.Do(request)
 	if err != nil {
-		log.WithError(err).Debug("Proxy address test failed")
+		logger.DebugContext(ctx, "Proxy address test failed", "error", err)
 		results <- raceResult{addr: addr, err: err}
 		return
 	}
@@ -75,16 +75,18 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 	resBody, err := io.ReadAll(io.LimitReader(rsp.Body, maxPingBodySize))
 	if err != nil {
 		// Log but do not return. We could receive HTTP OK, and we should not fail on error here.
-		log.Debugf("Failed to read whole response body: %v", err)
+		logger.DebugContext(ctx, "Failed to read whole response body", "error", err)
 	}
 
 	// If the request returned a non-OK response then we're still going
 	// to treat this as a failure and return an error to the race
 	// aggregator.
 	if rsp.StatusCode != http.StatusOK {
+		logger.DebugContext(ctx, "Proxy address test received non-OK response",
+			"status_code", rsp.StatusCode,
+			"response_body", string(resBody),
+		)
 		err = trace.BadParameter("Proxy address test received non-OK response: %03d", rsp.StatusCode)
-		log.Debugf("%v, response body: %s ", err, string(resBody))
-
 		results <- raceResult{addr: addr, err: err}
 		return
 	}
@@ -98,7 +100,7 @@ func raceRequest(ctx context.Context, cli *http.Client, addr string, waitgroup *
 func startRacer(ctx context.Context, cli *http.Client, host string, candidates []int, waitGroup *sync.WaitGroup, results chan<- raceResult) []int {
 	port, tail := candidates[0], candidates[1:]
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
-	log.Debugf("Trying %s...", addr)
+	logger.DebugContext(ctx, "Trying request", "addr", addr)
 	waitGroup.Add(1)
 	go raceRequest(ctx, cli, addr, waitGroup, results)
 	return tail
@@ -110,7 +112,7 @@ func startRacer(ctx context.Context, cli *http.Client, host string, candidates [
 //  2. races the requests against one another, and finally
 //  3. selects the first to respond as the canonical proxy
 func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []int) (string, error) {
-	log.Debugf("Resolving default proxy port (insecure: %v)", insecure)
+	logger.DebugContext(ctx, "Resolving default proxy port", "insecure_mode", insecure)
 
 	if len(ports) == 0 {
 		return "", trace.BadParameter("port list may not be empty")
@@ -138,7 +140,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 	// properly in error conditions.
 	var racersInFlight sync.WaitGroup
 	defer func() {
-		log.Debug("Waiting for all in-flight proxy address tests to finish")
+		logger.DebugContext(ctx, "Waiting for all in-flight proxy address tests to finish")
 		racersInFlight.Wait()
 	}()
 
@@ -190,7 +192,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 				// Note that returning will implicitly cancel the inner context, telling
 				// any outstanding racers that there is no point trying anymore, and they
 				// should exit.
-				log.Debugf("Address %s succeeded. Selected as canonical proxy address", r.addr)
+				logger.DebugContext(ctx, "Request to address succeeded, selected as canonical proxy address", "address", r.addr)
 				return r.addr, nil
 			}
 			errors = append(errors, r.err)

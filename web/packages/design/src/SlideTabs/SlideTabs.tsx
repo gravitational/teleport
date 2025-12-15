@@ -21,9 +21,9 @@ import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { IconProps } from 'design/Icon/Icon';
-import { HoverTooltip } from 'design/Tooltip';
 import { Position } from 'design/Popover/Popover';
 import { StatusIcon, StatusKind } from 'design/StatusIcon';
+import { HoverTooltip } from 'design/Tooltip';
 
 export function SlideTabs({
   appearance = 'square',
@@ -35,6 +35,7 @@ export function SlideTabs({
   disabled = false,
   fitContent = false,
   hideStatusIconOnActiveTab,
+  intent = 'primary',
 }: SlideTabsProps) {
   const theme = useTheme();
   const activeTab = useRef<HTMLButtonElement>(null);
@@ -85,13 +86,15 @@ export function SlideTabs({
               position: tooltipPosition,
             } = {},
             status: { kind: statusKind, ariaLabel: statusAriaLabel } = {},
+            disabled: tabDisabled = false,
           } = toFullTabSpec(tabSpec, tabIndex);
+          const resolvedDisabled = disabled || tabDisabled;
           const statusIconColorActive = hideStatusIconOnActiveTab
             ? 'transparent'
             : theme.colors.text.primaryInverse;
 
           let onClick = undefined;
-          if (!disabled && !isProcessing) {
+          if (!resolvedDisabled && !isProcessing) {
             onClick = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
               e.preventDefault();
               onChange(tabIndex);
@@ -102,7 +105,7 @@ export function SlideTabs({
             <HoverTooltip
               key={key}
               tipContent={tooltipContent}
-              position={tooltipPosition}
+              placement={tooltipPosition}
             >
               <TabButton
                 ref={selected ? activeTab : undefined}
@@ -111,11 +114,12 @@ export function SlideTabs({
                 selected={selected}
                 className={selected ? 'selected' : undefined}
                 aria-controls={controls}
-                tabIndex={!disabled && selected ? 0 : -1}
+                tabIndex={!resolvedDisabled && selected ? 0 : -1}
                 processing={isProcessing}
-                disabled={disabled}
+                disabled={resolvedDisabled}
                 aria-selected={selected}
                 size={size}
+                intent={intent}
                 aria-label={ariaLabel}
               >
                 {/* We need a separate tab content component, since the status
@@ -124,6 +128,8 @@ export function SlideTabs({
                   whose left edge is the left edge of the content (not the tab
                   button, which can be much wider). */}
                 <TabContent gap={1}>
+                  {Icon && <Icon size={size} role="graphics-symbol" />}
+                  {title}
                   <StatusIconContainer>
                     <StatusIconOrSpinner
                       statusKind={statusKind}
@@ -133,8 +139,6 @@ export function SlideTabs({
                       color={selected ? statusIconColorActive : undefined}
                     />
                   </StatusIconContainer>
-                  {Icon && <Icon size={size} role="graphics-symbol" />}
-                  {title}
                 </TabContent>
               </TabButton>
             </HoverTooltip>
@@ -150,7 +154,7 @@ export function SlideTabs({
           activeIndex={activeIndex}
           size={size}
         >
-          <TabSliderInner appearance={appearance} />
+          <TabSliderInner appearance={appearance} intent={intent} />
         </TabSlider>
       </TabList>
     </Wrapper>
@@ -158,6 +162,11 @@ export function SlideTabs({
 }
 
 export type SlideTabsProps = {
+  /**
+   * Specifies the selected tab button purpose class
+   * and affects its color palette.
+   */
+  intent?: Intent;
   /**
    * The style to render the selector in.
    */
@@ -214,7 +223,7 @@ export type SlideTabsProps = {
  */
 export type TabSpec = string | FullTabSpec;
 
-type FullTabSpec = TabContentSpec & {
+export type FullTabSpec = TabContentSpec & {
   /** Iteration key for the tab. */
   key: React.Key;
   /**
@@ -236,6 +245,7 @@ type FullTabSpec = TabContentSpec & {
     kind: StatusKind;
     ariaLabel?: string;
   };
+  disabled?: boolean;
 };
 
 /**
@@ -308,11 +318,84 @@ function StatusIconOrSpinner({
   );
 }
 
-const TabSliderInner = styled.div<{ appearance: Appearance }>`
+const TabSliderInner = styled.div<{ appearance: Appearance; intent: Intent }>`
   height: 100%;
-  background-color: ${({ theme }) => theme.colors.brand};
+  background-color: ${p =>
+    p.intent === 'primary'
+      ? p.theme.colors.brand
+      : p.theme.colors.interactive.tonal.neutral[2]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
 `;
+
+// For the small and medium sizes, we don't use paddings between tab buttons.
+// Therefore, the area of tab list is evenly divided into segments, and we
+// anchor the slider relative to the box with horizontal padding. With larger
+// sizes, we expect to have some distance between the tab buttons. It means
+// that the positions of the slider, expressed as relative to what the padding
+// box would be, are no longer proportional to the tab index (there is distance
+// between the tabs, but no distance on the left of the first tab and on the
+// right of the last tab). Therefore, to calculate the position of slider as a
+// percentage of its container's width, we set the wrapper's horizontal padding
+// to 0, thus giving us a couple of pixels of breathing room; now we can go
+// back to using a linear formula to calculate the slider position. This lack
+// of padding will be then compensated for by adjusting tab button margins
+// appropriately.
+
+const wrapperPadding = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { padding: '4px 4px' };
+    case 'medium':
+      return { padding: '8px 8px' };
+    case 'large':
+      return { padding: '8px 0' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
+const buttonMargin = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { margin: '0 0' };
+    case 'medium':
+      return { margin: '0 0' };
+    case 'large':
+      return { margin: '0 8px' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
+const buttonPadding = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { padding: '8px 8px' };
+    case 'medium':
+      return { padding: '8px 8px' };
+    case 'large':
+      return { padding: '8px 16px' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
+
+const sliderPadding = ({ size }: { size: Size }) => {
+  switch (size) {
+    case 'small':
+      return { padding: '0 0' };
+    case 'medium':
+      return { padding: '0 0' };
+    case 'large':
+      return { padding: '0 8px' };
+    default:
+      size satisfies never;
+      return;
+  }
+};
 
 const Wrapper = styled.div<{
   fitContent: boolean;
@@ -321,22 +404,7 @@ const Wrapper = styled.div<{
 }>`
   position: relative;
   ${props => (props.fitContent ? 'width: fit-content;' : '')}
-  /*
-   * For the small size, we don't use paddings between tab buttons. Therefore,
-   * the area of tab list is evenly divided into segments, and we anchor the
-   * slider relative to the box with horizontal padding. With larger sizes, we
-   * expect to have some distance between the tab buttons. It means that the
-   * positions of the slider, expressed as relative to what the padding box
-   * would be, are no longer proportional to the tab index (there is distance
-   * between the tabs, but no distance on the left of the first tab and on the
-   * right of the last tab). Therefore, to calculate the position of slider as
-   * a percentage of its container's width, we set the wrapper's horizontal
-   * padding to 0, thus giving us a couple of pixels of breathing room; now we
-   * can go back to using a linear formula to calculate the slider position.
-   * This lack of padding will be then compensated for by adjusting tab button
-   * margins appropriately.
-   */
-  padding: ${props => (props.size === 'small' ? '4px 4px' : '8px 0')};
+  ${wrapperPadding}
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
 
@@ -362,6 +430,7 @@ const TabButton = styled.button<{
   disabled?: boolean;
   selected?: boolean;
   size: Size;
+  intent: Intent;
 }>`
   /* Reset the button styles. */
   font-family: inherit;
@@ -369,7 +438,7 @@ const TabButton = styled.button<{
   outline: none;
   border: none;
   background: transparent;
-  padding: ${props => (props.size === 'small' ? '8px 8px' : '8px 16px')};
+  ${buttonPadding}
 
   ${props => props.theme.typography.body2}
 
@@ -384,9 +453,9 @@ const TabButton = styled.button<{
    * Using similar logic as with wrapper padding, we compensate for the lack of
    * thereof with button margins if needed.
    */
-  margin: 0 ${props => (props.size === 'small' ? '0' : '8px')};
+  ${buttonMargin}
   color: ${props =>
-    props.selected
+    props.selected && props.intent === 'primary'
       ? props.theme.colors.text.primaryInverse
       : props.theme.colors.text.main};
 
@@ -395,6 +464,7 @@ const TabButton = styled.button<{
 
 type Appearance = 'square' | 'round';
 type Size = 'large' | 'medium' | 'small';
+type Intent = 'primary' | 'neutral';
 
 const TabSlider = styled.div<{
   itemCount: number;
@@ -407,7 +477,7 @@ const TabSlider = styled.div<{
   top: 0;
   bottom: 0;
   width: ${props => 100 / props.itemCount}%;
-  padding: 0 ${props => (props.size === 'small' ? '0' : '8px')};
+  ${sliderPadding}
   transition:
     all 0.3s ease,
     outline 0s,
@@ -433,9 +503,12 @@ const Spinner = styled(Indicator)`
   color: ${p => p.theme.colors.levels.deep};
 `;
 
-const StatusIconContainer = styled.div`
+const StatusIconContainer = styled(Flex)`
   position: absolute;
-  left: -${p => p.theme.space[5]}px;
+  transform: translate(100%, 0);
+  right: -${p => p.theme.space[1]}px;
+  top: 0;
+  bottom: 0;
 `;
 
 const TabContent = styled(Flex)`

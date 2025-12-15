@@ -36,17 +36,19 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 type stubUser struct {
@@ -174,7 +176,6 @@ func TestStartNewParker(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			osPack, assertExpected := tt.newOsPack(t)
@@ -214,9 +215,9 @@ func TestNetworkingCommand(t *testing.T) {
 // for a user different than the one running a node (which we need to run
 // as root to create).
 func TestRootNetworkingCommand(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
 
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	_, err := host.UserAdd(login, nil, host.UserOpts{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -228,10 +229,12 @@ func TestRootNetworkingCommand(t *testing.T) {
 }
 
 func testNetworkingCommand(t *testing.T, login string) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	srv := newMockServer(t)
 
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
 	scx.ExecType = teleport.NetworkingSubCommand
 	if login != "" {
 		scx.Identity.Login = login
@@ -312,18 +315,16 @@ func testAgentForward(ctx context.Context, t *testing.T, proc *networking.Proces
 	err = keyring.Add(testKey)
 	require.NoError(t, err)
 
-	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(keyring), nil
-	})
+	agentServer := sshagent.NewServer(sshagent.NewStaticClientGetter(keyring))
 
 	// Forward the agent over the networking process.
 	listener, err := proc.ListenAgent(ctx)
 	require.NoError(t, err)
-	teleAgent.SetListener(listener)
+	agentServer.SetListener(listener)
 
-	go teleAgent.Serve()
+	go agentServer.Serve()
 	t.Cleanup(func() {
-		teleAgent.Close()
+		agentServer.Close()
 	})
 
 	agentConn, err := net.Dial(listener.Addr().Network(), listener.Addr().String())
@@ -346,7 +347,7 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 	}
 	require.NoError(t, err)
 
-	cred, err := getCmdCredential(localUser)
+	cred, err := host.GetHostUserCredential(localUser)
 	require.NoError(t, err)
 
 	// Create a temporary xauth file path belonging to the user.
@@ -413,7 +414,11 @@ func testX11Forward(ctx context.Context, t *testing.T, proc *networking.Process,
 }
 
 func TestRootCheckHomeDir(t *testing.T) {
-	utils.RequireRoot(t)
+	testutils.RequireRoot(t)
+
+	// this test manipulates global state, ensure we're not going to run it in
+	// parallel with something else
+	t.Setenv("foo", "bar")
 
 	tmp := t.TempDir()
 	require.NoError(t, os.Chmod(filepath.Dir(tmp), 0777))
@@ -429,7 +434,7 @@ func TestRootCheckHomeDir(t *testing.T) {
 	_, err := os.Create(file)
 	require.NoError(t, err)
 
-	login := utils.GenerateLocalUsername(t)
+	login := testutils.GenerateLocalUsername(t)
 	_, err = host.UserAdd(login, nil, host.UserOpts{Home: home})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -479,4 +484,80 @@ func changeHomeDir(t *testing.T, username, home string) {
 	_, err = cmd.CombinedOutput()
 	assert.NoError(t, err, "changing home should not error")
 	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
+}
+
+func TestRootOpenFileAsUser(t *testing.T) {
+	testutils.RequireRoot(t)
+	euid := os.Geteuid()
+	egid := os.Getegid()
+
+	username := "processing-user"
+
+	arg := os.Args[1]
+	os.Args[1] = teleport.ExecSubCommand
+	defer func() {
+		os.Args[1] = arg
+	}()
+
+	_, err := host.UserAdd(username, nil, host.UserOpts{})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		_, err := host.UserDel(username)
+		require.NoError(t, err)
+	})
+
+	tmp := t.TempDir()
+	testFile := filepath.Join(tmp, "testfile")
+	fileContent := "one does not simply open without permission"
+
+	err = os.WriteFile(testFile, []byte(fileContent), 0777)
+	require.NoError(t, err)
+
+	testUser, err := user.Lookup(username)
+	require.NoError(t, err)
+
+	// no access
+	file, err := openFileAsUser(testUser, testFile)
+	require.True(t, trace.IsAccessDenied(err))
+	require.Nil(t, file)
+
+	// ensure we fallback to root after
+	file, err = os.Open(testFile)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+	file.Close()
+
+	// has access
+	uid, err := strconv.Atoi(testUser.Uid)
+	require.NoError(t, err)
+
+	gid, err := strconv.Atoi(testUser.Gid)
+	require.NoError(t, err)
+
+	err = os.Chown(filepath.Dir(tmp), uid, gid)
+	require.NoError(t, err)
+
+	err = os.Chown(tmp, uid, gid)
+	require.NoError(t, err)
+
+	err = os.Chown(testFile, uid, gid)
+	require.NoError(t, err)
+
+	file, err = openFileAsUser(testUser, testFile)
+	require.NoError(t, err)
+	require.NotNil(t, file)
+
+	data, err := io.ReadAll(file)
+	file.Close()
+	require.NoError(t, err)
+	require.Equal(t, fileContent, string(data))
+
+	// not exist
+	file, err = openFileAsUser(testUser, filepath.Join(tmp, "no_exist"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.Nil(t, file)
+
+	require.Equal(t, euid, os.Geteuid())
+	require.Equal(t, egid, os.Getegid())
 }

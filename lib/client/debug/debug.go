@@ -19,14 +19,20 @@ package debug
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gravitational/trace"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 )
 
@@ -46,21 +52,34 @@ var SupportedProfiles = map[string]struct{}{
 
 // Client represents the debug service client.
 type Client struct {
-	clt *http.Client
+	clt        *http.Client
+	socketPath string
 }
 
 // NewClient generates a new debug service client.
-func NewClient(socketPath string) *Client {
+func NewClient(dataDir string) *Client {
+	socketPath := filepath.Join(dataDir, teleport.DebugServiceSocketName)
 	return &Client{
 		clt: &http.Client{
 			Timeout: apidefaults.DefaultIOTimeout,
 			Transport: &http.Transport{
-				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					var d net.Dialer
+					return d.DialContext(ctx, "unix", socketPath)
 				},
+				DisableKeepAlives: true,
+			},
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return trace.Errorf("redirect via socket not allowed")
 			},
 		},
+		socketPath: socketPath,
 	}
+}
+
+// SocketPath returns the absolute path to the UNIX socket that the debug service is exposed on.
+func (c *Client) SocketPath() string {
+	return c.socketPath
 }
 
 // SetLogLevel changes the application's log level and a change status message.
@@ -135,6 +154,52 @@ func (c *Client) CollectProfile(ctx context.Context, profileName string, seconds
 	}
 
 	return result, nil
+}
+
+// Readiness describes the readiness of the Teleport instance.
+type Readiness struct {
+	// Ready is true if the instance is ready.
+	// This field is only set by clients, based on status.
+	Ready bool `json:"-"`
+	// Status provides more detail about the readiness status.
+	Status string `json:"status"`
+	// PID is the process PID
+	PID int `json:"pid"`
+}
+
+// GetReadiness returns true if the Teleport service is ready.
+func (c *Client) GetReadiness(ctx context.Context) (Readiness, error) {
+	var ready Readiness
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/readyz"}, nil)
+	if err != nil {
+		return ready, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return ready, trace.NotFound("readiness endpoint not found")
+	}
+	ready.Ready = resp.StatusCode == http.StatusOK
+	err = json.NewDecoder(resp.Body).Decode(&ready)
+	if err != nil {
+		return ready, trace.Wrap(err)
+	}
+	return ready, nil
+}
+
+// GetMetrics returns prometheus metrics as a map keyed by metric name.
+func (c *Client) GetMetrics(ctx context.Context) (map[string]*dto.MetricFamily, error) {
+	resp, err := c.do(ctx, http.MethodGet, url.URL{Path: "/metrics"}, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	parser := expfmt.NewTextParser(model.UTF8Validation)
+	metrics, err := parser.TextToMetricFamilies(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return metrics, nil
 }
 
 func (c *Client) do(ctx context.Context, method string, u url.URL, body []byte) (*http.Response, error) {

@@ -16,69 +16,87 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, fork, spawn, exec } from 'node:child_process';
-import path from 'node:path';
+import { ChildProcess, exec, fork, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { ChannelCredentials } from '@grpc/grpc-js';
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
 import {
   app,
   dialog,
   ipcMain,
+  IpcMainInvokeEvent,
   Menu,
   MenuItemConstructorOptions,
   nativeTheme,
   shell,
 } from 'electron';
-import { ChannelCredentials } from '@grpc/grpc-js';
-import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+import { enableMapSet, enablePatches } from 'immer';
 
-import { FileStorage, RuntimeSettings } from 'teleterm/types';
-import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-import {
-  LoggerColor,
-  KeepLastChunks,
-  createFileLoggerService,
-} from 'teleterm/services/logger';
+import { AbortError } from 'shared/utils/error';
+
+import Logger from 'teleterm/logger';
+import { ClusterLifecycleManager } from 'teleterm/mainProcess/clusterLifecycleManager';
+import { watchProfiles } from 'teleterm/mainProcess/profileWatcher';
+import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
 import {
   ChildProcessAddresses,
+  MainProcessClient,
   MainProcessIpc,
   RendererIpc,
   TERMINATE_MESSAGE,
 } from 'teleterm/mainProcess/types';
-import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
-import { RootClusterUri } from 'teleterm/ui/uri';
-import Logger from 'teleterm/logger';
-import * as grpcCreds from 'teleterm/services/grpcCredentials';
-import { createTshdClient, TshdClient } from 'teleterm/services/tshd';
-import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
-import { staticConfig } from 'teleterm/staticConfig';
 import {
   TSH_AUTOUPDATE_ENV_VAR,
   TSH_AUTOUPDATE_OFF,
 } from 'teleterm/node/tshAutoupdate';
+import {
+  AppUpdater,
+  AppUpdaterStorage,
+  TELEPORT_TOOLS_VERSION_ENV_VAR,
+} from 'teleterm/services/appUpdater';
+import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
+import * as grpcCreds from 'teleterm/services/grpcCredentials';
+import {
+  createFileLoggerService,
+  KeepLastChunks,
+  LoggerColor,
+} from 'teleterm/services/logger';
+import {
+  AutoUpdateClient,
+  createAutoUpdateClient,
+  createTshdClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
+import { staticConfig } from 'teleterm/staticConfig';
+import { FileStorage, RuntimeSettings } from 'teleterm/types';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   ConfigService,
   subscribeToConfigServiceEvents,
 } from '../services/config';
-
-import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
+import { downloadAgent, FileDownloader, verifyAgent } from './agentDownloader';
+import { AgentRunner } from './agentRunner';
+import { AwaitableSender } from './awaitableSender';
+import { ClusterStore } from './clusterStore';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
-import { resolveNetworkAddress, ResolveError } from './resolveNetworkAddress';
-import { WindowsManager } from './windowsManager';
-import { downloadAgent, verifyAgent, FileDownloader } from './agentDownloader';
+import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import {
-  getAgentsDir,
   createAgentConfigFile,
+  generateAgentConfigPaths,
+  getAgentsDir,
   isAgentConfigFileCreated,
   removeAgentDirectory,
-  generateAgentConfigPaths,
+  type CreateAgentConfigFileArgs,
 } from './createAgentConfigFile';
-import { AgentRunner } from './agentRunner';
+import { serializeError } from './ipcSerializer';
+import { ResolveError, resolveNetworkAddress } from './resolveNetworkAddress';
 import { terminateWithTimeout } from './terminateWithTimeout';
-
-import type { CreateAgentConfigFileArgs } from './createAgentConfigFile';
+import { WindowsManager } from './windowsManager';
 
 type Options = {
   settings: RuntimeSettings;
@@ -99,6 +117,16 @@ export default class MainProcess {
   private sharedProcessLastLogs: KeepLastChunks<string>;
   private appStateFileStorage: FileStorage;
   private configFileStorage: FileStorage;
+  /**
+   * Promise holding the resolution of child process addresses.
+   *
+   * Both the internal tshd client (in the main process) and the one in
+   * the renderer depend on this promise.
+   *
+   * If the promise rejects, the error will propagate to the renderer via the IPC
+   * handler (causing the renderer to stop initialization and show the error)
+   * and also surface when attempting to access the tshdClients property.
+   */
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
   // this function can be safely called concurrently
@@ -110,8 +138,32 @@ export default class MainProcess {
     )
   );
   private readonly agentRunner: AgentRunner;
+  /**
+   * A promise responsible for initializing clients for tshd gRPC services once the addresses of
+   * child processes are resolved. Set in the constructor.
+   *
+   * If the client setup fails, the resulting error will propagate to callsites which use
+   * tshdClients, including preload of the frontend app, causing its initialization to stop.
+   */
+  private tshdClients: Promise<{
+    terminalService: TshdClient;
+    autoUpdateService: AutoUpdateClient;
+  }>;
+  private readonly appUpdater: AppUpdater;
+  public readonly clusterStore: ClusterStore;
+  private clusterLifecycleManager: ClusterLifecycleManager;
+  private disposeAbortController = new AbortController();
 
-  private constructor(opts: Options) {
+  /**
+   * Starts necessary child processes such as tsh daemon and the shared process. It also sets
+   * up IPC handlers and resolves the network addresses under which the child processes set up gRPC
+   * servers.
+   *
+   * Might throw an error if spawning a child process fails, see initTshd for more details.
+   */
+  constructor(opts: Options) {
+    enablePatches();
+    enableMapSet();
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;
@@ -133,17 +185,70 @@ export default class MainProcess {
         );
       }
     );
-  }
 
-  static create(opts: Options) {
-    const instance = new MainProcess(opts);
-    instance.init();
-    return instance;
+    this.updateAboutPanelIfNeeded();
+    this.setAppMenu();
+    this.initTshd();
+    this.initSharedProcess();
+    this.initResolvingChildProcessAddressesAndTshdClients();
+    this.initIpc();
+
+    const getClusterVersions = async () => {
+      const { autoUpdateService } = await this.tshdClients;
+      const { response } = await autoUpdateService.getClusterVersions({});
+      return response;
+    };
+    const getDownloadBaseUrl = async () => {
+      const { autoUpdateService } = await this.tshdClients;
+      const {
+        response: { baseUrl },
+      } = await autoUpdateService.getDownloadBaseUrl({});
+      return baseUrl;
+    };
+    this.appUpdater = new AppUpdater(
+      makeAppUpdaterStorage(this.appStateFileStorage),
+      getClusterVersions,
+      getDownloadBaseUrl,
+      event => {
+        if (event.kind === 'error') {
+          event.error = serializeError(event.error);
+        }
+        this.windowsManager
+          .getWindow()
+          .webContents.send(RendererIpc.AppUpdateEvent, event);
+      },
+      process.env[TELEPORT_TOOLS_VERSION_ENV_VAR]
+    );
+    this.clusterStore = new ClusterStore(
+      () => this.tshdClients.then(c => c.terminalService),
+      this.windowsManager
+    );
+    const watcher = watchProfiles({
+      tshDirectory: this.configService.get('tshHome').value,
+      tshClient: {
+        listRootClusters: async () => {
+          const { terminalService } = await this.tshdClients;
+          const { response } = await terminalService.listRootClusters({});
+          return response.clusters;
+        },
+      },
+      clusterStore: this.clusterStore,
+      signal: this.disposeAbortController.signal,
+    });
+    this.clusterLifecycleManager = new ClusterLifecycleManager(
+      this.clusterStore,
+      () => this.tshdClients.then(c => c.terminalService),
+      this.appUpdater,
+      this.windowsManager,
+      watcher
+    );
   }
 
   async dispose(): Promise<void> {
+    this.disposeAbortController.abort();
     this.windowsManager.dispose();
     await Promise.all([
+      this.appUpdater.dispose(),
       // sending usage events on tshd shutdown has 10-seconds timeout
       terminateWithTimeout(this.tshdProcess, 10_000, () => {
         this.gracefullyKillTshdProcess();
@@ -157,32 +262,19 @@ export default class MainProcess {
     ]);
   }
 
-  private init() {
-    this.updateAboutPanelIfNeeded();
-    this.setAppMenu();
-    try {
-      this.initTshd();
-      this.initSharedProcess();
-      this.initResolvingChildProcessAddresses();
-      this.initIpc();
-    } catch (err) {
-      this.logger.error('Failed to start main process: ', err.message);
-      app.exit(1);
-    }
-  }
-
-  async initTshdClient(): Promise<TshdClient> {
-    const { tsh: tshdAddress } = await this.resolvedChildProcessAddresses;
-    return setUpTshdClient({
-      runtimeSettings: this.settings,
-      tshdAddress,
-    });
-  }
-
   private initTshd() {
-    const { binaryPath, homeDir } = this.settings.tshd;
+    const { binaryPath } = this.settings.tshd;
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
+    // spawn might either fail immediately by throwing an error or cause the error event to be emitted
+    // on the process value returned by spawn.
+    //
+    // Some spawn failures result in an error being thrown immediately such as EPERM on Windows [1].
+    // This might be related to the fact that in Node.js, an error event causes an error to be
+    // thrown if there are no listeners for the error event itself [2].
+    //
+    // [1] https://stackoverflow.com/a/42262771
+    // [2] https://nodejs.org/docs/latest-v22.x/api/errors.html#error-propagation-and-interception
     this.tshdProcess = spawn(
       binaryPath,
       ['daemon', 'start', ...this.getTshdFlags()],
@@ -191,7 +283,7 @@ export default class MainProcess {
         windowsHide: true,
         env: {
           ...process.env,
-          TELEPORT_HOME: homeDir,
+          TELEPORT_HOME: this.configService.get('tshHome').value,
           [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
         },
       }
@@ -230,6 +322,9 @@ export default class MainProcess {
       `--add-keys-to-agent=${this.configService.get('sshAgent.addKeysToAgent').value}`,
     ];
 
+    if (this.configService.get('hardwareKeyAgent.enabled').value) {
+      flags.unshift('--hardware-key-agent');
+    }
     if (settings.insecure) {
       flags.unshift('--insecure');
     }
@@ -266,7 +361,11 @@ export default class MainProcess {
     );
   }
 
-  private initResolvingChildProcessAddresses(): void {
+  /**
+   * Initializes the resolution of child process addresses and sets up tshd clients.
+   * On Windows, the setup of tshd clients also initialized the main process cert for mTLS.
+   */
+  private initResolvingChildProcessAddressesAndTshdClients(): void {
     this.resolvedChildProcessAddresses = Promise.all([
       resolveNetworkAddress(
         this.settings.tshd.requestedNetworkAddress,
@@ -293,6 +392,19 @@ export default class MainProcess {
         )
       ),
     ]).then(([tsh, shared]) => ({ tsh, shared }));
+
+    this.tshdClients = this.resolvedChildProcessAddresses.then(
+      ({ tsh: tshdAddress }) =>
+        setUpTshdClients({
+          runtimeSettings: this.settings,
+          tshdAddress,
+        })
+    );
+    // Log the error just to avoid unhandled promise rejection if setUpTshdClients fails before
+    // anything reads tshdClients.
+    this.tshdClients.catch(error => {
+      this.logger.error('Could not initialize tshd clients', error);
+    });
   }
 
   private initIpc() {
@@ -304,51 +416,77 @@ export default class MainProcess {
       event.returnValue = nativeTheme.shouldUseDarkColors;
     });
 
-    ipcMain.handle('main-process-get-resolved-child-process-addresses', () => {
+    ipcHandle('main-process-get-resolved-child-process-addresses', () => {
       return this.resolvedChildProcessAddresses;
     });
 
-    // the handler can remove a single kube config file or entire directory for given cluster
-    ipcMain.handle(
-      'main-process-remove-kube-config',
-      (
-        _,
-        options: {
-          relativePath: string;
-          isDirectory?: boolean;
-        }
-      ) => {
-        const { kubeConfigsDir } = this.settings;
-        const filePath = path.join(kubeConfigsDir, options.relativePath);
-        const isOutOfRoot = filePath.indexOf(kubeConfigsDir) !== 0;
-
-        if (isOutOfRoot) {
-          return Promise.reject('Invalid path');
-        }
-        return fs
-          .rm(filePath, { recursive: !!options.isDirectory })
-          .catch(error => {
-            if (error.code !== 'ENOENT') {
-              throw error;
-            }
-          });
-      }
-    );
-
-    ipcMain.handle('main-process-show-file-save-dialog', (_, filePath) =>
+    ipcHandle('main-process-show-file-save-dialog', (_, filePath) =>
       dialog.showSaveDialog({
         defaultPath: path.basename(filePath),
       })
     );
 
-    ipcMain.handle('main-process-force-focus-window', () => {
-      this.windowsManager.forceFocusWindow();
-    });
+    ipcHandle(
+      MainProcessIpc.SaveTextToFile,
+      async (
+        _,
+        {
+          text,
+          defaultBasename,
+        }: Parameters<MainProcessClient['saveTextToFile']>[0]
+      ): ReturnType<MainProcessClient['saveTextToFile']> => {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          // Don't trust the renderer and make sure defaultBasename is indeed a basename only.
+          // defaultPath accepts different kinds of paths. For security reasons, the renderer should
+          // not be able to influence _where_ the file is saved, only how the file is named.
+          defaultPath: path.basename(defaultBasename),
+          properties: [
+            'createDirectory', // macOS only
+            'showOverwriteConfirmation', // Linux only.
+          ],
+        });
+
+        if (canceled) {
+          return { canceled };
+        }
+
+        try {
+          await fs.writeFile(filePath, text, {
+            // Overwrite file.
+            flag: 'w',
+          });
+        } catch (error) {
+          // Log the original error on this side of the context bridge.
+          this.logger.error(`Could not save text to "${filePath}"`, error);
+          throw error;
+        }
+
+        return { canceled };
+      }
+    );
+
+    ipcHandle(
+      MainProcessIpc.ForceFocusWindow,
+      async (
+        _,
+        args?: Parameters<MainProcessClient['forceFocusWindow']>[0]
+      ) => {
+        if (args?.wait && args.signal?.aborted) {
+          return;
+        }
+
+        this.windowsManager.forceFocusWindow();
+
+        if (args?.wait) {
+          await this.windowsManager.waitForWindowFocus(args.signal);
+        }
+      }
+    );
 
     // Used in the `tsh install` command on macOS to make the bundled tsh available in PATH.
     // Returns true if tsh got successfully installed, false if the user closed the osascript
     // prompt. Throws an error when osascript fails.
-    ipcMain.handle('main-process-symlink-tsh-macos', async () => {
+    ipcHandle('main-process-symlink-tsh-macos', async () => {
       const source = this.settings.tshd.binaryPath;
       const target = '/usr/local/bin/tsh';
       const prompt =
@@ -370,7 +508,7 @@ export default class MainProcess {
       }
     });
 
-    ipcMain.handle('main-process-remove-tsh-symlink-macos', async () => {
+    ipcHandle('main-process-remove-tsh-symlink-macos', async () => {
       const target = '/usr/local/bin/tsh';
       const prompt =
         'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
@@ -391,21 +529,21 @@ export default class MainProcess {
       }
     });
 
-    ipcMain.handle('main-process-open-config-file', async () => {
+    ipcHandle('main-process-open-config-file', async () => {
       const path = this.configFileStorage.getFilePath();
       await shell.openPath(path);
       return path;
     });
 
-    ipcMain.handle(MainProcessIpc.DownloadConnectMyComputerAgent, () =>
+    ipcHandle(MainProcessIpc.DownloadConnectMyComputerAgent, () =>
       this.downloadAgentShared()
     );
 
-    ipcMain.handle(MainProcessIpc.VerifyConnectMyComputerAgent, async () => {
+    ipcHandle(MainProcessIpc.VerifyConnectMyComputerAgent, async () => {
       await verifyAgent(this.settings.agentBinaryPath);
     });
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-create-agent-config-file',
       (_, args: CreateAgentConfigFileArgs) =>
         createAgentConfigFile(this.settings, {
@@ -416,7 +554,7 @@ export default class MainProcess {
         })
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-is-agent-config-file-created',
       async (
         _,
@@ -426,7 +564,7 @@ export default class MainProcess {
       ) => isAgentConfigFileCreated(this.settings, args.rootClusterUri)
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-kill-agent',
       async (
         _,
@@ -438,7 +576,7 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-remove-agent-directory',
       (
         _,
@@ -448,11 +586,11 @@ export default class MainProcess {
       ) => removeAgentDirectory(this.settings, args.rootClusterUri)
     );
 
-    ipcMain.handle(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary, () =>
+    ipcHandle(MainProcessIpc.TryRemoveConnectMyComputerAgentBinary, () =>
       this.agentRunner.tryRemoveAgentBinary()
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-connect-my-computer-run-agent',
       async (
         _,
@@ -488,7 +626,7 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle(
+    ipcHandle(
       'main-process-open-agent-logs-directory',
       async (
         _,
@@ -506,6 +644,91 @@ export default class MainProcess {
         }
       }
     );
+
+    ipcHandle(
+      MainProcessIpc.SelectDirectoryForDesktopSession,
+      async (_, args: { desktopUri: string; login: string }) => {
+        const value = await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+        });
+        if (value.canceled) {
+          throw new AbortError();
+        }
+        if (value.filePaths.length !== 1) {
+          throw new Error('No directory selected.');
+        }
+
+        const [dirPath] = value.filePaths;
+        const { terminalService } = await this.tshdClients;
+        await terminalService.setSharedDirectoryForDesktopSession({
+          desktopUri: args.desktopUri,
+          login: args.login,
+          path: dirPath,
+        });
+
+        return path.basename(dirPath);
+      }
+    );
+
+    ipcMain.on(MainProcessIpc.SupportsAppUpdates, event => {
+      event.returnValue = this.appUpdater.supportsUpdates();
+    });
+
+    ipcHandle(MainProcessIpc.CheckForAppUpdates, () =>
+      this.appUpdater.checkForUpdates()
+    );
+
+    ipcHandle(
+      MainProcessIpc.ChangeAppUpdatesManagingCluster,
+      (
+        event,
+        args: {
+          clusterUri: RootClusterUri | undefined;
+        }
+      ) => this.appUpdater.changeManagingCluster(args.clusterUri)
+    );
+
+    ipcHandle(MainProcessIpc.DownloadAppUpdate, () =>
+      this.appUpdater.download()
+    );
+
+    ipcHandle(MainProcessIpc.CancelAppUpdateDownload, () =>
+      this.appUpdater.cancelDownload()
+    );
+
+    ipcHandle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
+      this.appUpdater.quitAndInstall()
+    );
+
+    ipcHandle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>
+      this.clusterLifecycleManager.addCluster(proxyAddress)
+    );
+
+    ipcHandle(MainProcessIpc.SyncRootClusters, () =>
+      this.clusterLifecycleManager.syncRootClustersAndStartProfileWatcher()
+    );
+
+    ipcHandle(MainProcessIpc.SyncCluster, (_, args) =>
+      this.clusterLifecycleManager.syncCluster(args.clusterUri)
+    );
+
+    ipcHandle(MainProcessIpc.Logout, async (_, args) => {
+      await this.clusterLifecycleManager.logoutAndRemoveCluster(
+        args.clusterUri
+      );
+    });
+
+    ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {
+      const port = ev.ports[0];
+      this.clusterStore.registerSender(new AwaitableSender(port));
+    });
+
+    ipcMain.on(MainProcessIpc.RegisterClusterLifecycleHandler, ev => {
+      const port = ev.ports[0];
+      this.clusterLifecycleManager.setRendererEventHandler(
+        new AwaitableSender(port)
+      );
+    });
 
     subscribeToTerminalContextMenuEvent(this.configService);
     subscribeToTabContextMenuEvent(
@@ -541,7 +764,28 @@ export default class MainProcess {
         };
 
     const macTemplate: MenuItemConstructorOptions[] = [
-      { role: 'appMenu' },
+      {
+        role: 'appMenu',
+        submenu: [
+          { role: 'about' },
+          {
+            label: 'Check for Updates…',
+            click: () => {
+              this.windowsManager
+                .getWindow()
+                .webContents.send(RendererIpc.OpenAppUpdateDialog);
+            },
+          },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
       { role: 'editMenu' },
       viewMenuTemplate,
       {
@@ -606,13 +850,17 @@ export default class MainProcess {
       {
         windowsHide: true,
         timeout: 2_000,
+        env: {
+          ...process.env,
+          [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        },
       }
     );
     daemonStop.on('error', error => {
       logger.error('daemon stop process failed to start', error);
     });
     daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
+    daemonStop.stderr.on('data', data => logger.error(data));
   }
 
   private logProcessExitAndError(
@@ -639,7 +887,8 @@ export default class MainProcess {
 
 const TSHD_LOGGER_NAME = 'tshd';
 const SHARED_PROCESS_LOGGER_NAME = 'shared';
-const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
+const DOCS_URL =
+  'https://goteleport.com/docs/connect-your-client/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
@@ -665,22 +914,28 @@ function sharePromise<T>(promiseFn: () => Promise<T>): () => Promise<T> {
 }
 
 /**
- * Sets up the gRPC client for tsh daemon used in the main process.
+ * Sets up the gRPC clients for tsh daemon used in the main process.
  */
-async function setUpTshdClient({
+async function setUpTshdClients({
   runtimeSettings,
   tshdAddress,
 }: {
   runtimeSettings: RuntimeSettings;
   tshdAddress: string;
-}): Promise<TshdClient> {
+}): Promise<{
+  terminalService: TshdClient;
+  autoUpdateService: AutoUpdateClient;
+}> {
   const creds = await createGrpcCredentials(runtimeSettings);
   const transport = new GrpcTransport({
     host: tshdAddress,
     channelCredentials: creds,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
-  return createTshdClient(transport);
+  return {
+    terminalService: createTshdClient(transport),
+    autoUpdateService: createAutoUpdateClient(transport),
+  };
 }
 
 async function createGrpcCredentials(
@@ -741,4 +996,38 @@ function rewrapResolveError(
         `Last logs from ${logPath}:\n${lastLogs}`
     );
   };
+}
+
+const APP_UPDATER_STATE_KEY = 'appUpdater';
+function makeAppUpdaterStorage(fs: FileStorage): AppUpdaterStorage {
+  return {
+    get: () => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      return { managingClusterUri: '', ...state };
+    },
+    put: value => {
+      const state = fs.get(APP_UPDATER_STATE_KEY) as object;
+      fs.put(APP_UPDATER_STATE_KEY, { ...state, ...value });
+    },
+  };
+}
+
+/**
+ * Handles requests sent via `ipcInvoke`.
+ * The renderer must send requests using `ipcInvoke` (not `ipcRenderer.invoke`).
+ *
+ * Use this instead of `ipcMain.handle`. It ensures full error serialization
+ * and prevents Electron from adding the generic message "Error invoking remote method".
+ */
+function ipcHandle(
+  channel: string,
+  listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
+): void {
+  ipcMain.handle(channel, async (...args) => {
+    try {
+      return { result: await Promise.try(listener, ...args) };
+    } catch (e) {
+      return { error: serializeError(e) };
+    }
+  });
 }

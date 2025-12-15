@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"strings"
 	"text/template"
 
@@ -38,11 +39,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/gravitational/trace"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	staticsign "github.com/sigstore/cosign/v2/pkg/oci/static"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/sigstore/cosign/v3/pkg/oci"
+	staticsign "github.com/sigstore/cosign/v3/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
-	"golang.org/x/exp/maps"
 )
 
 const (
@@ -237,7 +237,7 @@ func signPayload(sigPayload payload.Cosign, key *cosign.KeysBytes) (oci.Signatur
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sv, err := cosign.LoadPrivateKey(key.PrivateBytes, []byte{})
+	sv, err := cosign.LoadPrivateKey(key.PrivateBytes, []byte{}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +341,7 @@ func makeSignature(ref name.Digest, signer digestedRefSigner, keys ...*cosign.Ke
 // This is used to know under which digest the manifest will be reachable, for
 // example when building a signature referring to the manifest or when building
 // a manifest index.
-func contentSizeAndHash(obj interface{}) ([]byte, int64, v1.Hash, error) {
+func contentSizeAndHash(obj any) ([]byte, int64, v1.Hash, error) {
 	manifestBytes, err := json.Marshal(obj)
 	if err != nil {
 		return manifestBytes, 0, v1.Hash{}, trace.Wrap(err)

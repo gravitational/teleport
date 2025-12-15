@@ -38,6 +38,7 @@ func NewClient(grpcClient userloginstatev1.UserLoginStateServiceClient) *Client 
 }
 
 // GetUserLoginStates returns a list of all user login states.
+// Deprecated: Prefer paginated variant such as ListUserLoginStates.
 func (c *Client) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	resp, err := c.grpcClient.GetUserLoginStates(ctx, &userloginstatev1.GetUserLoginStatesRequest{})
 	if err != nil {
@@ -93,4 +94,24 @@ func (c *Client) DeleteUserLoginState(ctx context.Context, name string) error {
 func (c *Client) DeleteAllUserLoginStates(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllUserLoginStates(ctx, &userloginstatev1.DeleteAllUserLoginStatesRequest{})
 	return trace.Wrap(err)
+}
+
+// ListUserLoginStates returns a paginated list of user login state resources.
+func (c *Client) ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error) {
+	resp, err := c.grpcClient.ListUserLoginStates(ctx, &userloginstatev1.ListUserLoginStatesRequest{
+		PageSize:  int32(pageSize),
+		PageToken: nextToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	out := make([]*userloginstate.UserLoginState, 0, len(resp.UserLoginStates))
+	for _, v := range resp.UserLoginStates {
+		item, err := conv.FromProto(v)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		out = append(out, item)
+	}
+	return out, resp.GetNextPageToken(), nil
 }

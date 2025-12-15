@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import service from './user';
 import makeUser from './makeUser';
 import makeUserContext from './makeUserContext';
+import service from './user';
 
 export { makeUserContext, makeUser };
 export * from './types';

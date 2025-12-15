@@ -17,7 +17,6 @@
  */
 
 import * as Features from 'teleport/features';
-
 import type { TeleportFeature } from 'teleport/types';
 
 export function buildACL(features: TeleportFeature[]) {

@@ -66,7 +66,7 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use the integration with Azure.",
 	})
 	if err != nil {
@@ -74,7 +74,7 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }

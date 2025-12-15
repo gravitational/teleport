@@ -90,7 +90,7 @@ func (c *CachedParser[TEnv, TResult]) Parse(expression string) (Expression[TEnv,
 	}
 	if evicted := c.cache.Add(expression, parsedExpr); evicted && c.evictedCount.Add(1)%logAfterEvictions == 0 {
 		c.logger.InfoContext(context.Background(), "entries have been evicted from the predicate expression cache, consider increasing TELEPORT_EXPRESSION_CACHE_SIZE",
-			"eviticiton_count", logAfterEvictions,
+			"eviction_count", logAfterEvictions,
 		)
 	}
 	return parsedExpr, nil

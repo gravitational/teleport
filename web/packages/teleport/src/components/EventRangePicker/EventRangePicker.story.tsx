@@ -18,9 +18,8 @@
 
 import { useState } from 'react';
 
-import RangePicker from './EventRangePicker';
-
 import { EventRange, getRangeOptions } from '.';
+import RangePicker from './EventRangePicker';
 
 export default {
   title: 'Teleport/RangePicker',
@@ -30,7 +29,5 @@ export const Picker = () => {
   const rangeOptions = getRangeOptions();
   const [range, setRange] = useState<EventRange>(rangeOptions[0]);
 
-  return (
-    <RangePicker range={range} ranges={rangeOptions} onChangeRange={setRange} />
-  );
+  return <RangePicker range={range} onChangeRange={setRange} />;
 };

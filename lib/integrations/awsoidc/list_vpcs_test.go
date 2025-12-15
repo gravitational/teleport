@@ -55,10 +55,7 @@ func (m mockListVPCsClient) DescribeVpcs(ctx context.Context, params *ec2.Descri
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := m.pageSize * requestedPage
-	if sliceEnd > totalVPCs {
-		sliceEnd = totalVPCs
-	}
+	sliceEnd := min(m.pageSize*requestedPage, totalVPCs)
 
 	ret := &ec2.DescribeVpcsOutput{
 		Vpcs: m.vpcs[sliceStart:sliceEnd],
@@ -84,7 +81,7 @@ func TestListVPCs(t *testing.T) {
 		totalVPCs := 203
 
 		VPCs := make([]ec2Types.Vpc, 0, totalVPCs)
-		for i := 0; i < totalVPCs; i++ {
+		for i := range totalVPCs {
 			VPCs = append(VPCs, ec2Types.Vpc{
 				VpcId: aws.String(fmt.Sprintf("VPC-%d", i)),
 				Tags:  makeNameTags(fmt.Sprintf("MyVPC-%d", i)),

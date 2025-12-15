@@ -133,22 +133,18 @@ export function isObject(checkVal: unknown): checkVal is object {
   return checkVal != null && (type == 'object' || type == 'function');
 }
 
-/**
- * Lodash <https://lodash.com/>
- * Copyright JS Foundation and other contributors <https://js.foundation/>
- * Released under MIT license <https://lodash.com/license>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- */
-export function runOnce<T extends (...args) => any>(func: T) {
-  let n = 2;
-  let result;
-  return function () {
-    if (--n > 0) {
-      // This implementation does not pass strictBindCallApply check.
-      result = func.apply(this, arguments as any);
-    }
-    if (n <= 1) {
+/** Runs the provided function only once. */
+export function runOnce<T extends (...args: any[]) => any>(func: T) {
+  let hasRun = false;
+  let result: ReturnType<T>;
+
+  // 'this' is a special TS parameter that is erased during compilation
+  // https://www.typescriptlang.org/docs/handbook/2/classes.html#this-parameters
+  return function (this: unknown, ...args: Parameters<T>) {
+    if (!hasRun) {
+      hasRun = true;
+      result = func.apply(this, args);
+      // Remove the reference, so it can be garbage-collected.
       func = undefined;
     }
     return result;
@@ -305,7 +301,7 @@ export function debounce<T extends (...args: any) => any>(
     return timerId === undefined ? result : trailingEdge(Date.now());
   }
 
-  function debounced() {
+  function debounced(this: unknown) {
     var time = Date.now(),
       isInvoking = shouldInvoke(time);
 
@@ -332,168 +328,4 @@ export function debounce<T extends (...args: any) => any>(
   debounced.cancel = cancel;
   debounced.flush = flush;
   return debounced;
-}
-
-interface MapCacheType {
-  delete(key: any): boolean;
-  get(key: any): any;
-  has(key: any): boolean;
-  set(key: any, value: any): this;
-  clear?: (() => void) | undefined;
-}
-
-type MemoizedFunction = {
-  cache: MapCacheType;
-};
-
-/**
- * Lodash <https://lodash.com/>
- * Copyright JS Foundation and other contributors <https://js.foundation/>
- * Released under MIT license <https://lodash.com/license>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- */
-export function memoize<T extends (...args: any) => any>(
-  func: T
-): T & MemoizedFunction {
-  const memoized = function () {
-    const args = arguments;
-    const key = args[0];
-    const cache = memoized.cache;
-
-    if (cache.has(key)) {
-      return cache.get(key);
-    }
-    // `as any` because the implementation does not pass strictBindCallApply check.
-    const result = func.apply(this, args as any);
-    memoized.cache = cache.set(key, result) || cache;
-    return result;
-  };
-  memoized.cache = new (memoize.Cache || MapCache)();
-  /* eslint-disable @typescript-eslint/ban-ts-comment*/
-  // @ts-ignore
-  return memoized;
-}
-
-// Expose `MapCache`.
-memoize.Cache = MapCache;
-
-function MapCache(entries?: any) {
-  let index = -1;
-  const length = entries == null ? 0 : entries.length;
-
-  this.clear();
-  while (++index < length) {
-    const entry = entries[index];
-    this.set(entry[0], entry[1]);
-  }
-}
-
-function mapCacheClear() {
-  this.size = 0;
-  this.__data__ = {
-    hash: new Hash(),
-    map: new Map(),
-    string: new Hash(),
-  };
-}
-
-function mapCacheDelete(key) {
-  var result = getMapData(this, key)['delete'](key);
-  this.size -= result ? 1 : 0;
-  return result;
-}
-
-function mapCacheGet(key) {
-  return getMapData(this, key).get(key);
-}
-
-function mapCacheHas(key) {
-  return getMapData(this, key).has(key);
-}
-
-function mapCacheSet(key, value) {
-  var data = getMapData(this, key),
-    size = data.size;
-
-  data.set(key, value);
-  this.size += data.size == size ? 0 : 1;
-  return this;
-}
-
-MapCache.prototype.clear = mapCacheClear;
-MapCache.prototype['delete'] = mapCacheDelete;
-MapCache.prototype.get = mapCacheGet;
-MapCache.prototype.has = mapCacheHas;
-MapCache.prototype.set = mapCacheSet;
-
-function Hash(entries?) {
-  var index = -1,
-    length = entries == null ? 0 : entries.length;
-
-  this.clear();
-  while (++index < length) {
-    var entry = entries[index];
-    this.set(entry[0], entry[1]);
-  }
-}
-
-const HASH_UNDEFINED = '__lodash_hash_undefined__';
-
-function hashClear() {
-  this.__data__ = Object.create ? Object.create(null) : {};
-  this.size = 0;
-}
-
-function hashDelete(key) {
-  var result = this.has(key) && delete this.__data__[key];
-  this.size -= result ? 1 : 0;
-  return result;
-}
-
-function hashGet(key) {
-  var data = this.__data__;
-  if (Object.create) {
-    var result = data[key];
-    return result === HASH_UNDEFINED ? undefined : result;
-  }
-  return Object.hasOwnProperty.call(data, key) ? data[key] : undefined;
-}
-
-function hashHas(key) {
-  var data = this.__data__;
-  return Object.create
-    ? data[key] !== undefined
-    : Object.hasOwnProperty.call(data, key);
-}
-
-function hashSet(key, value) {
-  var data = this.__data__;
-  this.size += this.has(key) ? 0 : 1;
-  data[key] = Object.create && value === undefined ? HASH_UNDEFINED : value;
-  return this;
-}
-
-// Add methods to `Hash`.
-Hash.prototype.clear = hashClear;
-Hash.prototype['delete'] = hashDelete;
-Hash.prototype.get = hashGet;
-Hash.prototype.has = hashHas;
-Hash.prototype.set = hashSet;
-
-function getMapData(map, key) {
-  var data = map.__data__;
-  return isKeyable(key)
-    ? data[typeof key == 'string' ? 'string' : 'hash']
-    : data.map;
-}
-
-function isKeyable(value) {
-  var type = typeof value;
-  return type == 'string' ||
-    type == 'number' ||
-    type == 'symbol' ||
-    type == 'boolean'
-    ? value !== '__proto__'
-    : value === null;
 }

@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { matchPath, generatePath } from 'react-router';
-
-import type { RouteProps } from 'react-router';
+import { generatePath, matchPath, type RouteProps } from 'react-router';
 
 /*
  * Resource URIs
@@ -41,11 +39,13 @@ export type RootClusterKubeUri = string;
 export type RootClusterKubeResourceNamespaceUri = string;
 export type RootClusterDatabaseUri = string;
 export type RootClusterAppUri = string;
+export type RootClusterWindowsDesktopUri = string;
 export type RootClusterResourceUri =
   | RootClusterServerUri
   | RootClusterKubeUri
   | RootClusterDatabaseUri
-  | RootClusterAppUri;
+  | RootClusterAppUri
+  | RootClusterWindowsDesktopUri;
 export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
 export type LeafClusterUri = string;
 export type LeafClusterServerUri = string;
@@ -53,11 +53,13 @@ export type LeafClusterKubeUri = string;
 export type LeafClusterKubeResourceNamespaceUri = string;
 export type LeafClusterDatabaseUri = string;
 export type LeafClusterAppUri = string;
+export type LeafClusterWindowsDesktopUri = string;
 export type LeafClusterResourceUri =
   | LeafClusterServerUri
   | LeafClusterKubeUri
   | LeafClusterDatabaseUri
-  | LeafClusterAppUri;
+  | LeafClusterAppUri
+  | LeafClusterWindowsDesktopUri;
 export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
 
 export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
@@ -69,8 +71,14 @@ export type KubeResourceNamespaceUri =
   | LeafClusterKubeResourceNamespaceUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
+export type WindowsDesktopUri =
+  | RootClusterWindowsDesktopUri
+  | LeafClusterWindowsDesktopUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
 export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
+
+/** General type for desktop URI. */
+export type DesktopUri = WindowsDesktopUri;
 
 /*
  * Document URIs
@@ -105,6 +113,10 @@ export const paths = {
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
   appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
+  windowsDesktop:
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/windows_desktops/:windowsDesktopId',
+  windowsDesktopLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId?/windows_desktops/:windowsDesktopId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -141,6 +153,10 @@ export const routing = {
     return routing.parseUri(uri, paths.kube);
   },
 
+  parseWindowsDesktopUri(uri: string) {
+    return routing.parseUri(uri, paths.windowsDesktop);
+  },
+
   parseKubeResourceNamespaceUri(uri: string) {
     return routing.parseUri(uri, paths.kubeResourceNamespace);
   },
@@ -162,11 +178,13 @@ export const routing = {
   },
 
   /**
-   * parseClusterName should be used only when getting the cluster object from ClustersService is
-   * not possible.
+   * Returns the profile name for root clusters and the cluster name for leaf clusters.
    *
-   * rootClusterId in the URI is not the name of the cluster but rather just the hostname of the
-   * proxy. These two might be different.
+   * In the URI, `rootClusterId` may not be the root cluster's name but the hostname
+   * of its proxy (these may differ).
+   * `leafClusterId`, on the other hand, always matches the leaf cluster's name.
+   *
+   * TODO(gzdunek): Split this function into `parseProfileName` and `parseLeafClusterName`.
    */
   parseClusterName(clusterUri: string) {
     const parsed = routing.parseClusterUri(clusterUri);
@@ -251,6 +269,20 @@ export const routing = {
     }
   },
 
+  getWindowsDesktopUri(params: Params) {
+    if (params.leafClusterId) {
+      return generatePath(
+        paths.windowsDesktopLeaf,
+        params as any
+      ) as LeafClusterWindowsDesktopUri;
+    } else {
+      return generatePath(
+        paths.windowsDesktop,
+        params as any
+      ) as RootClusterWindowsDesktopUri;
+    }
+  },
+
   getKubeResourceNamespaceUri(params: Params) {
     if (params.leafClusterId) {
       // paths.kubeResourceLeaf is needed as path-to-regexp used by react-router doesn't support
@@ -329,6 +361,10 @@ export function isKubeUri(uri: string): uri is KubeUri {
   return !!routing.parseKubeUri(uri);
 }
 
+export function isWindowsDesktopUri(uri: string): uri is WindowsDesktopUri {
+  return !!routing.parseWindowsDesktopUri(uri);
+}
+
 export type Params = {
   rootClusterId?: string;
   leafClusterId?: string;
@@ -341,4 +377,5 @@ export type Params = {
   sid?: string;
   docId?: string;
   appId?: string;
+  windowsDesktopId?: string;
 };

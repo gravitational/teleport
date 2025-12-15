@@ -16,40 +16,51 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
-import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
-import { Route, Router, Switch } from 'teleport/components/Router';
-import { CatchError } from 'teleport/components/CatchError';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
+
 import Authenticated from 'teleport/components/Authenticated';
-
+import { CatchError } from 'teleport/components/CatchError';
+import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
-
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { ViewSessionRecordingRoute } from 'teleport/SessionRecordings/view/ViewSessionRecordingRoute';
+import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
-import TeleportContextProvider from './TeleportContextProvider';
-import TeleportContext from './teleportContext';
-import cfg from './config';
 import { AppLauncher } from './AppLauncher';
-import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
+import cfg from './config';
+import { ConsoleWithContext as Console } from './Console';
+import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
+import { HeadlessRequest } from './HeadlessRequest';
+import { Login } from './Login';
+import { LoginClose } from './Login/LoginClose';
+import { LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
-import { LoginClose } from './Login/LoginClose';
-import { Login } from './Login';
-import { Welcome } from './Welcome';
-import { SingleLogoutFailed } from './SingleLogoutFailed';
-
-import { ConsoleWithContext as Console } from './Console';
-import { Player } from './Player';
-import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
-
-import { HeadlessRequest } from './HeadlessRequest';
-
 import { Main } from './Main';
+import { SingleLogoutFailed } from './SingleLogoutFailed';
+import TeleportContext from './teleportContext';
+import TeleportContextProvider from './TeleportContextProvider';
+import { Welcome } from './Welcome';
 
-import type { History } from 'history';
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: 'always',
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+    mutations: {
+      networkMode: 'always',
+      retry: false,
+    },
+  },
+});
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
@@ -82,32 +93,36 @@ const Teleport: React.FC<Props> = props => {
 
   return (
     <CatchError>
-      <ThemeProvider>
-        <LayoutContextProvider>
-          <Router history={history}>
-            <Suspense fallback={null}>
-              <Switch>
-                {createPublicRoutes()}
-                <Route path={cfg.routes.root}>
-                  <Authenticated>
-                    <UserContextProvider>
-                      <TeleportContextProvider ctx={ctx}>
-                        <Switch>
-                          <Route
-                            path={cfg.routes.appLauncher}
-                            component={AppLauncher}
-                          />
-                          <Route>{createPrivateRoutes()}</Route>
-                        </Switch>
-                      </TeleportContextProvider>
-                    </UserContextProvider>
-                  </Authenticated>
-                </Route>
-              </Switch>
-            </Suspense>
-          </Router>
-        </LayoutContextProvider>
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <LayoutContextProvider>
+            <Router history={history}>
+              <Suspense fallback={null}>
+                <Switch>
+                  {createPublicRoutes()}
+                  <Route path={cfg.routes.root}>
+                    <Authenticated>
+                      <UserContextProvider>
+                        <ToastNotificationProvider>
+                          <TeleportContextProvider ctx={ctx}>
+                            <Switch>
+                              <Route
+                                path={cfg.routes.appLauncher}
+                                component={AppLauncher}
+                              />
+                              <Route>{createPrivateRoutes()}</Route>
+                            </Switch>
+                          </TeleportContextProvider>
+                        </ToastNotificationProvider>
+                      </UserContextProvider>
+                    </Authenticated>
+                  </Route>
+                </Switch>
+              </Suspense>
+            </Router>
+          </LayoutContextProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </CatchError>
   );
 };
@@ -182,6 +197,11 @@ function privateOSSRoutes() {
     <Switch>
       {getSharedPrivateRoutes()}
       <Route
+        key="player"
+        path={cfg.routes.player}
+        component={ViewSessionRecordingRoute}
+      />
+      <Route
         path={cfg.routes.root}
         render={() => <Main features={getOSSFeatures()} />}
       />
@@ -197,7 +217,6 @@ export function getSharedPrivateRoutes() {
       component={DesktopSession}
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
-    <Route key="player" path={cfg.routes.player} component={Player} />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}

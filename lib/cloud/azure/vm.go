@@ -31,6 +31,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// virtualScaleSetUniformVMResourceType represents the resource type of uniform
+// virtual scale set VMs.
+const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
+
 // armCompute provides an interface for an Azure virtual machine client.
 type armCompute interface {
 	// Get retrieves information about an Azure virtual machine.
@@ -41,9 +45,16 @@ type armCompute interface {
 	NewListAllPager(opts *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse]
 }
 
+// scaleSet provides an interfaces for an Azure VM scale set client.
+type scaleSet interface {
+	// Get retrieves a virtual machine from a VM scale set.
+	Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error)
+}
+
 // VirtualMachinesClient is a client for Azure virtual machines.
 type VirtualMachinesClient interface {
-	// Get returns the virtual machine for the given resource ID.
+	// Get returns the virtual machine (including scale set VMs) for the given
+	// resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
 	// GetByVMID returns the virtual machine for a given VM ID.
 	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
@@ -76,6 +87,8 @@ type Identity struct {
 type vmClient struct {
 	// api is the Azure virtual machine client.
 	api armCompute
+	// scaleSetAPI is the Azure VM scale set client.
+	scaleSetAPI scaleSet
 }
 
 // NewVirtualMachinesClient creates a new Azure virtual machines client by
@@ -85,55 +98,96 @@ func NewVirtualMachinesClient(subscription string, cred azcore.TokenCredential, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	scaleSetAPI, err := armcompute.NewVirtualMachineScaleSetVMsClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return NewVirtualMachinesClientByAPI(computeAPI), nil
+	return NewVirtualMachinesClientByAPI(computeAPI, scaleSetAPI), nil
 }
 
 // NewVirtualMachinesClientByAPI creates a new Azure virtual machines client by
 // ARM API client.
-func NewVirtualMachinesClientByAPI(api armCompute) VirtualMachinesClient {
+func NewVirtualMachinesClientByAPI(api armCompute, scaleSetAPI scaleSet) VirtualMachinesClient {
 	return &vmClient{
-		api: api,
+		api:         api,
+		scaleSetAPI: scaleSetAPI,
 	}
 }
 
-func parseVirtualMachine(vm *armcompute.VirtualMachine) (*VirtualMachine, error) {
-	resourceID, err := arm.ParseResourceID(*vm.ID)
+type vmTypes interface {
+	*armcompute.VirtualMachine | *armcompute.VirtualMachineScaleSetVM
+}
+
+func parseVirtualMachine[T vmTypes](vm T) (*VirtualMachine, error) {
+	var (
+		id       string
+		name     string
+		identity *armcompute.VirtualMachineIdentity
+		vmID     *string
+	)
+
+	switch v := any(vm).(type) {
+	case *armcompute.VirtualMachine:
+		id = *v.ID
+		name = *v.Name
+		identity = v.Identity
+		if v.Properties != nil {
+			vmID = v.Properties.VMID
+		}
+
+	case *armcompute.VirtualMachineScaleSetVM:
+		id = *v.ID
+		name = *v.Name
+		identity = v.Identity
+		if v.Properties != nil {
+			vmID = v.Properties.VMID
+		}
+	}
+
+	resourceID, err := arm.ParseResourceID(id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var identities []Identity
-	if vm.Identity != nil {
-		if systemAssigned := StringVal(vm.Identity.PrincipalID); systemAssigned != "" {
+	if identity != nil {
+		if systemAssigned := StringVal(identity.PrincipalID); systemAssigned != "" {
 			identities = append(identities, Identity{ResourceID: systemAssigned})
 		}
 
-		for identityID := range vm.Identity.UserAssignedIdentities {
+		for identityID := range identity.UserAssignedIdentities {
 			identities = append(identities, Identity{ResourceID: identityID})
 		}
 	}
 
-	var vmID string
-	if vm.Properties != nil {
-		vmID = *vm.Properties.VMID
-	}
-
 	return &VirtualMachine{
-		ID:            *vm.ID,
-		Name:          *vm.Name,
+		ID:            id,
+		Name:          name,
 		Subscription:  resourceID.SubscriptionID,
 		ResourceGroup: resourceID.ResourceGroupName,
-		VMID:          vmID,
+		VMID:          StringVal(vmID),
 		Identities:    identities,
 	}, nil
 }
 
-// Get returns the virtual machine for the given resource ID.
+// Get returns the virtual machine (including scale set VMs) for the given
+// resource ID.
+//
+// The virtual machine scale set (VMSS) supports two types of orchestration
+// modes: uniform and flexible. Both have different resource ID format from the
+// instance metadata API. A VM from a uniform VMSS has a different resource ID
+// and requires a different API to retrieve its information. Flexible VMSS VMs
+// use the same resource ID format as regular VMs and don't require special
+// handling.
 func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine, error) {
 	parsedResourceID, err := arm.ParseResourceID(resourceID)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if parsedResourceID.ResourceType.Type == virtualScaleSetUniformVMResourceType {
+		return c.getScaleSetVM(ctx, parsedResourceID)
 	}
 
 	resp, err := c.api.Get(ctx, parsedResourceID.ResourceGroupName, parsedResourceID.Name, nil)
@@ -162,6 +216,20 @@ func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine,
 		}
 	}
 	return nil, trace.NotFound("no VM with ID %q", vmID)
+}
+
+func (c *vmClient) getScaleSetVM(ctx context.Context, resourceID *arm.ResourceID) (*VirtualMachine, error) {
+	if resourceID.Parent == nil {
+		return nil, trace.BadParameter("expected resource ID to include scale set as parent resource")
+	}
+
+	resp, err := c.scaleSetAPI.Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	result, err := parseVirtualMachine(&resp.VirtualMachineScaleSetVM)
+	return result, trace.Wrap(err)
 }
 
 type vmPager struct {
@@ -219,10 +287,8 @@ type RunCommandRequest struct {
 	ResourceGroup string
 	// VMName is the name of the VM.
 	VMName string
-	// Script is the URI of the script for the virtual machine to execute.
+	// Script is the shell script to be executed in the virtual machine.
 	Script string
-	// Parameters is a list of parameters for the script.
-	Parameters []string
 }
 
 // RunCommandClient is a client for Azure Run Commands.
@@ -248,17 +314,10 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 
 // Run runs a command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error {
-	var params []*armcompute.RunCommandInputParameter
-	for _, value := range req.Parameters {
-		params = append(params, &armcompute.RunCommandInputParameter{
-			Value: to.Ptr(value),
-		})
-	}
 	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, "RunShellScript", armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
 			AsyncExecution: to.Ptr(false),
-			Parameters:     params,
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
@@ -267,6 +326,7 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	_, err = poller.PollUntilDone(ctx, nil /* options */)
 	return trace.Wrap(err)
 }

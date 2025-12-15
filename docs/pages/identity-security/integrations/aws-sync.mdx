@@ -1,0 +1,302 @@
+---
+title: Discover AWS Access Patterns and AWS CloudTrail events with Teleport Identity Security
+sidebar_label: AWS
+description: Describes how to import and visualize AWS accounts access patterns using Identity Security.
+tags:
+ - conceptual
+ - identity-security
+ - aws
+ - access-risks
+---
+
+Identity Security streamlines and centralizes access management across your entire infrastructure. You can view access relationships in seconds,
+viewing unified, up-to-date relationships and policies between all users, groups, and computing resources.
+
+Identity Security with Access Graph offers insights into access patterns within your AWS account. By scanning IAM
+permissions, users, groups, resources, and identities, it provides a visual representation and aids in
+enhancing the permission model within your AWS environment. This functionality enables you to address queries such as:
+
+- What resources are accessible to AWS users and roles?
+- Which resources can be reached via identities associated with EC2 instances?
+- What AWS resources can Teleport users access when connecting to EC2 nodes?
+
+Identity Security also offers CloudTrail data ingestion, analysis for threats and correlation with
+other services such as Okta and GitHub Actions.
+
+Utilizing the Access Graph to analyze IAM permissions within an AWS account necessitates the setup of the Access Graph
+service, a Discovery Service, and integration with your AWS account.
+
+(!docs/pages/includes/policy/access-graph.mdx!)
+
+## How it works
+
+Access Graph discovers AWS access patterns, synchronizes various AWS resources,
+including IAM Policies, Groups, Users, User Groups, EC2 instances, EKS clusters, RDS databases, and KMS keys.
+These resources are then visualized using the graph representation detailed in the
+[Identity Security usage page](../usage/usage.mdx).
+
+The importing process involves three primary steps:
+
+### Polling Cloud APIs
+
+The Teleport Discovery Service continuously scans the configured AWS accounts.
+At intervals of 15 minutes, it retrieves the following resources from your AWS account:
+
+- Users
+- Groups
+- User Groups
+- IAM Roles
+- IAM Policies
+- EC2 Instances
+- EKS Clusters
+- RDS Databases
+- S3 Buckets
+- KMS Keys
+
+Once all the necessary resources are fetched, the Teleport Discovery Service pushes them to the
+Access Graph, ensuring that it remains updated with the latest information from your AWS environment.
+
+### Importing resources
+
+Identity Security’s Access Graph feature delves into the IAM policies, identities,
+and resources retrieved from your AWS account, crafting a
+graphical representation thereof.
+
+
+### Importing AWS CloudTrail logs (optional)
+
+If CloudTrail is configured to log activity in your AWS account, it delivers log files to an S3 bucket.
+Identity Activity Center can process trail data in near real time. Enabling Amazon SNS notifications
+in the CloudTrail allows a new notification to be sent whenever a new log file is written.
+This SNS topic is subscribed to an SQS queue, which acts as a buffer for incoming notifications.
+
+Teleport subscribes to the SQS queue using its AWS integration and polls for new messages at regular
+intervals. Each message contains metadata about the new object in S3, such as the bucket name and
+object key. Teleport uses this information to fetch the corresponding CloudTrail log file directly
+from S3.
+
+Once the file is downloaded, Teleport parses the CloudTrail events and processes them for audit and
+security purposes. This allows Teleport to provide continuous visibility into activity across AWS
+services, including login attempts, API calls, and changes to infrastructure.
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v18.0.0 or later.
+- Identity Security enabled for your account.
+- For self-hosted clusters:
+  - Ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+  - A running Access Graph node v1.28.0 or later.
+Check the [Identity Security page](../identity-security.mdx) for details on
+how to set up Access Graph.
+  - The node running the Access Graph service must be reachable from the Teleport Auth Service.
+  - AWS CloudTrail setup with notifications being sent to a SNS topic.
+  - AWS SQS queue receiving raw messages from CloudTrail SNS notifications.
+
+## Step 1/3. Configure Discovery Service (Self-hosted only)
+
+<Admonition type="warning">
+
+If you have a cloud-hosted Teleport Enterprise cluster, you can disregard
+this step, as cloud-hosted Teleport Enterprise already operates a properly configured
+Discovery Service within your cluster.
+</Admonition>
+
+To activate the Teleport Discovery Service, add a top level discovery_service section to the teleport.yaml
+config used by the Auth Service. This service monitors dynamic `discovery_config` resources that are set up
+with the `discovery_group` matching.
+
+<Var name="discovery-group" />.
+```yaml
+discovery_service:
+  enabled: true
+  discovery_group: <Var name="discovery-group" />
+```
+
+Notice that if you already operate a Discovery Service within your cluster,
+it's possible to reuse it as long as the following requirements are met:
+
+- On step 2, you match the `discovery_group` with the existing Discovery Service's
+`discovery_group`.
+- Access Graph service is reachable from the machine where Discovery Service runs.
+
+## Step 2/3. Identity Activity Center CloudTrail integration (optional)
+
+To enable the Identity Activity Center CloudTrail integration, you can use an existing
+CloudTrail trail or create a new one. Trails can be scoped to a single AWS account or
+configured as an AWS Organization trail to collect events from multiple accounts.
+If you already have an existing trail, we recommend using it to reduce the costs.
+
+For near real-time access to CloudTrail data, Amazon SNS notifications must be enabled for
+your trail. If SNS notifications are not already configured, go to your trail settings,
+enable **SNS notification delivery**, and create a new SNS topic.
+
+![Show Trail Settings](../../../img/access-graph/aws/trail-settings.png)
+
+After setting up the SNS topic, create a new Standard Amazon SQS queue and subscribe it
+to the SNS topic you just created. The queue must be uniquely used for trail SNS notifications.
+When configuring the subscription, make sure to enable
+the **Enable raw message delivery** option. This setting is required—without it, Identity
+Activity Center won't be able to parse the notifications correctly.
+
+![Show SNS Settings](../../../img/access-graph/aws/sns-settings.png)
+
+Although optional, enabling KMS encryption for both the SQS queue and the target S3 bucket
+is strongly recommended. Be sure to configure the necessary KMS key permissions in the
+following step so that Identity Security can successfully decrypt messages from SQS
+and access CloudTrail logs in the S3 bucket.
+
+## Step 3/3. Set up Access Graph AWS Sync
+
+To initiate the setup wizard for configuring AWS Sync, access the Teleport UI,
+click the Identity Security sidebar button, and then click Integrations.
+
+Click the "Setup new integration" button, and then select "AWS". You'll be prompted
+to create a new Teleport AWS integration if you haven't configured one already.
+Alternatively, you can opt for a previously established integration.
+
+Upon selecting or creating the integration, you'll be instructed to execute a
+bash script within your AWS Cloud Shell to configure the necessary permissions.
+
+<details>
+<summary>List of IAM Policies required for AWS Sync</summary>
+
+The policy is designed with a set of read-only actions, enabling Teleport
+to access and retrieve information from resources within your AWS Account.
+
+The IAM policy includes the following directives:
+
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeImages",
+        "ec2:DescribeTags",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeKeyPairs",
+
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "eks:ListAccessEntries",
+        "eks:ListAccessPolicies",
+        "eks:ListAssociatedAccessPolicies",
+        "eks:DescribeAccessEntry",
+
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters",
+        "rds:ListTagsForResource",
+        "rds:DescribeDBProxies",
+
+        "dynamodb:ListTables",
+        "dynamodb:DescribeTable",
+
+        "redshift:DescribeClusters",
+        "redshift:Describe*",
+
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketPolicy",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:GetBucketTagging",
+        "s3:GetBucketPolicyStatus",
+        "s3:GetBucketAcl",
+
+        "iam:ListUsers",
+        "iam:GetUser",
+        "iam:ListRoles",
+        "iam:ListGroups",
+        "iam:ListPolicies",
+        "iam:ListGroupsForUser",
+        "iam:ListInstanceProfiles",
+        "iam:ListUserPolicies",
+        "iam:GetUserPolicy",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListGroupPolicies",
+        "iam:GetGroupPolicy",
+        "iam:ListAttachedGroupPolicies",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:GetRolePolicy",
+        "iam:ListSAMLProviders",
+        "iam:GetSAMLProvider",
+        "iam:ListOpenIDConnectProviders",
+        "iam:GetOpenIDConnectProvider",
+
+        "kms:ListKeys",
+        "kms:DescribeKey",
+        "kms:ListResourceTags",
+        "kms:ListAliases",
+        "kms:GetKeyPolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+
+```
+
+If Identity Activity Center is enabled, two extra configurations are required:
+
+- <Var name="aws-sqs-queue"/>: The ARN of the Amazon SQS queue subscribed to the SNS topic that receives CloudTrail notifications.
+- <Var name="aws-s3-trail-bucket"/>: The arn of the Amazon S3 bucket where CloudTrail delivers its log files.
+- <Var name="aws-sqs-kms-queue-key"/>: The ARN of the AWS KMS key used to encrypt messages in the SQS queue.
+- <Var name="aws-s3-kms-key"/>: The ARN of the AWS KMS key used to encrypt objects in the S3 bucket that stores CloudTrail logs.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:SendMessage"
+      ],
+      "Resource": "<Var name="aws-sqs-queue"/>"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListBucket",
+        "s3:ListBucketVersions",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "<Var name="aws-s3-trail-bucket"/>"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:GenerateDataKey",
+          "kms:GenerateDataKeyWithoutPlaintext",
+      ],
+      "Resources": [
+        "<Var name="aws-sqs-kms-queue-key"/>",
+        "<Var name="aws-s3-kms-key"/>",
+      ]
+    }
+  ]
+}
+```
+</details>
+
+
+Once the IAM Policy has been successfully linked to the IAM role
+utilized by Teleport, you'll be prompted to specify the regions from
+which Teleport should import resources. This selection solely pertains
+to regional resources and does not impact global resources such as S3
+Buckets, IAM Policies, or IAM Users.
+
+If you're operating a self-hosted cluster, you'll additionally need to
+provide input for the `discovery_group` configured during Step 1.
+

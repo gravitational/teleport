@@ -21,6 +21,7 @@ package clusters
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -51,8 +52,6 @@ type Cluster struct {
 	ProfileName string
 	// Logger is a component logger
 	Logger *slog.Logger
-	// dir is the directory where cluster certificates are stored
-	dir string
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.
@@ -65,6 +64,8 @@ type Cluster struct {
 	clock clockwork.Clock
 	// SSOHost is the host of the SSO provider used to log in.
 	SSOHost string
+	// WebProxyAddr is the host:port the web proxy can be accessed at.
+	WebProxyAddr string
 }
 
 type ClusterWithDetails struct {
@@ -153,7 +154,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
-			clusterName, err := authClient.GetClusterName()
+			clusterName, err := authClient.GetClusterName(groupCtx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -198,20 +199,22 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	roleSet := services.NewRoleSet(roles...)
 	userACL := services.NewUserACL(user, roleSet, *authPingResponse.ServerFeatures, false, false)
 	acl := &api.ACL{
-		RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
-		ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
-		AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
-		Roles:            convertToAPIResourceAccess(userACL.Roles),
-		Users:            convertToAPIResourceAccess(userACL.Users),
-		TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
-		Events:           convertToAPIResourceAccess(userACL.Events),
-		Tokens:           convertToAPIResourceAccess(userACL.Tokens),
-		Servers:          convertToAPIResourceAccess(userACL.Nodes),
-		Apps:             convertToAPIResourceAccess(userACL.AppServers),
-		Dbs:              convertToAPIResourceAccess(userACL.DBServers),
-		Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
-		AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
-		ReviewRequests:   userACL.ReviewRequests,
+		RecordedSessions:        convertToAPIResourceAccess(userACL.RecordedSessions),
+		ActiveSessions:          convertToAPIResourceAccess(userACL.ActiveSessions),
+		AuthConnectors:          convertToAPIResourceAccess(userACL.AuthConnectors),
+		Roles:                   convertToAPIResourceAccess(userACL.Roles),
+		Users:                   convertToAPIResourceAccess(userACL.Users),
+		TrustedClusters:         convertToAPIResourceAccess(userACL.TrustedClusters),
+		Events:                  convertToAPIResourceAccess(userACL.Events),
+		Tokens:                  convertToAPIResourceAccess(userACL.Tokens),
+		Servers:                 convertToAPIResourceAccess(userACL.Nodes),
+		Apps:                    convertToAPIResourceAccess(userACL.AppServers),
+		Dbs:                     convertToAPIResourceAccess(userACL.DBServers),
+		Kubeservers:             convertToAPIResourceAccess(userACL.KubeServers),
+		AccessRequests:          convertToAPIResourceAccess(userACL.AccessRequests),
+		ReviewRequests:          userACL.ReviewRequests,
+		DirectorySharingEnabled: userACL.DirectorySharing,
+		ClipboardSharingEnabled: userACL.Clipboard,
 	}
 
 	withDetails := &ClusterWithDetails{
@@ -309,7 +312,8 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		Name:           c.status.Username,
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
-		ActiveRequests: c.status.ActiveRequests.AccessRequests,
+		ActiveRequests: c.status.ActiveRequests,
+		ValidUntil:     c.status.ValidUntil,
 	}
 }
 
@@ -351,6 +355,8 @@ type LoggedInUser struct {
 	Roles []string
 	// ActiveRequests is the user active requests
 	ActiveRequests []string
+	// ValidUntil is expiration time of the certificate.
+	ValidUntil time.Time
 }
 
 // AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
@@ -384,4 +390,32 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
 			trace.BadParameter("unknown user type %q", userType)
 	}
+}
+
+// Server describes an SSH node.
+type Server struct {
+	// URI is the cluster URI
+	URI uri.ResourceURI
+	// Subset of logins allowed by the certificate and RBAC rules.
+	Logins []string
+
+	types.Server
+}
+
+// SaveProfileAndPreserveSiteName wraps [client.TeleportClient.SaveProfile]. It restores the original site name before
+// saving the profile.
+//
+// It's needed because teleterm/clusters.Storage.loadProfileStatusAndClusterKey overwrites the profile's site name so that
+// the cluster client is created for the cluster specified in the URI rather than the one stored in the profile.
+// This adjustment is only relevant for Connect and should not be persisted.
+func SaveProfileAndPreserveSiteName(clusterClient *client.TeleportClient, makeCurrent bool) error {
+	profile, err := clusterClient.GetProfile(clusterClient.WebProxyAddr)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if profile != nil {
+		clusterClient.SiteName = profile.SiteName
+	}
+	err = clusterClient.SaveProfile(makeCurrent)
+	return trace.Wrap(err)
 }

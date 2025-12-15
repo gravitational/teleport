@@ -18,17 +18,27 @@ package awsconfig
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
+	"google.golang.org/protobuf/types/known/durationpb"
 
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const defaultRegion = "us-east-1"
@@ -43,44 +53,147 @@ const (
 	credentialsSourceIntegration
 )
 
-// IntegrationSessionProviderFunc defines a function that creates a credential provider from a region and an integration.
-// This is used to generate aws configs for clients that must use an integration instead of ambient credentials.
-type IntegrationCredentialProviderFunc func(ctx context.Context, region, integration string) (aws.CredentialsProvider, error)
+// IntegrationGetter is an interface that indicates which APIs are
+// required to get an integration.
+// Required when using integration credentials.
+type IntegrationGetter interface {
+	// GetIntegration returns the specified integration resource.
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+}
+
+// OIDCIntegrationClient is an interface that indicates which APIs are
+// required to generate an AWS OIDC integration token.
+type OIDCIntegrationClient interface {
+	IntegrationGetter
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC
+	// Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error)
+}
+
+// RolesAnywhereIntegrationClient is an interface that indicates which APIs are
+// required to generate a set of AWS credentials using the AWS IAM Roles Anywhere integration.
+type RolesAnywhereIntegrationClient interface {
+	IntegrationGetter
+	// GenerateAWSRACredentials generates a token to be used to execute an AWS IAM Roles Anywhere integration.
+	GenerateAWSRACredentials(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest) (*integrationpb.GenerateAWSRACredentialsResponse, error)
+}
+
+// STSClient is a subset of the AWS STS API.
+type STSClient interface {
+	stscreds.AssumeRoleAPIClient
+	stscreds.AssumeRoleWithWebIdentityAPIClient
+}
+
+// STSClientProviderFunc provides an AWS STS assume role API client.
+type STSClientProviderFunc func(aws.Config) STSClient
+
+// AssumeRole is an AWS role to assume, optionally with an external ID.
+type AssumeRole struct {
+	// RoleARN is the ARN of the role to assume.
+	RoleARN string `json:"role_arn"`
+	// ExternalID is an optional ID to include when assuming the role.
+	ExternalID string `json:"external_id,omitempty"`
+	// SessionName is an optional session name to use when assuming the role.
+	SessionName string `json:"session_name,omitempty"`
+	// Tags is a list of STS session tags to pass when assuming the role.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html
+	Tags map[string]string `json:"tags,omitempty"`
+	// Duration is the expiry duration of the generated credentials. Empty
+	// value will use the AWS SDK default expiration time.
+	Duration time.Duration `json:"duration,omitempty"`
+}
 
 // options is a struct of additional options for assuming an AWS role
 // when construction an underlying AWS config.
 type options struct {
-	// baseConfigis a config to use instead of the default config for an
-	// AWS region, which is used to enable role chaining.
-	baseConfig *aws.Config
-	// assumeRoleARN is the AWS IAM Role ARN to assume.
-	assumeRoleARN string
-	// assumeRoleExternalID is used to assume an external AWS IAM Role.
-	assumeRoleExternalID string
+	// assumeRoles are AWS IAM roles that should be assumed one by one in order,
+	// as a chain of assumed roles.
+	assumeRoles []AssumeRole
 	// credentialsSource describes which source to use to fetch credentials.
 	credentialsSource credentialsSource
 	// integration is the name of the integration to be used to fetch the credentials.
 	integration string
-	// integrationCredentialsProvider is the integration credential provider to use.
-	integrationCredentialsProvider IntegrationCredentialProviderFunc
+	// integrationGetter provides APIs to get the AWS integration.
+	// Required if integration credentials are requested.
+	integrationGetter IntegrationGetter
+
+	// oidcIntegrationClient provides APIs to generate AWS OIDC tokens, which
+	// can then be exchanged for IAM credentials.
+	// Required when integration uses IAM OIDC IdP to obtain credentials.
+	oidcIntegrationClient OIDCIntegrationClient
+
+	// rolesAnywhereIntegrationClient provides APIs to generate AWS credentials.
+	// Required when integration uses IAM Roles Anywhere service to obtain credentials.
+	rolesAnywhereIntegrationClient RolesAnywhereIntegrationClient
+	// rolesAnywhereIntegrationMetadata contains the Roles Anywhere Profile and IAM Role to use.
+	rolesAnywhereIntegrationMetadata RolesAnywhereMetadata
+
 	// customRetryer is a custom retryer to use for the config.
 	customRetryer func() aws.Retryer
 	// maxRetries is the maximum number of retries to use for the config.
 	maxRetries *int
+	// stsClientProvider sets the STS assume role client provider func.
+	stsClientProvider STSClientProviderFunc
+	// baseCredentials is the base config used to assume the roles.
+	baseCredentials aws.CredentialsProvider
+	// withFallbackRegionResolver is a fallback region resolver func that is
+	// called if a config does not resolve a region. If the resolver returns an
+	// error, then the default region (us-east-1) will be used.
+	withFallbackRegionResolver func(ctx context.Context) (string, error)
 }
 
-func (a *options) checkAndSetDefaults() error {
-	switch a.credentialsSource {
-	case credentialsSourceAmbient:
-		if a.integration != "" {
-			return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+func buildOptions(optFns ...OptionsFn) (*options, error) {
+	var opts options
+	for _, optFn := range optFns {
+		optFn(&opts)
+	}
+	if err := opts.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &opts, nil
+}
+
+func (o *options) checkAndSetDefaults() error {
+	if o.baseCredentials == nil {
+		switch o.credentialsSource {
+		case credentialsSourceAmbient:
+			if o.integration != "" {
+				return trace.BadParameter("integration and ambient credentials cannot be used at the same time")
+			}
+		case credentialsSourceIntegration:
+			if err := o.checkIntegrationCredentials(); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			return trace.BadParameter("missing credentials source (ambient or integration)")
 		}
-	case credentialsSourceIntegration:
-		if a.integration == "" {
-			return trace.BadParameter("missing integration name")
+	}
+	if len(o.assumeRoles) > 2 {
+		return trace.BadParameter("role chain contains more than 2 roles")
+	}
+
+	if o.stsClientProvider == nil {
+		o.stsClientProvider = func(cfg aws.Config) STSClient {
+			return stsutils.NewFromConfig(cfg, func(o *sts.Options) {
+				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+			})
+
 		}
-	default:
-		return trace.BadParameter("missing credentials source (ambient or integration)")
+	}
+	return nil
+}
+
+func (o *options) checkIntegrationCredentials() error {
+	if o.integration == "" {
+		return trace.BadParameter("missing integration name")
+	}
+
+	if o.integrationGetter == nil {
+		return trace.BadParameter("missing integration getter")
+	}
+
+	if o.oidcIntegrationClient == nil && o.rolesAnywhereIntegrationClient == nil {
+		return trace.BadParameter("missing AWS integration client")
 	}
 
 	return nil
@@ -90,11 +203,40 @@ func (a *options) checkAndSetDefaults() error {
 // when getting an AWS config.
 type OptionsFn func(*options)
 
+// AssumedRoles extracts the assumed roles from the provided options.
+// Only used in testing.
+func AssumedRoles(opts ...OptionsFn) []AssumeRole {
+	var options options
+	for _, optFn := range opts {
+		optFn(&options)
+	}
+
+	return options.assumeRoles
+}
+
 // WithAssumeRole configures options needed for assuming an AWS role.
 func WithAssumeRole(roleARN, externalID string) OptionsFn {
 	return func(options *options) {
-		options.assumeRoleARN = roleARN
-		options.assumeRoleExternalID = externalID
+		if roleARN == "" {
+			// ignore empty role ARN for caller convenience.
+			return
+		}
+		options.assumeRoles = append(options.assumeRoles, AssumeRole{
+			RoleARN:    roleARN,
+			ExternalID: externalID,
+		})
+	}
+}
+
+// WithDetailedAssumeRole configures options needed for assuming an AWS role,
+// including optional details like session name, duration, and tags.
+func WithDetailedAssumeRole(ar AssumeRole) OptionsFn {
+	return func(options *options) {
+		if ar.RoleARN == "" {
+			// ignore empty role ARN for caller convenience.
+			return
+		}
+		options.assumeRoles = append(options.assumeRoles, ar)
 	}
 }
 
@@ -112,23 +254,58 @@ func WithMaxRetries(maxRetries int) OptionsFn {
 	}
 }
 
+// IntegrationMetadata contains the metadata about the Integration to use
+// when using the integration credentials source.
+type IntegrationMetadata struct {
+	// Name of the integration.
+	// Will be empty when using ambient credentials.
+	Name string
+
+	// RolesAnywhereMetadata contains the metadata about the Roles Anywhere.
+	// Only set when the Integration is of AWS IAM Roles Anywhere subkind.
+	RolesAnywhereMetadata RolesAnywhereMetadata
+}
+
+// RolesAnywhereMetadata contains the metadata required to use AWS IAM Roles Anywhere
+// to generate credentials.
+type RolesAnywhereMetadata struct {
+	// ProfileARN is the ARN of the Roles Anywhere profile.
+	ProfileARN string
+	// ProfileAcceptsRoleSessionName indicates whether the profile accepts a role session name.
+	ProfileAcceptsRoleSessionName bool
+	// RoleARN is the ARN of the role to assume.
+	RoleARN string
+	// IdentityUsername is the username to use when generating the AWS credentials.
+	// This will be used as the Subject Common Name (CN) in the certificate, and logged in CloudTrail if ProfileAcceptsRoleSessionName is true.
+	// Should be set to the teleport's username.
+	IdentityUsername string
+	// SessionDuration is used to calculate the expiration time for the AWS session.
+	// Must be lower or equal to the maximum session duration of the role.
+	// The actual session duration will be the minimum between this value (if not zero) and the Profile's max session duration.
+	SessionDuration time.Duration
+}
+
 // WithCredentialsMaybeIntegration sets the credential source to be
 // - ambient if the integration is an empty string
 // - integration, otherwise
-func WithCredentialsMaybeIntegration(integration string) OptionsFn {
-	if integration != "" {
-		return withIntegrationCredentials(integration)
+// When using integration, relevant integration metadata must be provided.
+func WithCredentialsMaybeIntegration(integrationMetadata IntegrationMetadata) OptionsFn {
+	if integrationMetadata.Name == "" {
+		return WithAmbientCredentials()
 	}
 
-	return WithAmbientCredentials()
-}
-
-// withIntegrationCredentials configures options with an Integration that must be used to fetch Credentials to assume a role.
-// This prevents the usage of AWS environment credentials.
-func withIntegrationCredentials(integration string) OptionsFn {
 	return func(options *options) {
 		options.credentialsSource = credentialsSourceIntegration
-		options.integration = integration
+		options.integration = integrationMetadata.Name
+		options.rolesAnywhereIntegrationMetadata = integrationMetadata.RolesAnywhereMetadata
+	}
+}
+
+// WithRolesAnywhereIntegrationClient sets the Roles Anywhere integration client.
+func WithRolesAnywhereIntegrationClient(c RolesAnywhereIntegrationClient) OptionsFn {
+	return func(options *options) {
+		options.rolesAnywhereIntegrationClient = c
+		options.integrationGetter = c
 	}
 }
 
@@ -139,103 +316,276 @@ func WithAmbientCredentials() OptionsFn {
 	}
 }
 
-// WithIntegrationCredentialProvider sets the integration credential provider.
-func WithIntegrationCredentialProvider(cred IntegrationCredentialProviderFunc) OptionsFn {
+// WithSTSClientProvider sets the STS API client factory func.
+func WithSTSClientProvider(fn STSClientProviderFunc) OptionsFn {
 	return func(options *options) {
-		options.integrationCredentialsProvider = cred
+		options.stsClientProvider = fn
+	}
+}
+
+// WithOIDCIntegrationClient sets the OIDC integration client.
+func WithOIDCIntegrationClient(c OIDCIntegrationClient) OptionsFn {
+	return func(options *options) {
+		options.oidcIntegrationClient = c
+		options.integrationGetter = c
+	}
+}
+
+// WithBaseCredentialsProvider sets the base provider credentials used for the
+// assumed roles.
+func WithBaseCredentialsProvider(baseCredentialsProvider aws.CredentialsProvider) OptionsFn {
+	return func(o *options) {
+		o.baseCredentials = baseCredentialsProvider
+	}
+}
+
+// WithFallbackRegionResolver sets a fallback region resolver func that is
+// called if a config does not resolve a region. If the resolver returns an
+// error, then the default region (us-east-1) will be used.
+func WithFallbackRegionResolver(fn func(ctx context.Context) (string, error)) OptionsFn {
+	return func(o *options) {
+		o.withFallbackRegionResolver = fn
 	}
 }
 
 // GetConfig returns an AWS config for the specified region, optionally
 // assuming AWS IAM Roles.
-func GetConfig(ctx context.Context, region string, opts ...OptionsFn) (aws.Config, error) {
-	var options options
-	for _, opt := range opts {
-		opt(&options)
+func GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
+	opts, err := buildOptions(optFns...)
+	if err != nil {
+		return aws.Config{}, trace.Wrap(err)
 	}
-	if options.baseConfig == nil {
-		cfg, err := getConfigForRegion(ctx, region, options)
-		if err != nil {
-			return aws.Config{}, trace.Wrap(err)
+
+	cfg, err := getBaseConfig(ctx, region, opts)
+	if err != nil {
+		return aws.Config{}, trace.Wrap(err)
+	}
+	return getConfigForRoleChain(ctx, cfg, opts.assumeRoles, opts.stsClientProvider)
+}
+
+// loadDefaultConfig loads a new config.
+func loadDefaultConfig(ctx context.Context, region string, cred aws.CredentialsProvider, opts *options) (aws.Config, error) {
+	configOpts := buildConfigOptions(region, cred, opts)
+	cfg, err := config.LoadDefaultConfig(ctx, configOpts...)
+	if err != nil {
+		return aws.Config{}, trace.Wrap(err)
+	}
+	if len(cfg.Region) == 0 && opts.withFallbackRegionResolver != nil {
+		region, err := opts.withFallbackRegionResolver(ctx)
+		if err == nil {
+			cfg.Region = region
+		} else {
+			slog.DebugContext(ctx, "fallback region resolver failed, using the default region",
+				"default_region", defaultRegion,
+				"error", err,
+			)
+			cfg.Region = defaultRegion
 		}
-		options.baseConfig = &cfg
 	}
-	if options.assumeRoleARN == "" {
-		return *options.baseConfig, nil
-	}
-	return getConfigForRole(ctx, region, options)
+	return cfg, nil
 }
 
-// ambientConfigProvider loads a new config using the environment variables.
-func ambientConfigProvider(region string, cred aws.CredentialsProvider, options options) (aws.Config, error) {
-	opts := buildConfigOptions(region, cred, options)
-	cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
-	return cfg, trace.Wrap(err)
-}
-
-func buildConfigOptions(region string, cred aws.CredentialsProvider, options options) []func(*config.LoadOptions) error {
-	opts := []func(*config.LoadOptions) error{
-		config.WithDefaultRegion(defaultRegion),
+func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *options) []func(*config.LoadOptions) error {
+	configOpts := []func(*config.LoadOptions) error{
 		config.WithRegion(region),
 		config.WithCredentialsProvider(cred),
+		config.WithCredentialsCacheOptions(awsCredentialsCacheOptions),
 	}
 	if modules.GetModules().IsBoringBinary() {
-		opts = append(opts, config.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
+		configOpts = append(configOpts, config.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
-	if options.customRetryer != nil {
-		opts = append(opts, config.WithRetryer(options.customRetryer))
+	if opts.customRetryer != nil {
+		configOpts = append(configOpts, config.WithRetryer(opts.customRetryer))
 	}
-	if options.maxRetries != nil {
-		opts = append(opts, config.WithRetryMaxAttempts(*options.maxRetries))
+	if opts.maxRetries != nil {
+		configOpts = append(configOpts, config.WithRetryMaxAttempts(*opts.maxRetries))
 	}
-	return opts
+	if opts.withFallbackRegionResolver == nil {
+		// if we pass WithDefaultRegion, then we will never get back an empty
+		// region, so we have to skip passing it here if we want to make use of
+		// a custom fallback resolver.
+		configOpts = append(configOpts, config.WithDefaultRegion(defaultRegion))
+	}
+	return configOpts
 }
 
-// getConfigForRegion returns AWS config for the specified region.
-func getConfigForRegion(ctx context.Context, region string, options options) (aws.Config, error) {
-	if err := options.checkAndSetDefaults(); err != nil {
-		return aws.Config{}, trace.Wrap(err)
+// getBaseConfig returns an AWS config without assuming any roles.
+func getBaseConfig(ctx context.Context, region string, opts *options) (aws.Config, error) {
+	if opts.baseCredentials != nil {
+		return loadDefaultConfig(ctx, region, opts.baseCredentials, opts)
 	}
 
-	var cred aws.CredentialsProvider
-	if options.credentialsSource == credentialsSourceIntegration {
-		if options.integrationCredentialsProvider == nil {
-			return aws.Config{}, trace.BadParameter("missing aws integration credential provider")
-		}
+	slog.DebugContext(ctx, "Initializing AWS config from default credential chain")
+	cfg, err := loadDefaultConfig(ctx, region, nil, opts)
+	if err != nil {
+		return aws.Config{}, trace.Wrap(err)
+	}
+	slog.DebugContext(ctx, "Loaded AWS config from default credential chain",
+		"region", cfg.Region,
+	)
 
-		slog.DebugContext(ctx, "Initializing AWS config with integration", "region", region, "integration", options.integration)
-		var err error
-		cred, err = options.integrationCredentialsProvider(ctx, region, options.integration)
+	if opts.credentialsSource == credentialsSourceIntegration {
+		slog.DebugContext(ctx, "Initializing AWS config with integration credentials",
+			"region", region,
+			"integration", opts.integration,
+		)
+		provider := &integrationCredentialsProvider{
+			stsClt:                         opts.stsClientProvider(cfg),
+			integrationName:                opts.integration,
+			integrationGetter:              opts.integrationGetter,
+			oidcIntegrationClient:          opts.oidcIntegrationClient,
+			rolesAnywhereIntegrationClient: opts.rolesAnywhereIntegrationClient,
+			rolesAnywhereProfileMetadata:   opts.rolesAnywhereIntegrationMetadata,
+		}
+		cc := aws.NewCredentialsCache(provider, awsCredentialsCacheOptions)
+		_, err := cc.Retrieve(ctx)
 		if err != nil {
 			return aws.Config{}, trace.Wrap(err)
 		}
-	} else {
-		slog.DebugContext(ctx, "Initializing AWS config from environment", "region", region)
+		cfg.Credentials = cc
 	}
-
-	cfg, err := ambientConfigProvider(region, cred, options)
-	return cfg, trace.Wrap(err)
+	return cfg, nil
 }
 
-// getConfigForRole returns an AWS config for the specified region and role.
-func getConfigForRole(ctx context.Context, region string, options options) (aws.Config, error) {
-	if err := options.checkAndSetDefaults(); err != nil {
-		return aws.Config{}, trace.Wrap(err)
+func getConfigForRoleChain(ctx context.Context, cfg aws.Config, roles []AssumeRole, newCltFn STSClientProviderFunc) (aws.Config, error) {
+	if len(roles) > 0 {
+		for _, r := range roles {
+			cfg.Credentials = getAssumeRoleProvider(ctx, newCltFn(cfg), r)
+		}
+		// No point caching every assumed role in the chain, we can just cache
+		// the last one.
+		cfg.Credentials = aws.NewCredentialsCache(cfg.Credentials, awsCredentialsCacheOptions)
+		if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
+			return aws.Config{}, trace.Wrap(err)
+		}
 	}
+	return cfg, nil
+}
 
-	stsClient := sts.NewFromConfig(*options.baseConfig, func(o *sts.Options) {
-		o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-	})
-	cred := stscreds.NewAssumeRoleProvider(stsClient, options.assumeRoleARN, func(aro *stscreds.AssumeRoleOptions) {
-		if options.assumeRoleExternalID != "" {
-			aro.ExternalID = aws.String(options.assumeRoleExternalID)
+func getAssumeRoleProvider(ctx context.Context, clt stscreds.AssumeRoleAPIClient, role AssumeRole) aws.CredentialsProvider {
+	slog.DebugContext(ctx, "Initializing AWS session for assumed role",
+		"assumed_role", role.RoleARN,
+	)
+	return stscreds.NewAssumeRoleProvider(clt, role.RoleARN, func(aro *stscreds.AssumeRoleOptions) {
+		if role.ExternalID != "" {
+			aro.ExternalID = aws.String(role.ExternalID)
+		}
+		aro.RoleSessionName = maybeHashRoleSessionName(role.SessionName)
+		aro.Duration = role.Duration
+		for k, v := range role.Tags {
+			aro.Tags = append(aro.Tags, ststypes.Tag{
+				Key:   aws.String(k),
+				Value: aws.String(v),
+			})
 		}
 	})
-	if _, err := cred.Retrieve(ctx); err != nil {
-		return aws.Config{}, trace.Wrap(err)
+}
+
+// staticIdentityToken provides itself as a JWT []byte token to implement
+// [stscreds.IdentityTokenRetriever].
+type staticIdentityToken string
+
+// GetIdentityToken retrieves the JWT token.
+func (t staticIdentityToken) GetIdentityToken() ([]byte, error) {
+	return []byte(t), nil
+}
+
+// integrationCredentialsProvider provides AWS integration credentials.
+type integrationCredentialsProvider struct {
+	stsClt          STSClient
+	integrationName string
+
+	integrationGetter IntegrationGetter
+
+	oidcIntegrationClient OIDCIntegrationClient
+
+	rolesAnywhereIntegrationClient RolesAnywhereIntegrationClient
+	rolesAnywhereProfileMetadata   RolesAnywhereMetadata
+}
+
+// Retrieve provides [aws.Credentials] for an AWS integration.
+func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
+	integration, err := p.integrationGetter.GetIntegration(ctx, p.integrationName)
+	if err != nil {
+		return aws.Credentials{}, trace.Wrap(err)
 	}
 
-	opts := buildConfigOptions(region, cred, options)
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
-	return cfg, trace.Wrap(err)
+	switch integration.GetSubKind() {
+	case types.IntegrationSubKindAWSOIDC:
+		if p.oidcIntegrationClient == nil {
+			return aws.Credentials{}, trace.BadParameter("missing OIDC integration client")
+		}
+
+		spec := integration.GetAWSOIDCIntegrationSpec()
+		if spec == nil {
+			return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected awsoidc, got %s", integration.GetSubKind())
+		}
+		token, err := p.oidcIntegrationClient.GenerateAWSOIDCToken(ctx, p.integrationName)
+		if err != nil {
+			return aws.Credentials{}, trace.Wrap(err)
+		}
+		cred, err := stscreds.NewWebIdentityRoleProvider(
+			p.stsClt,
+			spec.RoleARN,
+			staticIdentityToken(token),
+		).Retrieve(ctx)
+		return cred, trace.Wrap(err)
+
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		if p.rolesAnywhereIntegrationClient == nil {
+			return aws.Credentials{}, trace.BadParameter("missing roles anywhere integration client")
+		}
+
+		resp, err := p.rolesAnywhereIntegrationClient.GenerateAWSRACredentials(ctx, &integrationpb.GenerateAWSRACredentialsRequest{
+			Integration:                   p.integrationName,
+			ProfileArn:                    p.rolesAnywhereProfileMetadata.ProfileARN,
+			ProfileAcceptsRoleSessionName: p.rolesAnywhereProfileMetadata.ProfileAcceptsRoleSessionName,
+			RoleArn:                       p.rolesAnywhereProfileMetadata.RoleARN,
+			SubjectName:                   p.rolesAnywhereProfileMetadata.IdentityUsername,
+			SessionMaxDuration:            durationpb.New(p.rolesAnywhereProfileMetadata.SessionDuration),
+		})
+		if err != nil {
+			return aws.Credentials{}, trace.Wrap(err)
+		}
+
+		return aws.Credentials{
+			AccessKeyID:     resp.AccessKeyId,
+			SecretAccessKey: resp.SecretAccessKey,
+			SessionToken:    resp.SessionToken,
+			Expires:         resp.Expiration.AsTime(),
+			Source:          awsra.AWSCredentialsSourceRolesAnywhere,
+		}, nil
+
+	default:
+		return aws.Credentials{}, trace.BadParameter("invalid integration subkind, expected AWS OIDC or AWS Roles Anywhere, got %s", integration.GetSubKind())
+	}
+}
+
+// maybeHashRoleSessionName truncates the role session name and adds a hash
+// when the original role session name is greater than AWS character limit
+// (64).
+func maybeHashRoleSessionName(roleSessionName string) (ret string) {
+	// maxRoleSessionNameLength is the maximum length of the role session name
+	// used by the AssumeRole call.
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
+	const maxRoleSessionNameLength = 64
+	if len(roleSessionName) <= maxRoleSessionNameLength {
+		return roleSessionName
+	}
+
+	const hashLen = 16
+	hash := sha1.New()
+	hash.Write([]byte(roleSessionName))
+	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
+
+	// "1" for the delimiter.
+	keepPrefixIndex := max(maxRoleSessionNameLength-len(hex)-1, 0)
+
+	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
+	slog.DebugContext(context.Background(),
+		"AWS role session name is too long. Using a hash instead.",
+		"hashed", ret,
+		"original", roleSessionName,
+	)
+	return ret
 }

@@ -22,18 +22,19 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/api/trail"
 )
 
 // withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
 func withErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
-		req interface{},
+		req any,
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
-	) (interface{}, error) {
+	) (any, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
 			log.ErrorContext(ctx, "Request failed", "error", err)

@@ -18,20 +18,17 @@
 
 import { Platform } from 'design/platform';
 import { ResourceIconName } from 'design/ResourceIcon';
-
 import { Resource } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
 
-import { AuthType } from 'teleport/services/user';
 import { RdsEngineIdentifier } from 'teleport/services/integrations';
-
-import { ResourceKind } from '../Shared/ResourceKind';
-
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
+import { AuthType } from 'teleport/services/user';
 import type {
   DiscoverDiscoveryConfigMethod,
   DiscoverEventResource,
 } from 'teleport/services/userEvent';
+
+import { ResourceKind } from '../Shared/ResourceKind';
 
 export enum DatabaseLocation {
   Aws,
@@ -100,6 +97,10 @@ export interface ResourceSpec {
    * this resource is not "guided" (has no UI interactive flow).
    */
   unguidedLink?: string;
+  /**
+   * guidedLink is an internal link to a guided flow outside of Discover flow.
+   */
+  guidedLink?: string;
   /**
    * isDialog indicates whether the flow for this resource is a popover dialog as opposed to a
    * Discover flow. This is the case for the 'Application' resource.

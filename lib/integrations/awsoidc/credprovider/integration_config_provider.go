@@ -24,42 +24,27 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 // Options represents additional options for configuring the AWS credentials provider.
-type Options struct {
-	// WaitForFirstInit indicates whether to wait for the initial credential
-	// generation before returning from CreateAWSConfigForIntegration.
-	WaitForFirstInit bool
-}
+// There are currently no options but this type is still referenced from
+// teleport.e.
+type Options struct{}
 
 // Option is a function that modifies the Options struct for the AWS configuration.
 type Option func(*Options)
-
-// WithWaitForFirstInit configures the provider to wait until the first set of
-// credentials is generated before proceeding. This is useful in cases where
-// immediate credential availability is necessary.
-func WithWaitForFirstInit(wait bool) Option {
-	return func(o *Options) {
-		o.WaitForFirstInit = wait
-	}
-}
 
 // CreateAWSConfigForIntegration returns a new AWS credentials provider that
 // uses the AWS OIDC integration to generate temporary credentials.
 // The provider will periodically refresh the credentials before they expire.
 func CreateAWSConfigForIntegration(ctx context.Context, config Config, option ...Option) (*aws.Config, error) {
-	options := Options{}
-	for _, opt := range option {
-		opt(&options)
-	}
 	if err := config.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,17 +53,13 @@ func CreateAWSConfigForIntegration(ctx context.Context, config Config, option ..
 		return nil, trace.Wrap(err)
 	}
 	if config.STSClient == nil {
-		config.STSClient = sts.NewFromConfig(*cacheAWSConfig)
+		config.STSClient = stsutils.NewFromConfig(*cacheAWSConfig)
 	}
 	credCache, err := newAWSCredCache(ctx, config, config.STSClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	go credCache.Run(ctx)
-
-	if options.WaitForFirstInit {
-		credCache.WaitForFirstCredsOrErr(ctx)
-	}
 
 	awsCfg, err := newAWSConfig(ctx, config.Region, awsConfig.WithCredentialsProvider(credCache))
 	if err != nil {
@@ -152,17 +133,17 @@ func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeR
 
 	credCache, err := NewCredentialsCache(
 		CredentialsCacheOptions{
-			Log:         cfg.Logger,
-			Clock:       cfg.Clock,
-			STSClient:   stsClient,
-			RoleARN:     roleARN,
-			Integration: cfg.IntegrationName,
+			Log:                 cfg.Logger,
+			Clock:               cfg.Clock,
+			STSClient:           stsClient,
+			RoleARN:             roleARN,
+			Integration:         cfg.IntegrationName,
+			GenerateOIDCTokenFn: cfg.AWSOIDCTokenGenerator.GenerateAWSOIDCToken,
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating OIDC credentials cache")
 	}
-	credCache.SetGenerateOIDCTokenFn(cfg.AWSOIDCTokenGenerator.GenerateAWSOIDCToken)
 	return credCache, nil
 }
 

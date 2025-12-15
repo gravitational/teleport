@@ -16,5 +16,33 @@ limitations under the License.
 
 package trait
 
+import (
+	"slices"
+)
+
 // Traits is a mapping of traits to values.
 type Traits map[string][]string
+
+// Clone returns a deep copy of the traits map.
+func (t Traits) Clone() Traits {
+	if t == nil {
+		return nil
+	}
+	out := make(Traits, len(t))
+	for key, values := range t {
+		out[key] = slices.Clone(values)
+	}
+	return out
+}
+
+// Merge src traits into dst. If you don't want the dst to be mutated do a Clone() first.
+// Duplicated values are removed, but the order of values for a given trait is not guaranteed.
+func Merge(dst, src Traits) {
+	for key, values := range src {
+		dst[key] = append(dst[key], values...)
+	}
+	for key, values := range dst {
+		slices.Sort(values)
+		dst[key] = slices.Compact(values)
+	}
+}

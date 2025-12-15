@@ -23,10 +23,11 @@ import {
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
+import { DeleteAwsOidcIntegrationDialog } from './DeleteAwsOidcIntegrationDialog';
+import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
+import { integrations, plugins } from './fixtures';
 import { IntegrationList } from './IntegrationList';
 import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
-import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
-import { plugins, integrations } from './fixtures';
 
 export default {
   title: 'Teleport/Integrations',
@@ -47,6 +48,26 @@ export function DeleteDialog() {
       remove={() => null}
       name="some-integration-name"
     />
+  );
+}
+
+export function DeleteAwsOidcDialog() {
+  return (
+    <MemoryRouter>
+      <DeleteAwsOidcIntegrationDialog
+        close={() => null}
+        remove={() => null}
+        integration={{
+          resourceType: 'integration',
+          kind: IntegrationKind.AwsOidc,
+          name: 'some-integration-name',
+          spec: {
+            roleArn: 'arn:aws:iam::123456789012:role/johndoe',
+          },
+          statusCode: IntegrationStatusCode.Running,
+        }}
+      />
+    </MemoryRouter>
   );
 }
 

@@ -2,6 +2,10 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "event-handler.fullname" . }}
+  {{- with .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "event-handler.labels" . | nindent 4 }}
 spec:
@@ -15,12 +19,12 @@ spec:
       {{- include "event-handler.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with coalesce .Values.annotations.pod .Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "event-handler.selectorLabels" . | nindent 8 }}
+        {{- include "event-handler.labels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -67,11 +71,11 @@ spec:
             - name: certificate
               mountPath: /var/lib/teleport/plugins/event-handler/client.key
               subPath: {{ .Values.fluentd.certificate.keyPath }}
-           {{- if .Values.tls.existingCASecretName }}
+          {{- if .Values.tls.existingCASecretName }}
             - mountPath: /etc/teleport-tls-ca
               name: "teleport-tls-ca"
               readOnly: true
-           {{- end }}
+          {{- end }}
             {{- if or .Values.persistentVolumeClaim.enabled .Values.persistentVolumeClaim.existingClaim }}
             - name: "{{ .Values.persistentVolumeClaim.volumeName }}"
               mountPath: "{{ .Values.eventHandler.storagePath }}"
@@ -98,7 +102,7 @@ spec:
             defaultMode: 0600
         - name: teleport-identity
           secret:
-            secretName: "{{ .Values.teleport.identitySecretName }}"
+            secretName: {{ include "event-handler.identitySecretName" . | quote }}
             defaultMode: 0600
         - name: certificate
           secret:

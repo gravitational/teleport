@@ -70,7 +70,7 @@ type RespondersResult struct {
 	// Data is a wrapper around the OnCallRecipients.
 	Data struct {
 		OnCallRecipients []string `json:"onCallRecipients,omitempty"`
-	} `json:"data,omitempty"`
+	} `json:"data"`
 }
 
 // AlertResult is a wrapper around Alert
@@ -101,4 +101,9 @@ type GetAlertRequestResult struct {
 	Data struct {
 		AlertID string `json:"alertId"`
 	} `json:"data"`
+}
+
+// errorResult represents the error response returned from Opsgenie.
+type errorResult struct {
+	Message string `json:"message"`
 }

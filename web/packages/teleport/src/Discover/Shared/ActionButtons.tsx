@@ -17,6 +17,7 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+
 import { Box, ButtonPrimary, ButtonSecondary, ButtonText } from 'design';
 
 export const ActionButtons = ({
@@ -56,6 +57,7 @@ export const ActionButtons = ({
         <ButtonPrimary
           width="165px"
           onClick={onProceed}
+          data-testid="action-next"
           mr={3}
           disabled={disableProceed}
         >

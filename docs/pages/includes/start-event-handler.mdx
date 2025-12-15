@@ -1,4 +1,4 @@
-Start the Teleport Teleport Event Handler by following the instructions below.
+Start the Teleport Event Handler by following the instructions below.
 
 <Tabs>
 <TabItem label="Linux server">
@@ -28,8 +28,9 @@ PIDFile=/run/teleport-event-handler.pid
 WantedBy=multi-user.target
 ```
 
-If you are not using Machine ID to provide short-lived credentials to the Event
-Handler, you can remove the `--teleport-refresh-enabled true` flag.
+If you are not using Machine & Workload Identity to provide short-lived
+credentials to the Event Handler, you can remove the
+`--teleport-refresh-enabled true` flag.
 
 Enable and start the plugin:
 
@@ -38,7 +39,8 @@ $ sudo systemctl enable teleport-event-handler
 $ sudo systemctl start teleport-event-handler
 ```
 
-<Details title="Choose when to start exporting events">
+<details>
+<summary>Choose when to start exporting events</summary>
 
 You can configure when you would like the Teleport Event Handler to begin
 exporting events when you run the `start` command. This example will start
@@ -53,7 +55,7 @@ Event Handler. If you want to change the time frame later, remove the plugin
 state directory that you specified in the `storage` field of the handler's
 configuration file.
 
-</Details>
+</details>
 
 Once the Teleport Event Handler starts, you will see notifications about scanned
 and forwarded events:

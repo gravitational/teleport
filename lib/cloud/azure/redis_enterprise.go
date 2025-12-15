@@ -180,7 +180,7 @@ func (c *redisEnterpriseClient) listDatabasesByClusters(ctx context.Context, clu
 func (c *redisEnterpriseClient) listDatabasesByCluster(ctx context.Context, cluster *armredisenterprise.Cluster) ([]*RedisEnterpriseDatabase, error) {
 	resourceID, err := arm.ParseResourceID(StringVal(cluster.ID))
 	if err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	var databases []*RedisEnterpriseDatabase

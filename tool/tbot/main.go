@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -52,12 +53,12 @@ func main() {
 	}
 }
 
-const appHelp = `Teleport Machine ID
+const appHelp = `Teleport Machine & Workload Identity 
 
-Machine ID issues and renews short-lived certificates so your machines can
-access Teleport protected resources in the same way your engineers do!
+Machine & Workload Identity issues and renews short-lived certificates so your
+machines can access Teleport protected resources in the same way your engineers do!
 
-Find out more at https://goteleport.com/docs/machine-id/introduction/`
+Find out more at https://goteleport.com/docs/machine-workload-identity/`
 
 func Run(args []string, stdout io.Writer) error {
 	ctx := context.Background()
@@ -82,6 +83,8 @@ func Run(args []string, stdout io.Writer) error {
 
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
+
+	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
 
 	// TODO: consider discarding config flag for non-legacy. These should always be self contained.
 
@@ -116,6 +119,14 @@ func Run(args []string, stdout io.Writer) error {
 			return onKubeCredentialsCommand(ctx, kubeCredentialsCmd)
 		}),
 
+		cli.NewKeypairCreateCommand(keypairCmd, func(keypairCreateCmd *cli.KeypairCreateCommand) error {
+			return onKeypairCreateCommand(ctx, globalCfg, keypairCreateCmd)
+		}),
+
+		cli.NewCopyBinariesCommand(app, func(cbc *cli.CopyBinariesCommand) error {
+			return onCopyBinariesCommand(ctx, cbc)
+		}),
+
 		// `start` and `configure` commands
 		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
@@ -129,6 +140,9 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
+		cli.NewKubernetesV2Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewKubernetesV2Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
 		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
@@ -138,8 +152,23 @@ func Run(args []string, stdout io.Writer) error {
 		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
 		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 
-		cli.NewSPIFFESVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
-		cli.NewSPIFFESVIDCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+		cli.NewWorkloadIdentityX509Command(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityX509Command(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityAPICommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityAPICommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityJWTCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityJWTCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewWorkloadIdentityAWSRACommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewWorkloadIdentityAWSRACommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewApplicationProxyCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewApplicationProxyCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
+
+		cli.NewSSHMultiplexerCommand(startCmd, buildConfigAndStart(ctx, globalCfg), cli.CommandModeStart),
+		cli.NewSSHMultiplexerCommand(configureCmd, buildConfigAndConfigure(ctx, globalCfg, &configureOutPath, stdout), cli.CommandModeConfigure),
 	)
 
 	// Initialize legacy-style commands. These are simple enough to not really
@@ -248,7 +277,7 @@ func Run(args []string, stdout io.Writer) error {
 		tpm.PrintQuery(query, globalCfg.Debug, os.Stdout)
 		return nil
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, os.Executable, os.Stdout)
+		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, autoupdate.StableExecutable, os.Stdout)
 	}
 
 	// Attempt to run each new-style command.
@@ -333,8 +362,13 @@ func onConfigure(
 		out = f
 	}
 
-	// Ensure they have provided a join method to use in the configuration.
-	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+	// Ensure they have provided either a valid joining URI, or a
+	// join method to use in the configuration.
+	if cfg.JoinURI != "" {
+		if _, err := config.ParseJoinURI(cfg.JoinURI); err != nil {
+			return trace.Wrap(err, "invalid joining URI")
+		}
+	} else if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return trace.BadParameter("join method must be provided")
 	}
 

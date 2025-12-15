@@ -17,21 +17,21 @@
  */
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
-import { style, color, ColorProps } from 'styled-system';
+import { color, ColorProps, style } from 'styled-system';
 
 import { IconProps } from 'design/Icon/Icon';
-
 import { StatusIcon, StatusKind } from 'design/StatusIcon';
 
-import { space, SpaceProps, width, WidthProps } from '../system';
-import { Theme } from '../theme';
-import * as Icon from '../Icon';
-import Flex from '../Flex';
-import Text from '../Text';
 import Box from '../Box';
-import { ButtonFill, ButtonIntent, Button } from '../Button';
+import { Button, ButtonFill, ButtonIntent } from '../Button';
 import ButtonIcon from '../ButtonIcon';
+import Flex from '../Flex';
+import * as Icon from '../Icon';
+import { space, SpaceProps, width, WidthProps } from '../system';
+import Text from '../Text';
+import { Theme } from '../theme';
 
 const linkColor = style({
   prop: 'linkColor',
@@ -39,7 +39,7 @@ const linkColor = style({
   key: 'colors',
 });
 
-type AlertKind =
+export type AlertKind =
   | 'neutral'
   | 'danger'
   | 'info'
@@ -81,7 +81,9 @@ const alertBorder = (
   }
 };
 
-const backgroundColor = (props: ThemedAlertProps): { background: string } => {
+const backgroundColor = (
+  props: Pick<ThemedAlertProps, 'kind' | 'theme'>
+): { background: string } => {
   const { kind, theme } = props;
   switch (kind) {
     case 'success':
@@ -125,6 +127,7 @@ interface Props<K> {
   children?: React.ReactNode;
   style?: React.CSSProperties;
   onDismiss?: () => void;
+  alignItems?: 'center' | 'flex-start';
 }
 
 /**
@@ -135,16 +138,25 @@ interface Props<K> {
  */
 export interface Action {
   content: React.ReactNode;
+  /**
+   * a link that takes user out of the app (new tab)
+   */
   href?: string;
+  /**
+   * a link that takes you to a different route within the app
+   */
+  linkTo?: string;
   onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps
-  extends Props<AlertKind>,
-    SpaceProps,
-    WidthProps,
-    ColorProps {
+  extends Props<AlertKind>, SpaceProps, WidthProps, ColorProps {
   linkColor?: string;
+  /**
+   * If specified, the alert's contents will wrap for narrower screens
+   * or vertical layouts.
+   */
+  wrapContents?: boolean;
 }
 
 interface ThemedAlertProps extends AlertPropsWithRequiredKind {
@@ -177,6 +189,8 @@ export const Alert = ({
   dismissible,
   bg,
   onDismiss,
+  alignItems = 'center',
+  wrapContents = false,
   ...otherProps
 }: AlertProps) => {
   const alertIconSize = kind === 'neutral' ? 'large' : 'small';
@@ -193,8 +207,12 @@ export const Alert = ({
 
   return (
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
-      <InnerContainer kind={kind}>
-        <IconContainer kind={kind}>
+      <InnerContainer
+        kind={kind}
+        alignItems={alignItems}
+        wrapContents={wrapContents}
+      >
+        <IconContainer kind={kind} wrapContents={wrapContents}>
           <StatusIcon
             kind={iconKind(kind)}
             customIcon={icon}
@@ -209,6 +227,7 @@ export const Alert = ({
             // Thanks to it, each error line is nicely indented with tab,
             //  instead od being treated as a one, long line.
             white-space: pre-wrap;
+            flex-shrink: ${wrapContents ? 0 : 1};
           `}
         >
           <Text typography="h3">{children}</Text>
@@ -221,6 +240,7 @@ export const Alert = ({
           dismissible={dismissible}
           dismissed={dismissed}
           onDismiss={onDismissClick}
+          wrapContents={wrapContents}
         />
       </InnerContainer>
     </OuterContainer>
@@ -237,21 +257,31 @@ const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
 
   ${space}
   ${width}
-    ${alertBorder}
-    ${color}
-    a {
-    color: ${({ theme }) => theme.colors.light};
+  ${alertBorder}
+  ${color}
+  a {
+    // Using the same color as Link (theme.solid.interactive.solid.accent) looks bad in the BBLP
+    // theme, so instead let's default to the color of the text and decorate links only with an
+    // underline.
+    color: inherit;
     ${linkColor}
   }
 `;
 
 /** Renders a transparent color overlay. */
-const InnerContainer = styled.div<AlertPropsWithRequiredKind>`
+const InnerContainer = styled.div<
+  Pick<
+    WithRequired<AlertProps, 'kind' | 'alignItems'>,
+    'kind' | 'alignItems' | 'wrapContents'
+  >
+>`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
   display: flex;
-  align-items: center;
+  align-items: ${p => p.alignItems};
+  gap: ${p => (p.wrapContents ? p.theme.space[3] : 0)}px;
+  flex-wrap: ${p => (p.wrapContents ? 'wrap' : 'initial')};
 
   ${backgroundColor}
 `;
@@ -299,10 +329,22 @@ const iconContainerStyles = ({
   }
 };
 
-const IconContainer = styled.div<{ kind: AlertKind }>`
+const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
   border-radius: 50%;
   line-height: 0;
-  margin-right: ${p => p.theme.space[3]}px;
+
+  ${p =>
+    p.wrapContents
+      ? `
+  align-self: flex-start;
+  margin-right: 0;
+  margin-top: ${p.theme.space[1]}px;
+  flex-shrink: 0;
+  flex-grow: 0;
+`
+      : `
+  margin-right: ${p.theme.space[3]}px;
+`}
 
   ${iconContainerStyles}
 `;
@@ -322,6 +364,7 @@ const ActionButtons = ({
   dismissible,
   dismissed,
   onDismiss,
+  wrapContents,
 }: {
   kind: AlertKind | BannerKind;
   primaryAction?: Action;
@@ -329,11 +372,16 @@ const ActionButtons = ({
   dismissible?: boolean;
   dismissed: boolean;
   onDismiss: () => void;
+  wrapContents?: boolean;
 }) => {
   if (!(primaryAction || secondaryAction || dismissible)) return;
 
   return (
-    <Flex ml={5} gap={2}>
+    <Flex
+      ml={wrapContents ? 7 : 5}
+      gap={2}
+      flexBasis={wrapContents ? '100%' : 'auto'}
+    >
       {primaryAction && (
         <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
       )}
@@ -355,30 +403,49 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick },
+  action: { href, content, onClick, linkTo },
   fill,
   intent,
+  inputAlignment = false,
+  disabled = false,
+  title,
 }: {
   action: Action;
   fill?: ButtonFill;
   intent?: ButtonIntent;
-}) =>
-  href ? (
-    <Button
-      as="a"
-      href={href}
-      target="_blank"
-      fill={fill}
-      intent={intent}
-      onClick={onClick}
-    >
-      {content}
-    </Button>
-  ) : (
-    <Button fill={fill} intent={intent} onClick={onClick}>
-      {content}
-    </Button>
-  );
+  inputAlignment?: boolean;
+  disabled?: boolean;
+  title?: string;
+}) => {
+  const sharedProps = {
+    fill,
+    intent,
+    onClick,
+    disabled,
+    title,
+    // Prevent props being passed to underlying React element
+    // and removes "React does not recognize <field> on a DOM element"
+    // error.
+    $inputAlignment: inputAlignment,
+  };
+
+  if (href) {
+    return (
+      <Button {...sharedProps} as="a" href={href} target="_blank">
+        {content}
+      </Button>
+    );
+  }
+
+  if (linkTo) {
+    return (
+      <Button {...sharedProps} as={Link} to={linkTo}>
+        {content}
+      </Button>
+    );
+  }
+  return <Button {...sharedProps}>{content}</Button>;
+};
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;

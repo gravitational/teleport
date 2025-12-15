@@ -269,7 +269,7 @@ func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 	kubeconfigLocation := filepath.Join(tshHome, "kubeconfig")
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	priv, err := keys.NewSoftwarePrivateKey(key)
+	priv, err := keys.NewPrivateKey(key)
 	require.NoError(t, err)
 	err = kubeconfig.Update(kubeconfigLocation, kubeconfig.Values{
 		TeleportClusterName: "localhost",
@@ -282,6 +282,7 @@ func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},
 		},
+		ProxyAddr:     "localhost:443",
 		SelectCluster: kubeCluster,
 	}, false)
 	require.NoError(t, err)

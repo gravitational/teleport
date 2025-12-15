@@ -16,23 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { useCallback, useEffect, useState } from 'react';
 
-import { AccessRequest } from 'shared/services/accessRequests';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  RequestFlags,
   SubmitReview,
   SuggestedAccessList,
-  RequestFlags,
 } from 'shared/components/AccessRequests/ReviewRequests';
-
 import { useAsync } from 'shared/hooks/useAsync';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import * as tsh from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { retryWithRelogin } from 'teleterm/ui/utils';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 import { makeUiAccessRequest } from '../useAccessRequests';
 
@@ -48,7 +47,6 @@ export function useReviewAccessRequest({
 
   const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
-  const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
 
   const retry = useCallback(
     <T>(action: () => Promise<T>) => retryWithRelogin(ctx, clusterUri, action),
@@ -59,13 +57,13 @@ export function useReviewAccessRequest({
     useCallback(
       () =>
         retry(async () => {
-          const request = await ctx.clustersService.getAccessRequest(
-            rootClusterUri,
-            requestId
-          );
-          return makeUiAccessRequest(request);
+          const { response } = await ctx.tshd.getAccessRequest({
+            clusterUri: rootClusterUri,
+            accessRequestId: requestId,
+          });
+          return makeUiAccessRequest(response.request);
         }),
-      [ctx.clustersService, requestId, retry, rootClusterUri]
+      [ctx.tshd, requestId, retry, rootClusterUri]
     )
   );
   const [deleteRequestAttempt, runDeleteRequest] = useAsync(() =>
@@ -120,7 +118,7 @@ export function useReviewAccessRequest({
 
   function getFlags(request: AccessRequest): RequestFlags {
     if (loggedInUser) {
-      return getRequestFlags(request, loggedInUser, assumed);
+      return getRequestFlags(request, loggedInUser);
     }
     return undefined;
   }
@@ -165,12 +163,11 @@ export function useReviewAccessRequest({
 
 function getRequestFlags(
   request: AccessRequest,
-  user: tsh.LoggedInUser,
-  assumedMap: Record<string, tsh.AssumedRequest>
+  user: tsh.LoggedInUser
 ): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
-  const isAssumed = !!assumedMap[request.id];
+  const isAssumed = !!user.activeRequests.includes(request.id);
   const canDelete = true;
 
   const reviewed = request.reviews.find(r => r.author === user.name);

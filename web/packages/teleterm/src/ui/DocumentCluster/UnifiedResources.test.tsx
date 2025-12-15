@@ -16,37 +16,45 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useImperativeHandle, forwardRef, createRef } from 'react';
-import { render, screen } from 'design/utils/testing';
-import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { act } from '@testing-library/react';
+import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import {
+  createRef,
+  FC,
+  forwardRef,
+  Profiler,
+  PropsWithChildren,
+  useImperativeHandle,
+} from 'react';
 
+import { Providers, render, screen } from 'design/utils/testing';
+import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
   AvailableResourceMode,
   DefaultTab,
-  ViewMode,
   LabelsViewMode,
+  ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import {
+  makeRootCluster,
+  makeServer,
+  rootClusterUri,
+} from 'teleterm/services/tshd/testHelpers';
+import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
 import {
   ResourcesContextProvider,
   useResourcesContext,
 } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { UnifiedResources } from 'teleterm/ui/DocumentCluster/UnifiedResources';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import {
-  makeRootCluster,
-  rootClusterUri,
-  makeServer,
-} from 'teleterm/services/tshd/testHelpers';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
 import * as uri from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 const mio = mockIntersectionObserver();
 
@@ -175,39 +183,25 @@ test.each([
   const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      doc.clusterUri,
-      makeRootCluster({
-        uri: doc.clusterUri,
-        features: {
-          advancedAccessWorkflows:
-            testCase.conditions.isClusterSupportingAccessRequests,
-          isUsageBasedBilling: false,
-        },
-        showResources: testCase.conditions.showResources,
-      })
-    );
-  });
-
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({
+      uri: doc.clusterUri,
+      features: {
+        advancedAccessWorkflows:
+          testCase.conditions.isClusterSupportingAccessRequests,
+        isUsageBasedBilling: false,
+      },
+      showResources: testCase.conditions.showResources,
+    }),
+    doc
+  );
   appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = doc.clusterUri;
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      unifiedResourcePreferences: {
-        defaultTab: DefaultTab.ALL,
-        viewMode: ViewMode.CARD,
-        labelsViewMode: LabelsViewMode.COLLAPSED,
-        availableResourceMode:
-          testCase.conditions.availableResourceModePreference,
-      },
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
+    draftState.workspaces[doc.clusterUri].unifiedResourcePreferences = {
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode:
+        testCase.conditions.availableResourceModePreference,
     };
   });
 
@@ -302,22 +296,7 @@ test.each([
   });
   const serverResource = makeServer();
   const appContext = new MockAppContext();
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(rootCluster.uri, rootCluster);
-  });
-
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: rootCluster.uri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, doc);
 
   jest
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
@@ -341,12 +320,16 @@ test.each([
       <MockWorkspaceContextProvider>
         <ResourcesContextProvider>
           <ConnectMyComputerContextProvider rootClusterUri={rootCluster.uri}>
-            <Refresher ref={ref} rootClusterUri={rootCluster.uri} />
-            <UnifiedResources
-              clusterUri={doc.clusterUri}
-              docUri={doc.uri}
-              queryParams={doc.queryParams}
-            />
+            <ConnectionsContextProvider>
+              <VnetContextProvider>
+                <Refresher ref={ref} rootClusterUri={rootCluster.uri} />
+                <UnifiedResources
+                  clusterUri={doc.clusterUri}
+                  docUri={doc.uri}
+                  queryParams={doc.queryParams}
+                />
+              </VnetContextProvider>
+            </ConnectionsContextProvider>
           </ConnectMyComputerContextProvider>
         </ResourcesContextProvider>
       </MockWorkspaceContextProvider>
@@ -388,4 +371,77 @@ const Refresher = forwardRef<
     requestResourcesRefresh: resourcesContext.requestResourcesRefresh,
   }));
   return null;
+});
+
+it('passes props with stable identity to <Resources>', async () => {
+  const rootCluster = makeRootCluster();
+  const doc = makeDocumentCluster({
+    clusterUri: rootCluster.uri,
+  });
+  const serverResource = makeServer();
+  const appContext = new MockAppContext();
+  appContext.addRootClusterWithDoc(rootCluster, doc);
+
+  jest
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
+    .mockResolvedValue({
+      resources: [
+        {
+          kind: 'server',
+          resource: serverResource,
+          requiresRequest: false,
+        },
+      ],
+      nextKey: '',
+    });
+
+  let renderCount = 0;
+  const onRender = () => (renderCount += 1);
+
+  const Wrapper: FC<PropsWithChildren> = ({ children }) => (
+    <Providers>
+      <MockAppContextProvider appContext={appContext}>
+        <MockWorkspaceContextProvider>
+          <ResourcesContextProvider>
+            <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
+              <ConnectionsContextProvider>
+                <VnetContextProvider>{children}</VnetContextProvider>
+              </ConnectionsContextProvider>
+            </ConnectMyComputerContextProvider>
+          </ResourcesContextProvider>
+        </MockWorkspaceContextProvider>
+      </MockAppContextProvider>
+    </Providers>
+  );
+
+  const Component = () => (
+    <Profiler id="unifiedResources" onRender={onRender}>
+      <UnifiedResources
+        clusterUri={doc.clusterUri}
+        docUri={doc.uri}
+        queryParams={doc.queryParams}
+      />
+    </Profiler>
+  );
+
+  const { rerender } = render(<Component />, { wrapper: Wrapper });
+  act(mio.enterAll);
+  // Wait for resources to render.
+  await expect(
+    screen.findByText(serverResource.hostname)
+  ).resolves.toBeInTheDocument();
+  // Disabled because of a false positive.
+  // eslint-disable-next-line testing-library/render-result-naming-convention
+  const renderCountBeforeRerender = renderCount;
+
+  rerender(<Component />);
+  await expect(
+    screen.findByText(serverResource.hostname)
+  ).resolves.toBeInTheDocument();
+  const renderCountDelta = renderCount - renderCountBeforeRerender;
+
+  // When <Resources> is properly memoized and all params passed to it have stable identity,
+  // rerendering the outer <UnifiedResources> with no prop changes should cause only one render
+  // within the tree.
+  expect(renderCountDelta).toEqual(1);
 });

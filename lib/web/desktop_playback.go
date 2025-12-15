@@ -37,15 +37,15 @@ func (h *Handler) desktopPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

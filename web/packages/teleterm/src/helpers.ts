@@ -16,23 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
-import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Kube } from 'gen-proto-ts/teleport/lib/teleterm/v1/kube_pb';
-
+import { Server } from 'gen-proto-ts/teleport/lib/teleterm/v1/server_pb';
+import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import {
-  PtyClientEvent,
+  CheckReport,
+  RouteConflictReport,
+  SSHConfigurationReport,
+} from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
+import {
+  ManagePtyProcessRequest,
+  ManagePtyProcessResponse,
   PtyEventData,
   PtyEventExit,
   PtyEventResize,
   PtyEventStart,
   PtyEventStartError,
-  PtyServerEvent,
-} from 'teleterm/sharedProcess/api/protogen/ptyHostService_pb';
+} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
+
 import {
   ReloginRequest,
   SendNotificationRequest,
@@ -74,8 +79,17 @@ export function resourceOneOfIsKube(
   return resource.oneofKind === 'kube';
 }
 
+export function resourceOneOfIsWindowsDesktop(
+  resource: PaginatedResource['resource']
+): resource is {
+  oneofKind: 'windowsDesktop';
+  windowsDesktop: WindowsDesktop;
+} {
+  return resource.oneofKind === 'windowsDesktop';
+}
+
 export function ptyEventOneOfIsStart(
-  event: PtyClientEvent['event'] | PtyServerEvent['event']
+  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
 ): event is {
   oneofKind: 'start';
   start: PtyEventStart;
@@ -84,7 +98,7 @@ export function ptyEventOneOfIsStart(
 }
 
 export function ptyEventOneOfIsData(
-  event: PtyClientEvent['event'] | PtyServerEvent['event']
+  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
 ): event is {
   oneofKind: 'data';
   data: PtyEventData;
@@ -93,7 +107,7 @@ export function ptyEventOneOfIsData(
 }
 
 export function ptyEventOneOfIsResize(
-  event: PtyClientEvent['event'] | PtyServerEvent['event']
+  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
 ): event is {
   oneofKind: 'resize';
   resize: PtyEventResize;
@@ -102,7 +116,7 @@ export function ptyEventOneOfIsResize(
 }
 
 export function ptyEventOneOfIsExit(
-  event: PtyClientEvent['event'] | PtyServerEvent['event']
+  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
 ): event is {
   oneofKind: 'exit';
   exit: PtyEventExit;
@@ -111,7 +125,7 @@ export function ptyEventOneOfIsExit(
 }
 
 export function ptyEventOneOfIsStartError(
-  event: PtyClientEvent['event'] | PtyServerEvent['event']
+  event: ManagePtyProcessRequest['event'] | ManagePtyProcessResponse['event']
 ): event is {
   oneofKind: 'startError';
   startError: PtyEventStartError;
@@ -171,4 +185,22 @@ export function reloginReasonOneOfIsVnetCertExpired(
   vnetCertExpired: api.VnetCertExpired;
 } {
   return reason.oneofKind === 'vnetCertExpired';
+}
+
+export function reportOneOfIsRouteConflictReport(
+  report: CheckReport['report']
+): report is {
+  oneofKind: 'routeConflictReport';
+  routeConflictReport: RouteConflictReport;
+} {
+  return report.oneofKind === 'routeConflictReport';
+}
+
+export function reportOneOfIsSSHConfigurationReport(
+  report: CheckReport['report']
+): report is {
+  oneofKind: 'sshConfigurationReport';
+  sshConfigurationReport: SSHConfigurationReport;
+} {
+  return report.oneofKind === 'sshConfigurationReport';
 }

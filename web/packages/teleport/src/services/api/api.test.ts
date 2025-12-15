@@ -17,16 +17,30 @@
  */
 
 import { MfaChallengeResponse } from '../mfa';
-
+import websession from '../websession';
 import api, {
-  MFA_HEADER,
+  defaultHeaders,
   defaultRequestOptions,
   getAuthHeaders,
-  isRoleNotFoundError,
+  isUserSessionRoleNotFoundError,
+  MFA_HEADER,
 } from './api';
+import { ApiError } from './parseError';
+
+jest.mock('../websession');
+const mockedWebsession = jest.mocked(websession);
 
 describe('api.fetch', () => {
-  const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
+  let mockedFetch: jest.SpiedFunction<typeof fetch>;
+  beforeEach(() => {
+    mockedFetch = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ json: async () => ({}), ok: true } as Response); // we don't care about response
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
 
   const mfaResp: MfaChallengeResponse = {
     webauthn_response: {
@@ -45,17 +59,13 @@ describe('api.fetch', () => {
     },
   };
 
-  const customOpts = {
+  const customOpts: RequestInit = {
     method: 'POST',
     // Override the default header from `defaultRequestOptions`.
     headers: {
       Accept: 'application/json',
     },
   };
-
-  afterEach(() => {
-    jest.resetAllMocks();
-  });
 
   test('default (no optional params provided)', async () => {
     await api.fetch('/something');
@@ -72,6 +82,14 @@ describe('api.fetch', () => {
         ...getAuthHeaders(),
       },
     });
+  });
+
+  test('no json in response', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    const resp = await api.fetch('/something');
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    expect(resp).toStrictEqual({ ok: true });
   });
 
   test('with customOptions', async () => {
@@ -104,6 +122,7 @@ describe('api.fetch', () => {
         ...defaultRequestOptions.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
+          ...mfaResp,
           webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
@@ -124,6 +143,7 @@ describe('api.fetch', () => {
         ...customOpts.headers,
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
+          ...mfaResp,
           webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
@@ -156,7 +176,92 @@ describe('api.fetch', () => {
   });
 });
 
-// The code below should guard us from changes to api.fetchJson which would cause it to lose type
+describe('api.postWithOptions', () => {
+  let mockedFetch: jest.SpiedFunction<typeof fetch>;
+  beforeEach(() => {
+    mockedFetch = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ json: async () => ({}), ok: true } as Response); // we don't care about response
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const authHeaders = {
+    'X-CSRF-Token': expect.any(String),
+    Authorization: expect.stringMatching(/^Bearer .+/),
+  };
+
+  // eslint-disable-next-line jest/expect-expect
+  it('accepts either data or formData', () => {
+    // @ts-expect-error Either formData or data should be accepted but not both.
+    api.postWithOptions('/foo', {
+      formData: new FormData(),
+      data: { foo: 'bar' },
+    });
+  });
+
+  it('stringifies data', () => {
+    api.postWithOptions('/foo', { data: { foo: 'bar' } });
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ foo: 'bar' }),
+      })
+    );
+  });
+
+  it('keeps default headers when not passing headers through options and not using formData', () => {
+    api.postWithOptions('/foo');
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: { ...defaultHeaders, ...authHeaders },
+      })
+    );
+  });
+
+  it('overrides default headers with headers from options when not using formData', () => {
+    api.postWithOptions('/foo', { headers: { foo: 'bar' } });
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: {
+          foo: 'bar',
+          ...authHeaders,
+        },
+      })
+    );
+  });
+
+  it('overrides default headers when using formData and not passing headers through options', () => {
+    api.postWithOptions('/foo', { formData: new FormData() });
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: { Accept: 'application/json', ...authHeaders },
+      })
+    );
+  });
+
+  it('merges headers from options with overriden headers when using formData', () => {
+    api.postWithOptions('/foo', {
+      formData: new FormData(),
+      headers: { foo: 'bar', Accept: 'foo/bar' },
+    });
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'http://localhost/foo',
+      expect.objectContaining({
+        headers: { foo: 'bar', Accept: 'application/json', ...authHeaders },
+      })
+    );
+  });
+});
+
+// The code below should guard us from changes to api.fetchJsonWithMfaAuthnRetry which would cause it to lose type
 // information, for example by returning `any`.
 
 const fooService = {
@@ -171,13 +276,13 @@ const makeFoo = (): { foo: string } => {
 
 // This is a bogus test to satisfy Jest. We don't even need to execute the code that's in the async
 // function, we're interested only in the type system checking the code.
-test('fetchJson does not return any', () => {
+test('fetchJsonWithMfaAuthnRetry does not return any', () => {
   const bogusFunction = async () => {
     const result = await fooService.doSomething();
     // Reading foo is correct. We add a bogus expect to satisfy Jest.
     JSON.stringify(result.foo);
 
-    // @ts-expect-error If there's no error here, it means that api.fetchJson returns any, which it
+    // @ts-expect-error If there's no error here, it means that api.fetchJsonWithMfaAuthnRetry returns any, which it
     // shouldn't.
     JSON.stringify(result.bar);
   };
@@ -186,13 +291,60 @@ test('fetchJson does not return any', () => {
   expect(true).toBe(true);
 });
 
-test('isRoleNotFoundError correctly identifies role not found errors', () => {
-  const errorMessage1 = 'role admin is not found';
-  expect(isRoleNotFoundError(errorMessage1)).toBe(true);
+test('isUserSessionRoleNotFoundError correctly identifies user session role not found errors', () => {
+  const userSessionRoleError = {
+    error: 'role admin is not found',
+    messages: ['user session role not found'],
+  };
+  expect(isUserSessionRoleNotFoundError(userSessionRoleError)).toBe(true);
 
-  const errorMessage2 = '    role test-role is not found ';
-  expect(isRoleNotFoundError(errorMessage2)).toBe(true);
+  const regularRoleError = { error: 'role admin is not found' };
+  expect(isUserSessionRoleNotFoundError(regularRoleError)).toBe(false);
 
-  const errorMessage3 = 'failed to list access lists';
-  expect(isRoleNotFoundError(errorMessage3)).toBe(false);
+  const regularRoleWithIrrelevantMessages = {
+    error: 'role admin is not found',
+    messages: ['some_other_message'],
+  };
+  expect(
+    isUserSessionRoleNotFoundError(regularRoleWithIrrelevantMessages)
+  ).toBe(false);
+
+  const nonRoleError = { error: 'failed to list access lists' };
+  expect(isUserSessionRoleNotFoundError(nonRoleError)).toBe(false);
+});
+
+describe('handling of role not found errors', () => {
+  afterEach(() => {
+    jest.resetAllMocks();
+  });
+
+  test('sign out on user session role not found error', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: async () => ({
+        error: {
+          message: 'role foo is not found',
+        },
+        messages: ['user session role not found'],
+      }),
+      ok: false,
+      status: 404,
+    } as Response);
+
+    await api.get('/foobar');
+    expect(mockedWebsession.logoutWithoutSlo).toHaveBeenCalledWith({
+      rememberLocation: false,
+      withAccessChangedMessage: true,
+    });
+  });
+
+  test("don't sign out on regular role not found error", async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      json: async () => ({ error: { message: 'role foo is not found' } }),
+      ok: false,
+      status: 404,
+    } as Response);
+
+    await expect(api.get('/foobar')).rejects.toThrow(ApiError);
+    expect(mockedWebsession.logoutWithoutSlo).not.toHaveBeenCalled();
+  });
 });

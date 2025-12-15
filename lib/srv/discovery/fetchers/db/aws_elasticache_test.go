@@ -21,12 +21,11 @@ package db
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -35,38 +34,41 @@ func TestElastiCacheFetcher(t *testing.T) {
 	t.Parallel()
 
 	elasticacheProd, elasticacheDatabasesProd, elasticacheProdTags := makeElastiCacheCluster(t, "ec1", "us-east-1", "prod", mocks.WithElastiCacheReaderEndpoint)
-	elasticacheQA, elasticacheDatabasesQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint)
-	elasticacheUnavailable, _, elasticacheUnavailableTags := makeElastiCacheCluster(t, "ec4", "us-east-1", "prod", func(cluster *elasticache.ReplicationGroup) {
+	elasticacheQA, elasticacheDatabasesQA, elasticacheQATags := makeElastiCacheCluster(t, "ec2", "us-east-1", "qa", mocks.WithElastiCacheConfigurationEndpoint, withElastiCacheEngine("valkey"))
+	elasticacheUnavailable, _, elasticacheUnavailableTags := makeElastiCacheCluster(t, "ec4", "us-east-1", "prod", func(cluster *ectypes.ReplicationGroup) {
 		cluster.Status = aws.String("deleting")
 	})
-	elasticacheUnsupported, _, elasticacheUnsupportedTags := makeElastiCacheCluster(t, "ec5", "us-east-1", "prod", func(cluster *elasticache.ReplicationGroup) {
+	elasticacheUnsupported, _, elasticacheUnsupportedTags := makeElastiCacheCluster(t, "ec5", "us-east-1", "prod", func(cluster *ectypes.ReplicationGroup) {
 		cluster.TransitEncryptionEnabled = aws.Bool(false)
 	})
-	elasticacheTagsByARN := map[string][]*elasticache.Tag{
-		aws.StringValue(elasticacheProd.ARN):        elasticacheProdTags,
-		aws.StringValue(elasticacheQA.ARN):          elasticacheQATags,
-		aws.StringValue(elasticacheUnavailable.ARN): elasticacheUnavailableTags,
-		aws.StringValue(elasticacheUnsupported.ARN): elasticacheUnsupportedTags,
+	elasticacheTagsByARN := map[string][]ectypes.Tag{
+		aws.ToString(elasticacheProd.ARN):        elasticacheProdTags,
+		aws.ToString(elasticacheQA.ARN):          elasticacheQATags,
+		aws.ToString(elasticacheUnavailable.ARN): elasticacheUnavailableTags,
+		aws.ToString(elasticacheUnsupported.ARN): elasticacheUnsupportedTags,
 	}
 
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &mocks.ElastiCacheMock{
-					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheQA},
-					TagsByARN:         elasticacheTagsByARN,
-				},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					ecClient: &mocks.ElastiCacheClient{
+						ReplicationGroups: []ectypes.ReplicationGroup{*elasticacheProd, *elasticacheQA},
+						TagsByARN:         elasticacheTagsByARN,
+					}},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: append(elasticacheDatabasesProd, elasticacheDatabasesQA...),
 		},
 		{
 			name: "fetch prod",
-			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &mocks.ElastiCacheMock{
-					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheQA},
-					TagsByARN:         elasticacheTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					ecClient: &mocks.ElastiCacheClient{
+						ReplicationGroups: []ectypes.ReplicationGroup{*elasticacheProd, *elasticacheQA},
+						TagsByARN:         elasticacheTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", envProdLabels),
@@ -74,10 +76,12 @@ func TestElastiCacheFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &mocks.ElastiCacheMock{
-					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheUnavailable},
-					TagsByARN:         elasticacheTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					ecClient: &mocks.ElastiCacheClient{
+						ReplicationGroups: []ectypes.ReplicationGroup{*elasticacheProd, *elasticacheUnavailable},
+						TagsByARN:         elasticacheTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
@@ -85,10 +89,12 @@ func TestElastiCacheFetcher(t *testing.T) {
 		},
 		{
 			name: "skip unsupported",
-			inputClients: &cloud.TestCloudClients{
-				ElastiCache: &mocks.ElastiCacheMock{
-					ReplicationGroups: []*elasticache.ReplicationGroup{elasticacheProd, elasticacheUnsupported},
-					TagsByARN:         elasticacheTagsByARN,
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					ecClient: &mocks.ElastiCacheClient{
+						ReplicationGroups: []ectypes.ReplicationGroup{*elasticacheProd, *elasticacheUnsupported},
+						TagsByARN:         elasticacheTagsByARN,
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
@@ -98,16 +104,16 @@ func TestElastiCacheFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Databases, []*elasticache.Tag) {
+func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*ectypes.ReplicationGroup)) (*ectypes.ReplicationGroup, types.Databases, []ectypes.Tag) {
 	cluster := mocks.ElastiCacheCluster(name, region, opts...)
 
-	tags := []*elasticache.Tag{{
+	tags := []ectypes.Tag{{
 		Key:   aws.String("env"),
 		Value: aws.String(env),
 	}}
 	extraLabels := common.ExtraElastiCacheLabels(cluster, tags, nil, nil)
 
-	if aws.BoolValue(cluster.ClusterEnabled) {
+	if aws.ToBool(cluster.ClusterEnabled) {
 		database, err := common.NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 		require.NoError(t, err)
 		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)
@@ -120,4 +126,10 @@ func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func
 		common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherElastiCache)
 	}
 	return cluster, databases, tags
+}
+
+func withElastiCacheEngine(engine string) func(*ectypes.ReplicationGroup) {
+	return func(rg *ectypes.ReplicationGroup) {
+		rg.Engine = &engine
+	}
 }

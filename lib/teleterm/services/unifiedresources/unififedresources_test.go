@@ -89,12 +89,39 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	windowsDesktop, err := types.NewWindowsDesktopV3("testWindowsDesktop", nil,
+		types.WindowsDesktopSpecV3{
+			Addr:  "127.0.0.1:3389",
+			NonAD: true,
+		})
+	require.NoError(t, err)
+
+	mcp, err := types.NewAppServerV3(types.Metadata{
+		Name: "test-mcp",
+	}, types.AppServerSpecV3{
+		HostID: uuid.New().String(),
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "test-mcp",
+			},
+			Spec: types.AppSpecV3{
+				MCP: &types.MCP{
+					Command:       "test",
+					RunAsHostUser: "test",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	mockedResources := []*proto.PaginatedResource{
-		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}},
+		{Resource: &proto.PaginatedResource_Node{Node: node.(*types.ServerV2)}, Logins: []string{"ec2-user"}},
 		{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}},
 		{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: kube}},
 		{Resource: &proto.PaginatedResource_AppServer{AppServer: app}},
 		{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: samlSP.(*types.SAMLIdPServiceProviderV1)}},
+		{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: windowsDesktop}},
+		{Resource: &proto.PaginatedResource_AppServer{AppServer: mcp}},
 	}
 	mockedNextKey := "nextKey"
 
@@ -109,6 +136,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	require.Equal(t, UnifiedResource{Server: &clusters.Server{
 		URI:    uri.NewClusterURI(cluster.ProfileName).AppendServer(node.GetName()),
 		Server: node,
+		Logins: nil, // because the cluster has no SSH logins
 	}}, response.Resources[0])
 
 	require.Equal(t, UnifiedResource{Database: &clusters.Database{
@@ -133,6 +161,18 @@ func TestUnifiedResourcesList(t *testing.T) {
 		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(samlSP.GetName()),
 		Provider: samlSP,
 	}}, response.Resources[4])
+
+	require.Equal(t, UnifiedResource{WindowsDesktop: &clusters.WindowsDesktop{
+		URI:            uri.NewClusterURI(cluster.ProfileName).AppendWindowsDesktop(windowsDesktop.GetName()),
+		WindowsDesktop: windowsDesktop,
+	}}, response.Resources[5])
+
+	require.Equal(t, UnifiedResource{App: &clusters.App{
+		FQDN:     "test-mcp.",
+		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(mcp.GetName()),
+		AWSRoles: aws.Roles{},
+		App:      mcp.GetApp(),
+	}}, response.Resources[6])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
 }

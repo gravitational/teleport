@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	convert "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
@@ -46,7 +47,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...interface{}) {
+		return func(tt require.TestingT, err error, i ...any) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -130,7 +131,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -313,7 +314,7 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					_, err := localClient.CreateDiscoveryConfig(ctx, sampleDiscoveryConfigFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -327,7 +328,6 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 
@@ -346,7 +346,7 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	clusterName := "test-cluster"
 
 	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
-		return func(tt require.TestingT, err error, i ...interface{}) {
+		return func(tt require.TestingT, err error, i ...any) {
 			require.True(t, traceFn(err), "received an un-expected error: %v", err)
 		}
 	}
@@ -429,7 +429,6 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 		},
 	}
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			localCtx := authorizerForSystemRole(ctx, string(tc.systemRole))
 
@@ -560,4 +559,95 @@ func initSvc(t *testing.T, clusterName string) (context.Context, localClient, *S
 		IdentityService:        userSvc,
 		DiscoveryConfigService: localResourceService,
 	}, resourceSvc
+}
+
+func TestDowngrade(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		clientVersion string
+		input         *discoveryconfig.DiscoveryConfig
+		expected      *discoveryconfig.DiscoveryConfig
+	}{
+		{
+			name:          "no downgrade for recent client",
+			clientVersion: "18.5.0",
+			input: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+			expected: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+		},
+		{
+			name:          "downgrade for old client",
+			clientVersion: "18.4.2",
+			input: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+			expected: func() *discoveryconfig.DiscoveryConfig {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: "dc1"},
+					discoveryconfig.Spec{
+						DiscoveryGroup: "group1",
+						AWS: []types.AWSMatcher{
+							{
+								Regions: []string{types.Wildcard},
+								Types:   []string{"ec2"},
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				return dc
+			}(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := metadata.AddMetadataToContext(t.Context(), map[string]string{
+				metadata.VersionKey: tc.clientVersion,
+			})
+			downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, downgraded)
+		})
+	}
 }

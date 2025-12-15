@@ -12,7 +12,7 @@ storage:
   acls: try
 debug: false
 auth_server: example.com
-certificate_ttl: 42m0s
+credential_ttl: 42m0s
 renewal_interval: 21m0s
 oneshot: true
 fips: true

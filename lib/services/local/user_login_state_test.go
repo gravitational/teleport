@@ -31,7 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestUserLoginStateCRUD tests backend operations with user login state resources.
@@ -116,4 +118,41 @@ func newUserLoginState(t *testing.T, name string) *userloginstate.UserLoginState
 	require.NoError(t, err)
 
 	return userLoginState
+}
+
+func TestListUserLoginStates(t *testing.T) {
+	ctx := context.Background()
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+	})
+	require.NoError(t, err)
+
+	service, err := NewUserLoginStateService(backend)
+	require.NoError(t, err)
+
+	items, err := stream.Collect(clientutils.Resources(ctx, service.ListUserLoginStates))
+	require.NoError(t, err)
+	require.Empty(t, items)
+
+	state1 := newUserLoginState(t, "state1")
+	state2 := newUserLoginState(t, "state2")
+
+	_, err = service.UpsertUserLoginState(ctx, state1)
+	require.NoError(t, err)
+	_, err = service.UpsertUserLoginState(ctx, state2)
+	require.NoError(t, err)
+
+	items, err = stream.Collect(clientutils.Resources(ctx, service.ListUserLoginStates))
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b *userloginstate.UserLoginState) bool {
+			return a.GetName() < b.GetName()
+		}),
+	}
+	require.Empty(t, cmp.Diff([]*userloginstate.UserLoginState{state1, state2}, items, cmpOpts...))
 }

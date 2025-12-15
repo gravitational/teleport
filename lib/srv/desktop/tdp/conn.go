@@ -23,16 +23,36 @@ import (
 	"errors"
 	"io"
 	"net"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
 )
+
+type MessageReader interface {
+	ReadMessage() (Message, error)
+}
+
+type MessageWriter interface {
+	WriteMessage(Message) error
+}
+
+type MessageReadWriter interface {
+	MessageReader
+	MessageWriter
+}
+
+type MessageReadWriteCloser interface {
+	MessageReadWriter
+	Close() error
+}
 
 // Conn is a desktop protocol connection.
 // It converts between a stream of bytes (io.ReadWriter) and a stream of
 // Teleport Desktop Protocol (TDP) messages.
 type Conn struct {
 	rwc       io.ReadWriteCloser
+	writeMu   sync.Mutex
 	bufr      *bufio.Reader
 	closeOnce sync.Once
 
@@ -87,6 +107,19 @@ func (c *Conn) Close() error {
 	return err
 }
 
+// NextMessageType peaks at the next incoming message without
+// consuming it.
+func (c *Conn) NextMessageType() (MessageType, error) {
+	b, err := c.bufr.ReadByte()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if err := c.bufr.UnreadByte(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return MessageType(b), nil
+}
+
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
 	m, err := decode(c.bufr)
@@ -103,7 +136,10 @@ func (c *Conn) WriteMessage(m Message) error {
 		return trace.Wrap(err)
 	}
 
+	c.writeMu.Lock()
 	_, err = c.rwc.Write(buf)
+	c.writeMu.Unlock()
+
 	if c.OnSend != nil {
 		c.OnSend(m, buf)
 	}
@@ -163,4 +199,164 @@ func IsFatalErr(err error) bool {
 	}
 
 	return !IsNonFatalErr(err)
+}
+
+// Interceptor intercepts messages. It should return
+// the [potentially modified] message(s) in order to pass it on to the
+// other end of the connection, or it may swallow the message by returning
+// a nil or empty slice. Returned slices should not contain nil messages.
+type Interceptor func(message Message) ([]Message, error)
+
+// ReadWriteInterceptor wraps an existing 'MessageReadWriteCloser' and runs the
+// provided interceptor functions in the read and/or write paths. Allows callers
+// to snoop and modify messages as they pass through the 'MessageReadWriteCloser'.
+type ReadWriteInterceptor struct {
+	// The underlying read/writer to intercept messages on
+	src MessageReadWriteCloser
+	// The interceptor to run in the write path
+	writeInterceptor Interceptor
+	// A closure over the interceptor to run in the read path
+	readAdapter func() (Message, error)
+}
+
+// Message slices returned by interceptor functions should not include
+// nil messages, but a little defensive programming can prevent a crash.
+// 'removeNilMessages' will return a subslice of the input slice with
+// nil messages removed.
+func removeNilMessages(msgs []Message) []Message {
+	return slices.DeleteFunc(msgs, func(msg Message) bool {
+		return msg == nil
+	})
+}
+
+// readInterceptorAdapter closes over an internal slice that keeps track of
+// of messages returned by the read interceptor callback (if present).
+func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, error) {
+	if i == nil {
+		return src.ReadMessage
+	}
+
+	var msgs []Message
+	return func() (Message, error) {
+		// len(msgs) == 0 - initial case / empty cache
+		// len(msgs) > 0  - Return a cached message
+		for len(msgs) == 0 {
+			// Try reading a message
+			m, err := src.ReadMessage()
+			if err != nil {
+				return nil, err
+			}
+
+			// The interceptor may return an empty slice and nil error
+			// In that case, we'll try again via the loop.
+			msgs, err = i(m)
+			if err != nil {
+				return nil, err
+			}
+			msgs = removeNilMessages(msgs)
+		}
+		msg := msgs[0]
+		msgs = msgs[1:]
+		return msg, nil
+	}
+}
+
+// NewReadWriteInterceptor creates a new 'ReadWriteInterceptor' that intercepts messages on 'src'.
+// The provided interceptor callbacks may be nil.
+func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeInterceptor Interceptor) *ReadWriteInterceptor {
+	return &ReadWriteInterceptor{
+		src:              src,
+		writeInterceptor: writeInterceptor,
+		readAdapter:      readInterceptorAdapter(src, readInterceptor),
+	}
+}
+
+// WriteMessage passes the message to the write interceptor (if provided)
+// for omition or modification before writing the message to the underlying
+// writer.
+func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
+	if i.writeInterceptor == nil {
+		// No interceptor found
+		return i.src.WriteMessage(m)
+	}
+
+	out, err := i.writeInterceptor(m)
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range out {
+		if msg == nil {
+			continue
+		}
+
+		if err = i.src.WriteMessage(msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReadMessage reads from the underlying reader and passes them to the
+// read interceptor (if provided) for omition or modification before
+// returning the next message.
+func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
+	return i.readAdapter()
+}
+
+// Close closes the underlying 'MessageReadWriteCloser'
+func (i *ReadWriteInterceptor) Close() error {
+	return i.src.Close()
+}
+
+// copyMessages behaves similarly to io.Copy except it deals with Message types.
+// It reads messages from 'src' and writes them to 'dst' until an error is received.
+// It does *not* forward an EOF received from the reader, but returns nil in the happy path.
+func copyMessages(dst MessageWriter, src MessageReader) error {
+	for {
+		msg, err := src.ReadMessage()
+		if errors.Is(err, io.EOF) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		if err := dst.WriteMessage(msg); err != nil {
+			return err
+		}
+	}
+}
+
+// ConnProxy handles bi-directional copying of messages from server <-> client.
+type ConnProxy struct {
+	server MessageReadWriteCloser
+	client MessageReadWriteCloser
+}
+
+// NewConnProxy returns a new ConnProxy.
+func NewConnProxy(client, server MessageReadWriteCloser) ConnProxy {
+	return ConnProxy{
+		server: server,
+		client: client,
+	}
+}
+
+// Run handles bi-directional copying of messages from server <-> client until
+// an IO error occurs (or EOF is received from either side). It always calls
+// 'close' on both streams before exiting and returns any errors occurred from
+// reading, writing, or closing both streams.
+func (c *ConnProxy) Run() error {
+	wg := sync.WaitGroup{}
+	// Copy in both directions
+	var clientToServerErr, serverToClientErr error
+	wg.Go(func() {
+		err := copyMessages(c.client, c.server)
+		serverToClientErr = trace.NewAggregate(err, c.client.Close())
+	})
+	wg.Go(func() {
+		err := copyMessages(c.server, c.client)
+		clientToServerErr = trace.NewAggregate(err, c.server.Close())
+	})
+	wg.Wait()
+	return trace.NewAggregate(clientToServerErr, serverToClientErr)
 }

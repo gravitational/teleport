@@ -17,22 +17,20 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Box, Indicator, Flex } from 'design';
-import * as Icons from 'design/Icon';
 
+import { Box, Flex, Indicator } from 'design';
+import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
 
 import {
-  Header,
-  HeaderSubtitle,
   ActionButtons,
   ButtonBlueText,
+  Header,
+  HeaderSubtitle,
+  StyledBox,
 } from 'teleport/Discover/Shared';
 
-import { AccessInfo } from './AccessInfo';
-
-import type { TraitKind } from './AccessInfo';
+import { AccessInfo, type TraitKind } from './AccessInfo';
 import type { State } from './useUserTraits';
 
 export type Props = {
@@ -140,7 +138,7 @@ export function SetupAccessWrapper({
 
   const ssoUserWithAutoDiscover = wantAutoDiscover && isSsoUser;
   return (
-    <Box maxWidth="700px">
+    <>
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
       {preContent}
@@ -163,13 +161,6 @@ export function SetupAccessWrapper({
           (!ssoUserWithAutoDiscover && !hasTraits)
         }
       />
-    </Box>
+    </>
   );
 }
-
-const StyledBox = styled(Box)`
-  max-width: 700px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 8px;
-  padding: 20px;
-`;

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'fs';
 import crypto from 'crypto';
+import fs from 'fs';
 
 const UUID_V4_REGEX =
   /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i;
@@ -46,7 +46,8 @@ function writeInstallationId(filePath: string): string {
     fs.writeFileSync(filePath, newId);
   } catch (error) {
     throw new Error(
-      `Could not write installation_id to ${filePath}, ${error.message}`
+      `Could not write installation_id to ${filePath}, ${error.message}`,
+      { cause: error }
     );
   }
   return newId;

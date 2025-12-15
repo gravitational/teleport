@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // IdentityCommand implements `tbot start identity` and
@@ -35,7 +36,8 @@ type IdentityCommand struct {
 	*sharedDestinationArgs
 	*genericMutatorHandler
 
-	Cluster string
+	Cluster      string
+	AllowReissue bool
 }
 
 // NewIdentityCommand initializes the command and flags for identity outputs
@@ -50,7 +52,7 @@ func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
 	cmd.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&c.Cluster)
-
+	cmd.Flag("allow-reissue", "Allow the credentials output by this command to be reissued.").BoolVar(&c.AllowReissue)
 	// Note: roles and ssh_config mode are excluded for now.
 
 	return c
@@ -66,9 +68,10 @@ func (c *IdentityCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.IdentityOutput{
-		Destination: dest,
-		Cluster:     c.Cluster,
+	cfg.Services = append(cfg.Services, &identity.OutputConfig{
+		Destination:  dest,
+		Cluster:      c.Cluster,
+		AllowReissue: c.AllowReissue,
 	})
 
 	return nil

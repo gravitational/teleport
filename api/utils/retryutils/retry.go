@@ -195,7 +195,7 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		case <-r.After():
 			r.Inc()
 		case <-ctx.Done():
-			return trace.LimitExceeded(ctx.Err().Error())
+			return trace.LimitExceeded("%s", ctx.Err())
 		}
 	}
 }

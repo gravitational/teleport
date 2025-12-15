@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceStrict, differenceInYears } from 'date-fns';
+import { differenceInYears, formatDistanceStrict } from 'date-fns';
 
 import type { JoinToken } from './types';
 
 export const INTERNAL_RESOURCE_ID_LABEL_KEY = 'teleport.internal/resource-id';
 
-export default function makeToken(json): JoinToken {
+export default function makeToken(json: any): JoinToken {
   json = json || {};
   const {
     id,
@@ -30,6 +30,8 @@ export default function makeToken(json): JoinToken {
     isStatic,
     allow,
     gcp,
+    github,
+    gitlab,
     bot_name,
     expiry,
     method,
@@ -48,6 +50,8 @@ export default function makeToken(json): JoinToken {
     method,
     allow,
     gcp,
+    github,
+    gitlab,
     roles: roles?.sort((a, b) => a.localeCompare(b)) || [],
     suggestedLabels: labels,
     internalResourceId: extractInternalResourceId(labels),

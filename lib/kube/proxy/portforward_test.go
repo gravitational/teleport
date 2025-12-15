@@ -20,20 +20,22 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -43,6 +45,7 @@ import (
 	"k8s.io/client-go/transport/spdy"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestPortForwardKubeService(t *testing.T) {
@@ -139,7 +142,13 @@ func TestPortForwardKubeService(t *testing.T) {
 			readyCh := make(chan struct{})
 			// errCh receives a single error from ForwardPorts goroutine.
 			errCh := make(chan error)
-			t.Cleanup(func() { require.NoError(t, <-errCh) })
+			t.Cleanup(func() {
+				// ErrLostConnectionToPod is an expected error.
+				// Server allowed to communicate error to client.
+				if err := <-errCh; !errors.Is(err, portforward.ErrLostConnectionToPod) {
+					require.NoError(t, err)
+				}
+			})
 			// stopCh control the port forwarding lifecycle. When it gets closed the
 			// port forward will terminate.
 			stopCh := make(chan struct{})
@@ -149,7 +158,7 @@ func TestPortForwardKubeService(t *testing.T) {
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
-				podPort:      80,
+				podPorts:     []int{80},
 				stopCh:       stopCh,
 				readyCh:      readyCh,
 			})
@@ -188,7 +197,6 @@ func TestPortForwardKubeService(t *testing.T) {
 				// Dial a connection to localPort.
 				ports, err := fw.GetPorts()
 				require.NoError(t, err)
-				require.Len(t, ports, 1)
 
 				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", ports[0].Local))
 				require.NoError(t, err)
@@ -206,6 +214,110 @@ func TestPortForwardKubeService(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPortForwardKubeServiceMultiPort(t *testing.T) {
+	t.Parallel()
+
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		t.Context(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+		})
+
+	// generate a kube client with user certs for auth
+	_, config := testCtx.GenTestKubeClientTLSCert(
+		t,
+		user.GetName(),
+		kubeCluster,
+	)
+
+	// Create 5 ports.
+	const portCount = 5
+	podPorts := make([]int, 0, portCount)
+	for port := 80; port < 80+portCount; port++ {
+		podPorts = append(podPorts, port)
+	}
+
+	readyCh := make(chan struct{})
+	stopCh := make(chan struct{})
+
+	forwarder := spdyPortForwardClientBuilder(t, portForwardRequestConfig{
+		podName:      podName,
+		podNamespace: podNamespace,
+		restConfig:   config,
+		podPorts:     podPorts,
+		stopCh:       stopCh,
+		readyCh:      readyCh,
+	})
+	t.Cleanup(func() {
+		close(stopCh)
+		forwarder.Close()
+	})
+	go func() { require.NoError(t, forwarder.ForwardPorts()) }()
+
+	// Wait for port forwarding to be ready.
+	select {
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for port forwarding")
+	case <-readyCh:
+	}
+
+	// Port forwarding is ready.
+	portPairs, err := forwarder.GetPorts()
+	require.NoError(t, err)
+
+	g, _ := errgroup.WithContext(t.Context())
+	for _, p := range portPairs {
+		g.Go(func() error {
+			portString := strconv.Itoa(int(p.Local))
+			conn, err := net.Dial("tcp", net.JoinHostPort("localhost", portString))
+			if err != nil {
+				return fmt.Errorf("unable to dial local port %d: %w", p.Local, err)
+			}
+			defer conn.Close()
+
+			testData := "test-data-port-" + portString
+			if _, err := conn.Write([]byte(testData)); err != nil {
+				return fmt.Errorf("unable to write local port %d: %w", p.Local, err)
+			}
+
+			expected := testingkubemock.PortForwardPayload + podName + testData
+			buf := make([]byte, len(expected))
+			n, err := conn.Read(buf)
+
+			actual := string(buf[:n])
+			if n != len(expected) && actual != expected {
+				return fmt.Errorf("unexpected response on local port %d: expect %q, actual %q, error %w",
+					p.Local, actual, expected, err)
+			}
+
+			return nil
+		})
+	}
+
+	err = g.Wait()
+	require.NoError(t, err, "Port forwarding checks failed")
+
 }
 
 func portforwardURL(namespace, podName string, host string, query string) (*url.URL, error) {
@@ -227,7 +339,11 @@ func spdyPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) po
 	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
 	require.NoError(t, err)
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
-	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", 0, req.podPort)}, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
+	ports := make([]string, len(req.podPorts))
+	for n, port := range req.podPorts {
+		ports[n] = fmt.Sprintf("0:%d", port)
+	}
+	fw, err := portforward.New(dialer, ports, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
 	require.NoError(t, err)
 	return fw
 }
@@ -249,8 +365,8 @@ type portForwardRequestConfig struct {
 	podName string
 	// podNamespace is the pod namespace.
 	podNamespace string
-	// podPort is the target port for the pod.
-	podPort int
+	// podPorts is the target port for the pod.
+	podPorts []int
 	// stopCh is the channel used to manage the port forward lifecycle
 	stopCh <-chan struct{}
 	// readyCh communicates when the tunnel is ready to receive traffic
@@ -269,7 +385,6 @@ type portForwarder interface {
 // connection, it will leak memory.
 func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 	t.Parallel()
-	logger := log.NewEntry(&log.Logger{Out: io.Discard})
 	const (
 		reqID = "reqID"
 		// portHeaderValue is the value of the port header in the stream.
@@ -285,7 +400,7 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 			context:       context.Background(),
 			onPortForward: func(addr string, success bool) {},
 		},
-		Entry:                 logger,
+		logger:                logtest.NewLogger(),
 		sourceConn:            sourceConn,
 		targetConn:            targetConn,
 		streamChan:            make(chan httpstream.Stream),
@@ -327,8 +442,10 @@ func TestPortForwardProxy_run_connsClosed(t *testing.T) {
 		}
 	}, 5*time.Second, 100*time.Millisecond, "streams werent properly removed from targetConn")
 
-	require.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
-	require.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.True(t, sourceConn.streamsClosed(), "sourceConn streams not closed")
+		assert.True(t, targetConn.streamsClosed(), "targetConn streams not closed")
+	}, 15*time.Second, 100*time.Millisecond, "streams not closed")
 }
 
 type fakeSPDYStream struct {
@@ -458,30 +575,29 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 		validateFunc func(*testing.T, *testingkubemock.KubeMockServer)
 	}{
 		{
-			name: "SPDY protocol, version < 1.31",
-			version: &version.Info{
-				GitVersion: "v1.30.0",
-			},
+			name:    "SPDY protocol, version < 1.31",
+			version: &version.Info{GitVersion: "v1.30.0"},
 			validateFunc: func(t *testing.T, kms *testingkubemock.KubeMockServer) {
-				// forward used SPDY to kubernetes API
-				require.EqualValues(t, 1, kms.KubePortforward.SPDY.Load())
-				require.EqualValues(t, 0, kms.KubePortforward.Websocket.Load())
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					// forward used SPDY to kubernetes API
+					require.EqualValues(t, 1, kms.KubePortforward.SPDY.Load())
+					require.EqualValues(t, 0, kms.KubePortforward.Websocket.Load())
+				}, 5*time.Second, 100*time.Millisecond)
 			},
 		},
 		{
-			name: "Websocket protocol for clusters >=1.31",
-			version: &version.Info{
-				GitVersion: "v1.31.0",
-			},
+			name:    "Websocket protocol for clusters >=1.31",
+			version: &version.Info{GitVersion: "v1.31.0"},
 			validateFunc: func(t *testing.T, kms *testingkubemock.KubeMockServer) {
-				// forward used SPDY over websocket to kubernetes API
-				require.EqualValues(t, 0, kms.KubePortforward.SPDY.Load())
-				require.EqualValues(t, 1, kms.KubePortforward.Websocket.Load())
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					// forward used SPDY over websocket to kubernetes API
+					require.EqualValues(t, 0, kms.KubePortforward.SPDY.Load())
+					require.EqualValues(t, 1, kms.KubePortforward.Websocket.Load())
+				}, 5*time.Second, 100*time.Millisecond)
 			},
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			kubeMock, err := testingkubemock.NewKubeAPIMock(
@@ -489,9 +605,8 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			)
 			require.NoError(t, err)
 			t.Cleanup(func() { kubeMock.Close() })
-			t.Cleanup(func() {
-				tt.validateFunc(t, kubeMock)
-			})
+			t.Cleanup(func() { tt.validateFunc(t, kubeMock) })
+
 			// creates a Kubernetes service with a configured cluster pointing to mock api server
 			testCtx := SetupTestContext(
 				context.Background(),
@@ -500,7 +615,6 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 				},
 			)
-
 			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
 			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
@@ -525,7 +639,13 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			readyCh := make(chan struct{})
 			// errCh receives a single error from ForwardPorts goroutine.
 			errCh := make(chan error)
-			t.Cleanup(func() { require.NoError(t, <-errCh) })
+			t.Cleanup(func() {
+				// ErrLostConnectionToPod is an expected error.
+				// Server allowed to communicate error to client.
+				if err := <-errCh; !errors.Is(err, portforward.ErrLostConnectionToPod) {
+					require.NoError(t, err)
+				}
+			})
 			// stopCh control the port forwarding lifecycle. When it gets closed the
 			// port forward will terminate.
 			stopCh := make(chan struct{})
@@ -535,7 +655,7 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
-				podPort:      80,
+				podPorts:     []int{80},
 				stopCh:       stopCh,
 				readyCh:      readyCh,
 			})

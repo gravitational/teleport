@@ -17,14 +17,22 @@
  */
 
 import { PropsWithChildren } from 'react';
+
 import '@testing-library/jest-dom';
-import { fireEvent, createEvent, render, screen } from '@testing-library/react';
-import { renderHook, act } from '@testing-library/react';
 
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from '@testing-library/react';
+
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-
-import { IAppContext } from 'teleterm/ui/types';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { IAppContext } from 'teleterm/ui/types';
 
 import { SearchContextProvider, useSearchContext } from './SearchContext';
 
@@ -175,10 +183,10 @@ describe('open', () => {
     otherInput.focus();
 
     expect(screen.getByTestId('is-open')).toHaveTextContent('false');
-    act(() => screen.getByTestId('open').click());
+    fireEvent.click(screen.getByTestId('open'));
     expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
-    act(() => screen.getByTestId('close').click());
+    fireEvent.click(screen.getByTestId('close'));
     expect(otherInput).toHaveFocus();
   });
 });
@@ -226,17 +234,10 @@ describe('closeWithoutRestoringFocus', () => {
 });
 
 test('search bar state is adjusted to the active document', () => {
-  const rootClusterUri = '/clusters/localhost';
+  const rootCluster = makeRootCluster({ uri: '/clusters/localhost' });
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: rootClusterUri,
-      documents: [],
-      location: undefined,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootCluster(rootCluster);
+
   const docService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();
   const { result } = renderHook(() => useSearchContext(), {
@@ -253,12 +254,13 @@ test('search bar state is adjusted to the active document', () => {
   // document changes to the cluster document
   act(() => {
     const clusterDoc = docService.createClusterDocument({
-      clusterUri: rootClusterUri,
+      clusterUri: rootCluster.uri,
       queryParams: {
         search: 'foo',
         resourceKinds: ['db'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: true,
+        statuses: ['healthy'],
       },
     });
     docService.add(clusterDoc);
@@ -274,12 +276,13 @@ test('search bar state is adjusted to the active document', () => {
   // document changes to another cluster document
   act(() => {
     const clusterDoc = docService.createClusterDocument({
-      clusterUri: rootClusterUri,
+      clusterUri: rootCluster.uri,
       queryParams: {
         search: 'bar',
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
+        statuses: [],
       },
     });
     docService.add(clusterDoc);
@@ -309,12 +312,13 @@ test('search bar state is adjusted to the active document', () => {
   // document changes to a cluster document
   act(() => {
     const clusterDoc = docService.createClusterDocument({
-      clusterUri: rootClusterUri,
+      clusterUri: rootCluster.uri,
       queryParams: {
         search: 'bar',
         resourceKinds: ['kube_cluster'],
         sort: { dir: 'ASC', fieldName: 'name' },
         advancedSearchEnabled: false,
+        statuses: [],
       },
     });
     docService.add(clusterDoc);

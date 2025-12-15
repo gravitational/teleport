@@ -18,13 +18,17 @@
 
 import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
+
+import { parseSortType } from 'design/DataTable/sort';
 import { SortType } from 'design/DataTable/types';
-
+import {
+  IncludedResourceMode,
+  isResourceHealthStatus,
+} from 'shared/components/UnifiedResources';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
-import { IncludedResourceMode } from 'shared/components/UnifiedResources';
 
-import history from 'teleport/services/history';
 import { ResourceFilter, ResourceLabel } from 'teleport/services/agents';
+import history from 'teleport/services/history';
 
 import { encodeUrlQueryParams } from './encodeUrlQueryParams';
 
@@ -39,7 +43,7 @@ export interface UrlFilteringState {
   search: string;
 }
 
-type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
+export type URLResourceFilter = Omit<ResourceFilter, 'includedResourceMode'>;
 
 export function useUrlFiltering(
   initialParams: URLResourceFilter,
@@ -87,6 +91,7 @@ export function useUrlFiltering(
         kinds: newParams.kinds,
         isAdvancedSearch: !!newParams.query,
         pinnedOnly: newParams.pinnedOnly,
+        statuses: newParams.statuses,
       })
     );
   }
@@ -129,21 +134,17 @@ export default function getResourceUrlQueryParams(
   const pinnedOnly = searchParams.get('pinnedOnly');
   const sort = searchParams.get('sort');
   const kinds = searchParams.has('kinds') ? searchParams.getAll('kinds') : null;
+  const statuses = searchParams.has('status')
+    ? searchParams.getAll('status').filter(isResourceHealthStatus)
+    : undefined;
 
-  const sortParam = sort ? sort.split(':') : null;
-
-  // Converts the "fieldname:dir" format into {fieldName: "", dir: ""}
-  const processedSortParam = sortParam
-    ? ({
-        fieldName: sortParam[0],
-        dir: sortParam[1]?.toUpperCase() || 'ASC',
-      } as SortType)
-    : null;
+  const processedSortParam = parseSortType(sort);
 
   return {
     query,
     search,
     kinds,
+    statuses,
     // Conditionally adds the sort field based on whether it exists or not
     ...(!!processedSortParam && { sort: processedSortParam }),
     // Conditionally adds the pinnedResources field based on whether its true or not

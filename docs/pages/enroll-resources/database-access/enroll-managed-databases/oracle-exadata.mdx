@@ -1,6 +1,11 @@
 ---
 title: Database Access with Oracle Exadata
+sidebar_label: Oracle Exadata
 description: How to configure Teleport database access with Oracle Exadata.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Oracle Exadata" dbConfigure="with mTLS authentication"!)
@@ -11,16 +16,16 @@ description: How to configure Teleport database access with Oracle Exadata.
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise (Self-Hosted)">
-![Teleport Database Access Self-hosted Oracle](../../../../img/database-access/guides/oracle_selfhosted.png)
+![Enroll Oracle with a self-hosted Teleport cluster](../../../../img/database-access/guides/oracle_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise (Cloud)">
-![Teleport Database Access Oracle Cloud](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
+![Enroll Oracle with a cloud-hosted Teleport cluster](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
 </TabItem>
 </Tabs>
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 - Oracle Exadata server instance 19c or later.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
@@ -171,7 +176,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <Tabs>
 <TabItem label="Linux Server">
 
-(!docs/pages/includes/install-linux-enterprise.mdx!)
+(!docs/pages/includes/install-linux.mdx!)
 
 On the host where you will run the Teleport Database Service, start Teleport
 with the appropriate configuration.
@@ -187,13 +192,14 @@ Copy the Oracle Database certificate and make it available at
 
 Run the following command to generate a configuration file at
 `/etc/teleport.yaml` for the Database Service. Update 
-<Var name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
+<Var name="example.teleport.sh" /> to use the domain name of the Teleport Proxy
 Service:
+
 ```code
 $ sudo teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="example.teleport.sh:443" /> \
+   --proxy=<Var name="example.teleport.sh" />:443 \
    --name="<Var name="oracle" />" \
    --protocol=oracle \
    --uri="<Var name="10.20.30.40:2484" />" \
@@ -228,13 +234,13 @@ as Teleport using the following command:
 $ kubectl create secret generic db-ca --from-file=ca.pem=/path/to/oracle-server-certificate.crt
 ```
 
-Create a file called `values.yaml` with the following content. Update <Var
-name="example.teleport.sh" /> to use the host and port of the Teleport Proxy
-Service and <Var name="JOIN_TOKEN" /> to the join token you created earlier using the `tctl tokens add` command.
+Create a file called `values.yaml` with the following content. Update 
+<Var name="JOIN_TOKEN" /> to the join token you created earlier using the `tctl
+tokens add` command:
 
 ```yaml
 roles: db
-proxyAddr: <Var name="example.teleport.sh" />
+proxyAddr: <Var name="example.teleport.sh" />:443
 enterprise: true
 authToken: "<Var name="JOIN_TOKEN" />"
 databases:
@@ -270,7 +276,7 @@ Install the chart:
      -f values.yaml
    ```
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
    ```code
@@ -319,7 +325,7 @@ Configure the Teleport Database Service to pull audit logs from Oracle Audit Tra
 
 ```yaml
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   - name: <Var name="oracle" />
     protocol: "oracle"
@@ -387,6 +393,14 @@ $ tsh db logout oracle
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## (Optional) Configure additional hostnames
+
+(!docs/pages/includes/database-access/oracle-multihost.mdx!)
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/oracle-troubleshooting.mdx!)
 
 ## Next steps
 

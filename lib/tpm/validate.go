@@ -23,10 +23,11 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
-	"log/slog"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
+
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 )
 
 // ValidateParams are the parameters required to validate a TPM.
@@ -63,14 +64,17 @@ type ValidatedTPM struct {
 	EKCertVerified bool `json:"ek_cert_verified"`
 }
 
-// JoinAuditAttributes returns a series of attributes that can be inserted into
-// audit events related to a specific join.
-func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"ek_pub_hash":      c.EKPubHash,
-		"ek_cert_serial":   c.EKCertSerial,
-		"ek_cert_verified": c.EKCertVerified,
-	}, nil
+// JoinAttrs returns the protobuf representation of the attested identity.
+// This is used for auditing and for evaluation of WorkloadIdentity rules and
+// templating.
+func (c *ValidatedTPM) JoinAttrs() *workloadidentityv1pb.JoinAttrsTPM {
+	attrs := &workloadidentityv1pb.JoinAttrsTPM{
+		EkPubHash:      c.EKPubHash,
+		EkCertSerial:   c.EKCertSerial,
+		EkCertVerified: c.EKCertVerified,
+	}
+
+	return attrs
 }
 
 // Validate takes the parameters from a remote TPM and performs the necessary
@@ -78,9 +82,7 @@ func (c *ValidatedTPM) JoinAuditAttributes() (map[string]interface{}, error) {
 // the client to solve in a credential activation ceremony. This allows us to
 // verify that the client possesses the TPM corresponding to the EK public key
 // or certificate presented by the client.
-func Validate(
-	ctx context.Context, log *slog.Logger, params ValidateParams,
-) (*ValidatedTPM, error) {
+func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error) {
 	ctx, span := tracer.Start(ctx, "Validate")
 	defer span.End()
 
@@ -102,12 +104,9 @@ func Validate(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	validated.EKPubHash, err = hashEKPub(ekPubPKIX)
-	if err != nil {
-		return validated, trace.Wrap(err, "hashing EK public key")
-	}
+	validated.EKPubHash = HashEKPub(ekPubPKIX)
 	if ekCert != nil {
-		validated.EKCertSerial = serialString(ekCert.SerialNumber)
+		validated.EKCertSerial = SerialString(ekCert.SerialNumber)
 	}
 
 	if params.AllowedCAs != nil {
@@ -118,9 +117,8 @@ func Validate(
 	}
 
 	activationParameters := attest.ActivationParameters{
-		TPMVersion: attest.TPMVersion20,
-		AK:         params.AttestParams,
-		EK:         ekPub,
+		AK: params.AttestParams,
+		EK: ekPub,
 	}
 	// The generate method completes initial validation that provides the
 	// following assurances:

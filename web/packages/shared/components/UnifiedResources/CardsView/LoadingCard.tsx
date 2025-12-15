@@ -17,7 +17,8 @@
  */
 
 import { useState } from 'react';
-import { Flex, Box } from 'design';
+
+import { Box, Flex } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
 export function LoadingCard() {

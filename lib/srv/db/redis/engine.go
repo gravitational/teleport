@@ -29,17 +29,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	ectypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	memorydbtypes "github.com/aws/aws-sdk-go-v2/service/memorydb/types"
 	"github.com/gravitational/trace"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
-	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -66,6 +68,9 @@ type redisClientFactoryFn func(username, password string) (redis.UniversalClient
 type Engine struct {
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
+	// AWSClients is an SDK client provider.
+	// This field is only exported so it can be overridden in integration tests.
+	AWSClients AWSClientProvider
 	// clientConn is a client connection.
 	clientConn net.Conn
 	// clientReader is a go-redis wrapper for Redis client connection.
@@ -82,11 +87,42 @@ type Engine struct {
 	clientMessageRead bool
 }
 
+// AWSClientProvider provides AWS service API clients.
+type AWSClientProvider interface {
+	// GetElastiCacheClient provides an [ElastiCacheClient].
+	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
+	// GetMemoryDBClient provides an [MemoryDBClient].
+	GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient
+}
+
+// ElastiCacheClient is a subset of the AWS ElastiCache API.
+type ElastiCacheClient interface {
+	elasticache.DescribeUsersAPIClient
+}
+
+// MemoryDBClient is a subset of the AWS MemoryDB API.
+type MemoryDBClient interface {
+	memorydb.DescribeUsersAPIClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
 // InitializeConnection initializes the database connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.clientReader = redis.NewReader(clientConn)
 	e.sessionCtx = sessionCtx
+	if e.AWSClients == nil {
+		e.AWSClients = defaultAWSClients{}
+	}
 
 	// Use Redis default user named "default" if a user is not provided.
 	if e.sessionCtx.DatabaseUser == "" {
@@ -197,7 +233,7 @@ func (e *Engine) maybeHandleFirstHello() {
 }
 
 // sendToClient sends a command to connected Redis client.
-func (e *Engine) sendToClient(vals interface{}) error {
+func (e *Engine) sendToClient(vals any) error {
 	if vals == nil {
 		return nil
 	}
@@ -266,40 +302,18 @@ func (e *Engine) getNewClientFn(ctx context.Context, sessionCtx *common.Session)
 		return nil, trace.Wrap(err)
 	}
 
-	// Set default mode. Default mode can be overridden by URI parameters.
-	defaultMode := connection.Standalone
-	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
-		if sessionCtx.Database.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
-			defaultMode = connection.Cluster
-		}
-
-	case types.DatabaseTypeMemoryDB:
-		if sessionCtx.Database.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
-			defaultMode = connection.Cluster
-		}
-
-	case types.DatabaseTypeAzure:
-		// "OSSCluster" requires client to use the OSS Cluster mode.
-		//
-		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
-		if sessionCtx.Database.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
-			defaultMode = connection.Cluster
-		}
-	}
-
-	connectionOptions, err := connection.ParseRedisAddressWithDefaultMode(sessionCtx.Database.GetURI(), defaultMode)
+	connectionOptions, err := getConnectionOptions(sessionCtx.Database)
 	if err != nil {
-		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", sessionCtx.Database.GetURI(), err)
+		return nil, trace.Wrap(err)
 	}
 
 	return func(username, password string) (redis.UniversalClient, error) {
-		credenialsProvider, err := e.createCredentialsProvider(ctx, sessionCtx, username, password)
+		credentialsProvider, err := e.createCredentialsProvider(ctx, sessionCtx, username, password)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, credenialsProvider)
+		redisClient, err := newClient(ctx, connectionOptions, tlsConfig, credentialsProvider)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -329,7 +343,7 @@ func (e *Engine) createCredentialsProvider(ctx context.Context, sessionCtx *comm
 	// ensures the correct password is used for each shard connection when
 	// Redis is in cluster mode.
 	case slices.Contains(sessionCtx.Database.GetManagedUsers(), sessionCtx.DatabaseUser):
-		credFetchFn := managedUserCredFetchFunc(sessionCtx, e.Auth, e.Users)
+		credFetchFn := managedUserCredFetchFunc(sessionCtx, e.Users)
 		return fetchCredentialsOnConnect(e.Context, sessionCtx, e.Audit, credFetchFn), nil
 
 	// AWS ElastiCache has limited support for IAM authentication.
@@ -370,8 +384,12 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 		return false
 	}
 	dbUser := sessionCtx.DatabaseUser
-	ok, err := checkUserIAMAuthIsEnabled(ctx, sessionCtx, e.CloudClients, dbUser)
+	ok, err := e.checkUserIAMAuthIsEnabled(ctx, sessionCtx, dbUser)
 	if err != nil {
+		if sessionCtx.Database.GetType() == types.DatabaseTypeElastiCacheServerless {
+			e.Log.DebugContext(e.Context, "Assuming IAM auth is enabled for user", "user", dbUser, "error", err)
+			return true
+		}
 		e.Log.DebugContext(e.Context, "Assuming IAM auth is not enabled for user.", "user", dbUser, "error", err)
 		return false
 	}
@@ -387,6 +405,8 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 		return iam.CheckElastiCacheSupportsIAMAuth(database)
 	case types.DatabaseTypeMemoryDB:
 		return iam.CheckMemoryDBSupportsIAMAuth(database)
+	case types.DatabaseTypeElastiCacheServerless:
+		return true, nil
 	default:
 		return false, nil
 	}
@@ -394,58 +414,60 @@ func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 
 // checkUserIAMAuthIsEnabled returns whether a given ElastiCache or MemoryDB
 // user has IAM auth enabled.
-func checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, clients cloud.Clients, username string) (bool, error) {
+func (e *Engine) checkUserIAMAuthIsEnabled(ctx context.Context, sessionCtx *common.Session, username string) (bool, error) {
 	switch sessionCtx.Database.GetType() {
-	case types.DatabaseTypeElastiCache:
-		return checkElastiCacheUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+	case types.DatabaseTypeElastiCache, types.DatabaseTypeElastiCacheServerless:
+		return e.checkElastiCacheUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	case types.DatabaseTypeMemoryDB:
-		return checkMemoryDBUserIAMAuthIsEnabled(ctx, clients, sessionCtx.Database.GetAWS(), username)
+		return e.checkMemoryDBUserIAMAuthIsEnabled(ctx, sessionCtx.Database.GetAWS(), username)
 	default:
 		return false, nil
 	}
 }
 
-func checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
-	client, err := clients.GetAWSElastiCacheClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
-		cloud.WithAmbientCredentials(),
+func (e *Engine) checkElastiCacheUserIAMAuthIsEnabled(ctx context.Context, awsMeta types.AWS, username string) (bool, error) {
+	awsCfg, err := e.AWSConfigProvider.GetConfig(ctx, awsMeta.Region,
+		awsconfig.WithAssumeRole(awsMeta.AssumeRoleARN, awsMeta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	client := e.AWSClients.GetElastiCacheClient(awsCfg)
 	// For IAM-enabled ElastiCache users, the username and user id properties
 	// must be identical.
 	// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
 	input := elasticache.DescribeUsersInput{UserId: aws.String(username)}
-	out, err := client.DescribeUsersWithContext(ctx, &input)
+	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
 		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
-	authType := aws.StringValue(out.Users[0].Authentication.Type)
-	return elasticache.AuthenticationTypeIam == authType, nil
+	authType := out.Users[0].Authentication.Type
+	return ectypes.AuthenticationTypeIam == authType, nil
 }
 
-func checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, clients cloud.Clients, awsMeta types.AWS, username string) (bool, error) {
-	client, err := clients.GetAWSMemoryDBClient(ctx, awsMeta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(awsMeta),
-		cloud.WithAmbientCredentials(),
+func (e *Engine) checkMemoryDBUserIAMAuthIsEnabled(ctx context.Context, awsMeta types.AWS, username string) (bool, error) {
+	awsCfg, err := e.AWSConfigProvider.GetConfig(ctx, awsMeta.Region,
+		awsconfig.WithAssumeRole(awsMeta.AssumeRoleARN, awsMeta.ExternalID),
+		awsconfig.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	client := e.AWSClients.GetMemoryDBClient(awsCfg)
 	input := memorydb.DescribeUsersInput{UserName: aws.String(username)}
-	out, err := client.DescribeUsersWithContext(ctx, &input)
+	out, err := client.DescribeUsers(ctx, &input)
 	if err != nil {
 		return false, trace.Wrap(libaws.ConvertRequestFailureError(err))
 	}
 	if len(out.Users) < 1 || out.Users[0].Authentication == nil {
 		return false, nil
 	}
-	authType := aws.StringValue(out.Users[0].Authentication.Type)
-	return memorydb.AuthenticationTypeIam == authType, nil
+	authType := out.Users[0].Authentication.Type
+	return memorydbtypes.AuthenticationTypeIam == authType, nil
 }
 
 // reconnect closes the current Redis server connection and creates a new one pre-authenticated
@@ -507,7 +529,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	val, ok := cmd.Val().([]interface{})
+	val, ok := cmd.Val().([]any)
 	if !ok {
 		return nil, trace.BadParameter("failed to cast Redis value to a slice, got %T", cmd.Val())
 	}
@@ -519,7 +541,7 @@ func (e *Engine) readClientCmd(ctx context.Context) (*redis.Cmd, error) {
 // "terminal" errors as second value (connection should be terminated when this happens)
 // or returns error/value as the first value. Then value should be sent back to
 // the client without terminating the connection.
-func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (interface{}, error) {
+func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *common.Session) (any, error) {
 	value, cmdErr := cmd.Result()
 	if err == nil {
 		// If the server didn't return any error use cmd.Err() as server error.
@@ -528,7 +550,7 @@ func (e *Engine) processServerResponse(cmd *redis.Cmd, err error, sessionCtx *co
 
 	switch {
 	case e.isIAMAuthError(err):
-		return common.ConvertConnectError(trace.AccessDenied(err.Error()), sessionCtx), nil
+		return common.ConvertConnectError(trace.AccessDenied("%s", err), sessionCtx), nil
 	case isRedisError(err):
 		// Redis errors should be returned to the client.
 		return err, nil
@@ -602,4 +624,41 @@ func init() {
 	redis.SetLogger(&driverLogger{
 		Logger: slog.With(teleport.ComponentKey, "go-redis"),
 	})
+}
+
+func getConnectionOptions(db types.Database) (*connection.Options, error) {
+	// Set default mode. Default mode can be overridden by URI parameters.
+	defaultMode := connection.Standalone
+	switch db.GetType() {
+	case types.DatabaseTypeElastiCache:
+		if db.GetAWS().ElastiCache.EndpointType == apiawsutils.ElastiCacheConfigurationEndpoint {
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeElastiCacheServerless:
+		defaultMode = connection.Cluster
+
+	case types.DatabaseTypeMemoryDB:
+		if db.GetAWS().MemoryDB.EndpointType == apiawsutils.MemoryDBClusterEndpoint {
+			defaultMode = connection.Cluster
+		}
+
+	case types.DatabaseTypeAzure:
+		// "OSSCluster" requires client to use the OSS Cluster mode.
+		//
+		// https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/quickstart-create-redis-enterprise#clustering-policy
+		if db.GetAzure().Redis.ClusteringPolicy == azure.RedisEnterpriseClusterPolicyOSS {
+			defaultMode = connection.Cluster
+		}
+	}
+
+	connOpts, err := connection.ParseRedisAddressWithDefaultMode(db.GetURI(), defaultMode)
+	if err != nil {
+		return nil, trace.BadParameter("Redis connection string is incorrect %q: %v", db.GetURI(), err)
+	}
+	return connOpts, nil
+}
+
+func getHostPort(connOpts *connection.Options) string {
+	return net.JoinHostPort(connOpts.Address, connOpts.Port)
 }

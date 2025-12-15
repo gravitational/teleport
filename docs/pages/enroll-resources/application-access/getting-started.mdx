@@ -1,7 +1,12 @@
 ---
-title: Getting Started with Teleport Application Access
-description: Getting started with Teleport application access.
+title: Protect a Web Application with Teleport
+sidebar_label: Getting Started
+description: Provides instructions to set up the Teleport Application Service and enable secure access to a web application.
 videoBanner: cvW4b96aPL0
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This tutorial demonstrates how to configure secure access to an application 
@@ -19,6 +24,21 @@ At a high level, configuring access for applications involves the following step
 - Generate a short-lived invitation token for the application to join the Teleport cluster.
 - Install and configure Teleport on the application host.
 - Add a user to verify access to the application.
+
+## How it works
+
+In the setup we demonstrate in this guide, the Teleport Application Service
+joins your Teleport cluster with a secure token. You configure the Application
+Service to protect a web application using a configuration file. After the
+Application Service joins the cluster, the Teleport Proxy Service routes
+requests from end users to the Teleport Application Service, and responses from
+the Application Serve back to end users. 
+
+The Application Service authenticates user requests by validating a JSON web
+token (JWT) in the request against a CA maintained by the Teleport Auth Service.
+The requesting user's roles are encoded in the JWT, allowing the Application
+Service to determine whether the user has permissions to make a request to a
+Teleport-protected application.
 
 ## Prerequisites
 
@@ -123,7 +143,7 @@ $ helm install example-grafana grafana/grafana \
 
 <Tabs>
 <TabItem label="Docker">
-Select a Teleport edition, then follow the [Installation](../../installation.mdx) instructions 
+Select a Teleport edition, then follow the [Installation](../../installation/installation.mdx) instructions 
 for your environment.
 
 To install on Linux:
@@ -179,7 +199,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 - Change `apps[0].name` and `apps[0].uri` if you're configuring access to a different 
 web application.
 
-Make sure that the Teleport agent pod is running. You should see one
+Make sure that the Teleport Agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
 ```code
@@ -203,8 +223,9 @@ To assign to the `access` role to a new local user named `alice`, run the follow
 $ tctl users add --roles=access alice
 ```
 
-The command generates an invitation URL for the new user. You can use the URL to choose 
-a password, set up a second factor for authentication, and sign in to the Teleport Web UI.
+The command generates an invitation URL for the new user. You can use the URL to
+choose a password, set up multi-factor authentication, and sign in to the
+Teleport Web UI.
 
 ## Step 5/5. Access the application
 
@@ -222,8 +243,8 @@ You are prompted to sign in if you haven't already been authenticated.
 
 Learn more about protecting applications with Teleport in the following topics:
 
-- [Connecting applications](./guides/connecting-apps.mdx).
+- [Connecting applications](protect-apps/connecting-apps.mdx).
 - Integrating with [JWT tokens](./jwt/introduction.mdx).
-- Accessing applications with [RESTful APIs](./guides/api-access.mdx).
-- Setting configuration options AND running CLI commands in the [Application Access reference](../../reference/agent-services/application-access.mdx).
+- Accessing applications with [RESTful APIs](protect-apps/api-access.mdx).
+- Setting configuration options AND running CLI commands in the [Application Service reference](reference.mdx).
 - Using the Let's Encrypt [ACME protocol](https://letsencrypt.org/how-it-works/).

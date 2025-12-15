@@ -1,135 +1,430 @@
 ---
-h1: Introduction to Teleport
-title: "Introduction to the Teleport Access Platform: Zero Trust Security for Your Infrastructure"
+title: "The Teleport Infrastructure Identity Platform"
 description: Read an overview of the Teleport Access Platform. Learn how to implement Zero Trust Security across all your infrastructure for enhanced protection and streamlined access control.
-tocDepth: 3
+template: "landing-page"
 ---
 
-Teleport is the easiest and most secure way to access and protect all your
-infrastructure.
+import DocsHeader, { DocsHeaderProps } from "@site/src/components/Pages/Homepage/DocsHeader";
+import Products, { ProductProps } from "@site/src/components/Pages/Homepage/Products/Products";
+import VersionHighlights from "@site/src/components/Pages/Homepage/VersionHighlights";
+import Resources, { ResourcesProps } from "@site/src/components/Pages/Homepage/Resources";
+import Integrations, { IntegrationsProps } from "@site/src/components/Pages/Homepage/Integrations";
+import GetStarted from "@site/src/components/Pages/Homepage/GetStarted";
 
-The Teleport Access Platform is a suite of software and managed services that
-delivers on-demand, least-privileged access to infrastructure on a foundation of
-cryptographic identity and Zero Trust, with built-in identity security and
-policy governance.
+import applicationSvg from "@site/src/components/Icon/teleport-svg/application.svg";
+import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
+import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
+import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
+import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
+import autoDiscoverySvg from "@site/src/components/Icon/teleport-svg/auto-discovery.svg";
+import cloudProvidersSvg from "@site/src/components/Icon/teleport-svg/cloud-providers.svg";
+import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
+import awsSvg from "@site/src/components/Icon/teleport-svg/aws.svg";
+import gcpSvg from "@site/src/components/Icon/teleport-svg/gcp.svg";
+import azureSvg from "@site/src/components/Icon/teleport-svg/azure.svg";
+import oktaSvg from "@site/src/components/Icon/teleport-svg/okta.svg";
+import slackSvg from "@site/src/components/Icon/teleport-svg/slack.svg";
+import pagerDutySvg from "@site/src/components/Icon/teleport-svg/pagerduty.svg";
+import jamfProSvg from "@site/src/components/Icon/teleport-svg/jamf-pro.svg";
+import jenkinsSvg from "@site/src/components/Icon/teleport-svg/jenkins.svg";
+import snowflakeSvg from "@site/src/components/Icon/teleport-svg/snowflake.svg";
+import arrowRightSvg from "@site/src/components/Icon/teleport-svg/arrow-right.svg";
+import zeroTrustSvg from "@site/src/components/Icon/teleport-svg/zero-trust.svg";
+import mwiSvg from "@site/src/components/Icon/teleport-svg/mwi.svg";
+import identityGovernanceSvg from "@site/src/components/Icon/teleport-svg/identity-governance.svg";
+import identitySecuritySvg from "@site/src/components/Icon/teleport-svg/identity-security.svg";
+import bookOpenSvg from "@site/src/components/Icon/teleport-svg/book-open.svg";
+import flowArrowSvg from "@site/src/components/Icon/teleport-svg/flow-arrow.svg";
+import identificationBadgeSvg from "@site/src/components/Icon/teleport-svg/identification-badge.svg";
+import listBulletsSvg from "@site/src/components/Icon/teleport-svg/list-bullets.svg";
 
-## Use cases
+{/* lint disable page-structure remark-lint */}
 
-Organizations use the Teleport Access Platform to:
+<DocsHeader
+  quickActions={[
+    { 
+      label: "Enroll Kubernetes cluster", 
+      href: "./enroll-resources/kubernetes-access/getting-started/" 
+    },
+    { 
+      label: "Set up SSO with GitHub", 
+      href: "./zero-trust-access/sso/github-sso/" 
+    },
+    { 
+      label: "Set up Slack Access Request Plugin", 
+      href: "./identity-governance/access-requests/plugins/slack/" 
+    }
+  ]}
+/>
 
-- **Eliminate infrastructure and access silos:** Teleport provides a single
-  system for role-based access controls, audit, and access for all of your
-  infrastructure, from cloud provider APIs to Kubernetes clusters.
-- **Introduce Zero Trust with theft-resistant credentials:** Teleport
-  authenticates access to all of your infrastructure with short-lived
-  certificates, verified at every endpoint. You can roll out a Zero Trust
-  strategy for your organization by setting up Teleport alone.
-- **Address complex compliance needs:** Teleport allows you to satisfy
-  compliance frameworks like SOC 2, ISO 27001, and FedRAMP with no need for additional
-  tooling or process changes. 
+<GetStarted
+  youtubeVideoId="BJWbSqiDLeU"
+  steps={[
+    {
+      title: "Step 1: Deploy a Teleport cluster",
+      description: "Select an edition and deploy a Teleport cluster. ",
+      href: "./get-started/",
+    },
+    {
+      title: "Step 2: Connect your infrastructure",
+      description: "Connect and protect your infrastructure with your Teleport cluster.",
+      href: "./get-started/connect/",
+    },
+    {
+      title: "Step 3: Manage access",
+      description: "Configure role-based access controls for your team.",
+      href: "./get-started/access/",
+    },
+    {
+      title: "Step 4: Review a detailed audit log",
+      description: "Collect detailed events generated by humans and machines across your infrastructure.",
+      href: "./get-started/audit/",
+    },
+  ]}
+  links={[
+    {
+      title: "Installation guide",
+      description: "How to install Teleport binaries/clients on your platform.",
+      href: "./installation/",
+      iconComponent: bookOpenSvg,
+    },
+    {
+      title: "Architecture",
+      description: "Understand how Teleport components work together.",
+      href: "./reference/architecture/",
+      iconComponent: flowArrowSvg,
+    },
+    {
+      title: "User guides",
+      description: "Accessing infrastructure with Teleport tools and interfaces.",
+      href: "./connect-your-client/",
+      iconComponent: identificationBadgeSvg,
+    },
+    {
+      title: "References",
+      description: "Comprehensive guides for configuring Teleport components.",
+      href: "./reference/",
+      iconComponent: listBulletsSvg,
+    },
+  ]}
+/>
 
-## Products
+<Products
+  productCategories={[
+    {
+      id: 'zero-trust-access',
+      title: 'Zero Trust Access',
+      href: './zero-trust-access/',
+      description: 'Easy access to all your infrastructure on a foundation of cryptographic identity',
+      iconColor: '#EEEAFA',
+      iconComponent: zeroTrustSvg,
+      features: [
+        {
+          title: 'Enroll and Protect Your Infrastructure',
+          description: 'Apps, servers, databases, Kubernetes clusters, desktops, & more',
+          href: './enroll-resources/'
+        },
+        {
+          title: 'VNet: Build without VPNs',
+          description: 'Secure app & SSH access with no VPNs or proxies',
+          href: './enroll-resources/application-access/guides/vnet/'
+        },
+        {
+          title: 'Secure MCP (Protect the Vibes)',
+          description: 'Secure MCP integration with granular audit trail',
+          href: './connect-your-client/model-context-protocol/'
+        },
+        {
+          title: 'Role-Based Access Control (RBAC)',
+          description: 'Govern infrastructure access with granular permissions',
+          href: './zero-trust-access/rbac-get-started/'
+        },
+        {
+          title: 'Passwordless Authentication',
+          description: 'Log in securely using biometrics',
+          href: './zero-trust-access/authentication/passwordless'
+        },
+        {
+          title: 'Integrate with SSO Providers',
+          description: 'Connect Okta, Entra ID, Google, and more',
+          href: './zero-trust-access/sso/'
+        },
+        {
+          title: 'Structured Audit Export',
+          description: 'Forward audit logs to SIEMs like Splunk and Datadog',
+          href: './zero-trust-access/export-audit-events/'
+        },
+        {
+          title: 'Identity-Based Audit Events',
+          description: 'Detailed audit logs for every user action',
+          href: './reference/deployment/monitoring/audit/'
+        },
+        {
+          title: 'Session Recording and Playback',
+          description: 'Record a detailed review of what took place',
+          href: './reference/architecture/session-recording/'
+        },
+        {
+          title: 'Session Sharing and Moderation',
+          description: 'Require a moderator for privileged sessions',
+          href: './zero-trust-access/authentication/joining-sessions/'
+        },
+        {
+          title: 'Manage Clusters with IaC',
+          description: 'Create, update, and manage Teleport in declarative code.',
+          href: './zero-trust-access/infrastructure-as-code/'
+        }
+      ]
+    },
+    {
+      id: 'machine-workload-identity',
+      title: 'Machine and Workload Identity',
+      href: './machine-workload-identity/',
+      description: 'Replace long-lived secrets with identity-based authentication and authorization',
+      iconColor: '#EEEAFA',
+      iconComponent: mwiSvg,
+      features: [
+        {
+          title: 'Intro to Machine & Workload ID',
+          description: 'Replace long-lived secrets with identity-based auth',
+          href: './machine-workload-identity/'
+        },
+        {
+          title: 'Deploy CI/CD Pipelines',
+          description: 'Replace long-lived secrets in CI/CD pipelines',
+          href: './machine-workload-identity/deployment/#cicd'
+        },
+        {
+          title: 'Secure Infrastructure as Code',
+          description: 'Manage IaC workflows in Terraform and Pulumi',
+          href: './zero-trust-access/infrastructure-as-code/terraform-provider/'
+        },
+        {
+          title: 'Hybrid & Multi-Cloud Authentication',
+          description: 'Universal identities across cloud platforms',
+          href: './machine-workload-identity/deployment/'
+        },
+        {
+          title: 'Workload to Workload Authentication',
+          description: 'Service-to-service auth with mTLS',
+          href: './machine-workload-identity/workload-identity/spiffe/'
+        },
+        {
+          title: 'Identity Management for AI Agents',
+          description: 'RBAC for autonomous agents and processes',
+          href: './machine-workload-identity/workload-identity/introduction/'
+        }
+      ]
+    },
+    {
+      id: 'identity-governance',
+      title: 'Identity Governance',
+      href: './identity-governance/',
+      description: 'Manage on-demand access, privileges, and compliance for all your infrastructure.',
+      iconColor: '#EEEAFA',
+      iconComponent: identityGovernanceSvg,
+      features: [
+        {
+          title: 'Request Temporary Elevated Access',
+          description: 'Eliminate standing privileges w/ just-in-time access',
+          href: './identity-governance/access-requests/'
+        },
+        {
+          title: 'Manage Standing Access for Teams',
+          description: 'Sync IdP groups to roles w/ automated reviews',
+          href: './identity-governance/integrations/okta/app-and-group-sync/'
+        },
+        {
+          title: 'Require Managed Devices for Access',
+          description: 'Guarantee access only from trusted devices',
+          href: './identity-governance/device-trust/'
+        },
+        {
+          title: 'Instantly Lock Identities & Sessions',
+          description: 'Lock compromised users and resources',
+          href: './identity-governance/locking/'
+        },
+        {
+          title: 'Integrate with your Identity Provider(s)',
+          description: 'Okta, Entra ID, and Sailpoint with SCIM group sync',
+          href: './identity-governance/integrations/'
+        },
+        {
+          title: 'Configure Teleport as an Identity Provider',
+          description: 'Use Teleport as a SAML IdP to 3rd-party apps',
+          href: './identity-governance/idps/'
+        },
+      ]
+    },
+    {
+      id: 'identity-security',
+      title: 'Identity Security',
+      href: './identity-security/',
+      description: 'Visualize access paths and identify security risks across your infrastructure',
+      iconColor: '#EEEAFA',
+      iconComponent: identitySecuritySvg,
+      features: [
+        {
+          title: 'Expose Hidden Access Risks',
+          description: 'Scan for SSH keys, repo access, and more',
+          href: './identity-security/integrations/ssh-keys-scan'
+        },
+        {
+          title: 'Identify Over-Privileged Users',
+          description: 'Identify users with excessive standing privileges',
+          href: './identity-security/usage/dashboard'
+        },
+        {
+          title: 'Monitor Changes to Critical Resources',
+          description: 'Monitor, alert on, and visualize access changes',
+          href: './identity-security/usage/crown-jewels'
+        },
+        {
+          title: 'Centralize Visibility Across Systems',
+          description: 'Centralize visibility into identities and access across Okta, AWS, GitHub, and more',
+          href: './identity-security/integrations/'
+        },
+        {
+          title: 'Query Roles, Groups, & Permissions',
+          description: 'Create custom tailored queries w/the SQL Editor',
+          href: './identity-security/usage/sql-editor'
+        }
+      ]
+    }
+  ]}
+/>
 
-The Teleport Access Platform consists of three products:
+<VersionHighlights
+  title="What's new in version 18"
+  highlights={[
+    {
+      title: "MCP server access",
+      description: "Teleport now provides the ability to connect to stdio-based MCP servers with connection proxying and audit logging support.",
+      tag: "Zero Trust Access",
+      href: "./connect-your-client/model-context-protocol/mcp-access/",
+    },
+    {
+      title: "MCP for database access",
+      description: "Teleport now allows MCP clients such as Claude Desktop to execute queries in Teleport-protected databases.",
+      tag: "Zero Trust Access",
+      href: "./connect-your-client/model-context-protocol/database-access/",
+    },
+  ]}
+/>
 
-- **Teleport Access** provides on-demand, least privileged access, on a
-  foundation of cryptographic identity and Zero Trust.
-- **Teleport Identity** hardens your infrastructure with identity governance and
-  security.
-- **Teleport Policy** unifies and controls access policies across all of your
-  infrastructure.  
+<Resources
+  resources={[
+    {
+      title: 'Applications',
+      description: 'Protect web apps, TCP apps, and Cloud APIs',
+      iconComponent: applicationSvg,
+      href: './enroll-resources/application-access/'
+    },
+    {
+      title: 'Linux Servers',
+      description: 'Secure Linux servers and OpenSSH servers',
+      iconComponent: linuxServersSvg,
+      href: './enroll-resources/server-access/'
+    },
+    {
+      title: 'Databases',
+      description: 'AWS, Azure, Google Cloud, cloud DB platforms, & more',
+      iconComponent: databaseSvg,
+      href: './enroll-resources/database-access/'
+    },
+    {
+      title: 'Kubernetes Clusters',
+      description: 'Kubernetes clusters and the apps running in them',
+      iconComponent: kubernetesClustersSvg,
+      href: './enroll-resources/kubernetes-access/'
+    },
+    {
+      title: 'Windows Desktops',
+      description: 'With or without Active Directory',
+      iconComponent: windowsDesktopsSvg,
+      href: './enroll-resources/desktop-access/'
+    },
+    {
+      title: 'Auto-Discovery of Resources',
+      description: 'SSH servers, databases, Kubernetes clusters and apps',
+      iconComponent: autoDiscoverySvg,
+      href: './enroll-resources/auto-discovery/'
+    },
+    {
+      title: 'Cloud Providers',
+      description: 'AWS, Azure, and Google Cloud consoles and CLI',
+      iconComponent: cloudProvidersSvg,
+      href: './enroll-resources/application-access/cloud-apis/'
+    },
+    {
+      title: 'MCP and AI Agents',
+      description: 'Secure agentic AI connections to databases & MCP servers',
+      iconComponent: mcpAndAiSvg,
+      href: './enroll-resources/mcp-access/'
+    }
+  ]}
+/>
 
-### Teleport Access
-
-**Teleport Access** provides Zero Trust connectivity to all of your
-infrastructure. You can enable users to access servers, databases, and other
-infrastructure components over the public internet, even if those components are
-protected behind a firewall. 
-
-All infrastructure resources belong to a unified inventory, with a single
-role-based access controls system to allow for least-privilege access. You can
-enable users to authenticate to resources using Single Sign-On providers like
-Okta, and Teleport itself can act as an identity provider for external services.
-Connectivity takes place through short-lived credentials that Teleport
-components verify through strong cryptographic techniques.
-
-Get started with Teleport Access:
-
-- [Enroll resources](enroll-resources/agents/introduction.mdx) to protect with Teleport using
-  cryptographic identity.
-- [Set up passwordless authentication](admin-guides/access-controls/guides/passwordless.mdx)
-  to enable users to access resources with hardware keys, including biometric
-  credentials like Touch ID and YubiKey Bio.
-- [Integrate your Single Sign-On provider](admin-guides/access-controls/sso/sso.mdx): Allow users
-  to access infrastructure resources with IdPs like Okta.
-- [Use Teleport as an identity provider](admin-guides/access-controls/idps/saml-guide.mdx) to
-  authenticate to external services.
-- [Issue and govern identities for automated
-  systems](enroll-resources/machine-id/introduction.mdx) using Machine ID.
-
-### Teleport Identity
-
-**Teleport Identity** is an add-on to Teleport Access that offers identity
-governance and security for all of your infrastructure. You can provide users
-with less-privileged roles by default, requiring any user who wants additional
-permissions to request them for a limited time. This approach leaves no
-permanent admin roles for attackers to target. 
-
-As an additional layer of protection against phishing and exfiltration, you can
-restrict access to users with trusted devices. And during active security
-incidents, you can lock down specific users, roles, infrastructure resources and
-more, letting you contain the security incident with minimal disruption. An
-audit log provides visibility into access patterns, so you can identify weak
-restrictions and potential security breaches.
-
-Get started with Teleport Identity:
-
-- [Access Requests](admin-guides/access-controls/access-requests/access-requests.mdx): Temporarily
-  provision minimal privileges to complete a task.
-- [Access Lists](admin-guides/access-controls/access-lists/access-lists.mdx): Regularly audit and
-  control membership to specific roles and traits, which then tie easily back
-  into Teleport's existing RBAC system.
-- [Device Trust](admin-guides/access-controls/device-trust/device-trust.mdx): Require an up-to-date,
-  registered device for each authentication by giving every device a
-  cryptographic identity. 
-- [Session & Identity Locks](admin-guides/access-controls/guides/locking.mdx): Lock
-  suspicious or compromised identities and stop all their activity across all
-  protocols and services.
-- [Access Monitoring](admin-guides/access-controls/access-monitoring.mdx): Detect overly
-  broad privileges and inspect sessions that are not using strong protection,
-  such as multi-factor authentication and Device Trust.
-
-### Teleport Policy
-
-**Teleport Policy** unifies and controls access policies across all your
-infrastructure. With Teleport Policy’s Access Graph feature, you gain insights
-into role-based access control policies within Teleport, your cloud providers,
-and critical infrastructure.
-
-- Get started with [Teleport
-  Policy](admin-guides/teleport-policy/teleport-policy.mdx).
-- Define [Crown Jewels](admin-guides/teleport-policy/crown-jewels.mdx) so you
-  can track changes to your most sensitive users and resources.
-- Enable [Teleport Policy
-  integrations](admin-guides/teleport-policy/integrations/integrations.mdx) so
-  you can identify [insecure SSH key
-  distributions](admin-guides/teleport-policy/integrations/ssh-keys-scan.mdx), and
-  import RBAC rules from AWS, Entra ID, and other sources to visualize your
-  entire RBAC configuration in on a single screen. 
-
-## Architecture
-
-The Teleport Access Platform consists of a certificate authority and
-identity-aware access proxy that run either on the Teleport-managed cloud or, in
-special cases, a self-hosted private network. 
-
-Teleport Agents, which can run on Linux servers or Kubernetes, proxy access to
-infrastructure resources and cloud provider APIs. Users authenticate to
-infrastructure resources through Teleport Agents using short-lived certificates.
-Certificates embed Teleport user attributes, allowing Teleport Agents to enforce
-role-based access controls.
-
-Learn more:
-
-- [Teleport Core Concepts](./core-concepts.mdx)
-- [Architecture Guides](./reference/architecture/architecture.mdx)
+<Integrations 
+  integrations={[
+    {
+      title: 'AWS',
+      href: 'https://goteleport.com/integrations#aws',
+      iconColor: '#FF99001A',
+      iconComponent: awsSvg,
+    },
+    {
+      title: 'GCP',
+      href: 'https://goteleport.com/integrations#google-cloud-platform-(gcp)',
+      iconColor: '#EA43351A',
+      iconComponent: gcpSvg,
+    },
+    {
+      title: 'Azure',
+      href: 'https://goteleport.com/integrations#microsoft-azure',
+      iconColor: '#0078D41A',
+      iconComponent: azureSvg,
+    },
+    {
+      title: 'Okta',
+      href: './identity-governance/integrations/okta/',
+      iconColor: '#0000001A',
+      iconComponent: oktaSvg,
+    },
+    {
+      title: 'Slack',
+      href: './identity-governance/access-requests/plugins/slack/',
+      iconColor: '#ECB22E1A',
+      iconComponent: slackSvg,
+    },
+    {
+      title: 'PagerDuty',
+      href: './identity-governance/access-requests/plugins/pagerduty/',
+      iconColor: '#06AC381A',
+      iconComponent: pagerDutySvg,
+    },
+    {
+      title: 'Jamf Pro',
+      href: './identity-governance/device-trust/jamf-integration/',
+      iconColor: '#788EB11A',
+      iconComponent: jamfProSvg,
+    },
+    {
+      title: 'Jenkins',
+      href: './machine-workload-identity/deployment/jenkins/',
+      iconColor: '#D338331A',
+      iconComponent: jenkinsSvg,
+    },
+    {
+      title: 'Snowflake',
+      href: './enroll-resources/database-access/enroll-managed-databases/snowflake/',
+      iconColor: '#29B5E81A',
+      iconComponent: snowflakeSvg,
+    }, 
+    {
+      title: 'View all Integrations',
+      href: 'https://goteleport.com/integrations',
+      iconComponent: arrowRightSvg,
+    },
+  ]}
+/>

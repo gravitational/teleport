@@ -26,7 +26,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	libcloud "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 )
@@ -38,10 +38,10 @@ type ImportRulesReader interface {
 
 // ObjectFetcherConfig provides static object fetcher configuration.
 type ObjectFetcherConfig struct {
-	ImportRules  ImportRulesReader
-	Auth         common.Auth
-	CloudClients libcloud.Clients
-	Log          *slog.Logger
+	ImportRules ImportRulesReader
+	Auth        common.Auth
+	GCPClients  gcp.Clients
+	Log         *slog.Logger
 }
 
 // ObjectFetcher defines an interface for retrieving database objects.

@@ -136,6 +136,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessRequestCreate{
 			AccessRequestCreate: e,
 		}
+	case *AccessRequestExpire:
+		out.Event = &OneOf_AccessRequestExpire{
+			AccessRequestExpire: e,
+		}
 	case *AccessRequestResourceSearch:
 		out.Event = &OneOf_AccessRequestResourceSearch{
 			AccessRequestResourceSearch: e,
@@ -781,7 +785,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AutoUpdateConfigDelete{
 			AutoUpdateConfigDelete: e,
 		}
-
 	case *AutoUpdateVersionCreate:
 		out.Event = &OneOf_AutoUpdateVersionCreate{
 			AutoUpdateVersionCreate: e,
@@ -793,6 +796,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AutoUpdateVersionDelete:
 		out.Event = &OneOf_AutoUpdateVersionDelete{
 			AutoUpdateVersionDelete: e,
+		}
+	case *AutoUpdateAgentRolloutTrigger:
+		out.Event = &OneOf_AutoUpdateAgentRolloutTrigger{
+			AutoUpdateAgentRolloutTrigger: e,
+		}
+	case *AutoUpdateAgentRolloutForceDone:
+		out.Event = &OneOf_AutoUpdateAgentRolloutForceDone{
+			AutoUpdateAgentRolloutForceDone: e,
+		}
+	case *AutoUpdateAgentRolloutRollback:
+		out.Event = &OneOf_AutoUpdateAgentRolloutRollback{
+			AutoUpdateAgentRolloutRollback: e,
 		}
 	case *ContactCreate:
 		out.Event = &OneOf_ContactCreate{
@@ -818,6 +833,116 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *GitCommand:
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
+		}
+	case *StableUNIXUserCreate:
+		out.Event = &OneOf_StableUNIXUserCreate{
+			StableUNIXUserCreate: e,
+		}
+	case *WorkloadIdentityX509RevocationCreate:
+		out.Event = &OneOf_WorkloadIdentityX509RevocationCreate{
+			WorkloadIdentityX509RevocationCreate: e,
+		}
+	case *WorkloadIdentityX509RevocationDelete:
+		out.Event = &OneOf_WorkloadIdentityX509RevocationDelete{
+			WorkloadIdentityX509RevocationDelete: e,
+		}
+	case *WorkloadIdentityX509RevocationUpdate:
+		out.Event = &OneOf_WorkloadIdentityX509RevocationUpdate{
+			WorkloadIdentityX509RevocationUpdate: e,
+		}
+	case *AWSICResourceSync:
+		out.Event = &OneOf_AWSICResourceSync{
+			AWSICResourceSync: e,
+		}
+	case *HealthCheckConfigCreate:
+		out.Event = &OneOf_HealthCheckConfigCreate{
+			HealthCheckConfigCreate: e,
+		}
+	case *HealthCheckConfigUpdate:
+		out.Event = &OneOf_HealthCheckConfigUpdate{
+			HealthCheckConfigUpdate: e,
+		}
+	case *HealthCheckConfigDelete:
+		out.Event = &OneOf_HealthCheckConfigDelete{
+			HealthCheckConfigDelete: e,
+		}
+	case *WorkloadIdentityX509IssuerOverrideCreate:
+		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideCreate{
+			WorkloadIdentityX509IssuerOverrideCreate: e,
+		}
+	case *WorkloadIdentityX509IssuerOverrideDelete:
+		out.Event = &OneOf_WorkloadIdentityX509IssuerOverrideDelete{
+			WorkloadIdentityX509IssuerOverrideDelete: e,
+		}
+	case *SigstorePolicyCreate:
+		out.Event = &OneOf_SigstorePolicyCreate{
+			SigstorePolicyCreate: e,
+		}
+	case *SigstorePolicyUpdate:
+		out.Event = &OneOf_SigstorePolicyUpdate{
+			SigstorePolicyUpdate: e,
+		}
+	case *SigstorePolicyDelete:
+		out.Event = &OneOf_SigstorePolicyDelete{
+			SigstorePolicyDelete: e,
+		}
+	case *MCPSessionStart:
+		out.Event = &OneOf_MCPSessionStart{
+			MCPSessionStart: e,
+		}
+	case *MCPSessionEnd:
+		out.Event = &OneOf_MCPSessionEnd{
+			MCPSessionEnd: e,
+		}
+	case *MCPSessionRequest:
+		out.Event = &OneOf_MCPSessionRequest{
+			MCPSessionRequest: e,
+		}
+	case *MCPSessionNotification:
+		out.Event = &OneOf_MCPSessionNotification{
+			MCPSessionNotification: e,
+		}
+	case *MCPSessionListenSSEStream:
+		out.Event = &OneOf_MCPSessionListenSSEStream{
+			MCPSessionListenSSEStream: e,
+		}
+	case *MCPSessionInvalidHTTPRequest:
+		out.Event = &OneOf_MCPSessionInvalidHTTPRequest{
+			MCPSessionInvalidHTTPRequest: e,
+		}
+	case *BoundKeypairRecovery:
+		out.Event = &OneOf_BoundKeypairRecovery{
+			BoundKeypairRecovery: e,
+		}
+	case *BoundKeypairRotation:
+		out.Event = &OneOf_BoundKeypairRotation{
+			BoundKeypairRotation: e,
+		}
+	case *BoundKeypairJoinStateVerificationFailed:
+		out.Event = &OneOf_BoundKeypairJoinStateVerificationFailed{
+			BoundKeypairJoinStateVerificationFailed: e,
+		}
+	case *SCIMListingEvent:
+		out.Event = &OneOf_SCIMListingEvent{SCIMListingEvent: e}
+	case *SCIMResourceEvent:
+		out.Event = &OneOf_SCIMResourceEvent{SCIMResourceEvent: e}
+	case *ClientIPRestrictionsUpdate:
+		out.Event = &OneOf_ClientIPRestrictionsUpdate{ClientIPRestrictionsUpdate: e}
+	case *AppAuthConfigCreate:
+		out.Event = &OneOf_AppAuthConfigCreate{
+			AppAuthConfigCreate: e,
+		}
+	case *AppAuthConfigUpdate:
+		out.Event = &OneOf_AppAuthConfigUpdate{
+			AppAuthConfigUpdate: e,
+		}
+	case *AppAuthConfigDelete:
+		out.Event = &OneOf_AppAuthConfigDelete{
+			AppAuthConfigDelete: e,
+		}
+	case *AppAuthConfigVerify:
+		out.Event = &OneOf_AppAuthConfigVerify{
+			AppAuthConfigVerify: e,
 		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())

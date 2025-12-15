@@ -41,6 +41,7 @@ type Ceremony struct {
 // SSOMFACeremony is an SSO MFA ceremony.
 type SSOMFACeremony interface {
 	GetClientCallbackURL() string
+	GetProxyAddress() string
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	Close()
 }
@@ -79,6 +80,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 			}
 
 			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+			req.ProxyAddress = ssoMFACeremony.GetProxyAddress()
 			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 		}
 	}
@@ -137,6 +139,13 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 		},
 	}
 
-	resp, err := mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
+	// Remove MFA resp from context if set. This way, the mfa required
+	// check will return true as long as MFA for admin actions is enabled,
+	// even if the current context has a reusable MFA. v18 server will
+	// return this requirement as expected.
+	// TODO(Joerger): DELETE IN v19.0.0
+	ceremonyCtx := ContextWithMFAResponse(ctx, nil)
+
+	resp, err := mfaCeremony(ceremonyCtx, challengeRequest, WithPromptReasonAdminAction())
 	return resp, trace.Wrap(err)
 }

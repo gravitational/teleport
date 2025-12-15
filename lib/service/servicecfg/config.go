@@ -34,7 +34,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -50,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -75,6 +73,10 @@ type Config struct {
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
 
+	// RelayServer is the optional address of the relay server that this agent
+	// should be opening tunnels to for supported services.
+	RelayServer string
+
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*state.Identity
@@ -87,12 +89,19 @@ type Config struct {
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
 
+	// ShutdownDelay is a fixed delay between receiving a termination signal and
+	// the beginning of the shutdown procedures.
+	ShutdownDelay time.Duration
+
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 
 	// Proxy service configuration. Manages incoming and outbound
 	// connections to the cluster.
 	Proxy ProxyConfig
+
+	// Relay contains the configuration for the Relay service.
+	Relay RelayConfig
 
 	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
@@ -130,13 +139,6 @@ type Config struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
-	// HostUUID is a unique UUID of this host (it will be known via this UUID within
-	// a teleport cluster). It's automatically generated on 1st start
-	HostUUID string
-
-	// Console writer to speak to a user
-	Console io.Writer
-
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
 	ReverseTunnels []types.ReverseTunnel
@@ -165,10 +167,8 @@ type Config struct {
 	// Access is a service that controls access
 	Access services.Access
 
-	// UsageReporter is a service that reports usage events.
-	UsageReporter usagereporter.UsageReporter
 	// ClusterConfiguration is a service that provides cluster configuration
-	ClusterConfiguration services.ClusterConfiguration
+	ClusterConfiguration services.ClusterConfigurationInternal
 
 	// AutoUpdateService is a service that provides auto update configuration and version.
 	AutoUpdateService services.AutoUpdateService
@@ -223,13 +223,16 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// Log optionally specifies the logger.
-	// Deprecated: use Logger instead.
-	Log utils.Logger
+	// LogConfig is the config used to initialize the logger and associated fields below.
+	// We keep the original config for child processes to initialize the same logger.
+	LogConfig logutils.Config
 
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+
+	// LogWriter is the underlying log writer used by the Logger above.
+	LogWriter io.Writer
 
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
@@ -241,8 +244,8 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
-	MaxRetryPeriod time.Duration
+	// AuthConnectionConfig defines the Auth Service connection configuration.
+	AuthConnectionConfig AuthConnectionConfig
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -317,6 +320,14 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
+
+	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
+	// a locking operation for backend objects.
+	// This setting is particularly useful in test environments,
+	// as it can help accelerate operations such as updating the access list,
+	// especially when the list is also being modified concurrently by the background
+	// eligibility handler.
+	RunWhileLockedRetryInterval time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
@@ -332,6 +343,70 @@ type AccessGraphConfig struct {
 
 	// Insecure is true if the connection to the Access Graph service should be insecure
 	Insecure bool
+
+	// AuditLog contains audit log export details.
+	AuditLog AuditLogConfig
+}
+
+// AuditLogConfig specifies the audit log event export setup.
+type AuditLogConfig struct {
+	// Enabled indicates if Audit Log event exporting is enabled.
+	Enabled bool
+	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate time.Time
+}
+
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	InitialConnectionDelay time.Duration
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
+	const minWatcherBackoff = 10 * time.Second
+
+	if c.UpperLimitBetweenRetries < 1 {
+		c.UpperLimitBetweenRetries = defaults.MaxWatcherBackoff
+	} else if c.UpperLimitBetweenRetries < minWatcherBackoff {
+		return trace.BadParameter("upper_limit_between_retries (%s) cannot be set below %s", c.UpperLimitBetweenRetries, minWatcherBackoff)
+	}
+
+	if c.InitialConnectionDelay < 1 {
+		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 10
+	} else if c.InitialConnectionDelay > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"initial_connection_delay (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.InitialConnectionDelay,
+			c.UpperLimitBetweenRetries,
+		)
+	}
+
+	if c.BackoffStepDuration < 1 {
+		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 5
+	} else if c.BackoffStepDuration > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"backoff_step_duration (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.BackoffStepDuration,
+			c.UpperLimitBetweenRetries,
+		)
+	}
+
+	return nil
+}
+
+// DefaultRatioAuthConnectionConfig returns AuthConnectionConfig with parameters based on UpperLimitBetweenRetries
+func DefaultRatioAuthConnectionConfig(UpperLimitBetweenRetries time.Duration) *AuthConnectionConfig {
+	return &AuthConnectionConfig{
+		UpperLimitBetweenRetries: UpperLimitBetweenRetries,
+		InitialConnectionDelay:   UpperLimitBetweenRetries / 10,
+		BackoffStepDuration:      UpperLimitBetweenRetries / 5,
+	}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -347,6 +422,7 @@ type RoleAndIdentityEvent struct {
 func DisableLongRunningServices(cfg *Config) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
+	cfg.Relay.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
@@ -384,6 +460,33 @@ func (c CachePolicy) String() string {
 		return "no cache"
 	}
 	return "in-memory cache"
+}
+
+// CheckServicesForSELinux returns false if any services that don't
+// support SELinux enforcement are enabled.
+func (cfg *Config) CheckServicesForSELinux() bool {
+	switch {
+	case cfg.AccessGraph.Enabled:
+		fallthrough
+	case cfg.Apps.Enabled:
+		fallthrough
+	case cfg.Auth.Enabled:
+		fallthrough
+	case cfg.Databases.Enabled:
+		fallthrough
+	case cfg.Jamf.Enabled():
+		fallthrough
+	case cfg.Kube.Enabled:
+		fallthrough
+	case cfg.Okta.Enabled:
+		fallthrough
+	case cfg.Proxy.Enabled:
+		fallthrough
+	case cfg.WindowsDesktop.Enabled:
+		return false
+
+	}
+	return true
 }
 
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
@@ -518,12 +621,12 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.Version = defaults.TeleportConfigVersionV1
 
-	if cfg.Log == nil {
-		cfg.Log = utils.NewLogger()
-	}
-
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+
+	if cfg.LogWriter == nil {
+		cfg.LogWriter = io.Discard
 	}
 
 	if cfg.LoggerLevel == nil {
@@ -550,7 +653,6 @@ func ApplyDefaults(cfg *Config) {
 	// Global defaults.
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
-	cfg.Console = os.Stdout
 	cfg.CipherSuites = utils.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
@@ -604,7 +706,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 
@@ -694,14 +796,6 @@ func applyDefaults(cfg *Config) {
 		cfg.Version = defaults.TeleportConfigVersionV1
 	}
 
-	if cfg.Console == nil {
-		cfg.Console = io.Discard
-	}
-
-	if cfg.Log == nil {
-		cfg.Log = logrus.StandardLogger()
-	}
-
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
@@ -774,6 +868,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Auth.Enabled,
 		cfg.SSH.Enabled,
 		cfg.Proxy.Enabled,
+		cfg.Relay.Enabled,
 		cfg.Kube.Enabled,
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
@@ -791,7 +886,8 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+	)
 }
 
 // SetLogLevel changes the loggers log level.
@@ -799,7 +895,6 @@ func verifyEnabledService(cfg *Config) error {
 // If called after `config.ApplyFileConfig` or `config.Configure` it will also
 // change the global loggers.
 func (c *Config) SetLogLevel(level slog.Level) {
-	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
 

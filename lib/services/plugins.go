@@ -22,23 +22,27 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Plugins is the plugin service
-type Plugins interface {
-	CreatePlugin(ctx context.Context, plugin types.Plugin) error
-	UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error)
-	DeleteAllPlugins(ctx context.Context) error
-	DeletePlugin(ctx context.Context, name string) error
+type PluginGetter interface {
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
 	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
 	ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error)
 	HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error)
+}
+
+// Plugins is the plugin service
+type Plugins interface {
+	PluginGetter
+	CreatePlugin(ctx context.Context, plugin types.Plugin) error
+	UpdatePlugin(ctx context.Context, plugin types.Plugin) (types.Plugin, error)
+	DeleteAllPlugins(ctx context.Context) error
+	DeletePlugin(ctx context.Context, name string) error
 	SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error
 	SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error
 }
@@ -84,7 +88,7 @@ func UnmarshalPlugin(data []byte, opts ...MarshalOption) (types.Plugin, error) {
 		var plugin types.PluginV1
 		m := jsonpb.Unmarshaler{AllowUnknownFields: true}
 		if err := m.Unmarshal(bytes.NewReader(data), &plugin); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := plugin.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

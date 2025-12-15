@@ -19,7 +19,9 @@ package types
 import (
 	"net/netip"
 	"net/url"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,6 +117,26 @@ type OIDCConnector interface {
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
 	WithMFASettings() error
+	// IsPKCEEnabled returns true if the connector should add code_challenge information to auth requests.
+	IsPKCEEnabled() bool
+	// SetPKCEMode will set the pkce mode
+	SetPKCEMode(mode constants.OIDCPKCEMode)
+	// GetPKCEMode will return the PKCEMode of the connector.
+	GetPKCEMode() constants.OIDCPKCEMode
+	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+	// match for identifier-first login.
+	GetUserMatchers() []string
+	// GetRequestObjectMode will return the RequestObjectMode of the connector.
+	GetRequestObjectMode() constants.OIDCRequestObjectMode
+	// SetRequestObjectMode sets the RequestObjectMode of the connector.
+	SetRequestObjectMode(mode constants.OIDCRequestObjectMode)
+	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+	// for identifier-first login.
+	SetUserMatchers([]string)
+	// GetEntraIDGroupsProvider returns Entra ID groups provider.
+	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
+	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+	IsEntraIDGroupsProviderDisabled() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -496,6 +518,13 @@ func (o *OIDCConnectorV3) Validate() error {
 		}
 	}
 
+	entra := o.GetEntraIDGroupsProvider()
+	if entra != nil {
+		if err := entra.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -534,6 +563,21 @@ func (o *OIDCConnectorV3) IsMFAEnabled() bool {
 	return mfa != nil && mfa.Enabled
 }
 
+// IsPKCEEnabled returns true if the connector should add code_challenge information to auth requests.
+func (o *OIDCConnectorV3) IsPKCEEnabled() bool {
+	return o.Spec.PKCEMode == string(constants.OIDCPKCEModeEnabled)
+}
+
+// SetPKCEMode will set the pkce mode
+func (o *OIDCConnectorV3) SetPKCEMode(mode constants.OIDCPKCEMode) {
+	o.Spec.PKCEMode = string(mode)
+}
+
+// GetPKCEMode will return the PKCEMode of the connector.
+func (o *OIDCConnectorV3) GetPKCEMode() constants.OIDCPKCEMode {
+	return constants.OIDCPKCEMode(o.Spec.PKCEMode)
+}
+
 // WithMFASettings returns the connector will some settings overwritten set from MFA settings.
 func (o *OIDCConnectorV3) WithMFASettings() error {
 	if !o.IsMFAEnabled() {
@@ -544,10 +588,48 @@ func (o *OIDCConnectorV3) WithMFASettings() error {
 	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
 	o.Spec.ACR = o.Spec.MFASettings.AcrValues
 	o.Spec.Prompt = o.Spec.MFASettings.Prompt
-	o.Spec.MaxAge = &MaxAge{
-		Value: o.Spec.MFASettings.MaxAge,
+	// Overwrite the base connector's request object mode iff the MFA setting's
+	// request object mode is explicitly set. Otherwise, the base setting should be assumed.
+	if o.Spec.MFASettings.RequestObjectMode != string(constants.OIDCRequestObjectModeUnknown) {
+		o.Spec.RequestObjectMode = o.Spec.MFASettings.RequestObjectMode
+	}
+
+	// In rare cases, some providers will complain about the presence of the 'max_age'
+	// parameter in auth requests. Provide users with a workaround to omit it.
+	omitMaxAge, _ := strconv.ParseBool(os.Getenv("TELEPORT_OIDC_OMIT_MFA_MAX_AGE"))
+	if omitMaxAge {
+		o.Spec.MaxAge = nil
+	} else {
+		o.Spec.MaxAge = &MaxAge{
+			Value: o.Spec.MFASettings.MaxAge,
+		}
 	}
 	return nil
+}
+
+// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+// match for identifier-first login.
+func (r *OIDCConnectorV3) GetUserMatchers() []string {
+	if r.Spec.UserMatchers == nil {
+		return nil
+	}
+	return r.Spec.UserMatchers
+}
+
+// GetRequestObjectMode returns the configured OIDC request object mode.
+func (r *OIDCConnectorV3) GetRequestObjectMode() constants.OIDCRequestObjectMode {
+	return constants.OIDCRequestObjectMode(r.Spec.RequestObjectMode)
+}
+
+// SetRequestObjectMode sets the OIDC request object mode.
+func (r *OIDCConnectorV3) SetRequestObjectMode(mode constants.OIDCRequestObjectMode) {
+	r.Spec.RequestObjectMode = string(mode)
+}
+
+// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+// for identifier-first login.
+func (r *OIDCConnectorV3) SetUserMatchers(userMatchers []string) {
+	r.Spec.UserMatchers = userMatchers
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -557,33 +639,46 @@ func (r *OIDCAuthRequest) Check() error {
 		return trace.BadParameter("ConnectorID: missing value")
 	case r.StateToken == "":
 		return trace.BadParameter("StateToken: missing value")
-	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
-		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
-	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
-		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
-	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
-		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
-	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
-		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	// we could collapse these two checks into one, but the error message would become ambiguous.
 	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
 	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
-	sshPubKey := r.PublicKey
-	if len(sshPubKey) == 0 {
-		sshPubKey = r.SshPublicKey
-	}
-	if len(sshPubKey) > 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+	if len(r.SshPublicKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(r.SshPublicKey)
 		if err != nil {
 			return trace.BadParameter("bad SSH public key: %v", err)
 		}
 	}
-	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+	if (len(r.SshPublicKey) != 0 || len(r.TlsPublicKey) != 0) &&
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
 	}
 	return nil
+}
+
+func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
+	if e.GroupType != "" {
+		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
+			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
+		}
+	}
+
+	if err := ValidateMSGraphEndpoints("", e.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// GetEntraIDGroupsProvider returns Entra ID groups provider.
+func (o *OIDCConnectorV3) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
+	return o.Spec.EntraIdGroupsProvider
+}
+
+// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+func (o *OIDCConnectorV3) IsEntraIDGroupsProviderDisabled() bool {
+	entra := o.Spec.EntraIdGroupsProvider
+	return entra != nil && entra.Disabled
 }

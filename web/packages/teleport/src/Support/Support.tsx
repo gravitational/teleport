@@ -18,29 +18,29 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Box, Flex, H2, H3, Text } from 'design';
-import * as Icons from 'design/Icon';
-import { MultiRowBox, Row } from 'design/MultiRowBox';
-
 import styled from 'styled-components';
 
+import { Box, Card, Flex, H2, H3, Text } from 'design';
+import * as Icons from 'design/Icon';
+import { P } from 'design/Text/Text';
+
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { CtaEvent } from 'teleport/services/userEvent';
 import { useNoMinWidth } from 'teleport/Main';
+import { CtaEvent } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
-  // showCTA returns the premium support value for enterprise customers and true for OSS users
-  const showCTA = cfg.isEnterprise ? !cfg.premiumSupport : true;
+  // showCta returns the premium support value for enterprise customers and true for OSS users
+  const showCta = cfg.edition === 'ent' ? !cfg.premiumSupport : true;
 
   return (
     <Support
@@ -48,9 +48,11 @@ export function SupportContainer({ children }: { children?: React.ReactNode }) {
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
-      showPremiumSupportCTA={showCTA}
-      children={children}
-    />
+      showPremiumSupportCta={showCta}
+      authVersion={cluster.authVersion}
+    >
+      {children}
+    </Support>
   );
 }
 
@@ -63,68 +65,32 @@ export const Support = ({
   tunnelPublicAddress,
   isCloud,
   children,
-  showPremiumSupportCTA,
+  showPremiumSupportCta,
 }: Props) => {
   useNoMinWidth();
   const docs = getDocUrls(authVersion, isEnterprise);
 
   return (
-    <FeatureBox maxWidth="2000px">
+    <FeatureBox maxWidth="2000px" p={{ _: 2, small: 6 }}>
       <FeatureHeader>
         <FeatureHeaderTitle>Help & Support</FeatureHeaderTitle>
       </FeatureHeader>
-      <StyledMultiRowBox mb={3}>
-        <StyledRow>
-          <Flex alignItems="center" justifyContent="start">
-            <IconBox>
-              <Icons.Cluster />
-            </IconBox>
-            <H2>Cluster Information</H2>
-          </Flex>
-        </StyledRow>
-        <StyledRow
+      <SupportSectionsWrapper isCloud={isCloud}>
+        <SupportSectionCard
           css={`
-            padding-left: ${props => props.theme.space[6]}px;
+            grid-column: auto;
+            @media screen and (min-width: ${props =>
+                props.theme.breakpoints.small}) {
+              grid-column: span 2;
+            }
           `}
         >
-          <DataItem title="Cluster Name" data={clusterId} />
-          <DataItem title="Teleport Version" data={authVersion} />
-          <DataItem title="Public Address" data={publicURL} />
-          {tunnelPublicAddress && (
-            <DataItem title="Public SSH Tunnel" data={tunnelPublicAddress} />
-          )}
-          {isEnterprise && !cfg.isCloud && licenseExpiryDateText && (
-            <DataItem title="License Expiry" data={licenseExpiryDateText} />
-          )}
-          {isCloud && (
-            <Flex mt="5">
-              <Icons.Info mr="2" />
-              <Text>
-                Looking for{' '}
-                <Text
-                  fontWeight={'bold'}
-                  css={`
-                    display: inline;
-                  `}
-                >
-                  Scheduled Upgrades?
-                </Text>{' '}
-                It is now in{' '}
-                <Link to={cfg.getManageClusterRoute(clusterId)}>
-                  Cluster Management
-                </Link>{' '}
-                page.
-              </Text>
-            </Flex>
-          )}
-        </StyledRow>
-      </StyledMultiRowBox>
-      <MobileSeparator />
-      <StyledMultiRowBox mb={3}>
-        <StyledRow>
-          <SupportContentFlex
-            alignItems="center"
+          <Flex
+            alignItems={{ _: 'flex-start', small: 'center' }}
             justifyContent="space-between"
+            flexDirection={{ _: 'column', small: 'row' }}
+            mb={3}
+            gap={2}
           >
             <Flex alignItems="center">
               <IconBox>
@@ -133,25 +99,19 @@ export const Support = ({
               <H2>Support and Resource Pages</H2>
             </Flex>
             <SupportButtonBox>
-              {showPremiumSupportCTA && (
+              {showPremiumSupportCta && (
                 <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
-                  Unlock Premium Support w/Enterprise
+                  Unlock Premium Support with&nbsp;Enterprise
                 </ButtonLockedFeature>
               )}
             </SupportButtonBox>
-          </SupportContentFlex>
-        </StyledRow>
-        <StyledRow
-          css={`
-            padding-left: ${props => props.theme.space[6]}px;
-          `}
-        >
+          </Flex>
           <SupportLinksFlex>
-            <Box>
+            <SupportLinkCategory>
               <H3 ml={2} mb={1}>
-                Support
+                Contact Support
               </H3>
-              {isEnterprise && !showPremiumSupportCTA && (
+              {isEnterprise && !showPremiumSupportCta && (
                 <ExternalSupportLink
                   title="Create a Support Ticket"
                   url="https://support.goteleport.com"
@@ -169,8 +129,8 @@ export const Support = ({
                 title="Send Product Feedback"
                 url="mailto:support@goteleport.com"
               />
-            </Box>
-            <Box>
+            </SupportLinkCategory>
+            <SupportLinkCategory>
               <H3 ml={2} mb={1}>
                 Resources
               </H3>
@@ -186,8 +146,8 @@ export const Support = ({
               />
               <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
               <ExternalSupportLink title="FAQ" url={docs.faq} />
-            </Box>
-            <Box>
+            </SupportLinkCategory>
+            <SupportLinkCategory>
               <H3 ml={2} mb={1}>
                 Updates
               </H3>
@@ -199,35 +159,64 @@ export const Support = ({
                 title="Teleport Blog"
                 url="https://goteleport.com/blog/"
               />
-            </Box>
+            </SupportLinkCategory>
           </SupportLinksFlex>
-        </StyledRow>
-      </StyledMultiRowBox>
-      {children}
+        </SupportSectionCard>
+        <SupportSectionCard
+          css={
+            !isCloud &&
+            `
+            grid-column: span 2;
+            @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
+              grid-column: auto;
+            }
+          `
+          }
+        >
+          <Flex alignItems="center" justifyContent="start" mb={3}>
+            <IconBox>
+              <Icons.Cluster />
+            </IconBox>
+            <H2>Cluster Information</H2>
+          </Flex>
+          <Flex flexDirection="column" justifyContent="center">
+            <P>Cluster Name: {clusterId}</P>
+            <P>Teleport Version: {authVersion}</P>
+            <P>Public Address: {publicURL}</P>
+            {tunnelPublicAddress && (
+              <P>Public SSH Tunnel: {tunnelPublicAddress}</P>
+            )}
+            {isEnterprise && !cfg.isCloud && !!licenseExpiryDateText && (
+              <P>License Expiry: {licenseExpiryDateText}</P>
+            )}
+          </Flex>
+        </SupportSectionCard>
+
+        {children}
+      </SupportSectionsWrapper>
     </FeatureBox>
   );
 };
 
-export const StyledMultiRowBox = styled(MultiRowBox)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
-    border: none;
+const SupportSectionsWrapper = styled(Box)<{ isCloud?: boolean }>`
+  display: grid;
+  gap: ${props => props.theme.space[3]}px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  width: 100%;
+
+  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
+    grid-template-columns: 1fr !important;
+    gap: ${props => props.theme.space[2]}px;
   }
 `;
 
-export const StyledRow = styled(Row)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
-    border: none !important;
-    padding-left: 0;
-    padding-bottom: 0;
-  }
-`;
+export const SupportSectionCard = styled(Card)`
+  padding: ${props => props.theme.space[4]}px;
+  box-shadow: ${props => props.theme.boxShadow[0]};
 
-export const MobileSeparator = styled.div`
-  width: 100vw;
-  margin-left: -${props => props.theme.space[6]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
-    border-bottom: ${props =>
-      `${props.theme.borders[1]} ${props.theme.colors.interactive.tonal.neutral[2]}`};
+  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
+    padding: ${props => props.theme.space[3]}px;
   }
 `;
 
@@ -237,25 +226,28 @@ export const IconBox = styled(Box)`
   border-radius: ${props => props.theme.radii[3]}px;
   margin-right: ${props => props.theme.space[3]}px;
   background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  border: ${props => props.theme.borders[1]};
+  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
 
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  .icon {
+    height: 16px;
+    width: 16px;
+  }
+
+  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
     background: transparent;
     margin-right: ${props => props.theme.space[1]}px;
   }
 `;
 
-const SupportContentFlex = styled(Flex)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+const SupportLinkCategory = styled(Flex)`
+  flex-direction: column;
+  gap: ${props => props.theme.space[1]}px;
 `;
 
 const SupportButtonBox = styled(Box)`
-  width: 320px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
-    margin-left: ${props => props.theme.space[6]}px;
-    margin-top: ${props => props.theme.space[2]}px;
+  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
+    width: 100%;
   }
 `;
 
@@ -263,10 +255,10 @@ const SupportLinksFlex = styled(Flex)`
   justify-content: space-between;
   flex-wrap: wrap;
   max-width: 70%;
-  @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.medium}) {
     max-width: 100%;
   }
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
     flex-direction: column;
     gap: ${props => props.theme.space[3]}px;
     margin-bottom: ${props => props.theme.space[3]}px;
@@ -275,7 +267,7 @@ const SupportLinksFlex = styled(Flex)`
 
 const DataItemFlex = styled(Flex)`
   margin-bottom: ${props => props.theme.space[3]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.mobile}px) {
+  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
     flex-direction: column;
     padding-left: ${props => props.theme.space[2]}px;
   }
@@ -303,10 +295,12 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   return {
     getStarted: withUTM(`https://goteleport.com/docs/get-started/`),
     tshGuide: withUTM(`https://goteleport.com/docs/connect-your-client/tsh/`),
-    adminGuide: withUTM(`https://goteleport.com/docs/management/admin/`),
+    adminGuide: withUTM(
+      `https://goteleport.com/docs/admin-guides/management/admin/`
+    ),
     faq: withUTM(`https://goteleport.com/docs/faq`),
     troubleshooting: withUTM(
-      `https://goteleport.com/docs/management/admin/troubleshooting/`
+      `https://goteleport.com/docs/admin-guides/management/admin/troubleshooting/`
     ),
 
     // there isn't a version-specific changelog page
@@ -332,8 +326,8 @@ const DownloadLink = ({
   if (isEnterprise) {
     return (
       <ExternalSupportLink
-        title="Download Page"
-        url="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
+        title="Self-Hosting Teleport"
+        url="https://goteleport.com/docs/admin-guides/deploy-a-cluster/"
       />
     );
   }
@@ -359,7 +353,6 @@ const StyledSupportLink = styled.a.attrs({
   color: ${props => props.theme.colors.text.main};
   border-radius: 4px;
   text-decoration: none;
-  margin-bottom: 8px;
   padding: 4px 8px;
   transition: all 0.3s;
 
@@ -387,5 +380,5 @@ export type Props = {
   isCloud: boolean;
   tunnelPublicAddress?: string;
   children?: React.ReactNode;
-  showPremiumSupportCTA: boolean;
+  showPremiumSupportCta: boolean;
 };

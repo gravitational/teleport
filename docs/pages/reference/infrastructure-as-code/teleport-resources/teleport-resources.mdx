@@ -1,0 +1,72 @@
+---
+title: Teleport Resource Reference
+description: Reference documentation for Teleport resources
+tags:
+ - reference
+ - platform-wide
+---
+
+The guides in this section list fields within dynamic resources you can manage
+with Teleport. For more information on dynamic resources, see our guide to
+[Using Dynamic
+Resources](../../../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx).
+
+Examples of applying dynamic resources with `tctl`:
+
+```code
+# List all connectors:
+$ tctl get connectors
+
+# Dump a SAML connector called "okta":
+$ tctl get saml/okta
+
+# Delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# Delete an OIDC connector called "gworkspace":
+$ tctl rm oidc/gworkspace
+
+# Delete a github connector called "myteam":
+$ tctl rm github/myteam
+
+# Delete a local user called "admin":
+$ tctl rm users/admin
+
+# Show all devices:
+$ tctl get devices
+
+# Fetch a specific device:
+$ tctl get devices/<asset-tag>
+
+# Fetch the cluster auth preferences
+$ tctl get cluster_auth_preference
+```
+
+<Admonition type="note">
+  Although `tctl get connectors` will show you every connector, when working with an individual connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each connector's `kind` at the top of its YAML output from `tctl get connectors`.
+</Admonition>
+
+Here's the list of resources currently exposed via [`tctl`](../../cli/tctl.mdx):
+
+| Resource Kind | Description |
+| - | - |
+| [user](user.mdx) | A user record in the internal Teleport user DB. |
+| [role](role.mdx) | A role assumed by interactive and non-interactive users. |
+| connector | Authentication connectors for [Single Sign-On](../../../zero-trust-access/sso/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
+| node | A registered SSH node. The same record is displayed via `tctl nodes ls`. |
+| windows_desktop | A registered Windows desktop. |
+| cluster | A trusted cluster. See [here](../../../zero-trust-access/management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
+| [login_rule](login-rules.mdx) | A Login Rule, see the [Login Rules guide](../../../zero-trust-access/authentication/login-rules/login-rules.mdx) for more info. |
+| [device](device.mdx) | A Teleport Trusted Device, see the [Device Trust guide](../../../identity-governance/device-trust/guide.mdx) for more info. |
+| [ui_config](ui-config.mdx) | Configuration for the Web UI served by the Proxy Service. |
+| [vnet_config](vnet-config.mdx) | Configuration for the cluster's VNet options. |
+| [cluster_auth_preference](cluster-auth-preferences.mdx) | Configuration for the cluster's auth preferences. |
+| [database_object_import_rule](database-object-import-rule.mdx) | Database object import rules. |
+| [autoupdate_config](auto-update-config.mdx) | Client tools auto-update configuration |
+| [autoupdate_version](auto-update-version.mdx) | Client tools auto-update target version configuration |
+| [access_monitoring_rule](access-monitoring-rule.mdx) | Access monitoring rules. |
+| [health_check_config](health-check-config.mdx) | Configuration for resource endpoint health checks |
+| [inference_model](inference-model.mdx) | Session summarization AI model configuration |
+| [inference_secret](inference-secret.mdx) | Session summarization AI provider secret (API key) |
+| [inference_policy](inference-policy.mdx)| Matches sessions to inference models using session kind and other metadata |
+

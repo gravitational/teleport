@@ -166,10 +166,14 @@ const (
 
 	// MaxRenewableCertTTL is the maximum TTL that a certificate renewal bot
 	// can request for a renewable user certificate.
-	MaxRenewableCertTTL = 24 * time.Hour
+	MaxRenewableCertTTL = 7 * 24 * time.Hour
 
 	// DefaultBotJoinTTL is the default TTL for bot join tokens.
 	DefaultBotJoinTTL = 1 * time.Hour
+
+	// DefaultBotMaxSessionTTL is the default max_session_ttl on generated bot
+	// roles, unless overridden during bot creation.
+	DefaultBotMaxSessionTTL = 12 * time.Hour
 
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
@@ -334,6 +338,9 @@ const (
 
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
+
+	// RelayQueueSize is the watcher queue size for the relay cache.
+	RelayQueueSize = 8192
 
 	// UnifiedResourcesQueueSize is the unified resource watcher queue size
 	UnifiedResourcesQueueSize = 8192
@@ -535,13 +542,11 @@ func ReadableDatabaseProtocol(p string) string {
 }
 
 const (
-	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
-	// Must be power of 2.
-	PerfBufferPageCount = 8
+	// PerfBufferPageCount is the size of the perf ring buffer.
+	PerfBufferPageCount = 64
 
 	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
 	// events generate many events so this buffer needs to be extra large.
-	// Must be power of 2.
 	OpenPerfBufferPageCount = 128
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
@@ -809,12 +814,38 @@ var (
 	}
 )
 
+// HTTPClientOption is an option for configuring the HTTP client.
+type HTTPClientOption func(*httpClientOptions) *httpClientOptions
+
+type httpClientOptions struct {
+	useProxyFromEnvironment bool
+}
+
+// UseProxyFromEnvironment configures the HTTP client to use proxy
+// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+func UseProxyFromEnvironment() HTTPClientOption {
+	return func(opts *httpClientOptions) *httpClientOptions {
+		opts.useProxyFromEnvironment = true
+		return opts
+	}
+}
+
 // HTTPClient returns a new http.Client with sensible defaults.
-func HTTPClient() (*http.Client, error) {
+func HTTPClient(opts ...HTTPClientOption) (*http.Client, error) {
 	transport, err := Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	httpOpts := &httpClientOptions{}
+	for _, o := range opts {
+		httpOpts = o(httpOpts)
+	}
+
+	if httpOpts.useProxyFromEnvironment {
+		transport.Proxy = http.ProxyFromEnvironment
+	}
+
 	return &http.Client{
 		Transport: transport,
 	}, nil
@@ -883,7 +914,7 @@ var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // FormatFlagDescription creates the description for the --format flag.
 func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+	return fmt.Sprintf("Format output (%s).", strings.Join(formats, ", "))
 }
 
 func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {

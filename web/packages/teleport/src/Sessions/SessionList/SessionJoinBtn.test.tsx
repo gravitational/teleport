@@ -19,7 +19,6 @@
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
-
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { SessionJoinBtn } from './SessionJoinBtn';
@@ -35,6 +34,7 @@ test('all participant modes are properly listed and in the correct order', () =>
         participantModes={['moderator', 'peer', 'observer']}
         showCTA={false}
         showModeratedCTA={false}
+        kind="ssh"
       />
     </ContextProvider>
   );
@@ -83,6 +83,7 @@ test('showCTA does not render a join link for any sessions', () => {
         participantModes={['moderator', 'peer', 'observer']}
         showCTA={true}
         showModeratedCTA={false}
+        kind="ssh"
       />
     </ContextProvider>
   );
@@ -111,6 +112,7 @@ test('showModeratedCTA does not render a join link for moderated sessions', () =
         participantModes={['moderator', 'peer', 'observer']}
         showCTA={false}
         showModeratedCTA={true}
+        kind="ssh"
       />
     </ContextProvider>
   );

@@ -17,12 +17,14 @@ limitations under the License.
 package types
 
 import (
+	"iter"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 )
 
 var (
@@ -82,6 +85,17 @@ func IsSystemResource(r Resource) bool {
 // of resources or building maps, etc.
 func GetName[R Resource](r R) string {
 	return r.GetName()
+}
+
+// ResourceNames creates an iterator that loops through the provided slice of
+// resources and return their names.
+func ResourceNames[R Resource, S ~[]R](s S) iter.Seq[string] {
+	return iterutils.Map(GetName, slices.Values(s))
+}
+
+// CompareResourceByNames compares resources by their names.
+func CompareResourceByNames[R Resource](a, b R) int {
+	return strings.Compare(a.GetName(), b.GetName())
 }
 
 // ResourceDetails includes details about the resource
@@ -526,17 +540,26 @@ func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
 	if len(kinds) == 0 {
 		return true
 	}
+
 	resourceKind := resource.GetKind()
 	switch resourceKind {
-	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
+	case KindApp:
+		if slices.Contains(kinds, KindApp) {
+			return true
+		}
+
+		// MCP server resources are subkinds of app resources, but it is
+		// possible for certain APIs like ListUnifiedResources to use KindMCP as
+		// a kind filter.
+		return resource.GetSubKind() == SubKindMCP && slices.Contains(kinds, KindMCP)
+	case KindSAMLIdPServiceProvider, KindIdentityCenterAccount:
 		return slices.Contains(kinds, KindApp)
 	default:
 		return slices.Contains(kinds, resourceKind)
 	}
 }
 
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
+// IsValidLabelKey checks if the supplied string is a valid label key.
 func IsValidLabelKey(s string) bool {
 	return common.IsValidLabelKey(s)
 }
@@ -550,7 +573,7 @@ Outer:
 	for _, searchV := range searchVals {
 		// Iterate through field values to look for a match.
 		for _, fieldV := range fieldVals {
-			if containsFold(fieldV, searchV) {
+			if strcase.Contains(fieldV, searchV) {
 				continue Outer
 			}
 		}
@@ -564,23 +587,6 @@ Outer:
 	}
 
 	return true
-}
-
-// containsFold is a case-insensitive alternative to strings.Contains, used to help avoid excess allocations during searches.
-func containsFold(s, substr string) bool {
-	if len(s) < len(substr) {
-		return false
-	}
-
-	n := len(s) - len(substr)
-
-	for i := 0; i <= n; i++ {
-		if strings.EqualFold(s[i:i+len(substr)], substr) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func stringCompare(a string, b string, isDesc bool) bool {
@@ -769,7 +775,7 @@ func GetRevision(v any) (string, error) {
 	case Resource:
 		return r.GetRevision(), nil
 	case ResourceMetadata:
-		return r.GetMetadata().Revision, nil
+		return r.GetMetadata().GetRevision(), nil
 	}
 	return "", trace.BadParameter("unable to determine revision from resource of type %T", v)
 }

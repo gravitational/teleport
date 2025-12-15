@@ -18,6 +18,8 @@ package types
 
 import (
 	"fmt"
+	"iter"
+	"slices"
 	"sort"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 )
 
 // AppServer represents a single proxied web app.
@@ -59,6 +62,14 @@ type AppServer interface {
 	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the app server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the app server is
+	// connected to.
+	GetRelayIDs() []string
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -269,6 +280,22 @@ func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [AppServer].
+func (s *AppServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [AppServer].
+func (s *AppServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
 func (s *AppServerV3) GetLabel(key string) (value string, ok bool) {
@@ -326,6 +353,11 @@ func (s *AppServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *AppServerV3) GetScope() string {
+	return s.Scope
 }
 
 // AppServers represents a list of app servers.
@@ -408,4 +440,11 @@ func (s AppServers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
+}
+
+// Applications iterates over the applications that the AppServers proxy.
+func (s AppServers) Applications() iter.Seq[Application] {
+	return iterutils.Map(func(appServer AppServer) Application {
+		return appServer.GetApp()
+	}, slices.Values(s))
 }

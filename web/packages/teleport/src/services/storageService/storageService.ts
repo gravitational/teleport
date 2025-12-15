@@ -16,23 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
-import { getPrefersDark } from 'teleport/ThemeProvider';
-import { BearerToken } from 'teleport/services/websession';
+import { RecentHistoryItem } from 'teleport/Navigation/RecentHistory';
 import { OnboardDiscover } from 'teleport/services/user';
 import {
   BackendUserPreferences,
   convertBackendUserPreferences,
   isBackendUserPreferences,
 } from 'teleport/services/userPreferences/userPreferences';
-import { RecentHistoryItem } from 'teleport/Navigation/RecentHistory';
+import { BearerToken } from 'teleport/services/websession';
+import { getPrefersDark } from 'teleport/ThemeProvider';
+import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
-
-import type { RecommendFeature } from 'teleport/types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
@@ -44,6 +43,10 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
   KeysEnum.USE_NEW_ROLE_EDITOR,
   KeysEnum.RECENT_HISTORY,
+  KeysEnum.REMEMBERED_SSO_USERNAME,
+  KeysEnum.SESSION_RECORDINGS_VIEW_MODE,
+  KeysEnum.SESSION_RECORDINGS_DENSITY,
+  KeysEnum.SESSION_RECORDINGS_DISMISSED_CTA,
 ];
 
 const RECENT_HISTORY_MAX_LENGTH = 10;
@@ -101,6 +104,23 @@ export const storageService = {
   getLastActive() {
     const time = Number(window.localStorage.getItem(KeysEnum.LAST_ACTIVE));
     return time ? time : 0;
+  },
+
+  setLoginTimeOnce() {
+    const existingTime = window.localStorage.getItem(KeysEnum.LOGIN_TIME);
+    // Only set the login time if it doesn't already exist.
+    if (!existingTime) {
+      window.localStorage.setItem(KeysEnum.LOGIN_TIME, `${Date.now()}`);
+    }
+  },
+
+  getLoginTime(): Date {
+    const time = Number(window.localStorage.getItem(KeysEnum.LOGIN_TIME));
+    return time && !Number.isNaN(time) ? new Date(time) : new Date(0);
+  },
+
+  clearLoginTime() {
+    window.localStorage.removeItem(KeysEnum.LOGIN_TIME);
   },
 
   // setOnboardDiscover persists states used to determine if a user should
@@ -245,8 +265,19 @@ export const storageService = {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
   },
 
+  getAccessGraphIacEnabled(): boolean {
+    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_IAC_ENABLED, false);
+  },
+
   getAccessGraphSQLEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
+  },
+
+  getAccessGraphRoleTesterEnabled(): boolean {
+    return this.getParsedJSONValue(
+      KeysEnum.ACCESS_GRAPH_ROLE_TESTER_ENABLED,
+      false
+    );
   },
 
   getExternalAuditStorageCtaDisabled(): boolean {
@@ -310,5 +341,17 @@ export const storageService = {
     );
 
     return newHistory;
+  },
+
+  setRememberedSsoUsername(username: string) {
+    window.localStorage.setItem(KeysEnum.REMEMBERED_SSO_USERNAME, username);
+  },
+
+  getRememberedSsoUsername(): string {
+    return window.localStorage.getItem(KeysEnum.REMEMBERED_SSO_USERNAME) || '';
+  },
+
+  clearRememberedSsoUsername() {
+    window.localStorage.removeItem(KeysEnum.REMEMBERED_SSO_USERNAME);
   },
 };

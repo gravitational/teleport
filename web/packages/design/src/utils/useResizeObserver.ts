@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,46 +16,74 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RefObject, useCallback, useLayoutEffect } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type RefCallback,
+} from 'react';
 
 /**
- * useResizeObserver sets up a ResizeObserver for ref and calls callback on each resize.
+ * useResizeObserver creates a ResizeObserver which fires a callback
+ * when the provided element is resized. The callback is called with the
+ * ResizeObserverEntry. The observer is disconnected when the element is
+ * unmounted.
  *
- * It does not fire if ref.current.contentRect.height is zero, to account for a special case in
+ * Returns a ref callback to attach to the element to be observed – the element
+ * must be a HTMLElement but may be conditionally null.
+ *
+ * `fireOnZeroHeight` determines whether the callback should be fired when the
+ * element's height is 0. This defaults to false, to account for a special case in
  * Connect where tabs are hidden using `display: none;`.
  *
- * Uses a layout effect underneath. If ref is conditionally rendered, set enabled to false when ref
- * is null.
+ * @example
+ * // Basic usage
+ * const Component = () => {
+ *   const handleResize = (entry: ResizeObserverEntry) => {
+ *     console.log({ entryContentRect: entry.contentRect });
+ *   };
+ *
+ *   const ref = useResizeObserver<HTMLDivElement>(handleResize);
+ *
+ *   return <div ref={ref}>This div is being observed</div>;
+ * };
  */
-export function useResizeObserver(
-  ref: RefObject<HTMLElement>,
+export const useResizeObserver = <T extends HTMLElement = HTMLElement>(
   callback: (entry: ResizeObserverEntry) => void,
-  { enabled = true }
-): void {
-  const effect = useCallback(() => {
-    if (!ref.current || !enabled) {
-      return;
-    }
+  { fireOnZeroHeight = false } = {}
+): RefCallback<T> => {
+  const callbackRef = useRef(callback);
+  const elementRef = useRef<T | null>(null);
 
-    const observer = new ResizeObserver(entries => {
-      const entry = entries[0];
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
-      // In Connect, when a tab becomes active, its outermost DOM element switches from `display:
-      // none` to `display: flex`. This callback is then fired with the height reported as zero.
-      // To avoid unnecessary calls to callback, return early here.
-      if (entry.contentRect.height === 0) {
-        return;
+  const observer = useMemo(
+    () =>
+      new ResizeObserver(([entry]) => {
+        if (!entry || (!fireOnZeroHeight && entry.contentRect.height === 0))
+          return;
+        callbackRef.current?.(entry);
+      }),
+    [fireOnZeroHeight]
+  );
+
+  useEffect(() => {
+    return () => observer.disconnect();
+  }, [observer]);
+
+  return useCallback(
+    (element: T | null) => {
+      if (element) {
+        observer.observe(element);
+        elementRef.current = element;
+      } else {
+        elementRef.current && observer.unobserve(elementRef.current);
+        elementRef.current = null;
       }
-
-      callback(entry);
-    });
-
-    observer.observe(ref.current);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [callback, ref, enabled]);
-
-  useLayoutEffect(effect, [effect]);
-}
+    },
+    [observer]
+  );
+};

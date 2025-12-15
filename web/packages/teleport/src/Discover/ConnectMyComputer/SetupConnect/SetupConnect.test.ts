@@ -18,12 +18,11 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 
-import * as useTeleport from 'teleport/useTeleport';
+import { nodes } from 'teleport/Nodes/fixtures';
 import NodeService, { Node } from 'teleport/services/nodes';
 import UserService from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
-
-import { nodes } from 'teleport/Nodes/fixtures';
+import * as useTeleport from 'teleport/useTeleport';
 
 import { usePollForConnectMyComputerNode } from './SetupConnect';
 

@@ -20,6 +20,7 @@ package touchid
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -29,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -38,10 +40,11 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/darwin"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -52,6 +55,8 @@ var (
 	PromptPlatformMessage = "Using platform authenticator, follow the OS prompt"
 	// PromptWriter is the writer used for prompt messages.
 	PromptWriter io.Writer = os.Stderr
+
+	logger = logutils.NewPackageLogger(teleport.ComponentKey, "TouchID")
 )
 
 func promptPlatform() {
@@ -167,7 +172,7 @@ func IsAvailable() bool {
 		var err error
 		cachedDiag, err = Diag()
 		if err != nil {
-			log.WithError(err).Warn("Touch ID self-diagnostics failed")
+			logger.WarnContext(context.Background(), "self-diagnostics failed", "error", err)
 			return false
 		}
 	}
@@ -314,7 +319,7 @@ func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, er
 	attObj, err := cbor.Marshal(protocol.AttestationObject{
 		RawAuthData: attData.rawAuthData,
 		Format:      "packed",
-		AttStatement: map[string]interface{}{
+		AttStatement: map[string]any{
 			"alg": int64(webauthncose.AlgES256),
 			"sig": sig,
 		},
@@ -356,7 +361,7 @@ func HasCredentials(rpid, user string) bool {
 	}
 	creds, err := native.FindCredentials(rpid, user)
 	if err != nil {
-		log.WithError(err).Debug("Touch ID: Could not find credentials")
+		logger.DebugContext(context.Background(), "Could not find credentials", "error", err)
 		return false
 	}
 	return len(creds) > 0
@@ -494,7 +499,7 @@ func Login(origin, user string, assertion *wantypes.CredentialAssertion, picker 
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	log.Debugf("Touch ID: using credential %q", cred.CredentialID)
+	logger.DebugContext(context.Background(), "using credential", "credential_id", cred.CredentialID)
 
 	attData, err := makeAttestationData(protocol.AssertCeremony, origin, rpID, assertion.Response.Challenge, nil /* cred */)
 	if err != nil {
@@ -583,10 +588,8 @@ func pickCredential(
 	// Is choice a pointer within the slice?
 	// We could work around this requirement, but it seems better to constrain the
 	// picker API from the start.
-	for _, c := range deduped {
-		if c == choice {
-			return choice, nil
-		}
+	if slices.Contains(deduped, choice) {
+		return choice, nil
 	}
 	return nil, fmt.Errorf("picker returned invalid credential: %#v", choice)
 }
@@ -609,7 +612,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 		info := &infos[i]
 		key, err := darwin.ECDSAPublicKeyFromRaw(info.publicKeyRaw)
 		if err != nil {
-			log.Warnf("Failed to convert public key: %v", err)
+			logger.WarnContext(context.Background(), "Failed to convert public key", "error", err)
 		}
 		info.PublicKey = key // this is OK, even if it's nil
 		info.publicKeyRaw = nil

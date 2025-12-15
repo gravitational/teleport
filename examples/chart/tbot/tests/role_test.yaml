@@ -12,9 +12,9 @@ tests:
       - ../.lint/full.yaml
     asserts:
       - matchSnapshot: {}
-  - it: skips creation when service account disabled
+  - it: skips creation when explictely disabled
     set:
-      serviceAccount.create: false
+      rbac.create: false
     asserts:
       - hasDocuments:
           count: 0

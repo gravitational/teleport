@@ -100,7 +100,7 @@ func ProtoToResource(set *clusterconfigpb.AccessGraphSettings) (*AccessGraphSett
 		ResourceHeader: types.ResourceHeader{
 			Kind:     set.Kind,
 			Version:  set.Version,
-			Metadata: legacy.FromHeaderMetadata(headerv1.FromMetadataProto(set.Metadata)),
+			Metadata: legacy.FromHeaderMetadata(headerv1.FromMetadataProto(set.GetMetadata())),
 		},
 		Spec: accessGraphSettingsSpec{
 			SecretsScanConfig: conf,

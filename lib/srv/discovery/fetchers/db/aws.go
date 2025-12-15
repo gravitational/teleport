@@ -21,15 +21,20 @@ package db
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
+
+// maxAWSPages is the maximum number of pages to iterate over when fetching aws
+// databases.
+const maxAWSPages = 10
 
 // awsFetcherPlugin defines an interface that provides database type specific
 // functions for use by the common AWS database fetcher.
@@ -44,8 +49,8 @@ type awsFetcherPlugin interface {
 
 // awsFetcherConfig is the AWS database fetcher configuration.
 type awsFetcherConfig struct {
-	// AWSClients are the AWS API clients.
-	AWSClients cloud.AWSClients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// Type is the type of DB matcher, for example "rds", "redshift", etc.
 	Type string
 	// AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -64,12 +69,15 @@ type awsFetcherConfig struct {
 	// Might be empty when the fetcher is using static matchers:
 	// ie teleport.yaml/discovery_service.<cloud>.<matcher>
 	DiscoveryConfigName string
+
+	// awsClients provides AWS SDK v2 clients.
+	awsClients AWSClientProvider
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
 func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
-	if cfg.AWSClients == nil {
-		return trace.BadParameter("missing parameter AWSClients")
+	if cfg.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
 	}
 	if cfg.Type == "" {
 		return trace.BadParameter("missing parameter Type")
@@ -92,6 +100,10 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 			"role", cfg.AssumeRole,
 			"credentials", credentialsSource,
 		)
+	}
+
+	if cfg.awsClients == nil {
+		cfg.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -180,6 +192,25 @@ func (f *awsFetcher) String() string {
 		f.cfg.Type, f.cfg.Region, f.cfg.Labels)
 }
 
-// maxAWSPages is the maximum number of pages to iterate over when fetching aws
-// databases.
-const maxAWSPages = 10
+type awsPager[P, O any] interface {
+	HasMorePages() bool
+	NextPage(ctx context.Context, optFns ...func(O)) (P, error)
+}
+
+func pagesWithLimit[P, O any](ctx context.Context, p awsPager[P, O], log *slog.Logger) iter.Seq2[P, error] {
+	return func(yield func(page P, err error) bool) {
+		for i := uint(0); i < maxAWSPages && p.HasMorePages(); i++ {
+			page, err := p.NextPage(ctx)
+			if !yield(page, err) {
+				return
+			}
+		}
+		if !p.HasMorePages() {
+			return
+		}
+		log.DebugContext(ctx,
+			"Skipping AWS API response pages beyond max page limit",
+			"max_pages", maxAWSPages,
+		)
+	}
+}

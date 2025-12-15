@@ -44,7 +44,7 @@ RELEASE_MESSAGE = "Building with GOOS=$(OS) GOARCH=$(ARCH)."
 
 .PHONY: build
 build:
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "kustomize_disable_go_plugin_support" -o $(BUILDDIR)/teleport-event-handler $(BUILDFLAGS)
 
 # darwin-signed-build is a wrapper around the build target that ensures it is codesigned
 include ../../darwin-signing.mk
@@ -96,7 +96,7 @@ install: build
 
 .PHONY: test
 test:
-	go test -coverprofile=cover.out
+	gotestsum --junitfile unit-tests-event-handler.xml --jsonfile unit-tests-event-handler.json
 
 .PHONY: configure
 configure: build

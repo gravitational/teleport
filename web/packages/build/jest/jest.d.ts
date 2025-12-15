@@ -18,7 +18,6 @@
 
 // Ignore no-empty-interface in order to explicitly follow the types from Jest docs.
 // Otherwise ESLint would autofix them.
-/* eslint-disable @typescript-eslint/no-empty-interface */
 
 // https://jestjs.io/docs/27.x/expect#expectextendmatchers
 // https://redd.one/blog/practical-guide-to-custom-jest-matchers

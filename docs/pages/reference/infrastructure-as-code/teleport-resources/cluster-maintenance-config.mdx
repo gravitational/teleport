@@ -1,0 +1,18 @@
+---
+title: Cluster Maintenance Config Resource Reference
+sidebar_label: Cluster Maintenance Config
+description: Provides a comprehensive list of fields for the Teleport cluster maintenance config resource.
+---
+
+The cluster maintenance config resource represents global configuration options
+for the agents enrolled into automatic updates (v1).
+
+<Admonition type="warning">
+`cluster_maintenance_config` configures Managed Updates v1,
+which are currently supported but will be superseded by Managed Updates v2.
+The `autoupdate_config` and `autoupdate_version` resources further down
+configure Managed Updates v2.
+</Admonition>
+
+(!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
+

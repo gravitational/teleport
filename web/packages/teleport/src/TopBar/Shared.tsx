@@ -26,7 +26,7 @@ export const ButtonIconContainer = styled.div<{ open?: boolean }>`
   justify-content: center;
   padding-left: 12px;
   padding-right: 12px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
     padding-left: 24px;
     padding-right: 24px;
   }

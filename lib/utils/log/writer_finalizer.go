@@ -34,7 +34,7 @@ func NewWriterFinalizer[T io.WriteCloser](writer T) *WriterFinalizer[T] {
 	wr := &WriterFinalizer[T]{
 		writer: writer,
 	}
-	runtime.SetFinalizer(wr, (*WriterFinalizer[T]).Close)
+	runtime.AddCleanup(wr, func(writer T) { _ = writer.Close() }, writer)
 	return wr
 }
 

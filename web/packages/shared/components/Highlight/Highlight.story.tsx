@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Flex, Text } from 'design';
 
 import { Highlight } from './Highlight';

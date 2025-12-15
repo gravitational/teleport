@@ -17,14 +17,16 @@
  */
 
 import 'jest-canvas-mock';
+
 import { EventEmitter } from 'node:events';
 
-import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
 import { render } from 'design/utils/testing';
 
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import Logger, { NullService } from 'teleterm/logger';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { Terminal } from './Terminal';
@@ -120,12 +122,13 @@ function ConfiguredTerminal(props: {
   const emitter = new EventEmitter();
   const writeFn = jest.fn().mockImplementation(a => {
     emitter.emit('', a);
+    return Promise.resolve();
   });
   return (
     <Terminal
       docKind="doc.terminal_shell"
       ptyProcess={{
-        start: () => '',
+        start: async () => {},
         write: writeFn,
         getPtyId: () => '',
         dispose: async () => {},
@@ -138,7 +141,7 @@ function ConfiguredTerminal(props: {
         onExit: () => () => {},
         onOpen: () => () => {},
         onStartError: () => () => {},
-        resize: () => {},
+        resize: async () => {},
       }}
       reconnect={() => {}}
       visible={true}

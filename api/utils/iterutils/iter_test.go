@@ -1,0 +1,57 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package iterutils
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+)
+
+func ExampleMap() {
+	inputs := []string{
+		"hello world",
+		"foo",
+	}
+
+	for mapped := range Map(strings.ToUpper, slices.Values(inputs)) {
+		fmt.Println(mapped)
+	}
+	// Output:
+	// HELLO WORLD
+	// FOO
+}
+
+func ExampleFilter() {
+	inputs := []string{
+		"a",
+		"bb",
+		"ccc",
+		"dddd",
+	}
+	isOddLen := func(s string) bool {
+		return len(s)%2 == 1
+	}
+	for filtered := range Filter(isOddLen, slices.Values(inputs)) {
+		fmt.Println(filtered)
+	}
+	// Output:
+	// a
+	// ccc
+}

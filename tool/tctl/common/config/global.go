@@ -19,6 +19,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -26,14 +27,12 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,13 +64,13 @@ type GlobalCLIFlags struct {
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
 func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+	ctx := context.TODO()
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
 		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
-		log.Debugf("Debug logging has been enabled.")
+		slog.DebugContext(ctx, "Debug logging has been enabled")
 	}
-	cfg.Log = log.StandardLogger()
 	cfg.Logger = slog.Default()
 
 	if cfg.Version == "" {
@@ -126,9 +125,9 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	if !localAuthSvcConf {
 		// Try profile or identity file.
 		if fileConf == nil {
-			log.Debug("no config file, loading auth config via extension")
+			slog.DebugContext(ctx, "no config file, loading auth config via extension")
 		} else {
-			log.Debug("auth_service disabled in config file, loading auth config via extension")
+			slog.DebugContext(ctx, "auth_service disabled in config file, loading auth config via extension")
 		}
 		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
@@ -159,9 +158,8 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	}
 
 	authConfig := new(authclient.Config)
-	// read the host UUID only in case the identity was not provided,
-	// because it will be used for reading local auth server identity
-	cfg.HostUUID, err = hostid.ReadFile(cfg.DataDir)
+	// read the host UUID file only to test for existence and permission errors.
+	_, err = hostid.ReadFile(cfg.DataDir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, trace.Wrap(err, "Could not load Teleport host UUID file at %s. "+
@@ -174,7 +172,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		}
 		return nil, trace.Wrap(err)
 	}
-	identity, err := storage.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), state.IdentityID{Role: types.RoleAdmin, HostUUID: cfg.HostUUID})
+	identity, err := storage.ReadLocalIdentityForRole(filepath.Join(cfg.DataDir, teleport.ComponentProcess), types.RoleAdmin)
 	if err != nil {
 		// The "admin" identity is not present? This means the tctl is running
 		// NOT on the auth server

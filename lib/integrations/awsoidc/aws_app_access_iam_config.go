@@ -25,13 +25,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -108,8 +109,8 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 	}
 
 	return &defaultAWSAppAccessConfigureClient{
-		Client:               iam.NewFromConfig(cfg),
-		CallerIdentityGetter: sts.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
+		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 

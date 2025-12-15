@@ -22,17 +22,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
 	"testing"
 	"testing/slogtest"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
 )
 
 // TestSlogTextHandler validates that the SlogTextHandler fulfills
@@ -41,16 +41,17 @@ import (
 func TestSlogTextHandler(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	now := clock.Now().UTC().Format(time.RFC3339)
+	now := clock.Now().UTC()
 
 	// Create a handler that doesn't report the caller and automatically sets
 	// the time to whatever time the fake clock has in UTC time. Since the timestamp
 	// is not important for this test overriding, it allows the regex to be simpler.
 	var buf bytes.Buffer
 	h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
+		ConfiguredFields: []string{LevelField, ComponentField, TimestampField},
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
-				a.Value = slog.StringValue(now)
+				a.Value = slog.TimeValue(now)
 			}
 			return a
 		},
@@ -62,12 +63,11 @@ func TestSlogTextHandler(t *testing.T) {
 	// Group 2: verbosity level of output
 	// Group 3: message contents
 	// Group 4: additional attributes
-	regex := fmt.Sprintf("^(?:(%s)?)\\s?([A-Z]{4})\\s+(\\w+)(?:\\s(.*))?$", now)
-	lineRegex := regexp.MustCompile(regex)
+	lineRegex := regexp.MustCompile(`^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)?\s?([A-Z]{4})\s+(\w+)(?:\s(.*))?$`)
 
 	results := func() []map[string]any {
 		var ms []map[string]any
-		for _, line := range bytes.Split(buf.Bytes(), []byte{'\n'}) {
+		for line := range bytes.SplitSeq(buf.Bytes(), []byte{'\n'}) {
 			if len(line) == 0 {
 				continue
 			}
@@ -75,7 +75,7 @@ func TestSlogTextHandler(t *testing.T) {
 			var m map[string]any
 			matches := lineRegex.FindSubmatch(line)
 			if len(matches) == 0 {
-				assert.Failf(t, "log output did not match regular expression", "regex: %s output: %s", regex, string(line))
+				assert.Failf(t, "log output did not match regular expression", "regex: %s output: %s", lineRegex.String(), string(line))
 				ms = append(ms, m)
 				continue
 			}
@@ -152,7 +152,7 @@ func TestSlogJSONHandler(t *testing.T) {
 
 	results := func() []map[string]any {
 		var ms []map[string]any
-		for _, line := range bytes.Split(buf.Bytes(), []byte{'\n'}) {
+		for line := range bytes.SplitSeq(buf.Bytes(), []byte{'\n'}) {
 			if len(line) == 0 {
 				continue
 			}
@@ -222,4 +222,102 @@ func TestSlogJSONHandlerReservedKeysOverrideTypeDoesntPanic(t *testing.T) {
 	// msg was injected but is not a string, so, its value must be kept
 	require.Contains(t, logRecordMap, "msg")
 	require.InEpsilon(t, float64(123), logRecordMap["msg"], float64(0))
+}
+
+func TestSlogTextHandlerComponentPadding(t *testing.T) {
+	tests := []struct {
+		name      string
+		component string
+		padding   int
+		want      string
+	}{
+		{name: "padded component",
+			component: "foo",
+			padding:   11,
+			want:      "[FOO]       bar\n",
+		},
+		{name: "truncated component",
+			component: "foobarbazquux",
+			padding:   11,
+			want:      "[FOOBARBAZ] bar\n",
+		},
+		{name: "no padding",
+			component: "foobarbazquux",
+			padding:   0,
+			want:      "[FOOBARBAZQUUX] bar\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+
+			h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
+				Level:            slog.LevelDebug,
+				Padding:          tt.padding,
+				ConfiguredFields: []string{ComponentField},
+			})
+			// Override defaults set by NewSlogTextHandler.
+			if tt.padding == 0 {
+				h.cfg.Padding = 0
+			}
+
+			logger := slog.New(h)
+			logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, tt.component)
+
+			require.Equal(t, tt.want, buf.String())
+		})
+	}
+}
+
+// TestSlogTextHandlerRawComponent checks if the value of the component field is forwarded from the
+// handler to the writer without any changes. This allows certain writers, such as the os_log writer
+// on macOS, to log the component in its full form since os_log provides dedicated fields for such
+// metadata.
+func TestSlogTextHandlerRawComponent(t *testing.T) {
+	var buf bytes.Buffer
+	out := &rawComponentWriter{}
+	h := NewSlogTextHandler(&buf, SlogTextHandlerConfig{
+		Level:            slog.LevelDebug,
+		Padding:          6,
+		ConfiguredFields: []string{ComponentField},
+	})
+	h.out = out
+
+	logger := slog.New(h)
+	logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, "foobarbaz")
+	require.Equal(t, "foobarbaz", out.lastRawComponent(),
+		"raw component wasn't properly processed when teleport.ComponentKey was passed only directly with message")
+
+	logger = logger.With(teleport.ComponentKey, "foobarbaz")
+	logger.DebugContext(t.Context(), "bar")
+	require.Equal(t, "foobarbaz", out.lastRawComponent(),
+		"raw component wasn't properly processed when teleport.ComponentKey was passed to slog.Logger.With")
+
+	logger.With("quux", "xuuq").DebugContext(t.Context(), "bar")
+	require.Equal(t, "foobarbaz", out.lastRawComponent(),
+		"raw component wasn't properly cloned when teleport.ComponentKey wasn't passed to slog.Logger.With")
+
+	logger.DebugContext(t.Context(), "bar", teleport.ComponentKey, "bazbarfoo")
+	require.Equal(t, "bazbarfoo", out.lastRawComponent(),
+		"raw component wasn't properly processed when teleport.ComponentKey was meant to override existing component")
+}
+
+// rawComponentWriter is a writer that persists only rawComponent values that were passed to its
+// Write method.
+type rawComponentWriter struct {
+	rawComponents []string
+}
+
+func (r *rawComponentWriter) Write(bytes []byte, rawComponent string, level slog.Level) error {
+	r.rawComponents = append(r.rawComponents, rawComponent)
+	return nil
+}
+
+func (r *rawComponentWriter) lastRawComponent() string {
+	if len(r.rawComponents) == 0 {
+		return ""
+	}
+
+	return r.rawComponents[len(r.rawComponents)-1]
 }

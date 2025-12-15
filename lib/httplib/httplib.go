@@ -22,6 +22,7 @@ package httplib
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -39,6 +40,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/utils"
@@ -211,6 +213,44 @@ func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, er
 	return re, trace.ReadError(re.Code(), re.Bytes())
 }
 
+// ProxyVersion describes the parts of a Proxy semver
+// version in the format: major.minor.patch-preRelease
+type ProxyVersion struct {
+	// Major is the first part of version.
+	Major int64 `json:"major"`
+	// Minor is the second part of version.
+	Minor int64 `json:"minor"`
+	// Patch is the third part of version.
+	Patch int64 `json:"patch"`
+	// PreRelease is only defined if there was a hyphen
+	// and a word at the end of version eg: the prerelease
+	// value of version 18.0.0-dev is "dev".
+	PreRelease string `json:"preRelease"`
+	// String contains the whole version.
+	String string `json:"string"`
+}
+
+// RouteNotFoundResponse writes a JSON error reply containing
+// a not found error, a Version object, and a not found HTTP status code.
+func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter) {
+	SetDefaultSecurityHeaders(w.Header())
+
+	errObj := &trace.TraceErr{
+		Err: trace.NotFound("path not found"),
+		Fields: map[string]any{
+			"proxyVersion": ProxyVersion{
+				Major:      api.VersionMajor,
+				Minor:      api.VersionMinor,
+				Patch:      api.VersionPatch,
+				String:     api.Version,
+				PreRelease: api.VersionPreRelease,
+			},
+		},
+	}
+
+	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
+}
+
 // ParseBool will parse boolean variable from url query
 // returns value, ok, error
 func ParseBool(q url.Values, name string) (bool, bool, error) {
@@ -265,11 +305,14 @@ func OriginLocalRedirectURI(redirectURL string) (string, error) {
 		return "", trace.BadParameter("Invalid scheme: %s", parsedURL.Scheme)
 	}
 
+	// Make sure User field does not exist to prevent basic auth
+	if parsedURL.User != nil {
+		return "", trace.BadParameter("Basic Auth not allowed in redirect URL")
+	}
+
 	resultURI := parsedURL.RequestURI()
 	if strings.HasPrefix(resultURI, "//") {
 		return "", trace.BadParameter("Invalid double slash redirect")
-	} else if strings.Contains(resultURI, "@") {
-		return "", trace.BadParameter("Basic Auth not allowed in redirect")
 	}
 	return resultURI, nil
 }

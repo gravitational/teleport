@@ -1,6 +1,0 @@
-# pnpm ignores package.json files that are in the scope of a workspace, but are
-# not added to it.
-# The workaround is to create a new workspace root.
-# https://github.com/pnpm/pnpm/issues/2412#issuecomment-1807573622
-packages:
-  - "**"

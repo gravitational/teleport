@@ -19,28 +19,27 @@
 package aws
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/textproto"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws/migration"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 const (
@@ -77,6 +76,11 @@ const (
 	// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html
 	MaxRoleSessionNameLength = 64
 
+	// EmptyPayloadHash is the SHA-256 for an empty element (as in echo -n | sha256sum).
+	// PresignHTTP requires the hash of the body, but when there is no body we hash the empty string.
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
+	EmptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
 	iamServiceName = "iam"
 )
 
@@ -97,24 +101,33 @@ type SigV4 struct {
 }
 
 // ParseSigV4 AWS SigV4 credentials string sections.
-// AWS SigV4 header example:
-// Authorization: AWS4-HMAC-SHA256
-// Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
+// AWS SigV4 header example below adds newlines for readability only - the real
+// header must be a single continuous string with commas (and optional spaces)
+// between the Credential, SignedHeaders, and Signature:
+// Authorization: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,
 // SignedHeaders=host;range;x-amz-date,
 // Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024
 func ParseSigV4(header string) (*SigV4, error) {
 	if header == "" {
 		return nil, trace.BadParameter("empty AWS SigV4 header")
 	}
-	sectionParts := strings.Split(header, " ")
+	if !strings.HasPrefix(header, AmazonSigV4AuthorizationPrefix+" ") {
+		return nil, trace.BadParameter("missing AWS SigV4 authorization algorithm")
+	}
+	header = strings.TrimPrefix(header, AmazonSigV4AuthorizationPrefix+" ")
+
+	components := strings.Split(header, ",")
+	if len(components) != 3 {
+		return nil, trace.BadParameter("expected AWS SigV4 Authorization header with 3 comma-separated components but got %d", len(components))
+	}
 
 	m := make(map[string]string)
-	for _, v := range sectionParts {
-		kv := strings.Split(v, "=")
+	for _, v := range components {
+		kv := strings.Split(strings.Trim(v, " "), "=")
 		if len(kv) != 2 {
 			continue
 		}
-		m[kv[0]] = strings.TrimSuffix(kv[1], ",")
+		m[kv[0]] = kv[1]
 	}
 
 	authParts := strings.Split(m[credentialAuthHeaderElem], "/")
@@ -150,22 +163,17 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
-// VerifyAWSSignatureV2 is a temporary AWS SDK migration helper.
-func VerifyAWSSignatureV2(req *http.Request, provider aws.CredentialsProvider) error {
-	return VerifyAWSSignature(req, migration.NewCredentialsAdapter(provider))
-}
-
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
-func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials) error {
+func VerifyAWSSignature(req *http.Request, credProvider aws.CredentialsProvider) error {
 	sigV4, err := ParseSigV4(req.Header.Get("Authorization"))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
 	// Verifies the request is signed by the expected access key ID.
-	credValue, err := credentials.Get()
+	credValue, err := credProvider.Retrieve(req.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -184,14 +192,13 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		}
 	}
 
-	// Read the request body and replace the body ready with a new reader that will allow reading the body again
-	// by HTTP Transport.
-	payload, err := utils.GetAndReplaceRequestBody(req)
+	payloadHash, err := GetV4PayloadHash(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	reqCopy := req.Clone(context.Background())
+	ctx := context.Background()
+	reqCopy := req.Clone(ctx)
 
 	// Remove all the headers that are not present in awsCred.SignedHeaders.
 	filterHeaders(reqCopy, sigV4.SignedHeaders)
@@ -200,11 +207,27 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	// originated from AWS CLI and reuse it as a timestamp during request signing call.
 	t, err := time.Parse(AmzDateTimeFormat, reqCopy.Header.Get(AmzDateHeader))
 	if err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 
-	signer := NewSigner(credentials, sigV4.Service)
-	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
+	creds, err := credProvider.Retrieve(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the original request does not sign "content-length" (e.g. "aws sts
+	// get-caller-identity"), do not set reqCopy.ContentLength as go sdk's
+	// signer will forcefully sign "content-length" if it is set on the HTTP
+	// request.
+	findContentLength := slices.ContainsFunc(sigV4.SignedHeaders, func(header string) bool {
+		return strings.EqualFold(header, "content-length")
+	})
+	if !findContentLength {
+		reqCopy.ContentLength = 0
+	}
+
+	signer := NewSigner(sigV4.Service)
+	err = signer.SignHTTP(ctx, creds, reqCopy, payloadHash, sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,23 +245,40 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	return nil
 }
 
-// NewSignerV2 is a temporary AWS SDK migration helper.
-func NewSignerV2(provider aws.CredentialsProvider, signingServiceName string) *v4.Signer {
-	return NewSigner(migration.NewCredentialsAdapter(provider), signingServiceName)
-}
-
 // NewSigner creates a new V4 signer.
-func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
-	options := func(s *v4.Signer) {
+func NewSigner(signingServiceName string) *v4.Signer {
+	return v4.NewSigner(func(opts *v4.SignerOptions) {
 		// s3 and s3control requests are signed with URL unescaped (found by
 		// searching "DisableURIPathEscaping" in "aws-sdk-go/service"). Both
 		// services use "s3" as signing name. See description of
 		// "DisableURIPathEscaping" for more details.
 		if signingServiceName == "s3" {
-			s.DisableURIPathEscaping = true
+			opts.DisableURIPathEscaping = true
 		}
+	})
+}
+
+// GetV4PayloadHash returns the V4 signing payload hash.
+func GetV4PayloadHash(req *http.Request) (string, error) {
+	payloadHash := strings.ToUpper(req.Header.Get("x-amz-content-sha256"))
+	switch payloadHash {
+	// unsigned payload, so we use the literal content string instead of hashing
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html
+	case "UNSIGNED-PAYLOAD", "STREAMING-UNSIGNED-PAYLOAD-TRAILER":
+		return payloadHash, nil
+	default:
 	}
-	return v4.NewSigner(credentials, options)
+	payload, err := utils.GetAndReplaceRequestBody(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(payload) == 0 {
+		return EmptyPayloadHash, nil
+	}
+
+	hash := sha256.New()
+	hash.Write(payload)
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // filterHeaders removes request headers that are not in the headers list and returns the removed header keys.
@@ -505,29 +545,7 @@ func iamResourceARN(partition, accountID, resourceType, resourceName string) str
 	}.String()
 }
 
-// MaybeHashRoleSessionName truncates the role session name and adds a hash
-// when the original role session name is greater than AWS character limit
-// (64).
-func MaybeHashRoleSessionName(roleSessionName string) (ret string) {
-	if len(roleSessionName) <= MaxRoleSessionNameLength {
-		return roleSessionName
-	}
-
-	const hashLen = 16
-	hash := sha1.New()
-	hash.Write([]byte(roleSessionName))
-	hex := hex.EncodeToString(hash.Sum(nil))[:hashLen]
-
-	// "1" for the delimiter.
-	keepPrefixIndex := MaxRoleSessionNameLength - len(hex) - 1
-
-	// Sanity check. This should never happen since hash length and
-	// MaxRoleSessionNameLength are both constant.
-	if keepPrefixIndex < 0 {
-		keepPrefixIndex = 0
-	}
-
-	ret = fmt.Sprintf("%s-%s", roleSessionName[:keepPrefixIndex], hex)
-	slog.DebugContext(context.Background(), "AWS role session name is too long. Using a hash instead.", "hashed", ret, "original", roleSessionName)
-	return ret
-}
+// IsKnownRegion returns true if provided region is one of the "well-known" AWS
+// regions.
+// TODO(greedy52): DELETE once e is updated to use the package directly.
+var IsKnownRegion = awsregion.IsKnownRegion

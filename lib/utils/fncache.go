@@ -182,6 +182,40 @@ func (c *FnCache) Set(key, value any) {
 	c.SetWithTTL(key, value, c.cfg.TTL)
 }
 
+// GetIfExists retrieves a value from the cache without triggering a load operation.
+// It returns (value, true) if a valid, non-expired entry exists, or (nil, false)
+// otherwise. If an entry is currently being loaded by FnCacheGet, Get will
+// return false immediately without blocking. Get returns false for entries that
+// contain errors.
+// For most of the cases the FnCacheGet function should be used instead.
+func (c *FnCache) GetIfExists(key any) (any, bool) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, false
+	}
+	entry := c.entries[key]
+	c.mu.Unlock()
+
+	if entry == nil {
+		return nil, false
+	}
+
+	select {
+	case <-entry.loaded:
+		if c.cfg.Clock.Now().After(entry.t.Add(entry.ttl)) {
+			return nil, false
+		}
+		if entry.e != nil {
+			return nil, false
+		}
+		return entry.v, true
+	default:
+		// Entry still loading - treat as cache miss
+		return nil, false
+	}
+}
+
 // SetWithTTL places an item in the cache with an explicit TTL.
 func (c *FnCache) SetWithTTL(key, value any, ttl time.Duration) {
 	c.mu.Lock()
@@ -230,13 +264,13 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 // block until the first call updates the entry. Note that the supplied context can cancel the call to Get, but will
 // not cancel loading. The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func FnCacheGet[T any](ctx context.Context, cache *FnCache, key any, loadfn func(ctx context.Context) (T, error)) (T, error) {
+func FnCacheGet[K comparable, T any](ctx context.Context, cache *FnCache, key K, loadfn func(ctx context.Context) (T, error)) (T, error) {
 	return FnCacheGetWithTTL(ctx, cache, key, cache.cfg.TTL, loadfn)
 }
 
 // FnCacheGetWithTTL is identical to FnCacheGet except that it allows individual keys to specify
 // a TTL that is used instead of the configured TTL for the FnCache.
-func FnCacheGetWithTTL[T any](ctx context.Context, cache *FnCache, key any, ttl time.Duration, loadfn func(ctx context.Context) (T, error)) (T, error) {
+func FnCacheGetWithTTL[K comparable, T any](ctx context.Context, cache *FnCache, key K, ttl time.Duration, loadfn func(ctx context.Context) (T, error)) (T, error) {
 	t, err := cache.get(ctx, key, ttl, func(ctx context.Context) (any, error) {
 		return loadfn(ctx)
 	})

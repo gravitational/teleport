@@ -17,8 +17,8 @@
  */
 
 // Both versions are imported because some operations need to be sync.
-import fsAsync from 'node:fs/promises';
 import fs from 'node:fs';
+import fsAsync from 'node:fs/promises';
 import path from 'node:path';
 
 import { debounce } from 'shared/utils/highbar';

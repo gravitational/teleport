@@ -40,7 +40,7 @@ func TestLastTick(t *testing.T) {
 	require.False(t, ok)
 
 	timeout := time.After(time.Second * 30)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		clock.Advance(time.Minute)
 
 		var tick time.Time
@@ -68,7 +68,7 @@ func TestIntervalReset(t *testing.T) {
 	var success, failure atomic.Uint64
 	var wg sync.WaitGroup
 
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -83,7 +83,7 @@ func TestIntervalReset(t *testing.T) {
 
 			start := time.Now()
 
-			for i := 0; i < 6; i++ {
+			for range 6 {
 				select {
 				case <-interval.Next():
 					failure.Add(1)
@@ -126,7 +126,7 @@ func TestIntervalResetTo(t *testing.T) {
 	var success, failure atomic.Uint64
 	var wg sync.WaitGroup
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -138,7 +138,7 @@ func TestIntervalResetTo(t *testing.T) {
 
 			start := time.Now()
 
-			for i := 0; i < ticks; i++ {
+			for range ticks {
 				interval.ResetTo(shortDuration)
 				<-interval.Next()
 			}

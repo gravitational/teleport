@@ -17,17 +17,18 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
+
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import * as apiService from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb.grpc-server';
 
-import * as uri from 'teleterm/ui/uri';
 import Logger from 'teleterm/logger';
+import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
 import {
   ExtractRequestType,
   ExtractResponseType,
   TshdEventContextBridgeService,
 } from 'teleterm/types';
-import { filterSensitiveProperties } from 'teleterm/services/tshd/interceptors';
+import * as uri from 'teleterm/ui/uri';
 
 export interface ReloginRequest extends api.ReloginRequest {
   rootClusterUri: uri.RootClusterUri;
@@ -63,7 +64,9 @@ export async function createTshdEventsServer(
   const { service, setupTshdEventContextBridgeService } = createService(logger);
 
   server.addService(apiService.tshdEventsServiceDefinition, service);
-
+  window.addEventListener('unload', () => {
+    server.forceShutdown();
+  });
   return { resolvedAddress, setupTshdEventContextBridgeService };
 }
 

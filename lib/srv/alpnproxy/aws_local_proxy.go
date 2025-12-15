@@ -19,6 +19,8 @@
 package alpnproxy
 
 import (
+	"bytes"
+	"encoding/xml"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	smithyxml "github.com/aws/smithy-go/encoding/xml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -134,7 +137,7 @@ func (m *AWSAccessMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Re
 }
 
 func (m *AWSAccessMiddleware) handleCommonRequest(rw http.ResponseWriter, req *http.Request) bool {
-	if err := awsutils.VerifyAWSSignatureV2(req, m.AWSCredentialsProvider); err != nil {
+	if err := awsutils.VerifyAWSSignature(req, m.AWSCredentialsProvider); err != nil {
 		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
@@ -149,7 +152,7 @@ func (m *AWSAccessMiddleware) handleRequestByAssumedRole(rw http.ResponseWriter,
 		aws.ToString(assumedRole.Credentials.SessionToken),
 	)
 
-	if err := awsutils.VerifyAWSSignatureV2(req, credentials); err != nil {
+	if err := awsutils.VerifyAWSSignature(req, credentials); err != nil {
 		m.Log.ErrorContext(req.Context(), "AWS signature verification failed", "error", err)
 		rw.WriteHeader(http.StatusForbidden)
 		return true
@@ -216,12 +219,12 @@ func (m *AWSAccessMiddleware) handleSTSResponse(response *http.Response) error {
 }
 
 func unmarshalAssumeRoleResponse(body []byte) (*sts.AssumeRoleOutput, error) {
-	if !awsutils.IsXMLOfLocalName(body, "AssumeRoleResponse") {
+	if !isXMLOfLocalName(body, "AssumeRoleResponse") {
 		return nil, trace.NotFound("not AssumeRoleResponse")
 	}
 
 	var assumedRole sts.AssumeRoleOutput
-	if err := awsutils.UnmarshalXMLChildNode(&assumedRole, body, "AssumeRoleResult"); err != nil {
+	if err := unmarshalXMLChildNode(&assumedRole, body, "AssumeRoleResult"); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if assumedRole.AssumedRoleUser == nil {
@@ -231,4 +234,31 @@ func unmarshalAssumeRoleResponse(body []byte) (*sts.AssumeRoleOutput, error) {
 		return nil, trace.BadParameter("missing Credentials in AssumeRoleResponse %v", string(body))
 	}
 	return &assumedRole, nil
+}
+
+// isXMLOfLocalName returns true if the root XML has the provided (local) name.
+func isXMLOfLocalName(data []byte, wantLocalName string) bool {
+	st, err := smithyxml.FetchRootElement(xml.NewDecoder(bytes.NewReader(data)))
+	if err == nil && st.Name.Local == wantLocalName {
+		return true
+	}
+
+	return false
+}
+
+// unmarshalXMLChildNode decodes the XML-encoded data and stores the child node
+// with the specified name to v, where v is a pointer to an AWS SDK v2 struct.
+func unmarshalXMLChildNode(v any, data []byte, childName string) error {
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	st, err := smithyxml.FetchRootElement(decoder)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	nodeDecoder := smithyxml.WrapNodeDecoder(decoder, st)
+	childElem, err := nodeDecoder.GetElement(childName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(decoder.DecodeElement(v, &childElem))
 }

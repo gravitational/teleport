@@ -17,5 +17,6 @@
  */
 
 import Input from './Input';
+
 export { type InputSize, type InputType, type InputMode } from './Input';
 export default Input;

@@ -17,6 +17,7 @@
  */
 
 import { Cluster } from 'teleport/services/clusters';
+import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
@@ -109,6 +110,11 @@ export interface Acl {
   accessMonitoringRule: Access;
   contacts: Access;
   fileTransferAccess: boolean;
+  gitServers: Access;
+  accessGraphSettings: Access;
+  botInstances: Access;
+  workloadIdentity: Access;
+  clientIpRestriction: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
@@ -188,3 +194,14 @@ export type OnboardDiscover = {
   // discover page.
   hasVisited?: boolean;
 };
+
+export interface CreateUserVariables {
+  user: User;
+  excludeUserField: ExcludeUserField;
+  mfaResponse?: MfaChallengeResponse;
+}
+
+export interface UpdateUserVariables {
+  user: User;
+  excludeUserField: ExcludeUserField;
+}

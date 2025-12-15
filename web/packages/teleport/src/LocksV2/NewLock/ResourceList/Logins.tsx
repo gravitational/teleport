@@ -17,10 +17,11 @@
  */
 
 import React, { useState } from 'react';
-import Table from 'design/DataTable';
-import { Box, ButtonSecondary, Flex, Input, Text } from 'design';
 
-import { renderActionCell, LoginsProps } from './common';
+import { Box, ButtonSecondary, Flex, Input, Text } from 'design';
+import Table from 'design/DataTable';
+
+import { LoginsProps, renderActionCell } from './common';
 
 export function Logins(props: LoginsProps) {
   const [loginInput, setLoginInput] = useState('');

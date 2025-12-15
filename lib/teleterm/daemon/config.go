@@ -63,10 +63,13 @@ type Config struct {
 	AgentsDir string
 
 	GatewayCreator GatewayCreator
-	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
-	// Electron app. This is to ensure that the server public key is written to the disk under the
-	// expected location by the time we get around to creating the client.
-	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
+
+	// TshdEventsClient holds a client to send events to the Electron App.
+	//
+	// The startup of the app is orchestrated so that the client is loaded before any other method on
+	// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
+	// client is available right from the beginning, without the need for nil checks.
+	TshdEventsClient *TshdEventsClient
 
 	ConnectMyComputerRoleSetup        *connectmycomputer.RoleSetup
 	ConnectMyComputerTokenProvisioner *connectmycomputer.TokenProvisioner
@@ -92,7 +95,7 @@ type ClientCache interface {
 	Get(ctx context.Context, profileName, leafClusterName string) (*client.ClusterClient, error)
 	// ClearForRoot closes and removes clients from the cache
 	// for the root cluster and its leaf clusters.
-	ClearForRoot(profileName string) error
+	ClearForRoot(profileName string, opts ...clientcache.ClearOption) error
 	// Clear closes and removes all clients.
 	Clear() error
 }

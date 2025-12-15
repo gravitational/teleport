@@ -14,13 +14,13 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport17-amd64
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport19-amd64
       env:
         GOCACHE: /tmp/gocache
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+        uses: actions/checkout@v6 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -41,9 +41,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v6
         with:
           name: build
           path: ${{ github.workspace }}/build/

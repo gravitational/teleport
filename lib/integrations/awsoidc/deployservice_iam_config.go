@@ -25,15 +25,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 var taskRoleDescription = "Used by Teleport Database Service deployed in Amazon ECS."
@@ -111,7 +112,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 
 	if len(r.ResourceCreationTags) == 0 {
-		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.Cluster, r.IntegrationName)
 	}
 
 	r.partitionID = awsapiutils.GetPartitionFromRegion(r.Region)
@@ -146,8 +147,8 @@ func NewDeployServiceIAMConfigureClient(ctx context.Context, region string) (Dep
 	}
 
 	return &defaultDeployServiceIAMConfigureClient{
-		Client:               iam.NewFromConfig(cfg),
-		CallerIdentityGetter: sts.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
+		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 

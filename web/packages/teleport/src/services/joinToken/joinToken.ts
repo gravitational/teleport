@@ -16,25 +16,62 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 import { makeLabelMapOfStrArrs } from '../agents/make';
-
+import auth from '../auth/auth';
+import { MfaChallengeResponse } from '../mfa';
+import { withUnsupportedLabelFeatureErrorConversion } from '../version/unsupported';
 import makeJoinToken from './makeJoinToken';
-import { JoinToken, JoinRule, JoinTokenRequest } from './types';
+import {
+  CreateJoinTokenRequest,
+  JoinRule,
+  JoinToken,
+  JoinTokenRequest,
+} from './types';
 
 const TeleportTokenNameHeader = 'X-Teleport-TokenName';
 
 class JoinTokenService {
   // TODO (avatus) refactor this code to eventually use `createJoinToken`
-  fetchJoinToken(
+  fetchJoinTokenV2(
     req: JoinTokenRequest,
-    signal: AbortSignal = null
+    signal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
+  ): Promise<JoinToken> {
+    return (
+      api
+        .post(
+          cfg.api.discoveryJoinToken.createV2,
+          {
+            roles: req.roles,
+            join_method: req.method || 'token',
+            allow: makeAllowField(req.rules || []),
+            suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
+              req.suggestedAgentMatcherLabels
+            ),
+            suggested_labels: makeLabelMapOfStrArrs(req.suggestedLabels),
+          },
+          signal,
+          mfaResponse
+        )
+        .then(makeJoinToken)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  }
+
+  // TODO(kimlisa): DELETE IN 19.0
+  // replaced by fetchJoinTokenV2 that accepts labels.
+  fetchJoinToken(
+    req: Omit<JoinTokenRequest, 'suggestedLabels'>,
+    signal?: AbortSignal,
+    mfaResponse?: MfaChallengeResponse
   ): Promise<JoinToken> {
     return api
       .post(
-        cfg.getJoinTokenUrl(),
+        cfg.api.discoveryJoinToken.create,
         {
           roles: req.roles,
           join_method: req.method || 'token',
@@ -43,7 +80,8 @@ class JoinTokenService {
             req.suggestedAgentMatcherLabels
           ),
         },
-        signal
+        signal,
+        mfaResponse
       )
       .then(makeJoinToken);
   }
@@ -66,21 +104,53 @@ class JoinTokenService {
       .then(makeJoinToken);
   }
 
-  createJoinToken(req: JoinTokenRequest): Promise<JoinToken> {
-    return api.post(cfg.getJoinTokensUrl(), req).then(makeJoinToken);
+  async createJoinToken(
+    req: CreateJoinTokenRequest,
+    mfaResponse?: MfaChallengeResponse
+  ) {
+    return api
+      .post(
+        cfg.getJoinTokenUrl({ action: 'create' }),
+        req,
+        null /* abortSignal */,
+        mfaResponse
+      )
+      .then(makeJoinToken);
   }
 
-  fetchJoinTokens(signal: AbortSignal = null): Promise<{ items: JoinToken[] }> {
-    return api.get(cfg.getJoinTokensUrl(), signal).then(resp => {
-      return {
-        items: resp.items?.map(makeJoinToken) || [],
-      };
-    });
+  async editJoinToken(
+    req: CreateJoinTokenRequest,
+    mfaResponse?: MfaChallengeResponse,
+    abortSignal?: AbortSignal
+  ) {
+    const json = await api.put(
+      cfg.getJoinTokenUrl({ action: 'update' }),
+      req,
+      abortSignal,
+      mfaResponse
+    );
+    return makeJoinToken(json);
   }
 
-  deleteJoinToken(id: string, signal: AbortSignal = null) {
+  async fetchJoinTokens(signal?: AbortSignal) {
+    // Fetching all join tokens calls multiple RPCs internally, so we need a
+    // reusable mfa response.
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(
+      true /* allow re-use */
+    );
+
+    return api
+      .get(cfg.getJoinTokenUrl({ action: 'list' }), signal, mfaResponse)
+      .then(resp => {
+        return {
+          items: resp.items?.map(makeJoinToken) || [],
+        };
+      });
+  }
+
+  deleteJoinToken(id: string, signal?: AbortSignal) {
     return api.deleteWithHeaders(
-      cfg.getJoinTokensUrl(),
+      cfg.getJoinTokenUrl({ action: 'list' }),
       { [TeleportTokenNameHeader]: id },
       signal
     );

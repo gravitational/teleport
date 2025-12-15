@@ -42,7 +42,7 @@ func TestRandomFreeIPv4InNet(t *testing.T) {
 	}
 
 	// Assign every free IP.
-	for i := 0; i < freeIPCount; i++ {
+	for range freeIPCount {
 		ip, err := randomFreeIPv4InNet(ipNet, ipIsFree)
 		require.NoError(t, err)
 		assignedIPs[ip] = struct{}{}
@@ -52,5 +52,5 @@ func TestRandomFreeIPv4InNet(t *testing.T) {
 
 	// Try to assign 1 more IP.
 	_, err = randomFreeIPv4InNet(ipNet, ipIsFree)
-	require.ErrorContains(t, err, "Exhausted all IPs in range")
+	require.ErrorContains(t, err, "exhausted all IPs in range")
 }

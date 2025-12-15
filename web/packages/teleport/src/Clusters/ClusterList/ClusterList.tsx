@@ -20,13 +20,12 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import Table, { Cell } from 'design/DataTable';
 import { Primary, Secondary } from 'design/Label';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { Cluster } from 'teleport/services/clusters';
 import cfg from 'teleport/config';
-import { DropdownDivider } from 'teleport/components/Dropdown';
+import { Cluster } from 'teleport/services/clusters';
 
 export default function ClustersList(props: Props) {
   const { clusters = [], pageSize = 50, menuFlags } = props;
@@ -84,12 +83,6 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
       renderMenuItem('Session Recordings', cfg.getRecordingsRoute(clusterId))
     );
   }
-
-  $items.push(<DropdownDivider key="divider" />);
-
-  $items.push(
-    renderMenuItem('Manage Cluster', cfg.getManageClusterRoute(clusterId))
-  );
 
   return (
     <Cell align="right">{$items && <MenuButton children={$items} />}</Cell>

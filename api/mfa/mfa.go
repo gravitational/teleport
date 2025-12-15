@@ -21,7 +21,7 @@ import (
 	"context"
 	"encoding/base64"
 
-	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -46,6 +46,12 @@ var (
 	// support MFA ceremonies, or the server does not support MFA ceremonies for
 	// the client user.
 	ErrMFANotSupported = trace.BadParameterError{Message: "re-authentication with MFA is not supported for this client"}
+
+	// ErrExpiredReusableMFAResponse is returned by Auth APIs like
+	// GenerateUserCerts when an expired reusable MFA response is provided.
+	ErrExpiredReusableMFAResponse = trace.AccessDeniedError{
+		Message: "Reusable MFA response validation failed and possibly expired",
+	}
 )
 
 // WithCredentials can be called on a GRPC client request to attach
@@ -81,7 +87,7 @@ func getMFACredentialsFromContext(ctx context.Context) (*proto.MFAAuthenticateRe
 	}
 
 	var mfaChallengeResponse proto.MFAAuthenticateResponse
-	if err := jsonpb.Unmarshal(bytes.NewReader(mfaChallengeResponseJSON), &mfaChallengeResponse); err != nil {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(mfaChallengeResponseJSON), &mfaChallengeResponse); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

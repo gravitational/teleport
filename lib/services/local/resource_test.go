@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 func TestCreateResourcesProvisionToken(t *testing.T) {
@@ -134,7 +134,7 @@ func runUserResourceTest(
 	}
 
 	// Advance the clock to let the users to expire.
-	tt.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
+	tt.bk.Clock().(*clockwork.FakeClock).Advance(2 * time.Minute)
 	allUsers, err = s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Empty(t, allUsers, "expected all users to expire")
@@ -145,17 +145,17 @@ func TestCertAuthorityResource(t *testing.T) {
 	ctx := context.Background()
 	tt := setupServicesContext(ctx, t)
 
-	userCA := suite.NewTestCA(types.UserCA, "example.com")
-	hostCA := suite.NewTestCA(types.HostCA, "example.com")
+	userCA, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
+	hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
+	require.NoError(t, err)
 
 	// Check basic dynamic item creation
-	err := CreateResources(ctx, tt.bk, userCA, hostCA)
-	require.NoError(t, err)
+	require.NoError(t, CreateResources(ctx, tt.bk, userCA, hostCA))
 
 	// Check that dynamically created item is compatible with service
 	s := NewCAService(tt.bk)
-	err = s.CompareAndSwapCertAuthority(userCA, userCA)
-	require.NoError(t, err)
+	require.NoError(t, s.CompareAndSwapCertAuthority(userCA, userCA))
 }
 
 func TestTrustedClusterResource(t *testing.T) {

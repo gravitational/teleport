@@ -1,7 +1,17 @@
 ---
 title: Automatically Discover Azure Virtual Machines 
 description: How to configure Teleport to automatically enroll Azure virtual machines.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - azure
 ---
+
+This guide shows you how to set up automatic server discovery for Azure virtual
+machines.
+
+## How it works
 
 The Teleport Discovery Service can connect to Azure and automatically
 discover and enroll virtual machines matching configured labels. It will then
@@ -19,7 +29,7 @@ Ubuntu/Debian/RHEL if making use of the default Teleport install script. (For
 other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create an Azure invite token
+## Step 1/5. Create an Azure invite token
 
 When discovering Azure virtual machines, Teleport makes use of Azure invite tokens for
 authenticating joining SSH Service instances.
@@ -56,7 +66,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Configure IAM permissions for Teleport
+## Step 2/5. Configure IAM permissions for Teleport
 
 The Teleport Discovery Service needs Azure IAM permissions to discover and register Azure virtual machines.
 
@@ -68,14 +78,14 @@ resources:
 - The Discovery Service can run on an Azure VM with attached managed identity. This
   is the recommended way of deploying the Discovery Service in production since
   it eliminates the need to manage Azure credentials.
-- The Discovery Service can be registered as an Azure AD application (via AD's "App
-  registrations") and configured with its credentials. This is only recommended
-  for development and testing purposes since it requires Azure credentials to
-  be present in the Discovery Service's environment.
+- The Discovery Service can be registered as a Microsoft Entra ID application
+  and configured with its credentials. This is only recommended for development
+  and testing purposes since it requires Azure credentials to be present in the
+  Discovery Service's environment.
 
 <Tabs>
 <TabItem label="Using managed identity">
-  Go to the [Managed Identities](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
+  Go to the [Managed Identities](https://portal.azure.com/#browse/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
   page in your Azure portal and click *Create* to create a new user-assigned
   managed identity:
 
@@ -99,14 +109,14 @@ resources:
 </TabItem>
 <TabItem label="Using app registrations">
   <Admonition type="note">
-    Registering the Discovery Service as Azure AD application is suitable for
-    test and development scenarios, or if your Discovery Service does not run on
-    an Azure VM. For production scenarios prefer to use the managed identity
-    approach.
+    Registering the Discovery Service as a Microsoft Entra ID application is
+    suitable for test and development scenarios, or if your Discovery Service
+    does not run on an Azure VM. For production scenarios prefer to use the
+    managed identity approach.
   </Admonition>
 
   Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
-  page of your Azure Active Directory and click on *New registration*:
+  page in Microsoft Entra ID and click on *New registration*:
 
   ![App registrations](../../../../img/azure/app-registrations@2x.png)
 
@@ -182,21 +192,17 @@ you want to further limit the `assignableScopes`, you can use a resource group
 Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade) page and select a subscription.
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
-<Figure align="left">
 ![IAM custom role](../../../../img/azure/add-custom-role@2x.png)
-</Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
 and replace the subscription in `assignableScopes` with your own subscription id:
-<Figure align="left">
 ![Create JSON role](../../../../img/server-access/guides/azure/vm-create-role-from-json@2x.png)
-</Figure>
 
 ### Create a role assignment for the Teleport Discovery Service principal
 
 (!docs/pages/includes/server-access/azure-assign-service-principal.mdx!)
 
-## Step 3/6. Set up managed identities for discovered nodes
+## Step 3/5. Set up managed identities for discovered nodes
 
 Every Azure VM to be discovered must have a managed identity assigned to it
 with at least the `Microsoft.Compute/virtualMachines/read` permission.
@@ -206,7 +212,7 @@ with at least the `Microsoft.Compute/virtualMachines/read` permission.
 If the VMs to be discovered have more than one managed identity assigned to
 them, save the client ID of the identity you just created for step 5.
 
-## Step 4/6. Install the Teleport Discovery Service
+## Step 4/5. Install the Teleport Discovery Service
 
 <Admonition type="tip">
 
@@ -219,7 +225,7 @@ Install Teleport on the virtual machine that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/6. Configure Teleport to discover Azure instances
+## Step 5/5. Configure Teleport to discover Azure instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -243,15 +249,15 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: "<Var name="teleport.example.com" />:443"
+  proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "azure-prod"
   azure:
     - types: ["vm"]
@@ -274,12 +280,13 @@ discovery_service:
   specifically the regions and tags you want to associate with the Discovery
   Service.
 
-## Step 6/6. [Optional] Customize the default installer script
+## Auto-discovery labels
 
-(!docs/pages/includes/server-access/custom-installer.mdx cloud="Azure" matcher="azure" matchTypes="[\"vm\"]"!)
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
 
-If `client_id` is set in the Discovery Service config, custom installers will
-also have the `{{ .AzureClientID }}` templating option.
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/azure-vm-advanced-config.mdx!)
 
 ## Troubleshooting
 
@@ -305,7 +312,7 @@ logs can be found on the targeted VM at
 
 ## Next steps
 
-- Read [Joining Nodes via Azure Managed Identity](../../agents/join-services-to-your-cluster/azure.mdx)
+- Read [Joining Nodes via Azure Managed Identity](../../agents/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
-  config file reference documentation](../../../reference/config.mdx).
+  config file reference documentation](../../../reference/deployment/config.mdx).

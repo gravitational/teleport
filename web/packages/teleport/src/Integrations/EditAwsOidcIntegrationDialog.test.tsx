@@ -15,18 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useEffect } from 'react';
-import { render, screen, fireEvent, waitFor } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+
+import cfg from 'teleport/config';
 import {
-  Integration,
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
 
 import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
 import { useIntegrationOperation } from './Operations';
@@ -51,10 +52,17 @@ test('user acknowledging script was ran when reconfiguring', async () => {
   // Initial state.
   expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', { name: /reconfigure/i })
-  ).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+
+  const cancel = () => screen.queryByRole('button', { name: /cancel/i });
+  const edit = () => screen.queryByRole('button', { name: /edit/i });
+  const reconfigure = () =>
+    screen.queryByRole('button', { name: /reconfigure/i });
+  const save = () => screen.queryByRole('button', { name: /save/i });
+
+  expect(cancel()).toBeEnabled();
+  expect(reconfigure()).toBeDisabled();
+  expect(edit()).not.toBeInTheDocument();
+  expect(save()).not.toBeInTheDocument();
 
   // Check s3 related fields are not rendered.
   expect(screen.queryByText(/not recommended/)).not.toBeInTheDocument();
@@ -65,41 +73,38 @@ test('user acknowledging script was ran when reconfiguring', async () => {
     target: { value: 'arn:aws:iam::123456789011:role/other' },
   });
 
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled()
-  );
+  await waitFor(() => expect(reconfigure()).toBeEnabled());
+
+  await userEvent.click(reconfigure());
+
   // When clicking on reconfigure:
   //  - script rendered
-  //  - checkbox to confirm user has ran command
-  //  - edit button replaces reconfigure button
-  //  - save button still disabled
-  await userEvent.click(screen.getByRole('button', { name: /reconfigure/i }));
-  await screen.findByRole('button', { name: /edit/i });
-  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
-  expect(
-    screen.queryByRole('button', { name: /reconfigure/i })
-  ).not.toBeInTheDocument();
-  expect(screen.getByLabelText(/I ran the command/i)).toBeInTheDocument();
+  //  - checkbox to confirm user has run command
+  //  - save button and edit button replace reconfigure
+  //  - save button is disabled
   expect(screen.getByTestId('scriptbox')).toBeInTheDocument();
+  expect(screen.getByLabelText(/I ran the command/i)).toBeInTheDocument();
+  expect(cancel()).toBeEnabled();
+  expect(reconfigure()).not.toBeInTheDocument();
+  expect(edit()).toBeEnabled();
+  expect(save()).toBeDisabled();
 
   // Click on checkbox should enable save button and disable edit button.
   await userEvent.click(screen.getByRole('checkbox'));
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
-  );
-  expect(screen.getByRole('button', { name: /edit/i })).toBeDisabled();
+  await waitFor(() => expect(save()).toBeEnabled());
+  expect(edit()).toBeDisabled();
 
   // Unchecking the checkbox should disable save button.
   await userEvent.click(screen.getByRole('checkbox'));
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: /save/i })).toBeDisabled()
-  );
+  await waitFor(() => expect(save()).toBeDisabled());
 
-  // Click on edit, should replace it with reconfigure
-  await userEvent.click(screen.getByRole('button', { name: /edit/i }));
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled()
-  );
+  // Click on edit, should go back to configure state
+  await userEvent.click(edit());
+  await waitFor(() => expect(reconfigure()).toBeEnabled());
+
+  expect(cancel()).toBeEnabled();
+  expect(edit()).not.toBeInTheDocument();
+  expect(save()).not.toBeInTheDocument();
 });
 
 test('health check is called before calling update', async () => {
@@ -165,7 +170,7 @@ test('render warning when s3 buckets are present', async () => {
   // Initial state.
   expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled();
 
   // Check s3 related fields/warnings are rendered.
   expect(
@@ -196,7 +201,10 @@ test('edit invalid fields', async () => {
     />
   );
 
-  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+  expect(
+    screen.queryByRole('button', { name: /save/i })
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /reconfigure/i })).toBeEnabled();
 
   // invalid role arn
   fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
@@ -221,7 +229,9 @@ test('edit submit called with proper fields', async () => {
     />
   );
 
-  expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
+  expect(
+    screen.queryByRole('button', { name: /save/i })
+  ).not.toBeInTheDocument();
 
   // change role arn
   fireEvent.change(screen.getByPlaceholderText(/arn:aws:iam:/i), {
@@ -250,12 +260,13 @@ test('edit submit called with proper fields', async () => {
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
   await waitFor(() => expect(mockEditFn).toHaveBeenCalledTimes(1));
 
-  expect(mockEditFn).toHaveBeenCalledWith(integration, {
+  expect(mockEditFn).toHaveBeenCalledWith({
+    kind: IntegrationKind.AwsOidc,
     roleArn: 'arn:aws:iam::123456789011:role/other',
   });
 });
 
-const integration: Integration = {
+const integration: IntegrationAwsOidc = {
   resourceType: 'integration',
   kind: IntegrationKind.AwsOidc,
   name: 'some-integration-name',
@@ -276,7 +287,7 @@ function ComponentWithEditOperation() {
   return (
     <EditAwsOidcIntegrationDialog
       close={() => null}
-      edit={(integration, req) => integrationOps.edit(integration, req).then()}
+      edit={req => integrationOps.edit(req).then()}
       integration={integration}
     />
   );

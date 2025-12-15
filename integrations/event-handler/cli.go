@@ -25,9 +25,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/integrations/lib/stringset"
-
-	"github.com/gravitational/teleport/integrations/event-handler/lib"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // FluentdConfig represents fluentd instance configuration
@@ -80,8 +78,8 @@ type TeleportConfig struct {
 
 // Check verifies that a valid configuration is set
 func (cfg *TeleportConfig) Check() error {
-	provided := stringset.NewWithCap(3)
-	missing := stringset.NewWithCap(3)
+	provided := set.NewWithCapacity[string](3)
+	missing := set.NewWithCapacity[string](3)
 	if cfg.TeleportCert != "" {
 		provided.Add("`teleport.cert`")
 	} else {
@@ -103,8 +101,8 @@ func (cfg *TeleportConfig) Check() error {
 	if len(provided) > 0 && len(provided) < 3 {
 		return trace.BadParameter(
 			"configuration setting(s) %s are provided but setting(s) %s are missing",
-			strings.Join(provided.ToSlice(), ", "),
-			strings.Join(missing.ToSlice(), ", "),
+			strings.Join(provided.Elements(), ", "),
+			strings.Join(missing.Elements(), ", "),
 		)
 	}
 
@@ -125,17 +123,20 @@ type IngestConfig struct {
 	// BatchSize is a fetch batch size
 	BatchSize int `help:"Fetch batch size" default:"20" env:"FDFWD_BATCH" name:"batch"`
 
-	// Types are event types to log
-	Types []string `help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
+	// TypesRaw are event types to log
+	TypesRaw []string `name:"types" help:"Comma-separated list of event types to forward" env:"FDFWD_TYPES"`
+
+	// Types is a map generated from TypesRaw
+	Types map[string]struct{} `kong:"-"`
 
 	// SkipEventTypesRaw are event types to skip
-	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
+	SkipEventTypesRaw []string `name:"skip-event-types" help:"Comma-separated list of audit log event types to skip" env:"FDFWD_SKIP_EVENT_TYPES"`
 
 	// SkipEventTypes is a map generated from SkipEventTypesRaw
 	SkipEventTypes map[string]struct{} `kong:"-"`
 
 	// SkipSessionTypes are session event types to skip
-	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session event types to skip" default:"print" env:"FDFWD_SKIP_SESSION_TYPES"`
+	SkipSessionTypesRaw []string `name:"skip-session-types" help:"Comma-separated list of session recording event types to skip" default:"print,desktop.recording" env:"FDFWD_SKIP_SESSION_TYPES"`
 
 	// SkipSessionTypes is a map generated from SkipSessionTypes
 	SkipSessionTypes map[string]struct{} `kong:"-"`
@@ -147,7 +148,7 @@ type IngestConfig struct {
 	Timeout time.Duration `help:"Polling timeout" default:"5s" env:"FDFWD_TIMEOUT"`
 
 	// DryRun is the flag which simulates execution without sending events to fluentd
-	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate stroage is used. Debug flag."`
+	DryRun bool `help:"Events are read from Teleport, but are not sent to fluentd. Separate storage is used. Debug flag."`
 
 	// ExitOnLastEvent exit when last event is processed
 	ExitOnLastEvent bool `help:"Exit when last event is processed"`
@@ -239,8 +240,9 @@ func (c *StartCmdConfig) Validate() error {
 	if err := c.TeleportConfig.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	c.SkipSessionTypes = lib.SliceToAnonymousMap(c.SkipSessionTypesRaw)
-	c.SkipEventTypes = lib.SliceToAnonymousMap(c.SkipEventTypesRaw)
+	c.Types = set.New(c.TypesRaw...)
+	c.SkipSessionTypes = set.New(c.SkipSessionTypesRaw...)
+	c.SkipEventTypes = set.New(c.SkipEventTypesRaw...)
 
 	if c.FluentdMaxConnections < 1 {
 		// 2x concurrency is effectively uncapped.
@@ -256,8 +258,8 @@ func (c *StartCmdConfig) Dump(ctx context.Context, log *slog.Logger) {
 	log.InfoContext(ctx, "Using batch size", "batch", c.BatchSize)
 	log.InfoContext(ctx, "Using concurrency", "concurrency", c.Concurrency)
 	log.InfoContext(ctx, "Using type filter", "types", c.Types)
-	log.InfoContext(ctx, "Using type exclude filter", "skip_event_types", c.SkipEventTypes)
-	log.InfoContext(ctx, "Skipping session events of type", "types", c.SkipSessionTypes)
+	log.InfoContext(ctx, "Skipping audit events of type", "types", c.SkipEventTypes)
+	log.InfoContext(ctx, "Skipping session recording events of type", "types", c.SkipSessionTypes)
 	log.InfoContext(ctx, "Using start time", "value", c.StartTime)
 	log.InfoContext(ctx, "Using timeout", "timeout", c.Timeout)
 	log.InfoContext(ctx, "Using Fluentd url", "url", c.FluentdURL)

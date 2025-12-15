@@ -1,6 +1,6 @@
 ---
 author: Steve Huang (xin.huang@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 178 - GitHub Proxy

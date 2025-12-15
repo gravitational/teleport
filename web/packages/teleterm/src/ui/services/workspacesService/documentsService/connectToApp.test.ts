@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { getAppProtocol } from 'shared/services/apps';
+
+import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   connectToApp,
   setUpAppGateway,
 } from 'teleterm/ui/services/workspacesService';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
 
 describe('connectToApp', () => {
@@ -42,7 +44,7 @@ describe('connectToApp', () => {
         origin: 'resource_table',
       });
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000',
+        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com',
         '_blank',
         'noreferrer,noopener'
       );
@@ -59,7 +61,7 @@ describe('connectToApp', () => {
       });
 
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local:3080/enterprise/saml-idp/login/foo',
+        'https://teleport-local.com:3080/enterprise/saml-idp/login/foo',
         '_blank',
         'noreferrer,noopener'
       );
@@ -79,7 +81,7 @@ describe('connectToApp', () => {
         { arnForAwsApp: 'foo-arn' }
       );
       expect(window.open).toHaveBeenCalledWith(
-        'https://teleport-local:3080/web/launch/local-app.example.com:3000/teleport-local/local-app.example.com:3000/foo-arn',
+        'https://teleport-local.com:3080/web/launch/local-app.example.com/teleport-local/local-app.example.com/foo-arn',
         '_blank',
         'noreferrer,noopener'
       );
@@ -109,10 +111,11 @@ describe('connectToApp', () => {
       status: '',
       targetName: 'foo',
       targetSubresourceName: undefined,
-      targetUri: '/clusters/teleport-local/apps/foo',
+      targetUri: '/clusters/teleport-local.com/apps/foo',
       targetUser: '',
       title: 'foo',
       uri: expect.any(String),
+      targetProtocol: 'TCP',
     });
   });
 });
@@ -120,10 +123,19 @@ describe('connectToApp', () => {
 describe('setUpAppGateway', () => {
   test.each([
     {
-      name: 'creates tunnel for a tcp app',
+      name: 'creates tunnel for a single-port TCP app',
       app: makeApp({
         endpointUri: 'tcp://localhost:3000',
       }),
+    },
+    {
+      name: 'creates tunnel for a multi-port TCP app',
+      app: makeApp({
+        endpointUri: 'tcp://localhost',
+        tcpPorts: [{ port: 1234, endPort: 0 }],
+      }),
+      targetPort: 1234,
+      expectedTitle: 'foo:1234',
     },
     {
       name: 'creates tunnel for a web app',
@@ -131,11 +143,15 @@ describe('setUpAppGateway', () => {
         endpointUri: 'http://localhost:3000',
       }),
     },
-  ])('$name', async ({ app }) => {
+  ])('$name', async ({ app, targetPort, expectedTitle }) => {
     const appContext = new MockAppContext();
     setTestCluster(appContext);
 
-    await setUpAppGateway(appContext, app, { origin: 'resource_table' });
+    await setUpAppGateway(appContext, app.uri, {
+      telemetry: { origin: 'resource_table' },
+      targetPort,
+      targetProtocol: getAppProtocol(app.endpointUri),
+    });
     const documents = appContext.workspacesService
       .getActiveWorkspaceDocumentService()
       .getGatewayDocuments();
@@ -147,11 +163,12 @@ describe('setUpAppGateway', () => {
       port: undefined,
       status: '',
       targetName: 'foo',
-      targetSubresourceName: undefined,
-      targetUri: '/clusters/teleport-local/apps/foo',
+      targetSubresourceName: targetPort?.toString(),
+      targetUri: '/clusters/teleport-local.com/apps/foo',
       targetUser: '',
-      title: 'foo',
+      title: expectedTitle || 'foo',
       uri: expect.any(String),
+      targetProtocol: getAppProtocol(app.endpointUri),
     });
   });
 });
@@ -180,5 +197,4 @@ function setTestCluster(appContext: IAppContext): void {
   });
 }
 
-const launchVnet = () =>
-  Promise.resolve([undefined, undefined] as [void, Error]);
+const launchVnet = async () => {};

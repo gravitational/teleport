@@ -18,33 +18,89 @@
 
 import { Link as InternalLink } from 'react-router-dom';
 
-import { ButtonIcon, Flex, Label, Text } from 'design';
-import { ArrowLeft } from 'design/Icon';
+import { ButtonText, Flex, Text } from 'design';
+import { Plugs } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
-import { getStatusAndLabel } from 'teleport/Integrations/helpers';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { Integration } from 'teleport/services/integrations';
 
-export function AwsOidcHeader({ integration }: { integration: Integration }) {
-  const { status, labelKind } = getStatusAndLabel(integration);
+export function AwsOidcHeader({
+  integration,
+  resource,
+  tasks = false,
+}: {
+  integration: Integration;
+  resource?: AwsResource;
+  tasks?: boolean;
+}) {
+  const divider = (
+    <Text typography="body3" color="text.slightlyMuted">
+      /
+    </Text>
+  );
+
   return (
-    <Flex alignItems="center">
-      <HoverTooltip position="bottom" tipContent="Back to Integrations">
-        <ButtonIcon
+    <Flex
+      alignItems="center"
+      borderBottom={1}
+      borderColor="interactive.tonal.neutral.0"
+      width={'100%'}
+      pl={6}
+      py={1}
+      gap={1}
+      data-testid="aws-oidc-header"
+    >
+      <HoverTooltip placement="bottom" tipContent="Back to Integrations">
+        <ButtonText
+          size="small"
           as={InternalLink}
           to={cfg.routes.integrations}
-          aria-label="back"
+          aria-label="integrations-table"
+          color="text.slightlyMuted"
         >
-          <ArrowLeft size="medium" />
-        </ButtonIcon>
+          <Plugs size="small" />
+        </ButtonText>
       </HoverTooltip>
-      <Text bold fontSize={6} mx={2}>
-        {integration.name}
-      </Text>
-      <Label kind={labelKind} aria-label="status" px={3}>
-        {status}
-      </Label>
+      {!resource && !tasks ? (
+        <>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted">
+            {integration.name}
+          </Text>
+        </>
+      ) : (
+        <>
+          {divider}
+          <ButtonText
+            size="small"
+            as={InternalLink}
+            to={cfg.getIntegrationStatusRoute(
+              integration.kind,
+              integration.name
+            )}
+          >
+            {integration.name}
+          </ButtonText>
+        </>
+      )}
+      {resource && (
+        <>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted" ml={2}>
+            {resource.toUpperCase()}
+          </Text>
+        </>
+      )}
+      {tasks && (
+        <>
+          {divider}
+          <Text typography="body3" color="text.slightlyMuted" ml={2}>
+            Pending Tasks
+          </Text>
+        </>
+      )}
     </Flex>
   );
 }

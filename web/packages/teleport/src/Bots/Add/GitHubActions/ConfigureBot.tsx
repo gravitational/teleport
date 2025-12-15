@@ -19,28 +19,20 @@
 import { useState } from 'react';
 import styled from 'styled-components';
 
-import Box from 'design/Box';
-import useAttempt from 'shared/hooks/useAttemptNext';
-import Validation, { Validator } from 'shared/components/Validation';
-
-import { Text } from 'design';
-
-import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
-
+import { H2, Text } from 'design';
 import { Alert } from 'design/Alert';
-
-import { H2 } from 'design';
-
-import { getBot } from 'teleport/services/bot';
-
-import useTeleport from 'teleport/useTeleport';
+import Box from 'design/Box';
+import FieldInput from 'shared/components/FieldInput';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { LabelsInput } from 'teleport/components/LabelsInput';
+import { getBot } from 'teleport/services/bot';
+import useTeleport from 'teleport/useTeleport';
 
-import { FlowStepProps } from '../Shared/GuidedFlow';
 import { FlowButtons } from '../Shared/FlowButtons';
-
+import { FlowStepProps } from '../Shared/GuidedFlow';
 import { useGitHubFlow } from './useGitHubFlow';
 
 export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
@@ -72,7 +64,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
 
     // check if a bot with that name already exist
     run(async () => {
-      const bot = await getBot(createBotRequest.botName);
+      const bot = await getBot({ botName: createBotRequest.botName });
       if (bot === null) {
         nextStep();
         return;
@@ -141,7 +133,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
               </Text>
             </FormItem>
 
-            <Box mb="4">
+            <Box mb="4" width={760}>
               {missingLabels && (
                 <Text mt="1" color="error.main">
                   At least one label is required
@@ -153,8 +145,7 @@ export function ConfigureBot({ nextStep, prevStep }: FlowStepProps) {
                   setCreateBotRequest({ ...createBotRequest, labels: labels })
                 }
                 disableBtns={isLoading}
-                inputWidth={350}
-                areLabelsRequired={true}
+                required={true}
                 labelKey={{
                   fieldName: 'Label for Resources the User Can Access',
                   placeholder: 'label key',

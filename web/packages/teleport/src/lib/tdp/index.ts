@@ -16,8 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import TdpClient, { TdpClientEvent } from './client';
-import { PlayerClient } from './playerClient';
-import { ButtonState, ScrollAxis } from './codec';
-
-export { TdpClient, TdpClientEvent, PlayerClient, ButtonState, ScrollAxis };
+export { PlayerClient } from './playerClient';
+export { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';

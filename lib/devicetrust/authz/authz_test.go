@@ -24,13 +24,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -40,19 +41,15 @@ func TestIsTLSDeviceVerified(t *testing.T) {
 
 func TestIsSSHDeviceVerified(t *testing.T) {
 	testIsDeviceVerified(t, "IsSSHDeviceVerified", func(ext *tlsca.DeviceExtensions) bool {
-		var cert *ssh.Certificate
+		var ident *sshca.Identity
 		if ext != nil {
-			cert = &ssh.Certificate{
-				Permissions: ssh.Permissions{
-					Extensions: map[string]string{
-						teleport.CertExtensionDeviceID:           ext.DeviceID,
-						teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
-						teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
-					},
-				},
+			ident = &sshca.Identity{
+				DeviceID:           ext.DeviceID,
+				DeviceAssetTag:     ext.AssetTag,
+				DeviceCredentialID: ext.CredentialID,
 			}
 		}
-		return authz.IsSSHDeviceVerified(cert)
+		return authz.IsSSHDeviceVerified(ident)
 	})
 }
 
@@ -120,7 +117,6 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			got := fn(test.ext)
 			if got != test.want {
@@ -131,30 +127,27 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 }
 
 func TestVerifyTLSUser(t *testing.T) {
-	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
+	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error {
 		return authz.VerifyTLSUser(context.Background(), dt, tlsca.Identity{
 			Username:         "llama",
 			DeviceExtensions: *ext,
+			BotName:          botName,
 		})
 	})
 }
 
 func TestVerifySSHUser(t *testing.T) {
-	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifySSHUser(context.Background(), dt, &ssh.Certificate{
-			KeyId: "llama",
-			Permissions: ssh.Permissions{
-				Extensions: map[string]string{
-					teleport.CertExtensionDeviceID:           ext.DeviceID,
-					teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
-					teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
-				},
-			},
+	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error {
+		return authz.VerifySSHUser(context.Background(), dt, &sshca.Identity{
+			DeviceID:           ext.DeviceID,
+			DeviceAssetTag:     ext.AssetTag,
+			DeviceCredentialID: ext.CredentialID,
+			BotName:            botName,
 		})
 	})
 }
 
-func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error) {
+func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error) {
 	assertNoErr := func(t *testing.T, err error) {
 		assert.NoError(t, err, "%v mismatch", method)
 	}
@@ -175,6 +168,7 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 		buildType string
 		dt        *types.DeviceTrust
 		ext       *tlsca.DeviceExtensions
+		isBot     bool
 		assertErr func(t *testing.T, err error)
 	}{
 		{
@@ -239,6 +233,16 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			assertErr: assertDeniedErr,
 		},
 		{
+			name:      "nok: Enterprise mode=required with bot",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			ext:       userWithoutExtensions,
+			isBot:     true,
+			assertErr: assertDeniedErr,
+		},
+		{
 			name:      "Enterprise mode=required with extensions",
 			buildType: modules.BuildEnterprise,
 			dt: &types.DeviceTrust{
@@ -247,14 +251,29 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			ext:       userWithExtensions,
 			assertErr: assertNoErr,
 		},
+		{
+			name:      "ok: Enterprise mode=required-for-humans with bot",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequiredForHumans,
+			},
+			ext:       userWithoutExtensions,
+			isBot:     true,
+			assertErr: assertNoErr,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: test.buildType,
 			})
 
-			test.assertErr(t, verify(test.dt, test.ext))
+			var botName string
+			if test.isBot {
+				botName = "wall-e"
+			}
+
+			test.assertErr(t, verify(test.dt, test.ext, botName))
 		})
 	}
 }

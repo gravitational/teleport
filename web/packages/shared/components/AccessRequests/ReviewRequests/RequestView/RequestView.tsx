@@ -18,60 +18,56 @@
 
 import { Fragment } from 'react';
 import styled from 'styled-components';
+
 import {
   Alert,
   Box,
   ButtonBorder,
   ButtonPrimary,
   Flex,
+  H3,
   Indicator,
+  Label,
   LabelState,
   Text,
-  Label,
-  H3,
 } from 'design';
+import Table from 'design/DataTable';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 import {
+  ArrowFatLinesUp,
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
-  ArrowFatLinesUp,
 } from 'design/Icon';
-import { TeleportGearIcon } from 'design/SVGIcon';
-import Table from 'design/DataTable';
-import { displayDateWithPrefixedTime } from 'design/datetime';
-
 import { LabelKind } from 'design/LabelState/LabelState';
-
+import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
-
-import { hasFinished, Attempt } from 'shared/hooks/useAsync';
-
+import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
+import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
-  canAssumeNow,
+  AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  canAssumeNow,
+  RequestKind,
   RequestState,
   Resource,
-  AccessRequest,
 } from 'shared/services/accessRequests';
-
-import {
-  PromotedMessage,
-  getAssumeStartTimeTooltipText,
-} from '../../Shared/Shared';
-import { getFormattedDurationTxt } from '../../Shared/utils';
-
-import { formattedName } from '../formattedName';
-
-import RequestReview from './RequestReview';
-import RolesRequested from './RolesRequested';
-import { SuggestedAccessList } from './types';
-import { RequestDelete } from './RequestDelete';
 
 import type {
   RequestFlags,
   SubmitReview,
 } from '../../ReviewRequests/RequestView/types';
+import {
+  getAssumeStartTimeTooltipText,
+  PromotedMessage,
+} from '../../Shared/Shared';
+import { getFormattedDurationTxt } from '../../Shared/utils';
+import { formattedName } from '../formattedName';
+import { RequestDelete } from './RequestDelete';
+import RequestReview from './RequestReview';
+import RolesRequested from './RolesRequested';
+import { SuggestedAccessList } from './types';
 
 export interface RequestViewProps {
   user: string;
@@ -148,8 +144,7 @@ export function RequestView({
         <Box mt={4}>
           <HoverTooltip
             tipContent={getAssumeStartTimeTooltipText(request.assumeStartTime)}
-            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            placement="top-start"
           >
             <ButtonPrimary disabled={true}>Assume Roles</ButtonPrimary>
           </HoverTooltip>
@@ -231,20 +226,38 @@ export function RequestView({
                     >
                       {request.user}
                     </Text>
-                    <Text
-                      mr={2}
-                      typography="body3"
-                      style={{
-                        flexShrink: 0,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      is requesting roles:
-                    </Text>
-                    <RolesRequested roles={request.roles} />
-                    <Text typography="body3">
-                      for {requestedAccessTime}, starting {startingTime}
-                    </Text>
+                    {request.requestKind === RequestKind.LongTerm ? (
+                      <>
+                        <Text
+                          mr={2}
+                          typography="body3"
+                          style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          is requesting permanent access to resources:
+                        </Text>
+                        <ResourcesRequested resources={request.resources} />
+                      </>
+                    ) : (
+                      <>
+                        <Text
+                          mr={2}
+                          typography="body3"
+                          style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          is requesting roles:
+                        </Text>
+                        <RolesRequested roles={request.roles} />
+                        <Text typography="body3">
+                          for {requestedAccessTime}, starting {startingTime}
+                        </Text>
+                      </>
+                    )}
                   </Flex>
                 </H3>
               </Flex>
@@ -427,7 +440,7 @@ export function Timestamp({
           )
         ) : (
           <span>
-            {verb} this request to long-term access with access list{' '}
+            {verb} this request to permanent access with access list{' '}
             <b>{promotedAccessListTitle}</b> {createdDuration}
           </span>
         )}

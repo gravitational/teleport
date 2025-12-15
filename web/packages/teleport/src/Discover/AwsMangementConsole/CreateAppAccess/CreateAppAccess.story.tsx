@@ -16,23 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
 import { delay, http, HttpResponse } from 'msw';
+
 import { Info } from 'design/Alert';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
+  RequiredDiscoverProviders,
+  resourceSpecAppAwsCliConsole,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
@@ -44,7 +41,7 @@ export const Success = () => <Component />;
 Success.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
+      http.post(cfg.api.awsAppAccess.createV2, () =>
         HttpResponse.json({ name: 'app-1' })
       ),
     ],
@@ -58,7 +55,10 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, async () => await delay('infinite')),
+      http.post(
+        cfg.api.awsAppAccess.createV2,
+        async () => await delay('infinite')
+      ),
     ],
   },
 };
@@ -67,7 +67,7 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
+      http.post(cfg.api.awsAppAccess.createV2, () =>
         HttpResponse.json(
           {
             message: 'Some kind of error message',
@@ -80,60 +80,29 @@ Failed.parameters = {
 };
 
 const Component = () => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'aws-console',
-      agentMatcherLabels: [],
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-oidc-name',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
+  const agentMeta: AgentMeta = {
+    resourceName: 'aws-console',
+    agentMatcherLabels: [],
+    awsIntegration: {
+      kind: IntegrationKind.AwsOidc,
+      name: 'some-oidc-name',
+      resourceType: 'integration',
+      spec: {
+        roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+        issuerS3Bucket: '',
+        issuerS3Prefix: '',
       },
+      statusCode: IntegrationStatusCode.Running,
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: '',
-      kind: ResourceKind.Application,
-      icon: null,
-      keywords: [],
-      event: DiscoverEventResource.ApplicationHttp,
-      appMeta: {
-        awsConsole: true,
-      },
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
   };
 
-  cfg.proxyCluster = 'localhost';
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'application' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAppAwsCliConsole}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          <Info>Devs: Click next to see next state</Info>
-          <CreateAppAccess />
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <Info>Devs: Click next to see next state</Info>
+      <CreateAppAccess />
+    </RequiredDiscoverProviders>
   );
 };

@@ -17,16 +17,16 @@
  */
 
 import {
-  RpcInputStream,
-  UnaryCall,
   ClientStreamingCall,
-  ServerStreamingCall,
   DuplexStreamingCall,
-  RpcOutputStream,
-  RpcError,
-  RpcOptions,
-  ServiceInfo,
   FinishedUnaryCall,
+  RpcError,
+  RpcInputStream,
+  RpcOptions,
+  RpcOutputStream,
+  ServerStreamingCall,
+  ServiceInfo,
+  UnaryCall,
 } from '@protobuf-ts/runtime-rpc';
 
 /**
@@ -97,7 +97,6 @@ export function cloneAbortSignal(signal: AbortSignal): CloneableAbortSignal {
       signal.removeEventListener(type, listener, options),
     eventListeners: (...args) => signal.eventListeners(...args),
     removeAllListeners: (...args) => signal.removeAllListeners(...args),
-    any: (...args) => signal.any(...args),
   };
 
   signal.addEventListener(
@@ -394,9 +393,9 @@ function cloneThenRejection<TResult>(
  * Alternatively, we could change cloneableClient to merely return the response property, plus maybe
  * some other fields that we need.
  */
-export class MockedUnaryCall<Response extends object>
-  implements CloneableUnaryCall<any, Response>
-{
+export class MockedUnaryCall<
+  Response extends object,
+> implements CloneableUnaryCall<any, Response> {
   constructor(
     public response: Response,
     private error?: any

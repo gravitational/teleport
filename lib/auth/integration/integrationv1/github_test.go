@@ -32,10 +32,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestGenerateGitHubUserCert(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	ca := newCertAuthority(t, types.HostCA, "test-cluster")
 	ctx, _, resourceSvc := initSvc(t, ca, ca.GetClusterName(), "127.0.0.1.nip.io")

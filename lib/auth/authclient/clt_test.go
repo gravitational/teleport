@@ -24,11 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 func TestClient_DialTimeout(t *testing.T) {
@@ -84,4 +86,61 @@ func TestClient_DialTimeout(t *testing.T) {
 			}
 		})
 	}
+}
+
+func fakeCA(t *testing.T, caType types.CertAuthType) types.CertAuthority {
+	t.Helper()
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caType,
+		ClusterName: "fizz-buzz",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: []byte(fixtures.TLSCACertPEM),
+					Key:  []byte(fixtures.TLSCAKeyPEM),
+				},
+			},
+			SSH: []*types.SSHKeyPair{
+				// Two of these to ensure that both are written to known hosts
+				{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				},
+				{
+					PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+					PublicKey:  []byte(fixtures.SSHCAPublicKey),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return ca
+}
+
+func TestValidateTrustedClusterRequestProto(t *testing.T) {
+	native := &ValidateTrustedClusterRequest{
+		Token:           "fizz-buzz",
+		TeleportVersion: "v19.0.0",
+		CAs: []types.CertAuthority{
+			fakeCA(t, types.HostCA),
+			fakeCA(t, types.UserCA),
+		},
+	}
+	proto, err := native.ToProto()
+	require.NoError(t, err)
+	backToNative := ValidateTrustedClusterRequestFromProto(proto)
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestValidateTrustedClusterResponseProto(t *testing.T) {
+	native := &ValidateTrustedClusterResponse{
+		CAs: []types.CertAuthority{
+			fakeCA(t, types.HostCA),
+			fakeCA(t, types.UserCA),
+		},
+	}
+	proto, err := native.ToProto()
+	require.NoError(t, err)
+	backToNative := ValidateTrustedClusterResponseFromProto(proto)
+	require.Empty(t, cmp.Diff(native, backToNative))
 }

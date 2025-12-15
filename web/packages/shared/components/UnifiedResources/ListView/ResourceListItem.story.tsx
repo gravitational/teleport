@@ -16,29 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 
 import { ButtonBorder, Flex } from 'design';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps } from 'teleport/Apps/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases } from 'teleport/Databases/fixtures';
-
-import { kubes } from 'teleport/Kubes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops } from 'teleport/Desktops/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { kubes } from 'teleport/Kubes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { nodes } from 'teleport/Nodes/fixtures';
-
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import makeApp from 'teleport/services/apps/makeApps';
 
 import {
   makeUnifiedResourceViewItemApp,
   makeUnifiedResourceViewItemDatabase,
+  makeUnifiedResourceViewItemDesktop,
   makeUnifiedResourceViewItemKube,
   makeUnifiedResourceViewItemNode,
-  makeUnifiedResourceViewItemDesktop,
 } from '../shared/viewItemsFactory';
-
 import { PinningSupport } from '../types';
-
 import { ResourceListItem } from './ResourceListItem';
 
 const additionalResources = [
@@ -78,59 +80,73 @@ const additionalResources = [
   }),
 ];
 
-const meta: Meta<typeof ResourceListItem> = {
-  component: ResourceListItem,
-  title: 'Shared/UnifiedResources/Items',
+type StoryProps = {
+  withCheckbox: boolean;
+  withPin: boolean;
 };
 
+const meta: Meta<StoryProps> = {
+  title: 'Shared/UnifiedResources/Items',
+  argTypes: {
+    withCheckbox: {
+      control: { type: 'boolean' },
+    },
+    withPin: {
+      control: { type: 'boolean' },
+    },
+  },
+  // default
+  args: {
+    withCheckbox: true,
+    withPin: true,
+  },
+};
 export default meta;
-type Story = StoryObj<typeof ResourceListItem>;
 
 const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 
-export const ListItems: Story = {
-  render() {
-    return (
-      <Flex flexDirection="column">
-        {[
-          ...apps.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
-          ),
-          ...databases.map(resource =>
-            makeUnifiedResourceViewItemDatabase(resource, {
-              ActionButton,
-            })
-          ),
-          ...kubes.map(resource =>
-            makeUnifiedResourceViewItemKube(resource, { ActionButton })
-          ),
-          ...nodes.map(resource =>
-            makeUnifiedResourceViewItemNode(resource, { ActionButton })
-          ),
-          ...additionalResources.map(resource =>
-            makeUnifiedResourceViewItemApp(resource, { ActionButton })
-          ),
-          ...desktops.map(resource =>
-            makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
-          ),
-        ].map((res, i) => (
-          <ResourceListItem
-            key={i}
-            pinned={false}
-            pinResource={() => {}}
-            selectResource={() => {}}
-            selected={false}
-            pinningSupport={PinningSupport.Supported}
-            name={res.name}
-            primaryIconName={res.primaryIconName}
-            SecondaryIcon={res.SecondaryIcon}
-            listViewProps={res.listViewProps}
-            labels={res.labels}
-            ActionButton={res.ActionButton}
-            expandAllLabels={false}
-          />
-        ))}
-      </Flex>
-    );
-  },
-};
+export function ListItems(props: StoryProps) {
+  return (
+    <Flex flexDirection="column">
+      {[
+        ...apps.map(resource =>
+          makeUnifiedResourceViewItemApp(resource, { ActionButton })
+        ),
+        ...databases.map(resource =>
+          makeUnifiedResourceViewItemDatabase(resource, {
+            ActionButton,
+          })
+        ),
+        ...kubes.map(resource =>
+          makeUnifiedResourceViewItemKube(resource, { ActionButton })
+        ),
+        ...nodes.map(resource =>
+          makeUnifiedResourceViewItemNode(resource, { ActionButton })
+        ),
+        ...additionalResources.map(resource =>
+          makeUnifiedResourceViewItemApp(resource, { ActionButton })
+        ),
+        ...desktops.map(resource =>
+          makeUnifiedResourceViewItemDesktop(resource, { ActionButton })
+        ),
+      ].map((res, i) => (
+        <ResourceListItem
+          key={i}
+          pinned={false}
+          pinResource={() => {}}
+          selectResource={() => {}}
+          selected={false}
+          pinningSupport={PinningSupport.Supported}
+          expandAllLabels={false}
+          onShowStatusInfo={() => null}
+          showingStatusInfo={false}
+          viewItem={res}
+          visibleInputFields={{
+            checkbox: props.withCheckbox,
+            pin: props.withPin,
+          }}
+        />
+      ))}
+    </Flex>
+  );
+}

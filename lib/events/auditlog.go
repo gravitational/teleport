@@ -19,10 +19,12 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"io/fs"
+	"iter"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -38,7 +40,10 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
+	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -203,6 +208,9 @@ type AuditLog struct {
 	// localLog is a local events log used
 	// to emit audit events if no external log has been specified
 	localLog *FileLog
+
+	// decrypter wraps session replay with decryption
+	decrypter DecryptionWrapper
 }
 
 // AuditLogConfig specifies configuration for AuditLog server
@@ -247,6 +255,14 @@ type AuditLogConfig struct {
 
 	// Context is audit log context
 	Context context.Context
+
+	// Decrypter wraps session replay with decryption
+	Decrypter DecryptionWrapper
+
+	// SessionSummarizerProvider provides session summarizers
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider provides recording metadata service
+	RecordingMetadataProvider *recordingmetadata.Provider
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -258,7 +274,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if a.UploadHandler == nil {
-		return trace.BadParameter("missing parameter UploadHandler")
+		return trace.BadParameter("missing parameter DownloadHandler")
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
@@ -272,6 +288,12 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.DirMask == nil {
 		mask := os.FileMode(teleport.DirMaskSharedGroup)
 		a.DirMask = &mask
+	}
+	if a.SessionSummarizerProvider == nil {
+		a.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
+	}
+	if a.RecordingMetadataProvider == nil {
+		a.RecordingMetadataProvider = recordingmetadata.NewProvider()
 	}
 	if (a.GID != nil && a.UID == nil) || (a.UID != nil && a.GID == nil) {
 		return trace.BadParameter("if UID or GID is set, both should be specified")
@@ -304,6 +326,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,
+		decrypter:       cfg.Decrypter,
 	}
 	// create a directory for audit logs, audit log does not create
 	// session logs before migrations are run in case if the directory
@@ -487,6 +510,23 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
+func (l *AuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	g := l.log.With("event_type", req.EventTypes, "limit", req.Limit)
+	g.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To)
+	limit := req.Limit
+	if limit <= 0 {
+		limit = defaults.EventsIterationLimit
+	}
+	if limit > defaults.EventsMaxIterationLimit {
+		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
+	}
+	req.Limit = limit
+	if l.ExternalLog != nil {
+		return l.ExternalLog.SearchUnstructuredEvents(ctx, req)
+	}
+	return l.localLog.SearchUnstructuredEvents(ctx, req)
+}
+
 func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.Date, "chunk", req.Chunk, "cursor", req.Cursor)
 	if l.ExternalLog != nil {
@@ -509,9 +549,23 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
+	sessionStartCh := make(chan apievents.AuditEvent, 1)
+	if startCb, err := sessionStartCallbackFromContext(ctx); err == nil {
+		go func() {
+			evt, ok := <-sessionStartCh
+			if !ok {
+				startCb(nil, trace.NotFound("session start event not found"))
+				return
+			}
+
+			startCb(evt, nil)
+		}()
+	}
+
 	rawSession, err := os.CreateTemp(l.playbackDir, string(sessionID)+".stream.tar.*")
 	if err != nil {
 		e <- trace.Wrap(trace.ConvertSystemError(err), "creating temporary stream file")
+		close(sessionStartCh)
 		return c, e
 	}
 	// The file is still perfectly usable after unlinking it, and the space it's
@@ -528,6 +582,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	if err := os.Remove(rawSession.Name()); err != nil {
 		_ = rawSession.Close()
 		e <- trace.Wrap(trace.ConvertSystemError(err), "removing temporary stream file")
+		close(sessionStartCh)
 		return c, e
 	}
 
@@ -538,6 +593,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
 		e <- trace.Wrap(err)
+		close(sessionStartCh)
 		return c, e
 	}
 	l.log.DebugContext(ctx, "Downloaded session to a temporary file for streaming.",
@@ -547,6 +603,8 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 
 	go func() {
 		defer rawSession.Close()
+		defer close(sessionStartCh)
+
 		// this shouldn't be necessary as the position should be already 0 (Download
 		// takes an io.WriterAt), but it's better to be safe than sorry
 		if _, err := rawSession.Seek(0, io.SeekStart); err != nil {
@@ -554,9 +612,10 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			return
 		}
 
-		protoReader := NewProtoReader(rawSession)
+		protoReader := NewProtoReader(rawSession, l.decrypter)
 		defer protoReader.Close()
 
+		firstEvent := true
 		for {
 			if ctx.Err() != nil {
 				e <- trace.Wrap(ctx.Err())
@@ -573,6 +632,11 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 				return
 			}
 
+			if firstEvent {
+				sessionStartCh <- event
+				firstEvent = false
+			}
+
 			if event.GetIndex() >= startIndex {
 				select {
 				case c <- event:
@@ -585,6 +649,83 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	}()
 
 	return c, e
+}
+
+// UploadEncryptedRecording uploads encrypted recordings using the AuditLog's configured UploadHandler.
+func (l *AuditLog) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	sessID, err := session.ParseID(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upload, err := l.UploadHandler.CreateUpload(ctx, *sessID)
+	if err != nil {
+		return trace.Wrap(err, "creating upload")
+	}
+
+	next, stop := iter.Pull2(parts)
+	defer stop()
+
+	part, err, ok := next()
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !ok {
+		return trace.BadParameter("unexpected empty upload")
+	}
+
+	var streamParts []StreamPart
+	// S3 requires that part numbers start at 1, so we do that by default regardless of which uploader is
+	// configured for the auth service
+	var partNumber int64 = 1
+	for {
+		if err := l.UploadHandler.ReserveUploadPart(ctx, *upload, partNumber); err != nil {
+			return trace.Wrap(err, "reserving upload part")
+		}
+
+		nextPart, err, hasNext := next()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If the upload part is not at least the minimum upload part size, and this isn't
+		// the last part, add padding to meet the minimum upload size.
+		if hasNext && len(part) < MinUploadPartSizeBytes {
+			part = PadUploadPart(part, MinUploadPartSizeBytes)
+		}
+
+		streamPart, err := l.UploadHandler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(part))
+		if err != nil {
+			return trace.Wrap(err, "uploading part")
+		}
+		streamParts = append(streamParts, *streamPart)
+
+		if !hasNext {
+			break
+		}
+
+		part = nextPart
+		partNumber++
+	}
+	err = l.UploadHandler.CompleteUpload(ctx, *upload, streamParts)
+	if err != nil {
+		return trace.Wrap(err, "completing upload")
+	}
+
+	sessionEnd, err := FindSessionEndEvent(ctx, l, session.ID(sessionID))
+	if err != nil || sessionEnd == nil {
+		return nil
+	}
+	if err := sessionpostprocessing.Process(
+		ctx,
+		sessionpostprocessing.Config{
+			SessionEnd:                sessionEnd,
+			SessionID:                 upload.SessionID,
+			SessionSummarizerProvider: l.SessionSummarizerProvider,
+			RecordingMetadataProvider: l.RecordingMetadataProvider,
+		},
+	); err != nil {
+		l.log.WarnContext(ctx, "session post-processing failed", "error", err)
+	}
+	return nil
 }
 
 // getLocalLog returns the local (file based) AuditLogger.
@@ -666,4 +807,57 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			return
 		}
 	}
+}
+
+// streamSessionEventsContextKey represent context keys used by
+// StreamSessionEvents function.
+type streamSessionEventsContextKey string
+
+const (
+	// sessionStartCallbackContextKey is the context key used to store the
+	// session start callback function.
+	sessionStartCallbackContextKey streamSessionEventsContextKey = "session-start"
+)
+
+// SessionStartCallback is the function used when streaming reaches the start
+// event. If any error, such as session not found, the event will be nil, and
+// the error will be set.
+type SessionStartCallback func(startEvent apievents.AuditEvent, err error)
+
+// ContextWithSessionStartCallback returns a context.Context containing a
+// session start event callback.
+func ContextWithSessionStartCallback(ctx context.Context, cb SessionStartCallback) context.Context {
+	return context.WithValue(ctx, sessionStartCallbackContextKey, cb)
+}
+
+// sessionStartCallbackFromContext returns the session start callback from
+// context.Context.
+func sessionStartCallbackFromContext(ctx context.Context) (SessionStartCallback, error) {
+	if ctx == nil {
+		return nil, trace.BadParameter("context is nil")
+	}
+
+	cb, ok := ctx.Value(sessionStartCallbackContextKey).(SessionStartCallback)
+	if !ok {
+		return nil, trace.BadParameter("session start callback function was not found in the context")
+	}
+
+	return cb, nil
+}
+
+// PadUploadPart adds padding to the given upload part to reach the minimum size.
+func PadUploadPart(uploadPart []byte, minSize int) []byte {
+	// Create padding to reach the target size. Note that the padding cannot
+	// be shorter than the header size.
+	paddingBytes := max(minSize-len(uploadPart), ProtoStreamV2PartHeaderSize)
+	paddedPart := make([]byte, paddingBytes)
+
+	paddedPartHeader := PartHeader{
+		ProtoVersion: ProtoStreamV2,
+		PaddingSize:  uint64(paddingBytes - ProtoStreamV2PartHeaderSize),
+		PartSize:     0,
+	}
+	copy(paddedPart, paddedPartHeader.Bytes())
+
+	return append(uploadPart, paddedPart...)
 }

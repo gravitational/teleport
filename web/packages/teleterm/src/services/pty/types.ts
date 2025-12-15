@@ -16,8 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { Shell } from 'teleterm/mainProcess/shell';
+import {
+  PtyProcessOptions,
+  IPtyProcess as SharedProcessIPtyProcess,
+} from 'teleterm/sharedProcess/ptyHost';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
@@ -32,7 +35,7 @@ export interface PtyHostClient {
 
   getCwd(ptyId: string): Promise<string>;
 
-  exchangeEvents(ptyId: string): PtyEventsStreamHandler;
+  managePtyProcess(ptyId: string): PtyEventsStreamHandler;
 }
 
 export type PtyServiceClient = {
@@ -43,6 +46,15 @@ export type PtyServiceClient = {
     shell: Shell;
   }>;
 };
+
+/**
+ * IPtyProcess is a client-side only interface which extends IPtyProcess from the shared process.
+ */
+export interface IPtyProcess extends SharedProcessIPtyProcess {
+  start(cols: number, rows: number): Promise<void>;
+  write(data: string): Promise<void>;
+  resize(cols: number, rows: number): Promise<void>;
+}
 
 /**
  * Pty information for Windows.
@@ -82,14 +94,6 @@ export type TshLoginCommand = PtyCommandBase & {
   leafClusterId: string | undefined;
 };
 
-export type TshKubeLoginCommand = PtyCommandBase & {
-  kind: 'pty.tsh-kube-login';
-  kubeId: string;
-  kubeConfigRelativePath: string;
-  rootClusterId: string;
-  leafClusterId?: string;
-};
-
 export type GatewayCliClientCommand = PtyCommandBase & {
   kind: 'pty.gateway-cli-client';
   // path is an absolute path to the CLI client. It is resolved on tshd side by GO's
@@ -114,7 +118,6 @@ type PtyCommandBase = {
 export type PtyCommand =
   | ShellCommand
   | TshLoginCommand
-  | TshKubeLoginCommand
   | GatewayCliClientCommand;
 
 export type SshOptions = {

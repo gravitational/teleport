@@ -28,9 +28,9 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -40,22 +40,23 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -81,8 +82,6 @@ import (
 //	}
 type Server struct {
 	logger *slog.Logger
-
-	id string
 
 	// targetConn is the TCP connection to the remote host.
 	targetConn net.Conn
@@ -111,7 +110,7 @@ type Server struct {
 	identityContext srv.IdentityContext
 
 	// userAgent is the SSH user agent that was forwarded to the proxy.
-	userAgent teleagent.Agent
+	userAgent sshagent.Client
 
 	// agentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
@@ -154,9 +153,9 @@ type Server struct {
 
 	clock clockwork.Clock
 
-	// hostUUID is the UUID of the underlying proxy that the forwarding server
+	// proxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	hostUUID string
+	proxyUUID string
 
 	// closeContext and closeCancel are used to signal to the outside
 	// world that this server is closed
@@ -173,13 +172,15 @@ type Server struct {
 	// of starting spans.
 	tracerProvider oteltrace.TracerProvider
 
-	targetID, targetAddr, targetHostname string
-
 	// targetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
 	targetServer types.Server
+
+	eiceSigner EICESignerFunc
 }
+
+// EICESignerFunc is a function that is used to obatin an [ssh.Signer] for an EICE instance. The
+// [ssh.Signer] is required for clients to be able to connect to the instance.
+type EICESignerFunc = func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error)
 
 // ServerConfig is the configuration needed to create an instance of a Server.
 type ServerConfig struct {
@@ -191,7 +192,7 @@ type ServerConfig struct {
 	// of the server being connected to, whether it is the local cluster or a
 	// remote cluster.
 	TargetClusterAccessPoint srv.AccessPoint
-	UserAgent                teleagent.Agent
+	UserAgent                sshagent.Client
 	TargetConn               net.Conn
 	SrcAddr                  net.Addr
 	DstAddr                  net.Addr
@@ -229,9 +230,9 @@ type ServerConfig struct {
 	// configuration.
 	FIPS bool
 
-	// HostUUID is the UUID of the underlying proxy that the forwarding server
+	// ProxyUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
-	HostUUID string
+	ProxyUUID string
 
 	// Emitter is audit events emitter
 	Emitter events.StreamEmitter
@@ -247,16 +248,12 @@ type ServerConfig struct {
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
 
-	TargetID, TargetAddr, TargetHostname string
-
 	// TargetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
 	TargetServer types.Server
 
-	// IsAgentlessNode indicates whether the targetServer is a Node with an OpenSSH server (no teleport agent).
-	// This includes Nodes whose sub kind is OpenSSH and OpenSSHEphemeralKey.
-	IsAgentlessNode bool
+	// EICESigner is used to upload credentials and get a signer to use for the client connection
+	// to the EC2 instance.
+	EICESigner EICESignerFunc
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -270,18 +267,20 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.IsAgentlessNode {
-		if s.TargetServer == nil {
-			return trace.BadParameter("target server is required for agentless nodes")
+	if s.TargetServer == nil {
+		return trace.BadParameter("target server is required")
+	}
+	switch s.TargetServer.GetSubKind() {
+	case types.SubKindTeleportNode:
+		if s.UserAgent == nil {
+			return trace.BadParameter("user agent required for teleport nodes (agentless)")
 		}
-
-		if s.TargetServer.GetSubKind() == types.SubKindOpenSSHNode && s.AgentlessSigner == nil {
+	case types.SubKindOpenSSHNode:
+		if s.AgentlessSigner == nil {
 			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
 		}
-	}
-
-	if s.UserAgent == nil && !s.IsAgentlessNode {
-		return trace.BadParameter("user agent required for teleport nodes (agentless)")
+	case types.SubKindOpenSSHEICENode:
+		// agentless signer is set once the forwarding server is started.
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -307,6 +306,11 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
 	}
+
+	if s.EICESigner == nil {
+		return trace.BadParameter("missing parameter EICESigner")
+	}
+
 	if s.TracerProvider == nil {
 		s.TracerProvider = tracing.DefaultProvider()
 	}
@@ -334,7 +338,6 @@ func New(c ServerConfig) (*Server, error) {
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),
-		id:              uuid.New().String(),
 		targetConn:      c.TargetConn,
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
@@ -347,15 +350,13 @@ func New(c ServerConfig) (*Server, error) {
 		authService:     c.LocalAuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
-		hostUUID:        c.HostUUID,
+		proxyUUID:       c.ProxyUUID,
 		StreamEmitter:   c.Emitter,
 		parentContext:   c.ParentContext,
 		lockWatcher:     c.LockWatcher,
 		tracerProvider:  c.TracerProvider,
-		targetID:        c.TargetID,
-		targetAddr:      c.TargetAddr,
-		targetHostname:  c.TargetHostname,
 		targetServer:    c.TargetServer,
+		eiceSigner:      c.EICESigner,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -400,21 +401,18 @@ func New(c ServerConfig) (*Server, error) {
 	return s, nil
 }
 
-// TargetMetadata returns metadata about the forwarding target.
-func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	var subKind string
-	if s.targetServer != nil {
-		subKind = s.targetServer.GetSubKind()
-	}
-
+// EventMetadata returns metadata about the forwarding target.
+func (s *Server) EventMetadata() apievents.ServerMetadata {
+	serverInfo := s.GetInfo()
 	return apievents.ServerMetadata{
 		ServerVersion:   teleport.Version,
-		ServerNamespace: s.GetNamespace(),
-		ServerID:        s.targetID,
-		ServerAddr:      s.targetAddr,
-		ServerHostname:  s.targetHostname,
-		ForwardedBy:     s.hostUUID,
-		ServerSubKind:   subKind,
+		ServerNamespace: serverInfo.GetNamespace(),
+		ServerID:        serverInfo.GetName(),
+		ServerAddr:      serverInfo.GetAddr(),
+		ServerLabels:    serverInfo.GetAllLabels(),
+		ServerHostname:  serverInfo.GetHostname(),
+		ServerSubKind:   serverInfo.GetSubKind(),
+		ForwardedBy:     s.proxyUUID,
 	}
 }
 
@@ -429,15 +427,15 @@ func (s *Server) GetDataDir() string {
 	return s.dataDir
 }
 
-// ID returns the ID of the proxy that creates the in-memory forwarding server.
+// ID returns the UUID of the server targeted by the forwarding server.
 func (s *Server) ID() string {
-	return s.id
+	return s.targetServer.GetName()
 }
 
 // HostUUID is the UUID of the underlying proxy that the forwarding server
 // is running in.
 func (s *Server) HostUUID() string {
-	return s.hostUUID
+	return s.proxyUUID
 }
 
 // GetNamespace returns the namespace the forwarding server resides in.
@@ -469,8 +467,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
-	return nil, trace.BadParameter("PAM not supported by forwarding server")
+func (s *Server) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -504,19 +502,41 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 	return &srv.HostSudoersNotImplemented{}
 }
 
-// GetInfo returns a services.Server that represents this server.
+// GetSELinuxEnabled returns whether the node should enable SELinux
+// support or not.
+func (s *Server) GetSELinuxEnabled() bool {
+	return false
+}
+
+// GetInfo returns a services.Server that represents the target server.
 func (s *Server) GetInfo() types.Server {
-	return &types.ServerV2{
+	// Only set the address for non-tunnel nodes.
+	var addr string
+	if !s.targetServer.GetUseTunnel() {
+		addr = s.targetServer.GetAddr()
+	}
+
+	srv := &types.ServerV2{
 		Kind:    types.KindNode,
+		SubKind: s.targetServer.GetSubKind(),
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      s.ID(),
-			Namespace: s.GetNamespace(),
+			Name:      s.targetServer.GetName(),
+			Namespace: s.targetServer.GetNamespace(),
+			Labels:    s.targetServer.GetLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			Addr: s.AdvertiseAddr(),
+			CmdLabels:   types.LabelsToV2(s.targetServer.GetCmdLabels()),
+			Addr:        addr,
+			Hostname:    s.targetServer.GetHostname(),
+			UseTunnel:   s.useTunnel,
+			Version:     teleport.Version,
+			ProxyIDs:    s.targetServer.GetProxyIDs(),
+			PublicAddrs: s.targetServer.GetPublicAddrs(),
 		},
 	}
+
+	return srv
 }
 
 // Dial returns the client connection created by pipeAddrConn.
@@ -532,13 +552,24 @@ func (s *Server) GetClock() clockwork.Clock {
 // GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp path.
 // These values are never set for the forwarding server because utmp, wtmp, and btmp
 // are updated by the target server and not the forwarding server.
-func (s *Server) GetUserAccountingPaths() (string, string, string) {
-	return "", "", ""
+func (s *Server) GetUserAccountingPaths() (string, string, string, string) {
+	return "", "", "", ""
 }
 
 // GetLockWatcher gets the server's lock watcher.
 func (s *Server) GetLockWatcher() *services.LockWatcher {
 	return s.lockWatcher
+}
+
+// ChildLogConfig returns a noop log configuration since the forwarding server
+// does not spawn child processes.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 func (s *Server) Serve() {
@@ -558,6 +589,10 @@ func (s *Server) Serve() {
 	config.Ciphers = s.ciphers
 	config.KeyExchanges = s.kexAlgorithms
 	config.MACs = s.macAlgorithms
+
+	// Set the server version to Teleport to enable tracing and other Teleport
+	// specific features like joining.
+	config.ServerVersion = sshutils.SSHVersionPrefix
 
 	netConfig, err := s.GetAccessPoint().GetClusterNetworkingConfig(s.Context())
 	if err != nil {
@@ -602,11 +637,14 @@ func (s *Server) Serve() {
 		return
 	}
 
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
+	if s.targetServer.IsOpenSSHNode() {
 		// OpenSSH nodes don't support moderated sessions, send an error to
 		// the user and gracefully fail if the user is attempting to create one.
-		policySets := s.identityContext.AccessChecker.SessionPolicySets()
-		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
+		var policySets []*types.SessionTrackerPolicySet
+		if s.identityContext.UnstableSessionJoiningAccessChecker != nil {
+			policySets = s.identityContext.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+		}
+		evaluator := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
 		if evaluator.IsModerated() {
 			s.rejectChannel(chans, "Moderated sessions cannot be created for OpenSSH nodes")
 			sconn.Close()
@@ -616,7 +654,25 @@ func (s *Server) Serve() {
 		}
 
 		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
-			sshSigner, err := s.sendSSHPublicKeyToTarget(ctx)
+			awsInfo := s.targetServer.GetAWSInfo()
+			if awsInfo == nil {
+				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", "missing aws cloud metadata")
+				return
+			}
+
+			token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
+			if err != nil {
+				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
+				return
+			}
+
+			integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+			if err != nil {
+				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
+				return
+			}
+
+			sshSigner, err := s.eiceSigner(ctx, s.targetServer, integration, s.identityContext.Login, token, s.GetAccessPoint())
 			if err != nil {
 				s.logger.WarnContext(s.Context(), "Unable to upload SSH Public Key to EC2 Instance", "instance", s.targetServer.GetName(), "error", err)
 				return
@@ -667,59 +723,6 @@ func (s *Server) Serve() {
 
 	go s.handleClientChannels(ctx, forwardedTCPIP)
 	go s.handleConnection(ctx, chans, reqs)
-}
-
-func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, error) {
-	awsInfo := s.targetServer.GetAWSInfo()
-	if awsInfo == nil {
-		return nil, trace.BadParameter("missing aws cloud metadata")
-	}
-
-	token, err := s.authClient.GenerateAWSOIDCToken(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to generate aws token: %v", err)
-	}
-
-	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
-	if err != nil {
-		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
-	}
-
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("integration does not have aws oidc spec fields %q", awsInfo.Integration)
-	}
-
-	sendSSHClient, err := awsoidc.NewEICESendSSHPublicKeyClient(ctx, &awsoidc.AWSClientRequest{
-		Token:   token,
-		RoleARN: integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:  awsInfo.Region,
-	})
-	if err != nil {
-		return nil, trace.BadParameter("failed to create an aws client to send ssh public key:  %v", err)
-	}
-
-	sshKey, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(s.GetAccessPoint()),
-		cryptosuites.EC2InstanceConnect)
-	if err != nil {
-		return nil, trace.Wrap(err, "generating SSH key")
-	}
-	sshSigner, err := ssh.NewSignerFromSigner(sshKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating SSH signer")
-	}
-
-	if err := awsoidc.SendSSHPublicKeyToEC2(ctx, sendSSHClient, awsoidc.SendSSHPublicKeyToEC2Request{
-		InstanceID:      awsInfo.InstanceID,
-		EC2SSHLoginUser: s.identityContext.Login,
-		PublicKey:       sshSigner.PublicKey(),
-	}); err != nil {
-		return nil, trace.BadParameter("send ssh public key failed for instance %s: %v", awsInfo.InstanceID, err)
-	}
-
-	// This is the SSH Signer that the client must use to connect to the EC2.
-	// This signer is trusted because the public key was sent to the target EC2 host.
-	return sshSigner, nil
 }
 
 // Close will close all underlying connections that the forwarding server holds.
@@ -790,7 +793,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := tracessh.NewClientConnWithDeadline(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := tracessh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -909,7 +912,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		if err := nch.Reject(ssh.ConnectionFailed, "failed to open server context"); err != nil {
 			s.logger.ErrorContext(ctx, "Error rejecting forwarded-tcpip channel", "error", err)
@@ -941,7 +944,7 @@ func (s *Server) handleForwardedTCPIPRequest(ctx context.Context, nch ssh.NewCha
 	go io.Copy(io.Discard, ch.Stderr())
 	ch = scx.TrackActivity(ch)
 
-	event := scx.GetPortForwardEvent()
+	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(ctx, &event); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to emit audit event", "error", err)
 	}
@@ -980,13 +983,28 @@ func (s *Server) handleGlobalRequest(ctx context.Context, req *ssh.Request) {
 		}
 		// Pass request on unchanged.
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v20.0.0
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
+		// session IDs for new sessions during the shel/exec channel
+		// request.
 		if err := req.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
 		return
-	case teleport.KeepAliveReqType:
+	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v21.0.0
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions directly after accepting the
+		// session channel request.
+		if err := req.Reply(true, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case teleport.KeepAliveReqType, teleport.TerminalSizeRequest:
 	default:
 		s.logger.DebugContext(ctx, "Rejecting unknown global request", "request_type", req.Type)
 		_ = req.Reply(false, nil)
@@ -1018,13 +1036,13 @@ func (s *Server) checkTCPIPForwardRequest(ctx context.Context, r *ssh.Request) e
 	}
 
 	// RBAC checks are only necessary when connecting to an agentless node
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
-		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext)
+	if s.targetServer.IsOpenSSHNode() {
+		scx, err := srv.NewServerContext(s.Context(), s.connectionContext, s, s.identityContext, nil)
 		if err != nil {
 			return err
 		}
 
-		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeRemote); err != nil {
+		if err := s.authHandlers.CheckPortForward(scx.DstAddr, scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1082,7 +1100,7 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, nil)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable to create connection context", "error", err)
 		s.stderrWrite(ctx, ch, "Unable to create connection context.")
@@ -1101,8 +1119,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	ch = scx.TrackActivity(ch)
 
 	// RBAC checks are only necessary when connecting to an agentless node
-	if s.targetServer != nil && s.targetServer.IsOpenSSHNode() {
-		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, services.SSHPortForwardModeLocal)
+	if s.targetServer.IsOpenSSHNode() {
+		err = s.authHandlers.CheckPortForward(scx.DstAddr, scx, decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL)
 		if err != nil {
 			s.stderrWrite(ctx, ch, err.Error())
 			return
@@ -1120,7 +1138,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	event := scx.GetPortForwardEvent()
+	event := scx.GetPortForwardEvent(events.PortForwardEvent, events.PortForwardCode, scx.DstAddr)
 	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit port forward event", "error", err)
 	}
@@ -1134,12 +1152,22 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 // the remote host. Once the session channel has been established, this function's loop handles
 // all the "exec", "subsystem" and "shell" requests.
 func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.logger.ErrorContext(ctx, "Failed to parse request data", "data", string(nch.ExtraData()), "error", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+		}
+		return
+	}
+
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
 	// based on teleport business logic, because this logic is already
 	// done on the server's terminating side.
-	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
+	scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Server context setup failed", "error", err)
 		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {
@@ -1156,11 +1184,52 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.SetAllowFileCopying(true)
 	defer scx.Close()
 
+	// If this is a Teleport node server, it should send the session ID
+	// right after the session channel is accepted. We should reuse this
+	// session ID and delegate session responsibilities (recordings, audit
+	// events, and session trackers) to avoid duplicates.
+	//
+	// Register handler to receive the current session ID before starting the session.
+	var newSessionIDFromServer chan string
+	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
+		// Check if the Teleport Node is outdated and won't actually send the session ID.
+		//
+		// TODO(Joerger): DELETE IN v20.0.0
+		// all v19+ servers set and share the session ID directly after accepting the session channel.
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+		reply, payload, err := s.remoteClient.SendRequest(ctx, teleport.SessionIDQueryRequestV2, true, nil)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to send session ID query request", "error", err)
+		} else if !reply && payload != nil {
+			// If the target node replies with a payload, this means that the connection itself has been rejected,
+			// presumably due to an authz error, and the server is trying to communicate the error with the first
+			// req/chan received.
+			s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
+			if err := nch.Reject(ssh.Prohibited, fmt.Sprintf("remote session open failed: %v", string(payload))); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+
+		if err == nil && reply {
+			newSessionIDFromServer = make(chan string, 1)
+			var receiveSessionIDOnce sync.Once
+			s.remoteClient.HandleSessionRequest(ctx, teleport.CurrentSessionIDRequest, func(ctx context.Context, req *ssh.Request) {
+				// Only handle the first request - only one is expected.
+				receiveSessionIDOnce.Do(func() {
+					newSessionIDFromServer <- string(req.Payload)
+				})
+			})
+		} else {
+			s.logger.WarnContext(ctx, "Failed to query session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+		}
+	}
+
 	// Create a "session" channel on the remote host. Note that we
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Remote session open failed", "error", err)
 		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
@@ -1175,6 +1244,38 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	}
 	scx.RemoteSession = remoteSession
 
+	if newSessionIDFromServer != nil {
+		// Wait for the session ID to be reported by the target node.
+		select {
+		case sidString := <-newSessionIDFromServer:
+			sid, err := session.ParseID(sidString)
+			if err != nil {
+				s.logger.WarnContext(ctx, "Unable to parse session ID reported by target Teleport Node", "error", err)
+				if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+					s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+				}
+				return
+			}
+			scx.SetNewSessionID(ctx, *sid)
+		case <-time.After(10 * time.Second):
+			s.logger.WarnContext(ctx, "Failed to receive session ID from target node. Ensure the targeted Teleport Node is upgraded to v19.0.0+ to avoid duplicate events due to mismatched session IDs.")
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		case <-ctx.Done():
+			if err := nch.Reject(ssh.ConnectionFailed, "target Teleport Node failed to report session ID"); err != nil {
+				s.logger.WarnContext(ctx, "Failed to reject channel", "channel", nch.ChannelType(), "error", err)
+			}
+			return
+		}
+	} else {
+		// The target node is not expected to report session ID, either because it's
+		// outdated or an agentless node. Continue with a random session ID and ensure
+		// we create a new session tracker.
+		scx.SetNewSessionID(ctx, session.NewID())
+	}
+
 	// Accept the session channel request
 	ch, in, err := nch.Accept()
 	if err != nil {
@@ -1185,27 +1286,23 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		return
 	}
 	scx.AddCloser(ch)
-
 	ch = scx.TrackActivity(ch)
+
+	// inform the client of the session ID that is going to be used in a new
+	// goroutine to reduce latency.
+	go func() {
+		sid := scx.GetNewSessionID()
+		s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
+		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
+		if err != nil {
+			s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+		}
+	}()
 
 	s.logger.DebugContext(ctx, "Opening session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 	defer s.logger.DebugContext(ctx, "Closing session request", "target_addr", s.sconn.RemoteAddr(), "session_id", scx.ID())
 
 	for {
-		// Update the context with the session ID.
-		err := scx.CreateOrJoinSession(ctx, s.sessionRegistry)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "unable create or join session", "error", err)
-
-			// Write the error to channel and close it.
-			s.stderrWrite(ctx, ch, fmt.Sprintf("unable to update context: %v", err))
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: teleport.RemoteCommandFailure}))
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Failed to send exit status", "error", err)
-			}
-			return
-		}
-
 		select {
 		case result := <-scx.SubsystemResultCh:
 			// Subsystem has finished executing, close the channel and session.
@@ -1285,7 +1382,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// to maintain interoperability with OpenSSH, agent forwarding requests
 			// should never fail, all errors should be logged and we should continue
 			// processing requests.
-			err := s.handleAgentForward(ch, req, scx)
+			err := s.handleAgentForward(ctx, ch, req, scx)
 			if err != nil {
 				scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
 			}
@@ -1320,7 +1417,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
 		// processing requests.
-		err := s.handleAgentForward(ch, req, scx)
+		err := s.handleAgentForward(ctx, ch, req, scx)
 		if err != nil {
 			scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
 		}
@@ -1338,9 +1435,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 }
 
-func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
 	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(ctx)
+	err := s.authHandlers.CheckAgentForward(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1349,21 +1446,21 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	// If no agent was forwarded to the proxy, create one now.
 	userAgent := s.userAgent
 	if userAgent == nil {
-		ctx.ConnectionContext.SetForwardAgent(true)
-		userAgent, err = ctx.StartAgentChannel()
+		scx.ConnectionContext.SetForwardAgent(true)
+		userAgent, err = scx.StartAgentChannel()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		ctx.AddCloser(userAgent)
+		scx.AddCloser(userAgent)
 	}
 
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
+	err = agent.ForwardToAgent(scx.RemoteClient.Client, userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Make an "auth-agent-req@openssh.com" request on the remote host.
-	err = agent.RequestAgentForwarding(ctx.RemoteSession.Session)
+	err = sshagent.RequestAgentForwarding(ctx, scx.RemoteSession)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1476,7 +1573,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	}
 
 	// if SFTP was requested, check that
-	if subsystem.subsystemName == teleport.SFTPSubsystem {
+	if subsystem.Name() == teleport.SFTPSubsystem {
 		err := serverContext.CheckSFTPAllowed(s.sessionRegistry)
 		if err != nil {
 			s.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
@@ -1486,7 +1583,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 					Time: time.Now(),
 				},
 				UserMetadata:   serverContext.Identity.GetUserMetadata(),
-				ServerMetadata: serverContext.GetServer().TargetMetadata(),
+				ServerMetadata: serverContext.GetServer().EventMetadata(),
 				Error:          err.Error(),
 			})
 			return trace.Wrap(err)
@@ -1497,7 +1594,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	err = subsystem.Start(ctx, ch)
 	if err != nil {
 		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{
-			Name: subsystem.subsystemName,
+			Name: subsystem.Name(),
 			Err:  trace.Wrap(err),
 		})
 		return trace.Wrap(err)
@@ -1507,7 +1604,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	go func() {
 		err := subsystem.Wait()
 		serverContext.SendSubsystemResult(ctx, srv.SubsystemResult{
-			Name: subsystem.subsystemName,
+			Name: subsystem.Name(),
 			Err:  trace.Wrap(err),
 		})
 	}()
@@ -1594,7 +1691,7 @@ func (s *Server) stderrWrite(ctx context.Context, ch ssh.Channel, message string
 	}
 }
 
-func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (*remoteSubsystem, error) {
+func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (RemoteSubsystem, error) {
 	var r sshutils.SubsystemReq
 	err := ssh.Unmarshal(req.Payload, &r)
 	if err != nil {

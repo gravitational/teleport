@@ -61,6 +61,10 @@ type ProxyConfig struct {
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode multiplexer.PROXYProtocolMode
 
+	// PROXYAllowDowngrade controls whether or not pseudo IPv4 downgrading is allowed for
+	// IPv6 sources communicating with IPv4 destinations.
+	PROXYAllowDowngrade bool
+
 	// WebAddr is address for web portal of the proxy
 	WebAddr utils.NetAddr
 
@@ -232,7 +236,7 @@ func (c ProxyConfig) PublicPeerAddr() (*utils.NetAddr, error) {
 	}
 
 	port := addr.Port(defaults.ProxyPeeringListenPort)
-	addr, err = utils.ParseAddr(fmt.Sprintf("%s:%d", ip.String(), port))
+	addr, err = utils.ParseAddr(net.JoinHostPort(ip.String(), strconv.Itoa(port)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

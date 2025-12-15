@@ -1,0 +1,343 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.summarizer.v1;
+
+import "teleport/summarizer/v1/summarizer.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
+
+// SummarizerService is the service for managing summarization inference
+// models, secrets, and policies. These objects configures the session
+// recording summarizer.
+service SummarizerService {
+  // CreateInferenceModel creates a new InferenceModel.
+  rpc CreateInferenceModel(CreateInferenceModelRequest) returns (CreateInferenceModelResponse);
+  // GetInferenceModel retrieves an existing InferenceModel by name.
+  rpc GetInferenceModel(GetInferenceModelRequest) returns (GetInferenceModelResponse);
+  // UpdateInferenceModel updates an existing InferenceModel.
+  rpc UpdateInferenceModel(UpdateInferenceModelRequest) returns (UpdateInferenceModelResponse);
+  // UpsertInferenceModel creates a new InferenceModel or updates an existing
+  // one.
+  rpc UpsertInferenceModel(UpsertInferenceModelRequest) returns (UpsertInferenceModelResponse);
+  // DeleteInferenceModel deletes an existing InferenceModel by name.
+  rpc DeleteInferenceModel(DeleteInferenceModelRequest) returns (DeleteInferenceModelResponse);
+  // ListInferenceModels lists all InferenceModels that match the request.
+  rpc ListInferenceModels(ListInferenceModelsRequest) returns (ListInferenceModelsResponse);
+
+  // CreateInferenceSecret creates a new InferenceSecret.
+  rpc CreateInferenceSecret(CreateInferenceSecretRequest) returns (CreateInferenceSecretResponse);
+  // GetInferenceSecret retrieves an existing InferenceSecret by name.
+  rpc GetInferenceSecret(GetInferenceSecretRequest) returns (GetInferenceSecretResponse);
+  // UpdateInferenceSecret updates an existing InferenceSecret.
+  rpc UpdateInferenceSecret(UpdateInferenceSecretRequest) returns (UpdateInferenceSecretResponse);
+  // UpsertInferenceSecret creates a new InferenceSecret or updates an existing
+  // one.
+  rpc UpsertInferenceSecret(UpsertInferenceSecretRequest) returns (UpsertInferenceSecretResponse);
+  // DeleteInferenceSecret deletes an existing InferenceSecret by name.
+  rpc DeleteInferenceSecret(DeleteInferenceSecretRequest) returns (DeleteInferenceSecretResponse);
+  // ListInferenceSecrets lists all InferenceSecrets that match the request.
+  rpc ListInferenceSecrets(ListInferenceSecretsRequest) returns (ListInferenceSecretsResponse);
+
+  // CreateInferencePolicy creates a new InferencePolicy.
+  rpc CreateInferencePolicy(CreateInferencePolicyRequest) returns (CreateInferencePolicyResponse);
+  // GetInferencePolicy retrieves an existing InferencePolicy by name.
+  rpc GetInferencePolicy(GetInferencePolicyRequest) returns (GetInferencePolicyResponse);
+  // UpdateInferencePolicy updates an existing InferencePolicy.
+  rpc UpdateInferencePolicy(UpdateInferencePolicyRequest) returns (UpdateInferencePolicyResponse);
+  // UpsertInferencePolicy creates a new InferencePolicy or updates an existing
+  // one.
+  rpc UpsertInferencePolicy(UpsertInferencePolicyRequest) returns (UpsertInferencePolicyResponse);
+  // DeleteInferencePolicy deletes an existing InferencePolicy by name.
+  rpc DeleteInferencePolicy(DeleteInferencePolicyRequest) returns (DeleteInferencePolicyResponse);
+  // ListInferencePolicies lists all InferencePolicies that match the request.
+  rpc ListInferencePolicies(ListInferencePoliciesRequest) returns (ListInferencePoliciesResponse);
+
+  // GetSummary retrieves the inference result for a session, which
+  // contains the session summary.
+  rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
+
+  // IsEnabled tells if the summarizer is enabled by the license and
+  // configured. (Note that this doesn't tell anything about actual correctness
+  // of the configuration or presence of recording summaries.)
+  rpc IsEnabled(IsEnabledRequest) returns (IsEnabledResponse);
+}
+
+// Summarization inference models
+
+// CreateInferenceModelRequest is a request for creating an InferenceModel.
+message CreateInferenceModelRequest {
+  // InferenceModel is the InferenceModel resource to create.
+  InferenceModel model = 1;
+}
+
+// CreateInferenceModelResponse is a response to creating an InferenceModel.
+message CreateInferenceModelResponse {
+  // Model is the InferenceModel resource that was created.
+  InferenceModel model = 1;
+}
+
+// GetInferenceModelRequest is a request for retrieving an InferenceModel.
+message GetInferenceModelRequest {
+  // Name is the resource name of the InferenceModel to retrieve.
+  string name = 1;
+}
+
+// GetInferenceModelResponse is a response to retrieving an InferenceModel.
+message GetInferenceModelResponse {
+  // Model is the InferenceModel resource that was retrieved.
+  InferenceModel model = 1;
+}
+
+// UpdateInferenceModelRequest is a request for updating an InferenceModel.
+message UpdateInferenceModelRequest {
+  // Model is the InferenceModel resource to update.
+  InferenceModel model = 1;
+}
+
+// UpdateInferenceModelResponse is a response to updating an InferenceModel.
+message UpdateInferenceModelResponse {
+  // Model is the InferenceModel resource that was updated.
+  InferenceModel model = 1;
+}
+
+// UpsertInferenceModelRequest is a request for creating or updating a
+// InferenceModel.
+message UpsertInferenceModelRequest {
+  // Model is the InferenceModel resource to create or update.
+  InferenceModel model = 1;
+}
+
+// UpsertInferenceModelResponse is a response to creating or updating an
+// InferenceModel.
+message UpsertInferenceModelResponse {
+  // Model is the InferenceModel resource that was created or updated.
+  InferenceModel model = 1;
+}
+
+// DeleteInferenceModelRequest is a request for deleting an InferenceModel.
+message DeleteInferenceModelRequest {
+  // Name is the resource name of the InferenceModel to delete.
+  string name = 1;
+}
+
+// DeleteInferenceModelResponse is a response to deleting an InferenceModel.
+message DeleteInferenceModelResponse {}
+
+// ListInferenceModelsRequest is a request for listing InferenceModels.
+message ListInferenceModelsRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListInferenceModelsResponse is the response for listing InferenceModels.
+message ListInferenceModelsResponse {
+  // Models is the page of InferenceModels that matched the request.
+  repeated InferenceModel models = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
+// Summarization inference secrets
+
+// CreateInferenceSecretRequest is a request for creating an InferenceSecret.
+message CreateInferenceSecretRequest {
+  // InferenceSecret is the InferenceSecret resource
+  // to create.
+  InferenceSecret secret = 1;
+}
+
+// CreateInferenceSecretResponse is a response to creating an InferenceSecret.
+message CreateInferenceSecretResponse {
+  // Secret is the InferenceSecret resource that was created.
+  InferenceSecret secret = 1;
+}
+
+// GetInferenceSecretRequest is a request for retrieving an InferenceSecret.
+message GetInferenceSecretRequest {
+  // Name is the resource name of the InferenceSecret to retrieve.
+  string name = 1;
+}
+
+// GetInferenceSecretResponse is a response to retrieving an InferenceSecret.
+message GetInferenceSecretResponse {
+  // Secret is the InferenceSecret resource that was retrieved.
+  InferenceSecret secret = 1;
+}
+
+// UpdateInferenceSecretRequest is a request for updating an InferenceSecret.
+message UpdateInferenceSecretRequest {
+  // Secret is the InferenceSecret resource to update.
+  InferenceSecret secret = 1;
+}
+
+// UpdateInferenceSecretResponse is a response to updating an InferenceSecret.
+message UpdateInferenceSecretResponse {
+  // Secret is the InferenceSecret resource that was updated.
+  InferenceSecret secret = 1;
+}
+
+// UpsertInferenceSecretRequest is a request for creating or updating an
+// InferenceSecret.
+message UpsertInferenceSecretRequest {
+  // Secret is the InferenceSecret resource to create or update.
+  InferenceSecret secret = 1;
+}
+
+// UpsertInferenceSecretResponse is a response to creating or updating an
+// InferenceSecret.
+message UpsertInferenceSecretResponse {
+  // Secret is the InferenceSecret resource that was created or updated.
+  InferenceSecret secret = 1;
+}
+
+// DeleteInferenceSecretRequest is a request for deleting an InferenceSecret.
+message DeleteInferenceSecretRequest {
+  // Name is the resource name of the InferenceSecret to delete.
+  string name = 1;
+}
+
+// DeleteInferenceSecretResponse is a response to deleting an InferenceSecret.
+message DeleteInferenceSecretResponse {}
+
+// ListInferenceSecretsRequest is a request for listing InferenceSecrets.
+message ListInferenceSecretsRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListInferenceSecretsResponse is the response for listing InferenceSecrets.
+message ListInferenceSecretsResponse {
+  // Secrets is the page of InferenceSecrets that matched the
+  // request.
+  repeated InferenceSecret secrets = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
+// Summarization inference policies
+
+// CreateInferencePolicyRequest is a request for creating an InferencePolicy.
+message CreateInferencePolicyRequest {
+  // InferencePolicy is the InferencePolicy resource to create.
+  InferencePolicy policy = 1;
+}
+
+// CreateInferencePolicyResponse is a response to creating an InferencePolicy.
+message CreateInferencePolicyResponse {
+  // Policy is the InferencePolicy resource that was created.
+  InferencePolicy policy = 1;
+}
+
+// GetInferencePolicyRequest is a request for retrieving an InferencePolicy.
+message GetInferencePolicyRequest {
+  // Name is the resource name of the InferencePolicy to retrieve.
+  string name = 1;
+}
+
+// GetInferencePolicyResponse is a response to retrieving an InferencePolicy.
+message GetInferencePolicyResponse {
+  // Policy is the InferencePolicy resource that was retrieved.
+  InferencePolicy policy = 1;
+}
+
+// UpdateInferencePolicyRequest is a request for updating an InferencePolicy.
+message UpdateInferencePolicyRequest {
+  // Policy is the InferencePolicy resource to update.
+  InferencePolicy policy = 1;
+}
+
+// UpdateInferencePolicyResponse is a response to updating an InferencePolicy.
+message UpdateInferencePolicyResponse {
+  // Policy is the InferencePolicy resource that was updated.
+  InferencePolicy policy = 1;
+}
+
+// UpsertInferencePolicyRequest is a request for creating or updating an
+// InferencePolicy.
+message UpsertInferencePolicyRequest {
+  // Policy is the InferencePolicy resource to create or update.
+  InferencePolicy policy = 1;
+}
+
+// UpsertInferencePolicyResponse is a response to creating or updating an
+// InferencePolicy.
+message UpsertInferencePolicyResponse {
+  // Policy is the InferencePolicy resource that was created or updated.
+  InferencePolicy policy = 1;
+}
+
+// DeleteInferencePolicyRequest is a request for deleting an InferencePolicy.
+message DeleteInferencePolicyRequest {
+  // Name is the resource name of the InferencePolicy to delete.
+  string name = 1;
+}
+
+// DeleteInferencePolicyResponse is a response to deleting an InferencePolicy.
+message DeleteInferencePolicyResponse {}
+
+// ListInferencePoliciesRequest is a request for listing InferencePolicies.
+message ListInferencePoliciesRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListInferencePoliciesResponse is the response for listing InferencePolicies.
+message ListInferencePoliciesResponse {
+  // Policies is the page of InferencePolicies that matched the
+  // request.
+  repeated InferencePolicy policies = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
+// GetSummaryRequest is a request for retrieving a session recording summary.
+message GetSummaryRequest {
+  // SessionId is the ID of the session whose summary is being requested.
+  string session_id = 1;
+}
+
+// GetSummaryResponse is a response to retrieving a session recording summary.
+message GetSummaryResponse {
+  // Summary is the session recording summary.
+  Summary summary = 1;
+}
+
+// IsEnabledRequest is a request to tell if the summarizer is enabled.
+message IsEnabledRequest {}
+
+// IsEnabledResponse is a response that tells if the summarizer is enabled.
+message IsEnabledResponse {
+  // Enabled tells if the summarizer is enabled by the license and configured.
+  // (Note that this doesn't tell anything about actual correctness of the
+  // configuration or presence of recording summaries.)
+  bool enabled = 1;
+}

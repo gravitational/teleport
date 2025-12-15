@@ -18,6 +18,7 @@
 
 import StoreDocs from './storeDocs';
 import StoreParties from './storeParties';
+
 export { StoreParties, StoreDocs };
 
 export * from './types';

@@ -1,0 +1,10 @@
+type: identity
+destination:
+  type: memory
+roles:
+  - access
+cluster: leaf.example.com
+ssh_config: "off"
+allow_reissue: true
+credential_ttl: 1m0s
+renewal_interval: 30s

@@ -1,0 +1,365 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.summarizer.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
+
+// InferenceModel resource specifies a session summarization inference model
+// configuration. It tells Teleport how to use a specific provider and model to
+// summarize sessions.
+message InferenceModel {
+  // Kind is the resource kind. Should always be set to "inference_model".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  InferenceModelSpec spec = 5;
+}
+
+// InferenceModelSpec specifies the inference provider and provider-specific
+// parameters.
+message InferenceModelSpec {
+  oneof provider {
+    // Openai indicates that this model uses OpenAI as the inference provider
+    // and specifies OpenAI-specific parameters.
+    OpenAIProvider openai = 1;
+    // Bedrock indicates that this model uses Amazon Bedrock as the inference
+    // provider and specifies Bedrock-specific parameters.
+    BedrockProvider bedrock = 3;
+  }
+  // MaxSessionLengthBytes is the maximum session length that can be sent to
+  // inference provider. Currently, it's determined by the size of model's
+  // context window; future versions of Teleport will allow summarizing larger
+  // sessions by splitting them.
+  //
+  // Inference providers will reject requests that are larger than given
+  // model's context window. Since context windows are usually sized in tokens,
+  // this value is an approximation. Assuming 2 bytes per input token should be
+  // safe.
+  //
+  // Currently, Teleport will outright reject sessions larger than this limit;
+  // future versions will split sessions in chunks, treating this size as a
+  // maximum.
+  //
+  // If unset or set to 0, defaults to 1MB.
+  int64 max_session_length_bytes = 2;
+}
+
+// OpenAIProvider specifies OpenAI-specific parameters. It can be used to
+// configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
+message OpenAIProvider {
+  // OpenaiModelId specifies the model ID, as understood by the OpenAI API.
+  string openai_model_id = 1;
+  // Temperature controls the randomness of the model's output.
+  double temperature = 2;
+  // ApiKeySecretRef is a reference to an InferenceSecret that contains the
+  // OpenAI API key.
+  string api_key_secret_ref = 3;
+  // BaseUrl is the OpenAI API base URL. Optional, defaults to the public
+  // OpenAI API URL. May be used to point to a custom OpenAI-compatible API,
+  // such as LiteLLM. In such case, the `api_key_secret_ref` must point to a
+  // secret that contains the API key for that custom API.
+  string base_url = 4;
+}
+
+// BedrockProvider specifies parameters specific to Amazon Bedrock.
+message BedrockProvider {
+  // Region is the AWS region which will be used for inference.
+  string region = 1;
+  // BedrockModelId specifies a model ID or an inference profile as understood
+  // by the Bedrock API.
+  string bedrock_model_id = 2;
+  // Temperature controls the randomness of the model's output.
+  float temperature = 3;
+  // Integration is the AWS OIDC Integration name. If unset, Teleport will use
+  // AWS credentials available on the auth server machine; otherwise, it will
+  // use the specified OIDC integration for assuming appropriate role.
+  string integration = 4;
+}
+
+// InferenceSecret resource stores session summarization inference provider
+// secrets, such as API keys. They need to be referenced by appropriate
+// provider configuration inside `InferenceModelSpec`.
+message InferenceSecret {
+  // Kind is the resource kind. Should always be set to "inference_secret".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec contains the secret value. Once set, it can only be read by Teleport
+  // itself; it will not be returned in API responses.
+  InferenceSecretSpec spec = 5;
+}
+
+// InferenceSecretSpec defines the secret value for the inference model.
+message InferenceSecretSpec {
+  // Value is the secret value, such as an API key.
+  string value = 1;
+}
+
+// InferencePolicy resource maps sessions to summarization models.
+message InferencePolicy {
+  // Kind is the resource kind. Should always be set to "inference_policy".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  InferencePolicySpec spec = 5;
+}
+
+// InferencePolicySpec maps sessions to summarization models using a filter.
+message InferencePolicySpec {
+  // Kinds are session kinds matched by this policy, e.g., "ssh", "k8s", "db"
+  repeated string kinds = 1;
+  // Model is the name of the `InferenceModel` resource to be used for
+  // summarization.
+  string model = 2;
+  // Filter is an optional filter expression using Teleport Predicate Language
+  // to select sessions for summarization. If it's empty, all sessions that
+  // match the list of kinds will be summarized using this model.
+  string filter = 3;
+}
+
+// SummaryState is the state of the summarization process.
+enum SummaryState {
+  SUMMARY_STATE_UNSPECIFIED = 0;
+  SUMMARY_STATE_PENDING = 1;
+  SUMMARY_STATE_SUCCESS = 2;
+  SUMMARY_STATE_ERROR = 3;
+}
+
+// Summary represents a summary of a session recording. This format is used to
+// store the summaries in the session storage and return it with gRPC.
+message Summary {
+  // sessionId is an ID of the session whose recording got summarized.
+  string session_id = 1;
+  // State is the state of the summarization process.
+  SummaryState state = 2;
+  // InferenceStartedAt is the time when the summarization process started.
+  google.protobuf.Timestamp inference_started_at = 3;
+  // InferenceFinishedAt is the time when the summarization process finished.
+  google.protobuf.Timestamp inference_finished_at = 4;
+  // Content is the main text content of the summary, stored in Markdown
+  // format. Available if the state is SUMMARY_STATE_SUCCESS.
+  string content = 5;
+  // ModelName is the name of the `InferenceModel` resource that was used to
+  // generate this summary.
+  string model_name = 6;
+  // SessionEndEvent is the event that ended the summarized session. Session
+  // end events carry the most complete set of data that Teleport has about a
+  // given session. Used for checking access based on RBAC rule "where"
+  // filters.
+  //
+  // The event is stored in an unstructured form, as storing an instance of
+  // events.OneOf posed a number of technical challenges with JSON
+  // serialization as a subcomponent of this message. These challenges stem
+  // from the fact that audit events have gogoproto extensions.
+  google.protobuf.Struct session_end_event = 7;
+  // ErrorMessage is an error message if the summarization failed. Available if
+  // the state is SUMMARY_STATE_ERROR.
+  string error_message = 8;
+  // EnhancedSummary contains structured data extracted from the session.
+  EnhancedSummary enhanced_summary = 9;
+}
+
+// The following enums and messages should be kept in sync with `e/lib/auth/summarizer/schema/command.go`
+
+// CommandCategory represents the category of a command.
+enum CommandCategory {
+  // CommandCategoryUnspecified is the default value and indicates that the command
+  // category is not specified.
+  COMMAND_CATEGORY_UNSPECIFIED = 0;
+  // CommandCategoryFileOperation indicates that the command is related to file
+  // operations, such as copying, moving, or deleting files.
+  COMMAND_CATEGORY_FILE_OPERATION = 1;
+  // CommandCategoryNetwork indicates that the command is related to network
+  // operations, such as connecting to a remote host or transferring data.
+  COMMAND_CATEGORY_NETWORK = 2;
+  // CommandCategoryProcess indicates that the command is related to process
+  // management, such as starting or stopping processes.
+  COMMAND_CATEGORY_PROCESS = 3;
+  // CommandCategorySystemConfig indicates that the command is related to system
+  // configuration, such as changing system settings or installing software.
+  COMMAND_CATEGORY_SYSTEM_CONFIG = 4;
+  // CommandCategoryDataAccess indicates that the command is related to data access,
+  // such as querying databases or reading data files.
+  COMMAND_CATEGORY_DATA_ACCESS = 5;
+  // CommandCategoryAuthentication indicates that the command is related to
+  // authentication, such as logging in or changing user credentials.
+  COMMAND_CATEGORY_AUTHENTICATION = 6;
+  // CommandCategoryOther indicates that the command does not fit into any of the
+  // other categories.
+  COMMAND_CATEGORY_OTHER = 7;
+}
+
+// RiskLevel represents the risk level associated with a command.
+enum RiskLevel {
+  // RiskLevelUnspecified is the default value and indicates that the risk level
+  // is not specified.
+  RISK_LEVEL_UNSPECIFIED = 0;
+  // RiskLevelLow indicates that the command has a low risk level.
+  RISK_LEVEL_LOW = 1;
+  // RiskLevelMedium indicates that the command has a medium risk level.
+  RISK_LEVEL_MEDIUM = 2;
+  // RiskLevelHigh indicates that the command has a high risk level.
+  RISK_LEVEL_HIGH = 3;
+  // RiskLevelCritical indicates that the command has a critical risk level.
+  RISK_LEVEL_CRITICAL = 4;
+}
+
+// ThreatCategory represents the category of a detected threat.
+enum ThreatCategory {
+  // ThreatCategoryUnspecified is the default value and indicates that the threat
+  // category is not specified.
+  THREAT_CATEGORY_UNSPECIFIED = 0;
+  // ThreatCategoryReconnaissance indicates that the threat is related to reconnaissance
+  // activities, such as scanning or probing the system.
+  THREAT_CATEGORY_RECONNAISSANCE = 1;
+  // ThreatCategoryExecution indicates that the threat is related to execution activities,
+  // such as running malicious code.
+  THREAT_CATEGORY_EXECUTION = 2;
+  // ThreatCategoryPersistence indicates that the threat is related to persistence
+  // activities, such as installing backdoors.
+  THREAT_CATEGORY_PERSISTENCE = 3;
+  // ThreatCategoryPrivilegeEscalation indicates that the threat is related to privilege
+  // escalation activities, such as exploiting vulnerabilities to gain higher privileges.
+  THREAT_CATEGORY_PRIVILEGE_ESCALATION = 4;
+  // ThreatCategoryDefenseEvasion indicates that the threat is related to defense evasion
+  // activities, such as disabling security software.
+  THREAT_CATEGORY_DEFENSE_EVASION = 5;
+  // ThreatCategoryCredentialAccess indicates that the threat is related to credential
+  // access activities, such as stealing passwords.
+  THREAT_CATEGORY_CREDENTIAL_ACCESS = 6;
+  // ThreatCategoryDiscovery indicates that the threat is related to discovery activities,
+  // such as gathering information about the system.
+  THREAT_CATEGORY_DISCOVERY = 7;
+  // ThreatCategoryLateralMovement indicates that the threat is related to lateral movement
+  // activities, such as moving laterally within the network.
+  THREAT_CATEGORY_LATERAL_MOVEMENT = 8;
+  // ThreatCategoryCollection indicates that the threat is related to collection activities,
+  // such as collecting sensitive data.
+  THREAT_CATEGORY_COLLECTION = 9;
+  // ThreatCategoryExfiltration indicates that the threat is related to exfiltration
+  // activities, such as stealing data from the system.
+  THREAT_CATEGORY_EXFILTRATION = 10;
+  // ThreatCategoryImpact indicates that the threat is related to impact activities,
+  // such as disrupting system operations.
+  THREAT_CATEGORY_IMPACT = 11;
+  // ThreatCategoryNone indicates that there is no threat detected.
+  THREAT_CATEGORY_NONE = 12;
+}
+
+// CommandAnalysis represents a summary of a single command executed during a
+// session.
+message CommandAnalysis {
+  // Command is the command that was executed.
+  string command = 1;
+  // Category is the category of the command.
+  CommandCategory category = 2;
+  // Success indicates whether the command executed successfully.
+  bool success = 3;
+  // RiskLevel is the risk level associated with the command.
+  RiskLevel risk_level = 4;
+  // RiskScore is a numerical score representing the risk associated with the command.
+  int32 risk_score = 5;
+  // ThreatCategory is the category of any detected threat associated with the command.
+  ThreatCategory threat_category = 6;
+  // TimelineTitle is a brief title for the command's entry in the session timeline.
+  string timeline_title = 7;
+  // TimelineSubtitle is a more detailed subtitle for the command's entry in the session timeline.
+  string timeline_subtitle = 8;
+  // ShortDescription is a concise description of the command and its purpose.
+  string short_description = 9;
+  // DetailedDescription is an in-depth explanation of the command, its function,
+  // and any relevant context.
+  string detailed_description = 10;
+  // ErrorMessages contains any error messages produced during the execution of the command.
+  repeated string error_messages = 11;
+  // SuspiciousFlags contains any suspicious flags or indicators associated with the command.
+  repeated string suspicious_flags = 12;
+  // SensitiveItems contains any sensitive items accessed or modified by the command.
+  repeated string sensitive_items = 13;
+  // SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
+  repeated string suspicious_patterns = 14;
+  // IOCs contains any indicators of compromise associated with the command.
+  repeated string iocs = 15;
+  // MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
+  repeated string mitre_attack_ids = 16;
+  // HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
+  bool has_sensitive_data = 17;
+  // PrivilegeEscalation indicates whether the command involved privilege escalation.
+  bool privilege_escalation = 18;
+  // DataExfiltration indicates whether the command involved data exfiltration.
+  bool data_exfiltration = 19;
+  // Persistence indicates whether the command involved persistence mechanisms.
+  bool persistence = 20;
+  // StartOffset is the start time of the command, relative to the start of the session.
+  google.protobuf.Duration start_offset = 21;
+  // EndOffset is the end time of the command, relative to the start of the session.
+  google.protobuf.Duration end_offset = 22;
+}
+
+// SecurityRecommendation represents a security recommendation related to a command
+message SecurityRecommendation {
+  // Title is a brief title for the security recommendation.
+  string title = 1;
+  // Description is a detailed description of the security recommendation.
+  string description = 2;
+  // Severity indicates the severity level of the recommendation.
+  RiskLevel severity = 3;
+}
+
+// NeedsReviewReason represents the reason why a session needs further review.
+enum NeedsReviewReason {
+  // NeedsReviewReasonUnspecified is the default value and indicates that the reason
+  // for needing review is not specified.
+  NEEDS_REVIEW_REASON_UNSPECIFIED = 0;
+  // NeedsReviewReasonTooLarge indicates that the session is too large to be fully analyzed.
+  NEEDS_REVIEW_REASON_TOO_LARGE = 1;
+}
+
+// EnhancedSummary represents an enhanced summary of a session recording,
+// with structured data extracted from the session.
+message EnhancedSummary {
+  // ShortDescription is a concise description of the session.
+  string short_description = 1;
+  // DetailedDescription is an in-depth explanation of the session.
+  string detailed_description = 2;
+  // RiskLevel is the overall risk level associated with the session.
+  RiskLevel risk_level = 3;
+  // SuspiciousActivities is a list of suspicious activities detected during the session.
+  repeated string suspicious_activities = 4;
+  // CompromiseIndicators indicates whether any indicators of compromise were detected during the session.
+  bool compromise_indicators = 5;
+  // NotableCommandIndexes is a list of indexes of commands that are considered notable.
+  repeated int32 notable_command_indexes = 6;
+  // Commands is a list of command summaries extracted from the session.
+  repeated CommandAnalysis commands = 7;
+  // NeedsFurtherReview indicates the reason why the session needs further review.
+  optional NeedsReviewReason needs_further_review = 8;
+}

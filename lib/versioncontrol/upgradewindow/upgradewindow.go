@@ -50,7 +50,7 @@ const (
 type ExportFunc func(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error)
 
 // contextLike lets us abstract over the difference between basic contexts and context-like values such
-// as control stream senders or resource watchers. the exporter uses a contextLike value to decide wether
+// as control stream senders or resource watchers. the exporter uses a contextLike value to decide whether
 // or not auth connectivity appears healthy. during normal runtime, we end up using the inventory control
 // stream send handle.
 type contextLike interface {
@@ -316,10 +316,10 @@ type Driver interface {
 }
 
 // NewDriver sets up a new export driver corresponding to the specified upgrader kind.
-func NewDriver(kind string) (Driver, error) {
+func NewDriver(ctx context.Context, kind string) (Driver, error) {
 	switch kind {
 	case types.UpgraderKindKubeController:
-		return NewKubeControllerDriver(KubeControllerDriverConfig{})
+		return NewKubeControllerDriver(ctx, KubeControllerDriverConfig{})
 	case types.UpgraderKindSystemdUnit:
 		return NewSystemdUnitDriver(SystemdUnitDriverConfig{})
 	default:
@@ -344,10 +344,10 @@ type kubeDriver struct {
 	cfg KubeControllerDriverConfig
 }
 
-func NewKubeControllerDriver(cfg KubeControllerDriverConfig) (Driver, error) {
+func NewKubeControllerDriver(ctx context.Context, cfg KubeControllerDriverConfig) (Driver, error) {
 	if cfg.Backend == nil {
 		var err error
-		cfg.Backend, err = kubernetes.NewShared()
+		cfg.Backend, err = kubernetes.NewShared(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -361,7 +361,11 @@ func (e *kubeDriver) Kind() string {
 }
 
 func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if rsp.KubeControllerSchedule == "" {
+	return trace.Wrap(e.setSchedule(ctx, rsp.KubeControllerSchedule))
+}
+
+func (e *kubeDriver) setSchedule(ctx context.Context, schedule string) error {
+	if schedule == "" {
 		return e.Reset(ctx)
 	}
 
@@ -369,7 +373,7 @@ func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsRes
 		// backend.KeyFromString is intentionally used here instead of backend.NewKey
 		// because existing backend items were persisted without the leading /.
 		Key:   backend.KeyFromString(kubeSchedKey),
-		Value: []byte(rsp.KubeControllerSchedule),
+		Value: []byte(schedule),
 	})
 
 	return trace.Wrap(err)
@@ -411,7 +415,11 @@ func (e *systemdDriver) Kind() string {
 }
 
 func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if len(rsp.SystemdUnitSchedule) == 0 {
+	return trace.Wrap(e.setSchedule(ctx, rsp.SystemdUnitSchedule))
+}
+
+func (e *systemdDriver) setSchedule(ctx context.Context, schedule string) error {
+	if len(schedule) == 0 {
 		// treat an empty schedule value as equivalent to a reset
 		return e.Reset(ctx)
 	}
@@ -423,7 +431,7 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 	}
 
 	// export schedule file. if created it is set to 644, which is reasonable for a sensitive but non-secret config value.
-	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), defaults.FilePermissions); err != nil {
+	if err := os.WriteFile(e.scheduleFile(), []byte(schedule), defaults.FilePermissions); err != nil {
 		return trace.Errorf("failed to write schedule file: %v", err)
 	}
 

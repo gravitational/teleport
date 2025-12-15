@@ -28,10 +28,6 @@ pnpm install
 
 You will also need the following tools installed:
 * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-* The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
-  `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
-* [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
-    on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
 
 To build the Teleport open source version
 
@@ -39,7 +35,12 @@ To build the Teleport open source version
 pnpm build-ui-oss
 ```
 
-The resulting output will be in the `webassets` folder.
+The resulting output will be in the `webassets` folder. By default, the webassets are compressed with Brotli. If you 
+want to disable this for faster local builds, set the environment variable `VITE_DISABLE_COMPRESSION` to any value:
+
+```
+VITE_DISABLE_COMPRESSION=1 pnpm build-ui-oss
+```
 
 ### Docker Build
 
@@ -125,14 +126,6 @@ requests to the given target.
 > Keep in mind that you have to use a local user because social
 > logins (google/github) are not supported by development server.
 
-### WASM
-
-The web UI includes a WASM module built from a Rust codebase located in `packages/teleport/src/ironrdp`.
-It is built with the help of [wasm-pack](https://github.com/rustwasm/wasm-pack).
-
-Running `pnpm build-wasm` builds the WASM binary as well as the appropriate Javascript/Typescript
-bindings and types in `web/packages/teleport/src/ironrdp/pkg`.
-
 ### Unit-Tests
 
 We use [jest](https://jestjs.io/) as our testing framework.
@@ -190,7 +183,7 @@ pnpm dlx browserslist 'last 2 chrome version, last 2 edge version, last 2 firefo
     // Set the default
     "editor.formatOnSave": false,
     // absolute config path
-    "prettier.configPath": ".prettierrc",
+    "prettier.configPath": ".prettierrc.js",
     // enable per-language
     "[html]": {
         "editor.formatOnSave": true,
@@ -319,11 +312,11 @@ needs to be kept in the root.
 
 When a new event is added to Teleport, the web UI has to be updated to display it correctly:
 
-1. Add a new entry to [`eventCodes`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/types.ts).
-2. Add a new entry to [`RawEvents`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/types.ts) using the event you just created as the key. The fields should match the fields of the metadata fields on `events.proto` on Teleport repository.
-3. Add a new entry in [Formatters](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/services/audit/makeEvent.ts) to format the event on the events table. The `format` function will receive the event you added to `RawEvents` as parameter.
-4. Define an icon to the event on [`EventIconMap`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/EventList/EventTypeCell.tsx).
-5. Add an entry to the [`events`](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/fixtures/index.ts) array so it will show up on the [`AllEvents` story](https://github.com/gravitational/webapps/blob/8a0201667f045be7a46606189a6deccdaee2fe1f/packages/teleport/src/Audit/Audit.story.tsx)
-6. Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx` using `pnpm test-update-snapshot`.
+1. Add a new entry to [`eventCodes`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/services/audit/types.ts).
+2. Add a new entry to [`RawEvents`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/services/audit/types.ts) using the event you just created as the key. The fields should match the fields of the metadata fields on `events.proto` on Teleport repository.
+3. Add a new entry in [`formatters`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/services/audit/makeEvent.ts) to format the event on the events table. The `format` function will receive the event you added to `RawEvents` as parameter.
+4. Define an icon to the event on [`EventIconMap`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/EventList/EventTypeCell.tsx).
+5. Add an entry to the [`events`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/fixtures/index.ts) array so it will show up on the [`AllPossibleEvents` story](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/Audit.story.tsx). Keep in mind that we generate the audit event reference in the documentation from audit event fixtures, so the fixture should be something you are comfortable including as an example in public-facing documentation (see the [generator](https://github.com/gravitational/teleport/tree/master/web/packages/teleport/src/services/audit/gen-event-reference)).
+6. Check that the fixture is rendered in storybook, then update the snapshot for `Audit.story.test.tsx` using `pnpm test-update-snapshot`.
 
-You can see an example in [this pr](https://github.com/gravitational/webapps/pull/561).
+You can see an example in [this PR](https://github.com/gravitational/teleport/pull/39872).

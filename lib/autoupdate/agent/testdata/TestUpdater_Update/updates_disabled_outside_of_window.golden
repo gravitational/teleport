@@ -2,8 +2,9 @@ version: v1
 kind: update_config
 spec:
     proxy: localhost
+    path: /usr/local/bin
     group: group
-    url_template: https://example.com
+    base_url: https://example.com
     enabled: false
     pinned: false
 status:

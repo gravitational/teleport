@@ -26,9 +26,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -69,6 +69,7 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.ElementsMatch(t, config.KEXAlgorithms, []string{
+		"mlkem768x25519-sha256",
 		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
@@ -105,6 +106,12 @@ func TestDefaultConfig(t *testing.T) {
 
 	// Debug should always be enabled by default.
 	require.True(t, config.DebugService.Enabled)
+
+	// Reconnect section
+	require.Equal(t, defaults.MaxWatcherBackoff, config.AuthConnectionConfig.UpperLimitBetweenRetries)
+	require.Equal(t, 18*time.Second, config.AuthConnectionConfig.BackoffStepDuration)
+	require.Equal(t, 9*time.Second, config.AuthConnectionConfig.InitialConnectionDelay)
+
 }
 
 // TestCheckApp validates application configuration.
@@ -128,7 +135,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "-foo",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a lower case valid DNS subdomain",
 		},
 		{
 			desc: `subdomain cannot contain the exclamation mark character "!"`,
@@ -136,7 +143,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "foo!bar",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a lower case valid DNS subdomain",
 		},
 		{
 			desc: "subdomain of length 63 characters is valid (maximum length)",
@@ -151,7 +158,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a lower case valid DNS subdomain",
 		},
 	}
 	for _, h := range common.ReservedHeaders {
@@ -456,7 +463,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
+			wantErr: "config: enable at least one of ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -549,6 +556,11 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			desc:             "relay enabled",
+			config:           &Config{Relay: RelayConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			desc:             "kube enabled",
 			config:           &Config{Kube: KubeConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
@@ -593,7 +605,7 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
 				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
@@ -637,7 +649,6 @@ func TestWebPublicAddr(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -651,65 +662,55 @@ func TestWebPublicAddr(t *testing.T) {
 
 func TestSetLogLevel(t *testing.T) {
 	for _, test := range []struct {
-		logLevel            slog.Level
-		expectedLogrusLevel logrus.Level
+		logLevel slog.Level
 	}{
 		{
-			logLevel:            logutils.TraceLevel,
-			expectedLogrusLevel: logrus.TraceLevel,
+			logLevel: logutils.TraceLevel,
 		},
 		{
-			logLevel:            slog.LevelDebug,
-			expectedLogrusLevel: logrus.DebugLevel,
+			logLevel: slog.LevelDebug,
 		},
 		{
-			logLevel:            slog.LevelInfo,
-			expectedLogrusLevel: logrus.InfoLevel,
+			logLevel: slog.LevelInfo,
 		},
 		{
-			logLevel:            slog.LevelWarn,
-			expectedLogrusLevel: logrus.WarnLevel,
+			logLevel: slog.LevelWarn,
 		},
 		{
-			logLevel:            slog.LevelError,
-			expectedLogrusLevel: logrus.ErrorLevel,
+			logLevel: slog.LevelError,
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
 			// Create a configuration with local loggers to avoid modifying the
 			// global instances.
 			c := &Config{
-				Log:    logrus.New(),
 				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			}
 			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
-			require.IsType(t, &logrus.Logger{}, c.Log)
-			l, _ := c.Log.(*logrus.Logger)
-			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
 	}
 }
 
-func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...any) {
 	require.NoError(t, err, msgAndArgs...)
 }
 
-func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
 }
 
 func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
 		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }
 
 func hasErrAndContains(msg string) require.ErrorAssertionFunc {
-	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
 		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

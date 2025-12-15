@@ -170,10 +170,10 @@ func TestSubmitOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, alerts)
 
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		require.NoError(t, svc.upsertUserActivityReport(ctx, newReport(time.Now().UTC().Add(time.Duration(i)*time.Second)), reportTTL))
 	}
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		require.NoError(t, svc.upsertResourcePresenceReport(ctx, newResourcePresenceReport(time.Now().UTC().Add(time.Duration(i)*time.Second)), reportTTL))
 	}
 	clk.Advance(submitLockDuration)

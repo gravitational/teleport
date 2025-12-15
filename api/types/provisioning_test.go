@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -578,6 +579,79 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			desc: "kubernetes: oidc must have valid issuer",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeOIDC,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						OIDC: &ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+							Issuer: "https://example.com",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "kubernetes: http issuers not allowed without override",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeOIDC,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						OIDC: &ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+							Issuer: "http://example.com",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: http issuers are allowed with override",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Type: KubernetesJoinTypeOIDC,
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "namespace:my-service-account",
+							},
+						},
+						OIDC: &ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+							Issuer:                  "http://example.com",
+							InsecureAllowHTTPIssuer: true,
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 		{
 			desc: "gitlab empty allow rules",
@@ -1277,6 +1351,323 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			desc: "azure devops success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						OrganizationID: "0000-0000-0000-0000",
+						Allow: []*ProvisionTokenSpecV2AzureDevops_Rule{
+							{
+								ProjectName: "my-project",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure devops missing spec",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure devops missing org id",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						Allow: []*ProvisionTokenSpecV2AzureDevops_Rule{
+							{
+								ProjectName: "my-project",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure devops missing allow rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						OrganizationID: "0000-0000-0000-0000",
+						Allow:          []*ProvisionTokenSpecV2AzureDevops_Rule{},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure devops allow rule missing key field",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzureDevops,
+					AzureDevops: &ProvisionTokenSpecV2AzureDevops{
+						OrganizationID: "0000-0000-0000-0000",
+						Allow: []*ProvisionTokenSpecV2AzureDevops_Rule{
+							{
+								RepositoryVersion: "aaabbccddeefgghhjjiii",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "minimal bound keypair with pregenerated key",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{
+						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+							InitialPublicKey: "asdf",
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{
+						Onboarding: &ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+							InitialPublicKey: "asdf",
+						},
+						Recovery: &ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+							Limit: 1,
+							Mode:  "",
+						},
+					},
+				},
+			},
+		},
+		{
+			// note: missing onboarding config is allowed; we'll generate some
+			// fields at creation/upsert time.
+			desc: "bound keypair missing onboarding config",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:        []SystemRole{RoleNode},
+					JoinMethod:   JoinMethodBoundKeypair,
+					BoundKeypair: &ProvisionTokenSpecV2BoundKeypair{},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "env0 success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID:  "organization-id",
+								ProjectID:       "project-id",
+								ProjectName:     "project-name",
+								TemplateID:      "template-id",
+								TemplateName:    "template-name",
+								EnvironmentID:   "environment-id",
+								EnvironmentName: "environment-name",
+								WorkspaceName:   "workspace-name",
+								DeploymentType:  "deployment-type",
+								DeployerEmail:   "deployer-email",
+								Env0Tag:         "custom-tag",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID:  "organization-id",
+								ProjectID:       "project-id",
+								ProjectName:     "project-name",
+								TemplateID:      "template-id",
+								TemplateName:    "template-name",
+								EnvironmentID:   "environment-id",
+								EnvironmentName: "environment-name",
+								WorkspaceName:   "workspace-name",
+								DeploymentType:  "deployment-type",
+								DeployerEmail:   "deployer-email",
+								Env0Tag:         "custom-tag",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "env0 multiple rules - success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID: "organization-id",
+								ProjectID:      "project-id",
+							},
+							{
+								OrganizationID: "organization-id",
+								ProjectName:    "project-name",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID: "organization-id",
+								ProjectID:      "project-id",
+							},
+							{
+								OrganizationID: "organization-id",
+								ProjectName:    "project-name",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "env0 missing organization",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								ProjectName:  "test",
+								TemplateName: "test",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "env0 missing project",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodEnv0,
+					Env0: &ProvisionTokenSpecV2Env0{
+						Allow: []*ProvisionTokenSpecV2Env0_Rule{
+							{
+								OrganizationID: "test",
+								TemplateName:   "test",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "oracle too many instance IDs",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodOracle,
+					Oracle: &ProvisionTokenSpecV2Oracle{
+						Allow: []*ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:   "ocid.tenancy.oc1..mytentant",
+								Instances: genOCIDs(101),
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -1296,6 +1687,14 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func genOCIDs(count int) []string {
+	out := make([]string, count)
+	for i := range count {
+		out[i] = fmt.Sprintf("ocid.instance.oc1.region.%d", i)
+	}
+	return out
 }
 
 func TestProvisionTokenV2_GetSafeName(t *testing.T) {

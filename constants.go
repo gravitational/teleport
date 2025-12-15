@@ -21,10 +21,9 @@ package teleport
 import (
 	"strings"
 	"time"
-)
 
-// WebAPIVersion is a current webapi version
-const WebAPIVersion = "v1"
+	"github.com/gravitational/trace"
+)
 
 const (
 	// SSHAuthSock is the environment variable pointing to the
@@ -121,6 +120,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentRelay is the component name for the relay service.
+	ComponentRelay = "relay"
+
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
 
@@ -141,6 +143,10 @@ const (
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
+
+	// ComponentDiagnosticHealth is the health monitor used by the diagnostic
+	// and debug services.
+	ComponentDiagnosticHealth = "diag:health"
 
 	// ComponentDebug is the debug service, which exposes debugging
 	// configuration over a Unix socket.
@@ -286,6 +292,21 @@ const (
 	// ComponentUpdater represents the teleport-update binary.
 	ComponentUpdater = "updater"
 
+	// ComponentRolloutController represents the autoupdate_agent_rollout controller.
+	ComponentRolloutController = "rollout-controller"
+
+	// ComponentGit represents git proxy related services.
+	ComponentGit = "git"
+
+	// ComponentForwardingGit represents the SSH proxy that forwards Git commands.
+	ComponentForwardingGit = "git:forward"
+
+	// ComponentMCP represents the MCP server handler.
+	ComponentMCP = "mcp"
+
+	// ComponentRecordingEncryption represents recording encryption
+	ComponentRecordingEncryption = "recording-encryption"
+
 	// VerboseLogsEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -379,6 +400,13 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
+	// S3UseVirtualStyleAddressing is an optional switch to use use a virtual-hosted–style URI.
+	S3UseVirtualStyleAddressing = "use_s3_virtual_style_addressing"
+
+	// S3CompleteInitiators is an optional allow list which configures the upload completer
+	// to only complete uploads from the specified set of initiators.
+	S3CompleteInitiators = "complete_initiators"
+
 	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
@@ -402,14 +430,8 @@ const (
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
 
-	// Syslog is a mode for syslog logging
-	Syslog = "syslog"
-
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
-
-	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
-	MinimumEtcdVersion = "3.3.0"
 
 	// EnvVarAllowNoSecondFactor is used to allow disabling second factor auth
 	// todo(tross): DELETE WHEN ABLE TO
@@ -442,6 +464,14 @@ const (
 )
 
 const (
+	// CertExtensionScopePin is used to pin a user certificate to a specific scope and
+	// set of scoped roles. This constrains a user's access to resources based on both
+	// the scoping rules and scoped roles defined.
+	CertExtensionScopePin = "scope-pin@goteleport.com"
+	// CertExtensionAgentScope is used to pin an agent/host certificate to a specific scope.
+	// This constrains other identities' access to the agent itself as well as the agent's
+	// access to other resources based on scoping rules.
+	CertExtensionAgentScope = "agent-scope@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -507,6 +537,9 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionJoinToken is the name of the join token used to join this
+	// bot, if any.
+	CertExtensionJoinToken = "join-token@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -543,13 +576,16 @@ const (
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
 	RemoteCommandFailure = 255
-	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
+	// HomeDirNotFound is returned when the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254
-	// HomeDirNotAccessible is returned when a the "teleport checkhomedir" command has
+	// HomeDirNotAccessible is returned when the "teleport checkhomedir" command has
 	// found the user's home directory, but the user does NOT have permissions to
 	// access it.
 	HomeDirNotAccessible = 253
+	// UnexpectedCredentials is returned when a command is no longer running with the expected
+	// credentials.
+	UnexpectedCredentials = 252
 )
 
 // MaxEnvironmentFileLines is the maximum number of lines in a environment file.
@@ -568,6 +604,10 @@ const MaxHTTPRequestSize = 10 * 1024 * 1024
 // a received HTTP response.  This limit is meant to be used with utils.ReadAtMost
 // to prevent resource exhaustion attacks.
 const MaxHTTPResponseSize = 10 * 1024 * 1024
+
+// MaxUsernameLength is the maximum allowed length (characters) for usernames.
+// This limit prevents sending extremely long usernames that could clog up logs or exhaust resources.
+const MaxUsernameLength = 1000
 
 const (
 	// CertificateFormatOldSSH is used to make Teleport interoperate with older
@@ -634,6 +674,14 @@ const (
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
+
+	// TraitInternalGitHubOrgs is the variable used to store allowed GitHub
+	// organizations for GitHub integrations.
+	TraitInternalGitHubOrgs = "{{internal.github_orgs}}"
+
+	// TraitInternalMCPTools is the variable used to store allowed MCP tools for
+	// MCP servers.
+	TraitInternalMCPTools = "{{internal.mcp_tools}}"
 )
 
 // SCP is Secure Copy.
@@ -709,9 +757,42 @@ const (
 	// that grants a user access to AWS Identity Center resources via
 	// Access Requests.
 	SystemIdentityCenterAccessRoleName = "aws-ic-access"
+
+	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
+	// that includes the permissions necessary to issue workload identity
+	// credentials using any workload_identity resource. This exists to simplify
+	// Day 0 UX experience with workload identity.
+	PresetWildcardWorkloadIdentityIssuerRoleName = "wildcard-workload-identity-issuer"
+
+	// PresetAccessPluginRoleName is a name of a preset role that includes
+	// permissions required by self-hosted access request plugin.
+	PresetAccessPluginRoleName = "access-plugin"
+
+	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
+	// includes permissions to read access request resources.
+	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
+
+	// PresetMCPUserRoleName is a name of a preset role that allows
+	// accessing MCP servers.
+	PresetMCPUserRoleName = "mcp-user"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// VirtualDefaultHealthCheckConfigDBName is the name of a virtual
+	// health_check_config that enables health checks for all database
+	// resources. For historical reasons, it's value is "default" even
+	// though it applies to databases only.
+	VirtualDefaultHealthCheckConfigDBName = "default"
+	// VirtualDefaultHealthCheckConfigKubeName is the name of a virtual
+	// health_check_config that enables health checks for all Kubernetes
+	// resources.
+	VirtualDefaultHealthCheckConfigKubeName = "default-kube"
+	// VirtualDefaultHealthCheckConfigCount is the number of virtual
+	// health_check_config resources.
+	VirtualDefaultHealthCheckConfigCount = 2
+)
 
 const (
 	// SystemAccessApproverUserName names a Teleport user that acts as
@@ -750,8 +831,21 @@ const (
 	CurrentSessionIDRequest = "current-session-id@goteleport.com"
 
 	// SessionIDQueryRequest is sent by clients to ask servers if they
-	// will generate their own session ID when a new session is created.
+	// will generate and share their own session ID when a new session
+	// is started (session and exec/shell channels accepted).
+	//
+	// TODO(Joerger): DELETE IN v20.0.0
+	// All v17+ servers set the session ID. v19+ clients stop checking.
 	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
+	// SessionIDQueryRequestV2 is sent by clients to ask servers if they
+	// will generate and share their own session ID when a new session
+	// channel is accepted, rather than when the shell/exec channel is.
+	//
+	// TODO(Joerger): DELETE IN v21.0.0
+	// all v19+ servers set the session ID directly after accepting the session channel.
+	// clients should stop checking in v21, and servers should stop responding to the query in v22.
+	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
@@ -823,9 +917,15 @@ const (
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
 )
 
+// ErrNodeIsAmbiguous serves as an identifying error string indicating that
+// the proxy subsystem found multiple nodes matching the specified hostname.
+var ErrNodeIsAmbiguous = &trace.NotFoundError{Message: "ambiguous host could match multiple nodes"}
+
 const (
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
+	// TODO(tross) DELETE IN v20.0.0
+	// Deprecated: Prefer using ErrNodeIsAmbiguous
 	NodeIsAmbiguous = "err-node-is-ambiguous"
 
 	// MaxLeases serves as an identifying error string indicating that the
@@ -926,6 +1026,13 @@ const (
 
 	// HostHeader is the name of the Host header.
 	HostHeader = "Host"
+
+	// XTeleportUsernameHeader is the name of the X-Teleport-Username header
+	// used to pass the username to the Access Graph service.
+	// This header is used to identify the user that is making the request
+	// so that the Access Graph service can store information about the
+	// user's preferences.
+	XTeleportUsernameHeader = "X-Teleport-Username"
 )
 
 // UserSingleUseCertTTL is a TTL for per-connection user certificates.

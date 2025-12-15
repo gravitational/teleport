@@ -22,8 +22,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -107,10 +111,34 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.X11Forward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
+	case PortForwardLocalEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteConnEvent:
+		e = &events.PortForward{}
 	case AuthAttemptEvent:
 		e = &events.AuthAttempt{}
 	case SCPEvent:
 		e = &events.SCP{}
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		}
+		// Some SFTP events may have been incorrectly marshaled as SCP events;
+		// check for them and fix.
+		// https://github.com/gravitational/teleport/issues/59469
+		if code := getFieldEmpty(EventCode); code == SCPDisallowedCode {
+			sftpEvent := &events.SFTP{}
+			if err := utils.FastUnmarshal(data, sftpEvent); err != nil {
+				// If that didn't work, leave type/code as-is and return UnknownEvent
+				// down below.
+				e = nil
+				break
+			}
+			sftpEvent.Type = SFTPEvent
+			sftpEvent.Code = SFTPDisallowedCode
+			return sftpEvent, nil
+		}
 	case ResizeEvent:
 		e = &events.Resize{}
 	case SessionCommandEvent:
@@ -282,6 +310,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case AccessRequestExpireEvent:
+		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
@@ -388,6 +418,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
+	case GitCommandEvent:
+		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -477,26 +509,101 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
 
+	case WorkloadIdentityX509RevocationCreateEvent:
+		e = &events.WorkloadIdentityX509RevocationCreate{}
+	case WorkloadIdentityX509RevocationUpdateEvent:
+		e = &events.WorkloadIdentityX509RevocationUpdate{}
+	case WorkloadIdentityX509RevocationDeleteEvent:
+		e = &events.WorkloadIdentityX509RevocationDelete{}
+
+	case StableUNIXUserCreateEvent:
+		e = &events.StableUNIXUserCreate{}
+
+	case AWSICResourceSyncSuccessEvent,
+		AWSICResourceSyncFailureEvent:
+		e = &events.AWSICResourceSync{}
+
+	case HealthCheckConfigCreateEvent:
+		e = &events.HealthCheckConfigCreate{}
+	case HealthCheckConfigUpdateEvent:
+		e = &events.HealthCheckConfigUpdate{}
+	case HealthCheckConfigDeleteEvent:
+		e = &events.HealthCheckConfigDelete{}
+
+	case WorkloadIdentityX509IssuerOverrideCreateEvent:
+		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}
+	case WorkloadIdentityX509IssuerOverrideDeleteEvent:
+		e = &events.WorkloadIdentityX509IssuerOverrideDelete{}
+
+	case SigstorePolicyCreateEvent:
+		e = &events.SigstorePolicyCreate{}
+	case SigstorePolicyUpdateEvent:
+		e = &events.SigstorePolicyUpdate{}
+	case SigstorePolicyDeleteEvent:
+		e = &events.SigstorePolicyDelete{}
+
+	case MCPSessionStartEvent:
+		e = &events.MCPSessionStart{}
+	case MCPSessionEndEvent:
+		e = &events.MCPSessionEnd{}
+	case MCPSessionRequestEvent:
+		e = &events.MCPSessionRequest{}
+	case MCPSessionNotificationEvent:
+		e = &events.MCPSessionNotification{}
+	case MCPSessionListenSSEStream:
+		e = &events.MCPSessionListenSSEStream{}
+	case MCPSessionInvalidHTTPRequest:
+		e = &events.MCPSessionInvalidHTTPRequest{}
+
+	case BoundKeypairRecovery:
+		e = &events.BoundKeypairRecovery{}
+	case BoundKeypairRotation:
+		e = &events.BoundKeypairRotation{}
+	case BoundKeypairJoinStateVerificationFailed:
+		e = &events.BoundKeypairJoinStateVerificationFailed{}
+
+	case SCIMListingEvent:
+		e = &events.SCIMListingEvent{}
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
+		e = &events.SCIMResourceEvent{}
+
+	case ClientIPRestrictionsUpdateEvent:
+		e = &events.ClientIPRestrictionsUpdate{}
+
+	case AppAuthConfigCreateEvent:
+		e = &events.AppAuthConfigCreate{}
+	case AppAuthConfigUpdateEvent:
+		e = &events.AppAuthConfigUpdate{}
+	case AppAuthConfigDeleteEvent:
+		e = &events.AppAuthConfigDelete{}
+	case AppAuthConfigVerifySuccessCode:
+		e = &events.AppAuthConfigVerify{}
+	case AppAuthConfigVerifyFailureEvent:
+		e = &events.AppAuthConfigVerify{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
-		unknown := &events.Unknown{}
-		if err := utils.FastUnmarshal(data, unknown); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		unknown.Type = UnknownEvent
-		unknown.Code = UnknownCode
-		unknown.UnknownType = eventType
-		unknown.UnknownCode = getFieldEmpty(EventCode)
-		unknown.Data = string(data)
-		return unknown, nil
 	}
 
-	if err := utils.FastUnmarshal(data, e); err != nil {
+	if e != nil {
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		} else {
+			slog.ErrorContext(context.Background(), "failed to unmarshal event", "event_type", eventType, "error", err)
+		}
+	}
+
+	unknown := &events.Unknown{}
+	if err := utils.FastUnmarshal(data, unknown); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return e, nil
+	unknown.Type = UnknownEvent
+	unknown.Code = UnknownCode
+	unknown.UnknownType = eventType
+	unknown.UnknownCode = getFieldEmpty(EventCode)
+	unknown.Data = string(data)
+	return unknown, nil
 }
 
 // GetSessionID pulls the session ID from the events that have a
@@ -533,4 +640,59 @@ func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	}
 
 	return fields, nil
+}
+
+// FromEventFieldsSlice converts an array of EventFields to an array of AuditEvent.
+func FromEventFieldsSlice(fieldsArray []EventFields) ([]events.AuditEvent, error) {
+	events := make([]events.AuditEvent, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// EventFieldsToUnstructured converts an EventFields to an EventUnstructured.
+func FromEventFieldsSliceToUnstructured(fieldsArray []EventFields) ([]*auditlogpb.EventUnstructured, error) {
+	events := make([]*auditlogpb.EventUnstructured, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := EventFieldsToUnstructured(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// EventFieldsToUnstructured converts the raw event fields stored to unstructured.
+func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, error) {
+	str, err := structpb.NewStruct(evt)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert event fields to structpb.Struct")
+	}
+
+	id := getOrComputeEventID(evt)
+
+	return &auditlogpb.EventUnstructured{
+		Type:         evt.GetType(),
+		Index:        int64(evt.GetInt(EventIndex)),
+		Time:         timestamppb.New(evt.GetTime(EventTime)),
+		Id:           id,
+		Unstructured: str,
+	}, nil
+}
+
+// getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.
+// Otherwise, the event is marshaled to JSON and the SHA256 hash of the JSON is returned.
+func getOrComputeEventID(evt EventFields) string {
+	id := evt.GetID()
+	if id != "" {
+		return id
+	}
+
+	return uuid.NewString()
 }

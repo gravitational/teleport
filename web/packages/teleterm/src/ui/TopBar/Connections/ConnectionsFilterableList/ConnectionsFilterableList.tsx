@@ -18,11 +18,11 @@
 
 import { Text } from 'design';
 
-import { FilterableList } from 'teleterm/ui/components/FilterableList';
-import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { VnetConnectionItem, useVnetContext } from 'teleterm/ui/Vnet';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { FilterableList } from 'teleterm/ui/components/FilterableList';
+import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
+import { useVnetContext, VnetConnectionItem } from 'teleterm/ui/Vnet';
 
 import { ConnectionItem } from './ConnectionItem';
 
@@ -64,7 +64,7 @@ export function ConnectionsFilterableList(props: {
     <FilterableList<ExtendedTrackedConnection | VnetConnection>
       items={items}
       filterBy="title"
-      placeholder="Search Connections"
+      placeholder="Search connections"
       onFilterChange={value =>
         value.length ? setActiveIndex(0) : setActiveIndex(-1)
       }

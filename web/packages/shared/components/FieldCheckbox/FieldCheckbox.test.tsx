@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, userEvent } from 'design/utils/testing';
 import React, { useRef, useState } from 'react';
+
+import { render, screen, userEvent } from 'design/utils/testing';
 
 import { FieldCheckbox } from './FieldCheckbox';
 
@@ -51,7 +52,7 @@ test('controlled flow', async () => {
 test('uncontrolled flow', async () => {
   let checkboxRef;
   function TestForm() {
-    const cbRefInternal = useRef();
+    const cbRefInternal = useRef(undefined);
     checkboxRef = cbRefInternal;
     return (
       <form data-testid="form">

@@ -16,15 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import ConsoleCtx from 'teleport/Console/consoleContext';
-
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
-import TeleportContext from 'teleport/teleportContext';
+import ConsoleCtx from 'teleport/Console/consoleContext';
 import * as stores from 'teleport/Console/stores/types';
-
+import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ResourcesResponse, UnifiedResource } from 'teleport/services/agents';
+import TeleportContext from 'teleport/teleportContext';
 
 import { DocumentDb } from './DocumentDb';
 
@@ -44,6 +42,79 @@ export const Connect = () => {
           protocol: 'postgres',
           labels: [],
           names: ['users', 'orders'],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithEmptyDatabaseName = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'mysql',
+          labels: [],
+          names: ['users', 'orders'],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithoutAllowedDatabaseNames = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'mysql',
+          labels: [],
+          users: ['alice', 'bob'],
+          roles: ['reader', 'all'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithDatabaseNamesUnsupported = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          // as of writing, we don't even have a Cassandra web client, but we
+          // should test that protocols without database name support render
+          // without an input for database name.
+          protocol: 'cassandra',
+          labels: [],
           users: ['alice', 'bob'],
           roles: ['reader', 'all'],
           hostname: '',
@@ -113,6 +184,32 @@ export const ConnectWithWildcards = () => {
           labels: [],
           names: ['postgres', '*'],
           users: ['*'],
+          roles: ['*'],
+          hostname: '',
+          supportsInteractive: true,
+        },
+      ],
+    })
+  );
+
+  return <DocumentDbWrapper ctx={ctx} consoleCtx={consoleCtx} doc={baseDoc} />;
+};
+
+export const ConnectWithAutoUserProvisioning = () => {
+  const { ctx, consoleCtx } = getContexts(
+    Promise.resolve({
+      agents: [
+        {
+          kind: 'db',
+          name: 'mydb',
+          description: '',
+          type: '',
+          protocol: 'postgres',
+          labels: [],
+          names: ['postgres', '*'],
+          users: ['alice'],
+          roles: ['readonly', 'read-write'],
+          autoUsersEnabled: true,
           hostname: '',
           supportsInteractive: true,
         },

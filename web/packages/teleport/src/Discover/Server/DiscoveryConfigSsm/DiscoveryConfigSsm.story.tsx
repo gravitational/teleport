@@ -16,29 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { delay, http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
+
 import { Info } from 'design/Alert';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
-  AutoDiscovery,
-} from 'teleport/Discover/useDiscover';
+  RequiredDiscoverProviders,
+  resourceSpecAwsEc2Ssm,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { AgentMeta, AutoDiscovery } from 'teleport/Discover/useDiscover';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import {
-  DiscoverDiscoveryConfigMethod,
-  DiscoverEventResource,
-} from 'teleport/services/userEvent';
-import { ServerLocation } from 'teleport/Discover/SelectResource';
 
 import { DiscoveryConfigSsm } from './DiscoveryConfigSsm';
 
@@ -65,7 +57,7 @@ export const SuccessCloud = () => {
 SuccessCloud.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -89,7 +81,7 @@ export const SuccessSelfHosted = () => (
 SuccessSelfHosted.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -106,7 +98,7 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () => delay('infinite')),
@@ -121,7 +113,7 @@ export const Failed = () => {
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () =>
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
         HttpResponse.json({ id: 'token-id' })
       ),
       http.post(cfg.api.discoveryConfigPath, () =>
@@ -141,62 +133,30 @@ const Component = ({
 }: {
   autoDiscovery?: AutoDiscovery;
 }) => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'aws-console',
-      agentMatcherLabels: [],
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-oidc-name',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
+  const agentMeta: AgentMeta = {
+    resourceName: 'aws-console',
+    agentMatcherLabels: [],
+    awsIntegration: {
+      kind: IntegrationKind.AwsOidc,
+      name: 'some-oidc-name',
+      resourceType: 'integration',
+      spec: {
+        roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+        issuerS3Bucket: '',
+        issuerS3Prefix: '',
       },
-      autoDiscovery,
+      statusCode: IntegrationStatusCode.Running,
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: '',
-      kind: ResourceKind.Application,
-      icon: null,
-      keywords: [],
-      event: DiscoverEventResource.Ec2Instance,
-      nodeMeta: {
-        location: ServerLocation.Aws,
-        discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Ssm,
-      },
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
+    autoDiscovery,
   };
 
-  cfg.proxyCluster = 'localhost';
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'application' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAwsEc2Ssm}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          <Info>Devs: Click next to see next state</Info>
-          <DiscoveryConfigSsm />
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <Info>Devs: Click next to see next state</Info>
+      <DiscoveryConfigSsm />
+    </RequiredDiscoverProviders>
   );
 };

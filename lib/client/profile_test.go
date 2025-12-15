@@ -163,13 +163,14 @@ func Test_profileStatusFromKeyRing(t *testing.T) {
 	}
 	keyRing := auth.makeSignedKeyRing(t, idx, false)
 	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
-		ProfileName:   profile.Name(),
-		WebProxyAddr:  profile.WebProxyAddr,
-		ProfileDir:    "",
-		Username:      profile.Username,
-		SiteName:      profile.SiteName,
-		KubeProxyAddr: profile.KubeProxyAddr,
-		IsVirtual:     true,
+		ProfileName:       profile.Name(),
+		WebProxyAddr:      profile.WebProxyAddr,
+		ProfileDir:        "",
+		Username:          profile.Username,
+		SiteName:          profile.SiteName,
+		KubeProxyAddr:     profile.KubeProxyAddr,
+		IsVirtual:         true,
+		TLSRoutingEnabled: true,
 	})
 	require.NoError(t, err)
 	require.Equal(t, &ProfileStatus{
@@ -191,6 +192,7 @@ func Test_profileStatusFromKeyRing(t *testing.T) {
 			UserID:   "1234567",
 			Username: "github-username",
 		},
-		CriticalOptions: map[string]string{},
+		CriticalOptions:   map[string]string{},
+		TLSRoutingEnabled: true,
 	}, profileStatus)
 }

@@ -16,9 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ComponentPropsWithRef, ComponentType, CSSProperties } from 'react';
+
+import { Flex } from 'design';
+import { ButtonBorder } from 'design/Button';
+
 export type LoginItem = {
   url: string;
   login: string;
+  /** Indicates url to be launched with an href attribute and in a new tab. */
+  isExternalUrl?: boolean;
 };
 
 // MenuInputType determines how the input present in the MenuLogin
@@ -29,10 +36,17 @@ export type LoginItem = {
 export enum MenuInputType {
   INPUT,
   FILTER,
+  NONE,
 }
 
 export type MenuLoginProps = {
   getLoginItems: () => LoginItem[] | Promise<LoginItem[]>;
+  /**
+   * If isExternalUrl of login item is true, a button with <a> tag is rendered
+   * and the value of url is passed for the login param. Since <a> tag with href
+   * attribute handles onClick by default, the caller may wish to
+   * pass an empty onSelect function value.
+   */
   onSelect: (e: React.SyntheticEvent, login: string) => void;
   anchorOrigin?: any;
   inputType?: MenuInputType;
@@ -41,7 +55,18 @@ export type MenuLoginProps = {
   textTransform?: string;
   placeholder?: string;
   required?: boolean;
-  width?: string;
+  /**
+   * Width of the displayed menu. If alignButtonWidthToMenu is true, then this is also the width of
+   * the button.
+   */
+  width?: ComponentPropsWithRef<typeof Flex>['width'];
+  /**
+   * Width of just the button. Ignored if alignButtonWidthToMenu is true.
+   */
+  buttonWidth?: ComponentPropsWithRef<typeof ButtonBorder>['width'];
+  ButtonComponent?: ComponentType<ComponentPropsWithRef<typeof ButtonBorder>>;
+  buttonText?: string;
+  style?: CSSProperties;
 };
 
 export type MenuLoginHandle = {

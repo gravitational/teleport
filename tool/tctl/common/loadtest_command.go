@@ -33,7 +33,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -62,6 +61,7 @@ type LoadtestCommand struct {
 	labels      int
 	interval    time.Duration
 	ttl         time.Duration
+	duration    time.Duration
 	concurrency int
 
 	kind   string
@@ -83,6 +83,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Global
 	c.nodeHeartbeats.Flag("labels", "Number of labels to generate per node.").Default("1").IntVar(&c.labels)
 	c.nodeHeartbeats.Flag("interval", "Node heartbeat interval").Default("1m").DurationVar(&c.interval)
 	c.nodeHeartbeats.Flag("ttl", "TTL of heartbeated nodes").Default("10m").DurationVar(&c.ttl)
+	c.nodeHeartbeats.Flag("duration", "Maximum time to run before shutting down. A default value of '0' will run indefinitely").Default("0").DurationVar(&c.duration)
 	c.nodeHeartbeats.Flag("concurrency", "Max concurrent requests").Default(
 		strconv.Itoa(runtime.NumCPU() * 16),
 	).IntVar(&c.concurrency)
@@ -127,26 +128,38 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 		fmt.Fprintf(os.Stderr, "[!] "+format+"\n", args...)
 	}
 
-	infof("Setting up node hb load generation. count=%d, churn=%d, labels=%d, interval=%s, ttl=%s, concurrency=%d",
+	durationReadable := c.duration.String()
+	if c.duration == 0 {
+		durationReadable = "forever"
+	}
+
+	infof("Setting up node hb load generation. count=%d, churn=%d, labels=%d, interval=%s, ttl=%s, duration=%s, concurrency=%d",
 		c.count,
 		c.churn,
 		c.labels,
 		c.interval,
 		c.ttl,
+		durationReadable,
 		c.concurrency,
 	)
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
+	if c.duration > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, c.duration)
+		defer cancel()
+		ctx = timeoutCtx
+	}
+
 	node_ids := make([]string, 0, c.count)
 
-	for i := 0; i < c.count; i++ {
+	for range c.count {
 		node_ids = append(node_ids, uuid.New().String())
 	}
 
 	labels := make(map[string]string, c.labels)
-	for i := 0; i < c.labels; i++ {
+	for range c.labels {
 		labels[uuid.New().String()] = uuid.New().String()
 	}
 
@@ -178,7 +191,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 	infof("Estimated serialized node size: %d (bytes)", len(sn))
 
-	for i := 0; i < c.concurrency; i++ {
+	for range c.concurrency {
 		go func() {
 			for id := range workch {
 				_, err = client.UpsertNode(ctx, mknode(id))
@@ -186,7 +199,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 					return
 				}
 				if err != nil {
-					log.Debugf("Failed to upsert node: %v", err)
+					slog.DebugContext(ctx, "Failed to upsert node", "error", err)
 					select {
 					case errch <- err:
 					default:
@@ -212,7 +225,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 		default:
 		}
 
-		for i := 0; i < c.churn; i++ {
+		for range c.churn {
 			node_ids = append(node_ids, uuid.New().String())
 		}
 
@@ -241,7 +254,7 @@ func (c *LoadtestCommand) NodeHeartbeats(ctx context.Context, client *authclient
 
 func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) error {
 	var kinds []types.WatchKind
-	for _, kind := range strings.Split(c.kind, ",") {
+	for kind := range strings.SplitSeq(c.kind, ",") {
 		kind = strings.TrimSpace(kind)
 		if kind == "" {
 			continue
@@ -253,7 +266,7 @@ func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) 
 	}
 
 	ops := make(map[types.OpType]struct{})
-	for _, op := range strings.Split(c.ops, ",") {
+	for op := range strings.SplitSeq(c.ops, ",") {
 		op = strings.TrimSpace(op)
 		if op == "" {
 			continue

@@ -24,7 +24,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 const (
@@ -32,11 +33,16 @@ const (
 	defaultRenewalInterval = 30 * time.Minute
 )
 
-// BotConfig contains the embedded tbot configuration.
-// This is a wrapper around the pure tbot config.BotConfig structure
-// and exposes utils to parse configuration from CLI flags and operator-specific
+// BotConfig contains the embedded tbot configuration. It's a simplified version
+// of the `lib/tbot/config.BotConfig` struct with CLI flags and operator-specific
 // defaults.
-type BotConfig config.BotConfig
+type BotConfig struct {
+	Kind               bot.Kind
+	AuthServer         string
+	Onboarding         onboarding.Config
+	CredentialLifetime bot.CredentialLifetime
+	Insecure           bool
+}
 
 // BindFlags binds BotConfig fields to CLI flags.
 // When calling flag.Parse(), the bot configuration will be parsed and
@@ -45,8 +51,8 @@ func (c *BotConfig) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.AuthServer, "auth-server", "127.0.0.1:3025", "Address of the Teleport Auth Server or Proxy Server")
 	fs.StringVar(&c.Onboarding.TokenValue, "token", "teleport-operator", "A bot join token or path to file with token value.")
 	fs.StringVar((*string)(&c.Onboarding.JoinMethod), "join-method", string(types.JoinMethodKubernetes), "Method to use to join the Teleport cluster.")
-	fs.DurationVar(&c.CertificateTTL, "certificate-ttl", defaultCertificateTTL, "TTL of short-lived machine certificates.")
-	fs.DurationVar(&c.RenewalInterval, "renewal-interval", defaultRenewalInterval, "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.")
+	fs.DurationVar(&c.CredentialLifetime.TTL, "certificate-ttl", defaultCertificateTTL, "TTL of short-lived machine certificates.")
+	fs.DurationVar(&c.CredentialLifetime.RenewalInterval, "renewal-interval", defaultRenewalInterval, "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.")
 	caPinsFlag := StringListVar{
 		list: &c.Onboarding.CAPins,
 	}

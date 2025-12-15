@@ -16,25 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
 import { useState } from 'react';
-import Validation from 'shared/components/Validation';
+
+import Box from 'design/Box';
 import { ButtonSecondary } from 'design/Button';
+import Validation from 'shared/components/Validation';
 
-import { LabelsInput, Label } from './LabelsInput';
+import { Label, LabelsInput } from './LabelsInput';
 
-export default {
+const meta: Meta = {
   title: 'Teleport/LabelsInput',
+  decorators: Story => (
+    <Box width="456px">
+      <Story />
+    </Box>
+  ),
 };
+export default meta;
 
 export const Default = () => {
-  const [labels, setLables] = useState<Label[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
 
   return (
     <Validation>
       {({ validator }) => (
         <div>
           <div>
-            <LabelsInput labels={labels} setLabels={setLables} />
+            <LabelsInput labels={labels} setLabels={setLabels} />
           </div>
           <ButtonSecondary
             mt={6}
@@ -53,12 +62,14 @@ export const Default = () => {
 };
 
 export const Custom = () => {
-  const [labels, setLables] = useState<Label[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
   return (
     <Validation>
       <LabelsInput
         labels={labels}
-        setLabels={setLables}
+        setLabels={setLabels}
+        legend="List of Labels"
+        tooltipContent="List of labels, 'nuff said"
         labelKey={{
           fieldName: 'Custom Key Name',
           placeholder: 'custom key placeholder',
@@ -68,40 +79,51 @@ export const Custom = () => {
           placeholder: 'custom value placeholder',
         }}
         adjective="Custom Adjective"
-        inputWidth={350}
       />
     </Validation>
   );
 };
 
 export const Disabled = () => {
-  const [labels, setLables] = useState<Label[]>([
+  const [labels, setLabels] = useState<Label[]>([
     { name: 'some-name', value: 'some-value' },
   ]);
   return (
     <Validation>
-      <LabelsInput labels={labels} setLabels={setLables} disableBtns={true} />
+      <LabelsInput labels={labels} setLabels={setLabels} disableBtns={true} />
+    </Validation>
+  );
+};
+
+export const ReadOnly = () => {
+  const [labels, setLabels] = useState<Label[]>([
+    { name: 'some-name', value: 'some-value' },
+  ]);
+  return (
+    <Validation>
+      <LabelsInput labels={labels} setLabels={setLabels} readOnly />
     </Validation>
   );
 };
 
 export const AutoFocus = () => {
-  const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
+  const [labels, setLabels] = useState<Label[]>([{ name: '', value: '' }]);
   return (
     <Validation>
-      <LabelsInput labels={labels} setLabels={setLables} autoFocus={true} />
+      <LabelsInput labels={labels} setLabels={setLabels} autoFocus={true} />
     </Validation>
   );
 };
 
 export const AtLeastOneRequired = () => {
-  const [labels, setLables] = useState<Label[]>([{ name: '', value: '' }]);
+  const [labels, setLabels] = useState<Label[]>([{ name: '', value: '' }]);
   return (
     <Validation>
       <LabelsInput
+        legend="Labels"
         labels={labels}
-        setLabels={setLables}
-        areLabelsRequired={true}
+        setLabels={setLabels}
+        required={true}
       />
     </Validation>
   );

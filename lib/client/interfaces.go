@@ -28,6 +28,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,14 +37,14 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -79,6 +81,22 @@ func (idx KeyRingIndex) Match(matchKeyRing KeyRingIndex) bool {
 	return (matchKeyRing.ProxyHost == "" || matchKeyRing.ProxyHost == idx.ProxyHost) &&
 		(matchKeyRing.ClusterName == "" || matchKeyRing.ClusterName == idx.ClusterName) &&
 		(matchKeyRing.Username == "" || matchKeyRing.Username == idx.Username)
+}
+
+func (idx KeyRingIndex) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("proxy", idx.ProxyHost),
+		slog.String("cluster", idx.ClusterName),
+		slog.String("username", idx.Username),
+	)
+}
+
+func (idx KeyRingIndex) contextualKeyInfo() hardwarekey.ContextualKeyInfo {
+	return hardwarekey.ContextualKeyInfo{
+		ProxyHost:   idx.ProxyHost,
+		Username:    idx.Username,
+		ClusterName: idx.ClusterName,
+	}
 }
 
 // TLSCredential holds a signed TLS certificate and matching private key.
@@ -120,6 +138,9 @@ type KeyRing struct {
 	// AppTLSCredentials are TLS credentials for application access.
 	// Map key is the application name.
 	AppTLSCredentials map[string]TLSCredential
+	// WindowsDesktopTLSCredentials are TLS credentials for desktop access.
+	// Map key is the desktop name.
+	WindowsDesktopTLSCredentials map[string]TLSCredential
 	// TrustedCerts is a list of trusted certificate authorities
 	TrustedCerts []authclient.TrustedCerts
 }
@@ -153,7 +174,7 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	priv, err := keys.NewSoftwarePrivateKey(key)
+	priv, err := keys.NewPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,11 +184,12 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 // NewKeyRing creates a new KeyRing for the given private keys.
 func NewKeyRing(sshPriv, tlsPriv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
-		SSHPrivateKey:      sshPriv,
-		TLSPrivateKey:      tlsPriv,
-		KubeTLSCredentials: make(map[string]TLSCredential),
-		DBTLSCredentials:   make(map[string]TLSCredential),
-		AppTLSCredentials:  make(map[string]TLSCredential),
+		SSHPrivateKey:                sshPriv,
+		TLSPrivateKey:                tlsPriv,
+		KubeTLSCredentials:           make(map[string]TLSCredential),
+		DBTLSCredentials:             make(map[string]TLSCredential),
+		AppTLSCredentials:            make(map[string]TLSCredential),
+		WindowsDesktopTLSCredentials: make(map[string]TLSCredential),
 	}
 }
 
@@ -294,21 +316,39 @@ func (k *KeyRing) clientTLSConfig(cipherSuites []uint16, cred TLSCredential, clu
 
 // ClientCertPool returns x509.CertPool containing trusted CA.
 func (k *KeyRing) clientCertPool(clusters ...string) (*x509.CertPool, error) {
+	certPoolPEM, err := k.clientCertPoolPEM(clusters...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	pool := x509.NewCertPool()
+	if len(certPoolPEM) == 0 {
+		// It's valid to have no matching CAs and therefore an empty cert pool.
+		return pool, nil
+	}
+	if !pool.AppendCertsFromPEM(certPoolPEM) {
+		return nil, trace.BadParameter("failed to parse TLS CA certificate")
+	}
+	return pool, nil
+}
+
+func (k *KeyRing) clientCertPoolPEM(clusters ...string) ([]byte, error) {
+	var certPoolPEM bytes.Buffer
 	for _, caPEM := range k.TLSCAs() {
 		cert, err := tlsca.ParseCertificatePEM(caPEM)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "parsing TLS CA certificate")
 		}
-		for _, k := range clusters {
-			if cert.Subject.CommonName == k {
-				if !pool.AppendCertsFromPEM(caPEM) {
-					return nil, trace.BadParameter("failed to parse TLS CA certificate")
-				}
-			}
+		if !slices.Contains(clusters, cert.Subject.CommonName) {
+			continue
+		}
+		certPoolPEM.Write(caPEM)
+		// PEM files should end with a trailing newline, just double check
+		// before potentially concatenating multiple together.
+		if caPEM[len(caPEM)-1] != '\n' {
+			certPoolPEM.WriteByte('\n')
 		}
 	}
-	return pool, nil
+	return certPoolPEM.Bytes(), nil
 }
 
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
@@ -358,17 +398,13 @@ func (k *KeyRing) CertRoles() ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Extract roles from certificate. Note, if the certificate is in old format,
-	// this will be empty.
-	var roles []string
-	rawRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if ok {
-		roles, err = services.UnmarshalCertRoles(rawRoles)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return roles, nil
+
+	return ident.Roles, nil
 }
 
 const (
@@ -501,6 +537,15 @@ func (k *KeyRing) AppTLSCert(appName string) (tls.Certificate, error) {
 	return cred.TLSCertificate()
 }
 
+// WindowsDesktopTLSCert returns the tls.Certificate for authentication against a named desktop.
+func (k *KeyRing) WindowsDesktopTLSCert(desktopName string) (tls.Certificate, error) {
+	cred, ok := k.WindowsDesktopTLSCredentials[desktopName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for Windows desktop %q not found", desktopName)
+	}
+	return cred.TLSCertificate()
+}
+
 // AppTLSCertificates returns all parsed x509 app access certificates.
 func (k *KeyRing) AppTLSCertificates() (certs []x509.Certificate, err error) {
 	for _, cred := range k.AppTLSCredentials {
@@ -560,19 +605,18 @@ func (k *KeyRing) SSHCert() (*ssh.Certificate, error) {
 }
 
 // ActiveRequests gets the active requests associated with this key.
-func (k *KeyRing) ActiveRequests() (services.RequestIDs, error) {
-	var activeRequests services.RequestIDs
+func (k *KeyRing) ActiveRequests() ([]string, error) {
 	sshCert, err := k.SSHCert()
 	if err != nil {
-		return activeRequests, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	if ok {
-		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
-			return activeRequests, trace.Wrap(err)
-		}
+
+	ident, err := sshca.DecodeIdentity(sshCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return activeRequests, nil
+
+	return ident.ActiveRequests, nil
 }
 
 // CheckCert makes sure the key's SSH certificate is valid.

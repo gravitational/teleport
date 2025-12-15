@@ -1,0 +1,33 @@
+kind: oidc
+version: v3
+metadata:
+  name: oidc_connector
+spec:
+  # Login settings
+  client_id: <LOGIN-CLIENT-NAME>
+  client_secret: <LOGIN-CLIENT-SECRET>
+  # issuer_url and redirect_url are shared by both login and MFA, meaning the same OIDC provider must be used.
+  issuer_url: https://idp.example.com/
+  redirect_url: https://mytenant.teleport.sh:443/v1/webapi/oidc/callback
+  # ...
+
+  # MFA settings
+  mfa:
+    # Enabled specified whether this OIDC connector supports MFA checks.
+    enabled: true
+    # client_id and client_secret should point to an IdP configured
+    # app configured to handle MFA checks. In most cases, these values
+    # should be different from your login client ID and Secret above.
+    client_id: <MFA-CLIENT-NAME>
+    client_secret: <MFA-CLIENT-SECRET>
+    # prompt can be set to request a specific prompt flow from the IdP. Supported
+    # values depend on the IdP.
+    prompt: none
+    # acr_values are Authentication Context Class Reference values. These values
+    # are context-specific and vary depending on the IdP.
+    acr_values: []
+    # max_age is the amount of time in seconds that an IdP session is valid for.
+    # Defaults to 0 to always force re-authentication for MFA checks. This should
+    # only be set to a non-zero value if the IdP is setup to perform MFA checks on
+    # top of active user sessions.
+    max_age: 0

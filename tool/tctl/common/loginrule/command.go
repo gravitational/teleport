@@ -22,11 +22,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -141,7 +141,7 @@ func (t *testCommand) run(ctx context.Context, c *authclient.Client) error {
 	}
 
 	if len(t.inputResourceFiles) > 0 {
-		logrus.Debugf("Loaded %d login rule(s) from input resource files", len(loginRules))
+		slog.DebugContext(ctx, "Loaded login rule(s) from input resource files", "login_rule_count", len(loginRules))
 	}
 
 	traits, err := parseTraitsFile(t.inputTraitsFile)

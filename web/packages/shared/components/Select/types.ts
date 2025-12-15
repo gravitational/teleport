@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Ref } from 'react';
 import {
-  StylesConfig,
-  Props as ReactSelectProps,
   GroupBase,
-  OptionProps,
   OnChangeValue,
+  OptionProps,
+  Props as ReactSelectProps,
+  StylesConfig,
 } from 'react-select';
 import { AsyncProps as ReactSelectAsyncProps } from 'react-select/async';
-import { CreatableProps as ReactSelectCreatableProps } from 'react-select/creatable';
 import { AsyncCreatableProps as ReactSelectAsyncCreatableProps } from 'react-select/async-creatable';
+import { CreatableProps as ReactSelectCreatableProps } from 'react-select/creatable';
 
 export type SelectSize = 'large' | 'medium' | 'small';
 
@@ -48,6 +49,13 @@ export type CommonProps<Opt, IsMulti extends boolean> = {
   // having this more strict (depending on `IsMulti`) helps us to pass the
   // correct type to the validation rules in `FieldSelect`.
   value?: OnChangeValue<Opt, IsMulti>;
+  /** Ref to the wrapper element. */
+  ref?: Ref<HTMLDivElement>;
+  /**
+   * Disables inputs and hides controls
+   * but does not mute values.
+   */
+  readOnly?: boolean;
 };
 
 export type Props<

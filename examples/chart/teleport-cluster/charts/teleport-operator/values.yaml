@@ -41,7 +41,7 @@ joinMethod: "kubernetes"
 
 # teleportClusterName(string) -- is the name of the joined Teleport cluster.
 # Setting this value is required when joining via the
-# [Kubernetes JWKS](../../reference/join-methods.mdx#kubernetes-jwks) join method.
+# [Kubernetes JWKS](../../reference/deployment/join-methods.mdx#kubernetes-jwks) join method.
 teleportClusterName: ""
 
 # token(string) -- is the name of the token used by the operator to join the Teleport cluster.
@@ -128,6 +128,12 @@ rbac:
   # This value can be set to `false` when deploying in constrained environments
   # where the user deploying the operator is not allowed to edit RBAC resources.
   create: true
+
+# extraEnv(list) -- contains extra environment to be configured on the pod.
+extraEnv: []
+
+# extraArgs(list) -- contains extra arguments to pass to the operator
+extraArgs: []
 
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)

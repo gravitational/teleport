@@ -26,11 +26,13 @@ export const kubes: Kube[] = [
       { name: 'kernel', value: '4.15.0-51-generic' },
       { name: 'env', value: 'prod' },
     ],
+    targetHealth: { status: 'healthy' },
   },
   {
     kind: 'kube_cluster',
     name: 'tele.logicoma.dev-staging',
     labels: [{ name: 'env', value: 'staging' }],
+    targetHealth: { status: 'healthy' },
   },
   {
     kind: 'kube_cluster',
@@ -39,6 +41,13 @@ export const kubes: Kube[] = [
       { name: 'cluster-name', value: 'some-cluster-name' },
       { name: 'env', value: 'idk' },
     ],
+    targetHealth: { status: 'unknown' },
+  },
+  {
+    kind: 'kube_cluster',
+    name: 'unhealthy-kube-cluster',
+    labels: [{ name: 'env', value: 'sunflower' }],
+    targetHealth: { status: 'unhealthy' },
   },
 ];
 

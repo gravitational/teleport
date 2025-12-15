@@ -24,11 +24,14 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/google/shlex"
 	"github.com/gravitational/trace"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // tshAliasEnvKey is an env variable storing the aliases that, so far, has been expanded, and should not be expanded again.
@@ -165,10 +168,8 @@ func expandAliasDefinition(executablePath, aliasName, aliasDef string, runtimeAr
 // getAliasDefinition returns the alias definition if it exists and the alias is still eligible for running.
 func (ar *aliasRunner) getAliasDefinition(aliasCmd string) (string, bool) {
 	// ignore aliases found in TSH_UNALIAS list
-	for _, usedAlias := range ar.getSeenAliases() {
-		if usedAlias == aliasCmd {
-			return "", false
-		}
+	if slices.Contains(ar.getSeenAliases(), aliasCmd) {
+		return "", false
 	}
 
 	aliasDef, ok := ar.aliases[aliasCmd]
@@ -186,7 +187,7 @@ func (ar *aliasRunner) markAliasSeen(alias string) error {
 func (ar *aliasRunner) getSeenAliases() []string {
 	var aliasesSeen []string
 
-	for _, val := range strings.Split(ar.getEnv(tshAliasEnvKey), ",") {
+	for val := range strings.SplitSeq(ar.getEnv(tshAliasEnvKey), ",") {
 		if strings.TrimSpace(val) != "" {
 			aliasesSeen = append(aliasesSeen, val)
 		}
@@ -205,7 +206,7 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath, exe
 	// if execPath is our path, skip re-execution and run main directly instead.
 	// this makes for better error messages in case of failures.
 	if execPath == currentExecPath {
-		log.Debugf("Self re-exec command: tsh %v.", arguments)
+		logger.DebugContext(ctx, "tsh re-exec command", "arguments", arguments)
 		return trace.Wrap(ar.runTshMain(ctx, arguments))
 	}
 
@@ -214,7 +215,7 @@ func (ar *aliasRunner) runAliasCommand(ctx context.Context, currentExecPath, exe
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	log.Debugf("Running external command: %v", cmd)
+	logger.DebugContext(ctx, "Running external command", "command", logutils.StringerAttr(cmd))
 	err = ar.runExternalCommand(cmd)
 	if err == nil {
 		return nil

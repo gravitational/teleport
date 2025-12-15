@@ -19,8 +19,11 @@
 package local
 
 import (
+	gocmp "cmp"
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -30,17 +33,19 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -49,11 +54,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -155,11 +160,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -191,13 +196,13 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), "", server.GetName())
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	err = presence.DeleteDatabaseServer(ctx, "", server.GetHostID(), server.GetName())
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// Remove the server.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName())
@@ -223,7 +228,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Make sure can't delete all with empty namespace.
 	err = presence.DeleteAllDatabaseServers(ctx, "")
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// Delete all.
 	err = presence.DeleteAllDatabaseServers(ctx, server.GetNamespace())
@@ -238,10 +243,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 func TestNodeCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
-	presence := NewPresenceService(lite)
+	presence := NewPresenceService(backend)
 
 	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
 	require.NoError(t, err)
@@ -327,7 +333,7 @@ func TestNodeCRUD(t *testing.T) {
 
 		// Expect node not found
 		_, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("DeleteAllNodes", func(t *testing.T) {
@@ -580,18 +586,47 @@ func TestListResources(t *testing.T) {
 				return desktopService.DeleteAllWindowsDesktops(ctx)
 			},
 		},
+		"GitServer": {
+			resourceType: types.KindGitServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
+					Organization: "my-org",
+					Integration:  "my-org",
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				gitServer.SetName(name)
+				newLabels := gitServer.GetLabels()
+				maps.Copy(newLabels, labels)
+				gitServer.SetStaticLabels(newLabels)
+
+				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
+				return trace.Wrap(err)
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				gitServerService, err := NewGitServerService(presence.Backend)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				return gitServerService.DeleteAllGitServers(ctx)
+			},
+		},
 	}
 
 	for testName, test := range tests {
-		testName := testName
-		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			backend, err := lite.NewWithConfig(ctx, lite.Config{
-				Path:  t.TempDir(),
+			backend, err := memory.New(memory.Config{
 				Clock: clock,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { _ = backend.Close() })
 
 			presence := NewPresenceService(backend)
 
@@ -612,13 +647,13 @@ func TestListResources(t *testing.T) {
 			totalResources := totalWithLabels + totalWithoutLabels
 
 			// with labels
-			for i := 0; i < totalWithLabels; i++ {
+			for i := range totalWithLabels {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
 			// without labels
-			for i := 0; i < totalWithoutLabels; i++ {
+			for i := range totalWithoutLabels {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
 				require.NoError(t, err)
 			}
@@ -724,11 +759,11 @@ func TestListResources_Helpers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	tests := []struct {
@@ -770,7 +805,6 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        5,
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -783,8 +817,8 @@ func TestListResources_Helpers(t *testing.T) {
 	})
 
 	// Add some test servers.
-	for i := 0; i < 20; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+	for range 20 {
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -801,7 +835,6 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        -1,
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := tc.fetch(req)
@@ -817,7 +850,6 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        int32(len(nodes)),
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -833,7 +865,6 @@ func TestListResources_Helpers(t *testing.T) {
 
 	t.Run("test first, middle, last fetching", func(t *testing.T) {
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				// First fetch.
@@ -893,7 +924,6 @@ func TestListResources_Helpers(t *testing.T) {
 			SearchKeywords: []string{targetVal},
 		}
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -911,29 +941,29 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
-	server := suite.NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
+	server := NewServer(types.KindNode, "foo-bar", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
-	server = suite.NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
+	server = NewServer(types.KindNode, "foo-baz", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
-	server = suite.NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
+	server = NewServer(types.KindNode, "foo-qux", "127.0.0.1:2022", namespace)
 	_, err = presence.UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	// Add some test servers.
-	for i := 0; i < 10; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
+	for range 10 {
+		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
 	}
@@ -971,7 +1001,6 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		}
 
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				req := FakePaginateParams{
@@ -1040,9 +1069,9 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	maxLeases := 5
@@ -1073,17 +1102,25 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.Len(t, semaphores, 1)
 	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
 
+	semaphores, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, semaphores, 1)
+	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
+
 	// Cancel the leases concurrently and ensure that all
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
 	for _, l := range leases {
-		l := l
 		go func() {
 			errCh <- presence.CancelSemaphoreLease(ctx, *l)
 		}()
 	}
 
-	for i := 0; i < maxLeases; i++ {
+	for range maxLeases {
 		err := <-errCh
 		require.NoError(t, err)
 	}
@@ -1096,6 +1133,16 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, semaphores, 1)
 	require.Empty(t, semaphores[0].LeaseRefs())
+
+	semaphores, next, err = presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+
+	require.Empty(t, next)
+	require.NoError(t, err)
+	require.Len(t, semaphores, 1)
+	require.Empty(t, semaphores[0].LeaseRefs())
 }
 
 // TestListResources_DuplicateResourceFilterByLabel tests that we can search for a specific label
@@ -1104,11 +1151,11 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -1131,7 +1178,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -1158,7 +1205,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -1181,7 +1228,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := 0; i < len(names); i++ {
+				for i := range names {
 
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
@@ -1229,10 +1276,9 @@ func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	serverInfoA, err := types.NewServerInfo(types.Metadata{
@@ -1320,10 +1366,10 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		err = presenceService.UpsertReverseTunnel(ctx, rc)
+		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 	}
 
@@ -1337,7 +1383,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.ReverseTunnel{}
 	pageToken = ""
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		var got []types.ReverseTunnel
 		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
 		require.NoError(t, err)
@@ -1373,7 +1419,7 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Upsert a reverse tunnel
-	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
+	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
 	require.NoError(t, err)
 	// Check that the returned resource is the same as the one we upserted
 	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1382,4 +1428,257 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(got, fetched))
+}
+
+func TestPresenceService_RelayServer(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	var p *PresenceService
+	require.NotPanics(t, func() {
+		p = NewPresenceService(bk)
+	})
+
+	_, err = p.UpsertRelayServer(ctx, nil)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	relayA := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "a",
+		},
+	}
+
+	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	require.NotNil(t, upsertedA.GetMetadata())
+
+	diffOpts := []cmp.Option{
+		protocmp.Transform(),
+		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
+	}
+
+	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
+
+	gottenA, err := p.GetRelayServer(ctx, "a")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
+
+	_, err = p.GetRelayServer(ctx, "b")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	err = p.DeleteRelayServer(ctx, "a")
+	require.NoError(t, err)
+
+	_, err = p.GetRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	err = p.DeleteRelayServer(ctx, "a")
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	relayB := &presencev1.RelayServer{
+		Kind:    types.KindRelayServer,
+		SubKind: "",
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "b",
+		},
+	}
+
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
+	require.NoError(t, err)
+	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
+	require.NoError(t, err)
+
+	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, listedRelays, 2)
+	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
+	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
+
+	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
+	require.NoError(t, err)
+	require.Equal(t, "b", nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
+
+	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
+	require.NoError(t, err)
+	require.Empty(t, nextPageToken)
+	require.Len(t, shortList, 1)
+	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
+}
+
+func TestPresenceService_ListSemaphores(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { bk.Close() })
+	presence := NewPresenceService(bk)
+
+	newRequest := func(kind, name string) types.AcquireSemaphoreRequest {
+		return types.AcquireSemaphoreRequest{
+			SemaphoreKind: kind,
+			SemaphoreName: name,
+			MaxLeases:     5,
+			Expires:       time.Now().Add(time.Hour),
+			Holder:        "test",
+		}
+	}
+
+	expectedFromReq := func(req types.AcquireSemaphoreRequest) types.Semaphore {
+		sem := &types.SemaphoreV3{
+			SubKind: req.SemaphoreKind,
+			Metadata: types.Metadata{
+				Name: req.SemaphoreName,
+			}}
+		sem.CheckAndSetDefaults()
+		return sem
+	}
+
+	pageSize := 12
+	totalItems := pageSize*2 + (pageSize / 2)
+	expected := make([]types.Semaphore, 0, totalItems)
+
+	for i := range totalItems {
+		kind := types.SemaphoreKindConnection
+		name := fmt.Sprintf("sem-%05d", i)
+		switch {
+		case i%5 == 0:
+			kind = types.SemaphoreKindUploadCompleter
+		case i%3 == 0:
+			// every third name is duplicated with previous item
+			name = expected[i-1].GetName()
+			kind = types.SemaphoreKindKubernetesConnection
+		case i%2 == 0:
+			kind = types.SemaphoreKindAccessListReminderLimiter
+		}
+		request := newRequest(kind, name)
+		_, err := presence.AcquireSemaphore(ctx, request)
+		require.NoError(t, err)
+		expected = append(expected, expectedFromReq(request))
+
+	}
+
+	slices.SortFunc(expected, func(a, b types.Semaphore) int {
+		if c := gocmp.Compare(a.GetSubKind(), b.GetSubKind()); c != 0 {
+			return c
+		}
+		return gocmp.Compare(a.GetName(), b.GetName())
+	})
+	diffopts := cmp.Options{cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.SemaphoreSpecV3{}, "Leases"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Expires")}
+
+	t.Run("filter by name", func(t *testing.T) {
+		wantName := "sem-00002"
+		page, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+			SemaphoreName: wantName,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page, 2)
+		for _, sem := range page {
+			require.Equal(t, wantName, sem.GetName())
+		}
+		require.NotEqual(t, page[0].GetSubKind(), page[1].GetSubKind())
+	})
+
+	t.Run("filter by name and kind returns single item", func(t *testing.T) {
+		wantKind := types.SemaphoreKindUploadCompleter
+		wantName := "sem-00000"
+		page, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+			SemaphoreKind: wantKind,
+			SemaphoreName: wantName,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page, 1)
+		require.Equal(t, wantKind, page[0].GetSubKind())
+		require.Equal(t, wantName, page[0].GetName())
+	})
+
+	t.Run("unfiltered list all", func(t *testing.T) {
+		got, gotNext, err := presence.ListSemaphores(ctx, 1000, "", nil)
+		require.NoError(t, err)
+		require.Empty(t, gotNext)
+		require.Len(t, got, totalItems)
+		require.Empty(t, cmp.Diff(expected, got, diffopts...))
+	})
+
+	t.Run("pagination unfiltered", func(t *testing.T) {
+		page1, page2Start, err := presence.ListSemaphores(ctx, pageSize, "", nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, pageSize)
+		require.Empty(t, cmp.Diff(expected[:pageSize], page1, diffopts...))
+
+		page2, page3Start, err := presence.ListSemaphores(ctx, pageSize, page2Start, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page3Start)
+		require.Len(t, page2, pageSize)
+		require.Empty(t, cmp.Diff(expected[pageSize:pageSize*2], page2, diffopts...))
+
+		page3, next, err := presence.ListSemaphores(ctx, pageSize, page3Start, nil)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page3, totalItems-2*pageSize)
+		require.Empty(t, cmp.Diff(expected[pageSize*2:], page3, diffopts...))
+
+		allPages := append(page1, append(page2, page3...)...)
+		require.Empty(t, cmp.Diff(expected, allPages, diffopts...))
+	})
+
+	t.Run("pagination filtered by kind", func(t *testing.T) {
+		filter := &types.SemaphoreFilter{SemaphoreKind: types.SemaphoreKindKubernetesConnection}
+		page1, page2Start, err := presence.ListSemaphores(ctx, 2, "", filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 2)
+
+		page2, page3Start, err := presence.ListSemaphores(ctx, 2, page2Start, filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page3Start)
+		require.Len(t, page2, 2)
+
+		page3, next, err := presence.ListSemaphores(ctx, 0, page3Start, filter)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page3, 4)
+
+		allPages := append(page1, append(page2, page3...)...)
+
+		for _, sem := range allPages {
+			require.Equal(t, types.SemaphoreKindKubernetesConnection, sem.GetSubKind())
+		}
+	})
+
+	t.Run("pagination filtered by name", func(t *testing.T) {
+		wantName := "sem-00002"
+		filter := &types.SemaphoreFilter{SemaphoreName: wantName}
+		page1, page2Start, err := presence.ListSemaphores(ctx, 1, "", filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 1)
+
+		page2, next, err := presence.ListSemaphores(ctx, 0, page2Start, filter)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page2, 1)
+
+		allPages := append(page1, page2...)
+		for _, sem := range allPages {
+			require.Equal(t, wantName, sem.GetName())
+		}
+	})
+
 }

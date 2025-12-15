@@ -246,6 +246,84 @@ func TestNewDiscoveryConfig(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "tag aws sync with cloudtrail logs",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions: []string{"us-west-2"},
+							CloudTrailLogs: &types.AccessGraphAWSSyncCloudTrailLogs{
+								SQSQueue: "sqs-queue",
+								Region:   "us-west-2",
+							},
+						},
+					},
+				},
+			},
+			expected: &DiscoveryConfig{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindDiscoveryConfig,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: "my-first-dc",
+					},
+				},
+				Spec: Spec{
+					DiscoveryGroup: "dg1",
+					AWS:            make([]types.AWSMatcher, 0),
+					Azure:          make([]types.AzureMatcher, 0),
+					GCP:            make([]types.GCPMatcher, 0),
+					Kube:           []types.KubernetesMatcher{},
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{
+							{
+								Integration: "1234",
+								AssumeRole: &types.AssumeRole{
+									RoleARN: "arn:aws:iam::123456789012:role/teleport",
+								},
+								Regions: []string{"us-west-2"},
+								CloudTrailLogs: &types.AccessGraphAWSSyncCloudTrailLogs{
+									SQSQueue: "sqs-queue",
+									Region:   "us-west-2",
+								},
+							},
+						},
+					},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "tag aws sync with missing cloudtrail logs fields",
+			inMetadata: header.Metadata{
+				Name: "my-first-dc",
+			},
+			inSpec: Spec{
+				DiscoveryGroup: "dg1",
+				AccessGraph: &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{
+						{
+							Integration: "1234",
+							AssumeRole: &types.AssumeRole{
+								RoleARN: "arn:aws:iam::123456789012:role/teleport",
+							},
+							Regions:        []string{"us-west-2"},
+							CloudTrailLogs: &types.AccessGraphAWSSyncCloudTrailLogs{},
+						},
+					},
+				},
+			},
+			errCheck: require.Error,
+		},
+		{
 			name: "tag aws sync with invalid region",
 			inMetadata: header.Metadata{
 				Name: "my-first-dc",
@@ -370,6 +448,113 @@ func TestNewDiscoveryConfig(t *testing.T) {
 			if tt.expected != nil {
 				require.Equal(t, tt.expected, got)
 			}
+		})
+	}
+}
+
+func TestDiscoveryConfig_IsMatchersEmpty(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *DiscoveryConfig
+		expected bool
+	}{
+		{
+			name: "empty config",
+			config: &DiscoveryConfig{
+				Spec: Spec{},
+			},
+			expected: true,
+		},
+		{
+			name: "has AWS matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{"ec2"},
+						Regions: []string{"us-west-2"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has Azure matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					Azure: []types.AzureMatcher{{
+						Types:   []string{"vm"},
+						Regions: []string{"europe-west-2"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has GCP matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					GCP: []types.GCPMatcher{{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"p1"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has Kube matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					Kube: []types.KubernetesMatcher{{
+						Types: []string{"app"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has AccessGraph with AWS",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{{
+							Integration: "integration1",
+							Regions:     []string{"us-west-2"},
+						}},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has AccessGraph but no AWS",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "has multiple matcher types",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{"ec2"},
+						Regions: []string{"us-west-2"},
+					}},
+					Azure: []types.AzureMatcher{{
+						Types:   []string{"vm"},
+						Regions: []string{"europe-west-2"},
+					}},
+				},
+			},
+			expected: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.config.IsMatchersEmpty()
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

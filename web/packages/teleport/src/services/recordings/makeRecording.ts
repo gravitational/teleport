@@ -18,9 +18,8 @@
 
 import { differenceInMilliseconds, formatDistanceStrict } from 'date-fns';
 
-import { eventCodes } from 'teleport/services/audit';
-
 import cfg from 'teleport/config';
+import { eventCodes } from 'teleport/services/audit';
 
 import { Recording } from './types';
 
@@ -30,9 +29,33 @@ export function makeRecording(event: any): Recording {
     return makeDesktopRecording(event);
   } else if (event.code === eventCodes.DATABASE_SESSION_ENDED) {
     return makeDatabaseRecording(event);
+  } else if (event.code === eventCodes.APP_SESSION_CHUNK) {
+    return makeAppRecording(event);
   } else {
     return makeSshOrKubeRecording(event);
   }
+}
+
+function makeAppRecording(event: {
+  time: string;
+  user: string;
+  session_chunk_id: string;
+  app_name: string;
+}): Recording {
+  const { time, user, session_chunk_id, app_name } = event;
+
+  return {
+    duration: 0,
+    durationText: '-',
+    sid: session_chunk_id,
+    createdDate: new Date(time),
+    users: user,
+    hostname: app_name,
+    description: `HTTP access to app ${app_name}`,
+    recordingType: 'app',
+    playable: false,
+    user,
+  } as Recording;
 }
 
 function makeDesktopRecording({
@@ -61,6 +84,7 @@ function makeDesktopRecording({
     description,
     recordingType: 'desktop',
     playable: recorded,
+    user,
   } as Recording;
 }
 
@@ -111,6 +135,7 @@ function makeSshOrKubeRecording({
     description,
     recordingType: kubernetes_cluster ? 'k8s' : 'ssh',
     playable,
+    user,
   } as Recording;
 }
 
@@ -162,6 +187,7 @@ function makeDatabaseRecording({
     description,
     recordingType: 'database',
     playable: description === 'play',
+    user,
   } as Recording;
 }
 

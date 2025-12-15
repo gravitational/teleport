@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useState } from 'react';
+
 import { Flex } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 
 import { RoleWithYaml } from 'teleport/services/resources';
 
-import { EditorSaveCancelButton } from './Shared';
+import { ActionButtonsContainer, PreviewButton, SaveButton } from './Shared';
 import { YamlEditorModel } from './yamlmodel';
 
 type YamlEditorProps = {
@@ -30,7 +32,7 @@ type YamlEditorProps = {
   isProcessing: boolean;
   onChange?(y: YamlEditorModel): void;
   onSave?(content: string): void;
-  onCancel?(): void;
+  onPreview?(): void;
 };
 
 export const YamlEditor = ({
@@ -39,15 +41,27 @@ export const YamlEditor = ({
   yamlEditorModel,
   onChange,
   onSave,
-  onCancel,
+  onPreview,
 }: YamlEditorProps) => {
   const isEditing = !!originalRole;
+  const [wasPreviewed, setHasPreviewed] = useState(!onPreview);
 
   const handleSave = () => onSave?.(yamlEditorModel.content);
 
+  const handlePreview = () => {
+    // handlePreview should only be called if `onPreview` exists, but adding
+    // the extra safety here to protect against potential misuse
+    onPreview?.();
+    setHasPreviewed(true);
+  };
+
   function handleSetYaml(newContent: string) {
+    if (onPreview) {
+      setHasPreviewed(false);
+    }
     onChange?.({
       isDirty: originalRole?.yaml !== newContent,
+      isTouched: true,
       content: newContent,
     });
   }
@@ -61,12 +75,19 @@ export const YamlEditor = ({
           onChange={handleSetYaml}
         />
       </Flex>
-      <EditorSaveCancelButton
-        onSave={handleSave}
-        onCancel={onCancel}
-        disabled={isProcessing || !yamlEditorModel.isDirty}
-        isEditing={isEditing}
-      />
+      <ActionButtonsContainer>
+        <SaveButton
+          isEditing={isEditing}
+          disabled={isProcessing || !yamlEditorModel.isDirty || !wasPreviewed}
+          onClick={handleSave}
+        />
+        {onPreview && (
+          <PreviewButton
+            disabled={isProcessing || wasPreviewed || !yamlEditorModel.isDirty}
+            onClick={handlePreview}
+          />
+        )}
+      </ActionButtonsContainer>
     </Flex>
   );
 };

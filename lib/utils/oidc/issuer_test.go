@@ -94,6 +94,13 @@ func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	if m.returnErr != nil {
+		return nil, "", m.returnErr
+	}
+	return m.proxies, "", nil
+}
+
 func TestIssuerForCluster(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range []struct {
@@ -162,10 +169,10 @@ func TestIssuerForCluster(t *testing.T) {
 	}
 }
 
-func badParameterCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func badParameterCheck(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 }
 
-func notFoundCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func notFoundCheck(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }

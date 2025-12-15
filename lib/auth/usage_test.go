@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	eventstest "github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -75,7 +76,7 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 
 	// Lift limit, expect no limit error.
 	s.features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 0}
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: s.features,
 	})
 	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
@@ -83,7 +84,7 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 
 	// Put back limit, expect limit error.
 	s.features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 1}
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: s.features,
 	})
 	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
@@ -93,7 +94,7 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 type setupAccessRequestLimist struct {
 	monthlyLimit int
 	testpack     testPack
-	clock        clockwork.FakeClock
+	clock        *clockwork.FakeClock
 	features     modules.Features
 }
 
@@ -113,12 +114,17 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	features := modules.GetModules().Features()
 	features.IsUsageBasedBilling = true
 	features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Limit: monthlyLimit, Enabled: true}
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: features,
 	})
 
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	// Create a clock in the middle of the month for easy manipulation
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 07, 15, 1, 2, 3, 0, time.UTC))
+	ctx := t.Context()
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Clock:   clock,
+	})
 	require.NoError(t, err)
 
 	// Set up RBAC
@@ -142,12 +148,6 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	require.NoError(t, err)
 	_, err = p.a.CreateUser(ctx, alice)
 	require.NoError(t, err)
-
-	// Mock audit log
-	// Create a clock in the middle of the month for easy manipulation
-	clock := clockwork.NewFakeClockAt(
-		time.Date(2023, 07, 15, 1, 2, 3, 0, time.UTC))
-	p.a.SetClock(clock)
 
 	july := clock.Now()
 	august := clock.Now().AddDate(0, 1, 0)

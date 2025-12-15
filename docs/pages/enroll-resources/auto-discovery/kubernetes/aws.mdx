@@ -1,6 +1,12 @@
 ---
 title: Teleport EKS Auto-Discovery
+sidebar_label: Elastic Kubernetes Service
 description: How to configure auto-discovery of AWS EKS clusters in Teleport.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 EKS Auto-Discovery can automatically
@@ -50,12 +56,12 @@ running the Teleport Discovery Service:
 
 ## Step 2/3. Configure EKS cluster authorization
 
-<Notice type="warning">
+<Admonition type="warning">
 If you are running Teleport Discovery v15.3.8 or later and the IAM role
 used by the Discovery Service has the necessary permissions to create and
 update Access Entries, you can skip this section. The service can self-bootstrap
 the required permissions automatically.
-</Notice>
+</Admonition>
 
 When the Kubernetes Service uses an IAM role that is different from the one that
 creates the clusters, you need to configure the mapping between the Teleport IAM
@@ -137,7 +143,7 @@ subjects:
 
 ### IAM mapping
 
-If you cluster includes the `aws-auth` config map, edit the `configmap/aws-auth`
+If your cluster includes the `aws-auth` config map, edit the `configmap/aws-auth`
 in the `kube-system` namespace and append the following to `mapRoles`. Replace
 `{teleport_aws_iam_role}` with the appropriate IAM role that Teleport Kubernetes
 Service will use. This step will link the Teleport IAM role into the Kubernetes
@@ -202,11 +208,11 @@ to forward requests to the cluster.
 
 <TabItem label="Use system:masters" >
 
-    <Notice type="warning">
+    <Admonition type="warning">
 Granting the `system:masters` group to the IAM role associated with the Teleport
 service means granting administrator-level permissions on the Kubernetes cluster.
 To follow least privilege principle we do not recommend using this method in production.
-  </Notice>
+  </Admonition>
 
 If your cluster contains an `aws-auth` config map, you can use this to associate
 the Teleport IAM role with the `system:masters` RBAC group. Edit the
@@ -245,7 +251,7 @@ $ aws eks create-access-entry \
 $ aws eks associate-access-policy \
   --cluster-name <Var name="eks-cluster" /> \
   --region <Var name="eu-west-1" /> \
-  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" />
+  --principal-arn <Var name="arn:aws:iam::222222222222:role/teleport-role" /> \
   --policy-arn "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" \
   --access-scope type=cluster
 
@@ -261,13 +267,20 @@ to forward requests to the cluster.
   </TabItem>
 </Tabs>
 
-<Notice type="tip">
+<Admonition type="tip">
 If you provision your EKS clusters using tools such as `terraform`, `eksctl` or
 `Cloudformation`, you can use them to automatically configure the `aws-auth` `Configmap` or access entry
 and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster provisioning.
-</Notice>
+</Admonition>
 
 ## Step 3/3. Configure Teleport to discover EKS clusters
+
+### Install Teleport
+
+Install Teleport on the host you are using to run the Kubernetes Service and
+Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
 
 ### Get a join token
 
@@ -277,10 +290,14 @@ command against your Teleport Auth Service and save it in `/tmp/token` on the
 machine that will run Kubernetes Discovery:
 
 ```code
-$ tctl tokens add --type=discovery,kube
+$ tctl tokens add --type=discovery,kube --format=text
+(=presets.tokens.first=)
 ```
 
 ### Configure the Teleport Kubernetes and Discovery Services
+
+On the host running the Kubernetes Service and Discovery Service, create a
+Teleport configuration file with the following content at `/etc/teleport.yaml`:
 
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 
@@ -297,15 +314,15 @@ teleport:
   join_params:
     token_name: "/tmp/token"
     method: token
-  proxy_server: <Var name="teleport.example.com" />:443
+  proxy_server: "teleport.example.com:443"
 auth_service:
-  enabled: off
+  enabled: false
 proxy_service:
-  enabled: off
+  enabled: false
 ssh_service:
-  enabled: off
+  enabled: false
 discovery_service:
-  enabled: "yes"
+  enabled: true
   discovery_group: "aws-prod"
   aws:
    - types: ["eks"]
@@ -313,7 +330,7 @@ discovery_service:
      tags:
        "env": "prod" # Match EKS cluster tags where tag:env=prod
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier

@@ -41,7 +41,7 @@ func (s *EmailBaseSuite) checkPluginData(ctx context.Context, reqID string, cond
 
 // skipEmails ensures that emails were received, but dumps the contents
 func (s *EmailBaseSuite) skipMessages(ctx context.Context, t *testing.T, n int) {
-	for i := 0; i < n; i++ {
+	for range n {
 		_, err := s.mockMailgun.GetMessage(ctx)
 		require.NoError(t, err)
 	}
@@ -50,7 +50,7 @@ func (s *EmailBaseSuite) skipMessages(ctx context.Context, t *testing.T, n int) 
 // getMessages returns next n email messages
 func (s *EmailBaseSuite) getMessages(ctx context.Context, t *testing.T, n int) []mockMailgunMessage {
 	messages := make([]mockMailgunMessage, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		m, err := s.mockMailgun.GetMessage(ctx)
 		require.NoError(t, err)
 		messages[i] = m

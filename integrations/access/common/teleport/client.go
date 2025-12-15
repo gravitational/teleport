@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Client aggregates the parts of Teleport API client interface
@@ -41,6 +42,7 @@ type Client interface {
 	SetAccessRequestState(ctx context.Context, params types.AccessRequestUpdate) error
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error)
+	services.UserOrLoginStateGetter
 }

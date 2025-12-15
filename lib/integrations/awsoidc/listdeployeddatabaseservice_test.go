@@ -110,11 +110,15 @@ type mockListECSClient struct {
 }
 
 func (m *mockListECSClient) ListServices(ctx context.Context, params *ecs.ListServicesInput, optFns ...func(*ecs.Options)) (*ecs.ListServicesOutput, error) {
-	ret := &ecs.ListServicesOutput{}
 	if aws.ToString(params.Cluster) != m.clusterName {
-		return ret, nil
+		return nil, trace.NotFound("ECS Cluster not found")
 	}
 
+	if len(m.services) == 0 {
+		return &ecs.ListServicesOutput{}, nil
+	}
+
+	ret := &ecs.ListServicesOutput{}
 	requestedPage := 1
 
 	totalEndpoints := len(m.services)
@@ -128,10 +132,7 @@ func (m *mockListECSClient) ListServices(ctx context.Context, params *ecs.ListSe
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := m.pageSize * requestedPage
-	if sliceEnd > totalEndpoints {
-		sliceEnd = totalEndpoints
-	}
+	sliceEnd := min(m.pageSize*requestedPage, totalEndpoints)
 
 	for _, service := range m.services[sliceStart:sliceEnd] {
 		ret.ServiceArns = append(ret.ServiceArns, aws.ToString(service.ServiceArn))
@@ -149,6 +150,10 @@ func (m *mockListECSClient) DescribeServices(ctx context.Context, params *ecs.De
 	ret := &ecs.DescribeServicesOutput{}
 	if aws.ToString(params.Cluster) != m.clusterName {
 		return ret, nil
+	}
+
+	if len(params.Services) == 0 {
+		return ret, trace.BadParameter("describe services requires at least one service ARN")
 	}
 
 	for _, serviceARN := range params.Services {
@@ -200,7 +205,7 @@ func TestListDeployedDatabaseServices(t *testing.T) {
 		allServices := make([]*ecstypes.Service, 0, totalServices)
 		mapServices := make(map[string]ecstypes.Service, totalServices)
 		allTasks := make(map[string]*ecstypes.TaskDefinition, totalServices)
-		for i := 0; i < totalServices; i++ {
+		for i := range totalServices {
 			ecsService, ecsTask := dummyServiceTask(i)
 			allTasks[aws.ToString(ecsTask.Family)] = ecsTask
 			mapServices[aws.ToString(ecsService.ServiceArn)] = ecsService
@@ -345,6 +350,45 @@ func TestListDeployedDatabaseServices(t *testing.T) {
 					ContainerCommand:    []string{"start"},
 				}
 				require.Empty(t, cmp.Diff(expectedService, resp.DeployedDatabaseServices[0]))
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "returns empty list when the ECS Cluster does not exist",
+			req: ListDeployedDatabaseServicesRequest{
+				Integration:         "my-integration",
+				TeleportClusterName: "my-cluster",
+				Region:              "us-east-1",
+			},
+			mockClient: func() *mockListECSClient {
+				ret := &mockListECSClient{
+					pageSize: 10,
+				}
+				return ret
+			},
+			respCheck: func(t *testing.T, resp *ListDeployedDatabaseServicesResponse) {
+				require.Empty(t, resp.DeployedDatabaseServices, "expected 0 services")
+				require.Empty(t, resp.NextToken, "expected an empty NextToken")
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "returns empty list when the ECS Cluster exists but has no services",
+			req: ListDeployedDatabaseServicesRequest{
+				Integration:         "my-integration",
+				TeleportClusterName: "my-cluster",
+				Region:              "us-east-1",
+			},
+			mockClient: func() *mockListECSClient {
+				ret := &mockListECSClient{
+					pageSize:    10,
+					clusterName: "my-cluster-teleport",
+				}
+				return ret
+			},
+			respCheck: func(t *testing.T, resp *ListDeployedDatabaseServicesResponse) {
+				require.Empty(t, resp.DeployedDatabaseServices, "expected 0 services")
+				require.Empty(t, resp.NextToken, "expected an empty NextToken")
 			},
 			errCheck: require.NoError,
 		},

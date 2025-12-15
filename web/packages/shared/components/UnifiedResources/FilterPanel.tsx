@@ -16,43 +16,43 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useState, type JSX } from 'react';
 import styled from 'styled-components';
+
+import { Flex, Text, Toggle } from 'design';
 import { ButtonBorder, ButtonSecondary } from 'design/Button';
-import { Text, Flex, Toggle } from 'design';
-import Menu from 'design/Menu';
 import { CheckboxInput } from 'design/Checkbox';
-import { ChevronDown, ArrowsIn, ArrowsOut, Refresh } from 'design/Icon';
-
-import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
+import { ArrowsIn, ArrowsOut, ChevronDown, Refresh } from 'design/Icon';
+import Menu from 'design/Menu';
 import { HoverTooltip } from 'design/Tooltip';
-
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
 import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
-import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-
-import { ResourceAvailabilityFilter, FilterKind } from './UnifiedResources';
 import {
   IncludedResourceMode,
-  SharedUnifiedResource,
+  ResourceHealthStatus,
   UnifiedResourcesQueryParams,
+  VisibleFilterPanelFields,
 } from './types';
-
-const kindToLabel: Record<SharedUnifiedResource['resource']['kind'], string> = {
-  app: 'Application',
-  db: 'Database',
-  windows_desktop: 'Desktop',
-  kube_cluster: 'Kubernetes',
-  node: 'Server',
-  user_group: 'User group',
-};
+import {
+  FilterKind,
+  getFilterKindName,
+  ResourceAvailabilityFilter,
+} from './UnifiedResources';
 
 const sortFieldOptions = [
   { label: 'Name', value: 'name' },
   { label: 'Type', value: 'kind' },
-];
+] as const;
+
+const resourceStatusOptions: { label: string; value: ResourceHealthStatus }[] =
+  [
+    { label: 'Healthy', value: 'healthy' },
+    { label: 'Unhealthy', value: 'unhealthy' },
+    { label: 'Unknown', value: 'unknown' },
+  ];
 
 interface FilterPanelProps {
   availableKinds: FilterKind[];
@@ -74,6 +74,11 @@ interface FilterPanelProps {
   availabilityFilter?: ResourceAvailabilityFilter;
   changeAvailableResourceMode(mode: IncludedResourceMode): void;
   onRefresh(): void;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleFilterPanelFields?: VisibleFilterPanelFields;
 }
 
 export function FilterPanel({
@@ -92,14 +97,25 @@ export function FilterPanel({
   changeAvailableResourceMode,
   ClusterDropdown = null,
   onRefresh,
+  visibleFilterPanelFields = {
+    checkbox: true,
+    clusterOpts: true,
+    healthStatusOpts: true,
+    resourceTypeOpts: true,
+    resourceAvailabilityOpts: true,
+  },
 }: FilterPanelProps) {
-  const { sort, kinds } = params;
+  const { sort, kinds, statuses } = params;
 
   const activeSortFieldOption = sortFieldOptions.find(
     opt => opt.value === sort.fieldName
   );
 
   const onKindsChanged = (newKinds: string[]) => {
+    if (!resourceStatusFilterSupported(newKinds)) {
+      setParams({ ...params, statuses: null, kinds: newKinds });
+      return;
+    }
     setParams({ ...params, kinds: newKinds });
   };
 
@@ -111,6 +127,12 @@ export function FilterPanel({
     setParams({ ...params, sort: oppositeSort(sort) });
   };
 
+  const onHealthStatusChange = (newStatuses: ResourceHealthStatus[]) => {
+    setParams({ ...params, statuses: newStatuses });
+  };
+
+  const isResourceStatusFilterSupported = resourceStatusFilterSupported(kinds);
+
   return (
     // minHeight is set to 32px so there isn't layout shift when a bulk action button shows up
     <Flex
@@ -120,34 +142,62 @@ export function FilterPanel({
       alignItems="center"
     >
       <Flex gap={2}>
-        <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
-          <CheckboxInput
-            css={`
-              // add extra margin so it aligns with the checkboxes of the resources
-              margin-left: 19px;
-            `}
-            checked={selected}
-            onChange={selectVisible}
-            data-testid="select_all"
-          />
-        </HoverTooltip>
-        <MultiselectMenu
-          options={availableKinds.map(({ kind, disabled }) => ({
-            value: kind,
-            label: kindToLabel[kind],
-            disabled: disabled,
-          }))}
-          selected={kinds || []}
-          onChange={onKindsChanged}
-          label="Types"
-          tooltip="Filter by resource type"
-          buffered
-        />
-        {ClusterDropdown}
-        {availabilityFilter && (
-          <IncludedResourcesSelector
-            availabilityFilter={availabilityFilter}
-            onChange={changeAvailableResourceMode}
+        {visibleFilterPanelFields.checkbox && (
+          <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
+            <CheckboxInput
+              css={`
+                // add extra margin so it aligns with the checkboxes of the resources
+                margin-left: 19px;
+              `}
+              checked={selected}
+              onChange={selectVisible}
+              data-testid="select_all"
+            />
+          </HoverTooltip>
+        )}
+        {visibleFilterPanelFields.resourceTypeOpts &&
+          availableKinds.length > 0 && (
+            <MultiselectMenu
+              options={availableKinds
+                .toSorted((a, b) =>
+                  getFilterKindName(a.kind).localeCompare(
+                    getFilterKindName(b.kind)
+                  )
+                )
+                .map(({ kind, disabled }) => ({
+                  value: kind as string,
+                  label: getFilterKindName(kind),
+                  disabled,
+                }))}
+              selected={kinds || []}
+              onChange={onKindsChanged}
+              label="Types"
+              tooltip="Filter by resource type"
+              buffered
+            />
+          )}
+        {visibleFilterPanelFields.clusterOpts && ClusterDropdown}
+        {visibleFilterPanelFields.resourceAvailabilityOpts &&
+          availabilityFilter && (
+            <IncludedResourcesSelector
+              availabilityFilter={availabilityFilter}
+              onChange={changeAvailableResourceMode}
+            />
+          )}
+        {visibleFilterPanelFields.healthStatusOpts && (
+          <MultiselectMenu
+            options={resourceStatusOptions.map(({ label, value }) => ({
+              value,
+              label,
+            }))}
+            selected={statuses || []}
+            onChange={onHealthStatusChange}
+            label="Health Status"
+            tooltip={
+              'Health status filter is only available for database and Kubernetes resources. Support for more resource types will be added in the future.'
+            }
+            disabled={!isResourceStatusFilterSupported}
+            buffered
           />
         )}
       </Flex>
@@ -202,7 +252,12 @@ export function FilterPanel({
             fieldName: activeSortFieldOption.value,
             dir: sort.dir,
           }}
-          fields={sortFieldOptions}
+          fields={sortFieldOptions.filter(opt => {
+            if (opt.value === 'kind' && availableKinds.length === 0) {
+              return false;
+            }
+            return true;
+          })}
           onChange={newSort => {
             if (newSort.dir !== sort.dir) {
               onSortOrderButtonClicked();
@@ -293,16 +348,15 @@ const IncludedResourcesSelector = ({
         onClose={handleClose}
       >
         <AccessRequestsToggleItem>
-          <Text mr={2} mb={1}>
-            Show requestable resources
-          </Text>
           <Toggle
             isToggled={
               availabilityFilter.mode === 'requestable' ||
               availabilityFilter.mode === 'all'
             }
             onToggle={handleToggle}
-          />
+          >
+            <Text ml={2}>Show requestable resources</Text>
+          </Toggle>
         </AccessRequestsToggleItem>
       </Menu>
     </Flex>
@@ -334,3 +388,12 @@ const AccessRequestsToggleItem = styled.div`
   text-decoration: none;
   white-space: nowrap;
 `;
+
+function resourceStatusFilterSupported(kinds: string[]) {
+  return (
+    !kinds ||
+    kinds.length === 0 ||
+    kinds.includes('db') ||
+    kinds.includes('kube_cluster')
+  );
+}

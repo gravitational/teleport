@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"math"
 	"time"
 
@@ -51,12 +52,14 @@ const (
 	// EventProtocol specifies protocol that was captured
 	EventProtocol = "proto"
 	// EventProtocolsSSH specifies SSH as a type of captured protocol
-	EventProtocolSSH = "ssh"
+	EventProtocolSSH = apievents.EventProtocolSSH
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
-	EventProtocolKube = "kube"
+	EventProtocolKube = apievents.EventProtocolKube
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
-	EventProtocolTDP = "tdp"
+	EventProtocolTDP = apievents.EventProtocolTDP
+	// EventProtocolDB specifies database as a type of captured protocol
+	EventProtocolDB = apievents.EventProtocolDB
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -205,6 +208,8 @@ const (
 	AccessRequestUpdateEvent = "access_request.update"
 	// AccessRequestReviewEvent is emitted when a review is applied to a request.
 	AccessRequestReviewEvent = "access_request.review"
+	// AccessRequestExpirEvent is emitted when an access request expires.
+	AccessRequestExpireEvent = "access_request.expire"
 	// AccessRequestDeleteEvent is emitted when a new access request is deleted.
 	AccessRequestDeleteEvent = "access_request.delete"
 	// AccessRequestResourceSearch is emitted when a user searches for
@@ -262,10 +267,13 @@ const (
 	X11ForwardErr     = "error"
 
 	// Port forwarding event
-	PortForwardEvent   = "port"
-	PortForwardAddr    = "addr"
-	PortForwardSuccess = "success"
-	PortForwardErr     = "error"
+	PortForwardEvent           = "port"
+	PortForwardLocalEvent      = "port.local"
+	PortForwardRemoteEvent     = "port.remote"
+	PortForwardRemoteConnEvent = "port.remote_conn"
+	PortForwardAddr            = "addr"
+	PortForwardSuccess         = "success"
+	PortForwardErr             = "error"
 
 	// AuthAttemptEvent is authentication attempt that either
 	// succeeded or failed based on event status
@@ -842,6 +850,16 @@ const (
 	// AutoUpdateVersionDeleteEvent is emitted when a AutoUpdateVersion resource is deleted.
 	AutoUpdateVersionDeleteEvent = "auto_update_version.delete"
 
+	// AutoUpdateAgentRolloutTriggerEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually triggered.
+	AutoUpdateAgentRolloutTriggerEvent = "auto_update_agent_rollout.trigger"
+	// AutoUpdateAgentRolloutForceDoneEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually forced to a done state.
+	AutoUpdateAgentRolloutForceDoneEvent = "auto_update_agent_rollout.force_done"
+	// AutoUpdateAgentRolloutRollbackEvent is emitted when one or many groups
+	// from AutoUpdateAgentRollout resource are manually rolledback.
+	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
+
 	// ContactCreateEvent is emitted when a Contact resource is created.
 	ContactCreateEvent = "contact.create"
 	// ContactDeleteEvent is emitted when a Contact resource is deleted.
@@ -854,8 +872,115 @@ const (
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
 
+	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is created.
+	WorkloadIdentityX509RevocationCreateEvent = "workload_identity_x509_revocation.create"
+	// WorkloadIdentityX509RevocationUpdateEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is updated.
+	WorkloadIdentityX509RevocationUpdateEvent = "workload_identity_x509_revocation.update"
+	// WorkloadIdentityX509RevocationDeleteEvent is emitted when a
+	// WorkloadIdentityX509Revocation resource is deleted.
+	WorkloadIdentityX509RevocationDeleteEvent = "workload_identity_x509_revocation.delete"
+	// WorkloadIdentityX509IssuerOverrideCreateEvent is emitted when a
+	// workload_identity_x509_issuer_override is written.
+	WorkloadIdentityX509IssuerOverrideCreateEvent = "workload_identity_x509_issuer_override.create"
+	// WorkloadIdentityX509IssuerOverrideDeleteEvent is emitted when a
+	// workload_identity_x509_issuer_override is deleted.
+	WorkloadIdentityX509IssuerOverrideDeleteEvent = "workload_identity_x509_issuer_override.delete"
+
+	// SigstorePolicyCreateEvent is emitted when a SigstorePolicy resource is created.
+	SigstorePolicyCreateEvent = "sigstore_policy.create"
+	// SigstorePolicyUpdateEvent is emitted when a SigstorePolicy resource is updated.
+	SigstorePolicyUpdateEvent = "sigstore_policy.update"
+	// SigstorePolicyDeleteEvent is emitted when a SigstorePolicy resource is deleted.
+	SigstorePolicyDeleteEvent = "sigstore_policy.delete"
+
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+
+	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
+	StableUNIXUserCreateEvent = "stable_unix_user.create"
+
+	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
+	// and reconciled to Teleport.
+	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
+	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
+	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
+
+	// HealthCheckConfigCreateEvent is emitted when a health check config
+	// resource is created.
+	HealthCheckConfigCreateEvent = "health_check_config.create"
+	// HealthCheckConfigUpdateEvent is emitted when a health check config
+	// resource is updated.
+	HealthCheckConfigUpdateEvent = "health_check_config.update"
+	// HealthCheckConfigDeleteEvent is emitted when a health check config
+	// resource is deleted.
+	HealthCheckConfigDeleteEvent = "health_check_config.delete"
+
+	// MCPSessionStartEvent is emitted when a user starts a MCP session.
+	MCPSessionStartEvent = "mcp.session.start"
+	// MCPSessionEndEvent is emitted when an MCP session ends.
+	MCPSessionEndEvent = "mcp.session.end"
+	// MCPSessionRequestEvent is emitted when a request is sent by client during
+	// a MCP session.
+	MCPSessionRequestEvent = "mcp.session.request"
+	// MCPSessionNotificationEvent is emitted when a notification is sent by
+	// client during a MCP session.
+	MCPSessionNotificationEvent = "mcp.session.notification"
+	// MCPSessionListenSSEStream is emitted when the client sends a GET request for
+	// listening server notifications via an SSE stream.
+	MCPSessionListenSSEStream = "mcp.session.listen_sse_stream"
+	// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we
+	// do not understand (usually out of MCP spec).
+	MCPSessionInvalidHTTPRequest = "mcp.session.invalid_http_request"
+
+	// BoundKeypairRecovery is emitted when a bound keypair token is used to
+	// perform a recovery.
+	BoundKeypairRecovery = "join_token.bound_keypair.recovery"
+	// BoundKeypairRotation is emitted when a keypair rotation is attempted.
+	BoundKeypairRotation = "join_token.bound_keypair.rotation"
+	// BoundKeypairJoinStateVerificationFailed is emitted when join state
+	// document verification fails.
+	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
+
+	// SCIMListingEvent is emitted when a SCIM client lists resources managed by
+	// the SCIM service.
+	SCIMListingEvent = "scim.list"
+
+	// SCIMCreateEvent is emitted when a client attempts to fetch a specific SCIM
+	// resource.
+	SCIMGetEvent = "scim.get"
+
+	// SCIMCreateEvent is emitted when a new resource is created by the
+	// SCIM service in response to a request. This includes taking ownership of
+	// existing users.
+	SCIMCreateEvent = "scim.create"
+
+	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
+	// service. Includes "deactivating" resources (per Okta).
+	SCIMUpdateEvent = "scim.update"
+
+	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
+	SCIMDeleteEvent = "scim.delete"
+
+	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
+	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// AppAuthConfigCreateEvent is emitted when an app auth config
+	// resource is created.
+	AppAuthConfigCreateEvent = "app_auth_config.create"
+	// AppAuthConfigUpdateEvent is emitted when an app auth config
+	// resource is updated.
+	AppAuthConfigUpdateEvent = "app_auth_config.update"
+	// AppAuthConfigDeleteEvent is emitted when an app auth config
+	// resource is deleted.
+	AppAuthConfigDeleteEvent = "app_auth_config.delete"
+	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
+	// succeeds.
+	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
+	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
+	// fails.
+	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -875,11 +1000,18 @@ const (
 )
 
 // SessionRecordingEvents is a list of events that are related to session
-// recorings.
+// recordings.
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
+
+	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
+	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
+	//
+	// TCP application sessions emit AppSessionEndEvent but produce no
+	// recordings, so it is excluded.
+	AppSessionChunkEvent,
 }
 
 // ServerMetadataGetter represents interface
@@ -981,7 +1113,11 @@ type MultipartUploader interface {
 	// ReserveUploadPart reserves an upload part. Reserve is used to identify
 	// upload errors beforehand.
 	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
-	// UploadPart uploads part and returns the part
+	// UploadPart uploads part and returns the part.
+	//
+	// The part must be greater than [MinUploadPartSizeBytes]. It is the responsibility
+	// of the caller to add padding if needed, or else the upload may fail depending on
+	// storage provider.
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
@@ -1039,6 +1175,7 @@ type StreamEmitter interface {
 type AuditLogSessionStreamer interface {
 	AuditLogger
 	SessionStreamer
+	EncryptedRecordingUploader
 }
 
 // SessionStreamer supports streaming session chunks or events.
@@ -1051,6 +1188,12 @@ type SessionStreamer interface {
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+// EncryptedRecordingUploader takes a session ID and a sequence of encrypted
+// recording parts and uploads an encrypted session recording.
+type EncryptedRecordingUploader interface {
+	UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
 }
 
 type SearchEventsRequest struct {
@@ -1068,6 +1211,8 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
+	// Search is an optional search query to filter events.
+	Search string
 }
 
 type SearchSessionEventsRequest struct {
@@ -1084,7 +1229,7 @@ type SearchSessionEventsRequest struct {
 	// set to its value. Otherwise leave empty.
 	StartKey string
 	// Cond can be used to pass additional expression to query, can be empty.
-	Cond *types.WhereExpr
+	Cond *utils.ToFieldsConditionConfig
 	// SessionID is optional parameter to return session events only to given session.
 	SessionID string
 }
@@ -1124,6 +1269,16 @@ type AuditLogger interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
+
+	// SearchUnstructuredEvents is a flexible way to find events and returns them in an unstructured format (JSON like)
+	//
+	// Event types to filter can be specified and pagination is handled by an iterator key that allows
+	// a query to be resumed.
+	//
+	// The only mandatory requirement is a date range (UTC).
+	//
+	// This function may never return more than 1 MiB of event data.
+	SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error)
 }
 
 // EventFields instance is attached to every logged event

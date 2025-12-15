@@ -41,6 +41,7 @@ export type SamlIdpServiceProviderSpec = {
   entity_id: string;
   preset: SamlServiceProviderPreset;
   relay_state: string;
+  launch_urls?: string[];
 };
 
 /**
@@ -63,6 +64,7 @@ export enum SamlServiceProviderPreset {
   Unspecified = 'unspecified',
   Grafana = 'grafana',
   GcpWorkforce = 'gcp-workforce',
+  MicrosoftEntraId = 'microsoft-entra-id',
 }
 
 /**
@@ -74,6 +76,16 @@ export type SamlGcpWorkforce = {
   orgId: string;
   poolName: string;
   poolProviderName: string;
+};
+
+/**
+ * SamlMicrosoftEntraId defines fields for
+ * Microsoft Entra Id specific input that needs to be
+ * preserved throughout the Discover flow.
+ */
+export type SamlMicrosoftEntraId = {
+  /** Entra Id tenant ID */
+  tenantId: string;
 };
 
 /**

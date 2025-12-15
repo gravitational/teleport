@@ -29,10 +29,12 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"errors"
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -51,7 +53,12 @@ import (
 var (
 	// ErrBadIP is returned when there's a problem with client source or destination IP address
 	ErrBadIP = &trace.BadParameterError{Message: "client source and destination addresses should be valid same TCP version non-nil IP addresses"}
+	// ErrDowngradeDst is returned when attempting to downgrade an IPv6 destination instead of an IPv6 source
+	ErrDowngradeDst = &trace.BadParameterError{Message: "only client source addresses can be downgraded to IPv4, downgrading destination addresses is not supported"}
 )
+
+// Start of class E IPv4 CIDR range
+const classEPrefix byte = 240
 
 // PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 // Possible values:
@@ -95,6 +102,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// PROXYProtocolMode controls behavior related to unsigned PROXY protocol headers.
 	PROXYProtocolMode PROXYProtocolMode
+	// PROXYAllowDowngrade controls IPv6 downgrade to pseudo IPv4 in PROXY headers
+	PROXYAllowDowngrade bool
 	// SuppressUnexpectedPROXYWarning makes multiplexer not issue warnings if it receives PROXY
 	// line when running in PROXYProtocolMode=PROXYProtocolUnspecified
 	SuppressUnexpectedPROXYWarning bool
@@ -404,21 +413,70 @@ func isDifferentTCPVersion(addr1, addr2 net.TCPAddr) bool {
 	return (addr1.IP.To4() != nil && addr2.IP.To4() == nil) || (addr2.IP.To4() != nil && addr1.IP.To4() == nil)
 }
 
-func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer JWTPROXYSigner) ([]byte, error) {
-	sAddr := getTCPAddr(sourceAddress)
-	dAddr := getTCPAddr(destinationAddress)
-	if sAddr.IP == nil || dAddr.IP == nil || isDifferentTCPVersion(sAddr, dAddr) {
-		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", sourceAddress, destinationAddress)
+// hash an IPv6 into a class E IPv4
+// https://developers.cloudflare.com/network/pseudo-ipv4/
+func getPseudoIPV4(addr net.TCPAddr) (net.TCPAddr, error) {
+	hash := sha256.Sum256([]byte(addr.IP))
+	ip := hash[:4]
+	ip[0] |= classEPrefix
+
+	// don't assign the broadcast address
+	if slices.Equal(ip, []byte{255, 255, 255, 255}) {
+		ip[0] = 254
+	}
+
+	return net.TCPAddr{
+		IP:   net.IP(ip),
+		Port: addr.Port,
+	}, nil
+}
+
+type signPROXYHeaderInput struct {
+	source         net.Addr
+	destination    net.Addr
+	allowDowngrade bool
+	clusterName    string
+	signingCert    []byte
+	signer         JWTPROXYSigner
+}
+
+func signPROXYHeader(in signPROXYHeaderInput) ([]byte, error) {
+	originalSourceAddr := getTCPAddr(in.source)
+	sAddr := originalSourceAddr
+	dAddr := getTCPAddr(in.destination)
+	if sAddr.IP == nil || dAddr.IP == nil {
+		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", in.source, in.destination)
 	}
 	if sAddr.Port < 0 || dAddr.Port < 0 {
 		return nil, trace.BadParameter("could not parse port (source:%q, destination: %q)",
-			sourceAddress.String(), destinationAddress.String())
+			in.source.String(), in.destination.String())
 	}
 
-	signature, err := signer.SignPROXYJWT(jwt.PROXYSignParams{
-		SourceAddress:      sAddr.String(),
+	if isDifferentTCPVersion(sAddr, dAddr) {
+		if !in.allowDowngrade {
+			return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", in.source, in.destination)
+		}
+
+		// in a version mismatch, only the source address should be downgraded
+		if sAddr.IP.To4() != nil {
+			return nil, trace.Wrap(ErrDowngradeDst, "source address: %s, destination address: %s", in.source, in.destination)
+		}
+
+		var err error
+		if sAddr, err = getPseudoIPV4(sAddr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Mark original address, which will be returned as the RemoteAddr for Conns with a proxyLine configured, with port 0
+		// to prevent IP pinning. Pseudo IPv4 addresses are only made up of 31.5 bytes of sha256 hash which provides little
+		// defense against collisions
+		originalSourceAddr.Port = 0
+	}
+
+	signature, err := in.signer.SignPROXYJWT(jwt.PROXYSignParams{
+		SourceAddress:      originalSourceAddr.String(),
 		DestinationAddress: dAddr.String(),
-		ClusterName:        clusterName,
+		ClusterName:        in.clusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not sign jwt token for PROXY line")
@@ -428,13 +486,19 @@ func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName str
 	if sAddr.IP.To4() == nil {
 		protocol = TCP6
 	}
+
 	pl := ProxyLine{
 		Protocol:    protocol,
 		Source:      sAddr,
 		Destination: dAddr,
 	}
-	err = pl.AddSignature([]byte(signature), signingCert)
-	if err != nil {
+
+	var originalAddr *net.TCPAddr = nil
+	if !originalSourceAddr.IP.Equal(sAddr.IP) {
+		originalAddr = &originalSourceAddr
+	}
+
+	if err := pl.AddTeleportTLVs([]byte(signature), in.signingCert, originalAddr); err != nil {
 		return nil, trace.Wrap(err, "could not add signature to proxy line")
 	}
 
@@ -499,7 +563,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	// signed header from our own proxies, which take precedence.
 	var proxyLine *ProxyLine
 	unsignedPROXYLineReceived := false
-	for i := 0; i < maxDetectionPasses; i++ {
+	for range maxDetectionPasses {
 		proto, err := detectProto(reader)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -513,12 +577,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}
 
 			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
+				return nil, trace.BadParameter("%s", externalProxyProtocolDisabledError)
 			}
 
 			if unsignedPROXYLineReceived {
 				// We allow only one unsigned PROXY line
-				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+				return nil, trace.BadParameter("%s", duplicateUnsignedProxyLineError)
 			}
 			unsignedPROXYLineReceived = true
 
@@ -534,7 +598,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			if proxyLine != nil && proxyLine.IsVerified {
 				// Unsigned PROXY line after signed one should not happen
-				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+				return nil, trace.BadParameter("%s", unsignedPROXYLineAfterSignedError)
 			}
 
 			proxyLine = newPROXYLine
@@ -548,7 +612,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			if newPROXYLine == nil {
 				if unsignedPROXYLineReceived {
 					// We allow only one unsigned PROXY line
-					return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+					return nil, trace.BadParameter("%s", duplicateUnsignedProxyLineError)
 				}
 				unsignedPROXYLineReceived = true
 				continue // Skipping LOCAL command of PROXY protocol
@@ -578,7 +642,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			// we accept, otherwise reject
 			if newPROXYLine.IsVerified {
 				if proxyLine != nil && proxyLine.IsVerified {
-					return nil, trace.BadParameter(duplicateSignedProxyLineError)
+					return nil, trace.BadParameter("%s", duplicateSignedProxyLineError)
 				}
 
 				proxyLine = newPROXYLine
@@ -591,12 +655,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
 			if m.PROXYProtocolMode == PROXYProtocolOff {
-				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
+				return nil, trace.BadParameter("%s", externalProxyProtocolDisabledError)
 			}
 
 			if unsignedPROXYLineReceived {
 				// We allow only one unsigned PROXY line
-				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
+				return nil, trace.BadParameter("%s", duplicateUnsignedProxyLineError)
 			}
 			unsignedPROXYLineReceived = true
 
@@ -612,7 +676,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// Unsigned PROXY line after signed should not happen
 			if proxyLine != nil && proxyLine.IsVerified {
-				return nil, trace.BadParameter(unsignedPROXYLineAfterSignedError)
+				return nil, trace.BadParameter("%s", unsignedPROXYLineAfterSignedError)
 			}
 
 			proxyLine = newPROXYLine
@@ -631,7 +695,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 		}
 	}
 	// if code ended here after three attempts, something is wrong
-	return nil, trace.BadParameter(unknownProtocolError)
+	return nil, trace.BadParameter("%s", unknownProtocolError)
 }
 
 // checkPROXYProtocolRequirement checks that if multiplexer is required to receive unsigned PROXY line
@@ -831,14 +895,16 @@ type PROXYSigner struct {
 	getCertificate utils.GetCertificateFunc
 	clock          clockwork.Clock
 	clusterName    string
+	allowDowngrade bool
 }
 
 // NewPROXYSigner returns a new instance of PROXYSigner
-func NewPROXYSigner(clusterName string, getCertificate utils.GetCertificateFunc, clock clockwork.Clock) (*PROXYSigner, error) {
+func NewPROXYSigner(clusterName string, getCertificate utils.GetCertificateFunc, clock clockwork.Clock, allowDowngrade bool) (*PROXYSigner, error) {
 	return &PROXYSigner{
 		getCertificate: getCertificate,
 		clock:          clock,
 		clusterName:    clusterName,
+		allowDowngrade: allowDowngrade,
 	}, nil
 }
 
@@ -870,7 +936,16 @@ func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, err
 		return nil, trace.Wrap(err)
 	}
 
-	header, err := signPROXYHeader(source, destination, p.clusterName, signingCert, jwtKey)
+	proxyHeaderInput := signPROXYHeaderInput{
+		source:         source,
+		destination:    destination,
+		clusterName:    p.clusterName,
+		signingCert:    signingCert,
+		signer:         jwtKey,
+		allowDowngrade: p.allowDowngrade,
+	}
+
+	header, err := signPROXYHeader(proxyHeaderInput)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

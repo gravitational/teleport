@@ -23,19 +23,19 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type authServer interface {
 	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GenerateHostCert uses the private key of the CA to sign the public key of
 	// the host (along with metadata like host ID, node name, roles, and ttl)
@@ -44,26 +44,35 @@ type authServer interface {
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
 	RotateCertAuthority(ctx context.Context, req types.RotateRequest) error
+
+	// UpsertTrustedClusterV2 upserts a Trusted Cluster.
+	UpsertTrustedClusterV2(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// CreateTrustedCluster creates a Trusted Cluster.
+	CreateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// UpdateTrustedCluster updates a Trusted Cluster.
+	UpdateTrustedCluster(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 }
 
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      services.AuthorityGetter
-	Backend    services.TrustInternal
-	Logger     *logrus.Entry
-	AuthServer authServer
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	Cache            services.AuthorityGetter
+	Backend          services.TrustInternal
+	AuthServer       authServer
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
 type Service struct {
 	trustpb.UnimplementedTrustServiceServer
-	authorizer authz.Authorizer
-	cache      services.AuthorityGetter
-	backend    services.TrustInternal
-	authServer authServer
-	logger     *logrus.Entry
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	cache            services.AuthorityGetter
+	backend          services.TrustInternal
+	authServer       authServer
 }
 
 // NewService returns a new trust gRPC service.
@@ -75,18 +84,18 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
-	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "trust.service")
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		authServer: cfg.AuthServer,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		cache:            cfg.Cache,
+		backend:          cfg.Backend,
+		authServer:       cfg.AuthServer,
 	}, nil
 }
 
@@ -146,23 +155,47 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 // GetCertAuthorities retrieves the cert authorities with the specified type.
 func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
+	// for standard reads we do not enforce scope pinning. this ensures that CAs are readable for
+	// all scoped identities regardless of their current scope pinning. this pattern should not
+	// be used for any checks save essential global configuration reads that are necessary for basic
+	// teleport functionality.
+	decisionFn := authCtx.CheckerContext.RiskyUnpinnedDecision
 
 	if req.IncludeKey {
 		verbs = append(verbs, types.VerbRead)
 
-		// Require admin MFA to read secrets.
-		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
+		// for queries that include secrets we must enforce standard scope pinning rules.
+		// NOTE: technically we have no plans to introduce scoped CA secrets. as of the time of writing,
+		// attempts to read CA secrets by scoped identities are always denied by virtue of the scoped
+		// role verb limits enforced in scopes/access. this, however, would be the correct pattern should
+		// we choose to introduce scoped CA secrets in the future.
+		decisionFn = authCtx.CheckerContext.Decision
+
+		// Require admin MFA to read secrets (admin MFA is currently only supported for unscoped identities).
+		if unscopedCtx, ok := authCtx.UnscopedContext(); ok {
+			if err := unscopedCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.AccessDenied("cannot perform admin action %s:%s as scoped identity", types.KindCertAuthority, types.VerbRead)
 		}
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindCertAuthority, verbs[0], verbs[1:]...); err != nil {
+	// build rule context for where-clause evaluation once to avoid re-creation
+	// on each decision invocation.
+	ruleCtx := authCtx.RuleContext()
+
+	// perform access-control decision. all cert authorities can be considered as being "root" resources from
+	// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
+	if err := decisionFn(ctx, scopes.Root, func(checker *services.SplitAccessChecker) error {
+		return checker.Common().CheckAccessToRules(&ruleCtx, types.KindCertAuthority, verbs...)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -304,7 +337,28 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		return nil, trace.AccessDenied("this request can be only executed by an internal Teleport service")
 	}
 
-	clusterName, err := s.authServer.GetClusterName()
+	// ensure that the caller is rotating a CA from the same cluster
+	caClusterName := req.CertAuthority.GetClusterName()
+	if caClusterName != authCtx.Identity.GetIdentity().TeleportCluster {
+		return nil, trace.BadParameter("can not rotate local certificate authority")
+	}
+	// ensure the subjects and issuers of the CA certs match what the
+	// cluster name of this CA is supposed to be
+	for _, keyPair := range req.CertAuthority.GetTrustedTLSKeyPairs() {
+		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certClusterName, err := tlsca.ClusterName(cert.Subject)
+		if err != nil {
+			return nil, trace.AccessDenied("CA certificate subject organization is invalid")
+		}
+		if certClusterName != caClusterName {
+			return nil, trace.AccessDenied("the subject organization of a CA certificate does not match the cluster name of the CA")
+		}
+	}
+
+	clusterName, err := s.authServer.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -16,46 +16,59 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type {
+  ToastNotificationItem,
+  ToastNotificationItemContent,
+} from 'shared/components/ToastNotification';
 import { useStore } from 'shared/libs/stores';
 
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { unique } from 'teleterm/ui/utils/uid';
 
-import type {
-  NotificationItem,
-  NotificationItemContent,
-} from 'shared/components/Notification';
+export class NotificationsService extends ImmutableStore<
+  ToastNotificationItem[]
+> {
+  state: ToastNotificationItem[] = [];
 
-export class NotificationsService extends ImmutableStore<NotificationItem[]> {
-  state: NotificationItem[] = [];
-
-  notifyError(content: NotificationItemContent): string {
+  notifyError(content: ToastNotificationItemContent): string {
     return this.notify({ severity: 'error', content });
   }
 
-  notifyWarning(content: NotificationItemContent): string {
+  notifyWarning(content: ToastNotificationItemContent): string {
     return this.notify({ severity: 'warn', content });
   }
 
-  notifyInfo(content: NotificationItemContent): string {
+  notifyInfo(content: ToastNotificationItemContent): string {
     return this.notify({ severity: 'info', content });
   }
 
   removeNotification(id: string): void {
+    if (!id) {
+      return;
+    }
+
+    if (!this.state.length) {
+      return;
+    }
+
     this.setState(draftState =>
       draftState.filter(stateItem => stateItem.id !== id)
     );
   }
 
-  getNotifications(): NotificationItem[] {
+  getNotifications(): ToastNotificationItem[] {
     return this.state;
   }
 
-  useState(): NotificationItem[] {
+  hasNotification(id: string): boolean {
+    return !!this.state.find(n => n.id === id);
+  }
+
+  useState(): ToastNotificationItem[] {
     return useStore(this).state;
   }
 
-  private notify(options: Omit<NotificationItem, 'id'>): string {
+  private notify(options: Omit<ToastNotificationItem, 'id'>): string {
     const id = unique();
 
     this.setState(draftState => {

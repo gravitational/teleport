@@ -18,36 +18,36 @@
 
 import { FC, useEffect, useState } from 'react';
 
-import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
-
+import {
+  Alert,
+  Box,
+  ButtonIcon,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H2,
+  Image,
+  Link,
+  Text,
+} from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import {
-  ButtonIcon,
-  ButtonPrimary,
-  ButtonSecondary,
-  Text,
-  Image,
-  Flex,
-  Box,
-  H2,
-} from 'design';
 import * as icons from 'design/Icon';
-import Validation from 'shared/components/Validation';
-import { requiredToken } from 'shared/components/Validation/rules';
+import { PromptMFARequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
-
 import { Option } from 'shared/components/Select';
+import Validation from 'shared/components/Validation';
+import { requiredToken } from 'shared/components/Validation/rules';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-import { routing } from 'teleterm/ui/uri';
 import PromptSsoStatus from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptSsoStatus';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { routing } from 'teleterm/ui/uri';
 
 export const ReAuthenticate: FC<{
   promptMfaRequest: PromptMFARequest;
@@ -77,16 +77,56 @@ export const ReAuthenticate: FC<{
 
   const { clusterUri } = req;
   const { clustersService } = useAppContext();
-  // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
-  // clustersService. https://github.com/gravitational/teleport/issues/33733
   const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
-  const rootClusterName =
-    clustersService.findRootClusterByResource(rootClusterUri)?.name ||
-    routing.parseClusterName(rootClusterUri);
-  const clusterName =
-    clustersService.findCluster(clusterUri)?.name ||
-    routing.parseClusterName(clusterUri);
+  const rootCluster = clustersService.findRootClusterByResource(rootClusterUri);
+  const rootClusterName = routing.parseClusterName(rootClusterUri);
+  const rootClusterProxyHost =
+    // As a fallback, we read the proxy hostname from the URI. One small issue is that URIs don't
+    // include the port number, so if the actual proxy host has a port number other than 443,
+    // rootClusterProxyHost will not point to the proxy service.
+    // In practice though we should not end up in a situation where this modal is shown but the
+    // cluster does not exist in the app.
+    rootCluster?.proxyHost || rootClusterName;
+  const clusterName = routing.parseClusterName(clusterUri);
   const isLeafCluster = routing.isLeafCluster(clusterUri);
+
+  let $totpPrompt = (
+    <FieldInput
+      flex="1"
+      autoFocus
+      label="Authenticator Code"
+      rule={requiredToken}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      value={otpToken}
+      onChange={e => setOtpToken(e.target.value)}
+      placeholder="123 456"
+      mb={0}
+    />
+  );
+  if (req.perSessionMfa) {
+    const $action =
+      availableMfaTypes.length > 1 ? (
+        'choose'
+      ) : (
+        <Link
+          href={`https://${rootClusterProxyHost}/web/account`}
+          target="_blank"
+        >
+          set up
+        </Link>
+      );
+    $totpPrompt = (
+      <>
+        {/* Empty box to occupy hald of flex width if TOTP input is not shown. */}
+        <Box flex="1" />
+        <Alert kind="warning" width="100%" m={0}>
+          Authenticator App is no longer supported as a two-factor type for
+          per-session MFA. Please {$action} another authentication method.
+        </Alert>
+      </>
+    );
+  }
 
   return (
     <DialogConfirmation
@@ -125,12 +165,12 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text color="text.slightlyMuted">
+                <Text>
                   {req.reason}
                   {isLeafCluster && ` from trusted cluster "${clusterName}"`}
                 </Text>
 
-                <Flex width="100%" gap={3} flex-wrap="no-wrap">
+                <Flex width="100%" gap={3} flexWrap="wrap">
                   {availableMfaTypes.length > 1 && (
                     <FieldSelect
                       flex="1"
@@ -142,20 +182,8 @@ export const ReAuthenticate: FC<{
                       }}
                     />
                   )}
-
                   {selectedMfaType.value === 'totp' ? (
-                    <FieldInput
-                      flex="1"
-                      autoFocus
-                      label="Authenticator Code"
-                      rule={requiredToken}
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      value={otpToken}
-                      onChange={e => setOtpToken(e.target.value)}
-                      placeholder="123 456"
-                      mb={0}
-                    />
+                    $totpPrompt
                   ) : (
                     // Empty box to occupy hald of flex width if TOTP input is not shown.
                     <Box flex="1" />
@@ -176,14 +204,22 @@ export const ReAuthenticate: FC<{
                   </>
                 )}
 
-                {selectedMfaType.value === 'sso' && <PromptSsoStatus />}
+                {selectedMfaType.value === 'sso' && (
+                  <PromptSsoStatus ssoPrompt="follow-browser-steps" />
+                )}
               </Flex>
             </DialogContent>
 
             <DialogFooter>
               <Flex gap={3}>
                 {selectedMfaType.value === 'totp' && (
-                  <ButtonPrimary type="submit">Continue</ButtonPrimary>
+                  <ButtonPrimary
+                    type="submit"
+                    // TOTP is not a supported MFA type for per-session MFA prompts.
+                    disabled={req.perSessionMfa}
+                  >
+                    Continue
+                  </ButtonPrimary>
                 )}
                 <ButtonSecondary type="button" onClick={props.onCancel}>
                   Cancel

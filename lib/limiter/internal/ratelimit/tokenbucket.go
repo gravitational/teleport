@@ -70,6 +70,18 @@ func (tbs *TokenBucketSet) Update(rates *RateSet) {
 	}
 }
 
+// IsRateLimited checks if the bucket is currently rate-limited (no tokens available)
+// without actually consuming any tokens. Returns true if rate-limited, false otherwise.
+func (tbs *TokenBucketSet) IsRateLimited() bool {
+	for _, tokenBucket := range tbs.buckets {
+		tokenBucket.updateAvailableTokens()
+		if tokenBucket.availableTokens < 1 {
+			return true
+		}
+	}
+	return false
+}
+
 // Consume makes an attempt to consume the specified number of tokens from the
 // bucket. If there are enough tokens available then (0, nil) is returned.
 // If tokens to consume is larger than the burst size, then an error is returned
@@ -144,7 +156,7 @@ func (tb *tokenBucket) consume(tokens int64) (time.Duration, error) {
 	tb.updateAvailableTokens()
 	tb.lastConsumed = 0
 	if tokens > tb.burst {
-		return UndefinedDelay, fmt.Errorf("Requested tokens larger than max tokens")
+		return UndefinedDelay, fmt.Errorf("requested tokens larger than max tokens")
 	}
 	if tb.availableTokens < tokens {
 		return tb.timeUntilAvailable(tokens), nil

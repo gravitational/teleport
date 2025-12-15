@@ -141,6 +141,7 @@ export type ThemeColors = {
 
   tooltip: {
     background: string;
+    inverseBackground: string;
   };
 
   progressBarColor: string;
@@ -219,6 +220,56 @@ export type ThemeColors = {
     picton: string;
     sunflower: string;
     caribbean: string;
+  };
+
+  sessionRecording: {
+    resource: string;
+    user: string;
+    player: {
+      progressBar: {
+        background: string;
+        seeking: string;
+        progress: string;
+      };
+    };
+  };
+
+  sessionRecordingTimeline: {
+    background: string;
+    headerBackground: string;
+    frameBorder: string;
+    progressLine: string;
+    cursor: string;
+    border: {
+      default: string;
+      hover: string;
+    };
+    events: {
+      inactivity: {
+        background: string;
+        text: string;
+      };
+      resize: {
+        semiBackground: string;
+        background: string;
+        border: string;
+        text: string;
+      };
+      join: {
+        background: string;
+        text: string;
+      };
+      default: {
+        background: string;
+        text: string;
+      };
+    };
+    timeMarks: {
+      primary: string;
+      secondary: string;
+      absolute: string;
+      text: string;
+    };
   };
 
   link: string;
@@ -311,14 +362,25 @@ export type SharedStyles = {
   sidebarWidth: number;
   boxShadow: string[];
   breakpoints: {
-    mobile: number;
-    tablet: number;
-    desktop: number;
-    small: number;
-    medium: number;
-    large: number;
+    /** @deprecated Use the "small" breakpoint instead. */
+    mobile: string;
+    /** @deprecated Use the "medium" breakpoint instead. */
+    tablet: string;
+    /** @deprecated Use the "large" breakpoint instead. */
+    desktop: string;
+    small: string;
+    medium: string;
+    large: string;
+    700: string;
+    900: string;
+    1200: string;
   };
   topBarHeight: number[];
+  /**
+   *
+   * idx:    0  1  2   3   4   5   6   7   8   9  10  11
+   * space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80]
+   */
   space: number[];
   borders: (string | number)[];
   typography: typeof typography;

@@ -16,36 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ButtonIcon, ButtonWarning, H2 } from 'design';
+import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import * as Alerts from 'design/Alert';
-import { ButtonIcon, ButtonWarning, H2 } from 'design';
-
 import { Cross } from 'design/Icon';
-
 import { P } from 'design/Text/Text';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { useClusterLogout } from './useClusterLogout';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export function ClusterLogout({
   clusterUri,
   onClose,
-  clusterTitle,
   hidden,
 }: {
-  clusterTitle: string;
   clusterUri: RootClusterUri;
   hidden?: boolean;
   onClose(): void;
 }) {
-  const { removeCluster, status, statusText } = useClusterLogout({
-    clusterUri,
-  });
+  const ctx = useAppContext();
+  const [{ status, statusText }, removeCluster] = useAsync(() =>
+    ctx.mainProcessClient.logout(clusterUri)
+  );
 
   async function removeClusterAndClose(): Promise<void> {
     const [, err] = await removeCluster();
@@ -53,6 +50,8 @@ export function ClusterLogout({
       onClose();
     }
   }
+
+  const profileName = routing.parseClusterName(clusterUri);
 
   return (
     <DialogConfirmation
@@ -67,13 +66,11 @@ export function ClusterLogout({
       <form
         onSubmit={e => {
           e.preventDefault();
-          removeClusterAndClose();
+          void removeClusterAndClose();
         }}
       >
-        <DialogHeader justifyContent="space-between" mb={4}>
-          <H2 style={{ whiteSpace: 'nowrap' }}>
-            Log out from cluster {clusterTitle}
-          </H2>
+        <DialogHeader justifyContent="space-between">
+          <H2 style={{ whiteSpace: 'nowrap' }}>Log out from {profileName}</H2>
           <ButtonIcon
             type="button"
             disabled={status === 'processing'}
@@ -83,10 +80,10 @@ export function ClusterLogout({
             <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
-        <DialogContent mb={4}>
-          <P color="text.slightlyMuted">Are you sure you want to log out?</P>
+        <DialogContent mb={4} gap={2}>
+          <P>Are you sure you want to log out?</P>
           {status === 'error' && (
-            <Alerts.Danger mb={5} details={statusText}>
+            <Alerts.Danger mb={0} details={statusText}>
               Could not log out
             </Alerts.Danger>
           )}

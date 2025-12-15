@@ -20,11 +20,9 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
 import { act, render, screen } from 'design/utils/testing';
-
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { arrayOf, requiredField } from '../Validation/rules';
-
 import { FieldMultiInput, FieldMultiInputProps } from './FieldMultiInput';
 
 const TestFieldMultiInput = ({
@@ -70,6 +68,12 @@ test('adding, editing, and removing items', async () => {
 
   await user.click(screen.getAllByRole('button', { name: 'Remove Item' })[0]);
   expect(onChange).toHaveBeenLastCalledWith([]);
+
+  await user.type(screen.getByRole('textbox'), 'bananas');
+  expect(onChange).toHaveBeenLastCalledWith(['bananas']);
+
+  await user.clear(screen.getByRole('textbox'));
+  expect(onChange).toHaveBeenLastCalledWith([]);
 });
 
 test('keyboard handling', async () => {
@@ -78,7 +82,11 @@ test('keyboard handling', async () => {
   render(<TestFieldMultiInput onChange={onChange} />);
 
   await user.click(screen.getByRole('textbox'));
-  await user.keyboard('apples{Enter}oranges');
+  // 'act' appears to be necessary here.
+  // eslint-disable-next-line testing-library/no-unnecessary-act
+  await act(async () => {
+    await user.keyboard('apples{Enter}oranges');
+  });
   expect(onChange).toHaveBeenLastCalledWith(['apples', 'oranges']);
 
   await user.click(screen.getAllByRole('textbox')[0]);

@@ -18,9 +18,9 @@
 
 import { PromptHardwareKeyPINChangeResponse } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
+import Logger from 'teleterm/logger';
 import { TshdEventContextBridgeService } from 'teleterm/types';
 import { IAppContext } from 'teleterm/ui/types';
-import Logger from 'teleterm/logger';
 
 export function createTshdEventsContextBridgeService(
   ctx: IAppContext
@@ -110,7 +110,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
-      ctx.mainProcessClient.forceFocusWindow();
+      await ctx.mainProcessClient.forceFocusWindow();
       const { pin, hasCanceledModal } = await new Promise<{
         pin: string;
         hasCanceledModal: boolean;
@@ -142,7 +142,7 @@ export function createTshdEventsContextBridgeService(
     },
 
     promptHardwareKeyTouch: async ({ request, onRequestCancelled }) => {
-      ctx.mainProcessClient.forceFocusWindow();
+      await ctx.mainProcessClient.forceFocusWindow();
       const { hasCanceledModal } = await new Promise<{
         hasCanceledModal: boolean;
       }>(resolve => {

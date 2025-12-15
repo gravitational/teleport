@@ -1,0 +1,9 @@
+[project]
+name = "verify-teleport-jwt-fastmcp"
+version = "0.1.0"
+description = "MCP server that verifies Teleport's JWT"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2.12.4",
+]

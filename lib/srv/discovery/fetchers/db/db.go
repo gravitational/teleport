@@ -21,12 +21,22 @@ package db
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/opensearch"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -36,14 +46,15 @@ type makeAzureFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
 
 var (
 	makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
-		types.AWSMatcherRDS:                {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
-		types.AWSMatcherRDSProxy:           {newRDSDBProxyFetcher},
-		types.AWSMatcherRedshift:           {newRedshiftFetcher},
-		types.AWSMatcherRedshiftServerless: {newRedshiftServerlessFetcher},
-		types.AWSMatcherElastiCache:        {newElastiCacheFetcher},
-		types.AWSMatcherMemoryDB:           {newMemoryDBFetcher},
-		types.AWSMatcherOpenSearch:         {newOpenSearchFetcher},
-		types.AWSMatcherDocumentDB:         {newDocumentDBFetcher},
+		types.AWSMatcherRDS:                   {newRDSDBInstancesFetcher, newRDSAuroraClustersFetcher},
+		types.AWSMatcherRDSProxy:              {newRDSDBProxyFetcher},
+		types.AWSMatcherRedshift:              {newRedshiftFetcher},
+		types.AWSMatcherRedshiftServerless:    {newRedshiftServerlessFetcher},
+		types.AWSMatcherElastiCache:           {newElastiCacheFetcher},
+		types.AWSMatcherElastiCacheServerless: {newElastiCacheServerlessFetcher},
+		types.AWSMatcherMemoryDB:              {newMemoryDBFetcher},
+		types.AWSMatcherOpenSearch:            {newOpenSearchFetcher},
+		types.AWSMatcherDocumentDB:            {newDocumentDBFetcher},
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
@@ -64,8 +75,97 @@ func IsAzureMatcherType(matcherType string) bool {
 	return len(makeAzureFetcherFuncs[matcherType]) > 0
 }
 
-// MakeAWSFetchers creates new AWS database fetchers.
-func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []types.AWSMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+// AWSClientProvider provides AWS service API clients.
+type AWSClientProvider interface {
+	// GetEC2Client provides an [EC2Client].
+	GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) EC2Client
+	// GetElastiCacheClient provides an [ElastiCacheClient].
+	GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient
+	// GetMemoryDBClient provides an [MemoryDBClient].
+	GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient
+	// GetOpenSearchClient provides an [OpenSearchClient].
+	GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient
+	// GetRDSClient provides an [RDSClient].
+	GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient
+	// GetRedshiftClient provides an [RedshiftClient].
+	GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient
+	// GetRedshiftServerlessClient provides an [RSSClient].
+	GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) GetEC2Client(cfg aws.Config, optFns ...func(*ec2.Options)) EC2Client {
+	return ec2.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) ElastiCacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) MemoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetOpenSearchClient(cfg aws.Config, optFns ...func(*opensearch.Options)) OpenSearchClient {
+	return opensearch.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRDSClient(cfg aws.Config, optFns ...func(*rds.Options)) RDSClient {
+	return rds.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshift.Options)) RedshiftClient {
+	return redshift.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) RSSClient {
+	return rss.NewFromConfig(cfg, optFns...)
+}
+
+// AWSFetcherFactoryConfig is the configuration for an [AWSFetcherFactory].
+type AWSFetcherFactoryConfig struct {
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
+	// AWSClients provides AWS SDK clients.
+	AWSClients AWSClientProvider
+
+	// Logger is the logger used by the factory and its fetchers.
+	Logger *slog.Logger
+}
+
+func (c *AWSFetcherFactoryConfig) checkAndSetDefaults() error {
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+	if c.AWSClients == nil {
+		c.AWSClients = defaultAWSClients{}
+	}
+	if c.Logger == nil {
+		c.Logger = slog.Default()
+	}
+	return nil
+}
+
+// AWSFetcherFactory makes AWS database fetchers.
+type AWSFetcherFactory struct {
+	cfg AWSFetcherFactoryConfig
+}
+
+// NewAWSFetcherFactory checks the given config and returns a new fetcher
+// provider.
+func NewAWSFetcherFactory(cfg AWSFetcherFactoryConfig) (*AWSFetcherFactory, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &AWSFetcherFactory{
+		cfg: cfg,
+	}, nil
+}
+
+// MakeFetchers returns AWS database fetchers for each matcher given.
+func (f *AWSFetcherFactory) MakeFetchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]common.Fetcher, error) {
+	var result []common.Fetcher
 	for _, matcher := range matchers {
 		assumeRole := types.AssumeRole{}
 		if matcher.AssumeRole != nil {
@@ -74,19 +174,26 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAWSFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v", matcherType, maps.Keys(makeAWSFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported AWS matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAWSFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
 				for _, region := range matcher.Regions {
+					if region == types.Wildcard {
+						f.cfg.Logger.WarnContext(ctx, "AWS Database discovery does not support region discovery, remove the '*' from the regions field", "discovery_config", discoveryConfigName)
+						continue
+					}
 					fetcher, err := makeFetcher(awsFetcherConfig{
-						AWSClients:          clients,
 						Type:                matcherType,
 						AssumeRole:          assumeRole,
 						Labels:              matcher.Tags,
 						Region:              region,
 						Integration:         matcher.Integration,
 						DiscoveryConfigName: discoveryConfigName,
+						AWSConfigProvider:   f.cfg.AWSConfigProvider,
+						awsClients:          f.cfg.AWSClients,
 					})
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -100,25 +207,33 @@ func MakeAWSFetchers(ctx context.Context, clients cloud.AWSClients, matchers []t
 }
 
 // MakeAzureFetchers creates new Azure database fetchers.
-func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Context, integration string) (azure.Clients, error), matchers []types.AzureMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
 	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
+		azureClients, err := getAzureClients(ctx, matcher.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		for _, matcherType := range matcher.Types {
 			makeFetchers, found := makeAzureFetcherFuncs[matcherType]
 			if !found {
-				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v", matcherType, maps.Keys(makeAzureFetcherFuncs))
+				return nil, trace.BadParameter("unknown matcher type %q. Supported Azure database matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeAzureFetcherFuncs)))
 			}
 
 			for _, makeFetcher := range makeFetchers {
 				for _, sub := range matcher.Subscriptions {
 					for _, group := range matcher.ResourceGroups {
 						fetcher, err := makeFetcher(azureFetcherConfig{
-							AzureClients:        clients,
+							AzureClients:        azureClients,
 							Type:                matcherType,
 							Subscription:        sub,
 							ResourceGroup:       group,
 							Labels:              matcher.ResourceTags,
 							Regions:             matcher.Regions,
 							DiscoveryConfigName: discoveryConfigName,
+							Integration:         matcher.Integration,
 						})
 						if err != nil {
 							return nil, trace.Wrap(err)
@@ -146,12 +261,4 @@ func filterDatabasesByLabels(ctx context.Context, databases types.Databases, lab
 		}
 	}
 	return matchedDatabases
-}
-
-// flatten flattens a nested slice [][]T to []T.
-func flatten[T any](s [][]T) (result []T) {
-	for i := range s {
-		result = append(result, s[i]...)
-	}
-	return
 }

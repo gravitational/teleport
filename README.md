@@ -12,8 +12,8 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/reference/architecture/architecture
-* Getting Started: https://goteleport.com/docs/getting-started/
+* Architecture: https://goteleport.com/docs/reference/architecture/
+* Getting Started: https://goteleport.com/docs/get-started/
 
 <div align="center">
    <a href="https://goteleport.com/download">
@@ -57,12 +57,12 @@ We have implemented Teleport as a single Go binary that integrates with multiple
 
 * [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 * [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/).
 * [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
 * [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
 * [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 
-You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
+You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/admin-guides/deploy-a-cluster/helm-deployments/).
 
 Teleport focuses on best practices for infrastructure security:
 
@@ -98,7 +98,7 @@ deployment that makes it easier to enable secure access to your infrastructure.
 Cloud.
 
 Follow our guide to [registering your first
-server](https://goteleport.com/docs/choose-an-edition/teleport-cloud/get-started/)
+server](https://goteleport.com/docs/get-started/)
 with Teleport Enterprise Cloud.
 
 ## Docker
@@ -121,7 +121,7 @@ If your intention is to build and deploy for use in a production infrastructure
 a released tag should be used.  The default branch, `master`, is the current
 development branch for an upcoming major version.  Get the latest release tags
 listed at https://goteleport.com/download/ and then use that tag in the `git clone`.
-For example `git clone https://github.com/gravitational/teleport.git -b v16.0.0` gets release v16.0.0.
+For example `git clone https://github.com/gravitational/teleport.git -b v18.0.0` gets release v18.0.0.
 
 ### Dockerized Build
 
@@ -137,24 +137,18 @@ make -C build.assets build-binaries
 
 #### Dependencies
 
-Ensure you have installed correct versions of necessary dependencies:
-* `Go` version from
-  [go.mod](https://github.com/gravitational/teleport/blob/master/go.mod#L3)
-* If you wish to build the Rust-powered features like Desktop Access, see the
-  `Rust` and `Cargo` versions in
-  [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
-  (search for `RUST_VERSION`)
-* For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
-  `pkg-config` installed locally
-* To build the web UI:
-  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
-  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
-  * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-  * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
-  * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
-    on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
+The following dependencies are required to build Teleport from source. For
+maximum compatibility, install the versions of these dependencies using the
+versions listed in [`build.assets/versions.mk`](/build.assets/versions.mk):
 
-For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md).
+1. [`Go`](https://golang.org/dl/)
+1. [`Rust`](https://www.rust-lang.org/tools/install)
+1. [`Node.js`](https://nodejs.org/en/download/)
+1. [`libfido2`](https://github.com/Yubico/libfido2)
+1. [`pkg-config`](https://www.freedesktop.org/wiki/Software/pkg-config/)
+
+For an example of Dev Environment setup on a Mac, see [these
+instructions](/BUILD_macos.md).
 
 #### Perform a build
 
@@ -327,28 +321,6 @@ Why is a specific version of a module imported?
 
 `go mod graph | grep $modname`
 
-### Devbox Build (experimental)
-
-**Note**: Devbox support is still experimental. It's very possible things may not work as intended.
-
-Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
-the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
-then run:
-
-`devbox shell`
-
-This will install Teleport's various build dependencies and drop you into a shell with these
-dependencies. From here, you can build Teleport normally.
-
-#### flake.nix
-
-A nix flake is located in `build.assets/flake` that allows for installation of Teleport's less
-common build tooling. If this flake is updated, run:
-
-`devbox install`
-
-in order to make sure the changes in the flake are reflected in the local devbox shell.
-
 ## Why did We Build Teleport?
 
 The Teleport creators used to work together at Rackspace. We noticed that most cloud computing users struggle with setting up and configuring infrastructure security because popular tools, while flexible, are complex to understand and expensive to maintain. Additionally, most organizations use multiple infrastructure form factors such as several cloud providers, multiple cloud accounts, servers in colocation, and even smart devices. Some of those devices run on untrusted networks, behind third-party firewalls. This only magnifies complexity and increases operational overhead.
@@ -357,10 +329,10 @@ We had a choice, either start a security consulting business or build a solution
 
 ## More Information
 
-* [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
+* [Teleport Getting Started](https://goteleport.com/docs/get-started/)
 * [Teleport
-  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
-* [Reference](https://goteleport.com/docs/reference/introduction)
+  Architecture](https://goteleport.com/docs/reference/architecture/)
+* [Reference](https://goteleport.com/docs/reference/)
 * [FAQ](https://goteleport.com/docs/faq)
 
 ## Support and Contributing

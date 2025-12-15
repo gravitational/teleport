@@ -16,55 +16,77 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
+import api from 'teleport/services/api';
 
-import makeNode from '../nodes/makeNode';
-import auth, { MfaChallengeScope } from '../auth/auth';
 import { App } from '../apps';
 import makeApp from '../apps/makeApps';
-
+import auth, { MfaChallengeScope } from '../auth/auth';
 import {
+  withGenericUnsupportedError,
+  withUnsupportedLabelFeatureErrorConversion,
+} from '../version/unsupported';
+import {
+  AwsDatabaseVpcsResponse,
+  AwsOidcDeployDatabaseServicesRequest,
+  AWSOIDCDeployedDatabaseService,
+  AwsOidcDeployServiceRequest,
+  AwsOidcListDatabasesRequest,
+  AWSOIDCListDeployedDatabaseServiceResponse,
+  AwsOidcPingRequest,
+  AwsOidcPingResponse,
+  AwsRdsDatabase,
+  AwsRolesAnywherePingResponse,
+  CreateAwsAppAccessRequest,
+  EnrollEksClustersRequest,
+  EnrollEksClustersResponse,
+  ExportedIntegrationCaResponse,
   Integration,
   IntegrationCreateRequest,
-  IntegrationUpdateRequest,
-  IntegrationStatusCode,
+  IntegrationCreateResult,
+  IntegrationDeleteRequest,
+  IntegrationDiscoveryRules,
+  IntegrationKind,
   IntegrationListResponse,
-  AwsOidcListDatabasesRequest,
-  AwsRdsDatabase,
+  IntegrationStatusCode,
+  IntegrationUpdateRequest,
+  IntegrationUpdateResult,
+  IntegrationWithSummary,
   ListAwsRdsDatabaseResponse,
-  RdsEngineIdentifier,
-  AwsOidcDeployServiceRequest,
-  ListEc2InstancesRequest,
-  ListEc2InstancesResponse,
-  Ec2InstanceConnectEndpoint,
-  ListEc2InstanceConnectEndpointsRequest,
-  ListEc2InstanceConnectEndpointsResponse,
+  ListAwsRdsFromAllEnginesResponse,
   ListAwsSecurityGroupsRequest,
   ListAwsSecurityGroupsResponse,
-  DeployEc2InstanceConnectEndpointRequest,
-  DeployEc2InstanceConnectEndpointResponse,
-  SecurityGroup,
-  SecurityGroupRule,
-  ListEksClustersResponse,
-  EnrollEksClustersResponse,
-  EnrollEksClustersRequest,
-  ListEksClustersRequest,
-  AwsOidcDeployDatabaseServicesRequest,
-  Regions,
-  ListAwsRdsFromAllEnginesResponse,
   ListAwsSubnetsRequest,
   ListAwsSubnetsResponse,
+  ListEksClustersRequest,
+  ListEksClustersResponse,
+  ListRolesAnywhereProfilesResponse,
+  RdsEngineIdentifier,
+  Regions,
+  RolesAnywhereProfile,
+  SecurityGroup,
+  SecurityGroupRule,
   Subnet,
-  AwsDatabaseVpcsResponse,
-  AwsOidcPingResponse,
-  AwsOidcPingRequest,
-  IntegrationWithSummary,
+  UserTask,
+  UserTaskDetail,
+  UserTasksListResponse,
 } from './types';
 
 export const integrationService = {
-  fetchIntegration(name: string): Promise<Integration> {
-    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
+  fetchExportedIntegrationCA(
+    clusterId: string,
+    integrationName: string
+  ): Promise<ExportedIntegrationCaResponse> {
+    return api.get(cfg.getIntegrationCaUrl(clusterId, integrationName));
+  },
+
+  fetchIntegration<T>(name: string): Promise<T> {
+    return api
+      .get(cfg.getIntegrationsUrl(name))
+      .then(resp => makeIntegration(resp) as T);
   },
 
   fetchIntegrations(): Promise<IntegrationListResponse> {
@@ -77,8 +99,18 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
-    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  createIntegration<T extends IntegrationCreateRequest>(
+    req: T
+  ): Promise<IntegrationCreateResult<T>> {
+    return api
+      .post(cfg.getIntegrationsUrl(), req)
+      .then(resp => makeIntegration(resp) as IntegrationCreateResult<T>);
+  },
+
+  validateAWSRolesAnywhereIntegration<T>(integrationName: string): Promise<T> {
+    return api.post(
+      cfg.getValidateAWSRolesAnywhereIntegrationUrl(integrationName)
+    );
   },
 
   pingAwsOidcIntegration(
@@ -91,15 +123,28 @@ export const integrationService = {
     return api.post(cfg.getPingAwsOidcIntegrationUrl(urlParams), req);
   },
 
-  updateIntegration(
+  updateIntegration<T extends IntegrationUpdateRequest>(
     name: string,
-    req: IntegrationUpdateRequest
-  ): Promise<Integration> {
-    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
+    req: T
+  ): Promise<IntegrationUpdateResult<T>> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), req)
+      .then(resp => makeIntegration(resp) as IntegrationUpdateResult<T>);
   },
 
-  deleteIntegration(name: string): Promise<void> {
-    return api.delete(cfg.getIntegrationsUrl(name));
+  updateIntegrationOAuthSecret(
+    name: string,
+    secret: string
+  ): Promise<Integration> {
+    return api
+      .put(cfg.getIntegrationsUrl(name), { oauth: { secret } })
+      .then(makeIntegration);
+  },
+
+  deleteIntegration(req: IntegrationDeleteRequest): Promise<void> {
+    return api
+      .delete(cfg.getDeleteIntegrationUrlV2(req))
+      .catch(err => withGenericUnsupportedError(err, 'v17.3.0'));
   },
 
   fetchThumbprint(): Promise<string> {
@@ -292,6 +337,21 @@ export const integrationService = {
       .then(resp => resp.serviceDashboardUrl);
   },
 
+  async createAwsAppAccessV2(
+    integrationName,
+    req: CreateAwsAppAccessRequest
+  ): Promise<App> {
+    return (
+      api
+        .post(cfg.getAwsAppAccessUrlV2(integrationName), req)
+        .then(makeApp)
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0
+  // replaced by createAwsAppAccessV2 that accepts request body
   async createAwsAppAccess(integrationName): Promise<App> {
     return api
       .post(cfg.getAwsAppAccessUrl(integrationName), null)
@@ -314,9 +374,30 @@ export const integrationService = {
       .then(resp => resp.clusterDashboardUrl);
   },
 
-  async enrollEksClusters(
+  async enrollEksClustersV2(
     integrationName: string,
     req: EnrollEksClustersRequest
+  ): Promise<EnrollEksClustersResponse> {
+    const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
+
+    return (
+      api
+        .post(
+          cfg.getEnrollEksClusterUrlV2(integrationName),
+          req,
+          null,
+          mfaResponse
+        )
+        // TODO(kimlisa): DELETE IN 19.0
+        .catch(withUnsupportedLabelFeatureErrorConversion)
+    );
+  },
+
+  // TODO(kimlisa): DELETE IN 19.0 - replaced by v2 endpoint.
+  // replaced by enrollEksClustersV2 that accepts labels.
+  async enrollEksClusters(
+    integrationName: string,
+    req: Omit<EnrollEksClustersRequest, 'extraLabels'>
   ): Promise<EnrollEksClustersResponse> {
     const mfaResponse = await auth.getMfaChallengeResponseForAdminAction(true);
 
@@ -340,52 +421,6 @@ export const integrationService = {
           clusters: eksClusters,
           nextToken: json?.nextToken,
         };
-      });
-  },
-
-  // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.
-  fetchAwsEc2Instances(
-    integrationName,
-    req: ListEc2InstancesRequest
-  ): Promise<ListEc2InstancesResponse> {
-    return api
-      .post(cfg.getListEc2InstancesUrl(integrationName), req)
-      .then(json => {
-        const instances = json?.servers ?? [];
-        return {
-          instances: instances.map(makeNode),
-          nextToken: json?.nextToken,
-        };
-      });
-  },
-
-  // Returns a list of EC2 Instance Connect Endpoints using the ListEC2ICE action of the AWS OIDC Integration.
-  fetchAwsEc2InstanceConnectEndpoints(
-    integrationName,
-    req: ListEc2InstanceConnectEndpointsRequest
-  ): Promise<ListEc2InstanceConnectEndpointsResponse> {
-    return api
-      .post(cfg.getListEc2InstanceConnectEndpointsUrl(integrationName), req)
-      .then(json => {
-        const endpoints = json?.ec2Ices ?? [];
-
-        return {
-          endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
-          nextToken: json?.nextToken,
-          dashboardLink: json?.dashboardLink,
-        };
-      });
-  },
-
-  // Deploys an EC2 Instance Connect Endpoint.
-  deployAwsEc2InstanceConnectEndpoints(
-    integrationName,
-    req: DeployEc2InstanceConnectEndpointRequest
-  ): Promise<DeployEc2InstanceConnectEndpointResponse> {
-    return api
-      .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
-      .then(resp => {
-        return resp ?? [];
       });
   },
 
@@ -428,7 +463,161 @@ export const integrationService = {
       return resp;
     });
   },
+
+  fetchIntegrationRules(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ): Promise<IntegrationDiscoveryRules> {
+    return api
+      .get(cfg.getIntegrationRulesUrl(name, resourceType, regions))
+      .then(resp => {
+        return {
+          rules: resp?.rules || [],
+          nextKey: resp?.nextKey,
+        };
+      });
+  },
+
+  fetchAwsOidcDatabaseServices(
+    name: string,
+    resourceType: AwsResource,
+    regions?: string[]
+  ): Promise<AWSOIDCListDeployedDatabaseServiceResponse> {
+    return api
+      .post(cfg.getAwsOidcDatabaseServices(name, resourceType, regions), null)
+      .then(resp => {
+        return { services: makeDatabaseServices(resp) };
+      });
+  },
+
+  fetchIntegrationUserTasksList(
+    name: string,
+    state: TaskState
+  ): Promise<UserTasksListResponse> {
+    return api
+      .get(cfg.getIntegrationUserTasksListUrl(name, state))
+      .then(resp => {
+        return {
+          items: resp?.items || [],
+          nextKey: resp?.nextKey,
+        };
+      });
+  },
+
+  fetchUserTask(name: string): Promise<UserTaskDetail> {
+    return api.get(cfg.getUserTaskUrl(name)).then(resp => {
+      return {
+        name: resp.name,
+        taskType: resp.taskType,
+        state: resp.state,
+        issueType: resp.issueType,
+        integration: resp.integration,
+        lastStateChange: resp.lastStateChange,
+        description: resp.description,
+        title: resp.title,
+        discoverEc2: {
+          instances: resp.discoverEc2?.instances,
+          account_id: resp.discoverEc2?.account_id,
+          region: resp.discoverEc2?.region,
+          ssm_document: resp.discoverEc2?.ssm_document,
+          installer_script: resp.discoverEc2?.installer_script,
+        },
+        discoverEks: {
+          clusters: resp.discoverEks?.clusters,
+          account_id: resp.discoverEks?.account_id,
+          region: resp.discoverEks?.region,
+          app_auto_discover: resp.discoverEks?.app_auto_discover,
+        },
+        discoverRds: {
+          databases: resp.discoverRds?.databases,
+          account_id: resp.discoverRds?.account_id,
+          region: resp.discoverRds?.region,
+        },
+      };
+    });
+  },
+
+  resolveUserTask(name: string): Promise<UserTask> {
+    return api
+      .put(cfg.getResolveUserTaskUrl(name), {
+        state: TaskState.Resolved,
+      })
+      .then(resp => {
+        return {
+          name: resp.name,
+          taskType: resp.taskType,
+          state: resp.state,
+          issueType: resp.issueType,
+          title: resp.title,
+          integration: resp.integration,
+          lastStateChange: resp.lastStateChange,
+        };
+      });
+  },
+
+  awsRolesAnywherePing({
+    integrationName,
+    trustAnchorArn,
+    syncRoleArn,
+    syncProfileArn,
+  }: {
+    integrationName: string;
+    trustAnchorArn: string;
+    syncRoleArn: string;
+    syncProfileArn: string;
+  }): Promise<AwsRolesAnywherePingResponse> {
+    return api
+      .post(cfg.getAwsRolesAnywherePingUrl(integrationName), {
+        trustAnchorArn,
+        syncRoleArn,
+        syncProfileArn,
+      })
+      .then(json => {
+        return {
+          profileCount: json?.profileCount,
+          accountId: json?.accountID,
+          arn: json?.arn,
+          userId: json?.userId,
+        };
+      });
+  },
+
+  awsRolesAnywhereProfiles(
+    variables: {
+      integrationName: string;
+      filters?: ProfilesFilterOption[];
+    },
+    signal?: AbortSignal
+  ): Promise<ListRolesAnywhereProfilesResponse> {
+    const { integrationName, filters } = variables;
+    const path = cfg.getAwsRolesAnywhereProfilesUrl(integrationName);
+
+    return api
+      .post(
+        path,
+        {
+          filters: filters?.length > 0 ? filters.map(f => f.value) : ['*'],
+        },
+        signal
+      )
+      .then(data => ({
+        profiles: data?.profiles?.map(profile => makeProfile(profile)) ?? [],
+      }));
+  },
 };
+
+function makeDatabaseServices(json: any): AWSOIDCDeployedDatabaseService[] {
+  json = json ?? {};
+  const { services } = json;
+
+  return services?.map((service: AWSOIDCDeployedDatabaseService) => ({
+    name: service.name ?? '',
+    dashboardUrl: service.dashboardUrl ?? '',
+    validTeleportConfig: service.validTeleportConfig ?? false,
+    matchingLabels: service.matchingLabels ?? [],
+  }));
+}
 
 export function makeIntegrations(json: any): Integration[] {
   json = json || [];
@@ -437,26 +626,65 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github } = json;
-  return {
-    resourceType: 'integration',
+  const { name, subKind, awsoidc, github, awsra } = json;
+
+  const commonFields = {
     name,
     kind: subKind,
-    spec: {
-      roleArn: awsoidc?.roleArn,
-      issuerS3Bucket: awsoidc?.issuerS3Bucket,
-      issuerS3Prefix: awsoidc?.issuerS3Prefix,
-      audience: awsoidc?.audience,
-    },
-    details: github
-      ? `GitHub Organization "${github.organization}"`
-      : undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+
+  if (subKind === IntegrationKind.AwsOidc) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details:
+        'Enroll EC2, RDS and EKS resources or enable Web/CLI access to your AWS Account.',
+      spec: {
+        roleArn: awsoidc?.roleArn,
+        issuerS3Bucket: awsoidc?.issuerS3Bucket,
+        issuerS3Prefix: awsoidc?.issuerS3Prefix,
+        audience: awsoidc?.audience,
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.AwsRa) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: 'Sync AWS IAM Roles Anywhere Profiles with Teleport',
+      spec: {
+        trustAnchorARN: awsra?.trustAnchorARN,
+        profileSyncConfig: {
+          enabled: awsra.profileSyncConfig.enabled,
+          profileArn: awsra.profileSyncConfig.profileArn,
+          roleArn: awsra.profileSyncConfig.roleArn,
+          filters: awsra.profileSyncConfig.filters,
+        },
+      },
+    };
+  }
+
+  if (subKind === IntegrationKind.GitHub) {
+    return {
+      ...commonFields,
+      resourceType: 'integration',
+      details: `GitHub repository access for organization "${github.organization}"`,
+      spec: {
+        organization: github.organization,
+      },
+    };
+  }
+
+  return {
+    ...commonFields,
+    resourceType: 'integration',
   };
 }
 
@@ -476,20 +704,6 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
     securityGroups: aws?.rds?.security_groups ?? [],
     accountId: aws?.account_id,
     region: aws?.region,
-  };
-}
-
-function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
-  json = json ?? {};
-  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
-
-  return {
-    name,
-    state,
-    stateMessage,
-    dashboardLink,
-    subnetId,
-    vpcId,
   };
 }
 
@@ -530,5 +744,27 @@ function makeAwsSubnets(json: any): Subnet {
     name,
     id,
     availabilityZone: availability_zone,
+  };
+}
+
+function makeProfile(json: any): RolesAnywhereProfile {
+  json = json ?? {};
+
+  const { arn, enabled, name, acceptRoleSessionName, tags, roles } = json;
+
+  let arr: string[] = [];
+  if (tags != undefined) {
+    new Map(Object.entries(tags)).forEach((v, k) => {
+      arr.push(`${k}:${v}`);
+    });
+  }
+
+  return {
+    arn,
+    enabled,
+    name,
+    acceptRoleSessionName,
+    tags: arr,
+    roles,
   };
 }

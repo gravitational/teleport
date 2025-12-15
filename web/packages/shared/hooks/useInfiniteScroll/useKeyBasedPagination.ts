@@ -17,18 +17,20 @@
  */
 
 import {
-  useState,
-  useRef,
-  useCallback,
   MutableRefObject,
+  useCallback,
   useEffect,
+  useRef,
+  useState,
 } from 'react';
-
-import { ResourcesResponse } from 'teleport/services/agents';
-import { ApiError } from 'teleport/services/api/parseError';
 
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
+
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { ResourcesResponse } from 'teleport/services/agents';
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { ApiError } from 'teleport/services/api/parseError';
 
 /**
  * Supports fetching more data from the server when more data is available. Pass
@@ -205,7 +207,7 @@ export type KeyBasedPaginationOptions<T> = {
   dataKey?: string;
 };
 
-type KeyBasedPagination<T> = {
+export type KeyBasedPagination<T> = {
   /**
    * Attempts to fetch a new batch of data, unless one is already being fetched,
    * or the previous fetch resulted with an error. It is intended to be called
@@ -227,6 +229,10 @@ type KeyBasedPagination<T> = {
   clear(): void;
   attempt: Attempt;
   resources: T[];
+  /**
+   * True if there is no next page.
+   * Means all pages were fetched.
+   */
   finished: boolean;
   /**
    * Used in conjunction with create/delete/update operations

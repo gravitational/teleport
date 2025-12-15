@@ -16,27 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
-import { ResponsiveValue } from 'styled-system';
-
 import { Property } from 'csstype';
+import styled from 'styled-components';
+import {
+  fontFamily,
+  ResponsiveValue,
+  type FontFamilyProps,
+} from 'styled-system';
 
 import {
-  typography,
-  TypographyProps,
-  fontSize,
-  FontSizeProps,
-  space,
-  SpaceProps,
   color,
   ColorProps,
+  fontSize,
+  FontSizeProps,
+  fontWeight,
+  space,
+  SpaceProps,
   textAlign,
   TextAlignProps,
-  fontWeight,
+  typography,
+  TypographyProps,
 } from 'design/system';
-import { fontWeights } from 'design/theme/typography';
 import { shouldForwardTypographyProp } from 'design/system/typography';
+import { fontWeights } from 'design/theme/typography';
 
 interface FontWeightProps {
   fontWeight?: ResponsiveValue<Property.FontWeight | keyof typeof fontWeights>;
@@ -49,7 +51,8 @@ export type TextProps<E extends React.ElementType = 'div'> =
     SpaceProps &
     ColorProps &
     TextAlignProps &
-    FontWeightProps;
+    FontWeightProps &
+    FontFamilyProps;
 
 const Text = styled.div.withConfig({
   shouldForwardProp: shouldForwardTypographyProp,
@@ -63,6 +66,7 @@ const Text = styled.div.withConfig({
   ${color}
   ${textAlign}
   ${fontWeight}
+  ${fontFamily}
 `;
 
 Text.displayName = 'Text';

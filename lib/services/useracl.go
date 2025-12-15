@@ -120,6 +120,12 @@ type UserACL struct {
 	Contact ResourceAccess `json:"contact"`
 	// FileTransferAccess defines the ability to perform remote file operations via SCP or SFTP
 	FileTransferAccess bool `json:"fileTransferAccess"`
+	// GitServers defines access to Git servers.
+	GitServers ResourceAccess `json:"gitServers"`
+	// WorkloadIdentity defines access to Workload Identity
+	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
+	// ClientIPRestriction defines access to Cloud IP Restrictions
+	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -164,6 +170,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
+	gitServersAccess := newAccess(userRoles, ctx, types.KindGitServer)
 
 	// active sessions are a special case - if a user's role set has any join_sessions
 	// policies then the ACL must permit showing active sessions
@@ -193,8 +200,9 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	var accessGraphSettings ResourceAccess
 	if features.AccessGraph {
 		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
-		accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 	}
+	// accessGraphSettings should always be enabled for users to interact with demo mode
+	accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
@@ -213,6 +221,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
 	fileTransferAccess := userRoles.CanCopyFiles()
+	workloadIdentity := newAccess(userRoles, ctx, types.KindWorkloadIdentity)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -222,6 +231,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	contact := newAccess(userRoles, ctx, types.KindContact)
+
+	var clientIPRestrictions ResourceAccess
+	if features.Cloud {
+		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
+	}
 
 	return UserACL{
 		AccessRequests:          requestAccess,
@@ -266,5 +280,8 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraphSettings:     accessGraphSettings,
 		Contact:                 contact,
 		FileTransferAccess:      fileTransferAccess,
+		GitServers:              gitServersAccess,
+		WorkloadIdentity:        workloadIdentity,
+		ClientIPRestriction:     clientIPRestrictions,
 	}
 }

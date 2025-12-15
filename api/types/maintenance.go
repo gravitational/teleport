@@ -26,13 +26,17 @@ import (
 )
 
 const (
-	// UpgraderKindKuberController is a short name used to identify the kube-controller-based
+	// UpgraderKindKubeController is a short name used to identify the kube-controller-based
 	// external upgrader variant.
 	UpgraderKindKubeController = "kube"
 
 	// UpgraderKindSystemdUnit is a short name used to identify the systemd-unit-based
 	// external upgrader variant.
 	UpgraderKindSystemdUnit = "unit"
+
+	// UpgraderKindTeleportUpdate is a short name used to identify the teleport-update
+	// external upgrader variant.
+	UpgraderKindTeleportUpdate = "binary"
 )
 
 var validWeekdays = [7]time.Weekday{
@@ -284,13 +288,14 @@ func (m *ClusterMaintenanceConfigV1) WithinUpgradeWindow(t time.Time) bool {
 		}
 	}
 
-	weekday := t.Weekday().String()
-	for _, upgradeWeekday := range upgradeWindow.Weekdays {
-		if weekday == upgradeWeekday {
-			if int(upgradeWindow.UTCStartHour) == t.Hour() {
-				return true
-			}
-		}
+	upgradeWeekDays, err := ParseWeekdays(upgradeWindow.Weekdays)
+	if err != nil {
+		return false
 	}
-	return false
+
+	if _, ok := upgradeWeekDays[t.Weekday()]; !ok {
+		return false
+	}
+
+	return int(upgradeWindow.UTCStartHour) == t.Hour()
 }

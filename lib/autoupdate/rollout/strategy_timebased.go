@@ -21,9 +21,9 @@ package rollout
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -35,39 +35,60 @@ const (
 )
 
 type timeBasedStrategy struct {
-	log   *slog.Logger
-	clock clockwork.Clock
+	log *slog.Logger
+	clt Client
 }
 
 func (h *timeBasedStrategy) name() string {
 	return update.AgentsStrategyTimeBased
 }
 
-func newTimeBasedStrategy(log *slog.Logger, clock clockwork.Clock) (rolloutStrategy, error) {
+func newTimeBasedStrategy(log *slog.Logger, clt Client) (rolloutStrategy, error) {
 	if log == nil {
 		return nil, trace.BadParameter("missing log")
 	}
-	if clock == nil {
-		return nil, trace.BadParameter("missing clock")
+	if clt == nil {
+		return nil, trace.BadParameter("missing Client")
 	}
 	return &timeBasedStrategy{
-		log:   log.With("strategy", update.AgentsStrategyTimeBased),
-		clock: clock,
+		log: log.With("strategy", update.AgentsStrategyTimeBased),
+		clt: clt,
 	}, nil
 }
 
-func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
-	now := h.clock.Now()
+func (h *timeBasedStrategy) progressRollout(ctx context.Context, spec *autoupdate.AutoUpdateAgentRolloutSpec, status *autoupdate.AutoUpdateAgentRolloutStatus, now time.Time) error {
+	windowDuration := spec.GetMaintenanceWindowDuration().AsDuration()
+	// Backward compatibility for resources previously created without duration.
+	if windowDuration == 0 {
+		windowDuration = haltOnErrorWindowDuration
+	}
+	reports, err := getAllValidReports(ctx, h.clt, now)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	countByGroup, upToDateByGroup := countUpToDate(reports, spec.GetTargetVersion())
+
 	// We always process every group regardless of the order.
 	var errs []error
-	for _, group := range status.Groups {
+	for i, group := range status.Groups {
+		var agentCount, agentUpToDateCount int
+		if i == len(status.Groups)-1 {
+			agentCount, agentUpToDateCount = countCatchAll(status, countByGroup, upToDateByGroup)
+		} else {
+			agentCount = countByGroup[group.GetName()]
+			agentUpToDateCount = upToDateByGroup[group.GetName()]
+		}
+
+		group.PresentCount = uint64(agentCount)
+		group.UpToDateCount = uint64(agentUpToDateCount)
 		switch group.State {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 			autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE:
 			// We start any group unstarted group in window.
 			// Done groups can transition back to active if they enter their maintenance window again.
 			// Some agents might have missed the previous windows and might expected to try again.
-			shouldBeActive, err := inWindow(group, now)
+			shouldBeActive, err := inWindow(group, now, windowDuration)
 			if err != nil {
 				// In time-based rollouts, groups are not dependent.
 				// Failing to transition a group should affect other groups.
@@ -78,7 +99,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupd
 			}
 
 			// Check if the rollout got created after the theoretical group start time
-			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime())
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime(), windowDuration)
 			if err != nil {
 				setGroupState(group, group.State, updateReasonReconcilerError, now)
 				errs = append(errs, err)
@@ -99,7 +120,7 @@ func (h *timeBasedStrategy) progressRollout(ctx context.Context, status *autoupd
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE:
 			// The group is currently being updated. We check if the maintenance
 			// is over and if we should transition it to the done state
-			shouldBeActive, err := inWindow(group, now)
+			shouldBeActive, err := inWindow(group, now, windowDuration)
 			if err != nil {
 				// In time-based rollouts, groups are not dependent.
 				// Failing to transition a group should affect other groups.

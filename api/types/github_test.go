@@ -73,16 +73,6 @@ func TestGithubAuthRequestCheck(t *testing.T) {
 			},
 			check: require.Error,
 		},
-		{
-			request: &GithubAuthRequest{
-				ConnectorID:  "both-new-and-deprecated-keys-are-set",
-				StateToken:   "state-token",
-				PublicKey:    []byte("deprecated"),
-				SshPublicKey: []byte("ssh-key"),
-				TlsPublicKey: []byte("tls-key"),
-			},
-			check: require.Error,
-		},
 	}
 
 	for _, test := range tests {

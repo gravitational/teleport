@@ -21,6 +21,7 @@ package export
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -102,8 +103,8 @@ func TestExporterBasics(t *testing.T) {
 // and returns the generated events for comparison.
 func addEvents(t *testing.T, clt *fakeClient, date time.Time, chunks, eventsPerChunk int) []*auditlogpb.ExportEventUnstructured {
 	var allEvents []*auditlogpb.ExportEventUnstructured
-	for i := 0; i < chunks; i++ {
-		chunk := makeEventChunk(t, date, eventsPerChunk)
+	for range chunks {
+		chunk, _ := makeEventChunk(t, date, eventsPerChunk)
 		allEvents = append(allEvents, chunk...)
 		clt.addChunk(date.Format(time.DateOnly), uuid.NewString(), chunk)
 	}
@@ -133,7 +134,7 @@ func testExportAll(t *testing.T, tc exportTestCase) {
 	getExported := func() []*auditlogpb.ExportEventUnstructured {
 		exportedMu.Lock()
 		defer exportedMu.Unlock()
-		return append([]*auditlogpb.ExportEventUnstructured(nil), exported...)
+		return slices.Clone(exported)
 	}
 
 	var idleOnce sync.Once

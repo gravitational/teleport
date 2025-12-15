@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api from 'teleport/services/api';
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
-import user from './user';
 import { makeTraits } from './makeUser';
 import { Acl, ExcludeUserField, PasswordState, User } from './types';
+import user from './user';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
@@ -52,6 +52,13 @@ test('undefined values in context response gives proper default values', async (
 
   const acl: Acl = {
     accessList: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    accessGraphSettings: {
       list: false,
       read: false,
       edit: false,
@@ -289,6 +296,34 @@ test('undefined values in context response gives proper default values', async (
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
     fileTransferAccess: true,
+    gitServers: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    botInstances: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    workloadIdentity: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    clientIpRestriction: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
   };
 
   expect(response).toEqual({
@@ -406,7 +441,10 @@ test('excludeUserFields when updating user', async () => {
     allTraits: {},
   };
 
-  await user.updateUser(userReq, ExcludeUserField.AllTraits);
+  await user.updateUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.AllTraits,
+  });
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -415,7 +453,10 @@ test('excludeUserFields when updating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.updateUser(userReq, ExcludeUserField.Traits);
+  await user.updateUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.Traits,
+  });
   expect(api.put).toHaveBeenCalledWith(cfg.api.usersPath, {
     name: 'name',
     roles: [],
@@ -434,7 +475,10 @@ test('excludeUserFields when creating user', async () => {
     allTraits: {},
   };
 
-  await user.createUser(userReq, ExcludeUserField.AllTraits);
+  await user.createUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.AllTraits,
+  });
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {
@@ -448,7 +492,10 @@ test('excludeUserFields when creating user', async () => {
 
   jest.clearAllMocks();
 
-  await user.createUser(userReq, ExcludeUserField.Traits);
+  await user.createUser({
+    user: userReq,
+    excludeUserField: ExcludeUserField.Traits,
+  });
   expect(api.post).toHaveBeenCalledWith(
     cfg.api.usersPath,
     {

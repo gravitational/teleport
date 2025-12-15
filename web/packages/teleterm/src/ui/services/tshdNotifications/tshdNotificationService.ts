@@ -16,13 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NotificationItemContent } from 'shared/components/Notification';
+import { ToastNotificationItemContent } from 'shared/components/ToastNotification';
 
-import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
-import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
-import { ClustersService } from 'teleterm/ui/services/clusters';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { ResourceUri, routing } from 'teleterm/ui/uri';
 import {
   cannotProxyVnetConnectionReasonIsCertReissueError,
   cannotProxyVnetConnectionReasonIsInvalidLocalPort,
@@ -33,6 +28,11 @@ import {
   formatPortRange,
   publicAddrWithTargetPort,
 } from 'teleterm/services/tshd/app';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { ResourceUri, routing } from 'teleterm/ui/uri';
 
 export class TshdNotificationsService {
   constructor(
@@ -47,7 +47,7 @@ export class TshdNotificationsService {
 
   private getNotificationContent(
     request: SendNotificationRequest
-  ): NotificationItemContent {
+  ): ToastNotificationItemContent {
     const { subject } = request;
     // switch followed by a type guard is awkward, but it helps with ensuring that we get type
     // errors whenever a new request reason is added.
@@ -148,6 +148,6 @@ export class TshdNotificationsService {
     const clusterUri = routing.ensureClusterUri(uri);
     const cluster = this.clustersService.findCluster(clusterUri);
 
-    return cluster ? cluster.name : routing.parseClusterName(clusterUri);
+    return cluster?.name || routing.parseClusterName(clusterUri);
   }
 }

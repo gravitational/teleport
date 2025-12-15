@@ -18,8 +18,8 @@
 
 import { LoginFailed as CardFailed } from 'design/CardError';
 
-import { Route, Switch } from 'teleport/components/Router';
 import { LogoHero } from 'teleport/components/LogoHero';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 export function LoginFailed() {
@@ -27,6 +27,9 @@ export function LoginFailed() {
     <Switch>
       <Route path={cfg.routes.loginErrorCallback}>
         <LoginFailedComponent message="Unable to process SSO callback." />
+      </Route>
+      <Route path={cfg.routes.loginErrorCallbackMissingRole}>
+        <LoginFailedComponent message="Unable to process SSO callback. The connector has a mapping to role that does not exist. Please contact your SSO administrator." />
       </Route>
       <Route path={cfg.routes.loginErrorUnauthorized}>
         <LoginFailedComponent message="You are not authorized, please contact your SSO administrator." />

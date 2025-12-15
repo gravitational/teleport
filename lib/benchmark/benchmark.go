@@ -283,8 +283,9 @@ func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure, workloa
 // makeTeleportClient creates an instance of a teleport client
 func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, error) {
 	c := client.Config{
-		Host:   host,
-		Tracer: tracing.NoopProvider().Tracer("test"),
+		Host:        host,
+		Tracer:      tracing.NoopProvider().Tracer("test"),
+		ClientStore: client.NewFSClientStore(""),
 	}
 
 	if login != "" {
@@ -295,8 +296,7 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		c.SSHProxyAddr = proxy
 	}
 
-	profileStore := client.NewFSProfileStore("")
-	if err := c.LoadProfile(profileStore, proxy); err != nil {
+	if err := c.LoadProfile(proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tc, err := client.NewClient(&c)

@@ -68,6 +68,9 @@ func generateWebSocketChallengeKey() (string, error) {
 }
 
 func checkWebSocketUpgradeResponse(resp *http.Response, alpnUpgradeType, challengeKey string) error {
+	if resp.Header.Get(constants.WebAPIConnUpgradeHeader) != constants.WebAPIConnUpgradeTypeWebSocket {
+		return trace.BadParameter("WebSocket handshake failed: invalid Upgrade header %s", resp.Header.Get(constants.WebAPIConnUpgradeHeader))
+	}
 	if alpnUpgradeType != resp.Header.Get(websocketHeaderKeyProtocol) {
 		return trace.BadParameter("WebSocket handshake failed: Sec-WebSocket-Protocol does not match")
 	}

@@ -21,7 +21,6 @@ import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ResourceSpec } from '../SelectResource';
-
 import { SetupConnect } from './SetupConnect';
 import { TestConnection } from './TestConnection';
 

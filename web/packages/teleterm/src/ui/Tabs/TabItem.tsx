@@ -16,10 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef } from 'react';
+import { ComponentType, MouseEvent, useRef } from 'react';
 import styled from 'styled-components';
-import * as Icons from 'design/Icon';
+
 import { ButtonIcon, Text } from 'design';
+import * as Icons from 'design/Icon';
+import { IconProps } from 'design/Icon/Icon';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
@@ -28,6 +30,7 @@ import { useTabDnD } from './useTabDnD';
 type TabItemProps = {
   index?: number;
   name?: string;
+  Icon?: ComponentType<IconProps>;
   active?: boolean;
   nextActive?: boolean;
   closeTabTooltip?: string;
@@ -74,29 +77,22 @@ export function TabItem(props: TabItemProps) {
         min-width: 0;
       `}
     >
-      <TabContent
-        ref={ref}
-        active={active}
-        dragging={isDragging}
-        canDrag={canDrag}
-        title={name}
-      >
-        <Title color="inherit" fontWeight={700} fontSize="12px">
+      <TabContent ref={ref} active={active} dragging={isDragging} title={name}>
+        {props.Icon && <props.Icon size="small" pr={1} />}
+        <Title color="inherit" fontWeight={500} fontSize="12px">
           {name}
         </Title>
         {isLoading && active && <LinearProgress transparentBackground={true} />}
         {onClose && (
-          <ButtonIcon
+          <StyledButtonIcon
+            active={active}
             size={0}
-            mr={1}
+            className="close"
             title={closeTabTooltip}
-            css={`
-              transition: none;
-            `}
             onClick={handleClose}
           >
             <Icons.Cross size="small" />
-          </ButtonIcon>
+          </StyledButtonIcon>
         )}
       </TabContent>
       {!active && !nextActive && <Separator />}
@@ -114,13 +110,7 @@ export function NewTabItem(props: NewTabItemProps) {
   return (
     <RelativeContainer>
       <TabContent active={false}>
-        <ButtonIcon
-          ml="1"
-          mr="2"
-          size={0}
-          title={props.tooltip}
-          onClick={props.onClick}
-        >
+        <ButtonIcon size={0} title={props.tooltip} onClick={props.onClick}>
           <Icons.Add size="small" />
         </ButtonIcon>
       </TabContent>
@@ -128,6 +118,11 @@ export function NewTabItem(props: NewTabItemProps) {
     </RelativeContainer>
   );
 }
+
+const StyledButtonIcon = styled(ButtonIcon)<{ active: boolean }>`
+  transition: none;
+  display: ${props => (props.active ? 'flex' : 'none')};
+`;
 
 const RelativeContainer = styled.div`
   position: relative;
@@ -140,8 +135,6 @@ const RelativeContainer = styled.div`
 const TabContent = styled.div<{
   dragging?: boolean;
   active?: boolean;
-  // TODO(bl-nero): is this really used? Perhaps remove it.
-  canDrag?: boolean;
 }>`
   display: flex;
   z-index: 1; // covers shadow from the top
@@ -149,6 +142,8 @@ const TabContent = styled.div<{
   min-width: 0;
   width: 100%;
   height: 100%;
+  cursor: pointer;
+  padding-inline: 6px 4px;
   border-radius: 8px 8px 0 0;
   position: relative;
   opacity: ${props => (props.dragging ? 0 : 1)};
@@ -167,21 +162,15 @@ const TabContent = styled.div<{
   &:focus {
     color: ${props => props.theme.colors.text.main};
     transition: color 0.3s;
+
+    > .close {
+      display: flex;
+    }
   }
 `;
 
 const Title = styled(Text)`
-  display: block;
-  cursor: pointer;
-  outline: none;
-  color: inherit;
-  font-family: inherit;
-  line-height: 32px;
-  background-color: transparent;
   white-space: nowrap;
-  padding-left: 12px;
-  border: none;
-  min-width: 0;
   width: 100%;
 `;
 

@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Flex, Text } from 'design';
 
 import session from 'teleport/services/websession';
@@ -29,7 +30,7 @@ const DeviceTrustText = ({ kind }: { kind: DeviceTrustStatusKind }) => {
   if (kind === 'authorized') {
     return (
       <StatusText color="success.active">
-        Session authorized with device trust.
+        Session authorized with Device Trust.
       </StatusText>
     );
   }

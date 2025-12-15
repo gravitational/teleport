@@ -17,33 +17,32 @@
  */
 
 import { useState } from 'react';
-import * as Alerts from 'design/Alert';
+
 import {
-  ButtonIcon,
-  Text,
-  ButtonSecondary,
-  Image,
-  Flex,
   Box,
+  ButtonIcon,
+  ButtonSecondary,
+  Flex,
   H2,
+  Image,
+  Text,
 } from 'design';
+import * as Alerts from 'design/Alert';
 import DialogConfirmation, {
   DialogContent,
-  DialogHeader,
   DialogFooter,
+  DialogHeader,
 } from 'design/DialogConfirmation';
-import { Attempt } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
-
 import { P, P3 } from 'design/Text/Text';
+import { Attempt } from 'shared/hooks/useAsync';
 
-import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 import svgHardwareKey from 'teleterm/ui/ClusterConnect/ClusterLogin/FormLogin/PromptPasswordless/hardware.svg';
-
-import type * as tsh from 'teleterm/services/tshd/types';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 export type HeadlessPromptProps = {
-  cluster: tsh.Cluster;
+  rootClusterUri: RootClusterUri;
   clientIp: string;
   skipConfirm: boolean;
   onApprove(): Promise<void>;
@@ -63,7 +62,7 @@ export type HeadlessPromptProps = {
 };
 
 export function HeadlessPrompt({
-  cluster,
+  rootClusterUri,
   clientIp,
   skipConfirm,
   onApprove,
@@ -89,7 +88,7 @@ export function HeadlessPrompt({
     >
       <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
         <H2 mb={4}>
-          Headless command on <b>{cluster.name}</b>
+          Headless command on <b>{routing.parseClusterName(rootClusterUri)}</b>
         </H2>
         <ButtonIcon
           type="button"
@@ -108,17 +107,17 @@ export function HeadlessPrompt({
         </Alerts.Danger>
       )}
       <DialogContent>
-        <P color="text.slightlyMuted">
+        <P>
           Someone initiated a headless command from <b>{clientIp}</b>.
         </P>
         <P>If it was not you, click Reject and contact your administrator.</P>
-        <P3 color="text.muted">Request ID: {headlessAuthenticationId}</P3>
+        <P3 color="text.slightlyMuted">
+          Request ID: {headlessAuthenticationId}
+        </P3>
       </DialogContent>
       {waitForMfa && (
         <DialogContent mb={2}>
-          <Text color="text.slightlyMuted">
-            Complete MFA verification to approve the Headless Login.
-          </Text>
+          <P>Complete MFA verification to approve the Headless Login.</P>
 
           <Image mt={4} mb={4} width="200px" src={svgHardwareKey} mx="auto" />
           <Box textAlign="center" style={{ position: 'relative' }}>

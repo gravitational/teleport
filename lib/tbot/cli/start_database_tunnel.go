@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
 )
 
 // DatabaseTunnelCommand implements `tbot start database-tunnel` and
@@ -63,7 +64,7 @@ func (c *DatabaseTunnelCommand) ApplyConfig(cfg *config.BotConfig, l *slog.Logge
 		return trace.Wrap(err)
 	}
 
-	cfg.Services = append(cfg.Services, &config.DatabaseTunnelService{
+	cfg.Services = append(cfg.Services, &database.TunnelConfig{
 		Listen:   c.Listen,
 		Username: c.Username,
 		Database: c.Database,

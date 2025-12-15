@@ -17,19 +17,18 @@
  */
 
 import {
-  useContext,
-  useState,
-  FC,
-  useCallback,
   createContext,
-  useRef,
+  FC,
   MutableRefObject,
   PropsWithChildren,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
 } from 'react';
 
-import { SearchFilter } from 'teleterm/ui/Search/searchResult';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { SearchFilter } from 'teleterm/ui/Search/searchResult';
 import {
   Document,
   DocumentClusterQueryParams,
@@ -72,8 +71,8 @@ const SearchContext = createContext<SearchContext>(null);
 export const SearchContextProvider: FC<PropsWithChildren> = props => {
   const appContext = useAppContext();
   // The type of the ref is Element to adhere to the type of document.activeElement.
-  const previouslyActive = useRef<Element>();
-  const inputRef = useRef<HTMLInputElement>();
+  const previouslyActive = useRef<Element>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);

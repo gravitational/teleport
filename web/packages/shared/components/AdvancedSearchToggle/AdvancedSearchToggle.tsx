@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, Toggle, Link, Flex, H2 } from 'design';
-
+import { Flex, H2, Link, Text, Toggle } from 'design';
 import { P } from 'design/Text/Text';
-
 import { IconTooltip } from 'design/Tooltip';
 
 const GUIDE_URL =
@@ -40,8 +38,11 @@ export function AdvancedSearchToggle(props: {
       px={props.px}
       className={props.className}
     >
-      <Toggle isToggled={props.isToggled} onToggle={props.onToggle} />
-      <Text typography="body3">Advanced</Text>
+      <Toggle isToggled={props.isToggled} onToggle={props.onToggle}>
+        <Text typography="body3" ml={2}>
+          Advanced
+        </Text>
+      </Toggle>
       <IconTooltip trigger="click">
         <PredicateDocumentation />
       </IconTooltip>
@@ -75,7 +76,9 @@ function PredicateDocumentation() {
       <P>
         Label Matching:{' '}
         <Text ml={1} as="span" bold>
-          <code>labels["key"] == "value" && labels["key2"] != "value2"</code>{' '}
+          <code>
+            labels["key"] == "value" && labels["key2"] != "value2"
+          </code>{' '}
         </Text>{' '}
       </P>
       <P>

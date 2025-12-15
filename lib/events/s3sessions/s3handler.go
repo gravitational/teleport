@@ -42,11 +42,13 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
+	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
@@ -97,6 +99,19 @@ type Config struct {
 	Insecure bool
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
+
+	// UseVirtualStyleAddressing use a virtual-hosted–style URI.
+	// Path style e.g. https://s3.region-code.amazonaws.com/bucket-name/key-name
+	// Virtual hosted style e.g. https://bucket-name.s3.region-code.amazonaws.com/key-name
+	// Teleport defaults to path-style addressing for better interoperability
+	// with 3rd party S3-compatible services out of the box.
+	// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html for more details.
+	UseVirtualStyleAddressing bool
+
+	// CompleteInitiators configures the S3 uploader to only complete
+	// uplpoads initiated by the specified set of initiators. If unspecified,
+	// the upload completer will attempt to complete all uploads in the bucket.
+	CompleteInitiators []string
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -147,6 +162,19 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 		}
 	}
 
+	if val := in.Query().Get(teleport.S3UseVirtualStyleAddressing); val != "" {
+		useVirtualStyleAddressing, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.S3UseVirtualStyleAddressing, val)
+		}
+		s.UseVirtualStyleAddressing = useVirtualStyleAddressing
+	} else {
+		// Default to false for backwards compatibility
+		s.UseVirtualStyleAddressing = false
+	}
+
+	s.CompleteInitiators = in.Query()[teleport.S3CompleteInitiators]
+
 	s.Region = region
 	s.Bucket = in.Host
 	s.Path = in.Path
@@ -196,7 +224,10 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
+	opts = append(opts,
+		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		config.WithAPIOptions(s3metrics.MetricsMiddleware()),
+	)
 
 	resolver, err := endpoint.NewLoggingResolver(
 		s3.NewDefaultEndpointResolverV2(),
@@ -224,7 +255,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 
 		s3Opts = append(s3Opts, func(options *s3.Options) {
-			options.UsePathStyle = true
+			options.UsePathStyle = !cfg.UseVirtualStyleAddressing
 		})
 	}
 
@@ -280,7 +311,7 @@ type Handler struct {
 	logger     *slog.Logger
 	uploader   *manager.Uploader
 	downloader *manager.Downloader
-	client     *s3.Client
+	client     s3Client
 }
 
 // Close releases connection and resources associated with log if any
@@ -288,16 +319,116 @@ func (h *Handler) Close() error {
 	return nil
 }
 
-// Upload uploads object to S3 bucket, reads the contents of the object from reader
-// and returns the target S3 bucket path in case of successful upload.
+// Upload reads the content of a session recording from a reader and uploads it
+// to an S3 bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path := h.path(sessionID)
+	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
+// UploadPendingSummary reads the content of a pending session summary from a
+// reader and uploads it to an S3 bucket. This function can be called multiple
+// times for a given sessionID to update the state.
+func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, withOverwrite(), canBeOverwrittenLater())
+	return path, trace.Wrap(err)
+}
+
+// UploadSummary reads the content of a final version of session summary from a
+// reader and uploads it to an S3 bucket. If successful, it returns URL of the
+// uploaded object. This function can be called only once for a given
+// sessionID; subsequent calls will return an error.
+func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, withOverwrite())
+	return path, trace.Wrap(err)
+}
+
+// UploadMetadata reads the content of a session's metadata from a reader and
+// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
+// object.
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
+// UploadThumbnail reads the content of a session's thumbnail from a reader and
+// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
+// object.
+func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
+type fileUploadConfig struct {
+	overwrite             bool
+	canBeOverwrittenLater bool
+}
+
+type fileUploadOption func(*fileUploadConfig)
+
+func withOverwrite() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.overwrite = true
+	}
+}
+
+func canBeOverwrittenLater() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.canBeOverwrittenLater = true
+	}
+}
+
+// overwritableKey is a metadata key that indicates the file can be later
+// overwritten.
+const overwritableKey = "teleport-internal-overwritable"
+
+// uploadFile uploads a file to S3. Normally, it doesn't allow overwriting;
+// this can be changed if  [withOverwrite] was specified in the options. If
+// file is intended to be later overwritten, [canBeOverwrittenLater] must be
+// specified in the options. The file that can be overwritten is marked with
+// the [overwritableKey] metadata header.
+func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
+	cfg := fileUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
 	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
 	}
+	if cfg.canBeOverwrittenLater {
+		uploadInput.Metadata = map[string]string{overwritableKey: "true"}
+	}
+
+	if cfg.overwrite {
+		// File can overwrite the existing one. Let's see if the existing file's
+		// metadata allows it.
+		head, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
+			Bucket: aws.String(h.Bucket),
+			Key:    aws.String(path),
+		})
+		err = awsutils.ConvertS3Error(err)
+		if err != nil && !trace.IsNotFound(err) {
+			return "", err
+		}
+		if err == nil {
+			// An existing file was found.
+			if _, overwritable := head.Metadata[overwritableKey]; !overwritable {
+				return "", trace.AlreadyExists("Object %q already exists and cannot be overwritten", path)
+			}
+
+			// Since we confirmed that this version can be overwritten, let's make
+			// sure no other version appeared in the meantime.
+			uploadInput.IfMatch = head.ETag
+		}
+	} else {
+		// The file shouldn't be overwritten, so we simply assert it's not there at
+		// all.
+		uploadInput.IfNoneMatch = aws.String("*")
+	}
+
 	if !h.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = awstypes.ServerSideEncryptionAwsKms
 		if h.Config.SSEKMSKey != "" {
@@ -314,23 +445,59 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
 
-// Download downloads recorded session from S3 bucket and writes the results
-// into writer return trace.NotFound error is object is not found.
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+// Download downloads a session recording from an S3 bucket and writes the
+// result into a writer. Returns trace.NotFound error if the recording is not
+// found.
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadOriginalFile(ctx, h.recordingPath(sessionID), writer))
+}
+
+// DownloadSummary downloads a final session summary from an S3 bucket and
+// writes the results into a writer. Returns trace.NotFound error if the
+// summary is not found or is not final.
+func (h *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadFile(ctx, h.summaryPath(sessionID), writer, nil /* versionID */))
+}
+
+// DownloadMetadata downloads a session's metadata from an S3 bucket and writes the
+// results into a writer. Returns trace.NotFound error if the metadata is not
+// found.
+func (h *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadOriginalFile(ctx, h.metadataPath(sessionID), writer))
+}
+
+// DownloadThumbnail downloads a session's thumbnail from an S3 bucket and writes the
+// results into a writer. Returns trace.NotFound error if the thumbnail is not
+// found.
+func (h *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
+	return trace.Wrap(h.downloadOriginalFile(ctx, h.thumbnailPath(sessionID), writer))
+}
+
+func (h *Handler) downloadOriginalFile(ctx context.Context, path string, writer events.RandomAccessWriter) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
-	versionID, err := h.getOldestVersion(ctx, h.Bucket, h.path(sessionID))
+	versionID, err := h.getOldestVersion(ctx, h.Bucket, path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	h.logger.DebugContext(ctx, "Downloading recording from S3", "bucket", h.Bucket, "path", h.path(sessionID), "version_id", versionID)
+	h.logger.DebugContext(ctx, "Downloading file from S3", "bucket", h.Bucket, "path", path, "version_id", versionID)
 
-	_, err = h.downloader.Download(ctx, writer, &s3.GetObjectInput{
+	err = h.downloadFile(ctx, path, writer, aws.String(versionID))
+	if err != nil {
+		return awsutils.ConvertS3Error(err)
+	}
+	return nil
+}
+
+func (h *Handler) downloadFile(
+	ctx context.Context, path string, writer events.RandomAccessWriter, versionID *string,
+) error {
+	_, err := h.downloader.Download(ctx, writer, &s3.GetObjectInput{
 		Bucket:    aws.String(h.Bucket),
-		Key:       aws.String(h.path(sessionID)),
-		VersionId: aws.String(versionID),
+		Key:       aws.String(path),
+		VersionId: versionID,
 	})
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
@@ -410,11 +577,32 @@ func (h *Handler) deleteBucket(ctx context.Context) error {
 	return awsutils.ConvertS3Error(err)
 }
 
-func (h *Handler) path(sessionID session.ID) string {
+func (h *Handler) recordingPath(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), "/")
+}
+
+func (h *Handler) summaryPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".summary.json"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
+}
+
+func (h *Handler) metadataPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".metadata"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".metadata"), "/")
+}
+
+func (h *Handler) thumbnailPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".thumbnail"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {
@@ -423,7 +611,11 @@ func (h *Handler) fromPath(p string) session.ID {
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket(ctx context.Context) error {
-	_, err := h.client.HeadBucket(ctx, &s3.HeadBucketInput{
+	// Use a short timeout for the HeadBucket call in case it takes too long, in
+	// #50747 this call would hang.
+	shortCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
+	defer cancel()
+	_, err := h.client.HeadBucket(shortCtx, &s3.HeadBucketInput{
 		Bucket: aws.String(h.Bucket),
 	})
 	err = awsutils.ConvertS3Error(err)
@@ -434,17 +626,17 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 	case trace.IsBadParameter(err):
 		return trace.Wrap(err)
 	case !trace.IsNotFound(err):
-		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", "bucket", h.Bucket, "error", err)
+		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. This is expected if External Audit Storage is enabled or if Teleport has write-only access to the bucket, otherwise S3 session uploads may fail.", "bucket", h.Bucket, "error", err)
 		return nil
 	}
 
 	input := &s3.CreateBucketInput{
-		Bucket: aws.String(h.Bucket),
-		ACL:    awstypes.BucketCannedACLPrivate,
+		Bucket:                    aws.String(h.Bucket),
+		ACL:                       awstypes.BucketCannedACLPrivate,
+		CreateBucketConfiguration: awsutils.CreateBucketConfiguration(h.Region),
 	}
 	_, err = h.client.CreateBucket(ctx, input)
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
-	if err != nil {
+	if err := awsutils.ConvertS3Error(err); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
@@ -460,9 +652,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 			Status: awstypes.BucketVersioningStatusEnabled,
 		},
 	})
-	err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
-	if err != nil {
-		return trace.Wrap(err)
+	if err := awsutils.ConvertS3Error(err); err != nil {
+		return trace.Wrap(err, "failed to set versioning state for bucket %q", h.Bucket)
 	}
 
 	// Turn on server-side encryption for the bucket.
@@ -479,9 +670,8 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 				},
 			},
 		})
-		err = awsutils.ConvertS3Error(err, fmt.Sprintf("failed to set encryption state for bucket %q", h.Bucket))
-		if err != nil {
-			return trace.Wrap(err)
+		if err := awsutils.ConvertS3Error(err); err != nil {
+			return trace.Wrap(err, "failed to set encryption state for bucket %q", h.Bucket)
 		}
 	}
 	return nil

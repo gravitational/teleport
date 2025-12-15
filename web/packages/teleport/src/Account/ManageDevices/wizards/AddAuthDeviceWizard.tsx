@@ -16,15 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import React, { FormEvent, useEffect, useState } from 'react';
+
 import { Alert, OutlineDanger } from 'design/Alert/Alert';
+import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import Dialog from 'design/Dialog';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
 import Indicator from 'design/Indicator';
 import { RadioGroup } from 'design/RadioGroup';
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-import React, { FormEvent, useEffect, useState } from 'react';
+import { StepComponentProps, StepHeader, StepSlider } from 'design/StepSlider';
+import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -32,26 +35,17 @@ import { useAsync } from 'shared/hooks/useAsync';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
 
-import Box from 'design/Box';
-
-import { StepHeader } from 'design/StepSlider';
-
-import { P } from 'design/Text/Text';
-
+import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
-import useTeleport from 'teleport/useTeleport';
-
 import {
   DeviceType,
   DeviceUsage,
   getMfaRegisterOptions,
   MfaOption,
 } from 'teleport/services/mfa';
-
-import useReAuthenticate from 'teleport/components/ReAuthenticate/useReAuthenticate';
+import useTeleport from 'teleport/useTeleport';
 
 import { PasskeyBlurb } from '../../../components/Passkeys/PasskeyBlurb';
-
 import {
   ReauthenticateStep,
   ReauthenticateStepProps,
@@ -79,12 +73,6 @@ export function AddAuthDeviceWizard({
   const reauthState = useReAuthenticate({
     challengeScope: MfaChallengeScope.MANAGE_DEVICES,
     onMfaResponse: mfaResponse =>
-      // TODO(Joerger): Instead of getting a privilege token, we should get
-      //   // a register challenge with the mfa response directly. For good UX, this would
-      //   // require some refactoring to the flow so the user can choose a device type before
-      //   // completing an mfa check and getting an otp/webauthn register challenge, or
-      //   // allowing the backend to return a flexible register challenge
-      //   await auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken);
       auth.createPrivilegeToken(mfaResponse).then(setPrivilegeToken),
   });
 
@@ -194,7 +182,6 @@ export function CreateDeviceStep({
     if (usage === 'passwordless' || newMfaDeviceType === 'webauthn') {
       createPasskeyAttempt.run(async () => {
         const credential = await auth.createNewWebAuthnDevice({
-          // TODO(Joerger): Skip privilege token step, just pass in mfa response.
           tokenId: privilegeToken,
           deviceUsage: usage,
         });

@@ -17,6 +17,7 @@
  */
 
 import Text from './Text';
+
 export {
   H1,
   H2,

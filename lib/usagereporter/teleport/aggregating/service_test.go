@@ -93,7 +93,7 @@ func TestCRUD(t *testing.T) {
 func TestUserActivityReportSplitting(t *testing.T) {
 	recordCount := 10000
 	records := make([]*prehogv1.UserActivityRecord, 0, recordCount)
-	for i := 0; i < recordCount; i++ {
+	for range recordCount {
 		records = append(records, &prehogv1.UserActivityRecord{
 			UserName:    []byte("user"),
 			Logins:      100500,
@@ -125,13 +125,13 @@ func TestLock(t *testing.T) {
 
 	svc := reportService{bk}
 
-	require.NoError(t, svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil))
+	require.NoError(t, svc.createUsageReportingLock(ctx, 2*time.Minute, nil))
 	clk.Advance(time.Minute)
-	err = svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil)
+	err = svc.createUsageReportingLock(ctx, 2*time.Minute, nil)
 	require.Error(t, err)
 	require.True(t, trace.IsAlreadyExists(err))
 	clk.Advance(time.Minute)
-	require.NoError(t, svc.createUserActivityReportsLock(ctx, 2*time.Minute, nil))
+	require.NoError(t, svc.createUsageReportingLock(ctx, 2*time.Minute, nil))
 }
 
 func newResourcePresenceReport(startTime time.Time) *prehogv1.ResourcePresenceReport {
@@ -183,7 +183,7 @@ func TestResourcePresenceReportSplitting(t *testing.T) {
 			ResourceKind: kind,
 			ResourceIds:  make([]uint64, 0, resourceIdsPerReport),
 		}
-		for i := 0; i < resourceIdsPerReport; i++ {
+		for i := range resourceIdsPerReport {
 			kindReport.ResourceIds = append(kindReport.ResourceIds, uint64(i))
 		}
 		resKindReports = append(resKindReports, &kindReport)
@@ -209,4 +209,29 @@ func TestResourcePresenceReportSplitting(t *testing.T) {
 		require.Equal(t, resKindReport.ResourceIds, resourceIdsPerKind[resKindReport.ResourceKind],
 			"resource ids for resource kind %v do not match", resKindReport.ResourceKind)
 	}
+}
+
+func TestBotInstanceActivityReportSplitting(t *testing.T) {
+	recordCount := 10000
+	records := make([]*prehogv1.BotInstanceActivityRecord, 0, recordCount)
+	for range recordCount {
+		records = append(records, &prehogv1.BotInstanceActivityRecord{
+			BotUserName:   []byte("user"),
+			BotInstanceId: []byte("foo"),
+			BotJoins:      1000,
+		})
+	}
+	reports, err := prepareBotInstanceActivityReports(
+		[]byte("clusterName"), []byte("reporterHostID"), time.Now(), records,
+	)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(reports), 2)            // some reports were split into two
+	require.GreaterOrEqual(t, len(reports[0].Records), 2) // first report was able to contain a few user activity records
+
+	// reassemble records and ensure that nothing was lost
+	recordsCopy := make([]*prehogv1.BotInstanceActivityRecord, 0, recordCount)
+	for _, report := range reports {
+		recordsCopy = append(recordsCopy, report.Records...)
+	}
+	require.Equal(t, records, recordsCopy, "some bot instance activity records have been lost during splitting")
 }

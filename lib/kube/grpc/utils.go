@@ -22,16 +22,18 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -42,21 +44,31 @@ import (
 // multiplexing mode, the Kube proxy is always reachable on the same address as
 // the web server using the SNI.
 func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
-	addr, port, err := utils.SplitHostPort(proxyAddr)
+	// we avoid using utils.SplitHostPort because
+	// we allow the host to be empty
+	addr, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	sni := client.GetKubeTLSServerName(addr)
+
+	// validate the port
+	if _, err := strconv.Atoi(port); err != nil {
+		return "", "", trace.Wrap(err, "invalid port")
+	}
+
 	// if the proxy is an unspecified address (0.0.0.0, ::), use localhost.
-	if ip := net.ParseIP(addr); ip != nil && ip.IsUnspecified() {
+	if ip := net.ParseIP(addr); ip != nil && ip.IsUnspecified() || addr == "" {
 		addr = string(teleport.PrincipalLocalhost)
 	}
+
+	sni := client.GetKubeTLSServerName(addr)
+
 	return sni, "https://" + net.JoinHostPort(addr, port), nil
 }
 
 // buildKubeClient creates a new Kubernetes client that is used to communicate
 // with the Kubernetes API server.
-func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
+func (s *Server) buildKubeClient() error {
 	const idleConnsPerHost = 25
 
 	tlsConfig := utils.TLSConfig(s.cfg.ConnTLSCipherSuites)
@@ -83,10 +95,21 @@ func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
 
 	cfg := &rest.Config{
 		Host:      s.proxyAddress,
-		Transport: auth.NewImpersonatorRoundTripper(transport),
+		Transport: internal.NewImpersonatorRoundTripper(transport),
 	}
+
 	kubeClient, err := kubernetes.NewForConfig(cfg)
-	return kubeClient, trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.kubeClient = kubeClient
+	dynamicClient, err := dynamic.NewForConfig(cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.kubeDynamicClient = dynamicClient
+
+	return nil
 }
 
 // decideLimit returns the number of items we should request for. If respectLimit

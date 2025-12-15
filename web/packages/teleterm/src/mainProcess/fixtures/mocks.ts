@@ -16,22 +16,44 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { RuntimeSettings, MainProcessClient } from 'teleterm/types';
-import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import EventEmitter from 'events';
+
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { AgentProcessState } from 'teleterm/mainProcess/types';
 // createConfigService has to be imported directly from configService.ts.
 // teleterm/services/config/index.ts reexports the config service client which depends on electron.
 // Importing electron breaks the fixtures if that's done from within storybook.
 import { createConfigService } from 'teleterm/services/config/configService';
-import { AgentProcessState } from 'teleterm/mainProcess/types';
+import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { Cluster } from 'teleterm/services/tshd/types';
+import { MainProcessClient, RuntimeSettings } from 'teleterm/types';
 
 export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
+  private events: EventEmitter<{ 'deep-link-launch': [DeepLinkParseResult] }>;
+  private frontendAppInit: {
+    promise: Promise<void>;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  };
 
   constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
     this.configService = createConfigService({
       configFile: createMockFileStorage(),
       jsonSchemaFile: createMockFileStorage(),
       settings: this.getRuntimeSettings(),
+    });
+    this.events = new EventEmitter();
+    // Mirrors the implementation of frontendAppInit in WindowsManager.
+    this.frontendAppInit = {
+      promise: undefined,
+      resolve: undefined,
+      reject: undefined,
+    };
+    this.frontendAppInit.promise = new Promise((resolve, reject) => {
+      this.frontendAppInit.resolve = resolve;
+      this.frontendAppInit.reject = reject;
     });
   }
 
@@ -43,8 +65,15 @@ export class MockMainProcessClient implements MainProcessClient {
     return { cleanup: () => undefined };
   }
 
-  subscribeToDeepLinkLaunch() {
-    return { cleanup: () => undefined };
+  subscribeToDeepLinkLaunch(listener: (res: DeepLinkParseResult) => void) {
+    this.events.addListener('deep-link-launch', listener);
+    return {
+      cleanup: () => this.events.removeListener('deep-link-launch', listener),
+    };
+  }
+
+  launchDeepLink(res: DeepLinkParseResult) {
+    this.events.emit('deep-link-launch', res);
   }
 
   getRuntimeSettings(): RuntimeSettings {
@@ -70,13 +99,15 @@ export class MockMainProcessClient implements MainProcessClient {
     });
   }
 
-  fileStorage = createMockFileStorage();
-
-  removeKubeConfig(): Promise<void> {
-    return Promise.resolve(undefined);
+  saveTextToFile() {
+    return Promise.resolve({
+      canceled: false,
+    });
   }
 
-  forceFocusWindow() {}
+  fileStorage = createMockFileStorage();
+
+  async forceFocusWindow() {}
 
   async symlinkTshMacOs() {
     return true;
@@ -130,9 +161,66 @@ export class MockMainProcessClient implements MainProcessClient {
 
   async tryRemoveConnectMyComputerAgentBinary() {}
 
-  signalUserInterfaceReadiness() {}
+  signalUserInterfaceReadiness() {
+    this.frontendAppInit.resolve();
+  }
 
-  refreshClusterList() {}
+  /** Mirrors the implementation of whenFrontendAppIsReady in WindowsManager. */
+  whenFrontendAppIsReady(): Promise<void> {
+    return this.frontendAppInit.promise;
+  }
+
+  async selectDirectoryForDesktopSession() {
+    return '';
+  }
+
+  supportsAppUpdates() {
+    return true;
+  }
+  async changeAppUpdatesManagingCluster() {}
+  async checkForAppUpdates() {}
+  async downloadAppUpdate() {}
+  async cancelAppUpdateDownload() {}
+  async quitAndInstallAppUpdate() {}
+  subscribeToAppUpdateEvents(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToOpenAppUpdateDialog(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToIsInBackgroundMode(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+
+  subscribeToClusterStore(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  async logout(): Promise<void> {}
+  async syncCluster(): Promise<void> {}
+  async addCluster(): Promise<Cluster> {
+    return makeRootCluster();
+  }
+  async syncRootClusters(): Promise<Cluster[]> {
+    return [];
+  }
+  registerClusterLifecycleHandler(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
+  subscribeToProfileWatcherErrors(): {
+    cleanup: () => void;
+  } {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (
@@ -144,6 +232,7 @@ export const makeRuntimeSettings = (
   insecure: true,
   userDataDir: '',
   sessionDataDir: '',
+  homeDir: '',
   tempDataDir: '',
   agentBinaryPath: '',
   binDir: '',
@@ -157,7 +246,7 @@ export const makeRuntimeSettings = (
   tshd: {
     requestedNetworkAddress: '',
     binaryPath: '',
-    homeDir: '',
+    defaultHomeDir: '',
   },
   sharedProcess: {
     requestedNetworkAddress: '',

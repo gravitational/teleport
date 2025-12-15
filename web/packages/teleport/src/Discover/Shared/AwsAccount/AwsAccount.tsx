@@ -16,50 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+
 import {
-  Box,
-  ButtonText,
-  Text,
-  ButtonPrimary,
-  Indicator,
   Alert,
+  Box,
+  ButtonPrimary,
+  ButtonText,
   Flex,
+  Indicator,
+  Text,
 } from 'design';
 import { FieldSelect } from 'shared/components/FieldSelect';
-import { useAsync } from 'shared/hooks/useAsync';
 import { Option as BaseOption } from 'shared/components/Select';
+import TextEditor from 'shared/components/TextEditor';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import TextEditor from 'shared/components/TextEditor';
+import { useAsync } from 'shared/hooks/useAsync';
 
-import { App } from 'teleport/services/apps';
 import cfg from 'teleport/config';
 import {
-  Integration,
+  integrationAndAppRW,
+  integrationRWE,
+  integrationRWEAndDbCU,
+  integrationRWEAndNodeRWE,
+} from 'teleport/Discover/yamlTemplates';
+import { App } from 'teleport/services/apps';
+import {
+  IntegrationAwsOidc,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
-import {
-  integrationRWE,
-  integrationRWEAndNodeRWE,
-  integrationRWEAndDbCU,
-  integrationAndAppRW,
-} from 'teleport/Discover/yamlTemplates';
-import useTeleport from 'teleport/useTeleport';
 import ResourceService from 'teleport/services/resources';
+import useTeleport from 'teleport/useTeleport';
 
 import {
   ActionButtons,
-  HeaderSubtitle,
   Header,
+  HeaderSubtitle,
   ResourceKind,
 } from '../../Shared';
-
 import { DiscoverUrlLocationState, useDiscover } from '../../useDiscover';
 
-type Option = BaseOption<Integration>;
+type Option = BaseOption<IntegrationAwsOidc>;
 
 export function AwsAccount() {
   const {
@@ -161,9 +161,9 @@ export function AwsAccount() {
 
   if (!hasAccess) {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
-        <Box maxWidth="700px">
+        <Box>
           <Text mt={4}>
             You don’t have the permissions required to set up this integration.
             <br />
@@ -179,30 +179,30 @@ export function AwsAccount() {
           </Flex>
         </Box>
         <ActionButtons onPrev={prevStep} />
-      </Box>
+      </>
     );
   }
 
   if (attempt.status === '' || attempt.status === 'processing') {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
-      </Box>
+      </>
     );
   }
 
   if (attempt.status === 'error') {
     return (
-      <Box maxWidth="700px">
+      <>
         <Heading />
-        <Alert kind="danger" children={attempt.statusText} />
+        <Alert kind="danger">{attempt.statusText}</Alert>
         <ButtonPrimary mt={2} onClick={fetch}>
           Retry
         </ButtonPrimary>
-      </Box>
+      </>
     );
   }
 
@@ -267,7 +267,7 @@ export function AwsAccount() {
     } as DiscoverUrlLocationState,
   };
   return (
-    <Box maxWidth="700px">
+    <>
       <Heading />
       {healthCheckAttempt.status === 'error' && (
         <Alert
@@ -324,11 +324,11 @@ export function AwsAccount() {
           )}
         </Validation>
       </Box>
-    </Box>
+    </>
   );
 }
 
-function makeAwsIntegrationOption(integration: Integration): Option {
+function makeAwsIntegrationOption(integration: IntegrationAwsOidc): Option {
   return {
     value: integration,
     label: integration.name,
@@ -339,7 +339,7 @@ async function fetchAwsIntegrationsWithApps(
   clusterId: string,
   isAddingAwsApp: boolean
 ): Promise<{
-  awsIntegrations: Integration[];
+  awsIntegrations: IntegrationAwsOidc[];
   apps: App[];
 }> {
   const integrationPage = await integrationService.fetchIntegrations();

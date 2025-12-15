@@ -25,7 +25,7 @@ const bold = 600;
 
 export const fontSizes = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 34];
 
-export const fontWeights = { light, regular, bold };
+export const fontWeights = { light, regular, medium, bold };
 
 const typography = {
   body1: {

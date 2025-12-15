@@ -18,8 +18,8 @@
 
 import WS from 'jest-websocket-mock';
 
-import { TermEvent } from 'teleport/lib/term/enums';
 import { StatusEnum } from 'teleport/lib/player';
+import { TermEvent } from 'teleport/lib/term/enums';
 
 import TtyPlayer from './ttyPlayer';
 

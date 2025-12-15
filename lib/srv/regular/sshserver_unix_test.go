@@ -1,5 +1,4 @@
 //go:build unix
-// +build unix
 
 /*
  * Teleport
@@ -30,15 +29,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 // BenchmarkRootExecCommand measures performance of running multiple exec requests
 // over a single ssh connection. The same test is run with and without host user
 // creation support to catch any performance degradation caused by user provisioning.
 func BenchmarkRootExecCommand(b *testing.B) {
-	utils.RequireRoot(b)
+	testutils.RequireRoot(b)
 
 	b.ReportAllocs()
 
@@ -63,12 +62,11 @@ func BenchmarkRootExecCommand(b *testing.B) {
 			}
 
 			f := newFixtureWithoutDiskBasedLogging(b, opts...)
-			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				username := f.user
 				if test.createUser {
-					username = utils.GenerateLocalUsername(b)
+					username = testutils.GenerateLocalUsername(b)
 					b.Cleanup(func() { _, _ = host.UserDel(username) })
 				}
 
@@ -87,7 +85,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 	tb.Helper()
 
 	var wg sync.WaitGroup
-	for i := 0; i < executions; i++ {
+	for range executions {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

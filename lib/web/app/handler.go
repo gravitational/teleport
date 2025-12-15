@@ -55,8 +55,8 @@ type HandlerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint authclient.ProxyAccessPoint
-	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnelclient.Tunnel
+	// ClusterGetter holds connections to leaf clusters.
+	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -133,7 +133,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 
 	// Get the name of this cluster.
-	cn, err := h.c.AccessPoint.GetClusterName()
+	cn, err := h.c.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -172,9 +172,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 		return trace.Wrap(err)
 	}
 
-	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: identity.RouteToApp.SessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(ctx, identity.RouteToApp.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -226,7 +224,7 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
 func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
-	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
+	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +236,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 	// At least one AppServer needs to be present to serve the requests. Using
 	// MatchOne can reduce the amount of work required by the app matcher by not
 	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
+	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ClusterGetter, publicAddr, clusterName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -391,6 +389,21 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 	return ws, nil
 }
 
+func (h *Handler) getAppSessionFromAccessPoint(ctx context.Context, sessionID string) (types.WebSession, error) {
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Do an extra check in case expired app session is still cached.
+	if ws.Expiry().Before(h.c.Clock.Now()) {
+		h.logger.DebugContext(ctx, "Session expired")
+		return nil, trace.AccessDenied("invalid session")
+	}
+	return ws, nil
+}
+
 func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, error) {
 	if !HasClientCert(r) {
 		return nil, trace.BadParameter("request missing client certificate")
@@ -403,9 +416,7 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: identity.RouteToApp.SessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), identity.RouteToApp.SessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -447,9 +458,7 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

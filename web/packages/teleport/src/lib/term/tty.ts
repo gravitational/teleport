@@ -18,14 +18,12 @@
 
 import Logger from 'shared/libs/logger';
 
-import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
-import { WebauthnAssertionResponse } from 'teleport/services/mfa';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
-
+import { EventEmitterMfaSender } from 'teleport/lib/EventEmitterMfaSender';
 import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
-import { Protobuf, MessageTypeEnum } from './protobuf';
+import { MessageTypeEnum, Protobuf } from './protobuf';
 
 const logger = Logger.create('Tty');
 
@@ -88,7 +86,7 @@ class Tty extends EventEmitterMfaSender {
     // but to be backward compatible, we need to still spread the existing webauthn only fields
     // as "top level" fields so old proxies can still respond to webauthn challenges.
     // in 19, we can just pass "data" without this extra step
-    // TODO (avatus): DELETE IN 18
+    // TODO (avatus): DELETE IN 19.0.0
     const backwardCompatibleData = {
       ...data.webauthn_response,
       ...data,
@@ -96,16 +94,6 @@ class Tty extends EventEmitterMfaSender {
     const encoded = this._proto.encodeChallengeResponse(
       JSON.stringify(backwardCompatibleData)
     );
-    const bytearray = new Uint8Array(encoded);
-    this.socket.send(bytearray);
-  }
-
-  // TODO (avatus) DELETE IN 18
-  /**
-   * @deprecated Use sendChallengeResponse instead.
-   */
-  sendWebAuthn(data: WebauthnAssertionResponse) {
-    const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }

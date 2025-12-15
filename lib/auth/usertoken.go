@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"image/png"
 	"net/url"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
@@ -33,10 +34,12 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -75,7 +78,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.newUserToken(req)
+	token, err := a.newUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,7 +106,7 @@ func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.Cr
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create reset password token event.")
+		a.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
 	}
 
 	return a.GetUserToken(ctx, token.GetName())
@@ -123,19 +126,23 @@ func (a *Server) resetMFA(ctx context.Context, user string) error {
 
 // proxyDomainGetter is a reduced subset of the Auth API for formatAccountName.
 type proxyDomainGetter interface {
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetDomainName() (string, error)
 }
 
 // formatAccountName builds the account name to display in OTP applications.
 // Format for accountName is user@address. User is passed in, this function
 // tries to find the best available address.
-func formatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
+func formatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
 	var err error
 	var proxyHost string
 
 	// Get a list of proxies.
-	proxies, err := s.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(ctx, s.ListProxyServers))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -150,7 +157,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	if len(proxies) == 0 {
 		proxyHost, err = s.GetDomainName()
 		if err != nil {
-			log.Errorf("Failed to retrieve cluster name, falling back to hostname: %v.", err)
+			logger.ErrorContext(context.TODO(), "Failed to retrieve cluster name, falling back to hostname", "error", err)
 			proxyHost = authHostname
 		}
 	} else {
@@ -190,13 +197,13 @@ func (a *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.Use
 	return secrets, nil
 }
 
-func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
+func (a *Server) newTOTPKey(ctx context.Context, user string) (*otp.Key, *totp.GenerateOpts, error) {
 	// Fetch account name to display in OTP apps.
-	accountName, err := formatAccountName(a, user, a.AuthServiceName)
+	accountName, err := formatAccountName(ctx, a, user, a.AuthServiceName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -215,7 +222,7 @@ func (a *Server) newTOTPKey(user string) (*otp.Key, *totp.GenerateOpts, error) {
 	return key, &opts, nil
 }
 
-func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+func (a *Server) newUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
 	var err error
 	var proxyHost string
 
@@ -231,7 +238,7 @@ func (a *Server) newUserToken(req authclient.CreateUserTokenRequest) (types.User
 
 	// Get the list of proxies and try and guess the address of the proxy. If
 	// failed to guess public address, use "<proxyhost>:3080" as a fallback.
-	proxies, err := a.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(ctx, a.ListProxyServers))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -286,17 +293,17 @@ func formatUserTokenURL(proxyHost string, tokenID string, reqType string) (strin
 
 // deleteUserTokens deletes all user tokens for the specified user.
 func (a *Server) deleteUserTokens(ctx context.Context, username string) error {
-	tokens, err := a.GetUserTokens(ctx)
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, a.ListUserTokens))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, token := range tokens {
+	for _, token := range userTokens {
 		if token.GetUser() != username {
 			continue
 		}
 
-		err = a.DeleteUserToken(ctx, token.GetName())
+		err := a.DeleteUserToken(ctx, token.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -339,7 +346,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := a.newUserToken(req)
+	newToken, err := a.newUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -363,7 +370,7 @@ func (a *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create recovery token event.")
+		a.logger.WarnContext(ctx, "Failed to emit create recovery token event", "error", err)
 	}
 
 	return newToken, nil
@@ -420,7 +427,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.Wrap(err)
 	}
 
-	newToken, err := a.newUserToken(req)
+	newToken, err := a.newUserToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -442,7 +449,7 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Expires: a.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create privilege token event.")
+		a.logger.WarnContext(ctx, "Failed to emit create privilege token event", "error", err)
 	}
 
 	convertedToken, ok := token.(*types.UserTokenV3)
@@ -454,19 +461,24 @@ func (a *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
-func (a *Server) verifyUserToken(token types.UserToken, allowedKinds ...string) error {
+func (a *Server) verifyUserToken(ctx context.Context, token types.UserToken, allowedKinds ...string) error {
 	if token.Expiry().Before(a.clock.Now().UTC()) {
 		// Provide obscure message on purpose, while logging the real error server side.
-		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
+		a.logger.DebugContext(ctx, "Expired token",
+			"token", token.GetName(),
+			"token_type", token.GetSubKind(),
+		)
 		return trace.AccessDenied("invalid token")
 	}
 
-	for _, kind := range allowedKinds {
-		if token.GetSubKind() == kind {
-			return nil
-		}
+	if slices.Contains(allowedKinds, token.GetSubKind()) {
+		return nil
 	}
 
-	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
+	a.logger.DebugContext(ctx, "Invalid token",
+		"token", token.GetName(),
+		"token_type", token.GetSubKind(),
+		"expected_type", allowedKinds,
+	)
 	return trace.AccessDenied("invalid token")
 }

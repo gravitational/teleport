@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -42,14 +43,8 @@ type GCPInstances struct {
 	Zone string
 	// ProjectID is the instances' project ID.
 	ProjectID string
-	// ScriptName is the name of the script to execute on the instances to
-	// install Teleport.
-	ScriptName string
-	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster.
-	PublicProxyAddr string
-	// Parameters are the parameters passed to the installation script
-	Parameters []string
+	// InstallerParams are the installer parameters used for installation.
+	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered GCP virtual machines.
 	Instances []*gcpimds.Instance
 }
@@ -57,7 +52,7 @@ type GCPInstances struct {
 // MakeEvents generates MakeEvents for these instances.
 func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.ScriptName == installers.InstallerScriptNameAgentless {
+	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -78,6 +73,7 @@ func NewGCPWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Opt
 		fetchersFn:    fetchersFn,
 		ctx:           cancelCtx,
 		cancel:        cancelFn,
+		clock:         clockwork.NewRealClock(),
 		pollInterval:  time.Minute,
 		triggerFetchC: make(<-chan struct{}),
 		InstancesC:    make(chan Instances),
@@ -111,45 +107,48 @@ type gcpFetcherConfig struct {
 	GCPClient           gcp.InstancesClient
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
+	Integration         string
 }
 
 type gcpInstanceFetcher struct {
+	InstallerParams     *types.InstallerParams
 	GCP                 gcp.InstancesClient
 	ProjectIDs          []string
 	Zones               []string
 	ProjectID           string
 	ServiceAccounts     []string
 	Labels              types.Labels
-	Parameters          map[string]string
 	projectsClient      gcp.ProjectsClient
 	DiscoveryConfigName string
+	Integration         string
 }
 
 func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
-	fetcher := &gcpInstanceFetcher{
-		GCP:             cfg.GCPClient,
-		Zones:           cfg.Matcher.Locations,
-		ProjectIDs:      cfg.Matcher.ProjectIDs,
-		ServiceAccounts: cfg.Matcher.ServiceAccounts,
-		Labels:          cfg.Matcher.GetLabels(),
-		projectsClient:  cfg.projectsClient,
+	return &gcpInstanceFetcher{
+		InstallerParams:     cfg.Matcher.Params,
+		GCP:                 cfg.GCPClient,
+		Zones:               cfg.Matcher.Locations,
+		ProjectIDs:          cfg.Matcher.ProjectIDs,
+		ServiceAccounts:     cfg.Matcher.ServiceAccounts,
+		Labels:              cfg.Matcher.GetLabels(),
+		projectsClient:      cfg.projectsClient,
+		Integration:         cfg.Integration,
+		DiscoveryConfigName: cfg.DiscoveryConfigName,
 	}
-	if cfg.Matcher.Params != nil {
-		fetcher.Parameters = map[string]string{
-			"token":           cfg.Matcher.Params.JoinToken,
-			"scriptName":      cfg.Matcher.Params.ScriptName,
-			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
-		}
-	}
-	return fetcher
 }
 
-func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]Instances, error) {
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
 func (f *gcpInstanceFetcher) GetDiscoveryConfigName() string {
 	return f.DiscoveryConfigName
+}
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *gcpInstanceFetcher) IntegrationName() string {
+	return f.Integration
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.
@@ -187,12 +186,10 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instan
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
 				instances = append(instances, Instances{GCP: &GCPInstances{
+					InstallerParams: f.InstallerParams,
 					ProjectID:       projectID,
 					Zone:            zone,
 					Instances:       vms,
-					ScriptName:      f.Parameters["scriptName"],
-					PublicProxyAddr: f.Parameters["publicProxyAddr"],
-					Parameters:      []string{f.Parameters["token"]},
 				}})
 			}
 		}

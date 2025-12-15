@@ -18,10 +18,10 @@
 
 import React from 'react';
 
+import { BaseView } from 'teleport/components/Wizard/flow';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { AgentStepComponent } from 'teleport/Discover/types';
 import { DiscoverEvent } from 'teleport/services/userEvent';
-import { BaseView } from 'teleport/components/Wizard/flow';
 
 import { ResourceSpec } from './SelectResource';
 

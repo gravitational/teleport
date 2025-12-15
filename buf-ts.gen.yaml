@@ -3,29 +3,38 @@ version: v2
 inputs:
   - directory: .
     paths:
-      - api/proto/teleport/accesslist/
-      - api/proto/teleport/devicetrust/
-      - api/proto/teleport/header/
-      - api/proto/teleport/trait/
-      - api/proto/teleport/legacy/types/trusted_device_requirement.proto
       - api/proto/teleport/userpreferences/
       - proto/prehog/
       - proto/teleport/lib/teleterm/
+      - proto/teleport/lib/vnet/diag/
+      - proto/teleport/web/
 
 plugins:
   - local:
       - npm
       - exec
       - --yes
+      # we're using an exact version so if the package is already available
+      # there's no need to reach out to the registry, even if we could use more
+      # recent dependencies
+      - --prefer-offline
+      # this version should be kept in sync with build.assets/Dockerfile-grpcbox
       - --package=@protobuf-ts/plugin@2.9.3
+      - --package=@protobuf-ts/plugin-framework@2.9.3
+      - --package=@protobuf-ts/protoc@2.9.3
+      - --package=@protobuf-ts/runtime@2.9.3
+      - --package=@protobuf-ts/runtime-rpc@2.9.3
+      - --package=typescript@3.9.10
       - --
       - protoc-gen-ts
     out: gen/proto/ts
     opt:
-      # the next time we tweak the ts codegen we should put the options in
-      # alphabetical order
-      - eslint_disable
       - add_pb_suffix
+      - eslint_disable
+      # By default, only the proto files passed as input to protoc are generated, not the files they
+      # import (with the exception of well-known types which are always generated when imported).
+      # generate_dependencies generates code for dependencies too.
+      - generate_dependencies
       - server_grpc1
       - ts_nocheck
     strategy: all

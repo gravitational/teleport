@@ -1,6 +1,10 @@
 ---
 title: Kubernetes Access Troubleshooting
 description: Troubleshooting common issues with Kubernetes access
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 This page describes common issues with Kubernetes and how to resolve them.
@@ -93,10 +97,10 @@ Or the following:
 GKE Autopilot denies requests that impersonate "system:masters" group
 ```
 
-<Notice type="note">
+<Admonition type="note">
 This issue only affects GKE Autopilot clusters. If you're using a standard GKE
 cluster, this issue doesn't apply to you.
-</Notice>
+</Admonition>
 
 ### Explanation
 
@@ -175,7 +179,7 @@ joinParams:
   method: "token"
   tokenName: "${TOKEN}"
 kubeClusterName: "${CLUSTER}"
-labels:
+tags:
   "type" : "autopilot"
 EOF
 # Install the helm chart with the values.yaml setting
@@ -186,7 +190,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-Make sure that the Teleport agent pod is running. You should see one Teleport
+Make sure that the Teleport Agent pod is running. You should see one Teleport
 agent pod pod with a single ready container:
 
 ```code
@@ -272,3 +276,138 @@ resource with the `create` verb, update it to allow the `get` verb as well:
 
 Once the `ClusterRole` is updated, you should be able to exec into Pods using
 `kubectl` version 1.30 or later.
+
+## Health Check: Unable to contact the Kubernetes cluster
+
+### Symptoms
+
+A Kubernetes cluster is reported as `unhealthy`, and all calls between Teleport and the Kubernetes cluster API fail.
+
+### Explanation
+
+A Teleport Kubernetes Service performed multiple health checks on a Kubernetes cluster and did not receive a response.
+
+Calls to Kubernetes cluster API endpoints `/selfsubjectaccessreviews` and `/readyz` returned errors without HTTP status codes.
+
+### Resolution
+
+Examine the Kubernetes cluster and network for root causes.
+
+Check the state of the Kubernetes cluster.
+```bash
+kubectl cluster-info
+kubectl get --raw /readyz
+```
+
+Check network and firewall rules.
+- Is the network configured properly?
+- Check security groups
+- Check network policies
+
+## Health Check: Missing required Kubernetes permissions
+
+### Symptoms
+
+A Kubernetes cluster is reported as `unhealthy`, and is missing one or more Kubernetes permissions such as `impersonate users`, `impersonate groups`, `impersonate service accounts` and/or `get pods`.
+
+### Explanation
+
+A Teleport Kubernetes Service performed a health check on a Kubernetes cluster, and received a response saying required Kubernetes cluster capabilities are denied.
+
+The Kubernetes cluster is missing a `ClusterRole`, or is configured with a partial `ClusterRole`. Teleport requires four Kubernetes [SelfSubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/self-subject-access-review-v1/) permissions:
+- Impersonate users
+- Impersonate groups
+- Impersonate service accounts
+- Get pods
+
+### Resolution
+
+Add a `ClusterRole` and `ClusterRoleBinding` to the Kubernetes cluster with the four permissions.
+
+```bash
+$ kubectl config use-context <your-kube-context>
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-impersonation
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - users
+      - groups
+      - serviceaccounts
+    verbs:
+      - impersonate
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+  - apiGroups:
+      - "authorization.k8s.io"
+    resources:
+      - selfsubjectaccessreviews
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-impersonation
+subjects:
+  - kind: ServiceAccount
+    name: teleport-serviceaccount
+    namespace: default
+EOF
+```
+
+Your `ClusterRoleBinding` might vary.
+
+Also see [enabling impersonation](./controls.mdx) in Teleport Kubernetes.
+
+## Health Check: Unhealthy Kubernetes cluster detected with status code
+
+### Symptoms
+
+A Kubernetes cluster is reported as `unhealthy`, and Teleport received a response from the Kubernetes cluster with an error status code.
+
+### Explanation
+
+A Teleport Kubernetes Service performed multiple health checks on a Kubernetes cluster and received responses.
+
+A call to the permission endpoint `/selfsubjectaccessreviews` failed, and a call to the Kubernetes cluster `/readyz` endpoint returned a response with an error status code. The error status code indicates that a component in the Kubernetes cluster is in an unhealthy state.
+
+### Resolution
+
+Diagnose the Kubernetes cluster error status code with `kubectl`.
+```bash
+kubectl cluster-info
+kubectl get --raw /readyz
+```
+
+## Health Check: Unable to check Kubernetes permissions
+
+### Symptoms
+
+A Kubernetes cluster is reported as `unhealthy`, and Teleport received mixed responses from health check endpoints.
+
+### Explanation
+
+A Teleport Kubernetes Service performed multiple health checks on a Kubernetes cluster and received responses.
+
+A call to the permission endpoint `/selfsubjectaccessreviews` failed, and a call to the Kubernetes cluster `/readyz` succeeded. Kubernetes cluster components are operational and something is blocking calls to the Kubernetes [SelfSubjectAccessReview](https://kubernetes.io/docs/reference/kubernetes-api/authorization-resources/self-subject-access-review-v1/) API.
+
+### Resolution
+
+Diagnose the Kubernetes cluster with `kubectl`.
+```bash
+kubectl cluster-info
+kubectl get --raw /readyz
+```

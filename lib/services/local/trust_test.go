@@ -34,16 +34,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestUpdateCertAuthorityCondActs(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// setup closure creates our initial state and returns its components
 	setup := func(active bool) (types.TrustedCluster, types.CertAuthority, *CA) {
@@ -445,7 +443,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%d", i))
 		require.NoError(t, err)
 		_, err = trustService.CreateRemoteCluster(ctx, rc)
@@ -462,7 +460,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.RemoteCluster{}
 	pageToken = ""
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		var got []types.RemoteCluster
 		got, pageToken, err = trustService.ListRemoteClusters(ctx, 1, pageToken)
 		require.NoError(t, err)
@@ -488,7 +486,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 
@@ -537,10 +535,51 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(ca, gotCA, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	wantTcs := []types.TrustedCluster{tc, stc}
+	compareOpts := []cmp.Option{
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.TrustedCluster) bool {
+			return a.GetName() < b.GetName()
+		},
+		)}
+
 	// get all clusters
 	allTC, err := trustService.GetTrustedClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, allTC, 2)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// No page limit.
+	allTC, next, err := trustService.ListTrustedClusters(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, allTC, 2)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// Check page limits.
+	firstPage, next, err := trustService.ListTrustedClusters(ctx, 1, "")
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	require.NotEmpty(t, next)
+
+	// Ensure upper limit works.
+	rangeEnd, err := stream.Collect(trustService.RangeTrustedClusters(ctx, "", next))
+	require.NoError(t, err)
+	require.Len(t, rangeEnd, 1)
+	require.NotEmpty(t, next)
+	require.Empty(t, cmp.Diff(firstPage, rangeEnd, compareOpts...))
+
+	// Full range.
+	allTC, err = stream.Collect(trustService.RangeTrustedClusters(ctx, "", ""))
+	require.NoError(t, err)
+	require.Len(t, allTC, 2)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// Ensure start token work for range.
+	secondPage, err := stream.Collect(trustService.RangeTrustedClusters(ctx, next, ""))
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	require.Empty(t, cmp.Diff(wantTcs, append(firstPage, secondPage...), compareOpts...))
 
 	// verify that enabling/disabling correctly shows/hides CAs
 	tc.SetEnabled(false)

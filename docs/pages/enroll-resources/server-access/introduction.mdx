@@ -2,6 +2,10 @@
 title: Introduction to Enrolling Servers
 description: Teleport server access features and introduction.
 videoBanner: EsEvO5ndNDI
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport consolidates SSH access across all environments, decreases
@@ -20,7 +24,7 @@ Teleport server access is designed for the following kinds of scenarios:
 Teleport protects servers through the Teleport SSH Service, which is a Teleport
 agent service. For more information on agent services, read [Teleport Agent
 Architecture](../../reference/architecture/agents.mdx). You can also learn how to deploy a
-[pool of Teleport agents](../agents/introduction.mdx) to run multiple agent
+[pool of Teleport Agents](../agents/agents.mdx) to run multiple agent
 services.
 
 ## Getting started
@@ -37,6 +41,6 @@ Read the [Teleport OpenSSH guides](openssh/openssh.mdx) to learn more.
 ## Guides
 
 - [Using Teleport with PAM](./guides/ssh-pam.mdx): How to configure Teleport SSH with PAM (Pluggable Authentication Modules).
-- [Recording Proxy Mode](./guides/recording-proxy-mode.mdx): How to use Teleport Recording Proxy Mode to capture activity on OpenSSH servers.
+- [Agentless OpenSSH Servers](./openssh/openssh-agentless.mdx): How to register OpenSSH servers before transitioning to the Teleport SSH Service.
 - [BPF Session Recording](./guides/bpf-session-recording.mdx): How to use BPF to record SSH session commands, modified files and network connections.
-- [Visual Studio Code](./guides/vscode.mdx): How to remotely develop with Visual Studio Code and Teleport.
+- [Visual Studio Code](../../connect-your-client/third-party/vscode.mdx): How to remotely develop with Visual Studio Code and Teleport.

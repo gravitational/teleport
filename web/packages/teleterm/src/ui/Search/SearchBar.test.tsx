@@ -17,30 +17,30 @@
  */
 
 import userEvent from '@testing-library/user-event';
-import { render, screen, waitFor, act } from 'design/utils/testing';
+
+import { act, render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import Logger, { NullService } from 'teleterm/logger';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import ModalsHost from 'teleterm/ui/ModalsHost';
 import {
-  makeRootCluster,
   makeRetryableError,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
-import { ClusterUri } from 'teleterm/ui/uri';
-import { VnetContextProvider } from 'teleterm/ui/Vnet';
+import { AppUpdaterContextProvider } from 'teleterm/ui/AppUpdater';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import ModalsHost from 'teleterm/ui/ModalsHost';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import { ConnectionsContextProvider } from 'teleterm/ui/TopBar/Connections/connectionsContext';
+import { ClusterUri, routing } from 'teleterm/ui/uri';
+import { VnetContextProvider } from 'teleterm/ui/Vnet';
 
 import { SearchAction } from './actions';
-
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
-import * as useSearch from './useSearch';
-import * as SearchContext from './SearchContext';
-
 import { SearchBarConnected } from './SearchBar';
+import * as SearchContext from './SearchContext';
+import * as useSearch from './useSearch';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -176,7 +176,7 @@ it('includes offline cluster names in the empty results copy', () => {
   );
 });
 
-it('notifies about resource search errors and allows to display details', () => {
+it('notifies about resource search errors and allows to display details', async () => {
   const appContext = setUpContext('/clusters/foo');
 
   const resourceSearchError = new ResourceSearchError(
@@ -224,7 +224,7 @@ it('notifies about resource search errors and allows to display details', () => 
   expect(results).toHaveTextContent('Could not fetch resources from foo');
   expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
 
-  act(() => screen.getByText('Show details').click());
+  await userEvent.click(screen.getByRole('button', { name: 'Show details' }));
 
   expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -322,16 +322,18 @@ it('shows a login modal when a request to a cluster from the current workspace f
 
   render(
     <MockAppContextProvider appContext={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <SearchBarConnected />
-          <ModalsHost />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
+      <AppUpdaterContextProvider>
+        <ConnectionsContextProvider>
+          <VnetContextProvider>
+            <SearchBarConnected />
+            <ModalsHost />
+          </VnetContextProvider>
+        </ConnectionsContextProvider>
+      </AppUpdaterContextProvider>
     </MockAppContextProvider>
   );
 
-  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
+  await user.type(screen.getByRole('searchbox'), 'foo');
 
   // Verify that the login modal was shown after typing in the search box.
   await waitFor(() => {
@@ -340,7 +342,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   expect(screen.getByTestId('Modal')).toHaveTextContent('Log in to');
 
   // Verify that the search bar stays open after closing the modal.
-  act(() => screen.getByLabelText('Close').click());
+  await user.click(screen.getByLabelText('Close'));
   await waitFor(() => {
     expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
   });
@@ -376,12 +378,11 @@ it('closes on a click on an unfocusable element outside of the search bar', asyn
     </MockAppContextProvider>
   );
 
-  await act(() => user.type(screen.getByRole('searchbox'), 'foo'));
+  await user.type(screen.getByRole('searchbox'), 'foo');
   expect(screen.getByRole('menu')).toBeInTheDocument();
 
-  act(() => {
-    screen.getByTestId('unfocusable-element').click();
-  });
+  await user.click(screen.getByTestId('unfocusable-element'));
+
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 });
 
@@ -412,16 +413,11 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
 
 const setUpContext = (clusterUri: ClusterUri) => {
   const appContext = new MockAppContext();
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = clusterUri;
-    draft.workspaces = {
-      [clusterUri]: {
-        documents: [],
-        location: undefined,
-        localClusterUri: clusterUri,
-        accessRequests: undefined,
-      },
-    };
-  });
+  appContext.addRootCluster(
+    makeRootCluster({
+      uri: clusterUri,
+      name: routing.parseClusterUri(clusterUri).params.rootClusterId,
+    })
+  );
   return appContext;
 };

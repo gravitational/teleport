@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect } from 'react';
-
-import { useAsync } from 'shared/hooks/useAsync';
+import { useEffect, useRef } from 'react';
 
 import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { useAsync } from 'shared/hooks/useAsync';
 
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { HeadlessPrompt } from './HeadlessPrompt';
 
@@ -40,9 +39,8 @@ interface HeadlessAuthenticationProps {
 }
 
 export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
-  const { headlessAuthenticationService, clustersService } = useAppContext();
+  const { headlessAuthenticationService } = useAppContext();
   const refAbortCtrl = useRef(new AbortController());
-  const cluster = clustersService.findCluster(props.rootClusterUri);
 
   const [updateHeadlessStateAttempt, updateHeadlessState] = useAsync(
     (state: HeadlessAuthenticationState) =>
@@ -83,7 +81,7 @@ export function HeadlessAuthentication(props: HeadlessAuthenticationProps) {
   return (
     <HeadlessPrompt
       hidden={props.hidden}
-      cluster={cluster}
+      rootClusterUri={rootClusterUri}
       clientIp={props.clientIp}
       skipConfirm={props.skipConfirm}
       onApprove={handleHeadlessApprove}

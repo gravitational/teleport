@@ -17,35 +17,44 @@
  */
 
 import { useMemo, useRef } from 'react';
-import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
-import * as Alerts from 'design/Alert';
 
+import {
+  Alert,
+  Box,
+  ButtonSecondary,
+  Flex,
+  H1,
+  H2,
+  Link,
+  Stack,
+  Text,
+} from 'design';
+import * as Alerts from 'design/Alert';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import Validation from 'shared/components/Validation';
+import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
+
+import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
 
-import { CliCommand } from './CliCommand';
-import { DocumentGatewayProps } from './DocumentGateway';
-
-type OnlineDocumentGatewayProps = Pick<
-  DocumentGatewayProps,
-  | 'changeDbNameAttempt'
-  | 'changePortAttempt'
-  | 'disconnect'
-  | 'changeDbName'
-  | 'changePort'
-  | 'gateway'
-  | 'runCliCommand'
->;
-
-export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
+export function OnlineDocumentGateway(props: {
+  changeDbName: (name: string) => RunFuncReturnValue<void>;
+  changeDbNameAttempt: Attempt<void>;
+  changePort: (port: string) => RunFuncReturnValue<void>;
+  changePortAttempt: Attempt<void>;
+  disconnect: () => RunFuncReturnValue<void>;
+  disconnectAttempt: Attempt<void>;
+  gateway: Gateway;
+  runCliCommand: () => void;
+}) {
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';
   const hasError =
     props.changeDbNameAttempt.status === 'error' ||
     props.changePortAttempt.status === 'error';
-  const formRef = useRef<HTMLFormElement>();
+  const formRef = useRef<HTMLFormElement>(null);
   const { gateway } = props;
 
   const handleChangeDbName = useMemo(() => {
@@ -85,31 +94,41 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <H2 mb={2}>Connect with CLI</H2>
-      <Flex as="form" ref={formRef}>
-        <Validation>
-          <PortFieldInput
-            label="Port"
-            defaultValue={gateway.localPort}
-            onChange={e => handleChangePort(e.target.value)}
-            mb={2}
-          />
-          <ConfigFieldInput
-            label="Database Name"
-            defaultValue={gateway.targetSubresourceName}
-            onChange={e => handleChangeDbName(e.target.value)}
-            spellCheck={false}
-            ml={2}
-            mb={2}
-          />
-        </Validation>
-      </Flex>
-      <CliCommand
-        cliCommand={props.gateway.gatewayCliCommand.preview}
-        isLoading={isPortOrDbNameProcessing}
-        onButtonClick={props.runCliCommand}
-      />
-      {$errors}
+      <Stack gap={2} alignItems="normal">
+        <Flex as="form" ref={formRef}>
+          <Validation>
+            <PortFieldInput
+              label="Port"
+              defaultValue={gateway.localPort}
+              onChange={e => handleChangePort(e.target.value)}
+              mb={0}
+            />
+            <ConfigFieldInput
+              label="Database Name"
+              defaultValue={gateway.targetSubresourceName}
+              onChange={e => handleChangeDbName(e.target.value)}
+              spellCheck={false}
+              ml={2}
+              mb={0}
+            />
+          </Validation>
+        </Flex>
+        <CliCommand
+          cliCommand={props.gateway.gatewayCliCommand.preview}
+          isLoading={isPortOrDbNameProcessing}
+          button={{ onClick: props.runCliCommand }}
+        />
+        {$errors}
+      </Stack>
+
       <H2 mt={3} mb={2}>
         Connect with GUI
       </H2>
@@ -128,7 +147,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
         <Link
-          href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+          href="https://goteleport.com/docs/connect-your-client/gui-clients/"
           target="_blank"
         >
           the documentation

@@ -48,6 +48,29 @@ message UserLoginEvent {
 
   // the required private key policy for this login.
   string required_private_key_policy = 4;
+
+  // UserOrigin specifies the origin of this user account.
+  //
+  // PostHog property: tp.user_origin
+  UserOrigin user_origin = 5;
+}
+
+// UserOrigin is the origin of a user account.
+// Keep the values in sync with UserOrigin enum defined in
+// API events and prehogv1.
+enum UserOrigin {
+  // Indicates a legacy cluster emitting events without a defined user origin.
+  USER_ORIGIN_UNSPECIFIED = 0;
+  // Indicates a local user.
+  USER_ORIGIN_LOCAL = 1;
+  // Indicates an SSO user originated from the SAML or OIDC connector.
+  USER_ORIGIN_SSO = 2;
+  // Indicates a user originated from the Okta integration.
+  USER_ORIGIN_OKTA = 3;
+  // Indicates a user originated from the SCIM integration.
+  USER_ORIGIN_SCIM = 4;
+  // Indicates a user originated from the EntraID integration.
+  USER_ORIGIN_ENTRAID = 5;
 }
 
 // MFAAuthenticationEvent is emitted when a user performs MFA authentication.
@@ -178,6 +201,11 @@ enum UserKind {
   //
   // PostHog property value: "bot"
   USER_KIND_BOT = 2;
+
+  // Indicates that the user associated with this event is a system component e.g. Okta service.
+  //
+  // PostHog property value: "system"
+  USER_KIND_SYSTEM = 3;
 }
 
 // an event representing one of several audit events: session.start, port,
@@ -222,6 +250,14 @@ message SessionStartEvent {
   //
   // PostHog property: tp.app
   SessionStartAppMetadata app = 6;
+
+  // if session_type == "git" the git struct contains additional information
+  // about git session.
+  SessionStartGitMetadata git = 7;
+
+  // if session_type == "app_mcp" the mcp struct contains additional information
+  // about the MCP session.
+  SessionStartMCPMetadata mcp = 8;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -232,6 +268,8 @@ message SessionStartDatabaseMetadata {
   string db_protocol = 2;
   // database origin source.
   string db_origin = 3;
+  // Indicates the client used on the session.
+  string user_agent = 4;
 }
 
 // SessionStartDesktop Metadata contains additional information about
@@ -263,6 +301,31 @@ message SessionStartDesktopMetadata {
 message SessionStartAppMetadata {
   // is_multi_port is true for multi-port TCP apps.
   bool is_multi_port = 1;
+}
+
+// SessionStartGitMetadata contains additional information about a git session.
+message SessionStartGitMetadata {
+  // git session type (equivalent to git_server.sub_kind).
+  string git_type = 1;
+  // git_service is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string git_service = 2;
+}
+
+// SessionStartMCPMetadata contains additional information about an MCP session.
+message SessionStartMCPMetadata {
+  // Transport type of the MCP server. Value from types.GetMCPServerTransportType.
+  string transport = 1;
+  // MCP protocol version like "2025-06-18".
+  string protocol_version = 2;
+  // Indicates the client used on the session, e.g "claude-ai".
+  string client_name = 3;
+  // Indicates the server used on the session, e.g "example-servers/everything".
+  string server_name = 4;
+  // Indicates how the MCP session is authorized between MCP client and Teleport.
+  string ingress_auth_type = 5;
+  // Indicates how the MCP session is authorized between Teleport and remote MCP server.
+  string egress_auth_type = 6;
 }
 
 // the issuance of a user certificate from the user CA
@@ -298,6 +361,10 @@ message UserCertificateIssuedEvent {
 
   // the private key policy associated with these user certificates.
   string private_key_policy = 8;
+
+  // bot_instance_id is the anonymized instance id of the bot, if the user is
+  // a Bot.
+  string bot_instance_id = 9;
 }
 
 // the issuance of a SPIFFE SVID
@@ -330,6 +397,10 @@ message SPIFFESVIDIssuedEvent {
   // Type of SVID issued. `x509` or `jwt`
   // PostHog property: tp.spiffe.svid_type
   string svid_type = 6;
+
+  // bot_instance_id is the anonymized instance id of the bot, if the user is
+  // a Bot.
+  string bot_instance_id = 7;
 }
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -471,6 +542,10 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 
   DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
+
+  DISCOVER_RESOURCE_MCP_STDIO = 42;
+  DISCOVER_RESOURCE_MCP_SSE = 43;
+  DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -741,6 +816,8 @@ message BotJoinEvent {
   string join_token_name = 3;
   // user_name is the anonymised name of the Bot user.
   string user_name = 4;
+  // bot_instance_id is the anonymized instance id of the bot.
+  string bot_instance_id = 5;
 }
 
 // UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
@@ -753,6 +830,21 @@ message UICreateNewRoleClickEvent {
 message UICreateNewRoleSaveClickEvent {
   //anonymized
   string user_name = 1;
+  // StandardUsed indicates if the user interacted with the standard editor
+  // tab.
+  bool standard_used = 2;
+  // YamlUsed indicates if the user interacted with the YAML editor tab.
+  bool yaml_used = 3;
+  // ModeWhenSaved indicates which editor tab was active when the Save button
+  // was clicked ("standard" or "yaml"). Note that it's inherently different
+  // from what `StandardUsed` or `YamlUsed` describe; the user can interact
+  // with one kind of editor, then verify the results in another, and
+  // ultimately click Save on any of them.
+  string mode_when_saved = 4;
+  // A list of field paths that prevented the standard editor from being
+  // operational, if any. Looking at these may provide insight into which
+  // missing features should be implemented first.
+  repeated string fields_with_conversion_errors = 5;
 }
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
@@ -1059,6 +1151,10 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
   INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 25;
+  INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
+  INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1083,6 +1179,150 @@ message UIIntegrationEnrollStartEvent {
 // completed enrolling an integration.
 message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
+}
+
+// IntegrationEnrollStep defines inner configuration steps
+// for a given integration type.
+enum IntegrationEnrollStep {
+  INTEGRATION_ENROLL_STEP_UNSPECIFIED = 0;
+
+  // AWSIC denotes AWS Identity Center integration.
+  INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC = 1;
+  INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
+  INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
+  INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+
+  // GITHUBRA denotes GitHub Repo Access.
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB = 9;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
+}
+
+// IntegrationEnrollStatusCode defines status code for an integration enroll step.
+enum IntegrationEnrollStatusCode {
+  INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  INTEGRATION_ENROLL_STATUS_CODE_SUCCESS = 1;
+  // The user or system skipped the step.
+  // For example:
+  // When setting up an AWS IAM Identity Center integration, we allow reusing
+  // OIDC integrationn if it was previously created for the Identity Center.
+  INTEGRATION_ENROLL_STATUS_CODE_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  INTEGRATION_ENROLL_STATUS_CODE_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
+}
+
+// IntegrationEnrollStepStatus defines fields that track a particular step outcome,
+// for example connection test failed or succeeded, or user aborted the step.
+message IntegrationEnrollStepStatus {
+  // Code indicates the step outcome.
+  IntegrationEnrollStatusCode code = 1;
+  // Error contains error details in case of an error status code.
+  // Error message should not include any identifiable information
+  // like server address.
+  string error = 2;
+}
+
+// UIIntegrationEnrollStepEvent defines configuration step event
+// with a status for a specific integration enroll kind.
+message UIIntegrationEnrollStepEvent {
+  // Metadata is the metadata of an event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step is the name of the step for a given integration kind.
+  IntegrationEnrollStep step = 2;
+  // Status is the status of the step outcome.
+  IntegrationEnrollStepStatus status = 3;
+}
+
+// UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+// a section (e.g. "Advanced Options") in an integration setup wizard.
+message UIIntegrationEnrollSectionOpenEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the section was opened.
+  IntegrationEnrollStep step = 2;
+  // Section that was opened.
+  IntegrationEnrollSection section = 3;
+}
+
+// IntegrationEnrollSection identifies a section the user opened or expanded in
+// an integration setup wizard.
+enum IntegrationEnrollSection {
+  INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
+}
+
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+message UIIntegrationEnrollFieldCompleteEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the field was completed.
+  IntegrationEnrollStep step = 2;
+  // Field that was completed.
+  IntegrationEnrollField field = 3;
+}
+
+// IntegrationEnrollField identifies a field the user completed in an integration
+// setup wizard.
+enum IntegrationEnrollField {
+  INTEGRATION_ENROLL_FIELD_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL = 1;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH = 2;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW = 3;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT = 4;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF = 5;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 8;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 9;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 10;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11;
+}
+
+// UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+// IaC (e.g. Terraform) code in an integration setup wizard.
+message UIIntegrationEnrollCodeCopyEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the code was copied.
+  IntegrationEnrollStep step = 2;
+  // Type of code that was copied.
+  IntegrationEnrollCodeType type = 3;
+}
+
+// IntegrationEnrollCodeType identifies the type of code that was copied in an
+// integration setup wizard.
+enum IntegrationEnrollCodeType {
+  INTEGRATION_ENROLL_CODE_TYPE_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM = 1;
+  INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
+}
+
+// UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
+// documentation, etc. in an integration setup wizard.
+message UIIntegrationEnrollLinkClickEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the link was clicked.
+  IntegrationEnrollStep step = 2;
+  // Link that was clicked.
+  string link = 3;
 }
 
 // EditorChangeEvent is an event that is emitted when a user role set changes resulting in
@@ -1480,6 +1720,53 @@ message UserTaskStateEvent {
   int32 instances_count = 4;
 }
 
+// AccessRequestCreateEvent is emitted when an Access Request is created.
+//
+// PostHog event: tp.access_request.create
+message AccessRequestCreateEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+
+  // resource_kinds specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
+}
+
+// AccessRequestReviewEvent is emitted when an Access Request is reviewed.
+//
+// PostHog event: tp.access_request.review
+message AccessRequestReviewEvent {
+  // Teleport user name. Anonymized.
+  string user_name = 1;
+
+  // resource_kinds specifies the kind of resources requested.
+  //
+  // PostHog property: tp.access_request.resource_kinds.
+  repeated string resource_kinds = 2;
+
+  // is_bot_reviewed indicates whether the access request was automatically
+  // reviewed by a bot.
+  //
+  // PostHog property: tp.access_request.is_bot_reviewed.
+  bool is_bot_reviewed = 3;
+
+  // ProposedState specifies the proposed state of an access request review.
+  enum ProposedState {
+    // PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
+    PROPOSED_STATE_UNSPECIFIED = 0;
+    // PROPOSED_STATE_APPROVED specifies the approved access request state.
+    PROPOSED_STATE_APPROVED = 1;
+    // PROPOSED_STATE_DENIED specifies the denied access request state.
+    PROPOSED_STATE_DENIED = 2;
+  }
+
+  // proposed_state specifies the proposed state of the access request review.
+  //
+  // PostHog property: tp.access_request.proposed_state.
+  ProposedState proposed_state = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -1645,10 +1932,24 @@ message SubmitEventRequest {
     UserTaskStateEvent user_task_state = 94;
 
     // note that 95 is used for "teleport_version" above.
+
+    UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96;
+
+    AccessRequestCreateEvent access_request_create = 99;
+    AccessRequestReviewEvent access_request_review = 100;
+
+    UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
+    UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102;
+    UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103;
+    UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
+
+  reserved 97, 98; // AccessRequestEvent
+  reserved "access_request_create_event";
+  reserved "access_request_review_event";
 }
 message SubmitEventResponse {}
 

@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -35,6 +36,8 @@ type LockGetter interface {
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 // Access service manages roles and permissions.
@@ -49,8 +52,6 @@ type Access interface {
 	UpdateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates role.
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
-	// DeleteAllRoles deletes all roles.
-	DeleteAllRoles(ctx context.Context) error
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// DeleteRole deletes role by name.
@@ -61,8 +62,6 @@ type Access interface {
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
 	DeleteLock(context.Context, string) error
-	// DeleteAllLocks deletes all/in-force locks.
-	DeleteAllLocks(context.Context) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
 }
@@ -79,12 +78,12 @@ func CheckDynamicLabelsInDenyRules(r types.Role) error {
 		}
 		for label := range labelMatchers.Labels {
 			if strings.HasPrefix(label, types.TeleportDynamicLabelPrefix) {
-				return trace.BadParameter(dynamicLabelsErrorMessage)
+				return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 			}
 		}
 		const expressionMatch = `"` + types.TeleportDynamicLabelPrefix
 		if strings.Contains(labelMatchers.Expression, expressionMatch) {
-			return trace.BadParameter(dynamicLabelsErrorMessage)
+			return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 		}
 	}
 
@@ -93,7 +92,7 @@ func CheckDynamicLabelsInDenyRules(r types.Role) error {
 		r.GetImpersonateConditions(types.Deny).Where,
 	} {
 		if strings.Contains(where, types.TeleportDynamicLabelPrefix) {
-			return trace.BadParameter(dynamicLabelsErrorMessage)
+			return trace.BadParameter("%s", dynamicLabelsErrorMessage)
 		}
 	}
 

@@ -31,9 +31,10 @@ import (
 type UserLoginStatesGetter interface {
 	// GetUserLoginStates returns the all user login state resources.
 	GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error)
-
 	// GetUserLoginState returns the specified user login state resource.
 	GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error)
+	// ListUserLoginStates returns a paginated list of user login state resources.
+	ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error)
 }
 
 // UserLoginStates is the interface for managing with user login states.
@@ -79,7 +80,7 @@ func UnmarshalUserLoginState(data []byte, opts ...MarshalOption) (*userloginstat
 	}
 	uls := &userloginstate.UserLoginState{}
 	if err := utils.FastUnmarshal(data, &uls); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := uls.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -101,10 +102,10 @@ type UserOrLoginStateGetter interface {
 	UserGetter
 }
 
-// GetUserOrLoginState will return the given user or the login state associated with the user.
+// GetUserOrLoginState will return the given user login state or if not found, the user itself.
 func GetUserOrLoginState(ctx context.Context, getter UserOrLoginStateGetter, username string) (UserState, error) {
 	uls, err := getter.GetUserLoginState(ctx, username)
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err)
 	}
 

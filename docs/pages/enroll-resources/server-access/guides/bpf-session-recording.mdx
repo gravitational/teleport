@@ -1,9 +1,15 @@
 ---
 title: Enhanced Session Recording for SSH with BPF
 description: How to record your SSH session commands using BPF.
-h1: Enhanced Session Recording with BPF
 videoBanner: 8uO5H-iYw5A
+tags:
+ - session-recording
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 This guide explains Enhanced Session Recording for SSH with BPF and how to set
 it up in your Teleport cluster.
@@ -44,7 +50,7 @@ session). Also, a local user with both monitored and unmonitored console
 sessions or ptrace privileges may not be fully captured in recordings.
 
 Commands executed via daemons (systemd, crond, atd, etc.) could be outside of
-the recorded session scope. Proper network-based restrictions for ingress
+the recorded session scope. Proper network-based restrictions for egress
 traffic must also be implemented to prevent possible unauthorized data transfer.
 
 Additionally, certain forensic information such as full binary paths
@@ -71,12 +77,12 @@ library preloading, and environment variables may not be captured in session rec
   See below for more details on the required versions for your Linux kernel and
   distribution.
 
-<Notice type="tip">
+<Admonition type="tip">
 
   Our Standard Session Recording works with older Linux kernels. View [Teleport
   Session Recording](../../../reference/architecture/session-recording.mdx) for more details.
 
-</Notice>
+</Admonition>
 
 ### Linux distributions and supported kernels
 
@@ -168,7 +174,8 @@ ssh_service:
     root_path: /teleport
 ```
 
-<Details title="Isolate session system resources">
+<details>
+<summary>Isolate session system resources</summary>
 
 If you operate multiple Teleport instances on the same system, customize the
 `root_path` configuration to change the base cgroupv2 slice path for session
@@ -176,7 +183,7 @@ system resources. This ensures security isolation between sessions from
 different Teleport instances, allowing you to apply distinct security rules and
 resource controls.
 
-</Details>
+</details>
 
 ### Start Teleport on your Node
 
@@ -272,7 +279,8 @@ ends will also include the `"enhanced_recording": true` field, similar to the fo
 If your Teleport cluster uses a file-based event log, you can examine your audit
 log on the Teleport Auth Service host.
 
-<Details title="Is my cluster using a file-based event log?">
+<details>
+<summary>Is my cluster using a file-based event log?</summary>
 
 Teleport's session recordings backend is configured via the
 `teleport.storage.audit_sessions_uri` field. If a provided URI includes a scheme
@@ -280,7 +288,7 @@ that belongs to a cloud-based service (e.g., `s3://` or `dynamodb://`), you will
 not be able to inspect session recordings in the filesystem of your Auth Service
 host.
 
-</Details>
+</details>
 
 Examine the contents of `/var/lib/teleport/log` as shown below:
 
@@ -400,4 +408,4 @@ ends will also include the `"enhanced_recording": true` field, similar to the fo
 - Read more about
   [session recording](../../../reference/architecture/session-recording.mdx).
 - See all configuration options for Enhanced Session Recording in our
-  [Configuration Reference](../../../reference/config.mdx).
+  [Configuration Reference](../../../reference/deployment/config.mdx).

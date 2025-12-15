@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
@@ -43,8 +44,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -54,8 +57,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -199,7 +204,9 @@ func TestDatabaseServerResource(t *testing.T) {
 	require.NoError(t, err)
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// get all database servers
 	buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseServer, "--format=json"})
@@ -264,7 +271,9 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
@@ -279,7 +288,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := 0; i < totalDBServices; i++ {
+	for i := range totalDBServices {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -320,6 +329,204 @@ func TestDatabaseServiceResource(t *testing.T) {
 	})
 }
 
+func TestScopedRoleAndAssignmentResource(t *testing.T) {
+	const scopedRoleYAML = `kind: scoped_role
+metadata:
+  name: some-role
+scope: "/"
+spec:
+  assignable_scopes: ["/foo"]
+version: v1
+`
+	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
+scope: "/"
+spec:
+  user: "bob"
+  assignments:
+    - role: some-role
+      scope: /foo
+version: v1
+`
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
+	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
+
+	// Create the scoped role
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleYAMLPath})
+	require.NoError(t, err)
+
+	// wait for cache propagation
+	timeout := time.After(time.Second * 30)
+	var raw []byte
+	for {
+		// Get the scoped role
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		if err == nil {
+			raw = buff.Bytes()
+			break
+		}
+
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// Unmarshal the response into a ScopedRole object
+	rs, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](raw, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, rs, 1)
+
+	// Compare with expected value
+	expected := &scopedaccessv1.ScopedRole{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{
+			Name: "some-role",
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/foo"},
+		},
+		Version: types.V1,
+	}
+
+	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// now that a role exists, test commands for assignment creation
+	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
+	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
+
+	// Create the scoped role assignment
+	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.NoError(t, err)
+
+	parts := bytes.Split(buff.Bytes(), []byte("\""))
+	require.Len(t, parts, 3)
+
+	assignmentName := string(parts[1])
+
+	_, err = uuid.Parse(assignmentName)
+	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
+
+	// wait for cache propagation
+	timeout = time.After(time.Second * 30)
+	var rawAssignment []byte
+	for {
+		// Get the scoped role assignment
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		if err == nil {
+			rawAssignment = buff.Bytes()
+			break
+		}
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// Unmarshal the response into a ScopedRoleAssignment object
+	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, as, 1)
+
+	// Compare with expected value
+	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
+		Kind: scopedaccess.KindScopedRoleAssignment,
+		Metadata: &headerv1.Metadata{
+			Name: assignmentName,
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			User: "bob",
+			Assignments: []*scopedaccessv1.Assignment{
+				{
+					Role:  "some-role",
+					Scope: "/foo",
+				},
+			},
+		},
+		Version: types.V1,
+	}
+
+	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// verify delete of assignment
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	timeout = time.After(time.Second * 30)
+	for {
+		// verify assignment is gone
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		if err != nil {
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// verify delete of role
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/some-role"})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	timeout = time.After(time.Second * 30)
+	for {
+		// verify role is gone
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		if err != nil {
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+}
+
 // TestIntegrationResource tests tctl integration commands.
 func TestIntegrationResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
@@ -345,7 +552,9 @@ func TestIntegrationResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 
@@ -360,7 +569,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalIntegrations; i++ {
+		for i := range totalIntegrations {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -458,7 +667,9 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 		// Add a lot of DiscoveryConfigs to test pagination
@@ -474,7 +685,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalDiscoveryConfigs; i++ {
+		for i := range totalDiscoveryConfigs {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -571,9 +782,11 @@ func TestCreateLock(t *testing.T) {
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
-	_, err := types.NewLock("test-lock", types.LockSpecV2{
+	_, err = types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
 			User: "bad@actor",
 		},
@@ -643,13 +856,15 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
 	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
-	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -784,7 +999,9 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc               string
@@ -869,7 +1086,9 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc           string
@@ -1036,7 +1255,9 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *authclient.Client {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	return clt
 }
 
@@ -1154,7 +1375,6 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
@@ -1233,117 +1453,10 @@ func TestAppResource(t *testing.T) {
 	test.run(t)
 }
 
-func TestGetOneResourceNameToDelete(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	tests := []struct {
-		desc            string
-		refName         string
-		wantErrContains string
-		resources       []types.KubeServer
-		wantName        string
-	}{
-		{
-			desc:      "one resource is ok",
-			refName:   "foo-bar-eks-us-west-1",
-			resources: []types.KubeServer{fooBar1},
-			wantName:  "foo-bar-eks-us-west-1",
-		},
-		{
-			desc:      "multiple resources with same name is ok",
-			refName:   "foo",
-			resources: []types.KubeServer{foo1, foo2},
-			wantName:  "foo-eks",
-		},
-		{
-			desc:            "zero resources is an error",
-			refName:         "xxx",
-			wantErrContains: `kubernetes server "xxx" not found`,
-		},
-		{
-			desc:            "multiple resources with different names is an error",
-			refName:         "foo-bar",
-			resources:       []types.KubeServer{fooBar1, fooBar2},
-			wantErrContains: "matches multiple",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
-			resDesc := "kubernetes server"
-			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.Equal(t, test.wantName, name)
-		})
-	}
-}
-
-func TestFilterByNameOrDiscoveredName(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	resources := []types.KubeServer{
-		foo1, foo2, fooBar1, fooBar2,
-	}
-	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
-	tests := []struct {
-		desc           string
-		filter         string
-		altNameGetters []altNameFn[types.KubeServer]
-		want           []types.KubeServer
-	}{
-		{
-			desc:   "filters by exact name",
-			filter: "foo-eks-us-west-1",
-			want:   []types.KubeServer{foo1},
-		},
-		{
-			desc:   "filters by exact name over discovered names",
-			filter: "foo-bar",
-			want:   []types.KubeServer{fooBar1},
-		},
-		{
-			desc:   "filters by discovered name",
-			filter: "foo",
-			want:   []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:           "checks alt names for exact matches",
-			filter:         "host-foo",
-			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := filterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-		})
-	}
-}
-
-func TestFormatAmbiguousDeleteMessage(t *testing.T) {
-	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
-	resDesc := "database"
-	names := []string{"xbbb", "xaaa", "xccc", "xb"}
-	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
-	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
-		"should have formatted the ref used and pluralized the resource description")
-	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
-	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
-	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
-}
-
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected interface{}) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+func requireEqual(expected any) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual any, msgAndArgs ...any) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -1368,20 +1481,39 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// tctlGetAllValidations allows tests to register post-test validations to validate
+	// that their resource is present in "tctl get all" output.
+	// This allows running test rows instead of the whole test table.
+	var tctlGetAllValidations []func(t *testing.T, out string)
 
 	tests := []struct {
-		kind   string
-		create func(t *testing.T, clt *authclient.Client)
+		kind        string
+		create      func(t *testing.T, clt *authclient.Client)
+		getAllCheck func(t *testing.T, out string)
 	}{
 		{
 			kind:   types.KindGithubConnector,
 			create: testCreateGithubConnector,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: github")
+			},
 		},
 		{
 			kind:   types.KindRole,
 			create: testCreateRole,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: role")
+			},
 		},
 		{
 			kind:   types.KindServerInfo,
@@ -1390,6 +1522,13 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindUser,
 			create: testCreateUser,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: user")
+			},
+		},
+		{
+			kind:   "empty-doc",
+			create: testCreateWithEmptyDocument,
 		},
 		{
 			kind:   types.KindDatabaseObjectImportRule,
@@ -1402,10 +1541,16 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindClusterNetworkingConfig,
 			create: testCreateClusterNetworkingConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: cluster_networking_config")
+			},
 		},
 		{
 			kind:   types.KindClusterAuthPreference,
 			create: testCreateAuthPreference,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: cluster_auth_preference")
+			},
 		},
 		{
 			kind:   types.KindSessionRecordingConfig,
@@ -1435,11 +1580,21 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindDynamicWindowsDesktop,
 			create: testCreateDynamicWindowsDesktop,
 		},
+		{
+			kind:   types.KindHealthCheckConfig,
+			create: testCreateHealthCheckConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: health_check_config")
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
 			test.create(t, rootClient)
+			if test.getAllCheck != nil {
+				tctlGetAllValidations = append(tctlGetAllValidations, test.getAllCheck)
+			}
 		})
 	}
 
@@ -1447,12 +1602,9 @@ func TestCreateResources(t *testing.T) {
 	out, err := runResourceCommand(t, rootClient, []string{"get", "all"})
 	require.NoError(t, err)
 	s := out.String()
-	require.NotEmpty(t, s)
-	assert.Contains(t, s, "kind: github")
-	assert.Contains(t, s, "kind: cluster_auth_preference")
-	assert.Contains(t, s, "kind: cluster_networking_config")
-	assert.Contains(t, s, "kind: user")
-	assert.Contains(t, s, "kind: role")
+	for _, validateGetAll := range tctlGetAllValidations {
+		validateGetAll(t, s)
+	}
 }
 
 func testCreateGithubConnector(t *testing.T, clt *authclient.Client) {
@@ -1653,6 +1805,22 @@ spec:
 	require.NoError(t, err)
 }
 
+func testCreateWithEmptyDocument(t *testing.T, clt *authclient.Client) {
+	const userYAML = `
+---
+kind: user
+version: v2
+metadata:
+  name: llama2
+spec:
+  roles: ["access"]
+`
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+}
+
 func testCreateUser(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test user does not exist
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindUser + "/llama", "--format=json"})
@@ -1771,8 +1939,8 @@ version: v1
 	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
@@ -2056,8 +2224,8 @@ version: v1
 	var expected databaseobject.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
@@ -2066,7 +2234,7 @@ version: v1
 // The tests are grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -2076,8 +2244,15 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		},
 	})
 
-	process := testenv.MakeTestServer(t)
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		kind   string
@@ -2124,6 +2299,7 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
+  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
@@ -2179,7 +2355,7 @@ spec:
   acs: test
   audience: test
   issuer: test
-  sso: test
+  sso: https://example.com
   service_provider_issuer: test
   display: SAML
   attributes_to_roles:
@@ -2200,8 +2376,8 @@ spec:
         </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>` + "\n"
 
@@ -2326,18 +2502,21 @@ version: v1
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
-	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateConfig](t, buf)
-	require.Len(t, resources, 1)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateConfig
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateConfig
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
-		[]*autoupdate.AutoUpdateConfig{&expected},
-		resources,
+		&expected,
+		&resource,
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
@@ -2368,18 +2547,21 @@ version: v1
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
-	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateVersion](t, buf)
-	require.Len(t, resources, 1)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateVersion
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateVersion
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
-		[]*autoupdate.AutoUpdateVersion{&expected},
-		resources,
+		&expected,
+		&resource,
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
@@ -2423,15 +2605,19 @@ version: v1
 	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateAgentRollout](t, buf)
-	require.Len(t, resources, 1)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateAgentRollout
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
 
 	var expected autoupdate.AutoUpdateAgentRollout
-	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
 
 	require.Empty(t, cmp.Diff(
-		[]*autoupdate.AutoUpdateAgentRollout{&expected},
-		resources,
+		&expected,
+		&resource,
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
@@ -2480,6 +2666,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2505,6 +2693,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2521,6 +2711,118 @@ func TestPluginResourceWrapper(t *testing.T) {
 							AccessToken:  "token",
 							RefreshToken: "refresh_token",
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "identity center",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: apicommon.OriginAWSIdentityCenter,
+					Labels: map[string]string{
+						"teleport.dev/hosted-plugin": "true",
+					},
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_AwsIc{
+						AwsIc: &types.PluginAWSICSettings{
+							Credentials: &types.AWSICCredentials{
+								Source: &types.AWSICCredentials_System{
+									System: &types.AWSICCredentialSourceSystem{},
+								},
+							},
+							Region: "ap-south-2",
+							Arn:    "some:arn",
+							ProvisioningSpec: &types.AWSICProvisioningSpec{
+								BaseUrl: "https://scim.example.com/v2",
+							},
+							AccessListDefaultOwners: []string{"root"},
+							UserSyncFilters: []*types.AWSICUserSyncFilter{
+								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
+								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
+							},
+							GroupSyncFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
+								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
+							},
+							AwsAccountsFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
+							},
+						},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Code: types.PluginStatusCode_RUNNING,
+					Details: &types.PluginStatusV1_AwsIc{
+						AwsIc: &types.PluginAWSICStatusV1{
+							GroupImportStatus: &types.AWSICGroupImportStatus{
+								StatusCode: types.AWSICGroupImportStatusCode_DONE,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "entra_id",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "entra_id",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_EntraId{
+						EntraId: &types.PluginEntraIDSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_EntraId{
+						EntraId: &types.PluginEntraIDStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "gitlab",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "gitlab",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Gitlab{
+						Gitlab: &types.PluginGitlabSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "net_iq",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "net_iq",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_NetIq{
+						NetIq: &types.PluginNetIQSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_NetIq{
+						NetIq: &types.PluginNetIQStatusV1{},
 					},
 				},
 			},

@@ -33,19 +33,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -55,16 +60,17 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
-	t.Parallel()
-
-	silenceLogger(t)
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 
@@ -146,6 +152,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		preferOTP               bool
 		hasTouchIDCredentials   bool
 		authenticatorAttachment wancli.AuthenticatorAttachment
+		scope                   string
 	}{
 		{
 			name: "OTP device login with hijack",
@@ -261,13 +268,25 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			preferOTP:             true,
 			hasTouchIDCredentials: true,
 		},
+		{
+			name: "scoped login",
+			makeInputReader: func(pass, _ string, _ clockwork.Clock) *prompt.FakeReader {
+				return prompt.NewFakeReader().
+					AddString(pass).
+					AddReply(func(ctx context.Context) (string, error) {
+						panic("this should not be called")
+					})
+			},
+			makeSolveWebauthn: solveWebauthn,
+			scope:             "/aa",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Start Teleport.
-			clock := clockwork.NewFakeClockAt(time.Now())
+			clock := clockwork.NewFakeClock()
 			sa := newStandaloneTeleport(t, clock)
 			username := sa.Username
 			password := sa.Password
@@ -276,17 +295,18 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			otpKey := sa.OTPKey
 
 			// Prepare client config.
-			cfg := client.MakeDefaultConfig()
+			cfg := &client.Config{}
+			cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 			cfg.Stdout = io.Discard
 			cfg.Stderr = io.Discard
 			cfg.Stdin = &bytes.Buffer{}
 			cfg.Username = username
 			cfg.HostLogin = username
+			cfg.Scope = test.scope
 			cfg.AddKeysToAgent = client.AddKeysToAgentNo
 			// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
 			// for Webauthn requests, and Webauthn doesn't take IP addresses.
 			cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
-			cfg.KeysDir = t.TempDir()
 			cfg.InsecureSkipVerify = true
 
 			// Prepare the client proper.
@@ -317,15 +337,33 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 			// Test.
 			clock.Advance(30 * time.Second)
-			_, err = tc.Login(ctx)
+			keyRing, err := tc.Login(ctx)
 			require.NoError(t, err)
+
+			if test.scope != "" {
+				// if this was a scoped test case, verify that the scope pin was applied
+				sshCert, err := keyRing.SSHCert()
+				require.NoError(t, err)
+
+				sshIdent, err := sshca.DecodeIdentity(sshCert)
+				require.NoError(t, err)
+
+				require.NotNil(t, sshIdent.ScopePin)
+				require.Empty(t, cmp.Diff(&scopesv1.Pin{
+					Scope: "/aa",
+					Assignments: map[string]*scopesv1.PinnedAssignments{
+						"/aa": {
+							Roles: []string{"role-a"},
+						},
+					},
+				}, sshIdent.ScopePin, protocmp.Transform()))
+				require.Empty(t, sshIdent.Roles)
+			}
 		})
 	}
 }
 
 func TestTeleportClient_DeviceLogin(t *testing.T) {
-	silenceLogger(t)
-
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
 	username := sa.Username
@@ -344,7 +382,8 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
 	// Prepare client config, it won't change throughout the test.
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
+	cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 	cfg.Stdout = io.Discard
 	cfg.Stderr = io.Discard
 	cfg.Stdin = &bytes.Buffer{}
@@ -352,7 +391,6 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	cfg.HostLogin = username
 	cfg.AddKeysToAgent = client.AddKeysToAgentNo
 	cfg.WebProxyAddr = sa.ProxyWebAddr
-	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
 	teleportClient, err := client.NewClient(cfg)
@@ -521,12 +559,6 @@ type standaloneBundle struct {
 func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundle {
 	randomAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
-	// Silent logger and console.
-	logger := utils.NewLoggerForTests()
-	logger.SetLevel(log.PanicLevel)
-	logger.SetOutput(io.Discard)
-	console := io.Discard
-
 	staticToken := uuid.New().String()
 
 	// Prepare role and user.
@@ -558,8 +590,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
-	cfg.Console = console
-	cfg.Log = logger
+	cfg.Logger = logtest.NewLogger()
 	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -592,10 +623,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	authAddr, err := authProcess.AuthAddr()
 	require.NoError(t, err)
 
-	// Use the same clock on AuthServer, it doesn't appear to cascade from
-	// configs.
 	authServer := authProcess.GetAuthServer()
-	authServer.SetClock(clock)
 
 	// Initialize user's password and MFA.
 	ctx := context.Background()
@@ -636,14 +664,16 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertMFADevice(ctx, username, otpDevice))
 
+	// Assign some basic scoped roles to the user.
+	createAndAssignScopedRoles(t, ctx, authServer, username)
+
 	// Proxy setup.
 	cfg = servicecfg.MakeDefaultConfig()
 	cfg.DataDir = makeDataDir()
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
 	cfg.Clock = clock
-	cfg.Console = console
-	cfg.Log = logger
+	cfg.Logger = logtest.NewLogger()
 	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = true
@@ -672,6 +702,99 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	}
 }
 
+// createAndAssignScopedRoles creates two scoped roles and assigns them to the given user, one at /aa and one at /bb. this provides
+// a rudimentary mechanism for testing scoped login functionality.
+func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *auth.Server, username string) {
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: scopedaccess.KindScopedRole},
+			{Kind: scopedaccess.KindScopedRoleAssignment},
+		},
+	})
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	// wait for watcher init before performing writes
+	select {
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type)
+	case <-watcher.Done():
+		require.FailNow(t, "watcher closed unexpected", "err: %v", watcher.Error())
+	}
+
+	scopedRoles := []*scopedaccessv1.ScopedRole{
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "role-a",
+			},
+			Scope: "/aa",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/aa"},
+			},
+			Version: types.V1,
+		},
+		{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: &headerv1.Metadata{
+				Name: "role-b",
+			},
+			Scope: "/bb",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/bb"},
+			},
+			Version: types.V1,
+		},
+	}
+
+	roleRevisions := make(map[string]string)
+	for _, role := range scopedRoles {
+		rsp, err := authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			Role: role,
+		})
+		require.NoError(t, err)
+
+		roleRevisions[role.GetMetadata().GetName()] = rsp.GetRole().GetMetadata().GetRevision()
+	}
+
+	// assign both roles to user
+	for _, role := range scopedRoles {
+		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				Kind: scopedaccess.KindScopedRoleAssignment,
+				Metadata: &headerv1.Metadata{
+					Name: uuid.NewString(),
+				},
+				Scope: role.GetScope(),
+				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+					User: username,
+					Assignments: []*scopedaccessv1.Assignment{
+						{
+							Role:  role.GetMetadata().GetName(),
+							Scope: role.GetScope(),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			RoleRevisions: map[string]string{
+				role.GetMetadata().GetName(): roleRevisions[role.GetMetadata().GetName()],
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < 4; i++ {
+		// consume events generated by the above writes
+		select {
+		case event := <-watcher.Events():
+			t.Logf("watcher event: %+v", event)
+		case <-watcher.Done():
+			require.FailNow(t, "watcher closed unexpected", "err: %v", watcher.Error())
+		}
+	}
+}
+
 func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *service.TeleportProcess {
 	instance, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -683,26 +806,15 @@ func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *servi
 	return instance
 }
 
-// silenceLogger silences logger during testing.
-func silenceLogger(t *testing.T) {
-	lvl := log.GetLevel()
-	t.Cleanup(func() {
-		log.SetOutput(os.Stderr)
-		log.SetLevel(lvl)
-	})
-	log.SetOutput(io.Discard)
-	log.SetLevel(log.PanicLevel)
-}
-
 func TestRetryWithRelogin(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
 
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
+	cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 	cfg.Username = sa.Username
 	cfg.HostLogin = sa.Username
 	cfg.WebProxyAddr = sa.ProxyWebAddr
-	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 	cfg.AllowStdinHijack = true
 

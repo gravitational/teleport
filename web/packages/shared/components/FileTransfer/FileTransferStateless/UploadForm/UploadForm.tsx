@@ -18,18 +18,19 @@
 
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import { Text } from 'design';
 import { NoteAdded } from 'design/Icon';
 
-import { PathInput, Form } from '../CommonElements';
+import { Form, PathInput } from '../CommonElements';
 
 interface UploadFormProps {
   onAddUpload(destinationPath: string, file: File): void;
 }
 
 export function UploadForm(props: UploadFormProps) {
-  const dropzoneRef = useRef<HTMLButtonElement>();
-  const fileSelectorRef = useRef<HTMLInputElement>();
+  const dropzoneRef = useRef<HTMLButtonElement>(null);
+  const fileSelectorRef = useRef<HTMLInputElement>(null);
   const [destinationPath, setDestinationPath] = useState('~/');
 
   function onFileSelected(e: React.ChangeEvent<HTMLInputElement>): void {

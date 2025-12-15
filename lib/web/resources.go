@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"iter"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,89 +30,29 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-// checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
-//
-// Deprecated: Use `clusterUnifiedResourcesGet` instead.
-// TODO(kiosion): DELETE in 18.0
-func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	// Get a client to the Auth Server with the logged in user's identity. The
-	// identity of the logged in user is used to fetch the list of resources.
-	clt, err := c.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resourceKinds := []string{
-		types.KindNode,
-		types.KindDatabaseServer,
-		types.KindAppServer,
-		types.KindKubeServer,
-		types.KindWindowsDesktop,
-		types.KindSAMLIdPServiceProvider,
-	}
-
-	for _, kind := range resourceKinds {
-		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
-			ResourceType: kind,
-			Limit:        1,
-		})
-		if err != nil {
-			// Access denied error is returned when user does not have permissions
-			// to read/list a resource kind which can be ignored as this function is not
-			// about checking if user has the right perms.
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-
-		if len(res.Resources) > 0 {
-			return checkAccessToRegisteredResourceResponse{
-				HasResource: true,
-			}, nil
-		}
-	}
-
-	return checkAccessToRegisteredResourceResponse{
-		HasResource: false,
-	}, nil
-}
-
-func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) listRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	values := r.URL.Query()
-	// If limit exists as a query parameter, this means its coming from a "new" webui
-	// and can return the new paginated response.
-	// TODO(gzdunek): DELETE IN 17.0.0: remove "getRoles".
-	if values.Has("limit") {
-		return listRoles(clt, values)
-	}
-	return getRoles(clt)
-}
-
-func getRoles(clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	roles, err := clt.GetRoles(context.TODO())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.NewRoles(roles)
+	return listRoles(clt, values)
 }
 
 func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithoutCountGetResponse, error) {
@@ -120,12 +61,15 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 		return nil, trace.Wrap(err)
 	}
 
+	skipSystemRoles := values.Get("includeSystemRoles") != "yes"
+	includeRoleObject := values.Get("includeObject") == "yes"
+
 	roles, err := clt.ListRoles(context.TODO(), &proto.ListRolesRequest{
 		Limit:    limit,
 		StartKey: values.Get("startKey"),
 		Filter: &types.RoleFilter{
 			SearchKeywords:  client.ParseSearchKeywords(values.Get("search"), ' '),
-			SkipSystemRoles: true,
+			SkipSystemRoles: skipSystemRoles,
 		},
 	})
 	if err != nil {
@@ -137,7 +81,7 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 		typeRoles = append(typeRoles, role)
 	}
 
-	uiRoles, err := ui.NewRoles(typeRoles)
+	uiRoles, err := ui.NewRoles(typeRoles, includeRoleObject)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +92,42 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 	}, nil
 }
 
-func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+// listRequestableRolesHandle is the web handler for listing requestable roles.
+// Under the hood this just calls the `ListRoles` method with a filter for requestable roles,
+// we have this as a separate endpoint because the response needs to be formatted differently.
+func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	values := r.URL.Query()
+
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rolesReq := &proto.ListRequestableRolesRequest{
+		PageSize:  limit,
+		PageToken: values.Get("startKey"),
+		Filter: &proto.ListRequestableRolesRequest_Filter{
+			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
+		},
+	}
+
+	resp, err := clt.ListRequestableRoles(r.Context(), rolesReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesWithoutCountGetResponse{
+		Items:    ui.RequestableRolesFromProto(resp.Roles),
+		StartKey: resp.NextPageToken,
+	}, nil
+}
+
+func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -162,7 +141,7 @@ func (h *Handler) deleteRole(w http.ResponseWriter, r *http.Request, params http
 	return OK(), nil
 }
 
-func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -172,7 +151,23 @@ func (h *Handler) createRoleHandle(w http.ResponseWriter, r *http.Request, param
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getRole(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roleName := params.ByName("name")
+	role, err := clt.GetRole(r.Context(), roleName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ri, err := ui.NewResourceItem(role)
+	return ri, trace.Wrap(err)
+}
+
+func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -186,22 +181,104 @@ func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, param
 // this server. These are hard-coded for a given Teleport version, so this
 // should have the same security implications as the Teleport version exposed
 // via the public ping endpoint.
-func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	presets := auth.GetPresetRoles()
-	return ui.NewRoles(presets)
+	return ui.NewRoles(presets, false /* without role object */)
 }
 
-func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+// getGithubConnectorHandle returns a GitHub connector by name.
+func (h *Handler) getGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return getGithubConnectors(r.Context(), clt)
+	connector, err := clt.GetGithubConnector(r.Context(), params.ByName("name"), true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewResourceItem(connector)
+}
+
+func (h *Handler) getGithubConnectorsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connectors, err := getGithubConnectors(r.Context(), clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defaultConnectorName, defaultConnectorType, err := ProcessDefaultConnector(r.Context(), clt, connectors)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListAuthConnectorsResponse{
+		DefaultConnectorName: defaultConnectorName,
+		DefaultConnectorType: defaultConnectorType,
+		Connectors:           connectors,
+	}, nil
+}
+
+// ProcessDefaultConnector returns the default connector type and validates that the provided connectors list contains the default connector that is set in the auth preference.
+// If it isn't, it will return a fallback connector which should be used as the default, as well as update the actual auth preference to reflect the change.
+func ProcessDefaultConnector(ctx context.Context, clt authclient.ClientI, connectors []ui.ResourceItem) (connectorName string, connectorType string, err error) {
+	authPref, err := clt.GetAuthPreference(ctx)
+	if err != nil {
+		return "", "", trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+
+	if len(connectors) == 0 || defaultConnectorType == constants.Local {
+		// If there are no connectors or the default is already local, default to 'local' as the default connector.
+		defaultConnectorType = constants.Local
+		defaultConnectorName = ""
+	} else {
+		// Ensure that the default connector set in the auth preference exists in the list.
+		found := false
+		for _, c := range connectors {
+			if c.Name == defaultConnectorName && c.Kind == defaultConnectorType {
+				found = true
+				break
+			}
+		}
+		// If the default connector set in the auth preference doesn't exist, use the last connector in the list as the default.
+		if !found {
+			defaultConnectorName = connectors[len(connectors)-1].Name
+			defaultConnectorType = connectors[len(connectors)-1].Kind
+		}
+	}
+
+	// If the default connector we are returning here is different from the initial, also update the actual auth preference so that it's in sync.
+	if defaultConnectorName != authPref.GetConnectorName() || defaultConnectorType != authPref.GetType() {
+		authPref.SetConnectorName(defaultConnectorName)
+		authPref.SetType(defaultConnectorType)
+
+		_, err = clt.UpsertAuthPreference(ctx, authPref)
+		if err != nil {
+			return "", "", trace.Wrap(err, "failed to set fallback auth preference")
+		}
+	}
+
+	return defaultConnectorName, defaultConnectorType, nil
 }
 
 func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	connectors, err := clt.GetGithubConnectors(ctx, true)
+	// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
+	connectors, err := clientutils.CollectWithFallback(ctx,
+		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
+			return clt.ListGithubConnectors(ctx, limit, start, true)
+		},
+		func(ctx context.Context) ([]types.GithubConnector, error) {
+			return clt.GetGithubConnectors(ctx, true)
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -209,7 +286,7 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	return ui.NewGithubConnectors(connectors)
 }
 
-func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -220,10 +297,30 @@ func (h *Handler) deleteGithubConnector(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	defaultConnectorName := authPref.GetConnectorName()
+	defaultConnectorType := authPref.GetType()
+	// If the connector being deleted is the default, have the auth preference fallback to another connector.
+	if defaultConnectorType == constants.Github && defaultConnectorName == connectorName {
+		connectors, err := getGithubConnectors(r.Context(), clt)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		_, _, err = ProcessDefaultConnector(r.Context(), clt, connectors)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return OK(), nil
 }
 
-func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -233,7 +330,7 @@ func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -243,7 +340,7 @@ func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	return item, trace.Wrap(err)
 }
 
-func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,15 +350,24 @@ func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Reques
 }
 
 func getTrustedClusters(ctx context.Context, clt resourcesAPIGetter) ([]ui.ResourceItem, error) {
-	trustedClusters, err := clt.GetTrustedClusters(ctx)
+
+	trustedClusters, err := stream.Collect(clientutils.Resources(ctx, clt.ListTrustedClusters))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// TODO(okraport) DELETE IN v21.0.0
+		if trace.IsNotImplemented(err) {
+			trustedClusters, err = clt.GetTrustedClusters(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return ui.NewTrustedClusters(trustedClusters)
 }
 
-func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -275,7 +381,7 @@ func (h *Handler) deleteTrustedCluster(w http.ResponseWriter, r *http.Request, p
 	return OK(), nil
 }
 
-func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -348,7 +454,7 @@ func CreateResource[T types.Resource](r *http.Request, kind string, unmarshalFn 
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	resource, err := unmarshalFn(extractedRes.Raw)
+	resource, err := unmarshalFn(extractedRes.Raw, services.DisallowUnknown())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -395,7 +501,7 @@ func UpdateResource[T types.Resource](r *http.Request, params httprouter.Params,
 		return nil, trace.BadParameter("resource renaming is not supported, please create a different resource and then delete this one")
 	}
 
-	resource, err := unmarshalFn(extractedRes.Raw)
+	resource, err := unmarshalFn(extractedRes.Raw, services.DisallowUnknown())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -558,7 +664,7 @@ func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeprot
 
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
-	Items interface{} `json:"items"`
+	Items any `json:"items"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
 	// TotalCount is the total count of resources available
@@ -568,28 +674,28 @@ type listResourcesGetResponse struct {
 
 type listResourcesWithoutCountGetResponse struct {
 	// Items is a list of resources retrieved.
-	Items interface{} `json:"items"`
+	Items any `json:"items"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
-}
-
-type checkAccessToRegisteredResourceResponse struct {
-	// HasResource is a flag to indicate if user has any access
-	// to a registered resource or not.
-	HasResource bool `json:"hasResource"`
 }
 
 type resourcesAPIGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
 	// ListRoles returns a paginated list of roles.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+	// ListRequestableRoles returns a paginated list of requestable roles.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 	// UpsertRole creates or updates role
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
@@ -600,6 +706,8 @@ type resourcesAPIGetter interface {
 	GetTrustedCluster(ctx context.Context, name string) (types.TrustedCluster, error)
 	// GetTrustedClusters returns all TrustedClusters in the backend.
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
+	// ListTrustedClusters returns a page of Trusted Cluster resources.
+	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResources returns a paginated list of resources.

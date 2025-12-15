@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -77,7 +78,7 @@ func onKubeCredentialsCommand(
 		return trace.Wrap(err)
 	}
 
-	idData, err := destination.Read(ctx, config.IdentityFilePath)
+	idData, err := destination.Read(ctx, identity.IdentityFilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -1,0 +1,59 @@
+The Teleport Database Service requires connectivity to your database endpoints.
+
+Check that firewall rules (e.g., AWS security groups) allow connectivity between the Teleport Database Service and the database endpoint.
+- Inbound firewall rules for the database must allow connections from the Teleport Database Service.
+- Outbound firewall rules for the Teleport Database Service must allow connections to the database endpoint.
+
+<Admonition type="tip">
+On the same host as the Teleport Database Service, try running `nc` to check if it can reach the database port.
+
+- Database host: <Var name="database-host" initial="postgres-instance-1.sadas.us-east-1.rds.amazonaws.com" />
+- Database port: <Var name="database-port" initial="5432" />
+
+```code
+$ nc -zv <Var name="database-host" /> <Var name="database-port" />
+# Connection to postgres-instance-1.sadas.us-east-1.rds.amazonaws.com (172.31.24.172) 5432 port [tcp/postgresql] succeeded!
+```
+</Admonition>
+
+<details>
+<summary>Debugging connection timeout errors in AWS</summary>
+
+For deployments in AWS, it may be helpful to use [AWS Reachability Analyzer](https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html) to analyze the network path between the Teleport Database Service and the database.
+
+1. Identify the Elastic Network Interface (ENI) associated with the Teleport Database Service host. This can be found in the [EC2 console](https://console.aws.amazon.com/ec2/home?NIC).
+2. Identify the private IP address of the database.
+3. Create and analyze a network path:
+    - Set the path source to the ENI associated with the Teleport Database Service host.
+    - Set the path destination to the database IP.
+4. Check the analysis results to identify reachability issues.
+
+</details>
+
+If your database is registered dynamically or via auto-discovery, repeat the
+above connectivity test for *every** Teleport Database Service instance that
+proxies this database. To list all Teleport Database Service instances
+associated with a given database, run the `tctl get db_server/<db_name>`
+command. For example:
+```
+$ tctl get db_server/postgres-instance-1 --format json | jq '.[] | {hostname: .spec.hostname, host_id: .spec.host_id, version: .spec.version, target_health: .status.target_health}'
+{
+  "hostname": "ip-10-0-0-111.ca-central-1.compute.internal",
+  "host_id": "e5e670ac-a7b8-44ef-b373-6296d87f50e8",
+  "version": "18.3.0",
+  "target_health": {
+    "status": "unhealthy",
+    ...
+  }
+}
+{
+  "hostname": "ip-10-0-0-222.ca-central-1.compute.internal",
+  ...
+}
+```
+
+If any of the Database Service instances listed here **should not** proxy the
+database, (for example, a Database Service instance in a different VPC or AWS
+region without connectivity), locate and update their configurations so they
+only receive or discover databases they can reach. In most cases, you can
+achieve this by refining your tag filters, such as adding the a `vpc-id` label.

@@ -29,12 +29,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/quic-go/quic-go"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	quicpeeringv1a "github.com/gravitational/teleport/gen/proto/go/teleport/quicpeering/v1alpha"
@@ -217,7 +217,7 @@ func (c *ClientConn) Shutdown(ctx context.Context) {
 }
 
 // Dial implements [internal.ClientConn].
-func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType types.TunnelType) (_ net.Conn, err error) {
+func (c *ClientConn) Dial(nodeID, scope string, src net.Addr, dst net.Addr, tunnelType types.TunnelType) (_ net.Conn, err error) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -236,6 +236,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 
 	req := &quicpeeringv1a.DialRequest{
 		TargetHostId:   nodeID,
+		TargetScope:    scope,
 		ConnectionType: string(tunnelType),
 		Source: &quicpeeringv1a.Addr{
 			Network: src.Network(),
@@ -278,7 +279,7 @@ func (c *ClientConn) Dial(nodeID string, src net.Addr, dst net.Addr, tunnelType 
 		return nil, trace.Wrap(err)
 	}
 
-	var conn quic.Connection = earlyConn
+	conn := earlyConn
 	defer func() {
 		if err == nil {
 			return
@@ -466,7 +467,7 @@ func (c *ClientConn) Ping(ctx context.Context) error {
 // response buffer. Request and response are length-prefixed by a 32 bit little
 // endian integer, but the buffer size is also limited by [quicMaxMessageSize].
 // The given request buffer should already be length-prefixed.
-func sendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection) (_ []byte, _ quic.Stream, err error) {
+func sendUnary(deadline time.Time, sizedReqBuf []byte, conn *quic.Conn) (_ []byte, _ *quic.Stream, err error) {
 	stream, err := conn.OpenStream()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -501,8 +502,8 @@ func sendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection) (_ 
 // streamConn is a [net.Conn] using a single [quic.Stream] in a dedicated
 // [quic.Connection].
 type streamConn struct {
-	st   quic.Stream
-	conn quic.Connection
+	st   *quic.Stream
+	conn *quic.Conn
 
 	src net.Addr
 	dst net.Addr

@@ -17,10 +17,11 @@
  */
 
 import styled from 'styled-components';
+
 import { Cell } from 'design/DataTable';
 import * as Icons from 'design/Icon';
 
-import { eventCodes, Event, EventCode } from 'teleport/services/audit';
+import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
 const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
@@ -97,6 +98,11 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.WORKLOAD_IDENTITY_CREATE]: Icons.Info,
   [eventCodes.WORKLOAD_IDENTITY_UPDATE]: Icons.Info,
   [eventCodes.WORKLOAD_IDENTITY_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_IDENTITY_X509_ISSUER_OVERRIDE_DELETE]: Icons.Info,
+  [eventCodes.SIGSTORE_POLICY_CREATE]: Icons.Info,
+  [eventCodes.SIGSTORE_POLICY_UPDATE]: Icons.Info,
+  [eventCodes.SIGSTORE_POLICY_DELETE]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
@@ -104,6 +110,7 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.ACCESS_REQUEST_REVIEWED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_DELETED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_RESOURCE_SEARCH]: Icons.Info,
+  [eventCodes.ACCESS_REQUEST_EXPIRED]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGIN]: Icons.Info,
   [eventCodes.USER_LOCAL_LOGINFAILURE]: Icons.Info,
   [eventCodes.USER_SSO_LOGIN]: Icons.Info,
@@ -292,6 +299,50 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.UNKNOWN]: Icons.Question,
   [eventCodes.GIT_COMMAND]: Icons.GitHub,
   [eventCodes.GIT_COMMAND_FAILURE]: Icons.GitHub,
+  [eventCodes.STABLE_UNIX_USER_CREATE]: Icons.Info,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: Icons.AmazonAws,
+  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.AUTOUPDATE_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_CREATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_UPDATE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_VERSION_DELETE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: Icons.RocketLaunch,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_FORCE_DONE]: Icons.Checks,
+  [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_ROLLBACK]: Icons.Restore,
+  [eventCodes.MCP_SESSION_START]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_END]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_END_FAILURE]: Icons.Warning,
+  [eventCodes.MCP_SESSION_REQUEST]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: Icons.Warning,
+  [eventCodes.MCP_SESSION_NOTIFICATION]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: Icons.Warning,
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: Icons.ModelContextProtocol,
+  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: Icons.Warning,
+  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: Icons.Warning,
+  [eventCodes.BOUND_KEYPAIR_RECOVERY]: Icons.Info,
+  [eventCodes.BOUND_KEYPAIR_ROTATION]: Icons.Info,
+  [eventCodes.BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_CREATE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_UPDATE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_DELETE]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_GET]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: Icons.Warning,
+  [eventCodes.SCIM_RESOURCE_LIST]: Icons.Info,
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: Icons.Warning,
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_CREATE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_UPDATE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_DELETE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {

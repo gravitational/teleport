@@ -18,6 +18,7 @@
 
 import { useRef } from 'react';
 import styled from 'styled-components';
+
 import { Box, ButtonPrimary, Card, Flex, Text } from 'design';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
@@ -32,7 +33,7 @@ export default function RecoveryCodesDialog({
   continueText = 'Continue',
   username = '',
 }: RecoveryCodesProps) {
-  const codesRef = useRef();
+  const codesRef = useRef(undefined);
 
   const captureRecoveryCodeEvent = (event: CaptureEvent) => {
     if (username) {

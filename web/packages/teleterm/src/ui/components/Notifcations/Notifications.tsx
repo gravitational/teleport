@@ -17,12 +17,14 @@
  */
 
 import styled from 'styled-components';
-import { Notification } from 'shared/components/Notification';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import {
+  ToastNotification,
+  type ToastNotificationItem,
+} from 'shared/components/ToastNotification';
 
 interface NotificationsProps {
-  items: NotificationItem[];
+  items: ToastNotificationItem[];
 
   onRemoveItem(id: string): void;
 }
@@ -31,7 +33,7 @@ export function Notifications(props: NotificationsProps) {
   return (
     <Container>
       {props.items.map(item => (
-        <Notification
+        <ToastNotification
           mb={3}
           key={item.id}
           item={item}

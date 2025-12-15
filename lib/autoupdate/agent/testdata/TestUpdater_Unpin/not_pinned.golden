@@ -2,6 +2,7 @@ version: v1
 kind: update_config
 spec:
     proxy: ""
+    path: ""
     enabled: false
     pinned: false
 status:

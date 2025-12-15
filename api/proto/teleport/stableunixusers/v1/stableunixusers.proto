@@ -1,0 +1,70 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.stableunixusers.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1;stableunixusersv1";
+
+// contains the RPCs related to the stable UNIX users functionality
+service StableUNIXUsersService {
+  // returns the assigned stable UID for a given UNIX username, assigning one
+  // from the configured UID range if necessary; if the feature is disabled or
+  // the available UID range is full the returned error will be
+  // RESOURCE_EXHAUSTED (i.e. trace.LimitExceededError), whereas an error caused
+  // by high concurrent access to the storage will be (incorrectly, alas)
+  // signaled by a FAILED_PRECONDITION error (i.e. trace.CompareFailedError)
+  rpc ObtainUIDForUsername(ObtainUIDForUsernameRequest) returns (ObtainUIDForUsernameResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+
+  // returns a page of username/UID pairs from the collection of stable UID assignments
+  rpc ListStableUNIXUsers(ListStableUNIXUsersRequest) returns (ListStableUNIXUsersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// request message for ObtainUIDForUsername
+message ObtainUIDForUsernameRequest {
+  string username = 1;
+}
+
+// response message for ObtainUIDForUsername
+message ObtainUIDForUsernameResponse {
+  int32 uid = 1;
+}
+
+// request message for ListStableUNIXUsers
+message ListStableUNIXUsersRequest {
+  // if left unset, the page size will default to a reasonable value chosen by
+  // the server
+  int32 page_size = 1;
+  // if unset or blank, the rpc will return the first page
+  string page_token = 2;
+}
+
+// a pair of stable UNIX username and UID
+message StableUNIXUser {
+  string username = 1;
+  int32 uid = 2;
+}
+
+// response message for ListStableUNIXUsers
+message ListStableUNIXUsersResponse {
+  repeated StableUNIXUser stable_unix_users = 1;
+  // if empty, the listing has reached the end; otherwise, ListStableUNIXUsers
+  // can be called again with the new page_token to get more data
+  string next_page_token = 2;
+}

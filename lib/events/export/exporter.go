@@ -19,6 +19,7 @@
 package export
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"slices"
@@ -57,22 +58,64 @@ func (s *ExporterState) Clone() ExporterState {
 	return out
 }
 
+// BulkExportResumeState contains the information used to update the resume state
+// (specifically the Cursor and Completed flag) for a given Date and Chunk
+// on an external system managing the overall bulk export process.
+type BulkExportResumeState struct {
+	// Date is the specific day for which the resume state is being updated,
+	// expected to be normalized to UTC midnight (00:00:00).
+	Date time.Time
+	// Chunk identifies the specific data segment or partition (within the Date)
+	// for which this resume state applies.
+	Chunk string
+	// Cursor marks the position (e.g., the next event ID or offset) within
+	// the Chunk from where the export should resume.
+	Cursor string
+	// Completed indicates whether processing for this specific Date and Chunk
+	// has been fully and successfully exported.
+	Completed bool
+}
+
+// BatchExportConfig instructs the Exporter to use the
+// BatchExportConfig.Callback with events batched up to MaxSize and a maximum
+// delay of BatchExportConfig.MaxDelay between calls.
+type BatchExportConfig struct {
+	// Callback is used to export batched events. It must be safe for concurrent
+	// use if the ExportConfig.Concurrency parameter is greater than 1.
+	Callback func(ctx context.Context, events []*auditlogpb.EventUnstructured, resumeState BulkExportResumeState) error
+	// MaxDelay specifies the maximum duration to wait before invoking the
+	// Callback with a batch of events, even if MaxSize has not been reached.
+	// If the zero value is provided for this field, a default duration of 5 *
+	// time.Second will be used by the exporter.
+	MaxDelay time.Duration
+	// MaxSize defines the maximum total size in bytes of the events accumulated
+	// in a single batch before the Callback is invoked. If the zero value is
+	// provided for this field, a default size of 2 MB will be used by the
+	// exporter.
+	MaxSize int
+}
+
 // ExporterConfig configured an exporter.
 type ExporterConfig struct {
 	// Client is the audit event client used to fetch and export events.
 	Client Client
 	// StartDate is the date from which to start exporting events.
 	StartDate time.Time
+
 	// Export is the callback used to export events. Must be safe for concurrent use if
 	// the Concurrency parameter is greater than 1.
 	Export func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error
+	// BatchExport is the callback with configuration used to export bulk events in batches.
+	BatchExport *BatchExportConfig
 	// OnIdle is an optional callback that gets invoked periodically when the exporter is idle. Note that it is
 	// safe to close the exporter or inspect its state from within this callback, but waiting on the exporter's
 	// Done channel within this callback will deadlock. This callback is an asynchronous signal and additional
 	// events may be discovered concurrently with its invocation.
 	OnIdle func(ctx context.Context)
+
 	// PreviousState is an optional parameter used to resume from a previous date export run.
 	PreviousState ExporterState
+
 	// Concurrency sets the maximum number of event chunks that will be processed concurrently
 	// for a given date (defaults to 1). Note that the total number of inflight chunk processing
 	// may be up to Conurrency * (BacklogSize + 1).
@@ -94,20 +137,21 @@ func (cfg *ExporterConfig) CheckAndSetDefaults() error {
 	if cfg.StartDate.IsZero() {
 		return trace.BadParameter("missing required parameter StartDate in ExporterConfig")
 	}
-	if cfg.Export == nil {
-		return trace.BadParameter("missing required parameter Export in ExporterConfig")
+	if cfg.Export == nil && cfg.BatchExport == nil {
+		return trace.BadParameter("missing required parameter Export or BatchExport in ExporterConfig")
 	}
-	if cfg.Concurrency == 0 {
-		cfg.Concurrency = 1
+	if cfg.Export != nil && cfg.BatchExport != nil {
+		return trace.BadParameter("only one of Export or BatchExport may be set in ExporterConfig")
 	}
-	if cfg.BacklogSize == 0 {
-		cfg.BacklogSize = 1
+	if cfg.BatchExport != nil && cfg.BatchExport.Callback == nil {
+		return trace.BadParameter("missing parameter BatchExport.Callback in ExporterConfig")
 	}
-	if cfg.MaxBackoff == 0 {
-		cfg.MaxBackoff = 90 * time.Second
-	}
-	if cfg.PollInterval == 0 {
-		cfg.PollInterval = 16 * time.Second
+	cfg.Concurrency = cmp.Or(cfg.Concurrency, 1)
+	cfg.MaxBackoff = cmp.Or(cfg.MaxBackoff, 90*time.Second)
+	cfg.PollInterval = cmp.Or(cfg.PollInterval, 16*time.Second)
+	if cfg.BatchExport != nil {
+		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
+		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
 	return nil
 }
@@ -189,7 +233,7 @@ func (e *Exporter) Close() {
 
 // Done provides a channel that will be closed when the exporter has completed processing all inflight dates. When saving the
 // final state of the exporter for future resumption, this channel must be waited upon before state is loaded. Note that the date
-// exporter never termiantes unless Close is called, so waiting on Done is only meaningful after Close has been called.
+// exporter never terminates unless Close is called, so waiting on Done is only meaningful after Close has been called.
 func (e *Exporter) Done() <-chan struct{} {
 	return e.done
 }
@@ -405,6 +449,7 @@ func (e *Exporter) resumeExportLocked(ctx context.Context, date time.Time, state
 		Client:        e.cfg.Client,
 		Date:          date,
 		Export:        e.cfg.Export,
+		BatchExport:   e.cfg.BatchExport,
 		OnIdle:        onIdle,
 		PreviousState: state,
 		Concurrency:   e.cfg.Concurrency,

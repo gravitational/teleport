@@ -18,9 +18,8 @@
 
 import { useState } from 'react';
 
+import Flex, { Stack } from '../Flex';
 import Text from '../Text';
-import Flex from '../Flex';
-
 import { Toggle } from './Toggle';
 
 export default {
@@ -29,10 +28,10 @@ export default {
 
 export const Default = () => {
   return (
-    <Flex flexDirection="column" gap={4}>
+    <Stack gap={4} bg="levels.surface" p={3}>
       <ToggleRow initialToggled={false} />
       <ToggleRow initialToggled={true} />
-    </Flex>
+    </Stack>
   );
 };
 

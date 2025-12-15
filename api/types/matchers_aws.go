@@ -17,10 +17,13 @@ limitations under the License.
 package types
 
 import (
+	"os"
 	"slices"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 )
@@ -37,6 +40,10 @@ const (
 	// AWSInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command.
 	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+
+	// AWSSSMDocumentRunShellScript is the `AWS-RunShellScript` SSM Document name.
+	// It is available in all AWS accounts and does not need to be manually created.
+	AWSSSMDocumentRunShellScript = "AWS-RunShellScript"
 
 	// AWSAgentlessInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command .
@@ -56,6 +63,8 @@ const (
 	AWSMatcherRedshiftServerless = "redshift-serverless"
 	// AWSMatcherElastiCache is the AWS matcher type for ElastiCache databases.
 	AWSMatcherElastiCache = "elasticache"
+	// AWSMatcherElastiCacheServerless is the AWS matcher type for ElastiCacheServerless databases.
+	AWSMatcherElastiCacheServerless = "elasticache-serverless"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
 	// AWSMatcherOpenSearch is the AWS matcher type for OpenSearch databases.
@@ -81,6 +90,7 @@ var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRedshift,
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
+	AWSMatcherElastiCacheServerless,
 	AWSMatcherMemoryDB,
 	AWSMatcherOpenSearch,
 	AWSMatcherDocumentDB,
@@ -109,6 +119,23 @@ func (m AWSMatcher) CopyWithTypes(t []string) Matcher {
 	return newMatcher
 }
 
+func isAlphanumericIncluding(s string, extraChars ...rune) bool {
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || slices.Contains(extraChars, r) {
+			continue
+		}
+
+		return false
+	}
+
+	return true
+}
+
+// IsRegionWildcard returns true if the matcher is configured to discover resources in all regions.
+func (m *AWSMatcher) IsRegionWildcard() bool {
+	return len(m.Regions) == 1 && m.Regions[0] == Wildcard
+}
+
 // CheckAndSetDefaults that the matcher is correct and adds default values.
 func (m *AWSMatcher) CheckAndSetDefaults() error {
 	for _, matcherType := range m.Types {
@@ -123,10 +150,17 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 	}
 
 	if len(m.Regions) == 0 {
-		return trace.BadParameter("discovery service requires at least one region")
+		return trace.BadParameter("discovery service requires at least one region, for EC2 you can also set the region to %q to iterate over all regions (requires account:ListRegions IAM permission)", Wildcard)
 	}
 
 	for _, region := range m.Regions {
+		if region == Wildcard {
+			if len(m.Regions) > 1 {
+				return trace.BadParameter("when using %q as region, no other regions can be specified", Wildcard)
+			}
+			break
+		}
+
 		if err := awsapiutils.IsValidRegion(region); err != nil {
 			return trace.BadParameter("discovery service does not support region %q", region)
 		}
@@ -184,6 +218,12 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
 	}
 
+	if slices.Contains(m.Types, AWSMatcherEC2) && m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
+		if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); !eiceEnabled {
+			return trace.BadParameter(constants.EICEDisabledMessage)
+		}
+	}
+
 	switch m.Params.JoinMethod {
 	case JoinMethodIAM, "":
 		m.Params.JoinMethod = JoinMethodIAM
@@ -197,6 +237,22 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 
 	if m.Params.SSHDConfig == "" {
 		m.Params.SSHDConfig = SSHDConfigPath
+	}
+
+	if m.Params.Suffix != "" {
+		if !isAlphanumericIncluding(m.Params.Suffix, '-') {
+			return trace.BadParameter("install.suffix can only contain alphanumeric characters and hyphens")
+		}
+	}
+
+	if m.Params.UpdateGroup != "" {
+		if !isAlphanumericIncluding(m.Params.UpdateGroup, '-') {
+			return trace.BadParameter("install.update_group can only contain alphanumeric characters and hyphens")
+		}
+	}
+
+	if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if m.Params.ScriptName == "" {

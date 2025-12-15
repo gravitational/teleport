@@ -43,14 +43,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 func TestModeratedSessions(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s: {Enabled: true},
 		},
@@ -246,7 +248,6 @@ func TestModeratedSessions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		if tt.want.sessionEndEvent {
 			numberOfExpectedSessionEnds++
 		}
@@ -501,7 +502,7 @@ func validateSessionTracker(testCtx *TestContext, sessionID string, reason strin
 // Lock watcher connection to be stale and it takes ~5 minutes to happen.
 func TestInteractiveSessionsNoAuth(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.K8s: {Enabled: true},
 		},
@@ -526,12 +527,20 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
+	authClient := &fakeClient{
+		// ClientI is left nil intentionally because we to set it via AuthClientWrapper.
+		closeC: make(chan struct{}),
+	}
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
 		context.Background(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+			WrapAuthClient: func(client authclient.ClientI) authclient.ClientI {
+				authClient.ClientI = client
+				return authClient
+			},
 		},
 	)
 	// close tests
@@ -619,7 +628,7 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 	// Mark the lock as stale so that the session with strict locking is denied.
 	close(testCtx.lockWatcher.StaleC)
 	// force the auth client to return an error when trying to create a session.
-	close(testCtx.closeSessionTrackers)
+	close(authClient.closeC)
 
 	require.Eventually(t, func() bool {
 		return testCtx.lockWatcher.IsStale()
@@ -649,7 +658,6 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

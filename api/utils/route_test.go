@@ -15,6 +15,7 @@
 package utils
 
 import (
+	"cmp"
 	"context"
 	"testing"
 
@@ -273,6 +274,7 @@ func TestSSHRouteMatcherScoring(t *testing.T) {
 	tts := []struct {
 		desc     string
 		hostname string
+		name     string
 		addrs    []string
 		score    int
 	}{
@@ -309,12 +311,23 @@ func TestSSHRouteMatcherScoring(t *testing.T) {
 			},
 			score: notMatch,
 		},
+		{
+			desc:     "non-uuid name",
+			name:     "foo.example.com",
+			hostname: "foo.com",
+			addrs: []string{
+				"0.0.0.0:0",
+				"1.1.1.1:0",
+			},
+			score: indirectMatch,
+		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
+			name := cmp.Or(tt.name, uuid.NewString())
 			score := matcher.RouteToServerScore(mockRouteableServer{
-				name:       uuid.NewString(),
+				name:       name,
 				hostname:   tt.hostname,
 				publicAddr: tt.addrs,
 			})

@@ -40,7 +40,7 @@ SOFTWARE.
 
 */
 
-import React from 'react';
+import { forwardRef } from 'react';
 
 import { Icon, IconProps } from '../Icon';
 
@@ -50,10 +50,16 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export function {ICON_NAME}({ size = 24, color, ...otherProps}: IconProps) {
-  return (
-    <Icon size={size} color={color} className="icon {CLASS_NAME}" {...otherProps}>
+export const {ICON_NAME} = forwardRef<HTMLSpanElement, IconProps>(
+  ({ size = 24, color, ...otherProps }, ref) => (
+    <Icon
+      size={size}
+      color={color}
+      className="icon {CLASS_NAME}"
+      {...otherProps}
+      ref={ref}
+    >
       {PATHS}
     </Icon>
-  );
-}
+  )
+);

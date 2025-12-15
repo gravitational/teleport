@@ -126,9 +126,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 # Specific install arguments used to skip docs.
 # Note that FIPS is enabled as part of this build, but it is unused without the
 # necessary configuration (which is included as part of the separate FIPS buildbox).
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.15 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'c523121f902fde2929909dc7f76b13ceb4961efe' ] && \
+    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
     ./config enable-fips --release -fPIC --libdir=/usr/local/lib64 && \
     make -j"$(nproc)" && \
     make install_sw install_ssldirs install_fips
@@ -152,32 +152,6 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.15.0 && \
       make" && \
     make install && \
     make clean
-
-## LIBBPF #####################################################################
-
-FROM --platform=$BUILDPLATFORM base AS libbpf
-
-# Install additional required dependencies.
-RUN yum install -y \
-        elfutils-libelf-devel && \
-    yum clean all
-
-# Install custom package with -fPIC.
-COPY --from=teleport-buildbox-centos7-assets /opt/custom-packages /opt/custom-packages
-RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
-    rpm -ivh /opt/custom-packages/elfutils-libelf-devel-static-*.el*.${BUILDARCH}.rpm && \
-    rm -rf /opt/custom-packages
-
-# Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
-# BUILD_STATIC_ONLY - builds only static libraries without shared ones
-# EXTRA_CFLAGS - additional CFLAGS to pass to the compiler. fPIC is required so the library code can be moved around in memory
-# DESTDIR - where to install the library
-# V=1 - verbose build
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    scl enable ${DEVTOOLSET} "BUILD_STATIC_ONLY=y EXTRA_CFLAGS=-fPIC DESTDIR=/opt/libbpf V=1 make install install_uapi_headers"
 
 ## LIBPCSCLITE #####################################################################
 
@@ -245,7 +219,7 @@ COPY --from=git2 /opt/git /
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://go.dev/dl/${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -278,11 +252,6 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version && \
     rustup target add wasm32-unknown-unknown
-
-# Install wasm-pack for targeting WebAssembly from Rust.
-ARG WASM_PACK_VERSION
-# scl enable is required to use the newer C compiler installed above. Without it, the build fails.
-RUN scl enable ${DEVTOOLSET} "cargo install wasm-pack --locked --version ${WASM_PACK_VERSION}"
 
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.
@@ -324,10 +293,6 @@ COPY --from=libpcsclite \
     /usr/local/lib/
 # Set LIBRARY_PATH so that libpcsclite can be found by the linker.
 ENV LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH}
-
-# Copy libbpf into the final image.
-ARG LIBBPF_VERSION
-COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy the pre-built CentOS 7 assets with clang. Needed to build BoringSSL and BPF tools.
 COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm

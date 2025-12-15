@@ -72,8 +72,12 @@ type WorkloadIdentityServiceConfig struct {
 // function.
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // KeyStorer is an interface that provides methods to retrieve keys and
@@ -339,7 +343,7 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	// Fetch info that will be needed for all SPIFFE SVIDs requested
-	clusterName, err := wis.cache.GetClusterName()
+	clusterName, err := wis.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -369,6 +373,11 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
+
+	wis.logger.WarnContext(
+		ctx,
+		"The 'SignX509SVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
 
 	return res, nil
 }
@@ -489,7 +498,7 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	}
 
 	// Fetch info that will be needed to create the SVIDs
-	clusterName, err := wis.cache.GetClusterName()
+	clusterName, err := wis.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting cluster name")
 	}
@@ -528,6 +537,11 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		}
 		res.Svids = append(res.Svids, svidRes)
 	}
+
+	wis.logger.WarnContext(
+		ctx,
+		"The 'SignJWTSVIDs' RPC has been invoked. This RPC is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+	)
 
 	return res, nil
 }

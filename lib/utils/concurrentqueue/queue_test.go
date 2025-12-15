@@ -44,13 +44,13 @@ func TestOrdering(t *testing.T) {
 	go func() {
 		defer close(done)
 		// verify that queue outputs items in expected order
-		for i := 0; i < testItems; i++ {
+		for i := range testItems {
 			itm := <-q.Pop()
 			assert.Equal(t, i, itm)
 		}
 	}()
 
-	for i := 0; i < testItems; i++ {
+	for i := range testItems {
 		q.Push() <- i
 	}
 	<-done
@@ -149,7 +149,7 @@ func runBackpressureScenario(t *testing.T, tt bpt) {
 	)
 	defer func() { require.NoError(t, q.Close()) }()
 
-	for i := 0; i < tt.expect; i++ {
+	for i := range tt.expect {
 		select {
 		case q.Push() <- i:
 		case <-time.After(time.Millisecond * 200):
@@ -183,17 +183,15 @@ func BenchmarkQueue(b *testing.B) {
 	q := New(workfn, Workers(workers))
 	defer q.Close()
 
-	b.ResetTimer()
-
-	for n := 0; n < b.N; n++ {
+	for b.Loop() {
 		collected := make(chan struct{})
 		go func() {
-			for i := 0; i < iters; i++ {
+			for range iters {
 				<-q.Pop()
 			}
 			close(collected)
 		}()
-		for i := 0; i < iters; i++ {
+		for i := range iters {
 			q.Push() <- i
 		}
 		<-collected

@@ -29,9 +29,10 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -142,7 +143,6 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			sessionCtx := &common.Session{
 				Database:     db,
@@ -156,9 +156,12 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 				Context:    ctx,
 				Clock:      clockwork.NewRealClock(),
 				Log:        slog.Default(),
+				GCPClients: &gcptest.Clients{GCPSQL: test.mockGCPClient},
 			}).(*Engine)
 
-			databaseUser, password, err := engine.getGCPUserAndPassword(ctx, sessionCtx, test.mockGCPClient)
+			connector, err := engine.newConnector(sessionCtx)
+			require.NoError(t, err)
+			databaseUser, password, err := connector.gcpAuth.getGCPUserAndPassword(ctx)
 			if test.wantError {
 				require.Error(t, err)
 			} else {
@@ -173,7 +176,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 func makeAuthClient(t *testing.T) *authclient.Client {
 	t.Helper()
 
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "mysql-test",
 		Dir:         t.TempDir(),
 	})
@@ -184,7 +187,7 @@ func makeAuthClient(t *testing.T) *authclient.Client {
 	require.NoError(t, err)
 	t.Cleanup(func() { tlsServer.Close() })
 
-	authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, "mysql-test"))
+	authClient, err := tlsServer.NewClient(authtest.TestServerID(types.RoleDatabase, "mysql-test"))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 

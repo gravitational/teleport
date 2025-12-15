@@ -19,9 +19,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, Pill, Popover, Link, Text } from 'design';
+import { Box, Flex, Link, Pill, Popover, Text } from 'design';
 import { Info, Warning } from 'design/Icon';
-
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 import { useEscape } from 'shared/hooks/useEscape';
 
@@ -34,9 +33,9 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
   const [validLabel, setValidLabel] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const infoIconRef = useRef<HTMLDivElement>();
-  const addLabelInputRef = useRef<HTMLInputElement>();
-  const addLabelContainerRef = useRef<HTMLDivElement>();
+  const infoIconRef = useRef<HTMLDivElement>(null);
+  const addLabelInputRef = useRef<HTMLInputElement>(null);
+  const addLabelContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setValidLabel(VALID_LABEL.test(newLabel));
@@ -108,14 +107,14 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
                 “env: prod”. For more information, check out our documentation
                 on{' '}
                 <Link
-                  href="https://goteleport.com/docs/setup/admin/trustedclusters/"
+                  href="https://goteleport.com/docs/admin-guides/management/admin/trustedclusters/"
                   target="_blank"
                 >
                   RBAC
                 </Link>{' '}
                 and{' '}
                 <Link
-                  href="https://goteleport.com/docs/setup/admin/labels/"
+                  href="https://goteleport.com/docs/admin-guides/management/admin/labels/"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -127,7 +126,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
           </Flex>
           <Text>
             <Link
-              href="https://goteleport.com/docs/setup/admin/labels/"
+              href="https://goteleport.com/docs/admin-guides/management/admin/labels/"
               target="_blank"
             >
               View Documentation

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -37,7 +38,18 @@ const (
 
 	// IntegrationSubKindGitHub is an integration with GitHub.
 	IntegrationSubKindGitHub = "github"
+
+	// IntegrationSubKindAWSRolesAnywhere is an integration with AWS that uses AWS IAM Roles Anywhere as trust and source of credentials.
+	IntegrationSubKindAWSRolesAnywhere = "aws-ra"
 )
+
+// integrationSubKindValues is a list of supported integration subkind values.
+var integrationSubKindValues = []string{
+	IntegrationSubKindAWSOIDC,
+	IntegrationSubKindAzureOIDC,
+	IntegrationSubKindAWSRolesAnywhere,
+	IntegrationSubKindGitHub,
+}
 
 const (
 	// IntegrationAWSOIDCAudienceUnspecified denotes an empty audience value. Empty audience value
@@ -45,6 +57,21 @@ const (
 	IntegrationAWSOIDCAudienceUnspecified = ""
 	// IntegrationAWSOIDCAudienceAWSIdentityCenter is an audience name for the Teleport AWS Idenity Center plugin.
 	IntegrationAWSOIDCAudienceAWSIdentityCenter = "aws-identity-center"
+)
+
+// integrationAWSOIDCAudienceValues is a list of the supported AWS OIDC Audience
+// values. If this list is updated, be sure to also update the audience field's
+// godoc string in the [AWSOIDCIntegrationSpecV1] protobuf definition.
+var integrationAWSOIDCAudienceValues = []string{
+	IntegrationAWSOIDCAudienceUnspecified,
+	IntegrationAWSOIDCAudienceAWSIdentityCenter,
+}
+
+const (
+	// IntegrationAWSRolesAnywhereProfileSyncStatusSuccess indicates that the profile sync was successful.
+	IntegrationAWSRolesAnywhereProfileSyncStatusSuccess = "SUCCESS"
+	// IntegrationAWSRolesAnywhereProfileSyncStatusError indicates that the profile sync failed.
+	IntegrationAWSRolesAnywhereProfileSyncStatusError = "ERROR"
 )
 
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
@@ -66,11 +93,18 @@ type Integration interface {
 
 	// GetAzureOIDCIntegrationSpec returns the `azure-oidc` spec fields.
 	GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpecV1
+	// SetAzureOIDCIntegrationSpec sets the `azure-oidc` spec fields.
+	SetAzureOIDCIntegrationSpec(*AzureOIDCIntegrationSpecV1)
 
 	// GetGitHubIntegrationSpec returns the GitHub spec.
 	GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1
 	// SetGitHubIntegrationSpec returns the GitHub spec.
 	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
+
+	// GetAWSRolesAnywhereIntegrationSpec returns the `aws-ra` spec fields.
+	GetAWSRolesAnywhereIntegrationSpec() *AWSRAIntegrationSpecV1
+	// SetAWSRolesAnywhereIntegrationSpec sets the `aws-ra` spec fields.
+	SetAWSRolesAnywhereIntegrationSpec(*AWSRAIntegrationSpecV1)
 
 	// SetCredentials updates credentials.
 	SetCredentials(creds PluginCredentials) error
@@ -78,6 +112,14 @@ type Integration interface {
 	GetCredentials() PluginCredentials
 	// WithoutCredentials returns a copy without credentials.
 	WithoutCredentials() Integration
+
+	// GetStatus retrieves the integration status.
+	GetStatus() IntegrationStatusV1
+	// SetStatus updates the integration status.
+	SetStatus(IntegrationStatusV1)
+
+	// Clone returns a copy of the integration.
+	Clone() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -136,6 +178,27 @@ func NewIntegrationGitHub(md Metadata, spec *GitHubIntegrationSpecV1) (*Integrat
 		Spec: IntegrationSpecV1{
 			SubKindSpec: &IntegrationSpecV1_GitHub{
 				GitHub: spec,
+			},
+		},
+	}
+	if err := ig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// NewIntegrationAWSRA returns a new `aws-ra` subkind Integration
+func NewIntegrationAWSRA(md Metadata, spec *AWSRAIntegrationSpecV1) (*IntegrationV1, error) {
+	ig := &IntegrationV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: md,
+			Kind:     KindIntegration,
+			Version:  V1,
+			SubKind:  IntegrationSubKindAWSRolesAnywhere,
+		},
+		Spec: IntegrationSpecV1{
+			SubKindSpec: &IntegrationSpecV1_AWSRA{
+				AWSRA: spec,
 			},
 		},
 	}
@@ -211,6 +274,10 @@ func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		return nil
+	case *IntegrationSpecV1_AWSRA:
+		if err := integrationSubKind.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown integration subkind: %T", integrationSubKind)
 	}
@@ -250,12 +317,13 @@ func (s *IntegrationSpecV1_AWSOIDC) CheckAndSetDefaults() error {
 // ValidateAudience validates if the audience field is configured with
 // a supported audience value.
 func (s *IntegrationSpecV1_AWSOIDC) ValidateAudience() error {
-	switch s.AWSOIDC.Audience {
-	case IntegrationAWSOIDCAudienceUnspecified, IntegrationAWSOIDCAudienceAWSIdentityCenter:
-		return nil
-	default:
-		return trace.BadParameter("unsupported audience value %q", s.AWSOIDC.Audience)
+	if !slices.Contains(integrationAWSOIDCAudienceValues, s.AWSOIDC.Audience) {
+		return trace.BadParameter("unsupported audience value %q, supported values are %q",
+			s.AWSOIDC.Audience,
+			integrationAWSOIDCAudienceValues,
+		)
 	}
+	return nil
 }
 
 // Validate validates the configuration for Azure OIDC integration subkind.
@@ -281,6 +349,32 @@ func (s *IntegrationSpecV1_GitHub) CheckAndSetDefaults() error {
 	if err := ValidateGitHubOrganizationName(s.GitHub.Organization); err != nil {
 		return trace.Wrap(err, "invalid GitHub organization name")
 	}
+	return nil
+}
+
+// CheckAndSetDefaults validates the configuration for AWS IAM Roles Anywhere integration subkind.
+func (s *IntegrationSpecV1_AWSRA) CheckAndSetDefaults() error {
+	if s == nil || s.AWSRA == nil {
+		return trace.BadParameter("aws_ra is required for %q subkind", IntegrationSubKindAWSRolesAnywhere)
+	}
+
+	if s.AWSRA.TrustAnchorARN == "" {
+		return trace.BadParameter("trust_anchor_arn is required for %q subkind", IntegrationSubKindAWSRolesAnywhere)
+	}
+
+	if s.AWSRA.ProfileSyncConfig == nil {
+		s.AWSRA.ProfileSyncConfig = &AWSRolesAnywhereProfileSyncConfig{}
+	}
+
+	if s.AWSRA.ProfileSyncConfig.Enabled {
+		if s.AWSRA.ProfileSyncConfig.ProfileARN == "" {
+			return trace.BadParameter("profile_sync_config.profile_arn is required when profile_sync_config is enabled")
+		}
+		if s.AWSRA.ProfileSyncConfig.RoleARN == "" {
+			return trace.BadParameter("profile_sync_config.role_arn is required when profile_sync_config is enabled")
+		}
+	}
+
 	return nil
 }
 
@@ -327,6 +421,13 @@ func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpec
 	return ig.Spec.GetAzureOIDC()
 }
 
+// SetAzureOIDCIntegrationSpec sets the `azure-oidc` spec fields.
+func (ig *IntegrationV1) SetAzureOIDCIntegrationSpec(spec *AzureOIDCIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AzureOIDC{
+		AzureOIDC: spec,
+	}
+}
+
 // GetGitHubIntegrationSpec returns the GitHub spec.
 func (ig *IntegrationV1) GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1 {
 	return ig.Spec.GetGitHub()
@@ -336,6 +437,18 @@ func (ig *IntegrationV1) GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1 {
 func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1) {
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_GitHub{
 		GitHub: spec,
+	}
+}
+
+// GetAWSRolesAnywhereIntegrationSpec returns the specific spec fields for `aws-ra` subkind integrations.
+func (ig *IntegrationV1) GetAWSRolesAnywhereIntegrationSpec() *AWSRAIntegrationSpecV1 {
+	return ig.Spec.GetAWSRA()
+}
+
+// SetAWSRolesAnywhereIntegrationSpec sets the specific fields for the `aws-ra` subkind integration.
+func (ig *IntegrationV1) SetAWSRolesAnywhereIntegrationSpec(awsRASpec *AWSRAIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSRA{
+		AWSRA: awsRASpec,
 	}
 }
 
@@ -391,8 +504,10 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 			AWSOIDC     json.RawMessage `json:"aws_oidc"`
 			AzureOIDC   json.RawMessage `json:"azure_oidc"`
 			GitHub      json.RawMessage `json:"github"`
+			AWSRA       json.RawMessage `json:"aws_ra"`
 			Credentials json.RawMessage `json:"credentials"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status,omitempty"`
 	}{}
 
 	err := json.Unmarshal(data, &d)
@@ -401,9 +516,10 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
+	integration.Status = d.Status
 	if len(d.Spec.Credentials) != 0 {
 		var credentials PluginCredentialsV1
-		if err := protojson.Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(d.Spec.Credentials, protoadapt.MessageV2Of(&credentials)); err != nil {
 			return trace.Wrap(err)
 		}
 		integration.Spec.Credentials = &credentials
@@ -443,6 +559,17 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 		integration.Spec.SubKindSpec = subkindSpec
 
+	case IntegrationSubKindAWSRolesAnywhere:
+		subkindSpec := &IntegrationSpecV1_AWSRA{
+			AWSRA: &AWSRAIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.AWSRA, subkindSpec.AWSRA); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
 	default:
 		return trace.BadParameter("invalid subkind %q", integration.ResourceHeader.SubKind)
 	}
@@ -466,11 +593,14 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			AWSOIDC     AWSOIDCIntegrationSpecV1   `json:"aws_oidc,omitempty"`
 			AzureOIDC   AzureOIDCIntegrationSpecV1 `json:"azure_oidc,omitempty"`
 			GitHub      GitHubIntegrationSpecV1    `json:"github,omitempty"`
+			AWSRA       AWSRAIntegrationSpecV1     `json:"aws_ra,omitempty"`
 			Credentials json.RawMessage            `json:"credentials,omitempty"`
 		} `json:"spec"`
+		Status IntegrationStatusV1 `json:"status,omitempty"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
+	d.Status = ig.Status
 	if ig.Spec.Credentials != nil {
 		data, err := protojson.Marshal(protoadapt.MessageV2Of(ig.Spec.Credentials))
 		if err != nil {
@@ -497,12 +627,27 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
 		}
 		d.Spec.GitHub = *ig.GetGitHubIntegrationSpec()
+	case IntegrationSubKindAWSRolesAnywhere:
+		if ig.GetAWSRolesAnywhereIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing spec for %q subkind", ig.SubKind)
+		}
+		d.Spec.AWSRA = *ig.GetAWSRolesAnywhereIntegrationSpec()
 	default:
-		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
+		return nil, trace.BadParameter("invalid subkind %q, supported values are %q", ig.SubKind, integrationSubKindValues)
 	}
 
 	out, err := json.Marshal(d)
 	return out, trace.Wrap(err)
+}
+
+// SetStatus updates the integration status.
+func (ig *IntegrationV1) SetStatus(status IntegrationStatusV1) {
+	ig.Status = status
+}
+
+// GetStatus retrieves the integration status.
+func (ig *IntegrationV1) GetStatus() IntegrationStatusV1 {
+	return ig.Status
 }
 
 // SetCredentials updates credentials.
@@ -527,6 +672,11 @@ func (ig *IntegrationV1) GetCredentials() PluginCredentials {
 		return nil
 	}
 	return ig.Spec.Credentials
+}
+
+// Clone returns a copy of the integration.
+func (ig *IntegrationV1) Clone() Integration {
+	return utils.CloneProtoMsg(ig)
 }
 
 // WithoutCredentials returns a copy without credentials.

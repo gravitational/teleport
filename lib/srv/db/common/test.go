@@ -135,7 +135,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	resp, err := config.AuthClient.GenerateDatabaseCert(context.Background(),
 		&proto.DatabaseCertRequest{
 			CSR:           csr,
-			ServerName:    cn,
+			ServerNames:   []string{cn, "127.0.0.1", "::1"},
 			TTL:           proto.Duration(time.Hour),
 			RequesterName: proto.DatabaseCertRequest_TCTL,
 		})
@@ -160,6 +160,16 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	}, nil
 }
 
+// ClientOption represents a database client config option.
+type ClientOption func(config *TestClientConfig)
+
+// WithUserAgent set client user agent.
+func WithUserAgent(userAgent string) ClientOption {
+	return func(config *TestClientConfig) {
+		config.UserAgent = userAgent
+	}
+}
+
 // TestClientConfig combines parameters for a test Postgres/MySQL client.
 type TestClientConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
@@ -176,6 +186,8 @@ type TestClientConfig struct {
 	PinnedIP string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// UserAgent contains the client user agent.
+	UserAgent string
 }
 
 // MakeTestClientTLSCert returns TLS certificate suitable for configuring test

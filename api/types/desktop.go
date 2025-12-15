@@ -45,6 +45,14 @@ type WindowsDesktopService interface {
 	GetHostname() string
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that this service is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that this service is
+	// connected to.
+	GetRelayIDs() []string
+	// Clone creates a copy of the service.
+	Clone() WindowsDesktopService
 }
 
 type WindowsDesktopServices []WindowsDesktopService
@@ -115,9 +123,30 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [WindowsDesktopService].
+func (s *WindowsDesktopServiceV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [WindowsDesktopService].
+func (s *WindowsDesktopServiceV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
+}
+
+// Clone creates a copy of the service.
+func (s *WindowsDesktopServiceV3) Clone() WindowsDesktopService {
+	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -143,7 +172,7 @@ type DynamicWindowsDesktop interface {
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this dynamic Windows desktop
-	Copy() *DynamicWindowsDesktopV1
+	Copy() DynamicWindowsDesktop
 }
 
 var _ DynamicWindowsDesktop = &DynamicWindowsDesktopV1{}
@@ -218,7 +247,7 @@ func (d *DynamicWindowsDesktopV1) MatchSearch(values []string) bool {
 }
 
 // Copy returns a deep copy of this dynamic Windows desktop object.
-func (d *DynamicWindowsDesktopV1) Copy() *DynamicWindowsDesktopV1 {
+func (d *DynamicWindowsDesktopV1) Copy() DynamicWindowsDesktop {
 	return utils.CloneProtoMsg(d)
 }
 
@@ -313,7 +342,7 @@ type WindowsDesktop interface {
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this windows desktop
-	Copy() *WindowsDesktopV3
+	Copy() WindowsDesktop
 	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
 }
@@ -395,7 +424,7 @@ func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 }
 
 // Copy returns a copy of this windows desktop object.
-func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
+func (d *WindowsDesktopV3) Copy() WindowsDesktop {
 	return utils.CloneProtoMsg(d)
 }
 
@@ -542,4 +571,12 @@ func checkNameAndScreenSize(name string, screenSize *Resolution) error {
 			screenSize.Width, screenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
 	}
 	return nil
+}
+
+// RDPLicenseKey is struct for retrieving licenses from backend cache, used only internally
+type RDPLicenseKey struct {
+	Version   uint32 // e.g. 0x000a0002
+	Issuer    string // e.g. example.com
+	Company   string // e.g. Example Corporation
+	ProductID string // e.g. A02
 }

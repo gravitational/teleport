@@ -35,16 +35,17 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestServeConfigureError(t *testing.T) {
@@ -111,10 +112,9 @@ func TestMTLSClientCAs(t *testing.T) {
 	}
 	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
 	userCert := genCert(t, "user")
-	log := logrus.New()
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: log,
+			Log: logtest.NewLogger(),
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -123,9 +123,10 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
-			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 		},
-		log: logrus.NewEntry(log),
+		log: logtest.NewLogger(),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -182,7 +183,7 @@ func TestMTLSClientCAs(t *testing.T) {
 	// 100 additional CAs registered, all CAs should be sent to the client in
 	// the handshake.
 	t.Run("100 CAs", func(t *testing.T) {
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			addCA(t, fmt.Sprintf("cluster-%d", i))
 		}
 		testDial(t, 101)
@@ -207,7 +208,7 @@ func TestGetServerInfo(t *testing.T) {
 
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: logrus.New(),
+			Log: logtest.NewLogger(),
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",
@@ -215,8 +216,9 @@ func TestGetServerInfo(t *testing.T) {
 			},
 			AccessPoint:          ap,
 			TLS:                  &tls.Config{},
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			HealthCheckManager:   &mockHealthCheckManager{},
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
@@ -230,7 +232,7 @@ func TestGetServerInfo(t *testing.T) {
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		kubeServer, err := srv.getServerInfo("kube-cluster")
+		kubeServer, err := srv.GetServerInfo("kube-cluster")
 		require.NoError(t, err)
 		require.Equal(t, listener.Addr().String(), kubeServer.GetHostname())
 	})
@@ -238,7 +240,7 @@ func TestGetServerInfo(t *testing.T) {
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		kubeServer, err := srv.getServerInfo("kube-cluster")
+		kubeServer, err := srv.GetServerInfo("kube-cluster")
 		require.NoError(t, err)
 		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
 	})
@@ -354,3 +356,13 @@ func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
 		})
 	}
 }
+
+type mockHealthCheckManager struct{}
+
+func (m *mockHealthCheckManager) Start(ctx context.Context) error               { return nil }
+func (m *mockHealthCheckManager) AddTarget(target healthcheck.Target) error     { return nil }
+func (m *mockHealthCheckManager) RemoveTarget(r types.ResourceWithLabels) error { return nil }
+func (m *mockHealthCheckManager) GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHealth, error) {
+	return nil, nil
+}
+func (m *mockHealthCheckManager) Close() error { return nil }

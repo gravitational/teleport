@@ -74,7 +74,7 @@ const (
 
 func NewDatabaseObjectService(b backend.Backend) (*DatabaseObjectService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*dbobjectv1.DatabaseObject]{
+		generic.ServiceConfig[*dbobjectv1.DatabaseObject]{
 			Backend:       b,
 			ResourceKind:  types.KindDatabaseObject,
 			BackendPrefix: backend.NewKey(databaseObjectPrefix),

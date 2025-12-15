@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // HTTPClientConfig contains configuration for an HTTP client.
@@ -292,12 +291,12 @@ func getHTTPTransport(c *roundtrip.Client) (*http.Transport, error) {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(ctx, endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(ctx, endpoint, val))
 }
 
@@ -314,25 +313,6 @@ func (c *HTTPClient) Get(ctx context.Context, u string, params url.Values) (*rou
 // Delete issues http Delete Request to the server
 func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
-}
-
-// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if successful.
-// DEPRECATED
-// TODO(tigrato): DELETE IN 18.0
-func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("kube", "csr"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re KubeCSRResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &re, nil
 }
 
 type upsertTunnelConnectionRawReq struct {
@@ -443,27 +423,6 @@ func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error
 	return trace.Wrap(err)
 }
 
-// GetAuthServers returns the list of auth servers registered in the cluster.
-func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
-}
-
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
 func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
@@ -476,27 +435,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	}
 	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
-}
-
-// GetProxies returns the list of auth servers registered in the cluster.
-func (c *HTTPClient) GetProxies() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindProxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
 }
 
 // DeleteAllProxies deletes all proxies
@@ -620,6 +558,9 @@ type OIDCAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -635,12 +576,13 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		return nil, trace.Wrap(err)
 	}
 	response := OIDCAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
-		MFAToken: rawResponse.MFAToken,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		MFAToken:      rawResponse.MFAToken,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -692,6 +634,9 @@ type SAMLAuthRawResponse struct {
 	TLSCert []byte `json:"tls_cert,omitempty"`
 	// MFAToken is an SSO MFA token.
 	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -709,12 +654,13 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		return nil, trace.Wrap(err)
 	}
 	response := SAMLAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
-		MFAToken: rawResponse.MFAToken,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		MFAToken:      rawResponse.MFAToken,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -758,6 +704,9 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
@@ -772,11 +721,12 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		return nil, trace.Wrap(err)
 	}
 	response := GithubAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(
@@ -795,105 +745,4 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-// GetNamespaces returns a list of namespaces
-func (c *HTTPClient) GetNamespaces() ([]types.Namespace, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re []types.Namespace
-	if err := utils.FastUnmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return re, nil
-}
-
-// GetNamespace returns namespace by name
-func (c *HTTPClient) GetNamespace(name string) (*types.Namespace, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing namespace name")
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalNamespace(out.Bytes())
-}
-
-type upsertNamespaceReq struct {
-	Namespace types.Namespace `json:"namespace"`
-}
-
-// UpsertNamespace upserts namespace
-func (c *HTTPClient) UpsertNamespace(ns types.Namespace) error {
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
-	return trace.Wrap(err)
-}
-
-// DeleteNamespace deletes namespace by name
-func (c *HTTPClient) DeleteNamespace(name string) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", name))
-	return trace.Wrap(err)
-}
-
-// GetClusterName returns a cluster name
-func (c *HTTPClient) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "name"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := services.UnmarshalClusterName(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cn, err
-}
-
-type setClusterNameReq struct {
-	ClusterName json.RawMessage `json:"cluster_name"`
-}
-
-// SetClusterName sets cluster name once, will
-// return Already Exists error if the name is already set
-func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
-	data, err := services.MarshalClusterName(cn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	validateRequestRaw, err := validateRequest.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
-	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := validateResponseRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponse, nil
 }

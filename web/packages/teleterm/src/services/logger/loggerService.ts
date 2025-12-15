@@ -16,23 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { ChildProcess } from 'node:child_process';
 import stream from 'node:stream';
 
+import split2 from 'split2';
 import winston, {
   createLogger as createWinston,
   format,
   transports,
+  type Logform,
 } from 'winston';
+
 import { isObject } from 'shared/utils/highbar';
 
-import split2 from 'split2';
-
-import { Logger, LoggerService, NodeLoggerService } from './types';
 import { KeepLastChunks } from './keepLastChunks';
-
-import type { Logform } from 'winston';
-
-import type { ChildProcess } from 'node:child_process';
+import { Logger, LoggerService, NodeLoggerService } from './types';
 
 /**
  * stdout logger should be used in child processes.

@@ -55,6 +55,10 @@ func TestNewUserACL(t *testing.T) {
 			Resources: []string{types.KindContact},
 			Verbs:     RW(),
 		},
+		{
+			Resources: []string{types.KindClientIPRestriction},
+			Verbs:     RW(),
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies Access
@@ -109,12 +113,16 @@ func TestNewUserACL(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.License, denied))
 	require.Empty(t, cmp.Diff(userContext.Download, denied))
 	require.Empty(t, cmp.Diff(userContext.Contact, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.GitServers, denied))
+	// cloud IP restrictions should be denied because features doesn't include Cloud
+	require.Empty(t, cmp.Diff(userContext.ClientIPRestriction, denied))
 
 	// test enabling of the 'Use' verb
 	require.Empty(t, cmp.Diff(userContext.Integrations, ResourceAccess{true, true, true, true, true, true}))
 
 	userContext = NewUserACL(user, roleSet, proto.Features{Cloud: true}, true, false)
 	require.Empty(t, cmp.Diff(userContext.Billing, ResourceAccess{true, true, false, false, false, false}))
+	require.Empty(t, cmp.Diff(userContext.ClientIPRestriction, allowedRW))
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext = NewUserACL(user, roleSet, proto.Features{}, false, false)
@@ -256,7 +264,7 @@ func TestNewAccessGraph(t *testing.T) {
 	t.Run("access graph disabled", func(t *testing.T) {
 		denied := ResourceAccess{false, false, false, false, false, false}
 		userContext := NewUserACL(user, roleSet, proto.Features{}, false, false)
-		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, denied))
+		require.Empty(t, cmp.Diff(userContext.AccessGraph, denied))
 	})
 
 	t.Run("access graph ACL is false when user doesn't have access even when enabled", func(t *testing.T) {
@@ -264,7 +272,6 @@ func TestNewAccessGraph(t *testing.T) {
 		denied := ResourceAccess{false, false, false, false, false, false}
 		userContext := NewUserACL(user, roleSet, proto.Features{AccessGraph: true}, false, true)
 		require.Empty(t, cmp.Diff(userContext.AccessGraph, denied))
-		require.Empty(t, cmp.Diff(userContext.AccessGraphSettings, denied))
 	})
 
 	t.Run("access graph ACL is true when user has access", func(t *testing.T) {

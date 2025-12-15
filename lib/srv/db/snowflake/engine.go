@@ -57,6 +57,7 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 func getDefaultHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
+			// TODO(gavin): use an http proxy env var respecting transport
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
 			},
@@ -581,12 +582,7 @@ func parseConnectionString(uri string) (string, string, error) {
 		return "", "", trace.BadParameter("Snowflake address should contain " + defaults.SnowflakeURL)
 	}
 
-	// if the protocol is missing add it, so we can parse it.
-	if !strings.Contains(uri, "://") {
-		uri = "https://" + uri
-	}
-
-	snowflakeURL, err := url.Parse(uri)
+	snowflakeURL, err := parseURI(uri)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -677,4 +673,13 @@ type tokenTTL struct {
 type sessionTokens struct {
 	session tokenTTL
 	master  tokenTTL
+}
+
+func parseURI(uri string) (*url.URL, error) {
+	// if the protocol is missing add it, so we can parse it.
+	if !strings.Contains(uri, "://") {
+		uri = "https://" + uri
+	}
+	snowflakeURL, err := url.Parse(uri)
+	return snowflakeURL, trace.Wrap(err)
 }

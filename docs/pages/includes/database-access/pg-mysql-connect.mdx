@@ -1,0 +1,35 @@
+{{ dbUser="alice" dbService="example-db" pgSchema="postgres" mySchema="mysql" }}
+{/* this comment is here to make the includes below render */}
+
+<Tabs>
+<TabItem label="MySQL/MariaDB">
+
+Retrieve credentials for the database and connect to it as the `{{ dbUser }}` user:
+
+```code
+$ tsh db connect --db-user={{ dbUser }} --db-name={{ mySchema }} {{ dbService }}
+```
+
+<Admonition type="note" title="Note">
+  Either the `mysql` or the `mariadb` client must be available on `PATH` to connect.
+</Admonition>
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="MySQL or MariaDB"!)
+
+</TabItem>
+<TabItem label="PostgreSQL">
+
+Retrieve credentials for the database and connect to it as the `{{ dbUser }}` user:
+
+```code
+$ tsh db connect --db-user={{ dbUser }} --db-name={{ pgSchema }} {{ dbService }}
+```
+
+<Admonition type="note" title="Note">
+  The `psql` client must be available on `PATH` to connect.
+</Admonition>
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
+
+</TabItem>
+</Tabs>

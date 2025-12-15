@@ -40,7 +40,7 @@ type ServiceConfig struct {
 // Cache is the subset of the cached resources that the service queries.
 type Cache interface {
 	ListAccessMonitoringRules(ctx context.Context, limit int, startKey string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error)
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrulesv1.AccessMonitoringRule, error)
 }
 
@@ -179,7 +179,7 @@ func (s *Service) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	results, nextToken, err := s.cache.ListAccessMonitoringRulesWithFilter(ctx, int(req.PageSize), req.PageToken, req.Subjects, req.NotificationName)
+	results, nextToken, err := s.cache.ListAccessMonitoringRulesWithFilter(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

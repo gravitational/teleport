@@ -197,6 +197,10 @@ func (m *mockSSOMFACeremony) GetClientCallbackURL() string {
 	return m.clientCallbackURL
 }
 
+func (m *mockSSOMFACeremony) GetProxyAddress() string {
+	return ""
+}
+
 // Run the SSO MFA ceremony.
 func (m *mockSSOMFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	return m.prompt(ctx, chal)

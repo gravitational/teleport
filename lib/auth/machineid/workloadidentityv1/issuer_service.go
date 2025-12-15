@@ -17,32 +17,32 @@
 package workloadidentityv1
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"log/slog"
 	"math/big"
 	"net/url"
-	"regexp"
-	"slices"
 	"strings"
 	"time"
 
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/otel"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -61,20 +61,45 @@ type KeyStorer interface {
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
+// SigstorePolicyEvaluator implements the actual Sigstore verification logic.
+type SigstorePolicyEvaluator interface {
+	// Evaluate the Sigstore policies against the given workload attributes.
+	Evaluate(ctx context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error)
+}
+
+// OSSSigstorePolicyEvaluator is the Community Edition implementation of the
+// SigstorePolicyEvaluator interface. It simply returns a licensing error if
+// any policy names or sigstore payloads are given.
+type OSSSigstorePolicyEvaluator struct{}
+
+// Evaluate satisfies the SigstorePolicyEvaluator interface.
+func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []string, attrs *workloadidentityv1pb.Attrs) (map[string]error, error) {
+	if len(policyNames) != 0 || len(attrs.GetWorkload().GetSigstore().GetPayloads()) != 0 {
+		return nil, trace.AccessDenied("Sigstore workload attestation is only available with an enterprise license")
+	}
+	return make(map[string]error), nil
+}
+
 type issuerCache interface {
 	workloadIdentityReader
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
 type IssuanceServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      issuerCache
-	Clock      clockwork.Clock
-	Emitter    apievents.Emitter
-	Logger     *slog.Logger
-	KeyStore   KeyStorer
+	Authorizer                 authz.Authorizer
+	Cache                      issuerCache
+	Clock                      clockwork.Clock
+	Emitter                    apievents.Emitter
+	Logger                     *slog.Logger
+	KeyStore                   KeyStorer
+	OverrideGetter             services.WorkloadIdentityX509CAOverrideGetter
+	GetSigstorePolicyEvaluator func() SigstorePolicyEvaluator
 
 	ClusterName string
 }
@@ -84,12 +109,14 @@ type IssuanceServiceConfig struct {
 type IssuanceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
 
-	authorizer authz.Authorizer
-	cache      issuerCache
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
-	logger     *slog.Logger
-	keyStore   KeyStorer
+	authorizer                 authz.Authorizer
+	cache                      issuerCache
+	clock                      clockwork.Clock
+	emitter                    apievents.Emitter
+	logger                     *slog.Logger
+	keyStore                   KeyStorer
+	overrideGetter             services.WorkloadIdentityX509CAOverrideGetter
+	getSigstorePolicyEvaluator func() SigstorePolicyEvaluator
 
 	clusterName string
 }
@@ -105,8 +132,13 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("key store is required")
+	case cfg.OverrideGetter == nil:
+		return nil, trace.BadParameter("override getter is required")
+
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
+	case cfg.GetSigstorePolicyEvaluator == nil:
+		return nil, trace.BadParameter("sigstore policy evaluator is required")
 	}
 
 	if cfg.Logger == nil {
@@ -116,112 +148,17 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &IssuanceService{
-		authorizer:  cfg.Authorizer,
-		cache:       cfg.Cache,
-		clock:       cfg.Clock,
-		emitter:     cfg.Emitter,
-		logger:      cfg.Logger,
-		keyStore:    cfg.KeyStore,
+		authorizer:                 cfg.Authorizer,
+		cache:                      cfg.Cache,
+		clock:                      cfg.Clock,
+		emitter:                    cfg.Emitter,
+		logger:                     cfg.Logger,
+		keyStore:                   cfg.KeyStore,
+		overrideGetter:             cfg.OverrideGetter,
+		getSigstorePolicyEvaluator: cfg.GetSigstorePolicyEvaluator,
+
 		clusterName: cfg.ClusterName,
 	}, nil
-}
-
-// getFieldStringValue returns a string value from the given attribute set.
-// The attribute is specified as a dot-separated path to the field in the
-// attribute set.
-//
-// The specified attribute must be a string field. If the attribute is not
-// found, an error is returned.
-//
-// TODO(noah): This function will be replaced by the Teleport predicate language
-// in a coming PR.
-func getFieldStringValue(attrs *workloadidentityv1pb.Attrs, attr string) (string, error) {
-	attrParts := strings.Split(attr, ".")
-	message := attrs.ProtoReflect()
-	// TODO(noah): Improve errors by including the fully qualified attribute
-	// (e.g add up the parts of the attribute path processed thus far)
-	for i, part := range attrParts {
-		fieldDesc := message.Descriptor().Fields().ByTextName(part)
-		if fieldDesc == nil {
-			return "", trace.NotFound("attribute %q not found", part)
-		}
-		// We expect the final key to point to a string field - otherwise - we
-		// return an error.
-		if i == len(attrParts)-1 {
-			if !slices.Contains([]protoreflect.Kind{
-				protoreflect.StringKind,
-				protoreflect.BoolKind,
-				protoreflect.Int32Kind,
-				protoreflect.Int64Kind,
-				protoreflect.Uint64Kind,
-				protoreflect.Uint32Kind,
-			}, fieldDesc.Kind()) {
-				return "", trace.BadParameter("attribute %q of type %q cannot be converted to string", part, fieldDesc.Kind())
-			}
-			return message.Get(fieldDesc).String(), nil
-		}
-		// If we're not processing the final key part, we expect this to point
-		// to a message that we can further explore.
-		if fieldDesc.Kind() != protoreflect.MessageKind {
-			return "", trace.BadParameter("attribute %q is not a message", part)
-		}
-		message = message.Get(fieldDesc).Message()
-	}
-	return "", nil
-}
-
-// templateString takes a given input string and replaces any values within
-// {{ }} with values from the attribute set.
-//
-// If the specified value is not found in the attribute set, an error is
-// returned.
-//
-// TODO(noah): In a coming PR, this will be replaced by evaluating the values
-// within the handlebars as expressions.
-func templateString(in string, attrs *workloadidentityv1pb.Attrs) (string, error) {
-	re := regexp.MustCompile(`\{\{([^{}]+?)\}\}`)
-	matches := re.FindAllStringSubmatch(in, -1)
-
-	for _, match := range matches {
-		attrKey := strings.TrimSpace(match[1])
-		value, err := getFieldStringValue(attrs, attrKey)
-		if err != nil {
-			return "", trace.Wrap(err, "fetching attribute value for %q", attrKey)
-		}
-		// We want to have an implicit rule here that if an attribute is
-		// included in the template, but is not set, we should refuse to issue
-		// the credential.
-		if value == "" {
-			return "", trace.NotFound("attribute %q unset", attrKey)
-		}
-		in = strings.Replace(in, match[0], value, 1)
-	}
-
-	return in, nil
-}
-
-func evaluateRules(
-	wi *workloadidentityv1pb.WorkloadIdentity,
-	attrs *workloadidentityv1pb.Attrs,
-) error {
-	if len(wi.GetSpec().GetRules().GetAllow()) == 0 {
-		return nil
-	}
-ruleLoop:
-	for _, rule := range wi.GetSpec().GetRules().GetAllow() {
-		for _, condition := range rule.GetConditions() {
-			val, err := getFieldStringValue(attrs, condition.Attribute)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if val != condition.Equals {
-				continue ruleLoop
-			}
-		}
-		return nil
-	}
-	// TODO: Eventually, we'll need to work support for deny rules into here.
-	return trace.AccessDenied("no matching rule found")
 }
 
 func (s *IssuanceService) deriveAttrs(
@@ -236,31 +173,49 @@ func (s *IssuanceService) deriveAttrs(
 			BotName: authzCtx.Identity.GetIdentity().BotName,
 			Labels:  authzCtx.User.GetAllLabels(),
 		},
+		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
+	}
+
+	for key, values := range authzCtx.Identity.GetIdentity().Traits {
+		attrs.User.Traits = append(attrs.User.Traits, &traitv1.Trait{
+			Key:    key,
+			Values: values,
+		})
 	}
 
 	return attrs, nil
 }
 
-var defaultMaxTTL = 24 * time.Hour
+const (
+	// defaultMaxTTL defines the max requestable TTL for SVIDs where the
+	// workload identity resource does not specify a maximum TTL.
+	defaultMaxTTL = 24 * time.Hour
+	// defaultTTL defines the TTL when a client has not requested a specific
+	// TTL.
+	defaultTTL = 1 * time.Hour
+)
 
 func (s *IssuanceService) IssueWorkloadIdentity(
 	ctx context.Context,
 	req *workloadidentityv1pb.IssueWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentityResponse, error) {
-	if !experiment.Enabled() {
-		return nil, trace.AccessDenied("workload identity issuance experiment is disabled")
+	switch {
+	case req.GetName() == "":
+		return nil, trace.BadParameter("name: is required")
+	case req.GetCredential() == nil:
+		return nil, trace.BadParameter("at least one credential type must be requested")
 	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch {
-	case req.GetName() == "":
-		return nil, trace.BadParameter("name: is required")
-	case req.GetCredential() == nil:
-		return nil, trace.BadParameter("at least one credential type must be requested")
+	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	if err != nil {
+		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
 	wi, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
@@ -276,126 +231,183 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.Wrap(err)
 	}
 
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
-	if err != nil {
-		return nil, trace.Wrap(err, "deriving attributes")
-	}
-	// Evaluate any rules explicitly configured by the user
-	if err := evaluateRules(wi, attrs); err != nil {
-		return nil, trace.Wrap(err)
+	decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
+	if !decision.shouldIssue {
+		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
 
-	// Perform any templating
-	spiffeIDPath, err := templateString(wi.GetSpec().GetSpiffe().GetId(), attrs)
-	if err != nil {
-		return nil, trace.Wrap(err, "templating spec.spiffe.id")
-	}
-	spiffeID, err := spiffeid.FromURI(&url.URL{
-		Scheme: "spiffe",
-		Host:   s.clusterName,
-		Path:   spiffeIDPath,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating SPIFFE ID")
-	}
-
-	hint, err := templateString(wi.GetSpec().GetSpiffe().GetHint(), attrs)
-	if err != nil {
-		return nil, trace.Wrap(err, "templating spec.spiffe.hint")
-	}
-
-	// TODO(noah): Add more sophisticated control of the TTL.
-	ttl := time.Hour
-	if req.RequestedTtl != nil && req.RequestedTtl.AsDuration() != 0 {
-		ttl = req.RequestedTtl.AsDuration()
-		if ttl > defaultMaxTTL {
-			ttl = defaultMaxTTL
-		}
-	}
-
-	now := s.clock.Now()
-	notBefore := now.Add(-1 * time.Minute)
-	notAfter := now.Add(ttl)
-
-	// Prepare event
-	evt := &apievents.SPIFFESVIDIssued{
-		Metadata: apievents.Metadata{
-			Type: events.SPIFFESVIDIssuedEvent,
-			Code: events.SPIFFESVIDIssuedSuccessCode,
-		},
-		UserMetadata:             authz.ClientUserMetadata(ctx),
-		ConnectionMetadata:       authz.ConnectionMetadata(ctx),
-		SPIFFEID:                 spiffeID.String(),
-		Hint:                     hint,
-		WorkloadIdentity:         wi.GetMetadata().GetName(),
-		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
-	}
-	cred := &workloadidentityv1pb.Credential{
-		WorkloadIdentityName:     wi.GetMetadata().GetName(),
-		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
-
-		SpiffeId: spiffeID.String(),
-		Hint:     hint,
-
-		ExpiresAt: timestamppb.New(notAfter),
-		Ttl:       durationpb.New(ttl),
-	}
-
+	var cred *workloadidentityv1pb.Credential
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
-		evt.SVIDType = "x509"
-		certDer, certSerial, err := s.issueX509SVID(
+		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
+		}
+		cred, err = s.issueX509SVID(
 			ctx,
-			v.X509SvidParams,
-			notBefore,
-			notAfter,
-			spiffeID,
+			issueX509SVIDParams{
+				ca:                    ca,
+				chain:                 chain,
+				workloadIdentity:      decision.templatedWorkloadIdentity,
+				x509Params:            v.X509SvidParams,
+				requestedTTL:          req.RequestedTtl.AsDuration(),
+				attrs:                 attrs,
+				sigstorePolicyResults: decision.sigstorePolicyResults,
+				nameSelector:          req.GetName(),
+			},
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing X509 SVID")
 		}
-		serialStr := serialString(certSerial)
-		cred.Credential = &workloadidentityv1pb.Credential_X509Svid{
-			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
-				Cert:         certDer,
-				SerialNumber: serialStr,
-			},
-		}
-		evt.SerialNumber = serialStr
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams:
-		evt.SVIDType = "jwt"
-		signedJwt, jti, err := s.issueJWTSVID(
+		key, issuer, err := s.getJWTIssuerKey(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting JWT issuer key")
+		}
+		cred, err = s.issueJWTSVID(
 			ctx,
-			v.JwtSvidParams,
-			now,
-			notAfter,
-			spiffeID,
+			issueJWTSVIDParams{
+				issuerKey:             key,
+				issuerURI:             issuer,
+				workloadIdentity:      decision.templatedWorkloadIdentity,
+				jwtParams:             v.JwtSvidParams,
+				requestedTTL:          req.RequestedTtl.AsDuration(),
+				attrs:                 attrs,
+				sigstorePolicyResults: decision.sigstorePolicyResults,
+				nameSelector:          req.GetName(),
+			},
 		)
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing JWT SVID")
 		}
-		cred.Credential = &workloadidentityv1pb.Credential_JwtSvid{
-			JwtSvid: &workloadidentityv1pb.JWTSVIDCredential{
-				Jwt: signedJwt,
-				Jti: jti,
-			},
-		}
-		evt.JTI = jti
 	default:
 		return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
-		s.logger.WarnContext(
-			ctx,
-			"failed to emit audit event for SVID issuance",
-			"error", err,
-			"event", evt,
-		)
-	}
-
 	return &workloadidentityv1pb.IssueWorkloadIdentityResponse{
 		Credential: cred,
+	}, nil
+}
+
+// maxWorkloadIdentitiesIssued is the maximum number of workload identities that
+// can be issued in a single request.
+// TODO(noah): We'll want to make this tunable via env var or similar to make
+// sure we can adjust it as needed.
+var maxWorkloadIdentitiesIssued = 10
+
+func (s *IssuanceService) IssueWorkloadIdentities(
+	ctx context.Context,
+	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
+) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
+	switch {
+	case len(req.LabelSelectors) == 0:
+		return nil, trace.BadParameter("label_selectors: at least one label selector must be specified")
+	case req.GetCredential() == nil:
+		return nil, trace.BadParameter("at least one credential type must be requested")
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	if err != nil {
+		return nil, trace.Wrap(err, "deriving attributes")
+	}
+
+	// Fetch all workload identities that match the label selectors AND the
+	// principal can access.
+	workloadIdentities, err := s.matchingAndAuthorizedWorkloadIdentities(
+		ctx,
+		authCtx,
+		convertLabels(req.LabelSelectors),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Evaluate rules/templating for each worklaod identity, filtering out those
+	// that should not be issued.
+	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
+	for _, wi := range workloadIdentities {
+		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
+		if decision.shouldIssue {
+			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
+		}
+		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
+			// If we're now above the limit, then we want to exit out...
+			return nil, trace.BadParameter(
+				"number of identities that would be issued exceeds maximum permitted (max = %d), use more specific labels",
+				maxWorkloadIdentitiesIssued,
+			)
+		}
+	}
+
+	creds := make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
+	switch v := req.GetCredential().(type) {
+	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
+		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
+		}
+		for _, wi := range shouldIssue {
+			cred, err := s.issueX509SVID(
+				ctx,
+				issueX509SVIDParams{
+					ca:               ca,
+					chain:            chain,
+					workloadIdentity: wi,
+					x509Params:       v.X509SvidParams,
+					requestedTTL:     req.RequestedTtl.AsDuration(),
+					attrs:            attrs,
+					labelSelectors:   req.LabelSelectors,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(
+					err,
+					"issuing X509 SVID for workload identity %q",
+					wi.GetMetadata().GetName(),
+				)
+			}
+			creds = append(creds, cred)
+		}
+	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams:
+		key, issuer, err := s.getJWTIssuerKey(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting JWT issuer key")
+		}
+		for _, wi := range shouldIssue {
+			cred, err := s.issueJWTSVID(
+				ctx,
+				issueJWTSVIDParams{
+					issuerKey:        key,
+					issuerURI:        issuer,
+					workloadIdentity: wi,
+					jwtParams:        v.JwtSvidParams,
+					requestedTTL:     req.RequestedTtl.AsDuration(),
+					attrs:            attrs,
+					labelSelectors:   req.LabelSelectors,
+				},
+			)
+			if err != nil {
+				return nil, trace.Wrap(
+					err,
+					"issuing JWT SVID for workload identity %q",
+					wi.GetMetadata().GetName(),
+				)
+			}
+			creds = append(creds, cred)
+		}
+	default:
+		return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
+	}
+
+	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
+		Credentials: creds,
 	}, nil
 }
 
@@ -409,8 +421,10 @@ func x509Template(
 	notBefore time.Time,
 	notAfter time.Time,
 	spiffeID spiffeid.ID,
+	dnsSANs []string,
+	subjectTemplate *workloadidentityv1pb.X509DistinguishedNameTemplate,
 ) *x509.Certificate {
-	return &x509.Certificate{
+	c := &x509.Certificate{
 		SerialNumber: serialNumber,
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
@@ -436,78 +450,292 @@ func x509Template(
 		// - The corresponding SPIFFE ID is set as a URI type in the Subject Alternative Name extension
 		// - An X.509 SVID MUST contain exactly one URI SAN, and by extension, exactly one SPIFFE ID.
 		// - An X.509 SVID MAY contain any number of other SAN field types, including DNS SANs.
-		URIs: []*url.URL{spiffeID.URL()},
+		URIs:     []*url.URL{spiffeID.URL()},
+		DNSNames: dnsSANs,
 	}
+	if subjectTemplate != nil {
+		c.Subject.CommonName = subjectTemplate.CommonName
+		if subjectTemplate.Organization != "" {
+			c.Subject.Organization = []string{
+				subjectTemplate.Organization,
+			}
+		}
+		if subjectTemplate.OrganizationalUnit != "" {
+			c.Subject.OrganizationalUnit = []string{subjectTemplate.OrganizationalUnit}
+		}
+	}
+
+	return c
 }
 
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
-) (_ *tlsca.CertAuthority, err error) {
+	useIssuerOverrides bool,
+) (_ *tlsca.CertAuthority, _ [][]byte, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
 	defer func() { tracing.EndSpan(span, err) }()
 
+	const loadKeysTrue = true
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
-	}, true)
+	}, loadKeysTrue)
+
 	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting CA cert and key")
+		return nil, nil, trace.Wrap(err, "getting CA cert and key")
 	}
 	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tlsCA, nil
-}
-
-func (s *IssuanceService) issueX509SVID(
-	ctx context.Context,
-	params *workloadidentityv1pb.X509SVIDParams,
-	notBefore time.Time,
-	notAfter time.Time,
-	spiffeID spiffeid.ID,
-) (_ []byte, _ *big.Int, err error) {
-	ctx, span := tracer.Start(ctx, "IssuanceService/issueX509SVID")
-	defer func() { tracing.EndSpan(span, err) }()
-
-	switch {
-	case params == nil:
-		return nil, nil, trace.BadParameter("x509_svid_params: is required")
-	case len(params.PublicKey) == 0:
-		return nil, nil, trace.BadParameter("x509_svid_params.public_key: is required")
-	}
-
-	pubKey, err := x509.ParsePKIXPublicKey(params.PublicKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "parsing public key")
-	}
-
-	certSerial, err := generateCertSerial()
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "generating certificate serial")
-	}
-	template := x509Template(certSerial, notBefore, notAfter, spiffeID)
-
-	ca, err := s.getX509CA(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
-	}
-	certBytes, err := x509.CreateCertificate(
-		rand.Reader, template, ca.Cert, pubKey, ca.Signer,
-	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return certBytes, certSerial, nil
+	if !useIssuerOverrides {
+		return tlsCA, nil, nil
+	}
+	// TODO(espadolini): support alternate overrides depending on the trust
+	// domain, once that's fleshed out
+	newCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", tlsCA)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "getting CA override")
+	}
+
+	return newCA, chain, nil
+}
+
+func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
+	if in == nil {
+		return nil, nil
+	}
+	attrBytes, err := json.Marshal(in)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling join attributes")
+	}
+	out := &apievents.Struct{}
+	if err := out.UnmarshalJSON(attrBytes); err != nil {
+		return nil, trace.Wrap(err, "unmarshaling join attributes")
+	}
+	return out, nil
+}
+
+func baseEvent(
+	ctx context.Context,
+	wi *workloadidentityv1pb.WorkloadIdentity,
+	spiffeID spiffeid.ID,
+	attrs *workloadidentityv1pb.Attrs,
+	sigstorePolicyResults map[string]error,
+	nameSelector string,
+	labelSelectors []*workloadidentityv1pb.LabelSelector,
+) (*apievents.SPIFFESVIDIssued, error) {
+	structAttrs, err := rawAttrsToStruct(attrs)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling attributes")
+	}
+
+	workloadFields := structAttrs.GetFields()["workload"].GetStructValue().GetFields()
+	if workloadFields != nil {
+		delete(workloadFields, "sigstore")
+		if len(sigstorePolicyResults) != 0 {
+			policyResults := make(map[string]any)
+			for name, err := range sigstorePolicyResults {
+				result := map[string]any{
+					"satisfied": err == nil,
+				}
+				if err != nil {
+					result["reason"] = err.Error()
+				}
+				policyResults[name] = result
+			}
+			field, err := apievents.EncodeMap(map[string]any{
+				"payload_count":      len(attrs.GetWorkload().GetSigstore().GetPayloads()),
+				"evaluated_policies": policyResults,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err, "marshaling sigstore attributes")
+			}
+			workloadFields["sigstore"] = &gogotypes.Value{
+				Kind: &gogotypes.Value_StructValue{
+					StructValue: &field.Struct,
+				},
+			}
+		}
+	}
+
+	return &apievents.SPIFFESVIDIssued{
+		Metadata: apievents.Metadata{
+			Type: events.SPIFFESVIDIssuedEvent,
+			Code: events.SPIFFESVIDIssuedSuccessCode,
+		},
+		UserMetadata:             authz.ClientUserMetadata(ctx),
+		ConnectionMetadata:       authz.ConnectionMetadata(ctx),
+		SPIFFEID:                 spiffeID.String(),
+		Hint:                     wi.GetSpec().GetSpiffe().GetHint(),
+		WorkloadIdentity:         wi.GetMetadata().GetName(),
+		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
+		Attributes:               structAttrs,
+		NameSelector:             nameSelector,
+		LabelSelectors:           labelSelectorsToAudit(labelSelectors),
+	}, nil
+}
+
+func labelSelectorsToAudit(
+	in []*workloadidentityv1pb.LabelSelector,
+) []*apievents.LabelSelector {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*apievents.LabelSelector, 0, len(in))
+	for _, ls := range in {
+		out = append(out, &apievents.LabelSelector{
+			Key:    ls.Key,
+			Values: ls.Values,
+		})
+	}
+	return out
+}
+
+func calculateTTL(
+	ctx context.Context,
+	log *slog.Logger,
+	clock clockwork.Clock,
+	requestedTTL time.Duration,
+	configuredMaxTTL time.Duration,
+) (time.Time, time.Time, time.Time, time.Duration) {
+	ttl := cmp.Or(requestedTTL, defaultTTL)
+	maxTTL := cmp.Or(configuredMaxTTL, defaultMaxTTL)
+
+	if ttl > maxTTL {
+		log.InfoContext(
+			ctx,
+			"Requested SVID TTL exceeds maximum, using maximum instead",
+			"requested_ttl", ttl,
+			"max_ttl", maxTTL)
+		ttl = maxTTL
+	}
+
+	now := clock.Now()
+	notBefore := now.Add(-1 * time.Minute)
+	notAfter := now.Add(ttl)
+	return now, notBefore, notAfter, ttl
+}
+
+type issueX509SVIDParams struct {
+	ca                    *tlsca.CertAuthority
+	chain                 [][]byte
+	workloadIdentity      *workloadidentityv1pb.WorkloadIdentity
+	x509Params            *workloadidentityv1pb.X509SVIDParams
+	requestedTTL          time.Duration
+	attrs                 *workloadidentityv1pb.Attrs
+	sigstorePolicyResults map[string]error
+	nameSelector          string
+	labelSelectors        []*workloadidentityv1pb.LabelSelector
+}
+
+func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVIDParams) (_ *workloadidentityv1pb.Credential, err error) {
+	ctx, span := tracer.Start(ctx, "IssuanceService/issueX509SVID")
+	defer func() { tracing.EndSpan(span, err) }()
+
+	switch {
+	case params.x509Params == nil:
+		return nil, trace.BadParameter("x509_svid_params: is required")
+	case len(params.x509Params.PublicKey) == 0:
+		return nil, trace.BadParameter("x509_svid_params.public_key: is required")
+	}
+
+	spiffeID, err := spiffeid.FromURI(&url.URL{
+		Scheme: "spiffe",
+		Host:   s.clusterName,
+		Path:   params.workloadIdentity.GetSpec().GetSpiffe().GetId(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing SPIFFE ID")
+	}
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		params.requestedTTL,
+		params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration(),
+	)
+
+	pubKey, err := x509.ParsePKIXPublicKey(params.x509Params.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing public key")
+	}
+
+	certSerial, err := generateCertSerial()
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certificate serial")
+	}
+	serialString := serialString(certSerial)
+
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		x509Template(
+			certSerial,
+			notBefore,
+			notAfter,
+			spiffeID,
+			params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans(),
+			params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate(),
+		),
+		params.ca.Cert,
+		pubKey,
+		params.ca.Signer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	evt, err := baseEvent(
+		ctx,
+		params.workloadIdentity,
+		spiffeID,
+		params.attrs,
+		params.sigstorePolicyResults,
+		params.nameSelector,
+		params.labelSelectors,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating base event")
+	}
+	evt.SVIDType = "x509"
+	evt.SerialNumber = serialString
+	evt.DNSSANs = params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans()
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
+		s.logger.WarnContext(
+			ctx,
+			"failed to emit audit event for SVID issuance",
+			"error", err,
+			"event", evt,
+		)
+	}
+
+	return &workloadidentityv1pb.Credential{
+		WorkloadIdentityName:     params.workloadIdentity.GetMetadata().GetName(),
+		WorkloadIdentityRevision: params.workloadIdentity.GetMetadata().GetRevision(),
+
+		SpiffeId: spiffeID.String(),
+		Hint:     params.workloadIdentity.GetSpec().GetSpiffe().GetHint(),
+
+		ExpiresAt: timestamppb.New(notAfter),
+		Ttl:       durationpb.New(ttl),
+
+		Credential: &workloadidentityv1pb.Credential_X509Svid{
+			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
+				Cert:         certBytes,
+				SerialNumber: serialString,
+				Chain:        params.chain,
+			},
+		},
+	}, nil
 }
 
 const jtiLength = 16
 
 func (s *IssuanceService) getJWTIssuerKey(
 	ctx context.Context,
-) (_ *jwt.Key, err error) {
+) (_ *jwt.Key, _ string, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/getJWTIssuerKey")
 	defer func() { tracing.EndSpan(span, err) }()
 
@@ -516,79 +744,197 @@ func (s *IssuanceService) getJWTIssuerKey(
 		DomainName: s.clusterName,
 	}, true)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting SPIFFE CA")
+		return nil, "", trace.Wrap(err, "getting SPIFFE CA")
 	}
 
 	jwtSigner, err := s.keyStore.GetJWTSigner(ctx, ca)
 	if err != nil {
-		return nil, trace.Wrap(err, "getting JWT signer")
+		return nil, "", trace.Wrap(err, "getting JWT signer")
 	}
 
 	jwtKey, err := services.GetJWTSigner(
 		jwtSigner, s.clusterName, s.clock,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err, "creating JWT signer")
-	}
-	return jwtKey, nil
-}
-
-func (s *IssuanceService) issueJWTSVID(
-	ctx context.Context,
-	params *workloadidentityv1pb.JWTSVIDParams,
-	now time.Time,
-	notAfter time.Time,
-	spiffeID spiffeid.ID,
-) (_ string, _ string, err error) {
-	ctx, span := tracer.Start(ctx, "IssuanceService/issueJWTSVID")
-	defer func() { tracing.EndSpan(span, err) }()
-
-	switch {
-	case params == nil:
-		return "", "", trace.BadParameter("jwt_svid_params: is required")
-	case len(params.Audiences) == 0:
-		return "", "", trace.BadParameter("jwt_svid_params.audiences: at least one audience should be specified")
-	}
-
-	jti, err := utils.CryptoRandomHex(jtiLength)
-	if err != nil {
-		return "", "", trace.Wrap(err, "generating JTI")
-	}
-
-	key, err := s.getJWTIssuerKey(ctx)
-	if err != nil {
-		return "", "", trace.Wrap(err, "getting JWT issuer key")
+		return nil, "", trace.Wrap(err, "creating JWT signer")
 	}
 
 	// Determine the public address of the proxy for inclusion in the JWT as
 	// the issuer for purposes of OIDC compatibility.
 	issuer, err := oidc.IssuerForCluster(ctx, s.cache, "/workload-identity")
 	if err != nil {
-		return "", "", trace.Wrap(err, "determining issuer URI")
+		return nil, "", trace.Wrap(err, "determining issuer URI")
 	}
 
-	signed, err := key.SignJWTSVID(jwt.SignParamsJWTSVID{
-		Audiences: params.Audiences,
+	return jwtKey, issuer, nil
+}
+
+type issueJWTSVIDParams struct {
+	issuerKey             *jwt.Key
+	issuerURI             string
+	workloadIdentity      *workloadidentityv1pb.WorkloadIdentity
+	jwtParams             *workloadidentityv1pb.JWTSVIDParams
+	requestedTTL          time.Duration
+	attrs                 *workloadidentityv1pb.Attrs
+	sigstorePolicyResults map[string]error
+	nameSelector          string
+	labelSelectors        []*workloadidentityv1pb.LabelSelector
+}
+
+func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDParams) (_ *workloadidentityv1pb.Credential, err error) {
+	ctx, span := tracer.Start(ctx, "IssuanceService/issueJWTSVID")
+	defer func() { tracing.EndSpan(span, err) }()
+
+	switch {
+	case params.jwtParams == nil:
+		return nil, trace.BadParameter("jwt_svid_params: is required")
+	case len(params.jwtParams.Audiences) == 0:
+		return nil, trace.BadParameter("jwt_svid_params.audiences: at least one audience should be specified")
+	}
+
+	spiffeID, err := spiffeid.FromURI(&url.URL{
+		Scheme: "spiffe",
+		Host:   s.clusterName,
+		Path:   params.workloadIdentity.GetSpec().GetSpiffe().GetId(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing SPIFFE ID")
+	}
+	now, _, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		params.requestedTTL,
+		params.workloadIdentity.GetSpec().GetSpiffe().GetJwt().GetMaximumTtl().AsDuration(),
+	)
+
+	jti, err := utils.CryptoRandomHex(jtiLength)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating JTI")
+	}
+
+	signed, err := params.issuerKey.SignJWTSVID(jwt.SignParamsJWTSVID{
+		Audiences: params.jwtParams.Audiences,
 		SPIFFEID:  spiffeID,
 		JTI:       jti,
-		Issuer:    issuer,
+		Issuer:    params.issuerURI,
 
 		SetIssuedAt: now,
 		SetExpiry:   notAfter,
+
+		PrivateClaims: params.workloadIdentity.GetSpec().GetSpiffe().GetJwt().GetExtraClaims().AsMap(),
 	})
 	if err != nil {
-		return "", "", trace.Wrap(err, "signing jwt")
+		return nil, trace.Wrap(err, "signing jwt")
 	}
 
-	return signed, jti, nil
+	evt, err := baseEvent(
+		ctx,
+		params.workloadIdentity,
+		spiffeID,
+		params.attrs,
+		params.sigstorePolicyResults,
+		params.nameSelector,
+		params.labelSelectors,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating base event")
+	}
+	evt.SVIDType = "jwt"
+	evt.JTI = jti
+	if err := s.emitter.EmitAuditEvent(ctx, evt); err != nil {
+		s.logger.WarnContext(
+			ctx,
+			"failed to emit audit event for SVID issuance",
+			"error", err,
+			"event", evt,
+		)
+	}
+
+	return &workloadidentityv1pb.Credential{
+		WorkloadIdentityName:     params.workloadIdentity.GetMetadata().GetName(),
+		WorkloadIdentityRevision: params.workloadIdentity.GetMetadata().GetRevision(),
+
+		SpiffeId: spiffeID.String(),
+		Hint:     params.workloadIdentity.GetSpec().GetSpiffe().GetHint(),
+
+		ExpiresAt: timestamppb.New(notAfter),
+		Ttl:       durationpb.New(ttl),
+
+		Credential: &workloadidentityv1pb.Credential_JwtSvid{
+			JwtSvid: &workloadidentityv1pb.JWTSVIDCredential{
+				Jwt: signed,
+				Jti: jti,
+			},
+		},
+	}, nil
 }
 
-func (s *IssuanceService) IssueWorkloadIdentities(
+func (s *IssuanceService) getAllWorkloadIdentities(
 	ctx context.Context,
-	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
-) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
-	// TODO(noah): Coming to a PR near you soon!
-	return nil, trace.NotImplemented("not implemented")
+) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
+	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
+	page := ""
+	for {
+		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		workloadIdentities = append(workloadIdentities, pageItems...)
+		if nextPage == "" {
+			break
+		}
+		page = nextPage
+	}
+	return workloadIdentities, nil
+}
+
+// matchingAndAuthorizedWorkloadIdentities returns the workload identities that
+// match the provided labels and the principal has access to.
+func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
+	ctx context.Context,
+	authCtx *authz.Context,
+	labels types.Labels,
+) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
+	allWorkloadIdentities, err := s.getAllWorkloadIdentities(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
+	// Filter out identities user cannot access.
+	for _, wid := range allWorkloadIdentities {
+		if err := authCtx.Checker.CheckAccess(
+			types.Resource153ToResourceWithLabels(wid),
+			services.AccessState{},
+		); err == nil {
+			canAccess = append(canAccess, wid)
+		}
+	}
+
+	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
+	for _, wid := range canAccess {
+		match, _, err := services.MatchLabelGetter(
+			labels, types.Resource153ToResourceWithLabels(wid),
+		)
+		if err != nil {
+			// Maybe log and skip rather than returning an error?
+			return nil, trace.Wrap(err)
+		}
+		if match {
+			canAccessAndInSearch = append(canAccessAndInSearch, wid)
+		}
+	}
+
+	return canAccessAndInSearch, nil
+}
+
+func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels {
+	labels := types.Labels{}
+	for _, selector := range selectors {
+		labels[selector.Key] = selector.Values
+	}
+	return labels
 }
 
 func serialString(serial *big.Int) string {

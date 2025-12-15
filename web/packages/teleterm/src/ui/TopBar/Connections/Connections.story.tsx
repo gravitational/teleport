@@ -16,19 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
 import { useLayoutEffect } from 'react';
+
 import { Flex, Text } from 'design';
 
+import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { makeReportWithIssuesFound } from 'teleterm/services/vnet/testHelpers';
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { VnetContextProvider } from 'teleterm/ui/Vnet';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 
 import { Connections } from './Connections';
 import { ConnectionsContextProvider } from './connectionsContext';
 
-export default {
+const meta: Meta = {
   title: 'Teleterm/TopBar/Connections',
   decorators: [
     Story => {
@@ -38,37 +41,9 @@ export default {
     },
   ],
 };
+export default meta;
 
 const rootClusterUri = '/clusters/foo';
-
-export function Story() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-  appContext.clustersService.setState(draft => {
-    const rootCluster1 = makeRootCluster({
-      uri: rootClusterUri,
-      name: 'teleport.example.sh',
-      proxyHost: 'teleport.example.sh:443',
-    });
-    const rootCluster2 = makeRootCluster({
-      uri: '/clusters/bar',
-      name: 'bar.example.com',
-      proxyHost: 'bar.example.com:3080',
-    });
-    draft.clusters.set(rootCluster1.uri, rootCluster1);
-    draft.clusters.set(rootCluster2.uri, rootCluster2);
-  });
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
 
 export function MultipleClusters() {
   const appContext = new MockAppContext();
@@ -109,10 +84,60 @@ export function MultipleClusters() {
   );
 }
 
+export function SingleCluster() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+  appContext.clustersService.setState(draft => {
+    const rootCluster1 = makeRootCluster({
+      uri: rootClusterUri,
+      name: 'teleport.example.sh',
+      proxyHost: 'teleport.example.sh:443',
+    });
+    draft.clusters.set(rootCluster1.uri, rootCluster1);
+  });
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
 export function JustVnetWithNoClusters() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);
   appContext.connectionTracker.getConnections = () => [];
+
+  return (
+    <AppContextProvider value={appContext}>
+      <ConnectionsContextProvider>
+        <VnetContextProvider>
+          <Connections />
+        </VnetContextProvider>
+      </ConnectionsContextProvider>
+    </AppContextProvider>
+  );
+}
+
+export function VnetWarning() {
+  const appContext = new MockAppContext();
+  prepareAppContext(appContext);
+
+  appContext.statePersistenceService.putState({
+    ...appContext.statePersistenceService.getState(),
+    vnet: { autoStart: true, hasEverStarted: true },
+  });
+  appContext.workspacesService.setState(draft => {
+    draft.isInitialized = true;
+  });
+  appContext.vnet.runDiagnostics = () =>
+    new MockedUnaryCall({
+      report: makeReportWithIssuesFound(),
+    });
 
   return (
     <AppContextProvider value={appContext}>
@@ -131,7 +156,7 @@ export function VnetError() {
 
   appContext.statePersistenceService.putState({
     ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
+    vnet: { autoStart: true, hasEverStarted: true },
   });
   appContext.workspacesService.setState(draft => {
     draft.isInitialized = true;
@@ -255,6 +280,30 @@ const makeConnections = (index = 0) => {
       serverUri: '/clusters/foo/servers/ansible-staging' + suffix,
       login: 'casey',
       clusterName: 'teleport.example.sh',
+    },
+    {
+      connected: true,
+      kind: 'connection.gateway' as const,
+      title: 'some-web-app' + suffix,
+      targetName: 'some-web-app',
+      id: '11111' + suffix,
+      targetUri: '/clusters/foo/apps/some-web-app' + suffix,
+      port: '11111',
+      gatewayUri: '/gateways/some-web-app',
+      clusterName: 'teleport.example.sh',
+      targetProtocol: 'HTTP',
+    },
+    {
+      connected: true,
+      kind: 'connection.gateway' as const,
+      title: 'some-mcp-server' + suffix,
+      targetName: 'some-mcp-server',
+      id: '22222' + suffix,
+      targetUri: '/clusters/foo/apps/some-mcp-server' + suffix,
+      port: '22222',
+      gatewayUri: '/gateways/some-mcp-server',
+      clusterName: 'teleport.example.sh',
+      targetProtocol: 'MCP',
     },
   ];
 };

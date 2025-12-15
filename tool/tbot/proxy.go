@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot/cli"
-	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
@@ -54,7 +54,7 @@ func onProxyCommand(
 		return trace.Wrap(err)
 	}
 
-	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
+	identityPath := filepath.Join(destination.Path, identity.IdentityFilePath)
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.

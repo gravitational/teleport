@@ -363,6 +363,8 @@ const (
 	AccessRequestDeleteCode = "T5003I"
 	// AccessRequestResourceSearchCode is the access request resource search code.
 	AccessRequestResourceSearchCode = "T5004I"
+	// AccessRequestExpireCode is the access request expires code.
+	AccessRequestExpireCode = "T5005I"
 
 	// ResetPasswordTokenCreateCode is the token create event code.
 	ResetPasswordTokenCreateCode = "T6000I"
@@ -674,6 +676,13 @@ const (
 	// AutoUpdateVersionDeleteCode is the auto update version delete event code.
 	AutoUpdateVersionDeleteCode = "AUV003I"
 
+	// AutoUpdateAgentRolloutTriggerCode is the auto update agent rollout trigger event code.
+	AutoUpdateAgentRolloutTriggerCode = "AUAR001I"
+	// AutoUpdateAgentRolloutForceDoneCode is the auto update agent rollout force-done event code.
+	AutoUpdateAgentRolloutForceDoneCode = "AUAR002I"
+	// AutoUpdateAgentRolloutRollbackCode is the auto update agent rollout rollback event code.
+	AutoUpdateAgentRolloutRollbackCode = "AUAR003I"
+
 	// ContactCreateCode is the auto update version create event code.
 	ContactCreateCode = "TCTC001I"
 	// ContactDeleteCode is the auto update version delete event code.
@@ -685,11 +694,136 @@ const (
 	WorkloadIdentityUpdateCode = "WID002I"
 	// WorkloadIdentityDeleteCode is the workload identity delete event code.
 	WorkloadIdentityDeleteCode = "WID003I"
+	// WorkloadIdentityX509RevocationCreateCode is the
+	// WorkloadIdentityX509Revocation create event code.
+	WorkloadIdentityX509RevocationCreateCode = "WID004I"
+	// WorkloadIdentityX509RevocationUpdateCode is the
+	// WorkloadIdentityX509Revocation update event code.
+	WorkloadIdentityX509RevocationUpdateCode = "WID005I"
+	// WorkloadIdentityX509RevocationDeleteCode is the
+	// WorkloadIdentityX509Revocation delete event code.
+	WorkloadIdentityX509RevocationDeleteCode = "WID006I"
+	// WorkloadIdentityX509IssuerOverrideCreateCode is the code for the
+	// workload_identity_x509_issuer_override.create event.
+	WorkloadIdentityX509IssuerOverrideCreateCode = "WID007I"
+	// WorkloadIdentityX509IssuerOverrideDeleteCode is the code for the
+	// workload_identity_x509_issuer_override.delete event.
+	WorkloadIdentityX509IssuerOverrideDeleteCode = "WID008I"
+
+	// SigstorePolicyCreateCode is the Sigstore policy create event code.
+	SigstorePolicyCreateCode = "TSSP001I"
+	// SigstorePolicyUpdateCode is the Sigstore policy update event code.
+	SigstorePolicyUpdateCode = "TSSP002I"
+	// SigstorePolicyDeleteCode is the Sigstore policy delete event code.
+	SigstorePolicyDeleteCode = "TSSP003I"
+
+	// HealthCheckConfigCreateCode is the health check config create event code.
+	HealthCheckConfigCreateCode = "THCC001I"
+	// HealthCheckConfigUpdateCode is the health check config update event code.
+	HealthCheckConfigUpdateCode = "THCC002I"
+	// HealthCheckConfigDeleteCode is the health check config delete event code.
+	HealthCheckConfigDeleteCode = "THCC003I"
 
 	// GitCommandCode is the git command event code
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
+
+	// StableUNIXUserCreateCode is the stable UNIX user create event code.
+	StableUNIXUserCreateCode = "TSUU001I"
+
+	// AWSICResourceSyncSuccessCode is the AWS Identity Center resource
+	// sync attempt success code.
+	AWSICResourceSyncSuccessCode = "TAIC001I"
+	// AWSICResourceSyncFailureCode is the AWS Identity Center resource
+	// sync attempt failure code.
+	AWSICResourceSyncFailureCode = "TAIC001E"
+
+	// MCPSessionStartCode is the event code for mcp.session.start.
+	MCPSessionStartCode = "TMCP001I"
+	// MCPSessionEndCode is the event code for mcp.session.end.
+	MCPSessionEndCode = "TMCP002I"
+	// MCPSessionEndFailureCode is the event code for mcp.session.end when the
+	// end request is denied by the MCP server.
+	MCPSessionEndFailureCode = "TMCP002E"
+	// MCPSessionRequestCode is the event code for mcp.session.request.
+	MCPSessionRequestCode = "TMCP003I"
+	// MCPSessionRequestFailureCode is the event code for mcp.session.request
+	// when the request is denied by Teleport or the MCP server.
+	MCPSessionRequestFailureCode = "TMCP003E"
+	// MCPSessionNotificationCode is the event code for
+	// mcp.session.notification.
+	MCPSessionNotificationCode = "TMCP004I"
+	// MCPSessionNotificationFailureCode is the event code for
+	// mcp.session.notification when the notification is denied by the MCP
+	// server.
+	MCPSessionNotificationFailureCode = "TMCP004E"
+	// MCPSessionListenSSEStreamCode is the event code for
+	// mcp.session.listen_sse_stream.
+	MCPSessionListenSSEStreamCode = "TMCP005I"
+	// MCPSessionListenSSEStreamFailureCode is the event code for
+	// mcp.session.listen_sse_stream when the request is denied by the MCP
+	// server.
+	MCPSessionListenSSEStreamFailureCode = "TMCP005E"
+	// MCPSessionInvalidHTTPRequestCode is the event code for
+	// mcp.session.invalid_http_request.
+	MCPSessionInvalidHTTPRequestCode = "TMCP006E"
+
+	// BoundKeypairRecoveryCode is the event code for
+	// join_token.bound_keypair.recovery.
+	BoundKeypairRecoveryCode = "TBK001I"
+	// BoundKeypairRotationCode is the event code for
+	// join_token.bound_keypair.rotation.
+	BoundKeypairRotationCode = "TBK002I"
+	// BoundKeypairJoinStateVerificationFailedCode is the event code for
+	// join_token.bound_keypair.join_state_verification_failed.
+	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
+
+	// SCIMResourceCreateSuccessCode indicates a resource was successfully
+	// provisioned via SCIM
+	SCIMResourceCreateSuccessCode = "TSCIM001I"
+	// SCIMResourceCreateFailureCode indicates a failed attempt to provision
+	// a resource via SCIM
+	SCIMResourceCreateFailureCode = "TSCIM001E"
+	// SCIMResourceUpdateSuccessCode indicates a resource was successfully
+	// updated via SCIM
+	SCIMResourceUpdateSuccessCode = "TSCIM002I"
+	// SCIMResourceUpdateFailureCode indicates a failed attempt to update
+	// a resource via SCIM
+	SCIMResourceUpdateFailureCode = "TSCIM002E"
+	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
+	// deleted via SCIM
+	SCIMResourceDeleteSuccessCode = "TSCIM003I"
+	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
+	// update a resource via SCIM
+	SCIMResourceDeleteFailureCode = "TSCIM003E"
+	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
+	// fron Teleport via SCIM
+	SCIMGetResourceSuccessCode = "TSCIM004I"
+	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
+	// resource via SCIM
+	SCIMGetResourceFailureCode = "TSCIM004E"
+	// SCIMListResourcesSuccessCode indicates a resource listing was successfully fetched
+	// from Teleport via SCIM
+	SCIMListResourcesSuccessCode = "TSCIM005I"
+	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
+	// via SCIM
+	SCIMListResourcesFailureCode = "TSCIM005E"
+	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
+	ClientIPRestrictionsUpdateCode = "CIR001I"
+
+	// AppAuthConfigCreateCode is the app auth config create event code.
+	AppAuthConfigCreateCode = "TAAC001I"
+	// AppAuthConfigUpdateCode is the app auth config update event code.
+	AppAuthConfigUpdateCode = "TAAC002I"
+	// AppAuthConfigDeleteCode is the app auth config delete event code.
+	AppAuthConfigDeleteCode = "TAAC003I"
+	// AppAuthConfigVerifySuccessCode is the app auth verification success event
+	// code.
+	AppAuthConfigVerifySuccessCode = "TAAC004I"
+	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
+	// code.
+	AppAuthConfigVerifyFailureCode = "TAAC004E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

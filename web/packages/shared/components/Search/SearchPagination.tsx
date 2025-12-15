@@ -17,8 +17,8 @@
  */
 
 import { Flex } from 'design';
-import { StyledPanel } from 'design/DataTable/StyledTable';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
+import { StyledPanel } from 'design/DataTable/StyledTable';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
 export function SearchPagination({ prevPage, nextPage }: Props) {

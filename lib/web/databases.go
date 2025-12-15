@@ -40,16 +40,19 @@ import (
 	"github.com/julienschmidt/httprouter"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,7 +61,7 @@ import (
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/listener"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	webui "github.com/gravitational/teleport/lib/web/ui"
@@ -119,7 +122,7 @@ func (r *createOrOverwriteDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	var req *createOrOverwriteDatabaseRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -134,7 +137,7 @@ func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,7 +203,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -215,7 +218,7 @@ func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,21 +296,22 @@ type databaseIAMPolicyAWS struct {
 }
 
 // handleDatabaseGetIAMPolicy returns the required IAM policy for database.
-func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("missing database name")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	database, err := fetchDatabaseWithName(r.Context(), clt, r, databaseName)
+	dbServers, err := fetchDatabaseServersWithName(r.Context(), clt, r, databaseName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	database := dbServers[0].GetDatabase()
 
 	switch {
 	case database.IsAWSHosted():
@@ -332,7 +336,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	tokenStr := p.ByName("token")
 	if err := validateJoinToken(tokenStr); err != nil {
 		return "", trace.Wrap(err)
@@ -348,7 +352,10 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 		return "", trace.BadParameter("invalid token")
 	}
 
-	proxyServers, err := h.GetProxyClient().GetProxies()
+	proxyServers, err := clientutils.CollectWithFallback(r.Context(), h.GetProxyClient().ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return h.GetProxyClient().GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -407,19 +414,33 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 }
 
 func (h *Handler) dbConnect(
-	w http.ResponseWriter,
+	_ http.ResponseWriter,
 	r *http.Request,
-	p httprouter.Params,
+	_ httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
 	h.logger.DebugContext(ctx, "Received database interactive connection")
+
+	var term session.TerminalParams
+	q := r.URL.Query()
+	params := q.Get("params")
+	if params != "" {
+		var termReq TerminalRequest
+		if err := json.Unmarshal([]byte(params), &termReq); err != nil {
+			h.logger.DebugContext(ctx, "Failed to unmarshal terminal request",
+				"error", err,
+			)
+		} else {
+			term = termReq.Term
+		}
+	}
 
 	req, err := readDatabaseSessionRequest(ws)
 	if err != nil {
@@ -442,6 +463,7 @@ func (h *Handler) dbConnect(
 		"database_name", req.DatabaseName,
 		"database_user", req.DatabaseUser,
 		"database_roles", req.DatabaseRoles,
+		"remote_addr", logutils.StringerAttr(ws.RemoteAddr()),
 	)
 	log.DebugContext(ctx, "Received database interactive session request")
 
@@ -450,39 +472,66 @@ func (h *Handler) dbConnect(
 		return nil, trace.NotImplemented("%q database protocol not supported for REPL sessions", req.Protocol)
 	}
 
-	accessPoint, err := site.CachingAccessPoint()
+	netConfig, err := h.GetAccessPoint().GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	netConfig, err := accessPoint.GetClusterNetworkingConfig(ctx)
+	// Get host CA for this Proxy.
+	clusterName, err := h.GetAccessPoint().GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyHostCA, err := h.GetAccessPoint().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName.GetClusterName(),
+	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
-	defer stream.Close()
+	databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindDatabaseServer,
+		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ServiceName),
+		Limit:               1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	replConn, alpnConn := net.Pipe()
-	sess := &databaseInteractiveSession{
-		ctx:               ctx,
+	var db types.Database
+	if len(databases) > 0 {
+		db = databases[0].GetDatabase()
+		adjusted, newUsername := gcp.AdjustDatabaseUsername(req.DatabaseUser, db)
+		if adjusted {
+			log.DebugContext(ctx, "Adding default project suffix for IAM principal", "original", req.DatabaseUser, "updated", newUsername)
+			req.DatabaseUser = newUsername
+		}
+	}
+
+	sess, err := newDatabaseInteractiveSession(ctx, databaseInteractiveSessionConfig{
 		log:               log,
 		req:               req,
-		stream:            stream,
 		ws:                ws,
 		sctx:              sctx,
-		site:              site,
+		site:              cluster,
 		clt:               clt,
-		replConn:          replConn,
-		alpnConn:          alpnConn,
 		keepAliveInterval: netConfig.GetKeepAliveInterval(),
 		registry:          h.cfg.DatabaseREPLRegistry,
+		alpnHandler:       h.cfg.ALPNHandler,
 		proxyAddr:         h.PublicProxyAddr(),
+		proxyHostCA:       proxyHostCA,
+		Term:              term,
+	})
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "Failed to create interactive database session", "error", err)
+		return nil, trace.Wrap(err)
 	}
 	defer sess.Close()
 
@@ -552,24 +601,105 @@ func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, er
 	return &req, nil
 }
 
-type databaseInteractiveSession struct {
-	ctx               context.Context
+type databaseInteractiveSessionConfig struct {
 	ws                *websocket.Conn
-	stream            *terminal.Stream
 	log               *slog.Logger
 	req               *DatabaseSessionRequest
 	sctx              *SessionContext
-	site              reversetunnelclient.RemoteSite
+	site              reversetunnelclient.Cluster
 	clt               authclient.ClientI
-	replConn          net.Conn
-	alpnConn          net.Conn
 	keepAliveInterval time.Duration
 	registry          dbrepl.REPLRegistry
+	alpnHandler       ConnectionHandler
 	proxyAddr         string
+	proxyHostCA       types.CertAuthority
+	// Term is the initial PTY size.
+	Term session.TerminalParams
+}
+
+func (c *databaseInteractiveSessionConfig) check() error {
+	if c.ws == nil {
+		return trace.BadParameter("missing parameter ws")
+	}
+	if c.req == nil {
+		return trace.BadParameter("missing parameter req")
+	}
+	if c.site == nil {
+		return trace.BadParameter("missing parameter site")
+	}
+	if c.clt == nil {
+		return trace.BadParameter("missing parameter clt")
+	}
+	if c.keepAliveInterval == 0 {
+		return trace.BadParameter("missing parameter keepAliveInterval")
+	}
+	if c.registry == nil {
+		return trace.BadParameter("missing parameter registry")
+	}
+	if c.alpnHandler == nil {
+		return trace.BadParameter("missing parameter alpnHandler")
+	}
+	if c.proxyAddr == "" {
+		return trace.BadParameter("missing parameter proxyAddr")
+	}
+	if c.proxyHostCA == nil {
+		return trace.BadParameter("missing parameter proxyHostCA")
+	}
+	if err := c.Term.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+type databaseInteractiveSession struct {
+	databaseInteractiveSessionConfig
+	ctx            context.Context
+	replConn       net.Conn
+	alpnConn       net.Conn
+	stream         *terminal.Stream
+	instance       dbrepl.REPLInstance
+	instanceReadyC chan struct{}
+}
+
+func newDatabaseInteractiveSession(ctx context.Context, cfg databaseInteractiveSessionConfig) (*databaseInteractiveSession, error) {
+	if err := cfg.check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	replConn, alpnConn := net.Pipe()
+	sess := &databaseInteractiveSession{
+		ctx:                              ctx,
+		databaseInteractiveSessionConfig: cfg,
+		replConn:                         replConn,
+		alpnConn:                         alpnConn,
+		instanceReadyC:                   make(chan struct{}),
+	}
+	sess.stream = terminal.NewStream(ctx, terminal.StreamConfig{
+		// Don't close the terminal stream on session error, as it would also
+		// cause the underlying connection to be closed. This will prevent the
+		// middleware from properly writing the error into the WebSocket connection.
+		// The middleware initiates the connection, forwards it to our
+		// handler, and always closes it.
+		WS: noopCloserWS{Conn: cfg.ws},
+		Handlers: map[string]terminal.WSHandlerFunc{
+			defaults.WebsocketResize: sess.handleWindowResize,
+		},
+	})
+	return sess, nil
+}
+
+// noopCloserWS prevents the stream from closing the websocket, to allow the
+// middleware to write any returned errors to the client before closing the
+// websocket.
+type noopCloserWS struct {
+	*websocket.Conn
+}
+
+func (c noopCloserWS) Close() error {
+	return nil
 }
 
 func (s *databaseInteractiveSession) Run() error {
-	tlsCert, route, err := s.issueCerts()
+	replConn, err := s.makeReplConn()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -578,33 +708,43 @@ func (s *databaseInteractiveSession) Run() error {
 		return trace.Wrap(err)
 	}
 
-	alpnProtocol, err := alpncommon.ToALPNProtocol(route.Protocol)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	defaultCloseHandler := s.ws.CloseHandler()
+	s.ws.SetCloseHandler(func(code int, text string) error {
+		s.log.DebugContext(s.ctx, "web socket was closed by client - terminating session")
+		// Call the default close handler if one was set.
+		if defaultCloseHandler != nil {
+			err := defaultCloseHandler(code, text)
+			return trace.NewAggregate(err, s.Close())
+		}
 
+		return trace.Wrap(s.Close())
+	})
 	go startWSPingLoop(s.ctx, s.ws, s.keepAliveInterval, s.log, s.Close)
 
-	err = client.RunALPNAuthTunnel(s.ctx, client.ALPNAuthTunnelConfig{
-		AuthClient:      s.clt,
-		Listener:        listener.NewSingleUseListener(s.alpnConn),
-		Protocol:        alpnProtocol,
-		PublicProxyAddr: s.proxyAddr,
-		RouteToDatabase: *route,
-		TLSCert:         tlsCert,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// Wrap s.alpnConn with real client addresses and pass it to the ALPN
+	// handler.
+	go func() {
+		alpnConnWithAddr := utils.NewConnWithAddr(s.alpnConn, s.ws.LocalAddr(), s.ws.RemoteAddr())
+		if err := s.alpnHandler(s.ctx, alpnConnWithAddr); err != nil && !utils.IsOKNetworkError(err) {
+			s.log.ErrorContext(s.ctx, "ALPN handler for database interactive session failed", "error", err)
+		}
+	}()
 
 	repl, err := s.registry.NewInstance(s.ctx, &dbrepl.NewREPLConfig{
 		Client:     s.stream,
-		ServerConn: s.replConn,
-		Route:      *route,
+		ServerConn: replConn,
+		Route:      s.route(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.instance = repl
+	if err := repl.SetSize(s.Term.W, s.Term.H); err != nil {
+		s.log.ErrorContext(s.ctx, "Failed to set initial terminal window size",
+			"error", err,
+		)
+	}
+	close(s.instanceReadyC)
 
 	s.log.DebugContext(s.ctx, "Starting database interactive session")
 	if err := repl.Run(s.ctx); err != nil {
@@ -616,68 +756,123 @@ func (s *databaseInteractiveSession) Run() error {
 }
 
 func (s *databaseInteractiveSession) Close() error {
-	s.replConn.Close()
-	return s.ws.Close()
+	// TODO(gabrielcorado): Right now, if we send a close message the UI closes
+	// the terminal without giving the chance for users to review the session.
+	// Once this gets solved, we should send the close message here.
+	if err := s.stream.Close(); err != nil {
+		s.log.ErrorContext(s.ctx, "Unable to close web socket terminal stream", "error", err)
+	}
+
+	if err := s.replConn.Close(); !utils.IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // issueCerts performs the MFA (if required) and generate the user session
 // certificates.
-func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, *clientproto.RouteToDatabase, error) {
+func (s *databaseInteractiveSession) issueCerts() (*tls.Certificate, error) {
 	pk, err := keys.ParsePrivateKey(s.sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed getting user private key from the session")
+		return nil, trace.Wrap(err, "failed getting user private key from the session")
 	}
 
 	publicKeyPEM, err := keys.MarshalPublicKey(pk.Public())
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "failed to marshal public key")
+		return nil, trace.Wrap(err, "failed to marshal public key")
 	}
 
-	routeToDatabase := clientproto.RouteToDatabase{
+	routeToDatabase := s.route()
+
+	certsReq := proto.UserCertsRequest{
+		TLSPublicKey:    publicKeyPEM,
+		Username:        s.sctx.GetUser(),
+		Expires:         s.sctx.cfg.Session.GetExpiryTime(),
+		Format:          constants.CertificateFormatStandard,
+		RouteToCluster:  s.site.GetName(),
+		Usage:           proto.UserCertsRequest_Database,
+		RouteToDatabase: routeToDatabase,
+	}
+
+	var certs *proto.Certs
+	result, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
+		CurrentAuthClient: s.clt,
+		RootAuthClient:    s.sctx.cfg.RootClient,
+		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge, s.proxyAddr),
+		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
+		MFARequiredReq: &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
+		},
+		CertsReq: &certsReq,
+	})
+	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
+		return nil, trace.Wrap(err, "failed performing mfa ceremony")
+	}
+
+	if result != nil {
+		certs = result.NewCerts
+	}
+
+	if certs == nil {
+		certs, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed issuing user certs")
+		}
+	}
+
+	tlsCert, err := pk.TLSCertificate(certs.TLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &tlsCert, nil
+}
+
+// makeReplConn wraps the raw repl conn with a TLS certificate to simulate a
+// dialed TLS routing connection.
+func (s *databaseInteractiveSession) makeReplConn() (*tls.Conn, error) {
+	tlsCert, err := s.issueCerts()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	alpnProtocol, err := alpncommon.ToALPNProtocol(s.req.Protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyAddr, err := utils.ParseAddr(s.proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The ALPN handler used by the web server was initially intended for ALPN
+	// connection upgrade. Database handlers serve with the Proxy's host cert on
+	// the other side.
+	rootCAs, err := services.CertPool(s.proxyHostCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig := &tls.Config{
+		NextProtos:   []string{string(alpnProtocol)},
+		Certificates: []tls.Certificate{*tlsCert},
+		RootCAs:      rootCAs,
+		ServerName:   proxyAddr.Host(),
+	}
+	utils.SetupTLSConfig(tlsConfig, nil /* let server decide cipher */)
+
+	return tls.Client(s.replConn, tlsConfig), nil
+}
+
+func (s *databaseInteractiveSession) route() proto.RouteToDatabase {
+	return proto.RouteToDatabase{
 		Protocol:    s.req.Protocol,
 		ServiceName: s.req.ServiceName,
 		Username:    s.req.DatabaseUser,
 		Database:    s.req.DatabaseName,
 		Roles:       s.req.DatabaseRoles,
 	}
-
-	certsReq := clientproto.UserCertsRequest{
-		TLSPublicKey:    publicKeyPEM,
-		Username:        s.sctx.GetUser(),
-		Expires:         s.sctx.cfg.Session.GetExpiryTime(),
-		Format:          constants.CertificateFormatStandard,
-		RouteToCluster:  s.site.GetName(),
-		Usage:           clientproto.UserCertsRequest_Database,
-		RouteToDatabase: routeToDatabase,
-	}
-
-	_, certs, err := client.PerformSessionMFACeremony(s.ctx, client.PerformSessionMFACeremonyParams{
-		CurrentAuthClient: s.clt,
-		RootAuthClient:    s.sctx.cfg.RootClient,
-		MFACeremony:       newMFACeremony(s.stream.WSStream, s.sctx.cfg.RootClient.CreateAuthenticateChallenge),
-		MFAAgainstRoot:    s.sctx.cfg.RootClusterName == s.site.GetName(),
-		MFARequiredReq: &clientproto.IsMFARequiredRequest{
-			Target: &clientproto.IsMFARequiredRequest_Database{Database: &routeToDatabase},
-		},
-		CertsReq: &certsReq,
-	})
-	if err != nil && !errors.Is(err, services.ErrSessionMFANotRequired) {
-		return nil, nil, trace.Wrap(err, "failed performing mfa ceremony")
-	}
-
-	if certs == nil {
-		certs, err = s.sctx.cfg.RootClient.GenerateUserCerts(s.ctx, certsReq)
-		if err != nil {
-			return nil, nil, trace.Wrap(err, "failed issuing user certs")
-		}
-	}
-
-	tlsCert, err := pk.TLSCertificate(certs.TLS)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return &tlsCert, &routeToDatabase, nil
 }
 
 func (s *databaseInteractiveSession) sendSessionMetadata() error {
@@ -710,8 +905,37 @@ func (s *databaseInteractiveSession) sendSessionMetadata() error {
 	return nil
 }
 
-// fetchDatabaseWithName fetch a database with provided database name.
-func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
+func (s *databaseInteractiveSession) waitForREPLInstance(ctx context.Context) (dbrepl.REPLInstance, error) {
+	select {
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case <-s.instanceReadyC:
+	}
+	if s.instance == nil {
+		return nil, trace.NotFound("missing database REPL instance")
+	}
+	return s.instance, nil
+}
+
+func (s *databaseInteractiveSession) handleWindowResize(ctx context.Context, envelope terminal.Envelope) {
+	repl, err := s.waitForREPLInstance(ctx)
+	if err != nil {
+		s.log.DebugContext(ctx, "Failed to get database REPL instance", "error", err)
+		return
+	}
+	if params, err := terminal.ParseWindowResizeMsg(envelope); err != nil {
+		s.log.WarnContext(ctx, "Failed to handle terminal window resize",
+			"error", err,
+		)
+	} else if err := repl.SetSize(params.W, params.H); err != nil {
+		s.log.ErrorContext(ctx, "Failed to set terminal window size",
+			"error", err,
+		)
+	}
+}
+
+// fetchDatabaseServersWithName fetches all database servers with provided database name.
+func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) ([]types.DatabaseServer, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
@@ -726,13 +950,10 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch len(servers) {
-	case 0:
+	if len(servers) == 0 {
 		return nil, trace.NotFound("database %q not found", databaseName)
-	default:
-		return servers[0].GetDatabase(), nil
 	}
+	return servers, nil
 }
 
 func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {

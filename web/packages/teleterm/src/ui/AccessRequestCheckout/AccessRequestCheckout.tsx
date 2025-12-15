@@ -21,21 +21,19 @@ import { Transition } from 'react-transition-group';
 
 import {
   Box,
-  Flex,
+  ButtonIcon,
   ButtonPrimary,
   ButtonText,
-  Text,
-  ButtonIcon,
+  Flex,
   Label,
+  Text,
 } from 'design';
 import * as Icon from 'design/Icon';
-import { pluralize } from 'shared/utils/text';
-
 import { RequestCheckoutWithSlider } from 'shared/components/AccessRequests/NewRequest';
 import { isKubeClusterWithNamespaces } from 'shared/components/AccessRequests/NewRequest/kube';
+import { pluralize } from 'shared/utils/text';
 
 import useAccessRequestCheckout from './useAccessRequestCheckout';
-import { AssumedRolesBar } from './AssumedRolesBar';
 
 const MAX_RESOURCES_IN_BAR_TO_SHOW = 5;
 
@@ -90,7 +88,6 @@ export function AccessRequestCheckout() {
     shouldShowClusterNameColumn,
     selectedReviewers,
     setSelectedReviewers,
-    assumedRequests,
     requestedCount,
     goToRequestsList,
     setShowCheckout,
@@ -105,10 +102,12 @@ export function AccessRequestCheckout() {
     onStartTimeChange,
     fetchKubeNamespaces,
     updateNamespacesForKubeCluster,
+    reasonMode,
+    reasonPrompts,
   } = useAccessRequestCheckout();
 
   const isRoleRequest = pendingAccessRequests[0]?.kind === 'role';
-  const transitionRef = useRef<HTMLDivElement>();
+  const transitionRef = useRef<HTMLDivElement>(null);
 
   function closeCheckout() {
     setShowCheckout(false);
@@ -183,6 +182,9 @@ export function AccessRequestCheckout() {
                         case 'namespace':
                           resource.Icon = Icon.Kubernetes;
                           break;
+                        case 'windows_desktop':
+                          resource.Icon = Icon.Desktop;
+                          break;
                         case 'role':
                           break;
                         default:
@@ -235,9 +237,6 @@ export function AccessRequestCheckout() {
             </Flex>
           </Box>
         )}
-      {assumedRequests.map(request => (
-        <AssumedRolesBar key={request.id} assumedRolesRequest={request} />
-      ))}
       <Transition
         in={showCheckout}
         nodeRef={transitionRef}
@@ -271,7 +270,6 @@ export function AccessRequestCheckout() {
             clearAttempt={clearCreateAttempt}
             selectedReviewers={selectedReviewers}
             setSelectedReviewers={setSelectedReviewers}
-            requireReason={false}
             numRequestedResources={requestedCount}
             isResourceRequest={!isRoleRequest}
             fetchStatus={'loaded'}
@@ -286,6 +284,8 @@ export function AccessRequestCheckout() {
             onStartTimeChange={onStartTimeChange}
             fetchKubeNamespaces={fetchKubeNamespaces}
             updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
+            requireReason={reasonMode === 'required'}
+            reasonPrompts={reasonPrompts}
           />
         )}
       </Transition>

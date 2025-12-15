@@ -168,7 +168,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "file://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.Equal(t, "expected --proxy URL with http or https scheme", err.Error())
 			},
@@ -194,7 +194,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				signOverwrite: true,
 				proxyAddr:     "1https://proxy-from-flag.example.com",
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "specified --proxy URL is invalid")
 			},
@@ -282,7 +282,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				}},
 				testInsecureSkipVerify: true,
 			},
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.Equal(t, `couldn't find leaf cluster named "doesnotexist.example.com"`, err.Error())
 			},
@@ -329,7 +329,6 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Generate kubeconfig.
@@ -399,7 +398,7 @@ type mockClient struct {
 	crl            []byte
 }
 
-func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockClient) GetClusterName(_ context.Context) (types.ClusterName, error) {
 	return c.clusterName, nil
 }
 
@@ -438,6 +437,10 @@ func (c *mockClient) GetProxies() ([]types.Server, error) {
 	return c.proxies, nil
 }
 
+func (c *mockClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return c.proxies, "", nil
+}
+
 func (c *mockClient) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
 	return c.remoteClusters, nil
 }
@@ -468,110 +471,6 @@ func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.Mar
 
 func (c *mockClient) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
 	return c.crl, nil
-}
-
-func TestCheckKubeCluster(t *testing.T) {
-	const teleportCluster = "local-teleport"
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: teleportCluster,
-	})
-	require.NoError(t, err)
-	client := &mockClient{
-		clusterName: clusterName,
-	}
-	tests := []struct {
-		desc               string
-		kubeCluster        string
-		leafCluster        string
-		outputFormat       identityfile.Format
-		registeredClusters []*types.KubernetesClusterV3
-		want               string
-		assertErr          require.ErrorAssertionFunc
-	}{
-		{
-			desc:         "non-k8s output format",
-			outputFormat: identityfile.FormatFile,
-			assertErr:    require.NoError,
-		},
-		{
-			desc:               "local cluster, valid kube cluster",
-			kubeCluster:        "foo",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "foo",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, empty kube cluster",
-			kubeCluster:        "",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, empty kube cluster, no registered kube clusters",
-			kubeCluster:        "",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "local cluster, invalid kube cluster",
-			kubeCluster:        "bar",
-			leafCluster:        teleportCluster,
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			assertErr:          require.Error,
-		},
-		{
-			desc:               "remote cluster, empty kube cluster",
-			kubeCluster:        "",
-			leafCluster:        "remote-teleport",
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "",
-			assertErr:          require.NoError,
-		},
-		{
-			desc:               "remote cluster, non-empty kube cluster",
-			kubeCluster:        "bar",
-			leafCluster:        "remote-teleport",
-			registeredClusters: []*types.KubernetesClusterV3{{Metadata: types.Metadata{Name: "foo"}}},
-			outputFormat:       identityfile.FormatKubernetes,
-			want:               "bar",
-			assertErr:          require.NoError,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServers = []types.KubeServer{}
-			for _, kube := range tt.registeredClusters {
-				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
-					Metadata: types.Metadata{
-						Name: kube.GetName(),
-					},
-					Spec: types.KubernetesServerSpecV3{
-						Hostname: "host",
-						Cluster:  kube,
-					},
-				})
-			}
-			a := &AuthCommand{
-				kubeCluster:  tt.kubeCluster,
-				leafCluster:  tt.leafCluster,
-				outputFormat: tt.outputFormat,
-			}
-			err := a.checkKubeCluster(context.Background(), client)
-			tt.assertErr(t, err)
-			if err == nil {
-				require.Equal(t, tt.want, a.kubeCluster)
-			}
-		})
-	}
 }
 
 // TestGenerateDatabaseKeys verifies cert/key pair generation for databases.
@@ -791,7 +690,7 @@ func TestGenerateAppCertificates(t *testing.T) {
 			outDir:      t.TempDir(),
 			outFileBase: "app-2",
 			appName:     "app-2",
-			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
+			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -838,7 +737,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 		dbUser             string
 		expectedDbProtocol string
 		dbServices         []types.DatabaseServer
-		expectedErr        error
+		expectedErr        any
 	}{
 		"DatabaseExists": {
 			clusterName:        "example.com",
@@ -906,7 +805,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			clusterName: "example.com",
 			dbService:   "db-2",
 			dbServices:  []types.DatabaseServer{},
-			expectedErr: trace.NotFound(""),
+			expectedErr: &trace.NotFoundError{},
 		},
 	}
 
@@ -942,7 +841,7 @@ func TestGenerateDatabaseUserCertificates(t *testing.T) {
 			err = ac.generateUserKeys(ctx, authClient)
 			if test.expectedErr != nil {
 				require.Error(t, err)
-				require.IsType(t, test.expectedErr, err)
+				require.ErrorAs(t, err, &test.expectedErr)
 				return
 			}
 
@@ -1069,20 +968,34 @@ func TestGenerateAndSignKeys(t *testing.T) {
 	}
 }
 
-func TestGenerateCRLForCA(t *testing.T) {
+func TestExportCRL(t *testing.T) {
 	ctx := context.Background()
+	name, err := types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "name", ClusterID: "clusterID"})
+	require.NoError(t, err)
+	cas := make([]types.CertAuthority, len(allowedCRLCertificateTypes))
+	for i, certificateType := range allowedCRLCertificateTypes {
+		cas[i], err = types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.CertAuthType(certificateType),
+			ClusterName: "name",
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					CRL:  []byte{},
+					Cert: []byte{1},
+				}}},
+		})
+		require.NoError(t, err)
+	}
+	authClient := &mockClient{crl: []byte{}, clusterName: name, cas: cas}
 
 	for _, caType := range allowedCRLCertificateTypes {
 		t.Run(caType, func(t *testing.T) {
 			ac := AuthCommand{caType: caType}
-			authClient := &mockClient{crl: []byte{}}
-			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
+			require.NoError(t, ac.ExportCRL(ctx, authClient))
 		})
 	}
 
 	t.Run("InvalidCAType", func(t *testing.T) {
 		ac := AuthCommand{caType: "wrong-ca"}
-		authClient := &mockClient{crl: []byte{}}
-		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
+		require.Error(t, ac.ExportCRL(ctx, authClient))
 	})
 }

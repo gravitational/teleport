@@ -20,19 +20,26 @@ package discovery
 
 import (
 	"context"
-	"fmt"
+	"maps"
+	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -59,10 +66,30 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: &automaticupgrades.Channel{
-		ForwardURL: fmt.Sprintf("https://%s/webapi/automaticupgrades/channel/%s", proxyPublicAddr, automaticupgrades.DefaultChannelName)}}
-	if err := releaseChannels.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+	var versionGetter version.Getter
+	if proxyPublicAddr == "" {
+		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
+		// In this case we "gracefully" fallback to our own version.
+		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
+		s.Log.WarnContext(s.ctx,
+			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
+			"version", teleport.Version)
+		versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
+		if err != nil {
+			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+		}
+	} else {
+		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
+		if err != nil {
+			s.Log.WarnContext(s.ctx,
+				"Failed to build a version client, falling back to Discovery service Teleport version.",
+				"error", err,
+				"version", teleport.Version)
+			versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
+			if err != nil {
+				return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+			}
+		}
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
@@ -76,18 +103,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
 		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-		PreFetchHookFn: func() {
-			discoveryConfigs := libslices.FilterMapUnique(
-				s.getKubeIntegrationFetchers(),
-				func(f common.Fetcher) (s string, include bool) {
-					return f.GetDiscoveryConfigName(), f.GetDiscoveryConfigName() != ""
-				},
-			)
-			s.updateDiscoveryConfigStatus(discoveryConfigs...)
-
-			s.awsEKSResourcesStatus.reset()
-			s.awsEKSTasks.reset()
-		},
+		PreFetchHookFn: s.kubernetesIntegrationWatcherIterationStarted,
+		Clock:          s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,7 +113,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	go func() {
 		for {
-			discoveryConfigsChanged := map[string]struct{}{}
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
 
@@ -112,13 +128,13 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				existingClusters, err := clt.GetKubernetesClusters(s.ctx)
+				existingClusters, err := iterstream.Collect(clt.RangeKubernetesClusters(s.ctx, "", ""))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(releaseChannels)
+				agentVersion, err := s.getKubeAgentVersion(versionGetter)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
@@ -134,7 +150,6 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
-					discoveryConfigsChanged[resourceGroup.discoveryConfigName] = struct{}{}
 
 					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
 						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
@@ -185,16 +200,44 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
-
-			for dc := range discoveryConfigsChanged {
-				s.updateDiscoveryConfigStatus(dc)
-			}
 		}
 	}()
 	return nil
 }
 
-func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion string, mu *sync.Mutex, enrollingClusters map[string]bool) {
+func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
+	allFetchers := s.getKubeIntegrationFetchers()
+	if len(allFetchers) == 0 {
+		return
+	}
+
+	s.submitFetchersEvent(allFetchers)
+
+	awsResultGroups := libslices.FilterMapUnique(
+		allFetchers,
+		func(f common.Fetcher) (awsResourceGroup, bool) {
+			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			resourceGroup := awsResourceGroup{
+				discoveryConfigName: f.GetDiscoveryConfigName(),
+				integration:         f.IntegrationName(),
+			}
+			return resourceGroup, include
+		},
+	)
+
+	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
+		return g.discoveryConfigName, true
+	})
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+	s.awsEKSResourcesStatus.reset()
+	for _, g := range awsResultGroups {
+		s.awsEKSResourcesStatus.iterationStarted(g)
+	}
+
+	s.awsEKSTasks.reset()
+}
+
+func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName string, clusters []types.DiscoveredEKSCluster, agentVersion *semver.Version, mu *sync.Mutex, enrollingClusters map[string]bool) {
 	mu.Lock()
 	for _, c := range clusters {
 		if _, ok := enrollingClusters[c.GetAWSConfig().Name]; !ok {
@@ -210,7 +253,6 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 		}
 		mu.Unlock()
 
-		s.updateDiscoveryConfigStatus(discoveryConfigName)
 		s.upsertTasksForAWSEKSFailedEnrollments()
 	}()
 
@@ -222,14 +264,13 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, time.Duration(len(clusters))*30*time.Second)
 	defer cancel()
-	var clusterNames []string
 
 	for _, kubeAppDiscovery := range []bool{true, false} {
 		clustersByName := make(map[string]types.DiscoveredEKSCluster)
 		for _, c := range batchedClusters[kubeAppDiscovery] {
-			clusterNames = append(clusterNames, c.GetAWSConfig().Name)
 			clustersByName[c.GetAWSConfig().Name] = c
 		}
+		clusterNames := slices.Collect(maps.Keys(clustersByName))
 		if len(clusterNames) == 0 {
 			continue
 		}
@@ -239,7 +280,7 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 			Region:             region,
 			EksClusterNames:    clusterNames,
 			EnableAppDiscovery: kubeAppDiscovery,
-			AgentVersion:       agentVersion,
+			AgentVersion:       agentVersion.String(),
 		})
 		if err != nil {
 			s.awsEKSResourcesStatus.incrementFailed(awsResourceGroup{
@@ -262,7 +303,11 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 					s.Log.DebugContext(ctx, "EKS cluster already has installed kube agent", "cluster_name", r.EksClusterName)
 				}
 
-				cluster := clustersByName[r.EksClusterName]
+				cluster, ok := clustersByName[r.EksClusterName]
+				if !ok {
+					s.Log.WarnContext(ctx, "Received an EnrollEKSCluster result for a cluster which was not part of the requested clusters", "cluster_name", r.EksClusterName, "clusters_install_request", clusterNames)
+					continue
+				}
 				s.awsEKSTasks.addFailedEnrollment(
 					awsEKSTaskKey{
 						integration:     integration,
@@ -286,8 +331,8 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels) (string, error) {
-	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), releaseChannels)
+func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (*semver.Version, error) {
+	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
 }
 
 type IntegrationFetcher interface {
@@ -346,4 +391,30 @@ func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
 
 func (s *Server) getKubeNonIntegrationFetchers() []common.Fetcher {
 	return s.getKubeFetchers(false)
+}
+
+func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version.Getter, error) {
+	proxyClt, err := webclient.NewReusableClient(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyPublicAddr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to build proxy client")
+	}
+
+	baseURL := &url.URL{
+		Scheme:  "https",
+		Host:    proxyPublicAddr,
+		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "crafting the channel base URL (this is a bug)")
+	}
+
+	return version.FailoverGetter{
+		// We try getting the version via the new webapi
+		version.NewProxyVersionGetter(proxyClt),
+		// If this is not implemented, we fallback to the release channels
+		version.NewBasicHTTPVersionGetter(baseURL),
+	}, nil
 }

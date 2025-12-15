@@ -15,24 +15,14 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build !vnetdaemon || !darwin
-// +build !vnetdaemon !darwin
 
 package common
 
 import (
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/gravitational/trace"
 )
 
-func newVnetDaemonCommand(app *kingpin.Application) vnetDaemonNotSupported {
-	return vnetDaemonNotSupported{}
-}
-
-type vnetDaemonNotSupported struct{}
-
-func (vnetDaemonNotSupported) FullCommand() string {
-	return ""
-}
-func (vnetDaemonNotSupported) run(*CLIConf) error {
-	return trace.NotImplemented("tsh was built without support for VNet daemon")
+// The vnet-daemon command is only supported with the vnetdaemon tag on darwin.
+func newPlatformVnetDaemonCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
 }

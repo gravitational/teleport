@@ -6,18 +6,20 @@
 # Plugin specific options
 #
 teleport:
-  address: "teleport.example.com:443"
-  identitySecretName: teleport-plugin-msteams-identity
-  identitySecretPath: identity
+  address: ""            # e.g., teleport.example.com:443
+  identitySecretName: "" # e.g., teleport-plugin-msteams-identity
+  identitySecretPath: "" # e.g., identity
 
 msTeams:
-  appID: "APP_ID"
-  tenantID: "TENANT_ID"
-  teamsAppID: "TEAMS_APP_ID"
+  appID: ""
+  tenantID: ""
+  teamsAppID: ""
 
-roleToRecipients:
-  "*": "TELEPORT_USERNAME"
-  "editor": "TELEPORT_USERNAME"
+roleToRecipients: {}
+  # "*": "admin@example.com"
+  # dev:
+  #  - "https://teams.microsoft.com/l/channel/19%3ae06a7383ed98468f90217a35fa1980d7%40thread.tacv2/Approval%2520Channel%25202?groupId=f2b3c8ed-5502-4449-b76f-dc3acea81f1c&tenantId=ff882432-09b0-437b-bd22-ca13c0037ded"
+  #  - "devops@example.com"
 
 log:
   output: stdout

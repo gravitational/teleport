@@ -105,29 +105,31 @@ func (s *WebhookServer) processWebhook(rw http.ResponseWriter, r *http.Request, 
 	defer cancel()
 
 	httpRequestID := fmt.Sprintf("%v-%v", time.Now().Unix(), atomic.AddUint64(&s.counter, 1))
-	ctx, log := logger.WithField(ctx, "jira_http_id", httpRequestID)
+	ctx, log := logger.With(ctx, "jira_http_id", httpRequestID)
 
 	var webhook Webhook
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, jiraWebhookPayloadLimit+1))
 	if err != nil {
-		log.WithError(err).Error("Failed to read webhook payload")
+		log.ErrorContext(ctx, "Failed to read webhook payload", "error", err)
 		http.Error(rw, "", http.StatusInternalServerError)
 		return
 	}
 	if len(body) > jiraWebhookPayloadLimit {
-		log.Error("Received a webhook larger than %d bytes", jiraWebhookPayloadLimit)
+		log.ErrorContext(ctx, "Received a webhook with a payload that exceeded the limit",
+			"payload_size", len(body),
+			"payload_size_limit", jiraWebhookPayloadLimit,
+		)
 		http.Error(rw, "", http.StatusRequestEntityTooLarge)
 	}
 	if err = json.Unmarshal(body, &webhook); err != nil {
-		log.WithError(err).Error("Failed to parse webhook payload")
+		log.ErrorContext(ctx, "Failed to parse webhook payload", "error", err)
 		http.Error(rw, "", http.StatusBadRequest)
 		return
 	}
 
 	if err = s.onWebhook(ctx, webhook); err != nil {
-		log.WithError(err).Error("Failed to process webhook")
-		log.Debugf("%v", trace.DebugReport(err))
+		log.ErrorContext(ctx, "Failed to process webhook", "error", err)
 		var code int
 		switch {
 		case lib.IsCanceled(err) || lib.IsDeadline(err):

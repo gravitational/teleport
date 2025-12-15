@@ -23,14 +23,14 @@ import React, {
 } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import {
-  space,
-  width,
   color,
-  height,
   ColorProps,
-  SpaceProps,
-  WidthProps,
+  height,
   HeightProps,
+  space,
+  SpaceProps,
+  width,
+  WidthProps,
 } from 'styled-system';
 
 import { Theme } from 'design/theme/themes/types';
@@ -38,10 +38,7 @@ import { Theme } from 'design/theme/themes/types';
 export type TextAreaSize = 'large' | 'medium' | 'small';
 
 export interface TextAreaProps
-  extends ColorProps,
-    SpaceProps,
-    WidthProps,
-    HeightProps {
+  extends ColorProps, SpaceProps, WidthProps, HeightProps {
   size?: TextAreaSize;
   hasError?: boolean;
   resizable?: boolean;
@@ -133,6 +130,15 @@ const StyledTextArea = styled.textarea<StyledTextAreaProps>`
 
   &:read-only {
     cursor: not-allowed;
+
+    &:hover {
+      border: 1px solid
+        ${props => props.theme.colors.interactive.tonal.neutral[2]};
+    }
+
+    &:focus-visible {
+      border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
+    }
   }
 
   &:disabled {

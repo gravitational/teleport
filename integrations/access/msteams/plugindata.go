@@ -49,7 +49,7 @@ func DecodePluginData(dataMap map[string]string) (PluginData, error) {
 	data.AccessRequestData = accessRequestData
 
 	if str := dataMap["messages"]; str != "" {
-		for _, encodedMsg := range strings.Split(str, ",") {
+		for encodedMsg := range strings.SplitSeq(str, ",") {
 			decodedMsg, err := base64.StdEncoding.DecodeString(encodedMsg)
 			if err != nil {
 				// Backward compatibility

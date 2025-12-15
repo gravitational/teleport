@@ -18,10 +18,11 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider } from 'teleport';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { Props, Support } from './Support';
 
@@ -31,9 +32,11 @@ export default {
 
 const Provider = ({ children }) => (
   <ContextProvider ctx={ctx}>
-    <ContentMinWidth>
-      <MemoryRouter>{children}</MemoryRouter>
-    </ContentMinWidth>
+    <InfoGuidePanelProvider>
+      <ContentMinWidth>
+        <MemoryRouter>{children}</MemoryRouter>
+      </ContentMinWidth>
+    </InfoGuidePanelProvider>
   </ContextProvider>
 );
 
@@ -45,25 +48,7 @@ export const SupportOSS = () => (
 
 export const SupportOSSWithCTA = () => (
   <Provider>
-    <Support {...props} showPremiumSupportCTA={true} />
-  </Provider>
-);
-
-export const SupportCloud = () => (
-  <Provider>
-    <Support {...props} isCloud={true} />
-  </Provider>
-);
-
-export const SupportEnterprise = () => (
-  <Provider>
-    <Support {...props} isEnterprise={true} />
-  </Provider>
-);
-
-export const SupportEnterpriseWithCTA = () => (
-  <Provider>
-    <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
+    <Support {...props} showPremiumSupportCta={true} />
   </Provider>
 );
 
@@ -82,6 +67,6 @@ const props: Props = {
   isEnterprise: false,
   isCloud: false,
   tunnelPublicAddress: null,
-  showPremiumSupportCTA: false,
+  showPremiumSupportCta: false,
   licenseExpiryDateText: '2027-05-09 06:52:58',
 };

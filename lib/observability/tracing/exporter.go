@@ -27,32 +27,50 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// NewExporter returns a new exporter that is configured per the provided Config.
-func NewExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, error) {
+// newExporter returns a new exporter that is configured per the provided Config.
+// It also returns a *bufferedClient if one is required because the resource
+// attributes or the real client are not yet available, otherwise it will be
+// nil.
+func newExporter(ctx context.Context, cfg Config) (sdktrace.SpanExporter, *bufferedClient, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	traceClient, err := NewClient(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var (
+		traceClient otlptrace.Client
+		bufClient   *bufferedClient
+		err         error
+	)
+	if cfg.WaitForDelayedResourceAttrs || cfg.WaitForDelayedClient {
+		// newBufferedClient will create the client if possible, or wait for a
+		// delayed client to be provided later.
+		bufClient, err = newBufferedClient(cfg)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		traceClient = bufClient
+	} else {
+		traceClient, err = NewClient(cfg)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()
 	exporter, err := otlptrace.New(ctx, traceClient)
 	if err != nil {
-		return nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
+		return nil, nil, trace.NewAggregate(err, traceClient.Stop(context.Background()))
 	}
 
 	if cfg.Client == nil {
-		return exporter, nil
+		return exporter, bufClient, nil
 	}
 
 	return &wrappedExporter{
 		exporter: exporter,
 		closer:   cfg.Client,
-	}, nil
+	}, bufClient, nil
 }
 
 // wrappedExporter is a sdktrace.SpanExporter wrapper that is used to ensure that any

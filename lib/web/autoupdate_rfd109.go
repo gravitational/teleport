@@ -35,10 +35,10 @@ import (
 
 const defaultChannelTimeout = 5 * time.Second
 
-// automaticUpgrades implements a version server in the Teleport Proxy following the RFD 109 spec.
+// automaticUpgrades109 implements a version server in the Teleport Proxy following the RFD 109 spec.
 // It is configured through the Teleport Proxy configuration and tells agent updaters
 // which version they should install.
-func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	if h.cfg.AutomaticUpgradesChannels == nil {
 		return nil, trace.AccessDenied("This proxy is not configured to serve automatic upgrades channels.")
 	}
@@ -73,11 +73,11 @@ func (h *Handler) automaticUpgrades109(w http.ResponseWriter, r *http.Request, p
 }
 
 // automaticUpgradesVersion109 handles version requests from upgraders
-func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
+func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Request, channelName string) (any, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
-	targetVersion, err := h.autoUpdateAgentVersion(ctx, channelName, "" /* updater UUID */)
+	targetVersion, err := h.autoUpdateResolver.GetVersion(ctx, channelName, "" /* updater UUID */)
 	if err != nil {
 		// If the error is that the upstream channel has no version
 		// We gracefully handle by serving "none"
@@ -92,18 +92,18 @@ func (h *Handler) automaticUpgradesVersion109(w http.ResponseWriter, r *http.Req
 
 	// RFD 109 specifies that version from channels must have the leading "v".
 	// As h.autoUpdateAgentVersion doesn't, we must add it.
-	_, err = fmt.Fprintf(w, "v%s", targetVersion)
+	_, err = fmt.Fprintf(w, "v%s", targetVersion.String())
 	return nil, trace.Wrap(err)
 }
 
 // automaticUpgradesCritical109 handles criticality requests from upgraders
-func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channelName string) (interface{}, error) {
+func (h *Handler) automaticUpgradesCritical109(w http.ResponseWriter, r *http.Request, channelName string) (any, error) {
 	ctx, cancel := context.WithTimeout(r.Context(), defaultChannelTimeout)
 	defer cancel()
 
 	// RFD109 agents already retrieve maintenance windows from the CMC, no need to
 	// do a maintenance window lookup for them.
-	critical, err := h.autoUpdateAgentShouldUpdate(ctx, channelName, "" /* updater UUID */, false /* window lookup */)
+	critical, err := h.autoUpdateResolver.ShouldUpdate(ctx, channelName, "" /* updater UUID */, false /* window lookup */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -32,6 +32,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,12 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/alecthomas/kingpin/v2"
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
 )
 
 const (
@@ -100,7 +100,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 	c := &mfaLSCommand{
 		CmdClause: parent.Command("ls", "Get a list of registered MFA devices."),
 	}
-	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
+	c.Flag("verbose", "Print more information about MFA devices.").Short('v').BoolVar(&c.verbose)
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	return c
 }
@@ -211,11 +211,11 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c := &mfaAddCommand{
 		CmdClause: parent.Command("add", "Add a new MFA device."),
 	}
-	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
-	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
+	c.Flag("name", "Name of the new MFA device.").StringVar(&c.devName)
+	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
 	if wancli.IsFIDO2Available() {
-		c.Flag("allow-passwordless", "Allow passwordless logins").
+		c.Flag("allow-passwordless", "Allow passwordless logins.").
 			IsSetByUser(&c.allowPasswordlessSet).
 			BoolVar(&c.allowPasswordless)
 	}
@@ -233,7 +233,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	if !slices.Contains(defaultDeviceTypes, touchIDDeviceType) {
 		diag, err := touchid.Diag()
 		if err == nil && diag.IsClamshellFailure() {
-			log.Warn("Touch ID support disabled, is your MacBook lid closed?")
+			logger.WarnContext(ctx, "Touch ID support disabled, is your MacBook lid closed?")
 		}
 	}
 
@@ -280,7 +280,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		// Touch ID is always a resident key/passwordless
 		c.allowPasswordless = true
 	}
-	log.Debugf("tsh using passwordless registration? %v", c.allowPasswordless)
+	logger.DebugContext(ctx, "tsh using passwordless registration?", "allow_passwordless", c.allowPasswordless)
 
 	dev, err := c.addDeviceRPC(ctx, tc)
 	if err != nil {
@@ -468,7 +468,7 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 	var showingQRCode bool
 	closeQR, err := showOTPQRCode(otpKey)
 	if err != nil {
-		log.WithError(err).Debug("Failed to show QR code")
+		logger.DebugContext(ctx, "Failed to show QR code", "error", err)
 	} else {
 		showingQRCode = true
 		defer closeQR()
@@ -515,7 +515,10 @@ func promptTOTPRegisterChallenge(ctx context.Context, c *proto.TOTPRegisterChall
 }
 
 func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, error) {
-	log.Debugf("WebAuthn: prompting MFA devices with origin %q", origin)
+	logger.DebugContext(ctx, "prompting MFA devices with origin",
+		teleport.ComponentKey, "WebAuthn",
+		"origin", origin,
+	)
 
 	prompt := wancli.NewDefaultPrompt(ctx, os.Stdout)
 	prompt.PINMessage = "Enter your *new* security key PIN"
@@ -527,7 +530,10 @@ func promptWebauthnRegisterChallenge(ctx context.Context, origin string, cc *wan
 }
 
 func promptTouchIDRegisterChallenge(origin string, cc *wantypes.CredentialCreation) (*proto.MFARegisterResponse, registerCallback, error) {
-	log.Debugf("Touch ID: prompting registration with origin %q", origin)
+	logger.DebugContext(context.TODO(), "prompting registration with origin",
+		teleport.ComponentKey, "TouchID",
+		"origin", origin,
+	)
 
 	reg, err := touchid.Register(origin, cc)
 	if err != nil {
@@ -549,7 +555,7 @@ func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
 	c := &mfaRemoveCommand{
 		CmdClause: parent.Command("rm", "Remove a MFA device."),
 	}
-	c.Arg("name", "Name or ID of the MFA device to remove").Required().StringVar(&c.name)
+	c.Arg("name", "Name or ID of the MFA device to remove.").Required().StringVar(&c.name)
 	return c
 }
 
@@ -662,19 +668,23 @@ func showOTPQRCode(k *otp.Key) (cleanup func(), retErr error) {
 	if err := imageFile.Close(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	log.Debugf("Wrote OTP QR code to %s", imageFile.Name())
+	ctx := context.TODO()
+	logger.DebugContext(ctx, "Wrote OTP QR code to file", "file", imageFile.Name())
 
 	cmd := exec.Command(imageViewer, append(imageViewerArgs, imageFile.Name())...)
 	if err := cmd.Start(); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	log.Debugf("Opened QR code via %q", imageViewer)
+	logger.DebugContext(ctx, "Opened QR code via image viewer", "image_viewer", imageViewer)
 	return func() {
 		if err := utils.RemoveSecure(imageFile.Name()); err != nil {
-			log.WithError(err).Debugf("Failed to clean up temporary QR code file %q", imageFile.Name())
+			logger.DebugContext(ctx, "Failed to clean up temporary QR code file",
+				"file", imageFile.Name(),
+				"error", err,
+			)
 		}
 		if err := cmd.Process.Kill(); err != nil {
-			log.WithError(err).Debug("Failed to stop the QR code image viewer")
+			logger.DebugContext(ctx, "Failed to stop the QR code image viewer", "error", err)
 		}
 	}, nil
 }
@@ -684,6 +694,9 @@ func deleteTouchIDCredentialIfApplicable(credentialID string) {
 	case errors.Is(err, &touchid.ErrAttemptFailed{}):
 		// Nothing to do here, just proceed.
 	case err != nil:
-		log.WithError(err).Errorf("Failed to delete credential: %s\n", credentialID)
+		logger.ErrorContext(context.Background(), "Failed to delete credential",
+			"error", err,
+			"credential", credentialID,
+		)
 	}
 }

@@ -23,11 +23,14 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -39,6 +42,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -46,6 +51,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -53,9 +59,8 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -66,17 +71,19 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
@@ -105,7 +112,6 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 				cfg := servicecfg.MakeDefaultConfig()
 				cfg.DataDir = makeTempDir(t)
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -136,7 +142,6 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 				cfg := servicecfg.MakeDefaultConfig()
 				cfg.DataDir = makeTempDir(t)
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 
@@ -280,7 +285,6 @@ func TestMonitor(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
@@ -290,8 +294,11 @@ func TestMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// this simulates events that happened to be broadcast before the
-	// readyz.monitor started listening for events
+	// process was started
+	process.ExpectService("dummy")
+	process.ExpectService(teleport.ComponentAuth)
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
+	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: "dummy"})
 
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
@@ -309,12 +316,7 @@ func TestMonitor(t *testing.T) {
 			resp, err := http.Get(endpoint)
 			require.NoError(t, err)
 			resp.Body.Close()
-			for _, c := range statusCodes {
-				if resp.StatusCode == c {
-					return true
-				}
-			}
-			return false
+			return slices.Contains(statusCodes, resp.StatusCode)
 		}
 	}
 
@@ -385,10 +387,12 @@ func TestMonitor(t *testing.T) {
 func TestServiceCheckPrincipals(t *testing.T) {
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	tlsServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 	defer tlsServer.Close()
@@ -499,7 +503,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 
 func TestAthenaAuditLogSetup(t *testing.T) {
 	ctx := context.Background()
-	modules.SetTestModules(t, &modules.TestModules{
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestFeatures: modules.Features{
 			Cloud: true,
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -518,8 +522,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			exitContext: context.Background(),
 		},
 		backend: backend,
-		log:     utils.NewLoggerForTests(),
-		logger:  utils.NewSlogLoggerForTests(),
+		logger:  logtest.NewLogger(),
 	}
 
 	integrationSvc, err := local.NewIntegrationsService(backend)
@@ -628,7 +631,6 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 	p := &TeleportProcess{
 		Config: &servicecfg.Config{
 			Hostname:    "global-hostname",
-			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
 			Proxy: servicecfg.ProxyConfig{
 				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
@@ -772,7 +774,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.role.String(), func(t *testing.T) {
-			principals, dns, err := p.getAdditionalPrincipals(tt.role)
+			principals, dns, err := p.getAdditionalPrincipals(tt.role, "global-uuid")
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(principals, tt.wantPrincipals))
 			require.Empty(t, cmp.Diff(dns, tt.wantDNS, cmpopts.EquateEmpty()))
@@ -830,6 +832,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"h2",
 				"acme-tls/1",
 				"teleport-tcp-ping",
+				"teleport-mcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -850,6 +853,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh-grpc",
 				"teleport-proxy-grpc",
 				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -870,6 +874,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			acmeEnabled: false,
 			wantNextProtos: []string{
 				"teleport-tcp-ping",
+				"teleport-mcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -893,6 +898,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-proxy-ssh-grpc",
 				"teleport-proxy-grpc",
 				"teleport-proxy-grpc-mtls",
+				"teleport-mcp",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -917,10 +923,12 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = makeTempDir(t)
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
+			supervisor, err := NewSupervisor("process-id", cfg.Logger, cfg.Clock)
+			require.NoError(t, err)
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
-				Supervisor: NewSupervisor("process-id", cfg.Log),
+				Supervisor: supervisor,
 			}
 			tls, err := process.setupProxyTLSConfig(
 				&Connector{},
@@ -944,27 +952,27 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
-	cfg.MaxRetryPeriod = 5 * time.Millisecond
+	cfg.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(5 * time.Millisecond)
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 5)
 	cfg.Testing.ClientTimeout = time.Millisecond
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	cfg.Log = utils.NewLoggerForTests()
+	cfg.Logger = logtest.NewLogger()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		c, err := process.reconnectToAuthService(types.RoleAdmin)
+	wg.Go(func() {
+		// This test must use RoleInstance because all other roles wait for the
+		// Instance connector without a timeout.
+		c, err := process.reconnectToAuthService(types.RoleInstance)
 		require.Equal(t, ErrTeleportExited, err)
 		require.Nil(t, c)
-	}()
+	})
 
 	timeout := time.After(10 * time.Second)
-	step := cfg.MaxRetryPeriod / 5.0
-	for i := 0; i < 5; i++ {
+	step := cfg.AuthConnectionConfig.BackoffStepDuration
+	for i := range 5 {
 		// wait for connection to fail
 		select {
 		case duration := <-process.Config.Testing.ConnectFailureC:
@@ -982,6 +990,169 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	require.True(t, ok)
 	supervisor.signalExit()
 	wg.Wait()
+}
+
+// TestInstanceSelfRepair tests a node that first starts up with only the Proxy
+// service and joins the cluster with a token valid only for role Proxy, and
+// then restarts with the SSH service now enabled and a token valid only for
+// role Node. The instance identity should self-repair on the second startup to
+// get a certificate with both the Proxy and Node system roles.
+func TestInstanceSelfRepair(t *testing.T) {
+	// Setup: create an auth server with two tokens, one proxy proxies and one for nodes.
+	const clusterName = "testcluster"
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:         makeTempDir(t),
+		ClusterName: clusterName,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	proxyToken, err := types.NewProvisionTokenFromSpec("proxytoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleProxy},
+	})
+	require.NoError(t, err)
+	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), proxyToken))
+	sshToken, err := types.NewProvisionTokenFromSpec("sshToken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleNode},
+	})
+	require.NoError(t, err)
+	require.NoError(t, testAuthServer.AuthServer.UpsertToken(t.Context(), sshToken))
+
+	logger := logtest.NewLogger()
+	dataDir := makeTempDir(t)
+	const hostName = "testhost"
+	newStartedProcess := func(token string, sshEnabled bool) *TeleportProcess {
+		cfg := servicecfg.MakeDefaultConfig()
+		cfg.SetAuthServerAddress(*utils.MustParseAddr(tlsServer.Listener.Addr().String()))
+		cfg.Clock = clockwork.NewRealClock()
+		cfg.DataDir = dataDir
+		cfg.Hostname = hostName
+		cfg.Auth.Enabled = false
+		cfg.Proxy.Enabled = true
+		cfg.Proxy.DisableWebInterface = true
+		cfg.Proxy.WebAddr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
+		cfg.SSH.Enabled = sshEnabled
+		cfg.SSH.Addr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
+		cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+		cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+		cfg.Logger = logger
+		cfg.SetToken(token)
+		cfg.JoinMethod = types.JoinMethodToken
+		process, err := NewTeleport(cfg)
+		require.NoError(t, err)
+		go process.Start()
+		return process
+	}
+
+	// Create and start a process with only the Proxy service enabled using the proxy-only token.
+	process := newStartedProcess(proxyToken.GetName(), false)
+
+	// Sanity check the Instance identity looks as expected with only the Proxy system role.
+	connector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
+	require.NoError(t, err)
+	require.NotNil(t, connector)
+	id := connector.clientState.Load().identity
+	require.Equal(t, types.RoleInstance, id.ID.Role)
+	require.Equal(t, []string{types.RoleProxy.String()}, id.SystemRoles)
+	originalHostID := id.ID.HostID()
+
+	// Close the original process.
+	require.NoError(t, process.Close())
+	require.NoError(t, process.Wait())
+
+	// Start up a new process using the same data dir so that it has access to
+	// the previous Instance and Proxy certs, but enable the SSH service and
+	// provide the token that allows only role Node.
+	process = newStartedProcess(sshToken.GetName(), true)
+
+	// Get the new Instance identity and make sure it includes both the Proxy
+	// and Node system roles.
+	instanceConnector, err := process.WaitForConnector(InstanceIdentityEvent, logger)
+	require.NoError(t, err)
+	require.NotNil(t, instanceConnector)
+	instanceID := instanceConnector.clientState.Load().identity
+	require.Equal(t, types.RoleInstance, instanceID.ID.Role)
+	assert.ElementsMatch(t, []string{types.RoleProxy.String(), types.RoleNode.String()}, instanceID.SystemRoles)
+	// Make sure the host ID has not changed.
+	assert.Equal(t, instanceID.ID.HostID(), originalHostID)
+
+	// Make sure the SSH identity becomes available.
+	sshConnector, err := process.WaitForConnector(SSHIdentityEvent, logger)
+	require.NoError(t, err)
+	require.NotNil(t, sshConnector)
+	sshID := sshConnector.clientState.Load().identity
+	require.Equal(t, types.RoleNode, sshID.ID.Role)
+	// Make sure the host ID matches the original instance host ID.
+	assert.Equal(t, sshID.ID.HostID(), originalHostID)
+	// Make sure the SSH cert has all expected principals.
+	expectSSHPrincipals := expectedSSHPrincipals(sshID.ID.HostID(), hostName, clusterName)
+	require.ElementsMatch(t, expectSSHPrincipals, sshID.Cert.ValidPrincipals)
+
+	// Close the process to clean up.
+	require.NoError(t, process.Close())
+	require.NoError(t, process.Wait())
+}
+
+func TestSSHPrincipals(t *testing.T) {
+	const clusterName = "testcluster"
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:         t.TempDir(),
+			ClusterName: clusterName,
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("token", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		Roles: []types.SystemRole{types.RoleNode},
+	})
+	require.NoError(t, err)
+	require.NoError(t, authServer.Auth().UpsertToken(t.Context(), token))
+
+	logger := logtest.NewLogger()
+	const hostName = "testhost"
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SetAuthServerAddress(*utils.MustParseAddr(authServer.TLS.Listener.Addr().String()))
+	nodeCfg.Clock = clockwork.NewRealClock()
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.Hostname = hostName
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+	nodeCfg.SSH.Addr = utils.NetAddr{Addr: "127.0.0.1:0", AddrNetwork: "tcp"}
+	nodeCfg.SetToken(token.GetName())
+	nodeCfg.JoinMethod = types.JoinMethodToken
+	nodeCfg.Logger = logger
+	nodeProcess, err := NewTeleport(nodeCfg)
+	require.NoError(t, err)
+	go nodeProcess.Start()
+	defer func() {
+		assert.NoError(t, nodeProcess.Close())
+		assert.NoError(t, nodeProcess.Wait())
+	}()
+
+	nodeConnector, err := nodeProcess.WaitForConnector(SSHIdentityEvent, logger)
+	require.NoError(t, err)
+	nodeID := nodeConnector.clientState.Load().identity
+	expectSSHPrincipals := expectedSSHPrincipals(nodeID.ID.HostID(), hostName, clusterName)
+	assert.ElementsMatch(t, expectSSHPrincipals, nodeID.Cert.ValidPrincipals)
+}
+
+func expectedSSHPrincipals(hostID, hostName, clusterName string) []string {
+	return []string{
+		hostID,
+		hostID + "." + clusterName,
+		hostName,
+		hostName + "." + clusterName,
+		string(teleport.PrincipalLocalhost),
+		string(teleport.PrincipalLoopbackV4),
+		string(teleport.PrincipalLoopbackV6),
+	}
+
 }
 
 func TestTeleportProcessAuthVersionCheck(t *testing.T) {
@@ -1038,7 +1209,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Set the Node's major version to be greater than the Auth Service's,
 	// which should make the version check fail.
-	currentVersion := semver.Version{Major: teleport.SemVersion.Major + 1}
+	currentVersion := semver.Version{Major: api.VersionMajor + 1}
 	nodeCfg.Testing.TeleportVersion = currentVersion.String()
 
 	t.Run("with version check", func(t *testing.T) {
@@ -1070,180 +1241,14 @@ func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck
 	supervisor.signalExit()
 }
 
-func Test_readOrGenerateHostID(t *testing.T) {
-	var (
-		id          = uuid.New().String()
-		hostUUIDKey = "/host_uuid"
-	)
-	type args struct {
-		kubeBackend   *fakeKubeBackend
-		hostIDContent string
-		identity      []*state.Identity
-	}
-	tests := []struct {
-		name             string
-		args             args
-		wantFunc         func(string) bool
-		wantKubeItemFunc func(*backend.Item) bool
-	}{
-		{
-			name: "load from storage without kube backend",
-			args: args{
-				kubeBackend:   nil,
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-		},
-		{
-			name: "Kube Backend is available but key is missing. Load from local storage and store in kube",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-				hostIDContent: id,
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return cmp.Diff(&backend.Item{
-					Key:   backend.KeyFromString(hostUUIDKey),
-					Value: []byte(id),
-				}, i, cmp.AllowUnexported(backend.Key{})) == ""
-			},
-		},
-		{
-			name: "Kube Backend is available with key. Load from kube storage",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: &backend.Item{
-						Key:   backend.KeyFromString(hostUUIDKey),
-						Value: []byte(id),
-					},
-					getErr: nil,
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				return i == nil
-			},
-		},
-		{
-			name: "No hostID available. Generate one and store it into Kube and Local Storage",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				_, err := uuid.Parse(receivedID)
-				return err == nil
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				_, err := uuid.Parse(string(i.Value))
-				return err == nil && i.Key.String() == hostUUIDKey
-			},
-		},
-		{
-			name: "No hostID available. Generate one and store it into Local Storage",
-			args: args{
-				kubeBackend: nil,
-			},
-			wantFunc: func(receivedID string) bool {
-				_, err := uuid.Parse(receivedID)
-				return err == nil
-			},
-			wantKubeItemFunc: nil,
-		},
-		{
-			name: "No hostID available. Grab from provided static identity",
-			args: args{
-				kubeBackend: &fakeKubeBackend{
-					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
-				},
-
-				identity: []*state.Identity{
-					{
-						ID: state.IdentityID{
-							HostUUID: id,
-						},
-					},
-				},
-			},
-			wantFunc: func(receivedID string) bool {
-				return receivedID == id
-			},
-			wantKubeItemFunc: func(i *backend.Item) bool {
-				_, err := uuid.Parse(string(i.Value))
-				return err == nil && i.Key.String() == hostUUIDKey
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dataDir := t.TempDir()
-			// write host_uuid file to temp dir.
-			if len(tt.args.hostIDContent) > 0 {
-				err := hostid.WriteFile(dataDir, tt.args.hostIDContent)
-				require.NoError(t, err)
-			}
-
-			cfg := &servicecfg.Config{
-				DataDir:    dataDir,
-				Logger:     slog.Default(),
-				JoinMethod: types.JoinMethodToken,
-				Identities: tt.args.identity,
-			}
-
-			var kubeBackend kubernetesBackend
-			if tt.args.kubeBackend != nil {
-				kubeBackend = tt.args.kubeBackend
-			}
-
-			err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
-			require.NoError(t, err)
-
-			require.True(t, tt.wantFunc(cfg.HostUUID))
-
-			if tt.args.kubeBackend != nil {
-				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))
-			}
-		})
-	}
-}
-
-type fakeKubeBackend struct {
-	putData *backend.Item
-	getData *backend.Item
-	getErr  error
-}
-
-// Put puts value into backend (creates if it does not
-// exists, updates it otherwise)
-func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	f.putData = &i
-	return &backend.Lease{}, nil
-}
-
-// Get returns a single item or not found error
-func (f *fakeKubeBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	return f.getData, f.getErr
-}
-
 func TestProxyGRPCServers(t *testing.T) {
 	hostID := uuid.NewString()
+	clock := clockwork.NewFakeClock()
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
-	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now()),
+		Clock: clock,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1256,10 +1261,10 @@ func TestProxyGRPCServers(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 	// Create a new client using the server identity.
-	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleProxy, hostID))
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleProxy, hostID))
 	require.NoError(t, err)
 	// TLS config for proxy service.
-	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
+	serverIdentity, err := authtest.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
 	require.NoError(t, err)
 
 	testConnector, err := newConnector(serverIdentity, serverIdentity)
@@ -1290,17 +1295,20 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
+	supervisor, err := NewSupervisor(hostID, logtest.NewLogger(), clock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, utils.NewLoggerForTests()),
+		Supervisor: supervisor,
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
 					Enabled: true,
 				},
 			},
+			Clock: clock,
 		},
-		log:    utils.NewLoggerForTests(),
-		logger: utils.NewSlogLoggerForTests(),
+		Clock:  clock,
+		logger: logtest.NewLogger(),
 	}
 
 	// Create a limiter with no limits.
@@ -1310,7 +1318,7 @@ func TestProxyGRPCServers(t *testing.T) {
 	// Create a error channel to collect the errors from the gRPC servers.
 	errC := make(chan error, 2)
 	t.Cleanup(func() {
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			err := <-errC
 			if errors.Is(err, net.ErrClosed) {
 				continue
@@ -1393,7 +1401,7 @@ func TestProxyGRPCServers(t *testing.T) {
 					return tlsCert, nil
 				}
 				tlsConfig.InsecureSkipVerify = true
-				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
+				tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, testConnector.ClientGetPool)
 				return credentials.NewTLS(tlsConfig)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
@@ -1402,10 +1410,9 @@ func TestProxyGRPCServers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
 			t.Cleanup(cancel)
 			_, err := grpc.DialContext(
 				ctx,
@@ -1480,7 +1487,7 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			if tt.enterprise {
 				buildType = modules.BuildEnterprise
 			}
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: buildType,
 			})
 
@@ -1612,32 +1619,39 @@ func TestSingleProcessModeResolver(t *testing.T) {
 }
 
 // TestDebugServiceStartSocket ensures the debug service socket starts
-// correctly, and is accessible.
-func TestDebugServiceStartSocket(t *testing.T) {
+// correctly, is accessible, and exposes the healthcheck endpoints.
+func TestDebugService(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
 	dataDir := makeTempDir(t)
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.DebugService.Enabled = true
+	cfg := &servicecfg.Config{
+		Clock:   fakeClock,
+		DataDir: dataDir,
+	}
 	cfg.Clock = fakeClock
 	cfg.DataDir = dataDir
-	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = dataDir
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.SSH.Enabled = false
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
-	process, err := NewTeleport(cfg)
+	log := logtest.NewLogger()
+
+	localRegistry := prometheus.NewRegistry()
+	additionalRegistry := prometheus.NewRegistry()
+
+	// In this test we don't want to spin a whole process and have to wait for
+	// every service to report ready (there's an integration test for this).
+	// So we craft a minimal process with only the debug service in it.
+	supervisor, err := NewSupervisor("supervisor-test", log, fakeClock)
 	require.NoError(t, err)
+	process := &TeleportProcess{
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: localRegistry,
+		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
+		Supervisor:      supervisor,
+	}
 
-	require.NoError(t, process.Start())
-	t.Cleanup(func() {
-		require.NoError(t, process.Close())
-		require.NoError(t, process.Wait())
-	})
+	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -1648,11 +1662,80 @@ func TestDebugServiceStartSocket(t *testing.T) {
 		},
 	}
 
+	require.NoError(t, process.initDebugService(true))
+	require.NoError(t, process.Start())
+
+	// Testing the debug listener.
 	// Fetch a random path, it should return 404 error.
 	req, err := httpClient.Get("http://debug/random")
 	require.NoError(t, err)
 	defer req.Body.Close()
 	require.Equal(t, http.StatusNotFound, req.StatusCode)
+
+	// Test the healthcheck endpoints.
+	// Fetch the liveness path
+	req, err = httpClient.Get("http://debug/healthz")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusOK, req.StatusCode)
+
+	// Fetch the readiness path
+	req, err = httpClient.Get("http://debug/readyz")
+	require.NoError(t, err)
+	defer req.Body.Close()
+	require.Equal(t, http.StatusOK, req.StatusCode)
+
+	// Testing the metrics endpoint.
+	// Test setup: create our test metrics.
+	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
+	localMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "local_metric_" + nonce,
+	})
+	globalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "global_metric_" + nonce,
+	})
+	additionalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "additional_metric_" + nonce,
+	})
+	require.NoError(t, process.metricsRegistry.Register(localMetric))
+	require.NoError(t, prometheus.Register(globalMetric))
+	require.NoError(t, additionalRegistry.Register(additionalMetric))
+
+	// Test execution: hit the metrics endpoint.
+	resp, err := httpClient.Get("http://debug/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+	// the additional registry is not yet added
+	require.NotContains(t, string(body), "additional_metric_"+nonce)
+
+	// Test execution: add the additional registry and lookup again
+	process.AddGatherer(additionalRegistry)
+
+	// Test execution: hit the metrics endpoint.
+	resp, err = httpClient.Get("http://debug/metrics")
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+	// Metric has been added
+	require.Contains(t, string(body), "additional_metric_"+nonce)
 }
 
 type mockInstanceMetadata struct {
@@ -1673,7 +1756,7 @@ func (m *mockInstanceMetadata) GetHostname(ctx context.Context) (string, error) 
 }
 
 func (m *mockInstanceMetadata) GetType() types.InstanceMetadataType {
-	return "mock"
+	return types.InstanceMetadataTypeEC2
 }
 
 func (m *mockInstanceMetadata) GetID(ctx context.Context) (string, error) {
@@ -1744,7 +1827,6 @@ func TestInstanceMetadata(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newCfg()
 			cfg.DataDir = makeTempDir(t)
-			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.InstanceMetadataClient = tc.imClient
 
 			process, err := NewTeleport(cfg)
@@ -1809,12 +1891,10 @@ func TestInitDatabaseService(t *testing.T) {
 			cfg.DebugService = servicecfg.DebugConfig{
 				Enabled: false,
 			}
-			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Hostname = "default.example.com"
 			cfg.Auth.Enabled = true
 			cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 			cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-			cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 			cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 			cfg.Proxy.Enabled = true
 			cfg.Proxy.DisableWebInterface = true
@@ -1830,15 +1910,22 @@ func TestInitDatabaseService(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
 
+			// Arbitrary channel size to avoid blocking.
+			// We should not receive more than 1024 events as we have less than 1024 services.
+			serviceExitedEvents := make(chan Event, 1024)
+
 			var eg errgroup.Group
 			process, err := NewTeleport(cfg)
 			require.NoError(t, err)
+			process.ListenForEvents(ctx, ServiceExitedWithErrorEvent, serviceExitedEvents)
 			require.NoError(t, process.Start())
 			eg.Go(func() error { return process.WaitForSignals(ctx, nil) })
 			// Ensures the process is closed in failure scenarios.
 			t.Cleanup(func() {
 				cancel()
 				_ = eg.Wait()
+				_ = process.Close()
+				require.NoError(t, process.Wait())
 			})
 
 			if !test.expectErr {
@@ -1847,15 +1934,24 @@ func TestInitDatabaseService(t *testing.T) {
 				require.NoError(t, process.Close())
 				// Expect Teleport to shutdown without reporting any issue.
 				require.NoError(t, eg.Wait())
+				require.NoError(t, process.Wait())
 				return
 			}
 
-			event, err := process.WaitForEvent(ctx, ServiceExitedWithErrorEvent)
-			require.NoError(t, err)
-			require.NotNil(t, event)
-			exitPayload, ok := event.Payload.(ExitEventPayload)
-			require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
-			require.Equal(t, "db.init", exitPayload.Service.Name())
+			// The first service to exit should be the db one, with a "db.init" event.
+			// We can't use WaitForEvents because it only returns the last event for this type.
+			// As the test causes Teleport to crash, other services might exit in error before
+			// we get the event, causing the test to fail.
+			select {
+			case event := <-serviceExitedEvents:
+				require.NotNil(t, event)
+				exitPayload, ok := event.Payload.(ExitEventPayload)
+				require.True(t, ok, "expected ExitEventPayload but got %T", event.Payload)
+				require.Equal(t, "db.init", exitPayload.Service.Name(), "expected db init failure, got instead %q with error %q", exitPayload.Service.Name(), exitPayload.Error)
+			case <-ctx.Done():
+				require.Fail(t, "context timed out, we never received the failed db.init event")
+			}
+
 			// Database service init is a critical service, meaning failures on
 			// it should cause the process to exit with error.
 			require.Error(t, eg.Wait())
@@ -1873,7 +1969,7 @@ func TestAgentRolloutController(t *testing.T) {
 	dataDir := makeTempDir(t)
 
 	cfg := servicecfg.MakeDefaultConfig()
-	// We use a real clock because too many sevrices are using the clock and it's not possible to accurately wait for
+	// We use a real clock because too many services are using the clock and it's not possible to accurately wait for
 	// each one of them to reach the point where they wait for the clock to advance. If we add a WaitUntil(X waiters)
 	// check, this will break the next time we add a new waiter.
 	cfg.Clock = clockwork.NewRealClock()
@@ -1892,7 +1988,7 @@ func TestAgentRolloutController(t *testing.T) {
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
-	// Test setup: start the Teleport auth and wait for it to beocme ready
+	// Test setup: start the Teleport auth and wait for it to become ready
 	require.NoError(t, process.Start())
 
 	// Test setup: wait for every service to start
@@ -1935,6 +2031,198 @@ func TestAgentRolloutController(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
+// TestMetricsService tests that the optional metrics service exposes
+// metrics from both the in-process and global metrics registry. When the
+// service is disabled, metrics are served by the diagnostics service
+// (tested in TestDiagnosticsService).
+func TestMetricsService(t *testing.T) {
+	t.Parallel()
+	// Test setup: create a listener for the metrics server, get its file descriptor.
+
+	// Note: this code is copied from integrations/helpers/NewListenerOn() to avoid including helpers in a production
+	// build and avoid a cyclic dependency.
+	metricsListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, metricsListener.Close())
+	})
+	require.IsType(t, &net.TCPListener{}, metricsListener)
+	metricsListenerFile, err := metricsListener.(*net.TCPListener).File()
+	require.NoError(t, err)
+
+	// Test setup: create a new teleport process
+	dataDir := makeTempDir(t)
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.DataDir = dataDir
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+	cfg.DebugService.Enabled = false
+	cfg.Auth.StorageConfig.Params["path"] = dataDir
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Metrics.Enabled = true
+
+	// Configure the metrics server to use the listener we previously created.
+	cfg.Metrics.ListenAddr = &utils.NetAddr{AddrNetwork: "tcp", Addr: metricsListener.Addr().String()}
+	cfg.FileDescriptors = []*servicecfg.FileDescriptor{
+		{Type: string(ListenerMetrics), Address: metricsListener.Addr().String(), File: metricsListenerFile},
+	}
+
+	// Create and start the Teleport service.
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		assert.NoError(t, process.Close())
+		assert.NoError(t, process.Wait())
+	})
+
+	// Test setup: create our test metrics.
+	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
+	localMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "local_metric_" + nonce,
+	})
+	globalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "global_metric_" + nonce,
+	})
+	require.NoError(t, process.metricsRegistry.Register(localMetric))
+	require.NoError(t, prometheus.Register(globalMetric))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	t.Cleanup(cancel)
+	_, err = process.WaitForEvent(ctx, MetricsReady)
+	require.NoError(t, err)
+
+	// Test execution: get metrics and check the tests metrics are here.
+	metricsURL, err := url.Parse("http://" + metricsListener.Addr().String())
+	require.NoError(t, err)
+	metricsURL.Path = "/metrics"
+	resp, err := http.Get(metricsURL.String())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+}
+
+// TestDiagnosticsService tests that the diagnostics service exposes
+// metrics from both the in-process and global metrics registry when the metrics
+// service is disabled. It also checks that the diagnostics service exposes the
+// health routes.
+func TestDiagnosticsService(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClock()
+	dataDir := makeTempDir(t)
+	cfg := &servicecfg.Config{
+		Clock:          fakeClock,
+		DataDir:        dataDir,
+		DiagnosticAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+	}
+
+	log := logtest.NewLogger()
+	localRegistry := prometheus.NewRegistry()
+	additionalRegistry := prometheus.NewRegistry()
+
+	// In this test we don't want to spin a whole process and have to wait for
+	// every service to report ready (there's an integration test for this).
+	// So we craft a minimal process with only the debug service in it.
+	supervisor, err := NewSupervisor("supervisor-test", log, fakeClock)
+	require.NoError(t, err)
+	process := &TeleportProcess{
+		Config:          cfg,
+		Clock:           fakeClock,
+		logger:          log,
+		metricsRegistry: localRegistry,
+		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
+		Supervisor:      supervisor,
+	}
+
+	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
+
+	require.NoError(t, process.initDiagnosticService())
+	require.NoError(t, process.Start())
+
+	// Test setup: create our test metrics.
+	nonce := strings.ReplaceAll(uuid.NewString(), "-", "")
+	localMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "local_metric_" + nonce,
+	})
+	globalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "global_metric_" + nonce,
+	})
+	additionalMetric := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "test",
+		Name:      "additional_metric_" + nonce,
+	})
+	require.NoError(t, process.metricsRegistry.Register(localMetric))
+	require.NoError(t, prometheus.Register(globalMetric))
+	require.NoError(t, additionalRegistry.Register(additionalMetric))
+
+	// Test execution: query the metrics endpoint and check the tests metrics are here.
+	diagAddr, err := process.DiagnosticAddr()
+	require.NoError(t, err)
+	metricsURL, err := url.Parse("http://" + diagAddr.String())
+	require.NoError(t, err)
+	metricsURL.Path = "/metrics"
+	resp, err := http.Get(metricsURL.String())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// Test validation: check that the metrics server served both the local and global registry.
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+	// the additional registry is not yet added
+	require.NotContains(t, string(body), "additional_metric_"+nonce)
+
+	// Test execution: add the additional registry and lookup again
+	process.AddGatherer(additionalRegistry)
+
+	resp, err = http.Get(metricsURL.String())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	require.Contains(t, string(body), "local_metric_"+nonce)
+	require.Contains(t, string(body), "global_metric_"+nonce)
+	// the additional registry is not yet added
+	require.Contains(t, string(body), "additional_metric_"+nonce)
+	// Fetch the liveness endpoint
+	healthURL, err := url.Parse("http://" + diagAddr.String())
+	require.NoError(t, err)
+	healthURL.Path = "/healthz"
+	resp, err = http.Get(healthURL.String())
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Fetch the readiness endpoint
+	readinessURL, err := url.Parse("http://" + diagAddr.String())
+	require.NoError(t, err)
+	readinessURL.Path = "/readyz"
+	resp, err = http.Get(readinessURL.String())
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
 // makeTempDir makes a temp dir with a shorter name than t.TempDir() in order to
 // avoid https://github.com/golang/go/issues/62614.
 func makeTempDir(t *testing.T) string {
@@ -1944,4 +2232,182 @@ func makeTempDir(t *testing.T) string {
 	require.NoError(t, err, "os.MkdirTemp() failed")
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
 	return tempDir
+}
+
+// TestInstanceCertReissue tests the reissuance of an instance certificate when
+// the instance has malformed system roles using pre-constructed data directories
+// generated by an older teleport version that permitted token mix-and-match.
+func TestInstanceCertReissue(t *testing.T) {
+	t.Setenv("_insecuredevmode_no_parallel", "1") // panic if the test is or will become parallel
+	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create temporary directories for the auth and agent data directories.
+	authDir, agentDir := t.TempDir(), t.TempDir()
+
+	// Write the instance assets to the temporary directories to set up pre-existing
+	// state for our teleport instances to use.
+	require.NoError(t, basicDirCopy("testdata/auth", authDir))
+	require.NoError(t, basicDirCopy("testdata/agent", agentDir))
+
+	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.Version = defaults.TeleportConfigVersionV3
+	authCfg.DataDir = authDir
+	authCfg.Auth.Enabled = true
+	authCfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &authCfg.FileDescriptors)
+	authCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+	// ensure auth server is using the pre-constructed sqlite db
+	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	var err error
+	authCfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "auth-server",
+	})
+	require.NoError(t, err)
+	authCfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+
+	authCfg.Proxy.Enabled = true
+	authCfg.Proxy.DisableWebInterface = true
+	proxyAddr := newListener(t, ListenerProxyWeb, &authCfg.FileDescriptors)
+	authCfg.Proxy.WebAddr.Addr = proxyAddr
+
+	authCfg.SSH.Enabled = true
+	authCfg.SSH.Addr.Addr = "localhost:0"
+	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	authCfg.Logger = logtest.NewLogger()
+	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+
+	authProc, err := NewTeleport(authCfg)
+	require.NoError(t, err)
+	require.NoError(t, authProc.Start())
+	eg.Go(func() error { return authProc.WaitForSignals(ctx, nil) })
+
+	authIdentity, err := authProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleAuth), string(types.RoleProxy)}, authIdentity.SystemRoles)
+
+	authEventCh := make(chan Event)
+	authProc.ListenForEvents(ctx, TeleportCredentialsUpdatedEvent, authEventCh)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	_, err = authProc.WaitForEvent(timeoutCtx, TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err, "timed out waiting for second auth identity")
+
+	authIdentity, err = authProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleAuth), string(types.RoleProxy), string(types.RoleNode)}, authIdentity.SystemRoles)
+
+	agentCfg := servicecfg.MakeDefaultConfig()
+	agentCfg.Version = defaults.TeleportConfigVersionV3
+	agentCfg.DataDir = agentDir
+	agentCfg.ProxyServer = utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        proxyAddr,
+	}
+
+	agentCfg.Auth.Enabled = false
+	agentCfg.Proxy.Enabled = false
+	agentCfg.SSH.Enabled = true
+
+	agentCfg.WindowsDesktop.Enabled = true
+	agentCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	agentCfg.Logger = logtest.NewLogger()
+	agentCfg.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(time.Second)
+	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+
+	agentProc, err := NewTeleport(agentCfg)
+	require.NoError(t, err)
+	require.NoError(t, agentProc.Start())
+	eg.Go(func() error { return agentProc.WaitForSignals(ctx, nil) })
+
+	agentIdentity, err := agentProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleNode)}, agentIdentity.SystemRoles)
+
+	_, err = agentProc.WaitForEvent(timeoutCtx, TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err, "timed out waiting for second agent identity")
+
+	agentIdentity, err = agentProc.getIdentity(types.RoleInstance)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{string(types.RoleNode), string(types.RoleWindowsDesktop)}, agentIdentity.SystemRoles)
+}
+
+// newListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). The idea is to subvert
+// Teleport's file-descriptor injection mechanism (used to share ports between
+// parent and child processes) to inject preconfigured listeners to Teleport
+// instances under test. The ports are allocated and bound at runtime, so there
+// should be no issues with port clashes on parallel tests.
+//
+// The resulting file descriptor is added to the `fds` slice, which can then be
+// given to a teleport instance on startup in order to suppl
+func newListener(t *testing.T, ty ListenerType, fds *[]*servicecfg.FileDescriptor) string {
+	t.Helper()
+
+	l, err := net.Listen("tcp", net.JoinHostPort("localhost", "0"))
+	require.NoError(t, err)
+	defer l.Close()
+
+	// File() returns a dup of the listener's file descriptor as an *os.File, so
+	// the original net.Listener still needs to be closed.
+	lf, err := l.(*net.TCPListener).File()
+	require.NoError(t, err)
+	fd := &servicecfg.FileDescriptor{
+		Type:    string(ty),
+		Address: l.Addr().String(),
+		File:    lf,
+	}
+
+	// If the file descriptor slice ends up being passed to a TeleportProcess
+	// that successfully starts, listeners will either get "imported" and used
+	// or discarded and closed, this is just an extra safety measure that closes
+	// the listener at the end of the test anyway (the finalizer would do that
+	// anyway, in principle).
+	t.Cleanup(func() { require.NoError(t, fd.Close()) })
+
+	*fds = append(*fds, fd)
+	return l.Addr().String()
+}
+
+// basicDirCopy performs a very simplistic recursive copy from one directory to another. this helper was
+// written specifically for setting up teleport data directories for testing purposes and may not be
+// suitable for other applications.
+func basicDirCopy(src string, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.MkdirAll(dst, teleport.PrivateDirMode); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			if err := basicDirCopy(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
+		data, err := os.ReadFile(filepath.Join(src, entry.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := os.WriteFile(filepath.Join(dst, entry.Name()), data, teleport.PrivateDirMode); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }

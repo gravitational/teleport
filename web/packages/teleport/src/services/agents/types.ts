@@ -16,18 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IncludedResourceMode } from 'shared/components/UnifiedResources';
+import { GitServer } from 'web/packages/teleport/src/services/gitServers';
+
+import type { Platform } from 'design/platform';
+import {
+  IncludedResourceMode,
+  ResourceHealthStatus,
+} from 'shared/components/UnifiedResources';
 
 import { App } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
-import { Node } from 'teleport/services/nodes';
-import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
-
-import { UserGroup } from '../userGroups';
+import { Kube } from 'teleport/services/kube';
+import { Node } from 'teleport/services/nodes';
+import { UserGroup } from 'teleport/services/userGroups';
 
 import type { MfaChallengeResponse } from '../mfa';
-import type { Platform } from 'design/platform';
 
 export type UnifiedResource =
   | App
@@ -35,7 +39,8 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | UserGroup;
+  | UserGroup
+  | GitServer;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
@@ -62,6 +67,7 @@ export type ResourceFilter = {
   pinnedOnly?: boolean;
   searchAsRoles?: '' | 'yes';
   includedResourceMode?: IncludedResourceMode;
+  statuses?: ResourceHealthStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
 };
@@ -89,7 +95,8 @@ export type ResourceIdKind =
   | 'user_group'
   | 'windows_desktop'
   | 'saml_idp_service_provider'
-  | 'aws_ic_account_assignment';
+  | 'aws_ic_account_assignment'
+  | 'git_server';
 
 export type AccessRequestScope =
   | 'my_requests'

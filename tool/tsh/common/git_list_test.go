@@ -98,8 +98,8 @@ func TestGitListCommand(t *testing.T) {
 			},
 			containsOutput: []string{
 				`"kind": "git_server"`,
-				`"hostname": "org1.github-org"`,
-				`"hostname": "org2.github-org"`,
+				`"hostname": "org1.teleport-github-org"`,
+				`"hostname": "org2.teleport-github-org"`,
 			},
 		},
 		{
@@ -110,8 +110,8 @@ func TestGitListCommand(t *testing.T) {
 			},
 			containsOutput: []string{
 				"- kind: git_server",
-				"hostname: org1.github-org",
-				"hostname: org2.github-org",
+				"hostname: org1.teleport-github-org",
+				"hostname: org2.teleport-github-org",
 			},
 		},
 	}
@@ -128,21 +128,14 @@ func TestGitListCommand(t *testing.T) {
 			}
 
 			// Create a empty profile so we don't ping proxy.
-			clientStore, err := initClientStore(cf, cf.Proxy)
-			require.NoError(t, err)
-			profile := &profile.Profile{
-				SSHProxyAddr: "proxy:3023",
-				WebProxyAddr: "proxy:3080",
-			}
-			err = clientStore.SaveProfile(profile, true)
-			require.NoError(t, err)
+			mustCreateEmptyProfile(t, cf)
 
 			cmd := gitListCommand{
 				format:  test.format,
 				fetchFn: test.fetchFn,
 			}
 
-			err = cmd.run(cf)
+			err := cmd.run(cf)
 			if test.wantError {
 				require.Error(t, err)
 			} else {
@@ -153,4 +146,20 @@ func TestGitListCommand(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mustCreateEmptyProfile creates an empty profile so we don't ping proxy when
+// calling makeClient on provided cf.
+func mustCreateEmptyProfile(t *testing.T, cf *CLIConf) {
+	t.Helper()
+
+	if cf.HomePath == "" {
+		cf.HomePath = t.TempDir()
+	}
+
+	err := cf.getClientStore().SaveProfile(&profile.Profile{
+		SSHProxyAddr: cf.Proxy,
+		WebProxyAddr: cf.Proxy,
+	}, true)
+	require.NoError(t, err)
 }

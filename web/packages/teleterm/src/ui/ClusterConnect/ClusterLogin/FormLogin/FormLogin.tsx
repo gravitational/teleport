@@ -16,33 +16,39 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ReactNode } from 'react';
 import styled from 'styled-components';
-import { Flex, ButtonText, Box } from 'design';
-import * as Alerts from 'design/Alert';
-import { StepSlider } from 'design/StepSlider';
-import { Attempt } from 'shared/hooks/useAsync';
 
-import * as types from 'teleterm/ui/services/clusters/types';
+import { Box, ButtonText, Flex } from 'design';
+import * as Alerts from 'design/Alert';
+import { StepSlider, type StepComponentProps } from 'design/StepSlider';
+import {
+  AuthProvider,
+  AuthSettings,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
+import { Attempt } from 'shared/hooks/useAsync';
+import type { PrimaryAuthType } from 'shared/services';
+
+import { Platform } from 'teleterm/mainProcess/types';
+import { AppUpdateEvent } from 'teleterm/services/appUpdater';
+import { WidgetView } from 'teleterm/ui/AppUpdater';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { outermostPadding } from '../../spacing';
-
-import { PromptPasswordless } from './PromptPasswordless';
-import PromptSsoStatus from './PromptSsoStatus';
+import type { PasswordlessLoginState, SsoPrompt } from '../useClusterLogin';
+import { CompatibilityWarning } from './CompatibilityWarning';
+import { FormLocal } from './FormLocal';
 import { FormPasswordless } from './FormPasswordless';
 import { FormSso } from './FormSso';
-import { FormLocal } from './FormLocal';
-
-import type { PasswordlessLoginState } from '../useClusterLogin';
-import type { PrimaryAuthType } from 'shared/services';
-import type { StepComponentProps } from 'design/StepSlider';
+import { PromptPasswordless } from './PromptPasswordless';
+import PromptSsoStatus from './PromptSsoStatus';
 
 export default function LoginForm(props: Props) {
   const {
     loginAttempt,
     onAbort,
-    authProviders,
-    localAuthEnabled = true,
-    shouldPromptSsoStatus,
+    authSettings: { authProviders, localAuthEnabled = true },
+    ssoPrompt,
     passwordlessLoginState,
   } = props;
 
@@ -54,14 +60,32 @@ export default function LoginForm(props: Props) {
     );
   }
 
-  if (shouldPromptSsoStatus) {
+  if (ssoPrompt !== 'no-prompt') {
     return (
       <OutermostPadding>
-        <PromptSsoStatus onCancel={onAbort} />
+        <PromptSsoStatus ssoPrompt={ssoPrompt} onCancel={onAbort} />
       </OutermostPadding>
     );
   }
 
+  const compatibilityWarningProps = {
+    authSettings: props.authSettings,
+    shouldSkipVersionCheck: props.shouldSkipVersionCheck,
+    disableVersionCheck: props.disableVersionCheck,
+    platform: props.platform,
+    isAnyClusterProvidingUpdates:
+      props.appUpdateEvent.autoUpdatesStatus?.options.clusters.some(
+        c => c.toolsAutoUpdate
+      ),
+    onSwitchToAppUpdateDetails: props.switchToAppUpdateDetails,
+  };
+  const appUpdateWidgetViewProps = {
+    updateEvent: props.appUpdateEvent,
+    onDownload: () => props.downloadAppUpdate(),
+    onInstall: () => props.quitAndInstallAppUpdate(),
+    platform: props.platform,
+    onMore: () => props.switchToAppUpdateDetails(),
+  };
   const ssoEnabled = authProviders?.length > 0;
 
   // If local auth was not enabled, disregard any primary auth type config
@@ -74,6 +98,8 @@ export default function LoginForm(props: Props) {
             Could not log in
           </Alerts.Danger>
         )}
+        <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...appUpdateWidgetViewProps} />
         <FormSso {...props} />
       </FlexBordered>
     );
@@ -88,6 +114,8 @@ export default function LoginForm(props: Props) {
         >
           Login has not been enabled
         </Alerts.Danger>
+        <CompatibilityWarning {...compatibilityWarningProps} />
+        <WidgetView {...appUpdateWidgetViewProps} />
       </FlexBordered>
     );
   }
@@ -107,6 +135,11 @@ export default function LoginForm(props: Props) {
           Could not log in
         </Alerts.Danger>
       )}
+      <CompatibilityWarning
+        mx={outermostPadding}
+        {...compatibilityWarningProps}
+      />
+      <WidgetView mx={outermostPadding} {...appUpdateWidgetViewProps} />
       <StepSlider<typeof loginViews>
         flows={loginViews}
         currFlow={'default'}
@@ -124,9 +157,9 @@ const Primary = ({
   hasTransitionEnded,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authProviders?.length > 0;
+  const ssoEnabled = otherProps.authSettings.authProviders?.length > 0;
   let otherOptionsAvailable = true;
-  let $primary;
+  let $primary: ReactNode;
 
   switch (otherProps.primaryAuthType) {
     case 'passwordless':
@@ -136,7 +169,8 @@ const Primary = ({
       $primary = <FormSso {...otherProps} autoFocus={true} />;
       break;
     case 'local':
-      otherOptionsAvailable = otherProps.allowPasswordless || ssoEnabled;
+      otherOptionsAvailable =
+        otherProps.authSettings.allowPasswordless || ssoEnabled;
       $primary = (
         <FormLocal
           {...otherProps}
@@ -183,10 +217,13 @@ const Secondary = ({
   refCallback,
   ...otherProps
 }: Props & StepComponentProps) => {
-  const ssoEnabled = otherProps.authProviders?.length > 0;
-  const { primaryAuthType, allowPasswordless } = otherProps;
+  const ssoEnabled = otherProps.authSettings.authProviders?.length > 0;
+  const {
+    primaryAuthType,
+    authSettings: { allowPasswordless },
+  } = otherProps;
 
-  let $secondary;
+  let $secondary: ReactNode;
   switch (primaryAuthType) {
     case 'passwordless':
       if (ssoEnabled) {
@@ -219,7 +256,7 @@ const Secondary = ({
         $secondary = (
           <>
             <FormPasswordless {...otherProps} autoFocus={true} />
-            {otherProps.allowPasswordless && ssoEnabled && <Divider />}
+            {allowPasswordless && ssoEnabled && <Divider />}
             {ssoEnabled && <FormSso {...otherProps} />}
           </>
         );
@@ -288,18 +325,29 @@ const loginViews = { default: [Primary, Secondary] };
 
 type LoginAttempt = Attempt<void>;
 
-export type Props = types.AuthSettings & {
-  shouldPromptSsoStatus: boolean;
+export type Props = {
+  authSettings: AuthSettings;
+  ssoPrompt: SsoPrompt;
   passwordlessLoginState: PasswordlessLoginState;
   loginAttempt: LoginAttempt;
   clearLoginAttempt(): void;
   primaryAuthType: PrimaryAuthType;
   loggedInUserName?: string;
   onAbort(): void;
-  onLoginWithSso(provider: types.AuthProvider): void;
+  onLoginWithSso(provider: AuthProvider): void;
   onLoginWithPasswordless(): void;
   onLogin(username: string, password: string): void;
   autoFocus?: boolean;
+  shouldSkipVersionCheck: boolean;
+  disableVersionCheck(): void;
+  platform: Platform;
+  switchToAppUpdateDetails(): void;
+  appUpdateEvent: AppUpdateEvent;
+  downloadAppUpdate(): Promise<void>;
+  cancelAppUpdateDownload(): Promise<void>;
+  checkForAppUpdates(): Promise<void>;
+  quitAndInstallAppUpdate(): void;
+  changeAppUpdatesManagingCluster(clusterUri: RootClusterUri): Promise<void>;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

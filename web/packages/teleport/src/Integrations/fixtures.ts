@@ -19,12 +19,9 @@
 import {
   IntegrationKind,
   IntegrationStatusCode,
-} from 'teleport/services/integrations';
-
-import type {
-  Plugin,
-  Integration,
-  ExternalAuditStorage,
+  type ExternalAuditStorage,
+  type Integration,
+  type Plugin,
 } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [
@@ -97,6 +94,14 @@ export const plugins: Plugin[] = [
     name: 'jamf',
     details: '',
     kind: 'jamf',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'intune',
+    details: '',
+    kind: 'intune',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
@@ -187,7 +192,31 @@ export const integrations: Integration[] = [
     name: 'azure',
     kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
-    spec: { roleArn: '' },
+  },
+  {
+    resourceType: 'integration',
+    name: 'github',
+    kind: IntegrationKind.GitHub,
+    statusCode: IntegrationStatusCode.Running,
+    details: 'some-detail',
+    spec: { organization: 'lsdf' },
+  },
+  {
+    resourceType: 'integration',
+    name: 'roles-anywhere',
+    kind: IntegrationKind.AwsRa,
+    statusCode: IntegrationStatusCode.Running,
+    details: 'some-detail',
+    spec: {
+      trustAnchorARN:
+        'arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/foo',
+      profileSyncConfig: {
+        enabled: true,
+        profileArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:profile/bar',
+        roleArn: 'arn:aws:rolesanywhere:eu-west-2:123456789012:role/baz',
+        filters: ['test-*', 'dev-*'],
+      },
+    },
   },
 ];
 

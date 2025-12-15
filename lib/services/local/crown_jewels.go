@@ -39,7 +39,7 @@ const crownJewelsKey = "crown_jewels"
 // NewCrownJewelsService creates a new CrownJewelsService.
 func NewCrownJewelsService(b backend.Backend) (*CrownJewelsService, error) {
 	service, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*crownjewelv1.CrownJewel]{
+		generic.ServiceConfig[*crownjewelv1.CrownJewel]{
 			Backend:       b,
 			ResourceKind:  types.KindCrownJewel,
 			BackendPrefix: backend.NewKey(crownJewelsKey),

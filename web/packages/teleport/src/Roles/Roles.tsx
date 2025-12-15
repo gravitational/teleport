@@ -17,61 +17,81 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Alert, Box, Button, Flex, H3, Link } from 'design';
-import { P } from 'design/Text/Text';
+
+import { Alert, Box, Button, Flex, Link } from 'design';
+import { HoverTooltip } from 'design/Tooltip';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
-import { HoverTooltip } from 'shared/components/ToolTip';
-
 import {
-  Notification,
-  NotificationItem,
-  NotificationSeverity,
-} from 'shared/components/Notification';
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+import { useToastNotifications } from 'shared/components/ToastNotification';
+import { Attempt } from 'shared/hooks/useAsync';
 
-import styled from 'styled-components';
-
+import { useServerSidePagination } from 'teleport/components/hooks';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
-import useTeleport from 'teleport/useTeleport';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-import { useServerSidePagination } from 'teleport/components/hooks';
-import { storageService } from 'teleport/services/storageService';
-import { RoleWithYaml, RoleResource } from 'teleport/services/resources';
 import useResources from 'teleport/components/useResources';
+import { Role, RoleResource, RoleWithYaml } from 'teleport/services/resources';
+import { storageService } from 'teleport/services/storageService';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
-import { RoleList } from './RoleList';
 import DeleteRole from './DeleteRole';
-import { useRoles, State } from './useRoles';
-import templates from './templates';
 import { RoleEditorDialog } from './RoleEditor/RoleEditorDialog';
+import { RoleList } from './RoleList';
+import templates from './templates';
+import { State, useRoles } from './useRoles';
 
-export function RolesContainer() {
+export enum RoleDiffState {
+  Disabled,
+  Error,
+  PolicyEnabled,
+  LoadingSettings,
+  WaitingForSync,
+  DemoReady,
+}
+
+/** Optional set of props to render the role diff visualizer. */
+export type RoleDiffProps = {
+  roleDiffElement: React.ReactNode;
+  updateRoleDiff: (role: Role) => void;
+
+  /**
+   * State of the attempt to fetch the information required by the role diff
+   * visualizer. Required to show an error message in the editor UI.
+   */
+  // TODO(bl-nero): Make this property required once the Enterprise code is
+  // updated.
+  roleDiffAttempt?: Attempt<unknown>;
+  clearRoleDiffAttempt?: () => void;
+  enableDemoMode?: () => void;
+  roleDiffState?: RoleDiffState;
+  roleDiffErrorMessage?: string;
+};
+
+export type RolesProps = {
+  roleDiffProps?: RoleDiffProps;
+};
+
+export function RolesContainer({ roleDiffProps }: RolesProps) {
   const ctx = useTeleport();
   const state = useRoles(ctx);
-  return <Roles {...state} />;
+  return <Roles {...state} roleDiffProps={roleDiffProps} />;
 }
 
 const useNewRoleEditor = storageService.getUseNewRoleEditor();
 
-export function Roles(props: State) {
+export function Roles(props: State & RolesProps) {
   const { remove, create, update, fetch, rolesAcl } = props;
   const [search, setSearch] = useState('');
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-
-  function addNotification(content: string, severity: NotificationSeverity) {
-    setNotifications(notifications => [
-      ...notifications,
-      { id: crypto.randomUUID(), content, severity },
-    ]);
-  }
-
-  function removeNotification(id: string) {
-    setNotifications(n => n.filter(item => item.id !== id));
-  }
+  const toastNotification = useToastNotifications();
 
   const serverSidePagination = useServerSidePagination<RoleResource>({
     pageSize: 20,
@@ -96,12 +116,13 @@ export function Roles(props: State) {
       ? create(role)
       : update(resources.item.name, role));
 
-    addNotification(
-      resources.status === 'creating'
-        ? `Role ${response.name} has been created`
-        : `Role ${response.name} has been updated`,
-      'success'
-    );
+    toastNotification.add({
+      severity: 'success',
+      content:
+        resources.status === 'creating'
+          ? `Role ${response.name} has been created`
+          : `Role ${response.name} has been updated`,
+    });
 
     if (useNewRoleEditor) {
       // We don't really disregard anything, since we already saved the role;
@@ -166,41 +187,43 @@ export function Roles(props: State) {
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <HoverTooltip
-          position="bottom"
-          tipContent={
-            !canCreate ? (
-              <MissingPermissionsTooltip
-                missingPermissions={['roles.create']}
-              />
-            ) : (
-              ''
-            )
-          }
-        >
-          <Button
-            data-testid="create_new_role_button"
-            intent="primary"
-            fill={
-              serverSidePagination.attempt.status === 'success' &&
-              serverSidePagination.fetchedData.agents.length === 0
-                ? 'filled'
-                : 'border'
+        <InfoGuideButton config={{ guide: <InfoGuide /> }}>
+          <HoverTooltip
+            placement="bottom"
+            tipContent={
+              !canCreate ? (
+                <MissingPermissionsTooltip
+                  missingPermissions={['roles.create']}
+                />
+              ) : (
+                ''
+              )
             }
-            ml="auto"
-            width="240px"
-            disabled={!canCreate}
-            onClick={handleCreate}
           >
-            Create New Role
-          </Button>
-        </HoverTooltip>
+            <Button
+              data-testid="create_new_role_button"
+              intent="primary"
+              fill={
+                serverSidePagination.attempt.status === 'success' &&
+                serverSidePagination.fetchedData.agents.length === 0
+                  ? 'filled'
+                  : 'border'
+              }
+              ml="auto"
+              width="240px"
+              disabled={!canCreate}
+              onClick={handleCreate}
+            >
+              Create New Role
+            </Button>
+          </HoverTooltip>
+        </InfoGuideButton>
       </FeatureHeader>
       {serverSidePagination.attempt.status === 'failed' && (
-        <Alert children={serverSidePagination.attempt.statusText} />
+        <Alert>{serverSidePagination.attempt.statusText}</Alert>
       )}
       <Flex flex="1">
-        <Box flex="1" mr="6" mb="4">
+        <Box flex="1" mb="4">
           <RoleList
             serversidePagination={serverSidePagination}
             onSearchChange={setSearch}
@@ -217,43 +240,22 @@ export function Roles(props: State) {
             open={
               resources.status === 'creating' || resources.status === 'editing'
             }
-            onClose={resources.disregard}
+            onClose={() => {
+              resources.disregard();
+              props.roleDiffProps?.clearRoleDiffAttempt();
+            }}
             resources={resources}
             onSave={handleSave}
+            roleDiffProps={props.roleDiffProps}
           />
         )}
-        <Box
-          ml="auto"
-          width="240px"
-          color="text.main"
-          style={{ flexShrink: 0 }}
-        >
-          <H3 mb={3}>Role-based access control</H3>
-          <P mb={3}>
-            Teleport Role-based access control (RBAC) provides fine-grained
-            control over who can access resources and in which contexts. A
-            Teleport role can be assigned automatically based on user identity
-            when used with single sign-on (SSO).
-          </P>
-          <P>
-            Learn more in{' '}
-            <Link
-              color="text.main"
-              target="_blank"
-              href="https://goteleport.com/docs/access-controls/guides/role-templates/"
-            >
-              the cluster management (RBAC)
-            </Link>{' '}
-            section of online documentation.
-          </P>
-        </Box>
       </Flex>
 
       {/* Old editor. */}
       {!useNewRoleEditor &&
         (resources.status === 'creating' || resources.status === 'editing') && (
           <ResourceEditor
-            docsURL="https://goteleport.com/docs/access-controls/guides/role-templates/"
+            docsURL="https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/"
             title={title}
             text={resources.item.content}
             name={resources.item.name}
@@ -272,17 +274,6 @@ export function Roles(props: State) {
           onDelete={handleDelete}
         />
       )}
-
-      <NotificationContainer>
-        {notifications.map(item => (
-          <Notification
-            mb={3}
-            key={item.id}
-            item={item}
-            onRemove={() => removeNotification(item.id)}
-          />
-        ))}
-      </NotificationContainer>
     </FeatureBox>
   );
 }
@@ -303,8 +294,39 @@ function Directions() {
   );
 }
 
-const NotificationContainer = styled.div`
-  position: absolute;
-  bottom: ${props => props.theme.space[2]}px;
-  right: ${props => props.theme.space[5]}px;
-`;
+const InfoGuideReferenceLinks = {
+  PresetRoles: {
+    title: 'Teleport Preset Roles',
+    href: 'https://goteleport.com/docs/reference/access-controls/roles/#preset-roles',
+  },
+  RoleTemplates: {
+    title: 'Teleport Role Templates',
+    href: 'https://goteleport.com/docs/admin-guides/access-controls/guides/role-templates/',
+  },
+};
+
+function InfoGuide() {
+  return (
+    <Box>
+      <InfoParagraph>
+        Teleport Role-based access control (RBAC) provides fine-grained control
+        over who can access resources and in which contexts. A Teleport role can
+        be assigned automatically based on user identity when used with single
+        sign-on (SSO).
+      </InfoParagraph>
+      <InfoParagraph>
+        New clusters have several{' '}
+        <InfoExternalTextLink href={InfoGuideReferenceLinks.PresetRoles.href}>
+          preset roles
+        </InfoExternalTextLink>
+        . These are convenient for getting started but are very permissive, and
+        we recommend you follow our{' '}
+        <InfoExternalTextLink href={InfoGuideReferenceLinks.RoleTemplates.href}>
+          best practices guide
+        </InfoExternalTextLink>{' '}
+        to create your own.
+      </InfoParagraph>
+      <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+    </Box>
+  );
+}

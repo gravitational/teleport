@@ -39,6 +39,8 @@ const (
 	DatabaseSessionKind       SessionKind = "db"
 	AppSessionKind            SessionKind = "app"
 	WindowsDesktopSessionKind SessionKind = "desktop"
+	GitSessionKind            SessionKind = "git"
+	UnknownSessionKind        SessionKind = ""
 )
 
 // SessionParticipantMode is the mode that determines what you can do when you join a session.
@@ -103,7 +105,7 @@ type SessionTracker interface {
 	RemoveParticipant(string) error
 
 	// UpdatePresence updates presence timestamp of a participant.
-	UpdatePresence(string, time.Time) error
+	UpdatePresence(username string, cluster string, t time.Time) error
 
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
@@ -318,9 +320,14 @@ func (s *SessionTrackerV1) GetHostUser() string {
 }
 
 // UpdatePresence updates presence timestamp of a participant.
-func (s *SessionTrackerV1) UpdatePresence(user string, t time.Time) error {
+func (s *SessionTrackerV1) UpdatePresence(user, userCluster string, t time.Time) error {
 	idx := slices.IndexFunc(s.Spec.Participants, func(participant Participant) bool {
-		return participant.User == user
+		// participant.Cluster == "" is a legacy participant that was created
+		// before cluster field was added, so we allow updating presence for
+		// such participants as well.
+		// TODO(tigrato): Remove this in version 20.0.0
+		// TODO(tigrato): DELETE IN 20.0.0
+		return participant.User == user && (participant.Cluster == userCluster || participant.Cluster == "")
 	})
 
 	if idx < 0 {

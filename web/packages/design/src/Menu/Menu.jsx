@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, createRef } from 'react';
 import PropTypes from 'prop-types';
+import { Component, createRef } from 'react';
 
 import Popover from '../Popover';
-
 import getScrollbarSize from './../utils/scrollbarSize';
 import MenuList from './MenuList';
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -34,20 +34,21 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	// create a static token
 	staticToken := types.ProvisionTokenV1{
@@ -82,7 +83,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(sshPrivateKey)
+	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)
 
 	testcases := []struct {
@@ -262,7 +263,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 				if tc.waitTokenDeleted {
 					require.Eventually(t, func() bool {
 						_, err := p.a.ValidateToken(ctx, tc.req.Token)
-						return err != nil && strings.Contains(err.Error(), TokenExpiredOrNotFound)
+						return err != nil && strings.Contains(err.Error(), auth.TokenExpiredOrNotFound)
 					}, time.Millisecond*100, time.Millisecond*10)
 				}
 				return
@@ -297,15 +298,17 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 	return token
 }
 
-// TestRegister_Bot tests that a provision token can be used to generate
+// TestJoin_Bot tests that a provision token can be used to generate
 // renewable certificates for a non-interactive user.
-func TestRegister_Bot(t *testing.T) {
+func TestJoin_Bot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+		Kind:    types.KindBot,
+		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: "test",
 		},
@@ -365,7 +368,7 @@ func TestRegister_Bot(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			start := srv.Clock().Now()
-			result, err := join.Register(ctx, join.RegisterParams{
+			result, err := joinclient.Join(ctx, joinclient.JoinParams{
 				Token: test.token.GetName(),
 				ID: state.IdentityID{
 					Role: types.RoleBot,
@@ -409,9 +412,9 @@ func TestRegister_Bot(t *testing.T) {
 	}
 }
 
-// TestRegister_Bot_Expiry checks that bot certificate expiry can be set, and
+// TestJoin_Bot_Expiry checks that bot certificate expiry can be set, and
 // does not exceed the limit.
-func TestRegister_Bot_Expiry(t *testing.T) {
+func TestJoin_Bot_Expiry(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -437,10 +440,9 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		{
 			name:           "value exceeding limit specified",
 			requestExpires: &tooGreatExpires,
-			// MaxSessionTTL set in createBotRole is 12 hours, so this cap will
-			// apply instead of the defaults.MaxRenewableCertTTL specified
-			// in generateInitialBotCerts.
-			expectTTL: 12 * time.Hour,
+			// Note: MaxSessionTTL is 12 hours unless specified in the bot
+			// resource.
+			expectTTL: defaults.DefaultBotMaxSessionTTL,
 		},
 	}
 
@@ -448,6 +450,8 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			botName := uuid.NewString()
 			_, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
+				Kind:    types.KindBot,
+				Version: types.V1,
 				Metadata: &headerv1.Metadata{
 					Name: botName,
 				},
@@ -460,7 +464,7 @@ func TestRegister_Bot_Expiry(t *testing.T) {
 			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))
 
-			result, err := join.Register(ctx, join.RegisterParams{
+			result, err := joinclient.Join(ctx, joinclient.JoinParams{
 				Token: tok.GetName(),
 				ID: state.IdentityID{
 					Role: types.RoleBot,

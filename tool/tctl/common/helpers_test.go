@@ -35,6 +35,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -65,7 +67,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -75,8 +77,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	selectedCmd, err := app.Parse(args)
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	_, err = cmd.TryRun(ctx, selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
+	_, err = cmd.TryRun(context.Background(), selectedCmd, func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
 		return client, func(context.Context) {}, nil
 	})
 	return err
@@ -85,7 +86,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
-		stdout: &stdoutBuff,
+		Stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
@@ -112,10 +113,20 @@ func runLockCommand(t *testing.T, client *authclient.Client, args []string) erro
 func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
-		stdout: &stdoutBuff,
+		Stdout: &stdoutBuff,
 	}
 
 	args = append([]string{"tokens"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
+func runScopedCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &ScopedCommand{
+		Stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"scoped"}, args...)
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
@@ -137,7 +148,7 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
-func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runNotificationsCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &NotificationCommand{
 		stdout: &stdoutBuff,
@@ -147,11 +158,51 @@ func runNotificationsCommand(t *testing.T, client *authclient.Client, args []str
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runAlertCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &AlertCommand{
+		stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"alerts"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)
 	require.NoError(t, err)
 	return out
+}
+
+func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
+	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	var resource services.UnknownResource
+	require.NoError(t, decoder.Decode(&resource))
+	return resource.Raw
+}
+
+// mustTranscodeYAMLDocsToJSON safely transcodes YAML docs for unknown resources.
+func mustTranscodeYAMLDocsToJSON(t *testing.T, r io.Reader) []byte {
+	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	var jsonRaw []json.RawMessage
+
+	for {
+		var resource services.UnknownResource
+		if err := decoder.Decode(&resource); err != nil {
+			// Break when there are no more documents to decode
+			if !errors.Is(err, io.EOF) {
+				require.FailNow(t, "error transcoding YAML docs to JSON: %v", err)
+			}
+			break
+		}
+		jsonRaw = append(jsonRaw, resource.Raw)
+	}
+
+	jsonDocs, err := json.Marshal(jsonRaw)
+	require.NoError(t, err)
+
+	return jsonDocs
 }
 
 func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
@@ -208,7 +259,8 @@ func mustWriteIdentityFile(t *testing.T, client *authclient.Client, username str
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
-	fakeClock       clockwork.FakeClock
+	fakeClock       *clockwork.FakeClock
+	enableCache     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -225,9 +277,15 @@ func withFileDescriptors(fds []*servicecfg.FileDescriptor) testServerOptionFunc 
 	}
 }
 
-func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
+func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fakeClock = fakeClock
+	}
+}
+
+func withEnableCache(enableCache bool) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.enableCache = enableCache
 	}
 }
 
@@ -246,11 +304,12 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 		require.NoError(t, err)
 	}
 
-	cfg.CachePolicy.Enabled = false
+	cfg.CachePolicy.Enabled = options.enableCache
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
+		cfg.Auth.Clock = options.fakeClock
 	}
 	auth, err = service.NewTeleport(cfg)
 

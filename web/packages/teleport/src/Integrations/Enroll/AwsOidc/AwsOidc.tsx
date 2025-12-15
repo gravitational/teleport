@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Link as InternalRouteLink } from 'react-router-dom';
+import styled from 'styled-components';
+
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
-import { Link as InternalRouteLink } from 'react-router-dom';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
-import { requiredIamRoleName } from 'shared/components/Validation/rules';
-import styled from 'styled-components';
+import {
+  requiredIamRoleName,
+  requiredIntegrationName,
+} from 'shared/components/Validation/rules';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
-import {
-  ShowConfigurationScript,
-  RoleArnInput,
-} from 'teleport/Integrations/shared';
 import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import {
+  RoleArnInput,
+  ShowConfigurationScript,
+} from 'teleport/Integrations/shared';
 import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
 import { FinishDialog } from './FinishDialog';
 import { useAwsOidcIntegration } from './useAwsOidcIntegration';
-import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
 
 export function AwsOidc() {
   const {
@@ -111,13 +115,14 @@ export function AwsOidc() {
               <Box width="600px">
                 <FieldInput
                   autoFocus={true}
+                  rule={requiredIntegrationName}
                   value={integrationConfig.name}
                   label="Give this AWS integration a name"
                   placeholder="Integration Name"
                   onChange={e =>
                     setIntegrationConfig({
                       ...integrationConfig,
-                      name: e.target.value,
+                      name: e.target.value.trim(),
                     })
                   }
                   disabled={!!scriptUrl}
@@ -130,7 +135,7 @@ export function AwsOidc() {
                   onChange={e =>
                     setIntegrationConfig({
                       ...integrationConfig,
-                      roleName: e.target.value,
+                      roleName: e.target.value.trim(),
                     })
                   }
                   disabled={!!scriptUrl}

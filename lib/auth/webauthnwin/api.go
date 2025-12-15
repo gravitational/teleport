@@ -27,14 +27,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -221,7 +222,7 @@ type CheckSupportResult struct {
 func IsAvailable() bool {
 	supports := CheckSupport()
 	if supports.HasCompileSupport && !supports.IsAvailable {
-		log.Warn("Webauthn is not supported on this version of Windows, supported from version 1903")
+		slog.WarnContext(context.Background(), "Webauthn is not supported on this version of Windows, supported from version 1903")
 	}
 
 	return supports.IsAvailable
@@ -304,4 +305,9 @@ func Diag(ctx context.Context) (*DiagResult, error) {
 	res.LoginSuccessful = true
 
 	return res, nil
+}
+
+// getPackageLogger returns a logger with component="WebAuthnWin".
+func getPackageLogger() *slog.Logger {
+	return slog.With(teleport.ComponentKey, "WebAuthnWin")
 }

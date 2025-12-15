@@ -114,7 +114,7 @@ func (m *SMTPMailer) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if err := client.Close(); err != nil {
-		log.Debug("Failed to close client connection after health check")
+		log.DebugContext(ctx, "Failed to close client connection after health check")
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func (m *SMTPMailer) emitStatus(ctx context.Context, statusErr error) {
 		code = http.StatusInternalServerError
 	}
 	if err := m.sink.Emit(ctx, common.StatusFromStatusCode(code)); err != nil {
-		log.WithError(err).Error("Error while emitting Email plugin status")
+		log.ErrorContext(ctx, "Error while emitting Email plugin status", "error", err)
 	}
 }
 
@@ -252,7 +252,7 @@ func (t *statusSinkTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 		status := common.StatusFromStatusCode(resp.StatusCode)
 		if err := t.sink.Emit(ctx, status); err != nil {
-			log.WithError(err).Error("Error while emitting Email plugin status")
+			log.ErrorContext(ctx, "Error while emitting Email plugin status", "error", err)
 		}
 	}
 	return resp, nil

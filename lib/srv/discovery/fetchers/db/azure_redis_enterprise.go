@@ -32,13 +32,13 @@ import (
 
 // newAzureRedisEnterpriseFetcher creates a fetcher for Azure Redis Enterprise.
 func newAzureRedisEnterpriseFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*azure.RedisEnterpriseDatabase, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
+	return newAzureFetcher(config, &azureRedisEnterprisePlugin{})
 }
 
 type azureRedisEnterprisePlugin struct{}
 
-func (p *azureRedisEnterprisePlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
-	client, err := cfg.AzureClients.GetAzureRedisEnterpriseClient(subID)
+func (p *azureRedisEnterprisePlugin) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
+	client, err := cfg.AzureClients.GetRedisEnterpriseClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 

@@ -17,13 +17,27 @@
  */
 
 import styled from 'styled-components';
+import {
+  fontFamily,
+  fontSize,
+  fontWeight,
+  position,
+  type FontFamilyProps,
+  type FontSizeProps,
+  type FontWeightProps,
+  type PositionProps,
+} from 'styled-system';
 
 import {
   alignSelf,
   AlignSelfProps,
+  background,
+  BackgroundProps,
   BorderProps,
   borders,
   BordersProps,
+  boxShadow,
+  BoxShadowProps,
   color,
   ColorProps,
   flex,
@@ -53,7 +67,8 @@ import {
 } from '../system';
 
 export interface BoxProps
-  extends MaxWidthProps,
+  extends
+    MaxWidthProps,
     MinWidthProps,
     SpaceProps,
     HeightProps,
@@ -68,7 +83,13 @@ export interface BoxProps
     JustifySelfProps,
     BorderProps,
     BordersProps,
-    OverflowProps {}
+    BoxShadowProps,
+    OverflowProps,
+    BackgroundProps,
+    FontFamilyProps,
+    FontSizeProps,
+    PositionProps,
+    FontWeightProps {}
 
 const Box = styled.div<BoxProps>`
   box-sizing: border-box;
@@ -86,7 +107,13 @@ const Box = styled.div<BoxProps>`
   ${alignSelf}
   ${justifySelf}
   ${borders}
+  ${boxShadow}
   ${overflow}
+  ${background}
+  ${fontFamily}
+  ${fontSize}
+  ${position}
+  ${fontWeight}
 `;
 
 Box.displayName = 'Box';

@@ -56,7 +56,7 @@ func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Reques
 		fmt.Sprintf("--idp-metadata-url=%s", shsprintf.EscapeDefaultContext(samlIdPMetadataURL)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
-		TeleportArgs:   strings.Join(argsList, " "),
+		EntrypointArgs: strings.Join(argsList, " "),
 		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete enrolling this workforce pool to Teleport SAML Identity Provider.",
 	})
 	if err != nil {
@@ -64,7 +64,7 @@ func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Reques
 	}
 
 	httplib.SetScriptHeaders(w.Header())
-	_, err = fmt.Fprint(w, script)
+	_, err = w.Write([]byte(script))
 
 	return nil, trace.Wrap(err)
 }

@@ -15,18 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useRef, useEffect } from 'react';
-
+import { useEffect, useRef } from 'react';
 import { useTheme } from 'styled-components';
+
 import { Box, Indicator } from 'design';
 
-import * as stores from 'teleport/Console/stores/types';
-import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
-import { useMfa } from 'teleport/lib/useMfa';
-import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
-
-import Document from 'teleport/Console/Document';
 import AuthnDialog from 'teleport/components/AuthnDialog';
+import Document from 'teleport/Console/Document';
+import useKubeExecSession from 'teleport/Console/DocumentKubeExec/useKubeExecSession';
+import { Terminal, TerminalRef } from 'teleport/Console/DocumentSsh/Terminal';
+import * as stores from 'teleport/Console/stores/types';
+import { useMfaEmitter } from 'teleport/lib/useMfa';
 
 import KubeExecData from './KubeExecDataDialog';
 
@@ -36,14 +35,18 @@ type Props = {
 };
 
 export default function DocumentKubeExec({ doc, visible }: Props) {
-  const terminalRef = useRef<TerminalRef>();
+  const terminalRef = useRef<TerminalRef>(undefined);
   const { tty, status, closeDocument, sendKubeExecData } =
     useKubeExecSession(doc);
-  const mfa = useMfa(tty);
+  const mfa = useMfaEmitter(tty);
   useEffect(() => {
-    // when switching tabs or closing tabs, focus on visible terminal
-    terminalRef.current?.focus();
-  }, [visible, mfa.requested]);
+    // when switching tabs, closing tabs, or
+    // when the pod information modal is dismissed
+    // focus the terminal
+    if (status === 'initialized') {
+      terminalRef.current?.focus();
+    }
+  }, [visible, mfa.challenge, status]);
   const theme = useTheme();
 
   const terminal = (
@@ -53,6 +56,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
       convertEol
+      disableAutoFocus={true}
     />
   );
 
@@ -63,7 +67,7 @@ export default function DocumentKubeExec({ doc, visible }: Props) {
           <Indicator />
         </Box>
       )}
-      {mfa.requested && <AuthnDialog mfa={mfa} onCancel={closeDocument} />}
+      <AuthnDialog mfaState={mfa} onClose={closeDocument} />
 
       {status === 'waiting-for-exec-data' && (
         <KubeExecData onExec={sendKubeExecData} onClose={closeDocument} />

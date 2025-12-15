@@ -27,8 +27,8 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -57,8 +57,8 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -76,7 +76,7 @@ type SessionContext struct {
 	// session.
 	remoteClientCache
 	// remoteClientGroup prevents duplicate requests to create remote clients
-	// for a given site
+	// for a given cluster
 	remoteClientGroup singleflight.Group
 
 	// mu guards kubeGRPCServiceConn.
@@ -114,8 +114,8 @@ type SessionContextConfig struct {
 	// Session refers the web session created for the user.
 	Session types.WebSession
 
-	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake sites
-	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error)
+	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake clusters
+	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error)
 }
 
 func (c *SessionContextConfig) CheckAndSetDefaults() error {
@@ -226,36 +226,36 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 }
 
 // GetUserClient will return an [authclient.ClientI]  with the role of the user at
-// the requested site. If the site is local a client with the users local role
-// is returned. If the site is remote a client with the users remote role is
+// the requested cluster. If the cluster is local a client with the users local role
+// is returned. If the cluster is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+func (c *SessionContext) GetUserClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 	// if we're trying to access the local cluster, pass back the local client.
-	if c.cfg.RootClusterName == site.GetName() {
+	if c.cfg.RootClusterName == cluster.GetName() {
 		return c.cfg.RootClient, nil
 	}
 
-	// return the client for the requested remote site
-	clt, err := c.remoteClient(ctx, site)
+	// return the client for the requested remote cluster
+	clt, err := c.remoteClient(ctx, cluster)
 	return clt, trace.Wrap(err)
 }
 
 // remoteClient returns an [authclient.ClientI]  with the role of the user at
-// the requested [site]. All remote clients are lazily created
+// the requested [cluster]. All remote clients are lazily created
 // when they are first requested and then cached. Subsequent requests
 // will return the previously created client to prevent having more than
-// a single [authclient.ClientI]  per site for a user.
+// a single [authclient.ClientI]  per cluster for a user.
 //
 // A [singleflight.Group] is leveraged to prevent duplicate requests for remote
 // clients at the same time to race.
-func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (interface{}, error) {
+func (c *SessionContext) remoteClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
+	cltI, err, _ := c.remoteClientGroup.Do(cluster.GetName(), func() (any, error) {
 		// check if we already have a connection to this cluster
-		if clt, ok := c.remoteClientCache.getRemoteClient(site); ok {
+		if clt, ok := c.remoteClientCache.getRemoteClient(cluster); ok {
 			return clt, nil
 		}
 
-		rClt, err := c.cfg.newRemoteClient(ctx, c, site)
+		rClt, err := c.cfg.newRemoteClient(ctx, c, cluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -263,10 +263,10 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 		// we'll save the remote client in our session context so we don't have to
 		// build a new connection next time. all remote clients will be closed when
 		// the session context is closed.
-		err = c.remoteClientCache.addRemoteClient(site, rClt)
+		err = c.remoteClientCache.addRemoteClient(cluster, rClt)
 		if err != nil {
-			c.cfg.Log.InfoContext(ctx, "Failed closing stale remote client for site",
-				"remote_site", site.GetName(),
+			c.cfg.Log.InfoContext(ctx, "Failed closing stale remote client for cluster",
+				"remote_cluster", cluster.GetName(),
 				"error", err,
 			)
 		}
@@ -287,8 +287,8 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 }
 
 // newRemoteClient returns a client to a remote cluster with the role of current user.
-func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	clt, err := sctx.newRemoteTLSClient(ctx, site)
+func newRemoteClient(ctx context.Context, sctx *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
+	clt, err := sctx.newRemoteTLSClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,7 +304,7 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
+func clusterDialer(remoteCluster reversetunnelclient.Cluster, src, dst net.Addr) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		dialParams := reversetunnelclient.DialParams{
 			From:                  src,
@@ -342,16 +342,11 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		ctx,
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
 	)
@@ -403,7 +398,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	return tlsConfig, nil
 }
 
-func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 	tlsConfig, err := c.ClientTLSConfig(ctx, cluster.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -511,12 +506,14 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
+	ident, err := sshca.DecodeIdentity(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
+
+	accessChecker, err := services.NewAccessCheckerForUserSession(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
 	return accessChecker, trace.Wrap(err)
 }
 
@@ -616,7 +613,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	// Give the session some time to linger so existing users of the context
 	// have successfully disposed of them.
 	// If we remove the session immediately, a stale copy might still use the
-	// cached site clients.
+	// cached cluster clients.
 	// This is a cheaper way to avoid race without introducing object
 	// reference counters.
 	return c.cfg.Parent.clock.Since(expiry) > c.cfg.Parent.sessionLingeringThreshold
@@ -649,7 +646,7 @@ type sessionCacheOptions struct {
 // launches a goroutine that runs until [ctx] is completed which
 // periodically purges invalid sessions.
 func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionCache, error) {
-	clusterName, err := config.proxyClient.GetClusterName()
+	clusterName, err := config.proxyClient.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -783,7 +780,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		return
 	}
 
-	linear := utils.NewDefaultLinear()
+	linear := utils.NewDefaultLinear(s.clock)
 	if s.sessionWatcherStartImmediately {
 		linear.First = 0
 	}
@@ -803,7 +800,7 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		if err := s.watchWebSessionsOnce(ctx, linear.Reset); err != nil && !errors.Is(err, context.Canceled) {
 			const msg = "" +
 				"sessionCache: WebSession watcher aborted, re-connecting. " +
-				"This may have an impact in device trust web sessions."
+				"This may have an impact on Device Trust web sessions."
 			s.log.WarnContext(ctx, msg, "error", err)
 		}
 	}
@@ -825,7 +822,7 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 			{
 				Kind: types.KindWebSession,
 				// Watch only for KindWebSession.
-				// SubKinds include KindAppSession, KindSAMLIdPSession, etc.
+				// SubKinds include KindAppSession, KindSnowflakeSession, etc.
 				SubKind: types.KindWebSession,
 			},
 		},
@@ -960,6 +957,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 ) (*authclient.SSHLoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
+		Scope:          c.Scope,
 		ClientMetadata: clientMeta,
 		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
 		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
@@ -1259,7 +1257,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = append(c.closers[:i], c.closers[i+1:]...)
+			c.closers = slices.Delete(c.closers, i, i+1)
 			return
 		}
 	}
@@ -1277,43 +1275,43 @@ func sessionKey(user, sessionID string) string {
 	return user + sessionID
 }
 
-// remoteClientCache stores remote clients keyed by site name while also keeping
-// track of the actual remote site associated with the client (in case the
-// remote site has changed). Safe for concurrent access. Closes all clients and
+// remoteClientCache stores remote clients keyed by cluster name while also keeping
+// track of the actual remote cluster associated with the client (in case the
+// remote cluster has changed). Safe for concurrent access. Closes all clients and
 // wipes the cache on Close.
 type remoteClientCache struct {
 	sync.Mutex
 	clients map[string]struct {
 		authclient.ClientI
-		reversetunnelclient.RemoteSite
+		reversetunnelclient.Cluster
 	}
 }
 
-func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite, remoteClient authclient.ClientI) error {
+func (c *remoteClientCache) addRemoteClient(cluster reversetunnelclient.Cluster, remoteClient authclient.ClientI) error {
 	c.Lock()
 	defer c.Unlock()
 	if c.clients == nil {
 		c.clients = make(map[string]struct {
 			authclient.ClientI
-			reversetunnelclient.RemoteSite
+			reversetunnelclient.Cluster
 		})
 	}
 	var err error
-	if c.clients[site.GetName()].ClientI != nil {
-		err = c.clients[site.GetName()].ClientI.Close()
+	if c.clients[cluster.GetName()].ClientI != nil {
+		err = c.clients[cluster.GetName()].ClientI.Close()
 	}
-	c.clients[site.GetName()] = struct {
+	c.clients[cluster.GetName()] = struct {
 		authclient.ClientI
-		reversetunnelclient.RemoteSite
-	}{remoteClient, site}
+		reversetunnelclient.Cluster
+	}{remoteClient, cluster}
 	return err
 }
 
-func (c *remoteClientCache) getRemoteClient(site reversetunnelclient.RemoteSite) (authclient.ClientI, bool) {
+func (c *remoteClientCache) getRemoteClient(cluster reversetunnelclient.Cluster) (authclient.ClientI, bool) {
 	c.Lock()
 	defer c.Unlock()
-	remoteClt, ok := c.clients[site.GetName()]
-	return remoteClt.ClientI, ok && remoteClt.RemoteSite == site
+	remoteClt, ok := c.clients[cluster.GetName()]
+	return remoteClt.ClientI, ok && remoteClt.Cluster == cluster
 }
 
 func (c *remoteClientCache) Close() error {
@@ -1327,85 +1325,4 @@ func (c *remoteClientCache) Close() error {
 	c.clients = nil
 
 	return trace.NewAggregate(errors...)
-}
-
-// sessionIDStatus indicates whether the session ID was received from
-// the server or not, and if not why
-type sessionIDStatus int
-
-const (
-	// sessionIDReceived indicates the the session ID was received
-	sessionIDReceived sessionIDStatus = iota + 1
-	// sessionIDNotSent indicates that the server set the session ID
-	// but didn't send it to us
-	sessionIDNotSent
-	// sessionIDNotModified indicates that the server used the session
-	// ID that was set by us
-	sessionIDNotModified
-)
-
-// prepareToReceiveSessionID configures the TeleportClient to listen for
-// the server to send the session ID it's using. The returned function
-// will return the current session ID from the server or a reason why
-// one wasn't received.
-func prepareToReceiveSessionID(ctx context.Context, log *slog.Logger, nc *client.NodeClient) func() (session.ID, sessionIDStatus) {
-	// send the session ID received from the server
-	var gotSessionID atomic.Bool
-	sessionIDFromServer := make(chan session.ID, 1)
-	nc.TC.OnChannelRequest = func(req *ssh.Request) *ssh.Request {
-		// ignore unrelated requests and handle only the first session
-		// ID request
-		if req.Type != teleport.CurrentSessionIDRequest || gotSessionID.Load() {
-			return req
-		}
-
-		sid, err := session.ParseID(string(req.Payload))
-		if err != nil {
-			log.WarnContext(ctx, "Unable to parse session ID", "error", err)
-			return nil
-		}
-
-		if gotSessionID.CompareAndSwap(false, true) {
-			sessionIDFromServer <- *sid
-		}
-
-		return nil
-	}
-
-	// If the session is about to close and we haven't received a session
-	// ID yet, ask if the server even supports sending one. Send the
-	// request in a new goroutine so session establishment won't be
-	// blocked on making this request
-	serverWillSetSessionID := make(chan bool, 1)
-	go func() {
-		resp, _, err := nc.Client.SendRequest(ctx, teleport.SessionIDQueryRequest, true, nil)
-		if err != nil {
-			log.WarnContext(ctx, "Failed to send session ID query request", "error", err)
-			serverWillSetSessionID <- false
-		} else {
-			serverWillSetSessionID <- resp
-		}
-	}()
-
-	return func() (session.ID, sessionIDStatus) {
-		timer := time.NewTimer(10 * time.Second)
-		defer timer.Stop()
-
-		for {
-			select {
-			case sessionID := <-sessionIDFromServer:
-				return sessionID, sessionIDReceived
-			case sessionIDIsComing := <-serverWillSetSessionID:
-				if !sessionIDIsComing {
-					return session.ID(""), sessionIDNotModified
-				}
-				// the server will send the session ID, continue
-				// waiting for it
-			case <-ctx.Done():
-				return session.ID(""), sessionIDNotSent
-			case <-timer.C:
-				return session.ID(""), sessionIDNotSent
-			}
-		}
-	}
 }

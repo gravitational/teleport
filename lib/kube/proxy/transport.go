@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand/v2"
 	"net"
 	"net/http"
 	"time"
@@ -36,9 +35,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/healthcheck"
+	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,6 +59,15 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
 func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
+	// If the session has a kube API credentials, it means that the next hop is
+	// a Kubernetes API server. In this case, we can use the provided credentials
+	// to dial the next hop directly and never cache the transport.
+	if sess.kubeAPICreds != nil {
+		// If agent is running in agent mode, get the transport from the configured cluster
+		// credentials.
+		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
+	}
+
 	// If the cluster is remote, the key is the teleport cluster name.
 	// If the cluster is local, the key is the teleport cluster name and the kubernetes
 	// cluster name: <teleport-cluster-name>/<kubernetes-cluster-name>.
@@ -73,10 +82,6 @@ func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (
 		if sess.teleportCluster.isRemote {
 			// If the cluster is remote, create a new transport for the remote cluster.
 			httpTransport, tlsConfig, err = f.newRemoteClusterTransport(sess.teleportCluster.name)
-		} else if sess.kubeAPICreds != nil {
-			// If agent is running in agent mode, get the transport from the configured cluster
-			// credentials.
-			httpTransport, tlsConfig = sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig()
 		} else if f.cfg.ReverseTunnelSrv != nil {
 			// If agent is running in proxy mode, create a new transport for the local cluster.
 			httpTransport, tlsConfig, err = f.newLocalClusterTransport(sess.kubeClusterName)
@@ -174,7 +179,7 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		auth.NewImpersonatorRoundTripper(h2Transport),
+		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
@@ -230,7 +235,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 		)
 		defer span.End()
 
-		targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(clusterName)
+		targetCluster, err := f.cfg.ReverseTunnelSrv.Cluster(ctx, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -275,7 +280,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (http.Round
 
 	return instrumentedRoundtripper(
 		f.cfg.KubeServiceType,
-		auth.NewImpersonatorRoundTripper(h2Transport),
+		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
 
@@ -305,7 +310,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		// Use the local reversetunnel.Site which knows how to dial by serverID
 		// (for "kubernetes_service" connected over a tunnel) and falls back to
 		// direct dial if needed.
-		localCluster, err := f.cfg.ReverseTunnelSrv.GetSite(f.cfg.ClusterName)
+		localCluster, err := f.cfg.ReverseTunnelSrv.Cluster(ctx, f.cfg.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -314,23 +319,22 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Shuffle the list of servers to avoid always connecting to the same
-		// server.
-		rand.Shuffle(len(kubeServers), func(i, j int) {
-			kubeServers[i], kubeServers[j] = kubeServers[j], kubeServers[i]
-		})
 
+		// Dial kube servers in the order of health status healthy, unknown, and unhealthy.
+		// Each health group is shuffled to distribute load.
+		// Unknown servers and unhealthy servers are still dialed
+		// in case health status changed since last check.
 		var errs []error
-		// Validate that the requested kube cluster is registered.
-		for _, s := range kubeServers {
-			kubeCluster := s.GetCluster()
-			if kubeCluster.GetName() != kubeClusterName || !opt.matches(s.GetHostID()) {
+		for server := range healthcheck.OrderByTargetHealthStatus(kubeServers) {
+			// Validate that the requested kube cluster is registered.
+			if server.GetCluster().GetName() != kubeClusterName || !opt.matches(server.GetHostID()) {
 				continue
 			}
+
 			// serverID is a unique identifier of the server in the cluster.
 			// It is a combination of the server's hostname and the cluster name.
 			// <host_id>.<cluster_name>
-			serverID := fmt.Sprintf("%s.%s", s.GetHostID(), f.cfg.ClusterName)
+			serverID := server.GetHostID() + "." + f.cfg.ClusterName
 			conn, err := localCluster.DialTCP(reversetunnelclient.DialParams{
 				// Send a sentinel value to the remote cluster because this connection
 				// will be used to forward multiple requests to the remote cluster from
@@ -338,18 +342,17 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 				// IP Pinning is based on the source IP address of the connection that
 				// we transport over HTTP headers so it's not affected.
 				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: s.GetHostname()},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: server.GetHostname()},
 				ConnType: types.KubeTunnel,
 				ServerID: serverID,
-				ProxyIDs: s.GetProxyIDs(),
+				ProxyIDs: server.GetProxyIDs(),
 			})
 			if err == nil {
-				opt.collect(s.GetHostID())
+				opt.collect(server.GetHostID())
 				return conn, nil
 			}
-			errs = append(errs, trace.Wrap(err))
+			errs = append(errs, err)
 		}
-
 		if len(errs) > 0 {
 			return nil, trace.NewAggregate(errs...)
 		}

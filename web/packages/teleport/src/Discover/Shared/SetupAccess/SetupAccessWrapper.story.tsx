@@ -18,9 +18,7 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { SetupAccessWrapper } from './SetupAccessWrapper';
-
-import type { Props } from './SetupAccessWrapper';
+import { SetupAccessWrapper, type Props } from './SetupAccessWrapper';
 
 export default {
   title: 'Teleport/Discover/Shared/SetupAccessWrapper',

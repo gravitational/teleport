@@ -42,6 +42,11 @@ const (
 	PresenceService_ListReverseTunnels_FullMethodName  = "/teleport.presence.v1.PresenceService/ListReverseTunnels"
 	PresenceService_UpsertReverseTunnel_FullMethodName = "/teleport.presence.v1.PresenceService/UpsertReverseTunnel"
 	PresenceService_DeleteReverseTunnel_FullMethodName = "/teleport.presence.v1.PresenceService/DeleteReverseTunnel"
+	PresenceService_GetRelayServer_FullMethodName      = "/teleport.presence.v1.PresenceService/GetRelayServer"
+	PresenceService_ListRelayServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListRelayServers"
+	PresenceService_DeleteRelayServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteRelayServer"
+	PresenceService_ListAuthServers_FullMethodName     = "/teleport.presence.v1.PresenceService/ListAuthServers"
+	PresenceService_ListProxyServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListProxyServers"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -64,6 +69,16 @@ type PresenceServiceClient interface {
 	UpsertReverseTunnel(ctx context.Context, in *UpsertReverseTunnelRequest, opts ...grpc.CallOption) (*types.ReverseTunnelV2, error)
 	// DeleteReverseTunnel removes an existing ReverseTunnel by name.
 	DeleteReverseTunnel(ctx context.Context, in *DeleteReverseTunnelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetRelayServer returns a single relay_server by name.
+	GetRelayServer(ctx context.Context, in *GetRelayServerRequest, opts ...grpc.CallOption) (*GetRelayServerResponse, error)
+	// ListRelayServers returns a page of relay_server resources.
+	ListRelayServers(ctx context.Context, in *ListRelayServersRequest, opts ...grpc.CallOption) (*ListRelayServersResponse, error)
+	// DeleteRelayServer deletes a relay_server resource by name.
+	DeleteRelayServer(ctx context.Context, in *DeleteRelayServerRequest, opts ...grpc.CallOption) (*DeleteRelayServerResponse, error)
+	// ListAuthServers returns a page of Auth servers.
+	ListAuthServers(ctx context.Context, in *ListAuthServersRequest, opts ...grpc.CallOption) (*ListAuthServersResponse, error)
+	// ListProxyServers returns a page of Proxy servers.
+	ListProxyServers(ctx context.Context, in *ListProxyServersRequest, opts ...grpc.CallOption) (*ListProxyServersResponse, error)
 }
 
 type presenceServiceClient struct {
@@ -144,6 +159,56 @@ func (c *presenceServiceClient) DeleteReverseTunnel(ctx context.Context, in *Del
 	return out, nil
 }
 
+func (c *presenceServiceClient) GetRelayServer(ctx context.Context, in *GetRelayServerRequest, opts ...grpc.CallOption) (*GetRelayServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRelayServerResponse)
+	err := c.cc.Invoke(ctx, PresenceService_GetRelayServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) ListRelayServers(ctx context.Context, in *ListRelayServersRequest, opts ...grpc.CallOption) (*ListRelayServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRelayServersResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListRelayServers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) DeleteRelayServer(ctx context.Context, in *DeleteRelayServerRequest, opts ...grpc.CallOption) (*DeleteRelayServerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteRelayServerResponse)
+	err := c.cc.Invoke(ctx, PresenceService_DeleteRelayServer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) ListAuthServers(ctx context.Context, in *ListAuthServersRequest, opts ...grpc.CallOption) (*ListAuthServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAuthServersResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListAuthServers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) ListProxyServers(ctx context.Context, in *ListProxyServersRequest, opts ...grpc.CallOption) (*ListProxyServersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProxyServersResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListProxyServers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
 // for forward compatibility.
@@ -164,6 +229,16 @@ type PresenceServiceServer interface {
 	UpsertReverseTunnel(context.Context, *UpsertReverseTunnelRequest) (*types.ReverseTunnelV2, error)
 	// DeleteReverseTunnel removes an existing ReverseTunnel by name.
 	DeleteReverseTunnel(context.Context, *DeleteReverseTunnelRequest) (*emptypb.Empty, error)
+	// GetRelayServer returns a single relay_server by name.
+	GetRelayServer(context.Context, *GetRelayServerRequest) (*GetRelayServerResponse, error)
+	// ListRelayServers returns a page of relay_server resources.
+	ListRelayServers(context.Context, *ListRelayServersRequest) (*ListRelayServersResponse, error)
+	// DeleteRelayServer deletes a relay_server resource by name.
+	DeleteRelayServer(context.Context, *DeleteRelayServerRequest) (*DeleteRelayServerResponse, error)
+	// ListAuthServers returns a page of Auth servers.
+	ListAuthServers(context.Context, *ListAuthServersRequest) (*ListAuthServersResponse, error)
+	// ListProxyServers returns a page of Proxy servers.
+	ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -194,6 +269,21 @@ func (UnimplementedPresenceServiceServer) UpsertReverseTunnel(context.Context, *
 }
 func (UnimplementedPresenceServiceServer) DeleteReverseTunnel(context.Context, *DeleteReverseTunnelRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteReverseTunnel not implemented")
+}
+func (UnimplementedPresenceServiceServer) GetRelayServer(context.Context, *GetRelayServerRequest) (*GetRelayServerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRelayServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListRelayServers(context.Context, *ListRelayServersRequest) (*ListRelayServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRelayServers not implemented")
+}
+func (UnimplementedPresenceServiceServer) DeleteRelayServer(context.Context, *DeleteRelayServerRequest) (*DeleteRelayServerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteRelayServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListAuthServers(context.Context, *ListAuthServersRequest) (*ListAuthServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAuthServers not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListProxyServers(context.Context, *ListProxyServersRequest) (*ListProxyServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProxyServers not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -342,6 +432,96 @@ func _PresenceService_DeleteReverseTunnel_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_GetRelayServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRelayServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).GetRelayServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_GetRelayServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).GetRelayServer(ctx, req.(*GetRelayServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_ListRelayServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRelayServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListRelayServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListRelayServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListRelayServers(ctx, req.(*ListRelayServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_DeleteRelayServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteRelayServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).DeleteRelayServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_DeleteRelayServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).DeleteRelayServer(ctx, req.(*DeleteRelayServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_ListAuthServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuthServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListAuthServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListAuthServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListAuthServers(ctx, req.(*ListAuthServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_ListProxyServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProxyServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListProxyServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListProxyServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListProxyServers(ctx, req.(*ListProxyServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -376,6 +556,26 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteReverseTunnel",
 			Handler:    _PresenceService_DeleteReverseTunnel_Handler,
+		},
+		{
+			MethodName: "GetRelayServer",
+			Handler:    _PresenceService_GetRelayServer_Handler,
+		},
+		{
+			MethodName: "ListRelayServers",
+			Handler:    _PresenceService_ListRelayServers_Handler,
+		},
+		{
+			MethodName: "DeleteRelayServer",
+			Handler:    _PresenceService_DeleteRelayServer_Handler,
+		},
+		{
+			MethodName: "ListAuthServers",
+			Handler:    _PresenceService_ListAuthServers_Handler,
+		},
+		{
+			MethodName: "ListProxyServers",
+			Handler:    _PresenceService_ListProxyServers_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

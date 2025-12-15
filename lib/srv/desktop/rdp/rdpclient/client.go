@@ -1,5 +1,4 @@
 //go:build desktop_access_rdp
-// +build desktop_access_rdp
 
 /*
  * Teleport
@@ -66,21 +65,25 @@ package rdpclient
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
 #cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
-#include <librdprs.h>
+#include <librdpclient.h>
 */
 import "C"
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"runtime/cgo"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -93,7 +96,7 @@ func init() {
 	var rustLogLevel string
 
 	// initialize the Rust logger by setting $RUST_LOG based
-	// on the logrus log level
+	// on the slog log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
 	rl := os.Getenv("RUST_LOG")
@@ -135,6 +138,7 @@ type Client struct {
 	// Parameters read from the TDP stream
 	requestedWidth, requestedHeight uint16
 	username                        string
+	keyboardLayout                  uint32
 
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
@@ -180,12 +184,15 @@ func New(cfg Config) (*Client, error) {
 	if err := c.readClientSize(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := c.readClientKeyboardLayout(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return c, nil
 }
 
-// Run starts the rdp client and blocks until the client disconnects,
-// then ensures the cleanup is run.
-func (c *Client) Run(ctx context.Context) error {
+// Run starts the RDP client, using the provided user certificate and private key.
+// It blocks until the client disconnects, then ensures the cleanup is run.
+func (c *Client) Run(ctx context.Context, certDER, keyDER []byte) error {
 	// Create a handle to the client to pass to Rust.
 	// The handle is used to call back into this Client from Rust.
 	// Since the handle is created and deleted here, methods which
@@ -206,7 +213,7 @@ func (c *Client) Run(ctx context.Context) error {
 	rustRDPReturnCh := make(chan error, 1)
 	// Kick off rust RDP loop goroutine
 	go func() {
-		rustRDPReturnCh <- c.startRustRDP(ctx)
+		rustRDPReturnCh <- c.startRustRDP(ctx, certDER, keyDER)
 	}()
 
 	select {
@@ -246,8 +253,12 @@ func (c *Client) readClientSize() error {
 	for {
 		s, err := c.cfg.Conn.ReadClientScreenSpec()
 		if err != nil {
-			c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
-			continue
+			if trace.IsBadParameter(err) {
+				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
+				continue
+			} else {
+				return err
+			}
 		}
 
 		if c.cfg.hasSizeOverride() {
@@ -279,18 +290,35 @@ func (c *Client) readClientSize() error {
 	}
 }
 
+func (c *Client) readClientKeyboardLayout() error {
+	msgType, err := c.cfg.Conn.NextMessageType()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if msgType != tdp.TypeClientKeyboardLayout {
+		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
+		return nil
+	}
+	msg, err := c.cfg.Conn.ReadMessage()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	k, ok := msg.(tdp.ClientKeyboardLayout)
+	if !ok {
+		return trace.BadParameter("Unexpected message %T", msg)
+	}
+	c.cfg.Logger.DebugContext(context.Background(), "Got RDP keyboard layout", "keyboard_layout", k.KeyboardLayout)
+	c.keyboardLayout = k.KeyboardLayout
+	return nil
+}
+
 func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
 	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
 }
 
-func (c *Client) startRustRDP(ctx context.Context) error {
+func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
 	c.cfg.Logger.InfoContext(ctx, "Rust RDP loop starting")
 	defer c.cfg.Logger.InfoContext(ctx, "Rust RDP loop finished")
-
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// [username] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
@@ -316,18 +344,31 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	computerName := C.CString(c.cfg.ComputerName)
 	defer C.free(unsafe.Pointer(computerName))
 
-	cert_der, err := utils.UnsafeSliceData(userCertDER)
+	cert_der, err := utils.UnsafeSliceData(certDER)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if cert_der == nil {
 		return trace.BadParameter("user cert was nil")
 	}
 
-	key_der, err := utils.UnsafeSliceData(userKeyDER)
+	key_der, err := utils.UnsafeSliceData(keyDER)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if key_der == nil {
 		return trace.BadParameter("user key was nil")
+	}
+
+	hostID, err := uuid.Parse(c.cfg.HostID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	nextHostID := hostID[:]
+	cHostID := [4]C.uint32_t{}
+	for i := 0; i < len(cHostID); i++ {
+		const uint32Len = 4
+		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
+		nextHostID = nextHostID[uint32Len:]
 	}
 
 	res := C.client_run(
@@ -340,16 +381,18 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
-			cert_der_len: C.uint32_t(len(userCertDER)),
+			cert_der_len: C.uint32_t(len(certDER)),
 			cert_der:     (*C.uint8_t)(cert_der),
 			// key length and bytes.
-			key_der_len:             C.uint32_t(len(userKeyDER)),
+			key_der_len:             C.uint32_t(len(keyDER)),
 			key_der:                 (*C.uint8_t)(key_der),
 			screen_width:            C.uint16_t(c.requestedWidth),
 			screen_height:           C.uint16_t(c.requestedHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			client_id:               cHostID,
+			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
 
@@ -381,8 +424,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	// TODO(zmb3): convert this to severity error and ensure it renders in the UI
-	c.sendTDPAlert(message, tdp.SeverityInfo)
+	c.sendTDPAlert(message, tdp.SeverityError)
 
 	return nil
 }
@@ -399,6 +441,9 @@ func (c *Client) stopRustRDP() error {
 func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming starting")
 	defer c.cfg.Logger.InfoContext(context.Background(), "TDP input streaming finished")
+
+	// we will disable ping only if the env var is truthy
+	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING"))
 
 	var withheldResize *tdp.ClientScreenSpec
 	for {
@@ -418,6 +463,23 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
 			return err
 		}
+		if m, ok := msg.(tdp.Ping); ok {
+			go func() {
+				// Upon receiving a ping message, we make a connection
+				// to the host and send the same message back to the proxy.
+				// The proxy will then compute the round trip time.
+				if !disableDesktopPing {
+					conn, err := net.Dial("tcp", c.cfg.Addr)
+					if err == nil {
+						conn.Close()
+					}
+				}
+				if err := c.cfg.Conn.WriteMessage(m); err != nil {
+					c.cfg.Logger.WarnContext(context.Background(), "Failed writing TDP ping message", "error", err)
+				}
+			}()
+			continue
+		}
 
 		if atomic.LoadUint32(&c.readyForInput) == 0 {
 			switch m := msg.(type) {
@@ -434,7 +496,19 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			continue
 		}
 
-		c.UpdateClientActivity()
+		// If the message was due to user input, then we update client activity
+		// in order to refresh the client_idle_timeout checks.
+		//
+		// Note: we count some of the directory sharing messages as client activity
+		// because we don't want a session to be closed due to inactivity during a large
+		// file transfer.
+		switch msg.(type) {
+		case tdp.KeyboardButton, tdp.MouseMove, tdp.MouseButton, tdp.MouseWheel,
+			tdp.SharedDirectoryAnnounce, tdp.SharedDirectoryInfoResponse,
+			tdp.SharedDirectoryReadResponse, tdp.SharedDirectoryWriteResponse:
+
+			c.UpdateClientActivity()
+		}
 
 		if withheldResize != nil {
 			c.cfg.Logger.DebugContext(context.Background(), "Sending withheld screen size to client")
@@ -751,6 +825,106 @@ func toClient(handle C.uintptr_t) (value *Client, err error) {
 	return cgo.Handle(handle).Value().(*Client), nil
 }
 
+//export cgo_read_rdp_license
+func cgo_read_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data_out **C.uint8_t, len_out *C.size_t) C.CGOErrCode {
+	*data_out = nil
+	*len_out = 0
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	license, err := client.readRDPLicense(context.Background(), types.RDPLicenseKey{
+		Version:   uint32(req.version),
+		Issuer:    issuer,
+		Company:   company,
+		ProductID: productID,
+	})
+	if trace.IsNotFound(err) {
+		return C.ErrCodeNotFound
+	} else if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	// in this case, we expect the caller to use cgo_free_rdp_license
+	// when the data is no longer needed
+	*data_out = (*C.uint8_t)(C.CBytes(license))
+	*len_out = C.size_t(len(license))
+	return C.ErrCodeSuccess
+}
+
+//export cgo_free_rdp_license
+func cgo_free_rdp_license(p *C.uint8_t) {
+	C.free(unsafe.Pointer(p))
+}
+
+//export cgo_write_rdp_license
+func cgo_write_rdp_license(handle C.uintptr_t, req *C.CGOLicenseRequest, data *C.uint8_t, length C.size_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	issuer := C.GoString(req.issuer)
+	company := C.GoString(req.company)
+	productID := C.GoString(req.product_id)
+
+	licenseData := C.GoBytes(unsafe.Pointer(data), C.int(length))
+
+	err = client.writeRDPLicense(context.Background(), types.RDPLicenseKey{
+		Version:   uint32(req.version),
+		Issuer:    issuer,
+		Company:   company,
+		ProductID: productID,
+	}, licenseData)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) readRDPLicense(ctx context.Context, key types.RDPLicenseKey) ([]byte, error) {
+	log := c.cfg.Logger.With(
+		"issuer", key.Issuer,
+		"company", key.Company,
+		"version", key.Version,
+		"product", key.ProductID,
+	)
+
+	license, err := c.cfg.LicenseStore.ReadRDPLicense(ctx, &key)
+	switch {
+	case trace.IsNotFound(err):
+		log.InfoContext(ctx, "existing RDP license not found")
+	case err != nil:
+		log.ErrorContext(ctx, "could not look up existing RDP license", "error", err)
+	case len(license) > 0:
+		log.InfoContext(ctx, "found existing RDP license")
+	}
+
+	return license, trace.Wrap(err)
+}
+
+func (c *Client) writeRDPLicense(ctx context.Context, key types.RDPLicenseKey, license []byte) error {
+	log := c.cfg.Logger.With(
+		"issuer", key.Issuer,
+		"company", key.Company,
+		"version", key.Version,
+		"product", key.ProductID,
+	)
+	log.InfoContext(ctx, "writing RDP license to storage")
+	err := c.cfg.LicenseStore.WriteRDPLicense(ctx, &key, license)
+	if err != nil {
+		log.ErrorContext(ctx, "could not write RDP license", "error", err)
+	}
+	return trace.Wrap(err)
+}
+
 //export cgo_handle_fastpath_pdu
 func cgo_handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	goData := asRustBackedSlice(data, int(length))
@@ -821,6 +995,13 @@ func cgo_handle_remote_copy(handle C.uintptr_t, data *C.uint8_t, length C.uint32
 // handleRemoteCopy is called from Rust when data is copied
 // on the remote desktop
 func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
+	// Ignore empty clipboard data to mitigate a part of a clipboard
+	// issue where sometimes the clipboard data is wiped.
+	if len(data) == 0 {
+		c.cfg.Logger.DebugContext(context.Background(), "Received empty clipboard data from Windows desktop, ignoring message")
+		return C.ErrCodeSuccess
+	}
+
 	c.cfg.Logger.DebugContext(context.Background(), "Received clipboard data from Windows desktop", "len", len(data))
 
 	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {

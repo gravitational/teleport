@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 )
 
 // DeployDatabaseServiceRequest contains the required fields to deploy multiple Teleport Databases Services.
@@ -116,7 +116,7 @@ func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	r.ecsClusterName = normalizeECSClusterName(r.TeleportClusterName)

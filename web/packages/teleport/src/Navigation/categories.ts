@@ -18,28 +18,36 @@
 
 export enum NavigationCategory {
   Resources = 'Resources',
-  Management = 'Management',
+  ZeroTrustAccess = 'Zero Trust Access',
+  MachineWorkloadId = 'Machine & Workload ID',
+  IdentityGovernance = 'Identity Governance',
+  IdentitySecurity = 'Identity Security',
+  Audit = 'Audit',
+  AddNew = 'Add New',
 }
 
-export enum ManagementSection {
-  Access = 'Access Management',
-  Identity = 'Identity',
-  Activity = 'Activity',
-  Billing = 'Usage & Billing',
-  Clusters = 'Clusters',
-  Permissions = 'Permissions Management',
+/**
+ * CustomNavigationCategory are pseudo-categories which exist only in the nav menu, eg. Search.
+ */
+export enum CustomNavigationCategory {
+  Search = 'Search',
 }
 
-export const MANAGEMENT_NAVIGATION_SECTIONS = [
-  ManagementSection.Access,
-  ManagementSection.Permissions,
-  ManagementSection.Identity,
-  ManagementSection.Activity,
-  ManagementSection.Billing,
-  ManagementSection.Clusters,
-];
+/**
+ * CustomNavigationSubcategory are subcategories within a navigation category which can be used to
+ * create groupings of subsections, eg. Filtered Views.
+ */
+export enum CustomNavigationSubcategory {
+  FilteredViews = 'Filtered Views',
+}
+
+export type SidenavCategory = NavigationCategory | CustomNavigationCategory;
 
 export const NAVIGATION_CATEGORIES = [
-  NavigationCategory.Resources,
-  NavigationCategory.Management,
+  NavigationCategory.ZeroTrustAccess,
+  NavigationCategory.MachineWorkloadId,
+  NavigationCategory.IdentityGovernance,
+  NavigationCategory.IdentitySecurity,
+  NavigationCategory.Audit,
+  NavigationCategory.AddNew,
 ];

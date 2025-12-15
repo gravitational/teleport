@@ -18,16 +18,14 @@
 
 package bpf
 
-import "C"
-
 import (
 	"context"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,6 +71,10 @@ type SessionContext struct {
 	// User is the Teleport user.
 	User string
 
+	// UserOriginClusterName is the name of the cluster where the user is
+	// originally from.
+	UserOriginClusterName string
+
 	// PID is the process ID of Teleport when it re-executes itself. This is
 	// used by Teleport to find itself by cgroup.
 	PID int
@@ -82,12 +84,16 @@ type SessionContext struct {
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
-	Events map[string]bool
+	Events map[string]struct{}
+
+	// UserRoles are the roles assigned to the user.
+	UserRoles []string
+	// UserTraits are the traits assigned to the user.
+	UserTraits wrappers.Traits
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
-type NOP struct {
-}
+type NOP struct{}
 
 // Close closes the NOP service. Note this function does nothing.
 func (s *NOP) Close(bool) error {
@@ -110,13 +116,13 @@ func (s *NOP) Enabled() bool {
 
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
-	minKernel := semver.New(constants.EnhancedRecordingMinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.LessThan(*minKernel) {
-		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernel)
+	minKernelVersion := semver.Version{Major: 5, Minor: 8, Patch: 0}
+	if version.LessThan(minKernelVersion) {
+		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernelVersion)
 	}
 
 	if err = utils.HasBTF(); err != nil {

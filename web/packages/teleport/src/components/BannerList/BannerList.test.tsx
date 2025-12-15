@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import {
   fireEvent,
   screen,
@@ -25,9 +26,7 @@ import {
 
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 
-import { BannerList } from './BannerList';
-
-import type { BannerType } from './BannerList';
+import { BannerList, type BannerType } from './BannerList';
 
 function render(banner: React.ReactNode) {
   return testingRender(<LayoutContextProvider>{banner}</LayoutContextProvider>);

@@ -21,16 +21,12 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // GitServerGetter defines interface for fetching git servers.
-type GitServerGetter interface {
-	// GetGitServer returns Git servers by name.
-	GetGitServer(ctx context.Context, name string) (types.Server, error)
-	// ListGitServers returns all Git servers matching filter.
-	ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
-}
+type GitServerGetter gitserver.ReadOnlyClient
 
 // GitServers defines an interface for managing git servers.
 type GitServers interface {
@@ -44,8 +40,6 @@ type GitServers interface {
 	UpsertGitServer(ctx context.Context, item types.Server) (types.Server, error)
 	// DeleteGitServer removes the specified Git server resource.
 	DeleteGitServer(ctx context.Context, name string) error
-	// DeleteAllGitServers removes all Git server resources.
-	DeleteAllGitServers(ctx context.Context) error
 }
 
 // MarshalGitServer marshals the Git Server resource to JSON.

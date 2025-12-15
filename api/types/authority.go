@@ -156,7 +156,7 @@ func (ca *CertAuthorityV2) SetRevision(rev string) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (ca *CertAuthorityV2) WithoutSecrets() Resource {
-	ca2 := ca.Clone().(*CertAuthorityV2)
+	ca2 := ca.Clone()
 	RemoveCASecrets(ca2)
 	return ca2
 }
@@ -549,14 +549,6 @@ func (s *RotationSchedule) CheckAndSetDefaults(now time.Time) error {
 	return nil
 }
 
-// CertRoles defines certificate roles
-type CertRoles struct {
-	// Version is current version of the roles
-	Version string `json:"version"`
-	// Roles is a list of roles
-	Roles []string `json:"roles"`
-}
-
 // Clone returns a deep copy of TLSKeyPair that can be mutated without
 // modifying the original.
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
@@ -564,6 +556,7 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 		KeyType: k.KeyType,
 		Key:     slices.Clone(k.Key),
 		Cert:    slices.Clone(k.Cert),
+		CRL:     slices.Clone(k.CRL),
 	}
 }
 

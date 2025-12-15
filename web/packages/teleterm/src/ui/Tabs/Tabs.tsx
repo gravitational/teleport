@@ -17,14 +17,18 @@
  */
 
 import styled from 'styled-components';
-import { typography } from 'design/system';
-import { Box } from 'design';
 
+import { Box } from 'design';
+import { typography } from 'design/system';
 import { TypographyProps } from 'design/system/typography';
 
-import { Document } from 'teleterm/ui/services/workspacesService';
+import {
+  Document,
+  getStaticNameAndIcon,
+} from 'teleterm/ui/services/workspacesService';
 
-import { TabItem, NewTabItem } from './TabItem';
+import { tabHeight } from './constants';
+import { NewTabItem, TabItem } from './TabItem';
 
 export function Tabs(props: Props) {
   const {
@@ -50,6 +54,7 @@ export function Tabs(props: Props) {
           index={index}
           name={item.title}
           active={active}
+          Icon={getStaticNameAndIcon(item)?.Icon}
           nextActive={nextActive}
           onClick={() => onSelect(item)}
           onClose={() => onClose(item)}
@@ -89,9 +94,9 @@ type Props = {
 };
 
 // TODO(bl-nero): Typography should have a more restrictive type.
-const StyledTabs = styled(Box)<TypographyProps>`
+export const StyledTabs = styled(Box)<TypographyProps>`
   background-color: ${props => props.theme.colors.levels.surface};
-  min-height: 32px;
+  min-height: ${tabHeight}px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;

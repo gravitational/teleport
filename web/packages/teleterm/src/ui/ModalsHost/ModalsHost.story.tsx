@@ -20,9 +20,9 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   DialogDocumentsReopen,
-  ModalsService,
-  DialogHardwareKeyTouch,
   DialogHardwareKeyPin,
+  DialogHardwareKeyTouch,
+  ModalsService,
 } from 'teleterm/ui/services/modals';
 
 import ModalsHost from './ModalsHost';
@@ -34,7 +34,8 @@ export default {
 const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
   kind: 'hardware-key-touch',
   req: {
-    rootClusterUri: '/clusters/foo',
+    proxyHostname: 'foo.example.com',
+    command: '',
   },
   onCancel: () => {},
 };
@@ -42,8 +43,9 @@ const hardwareKeyTouchDialog: DialogHardwareKeyTouch = {
 const hardwareKeyPinDialog: DialogHardwareKeyPin = {
   kind: 'hardware-key-pin',
   req: {
-    rootClusterUri: '/clusters/foo',
+    proxyHostname: 'foo.example.com',
     pinOptional: false,
+    command: '',
   },
   onSuccess: () => {},
   onCancel: () => {},
@@ -54,6 +56,7 @@ const documentsReopenDialog: DialogDocumentsReopen = {
   rootClusterUri: '/clusters/foo',
   numberOfDocuments: 1,
   onConfirm: () => {},
+  onDiscard: () => {},
   onCancel: () => {},
 };
 

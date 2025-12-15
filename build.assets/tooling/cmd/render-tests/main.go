@@ -61,7 +61,7 @@ func readInput(input io.Reader, ch chan<- TestEvent, errCh chan<- error) {
 		for scanner.Scan() {
 			line := scanner.Text()
 			if line != "" {
-				err = trace.Errorf(line)
+				err = trace.Errorf("%s", line)
 				break
 			}
 		}

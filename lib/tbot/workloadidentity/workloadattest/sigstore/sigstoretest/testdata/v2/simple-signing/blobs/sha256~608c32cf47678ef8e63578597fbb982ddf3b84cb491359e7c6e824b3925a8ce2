@@ -1,0 +1,1 @@
+{"critical":{"identity":{"docker-reference":"index.docker.io/teleportdan/hello-world"},"image":{"docker-manifest-digest":"sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012"},"type":"cosign container image signature"},"optional":null}

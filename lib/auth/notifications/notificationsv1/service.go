@@ -67,7 +67,7 @@ type Backend interface {
 	services.RoleGetter
 	client.ListResourcesClient
 	GetRoles(ctx context.Context) ([]types.Role, error)
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // Service implements the teleport.notifications.v1.NotificationsService RPC Service.
@@ -170,7 +170,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 	if !found && req.PageToken != "" {
 		return nil, trace.BadParameter("invalid page token provided")
 	}
-	pageSize := int(req.PageSize)
+
 	userNotifsStream := stream.Slice[*notificationsv1.Notification](nil)
 	if userKey != "" || !found {
 		userNotifsStream = stream.FilterMap(
@@ -191,6 +191,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 				return n, true
 			})
 	}
+
 	globalNotifsStream := stream.Slice[*notificationsv1.GlobalNotification](nil)
 	if globalKey != "" || !found {
 		globalNotifsStream = stream.FilterMap(
@@ -211,6 +212,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 				return gn, true
 			})
 	}
+
 	notifStream := stream.MergeStreams(
 		userNotifsStream,
 		globalNotifsStream,
@@ -224,6 +226,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			return notification
 		},
 	)
+
 	var notifications []*notificationsv1.Notification
 	var nextGlobalKey, nextUserKey string
 	for notifStream.Next() {
@@ -231,9 +234,10 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		if item != nil {
 			notifications = append(notifications, item)
 		}
-		if len(notifications) == pageSize {
+		if len(notifications) == int(req.PageSize) {
 			// The nextKeys should represent the next unconsumed items in their respective lists.
-			// If the last item in this page (ie. the current item in the stream) was a user-specific notification, then the userNotificationsNextKey should be the next item in the userNotifsStream, and
+			// If the last item in this page (ie. the current item in the stream) was a user-specific notification,
+			// then the userNotificationsNextKey should be the next item in the userNotifsStream, and
 			// the globalNotificationsNextKey should be the current (and unconsumed) item in the globalNotifsStream. And vice-versa.
 			if item.GetMetadata().GetLabels()[types.NotificationScope] == "user" {
 				// If the provided globalKey was "", then return that as the nextGlobalKey again.
@@ -306,6 +310,10 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 	case *notificationsv1.GlobalNotificationSpec_All:
 		// Always return true if the matcher is "all."
 		return true
+
+	case *notificationsv1.GlobalNotificationSpec_ByUsers:
+		userList := matcher.ByUsers.GetUsers()
+		return slices.Contains(userList, authCtx.User.GetName())
 
 	case *notificationsv1.GlobalNotificationSpec_ByRoles:
 		matcherRoles := matcher.ByRoles.GetRoles()
@@ -608,23 +616,23 @@ func (s *Service) DeleteUserNotification(ctx context.Context, req *notifications
 	return nil, trace.Wrap(err)
 }
 
-// listUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This should only be used by admins.
+// listUserSpecificNotificationsForUser returns a paginated list of all user-specific notifications for a user. This is a privileged operation requiring `list` access for `Notifications` and should only be used by cluster admins.
 func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
-	if req.GetFilters().GetUsername() == "" {
-		return nil, trace.BadParameter("missing username")
-	}
-
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-		return nil, trace.AccessDenied("only RoleAdmin can list notifications for a specific user")
+	// If no username is provided, fetch notifications for the current user.
+	if req.GetFilters().GetUsername() == "" {
+		req.Filters.Username = authCtx.User.GetName()
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
+	// If the user is trying to fetch notifications for a different user, they need `list` permissions for `Notifications`.
+	if req.GetFilters().GetUsername() != authCtx.User.GetName() {
+		if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	stream := stream.FilterMap(
@@ -666,15 +674,15 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req 
 	}, nil
 }
 
-// listGlobalNotifications returns a paginated list of all global notifications. This should only be used by admins.
+// listGlobalNotifications returns a paginated list of all global notifications. This is a privileged operation requiring `list` access for `Notifications` and should only be used by cluster admins.
 func (s *Service) listGlobalNotifications(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
-		return nil, trace.AccessDenied("only RoleAdmin can list all global notifications")
+	if err := authCtx.CheckAccessToKind(types.KindNotification, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	stream := stream.FilterMap(

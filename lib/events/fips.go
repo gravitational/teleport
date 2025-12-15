@@ -19,7 +19,7 @@
 package events
 
 import (
-	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -31,14 +31,14 @@ const (
 )
 
 var (
-	fipsToAWS = map[types.ClusterAuditConfigSpecV2_FIPSEndpointState]endpoints.FIPSEndpointState{
-		types.ClusterAuditConfigSpecV2_FIPS_UNSET:    endpoints.FIPSEndpointStateUnset,
-		types.ClusterAuditConfigSpecV2_FIPS_ENABLED:  endpoints.FIPSEndpointStateEnabled,
-		types.ClusterAuditConfigSpecV2_FIPS_DISABLED: endpoints.FIPSEndpointStateDisabled,
+	fipsToAWS = map[types.ClusterAuditConfigSpecV2_FIPSEndpointState]aws.FIPSEndpointState{
+		types.ClusterAuditConfigSpecV2_FIPS_UNSET:    aws.FIPSEndpointStateUnset,
+		types.ClusterAuditConfigSpecV2_FIPS_ENABLED:  aws.FIPSEndpointStateEnabled,
+		types.ClusterAuditConfigSpecV2_FIPS_DISABLED: aws.FIPSEndpointStateDisabled,
 	}
 )
 
 // FIPSProtoStateToAWSState converts a FIPS proto state to an aws endpoints.FIPSEndpointState
-func FIPSProtoStateToAWSState(state types.ClusterAuditConfigSpecV2_FIPSEndpointState) endpoints.FIPSEndpointState {
+func FIPSProtoStateToAWSState(state types.ClusterAuditConfigSpecV2_FIPSEndpointState) aws.FIPSEndpointState {
 	return fipsToAWS[state]
 }

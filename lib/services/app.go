@@ -19,19 +19,29 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"iter"
+	"log/slog"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/net/idna"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -39,12 +49,16 @@ import (
 type AppGetter interface {
 	// GetApps returns all application resources.
 	GetApps(context.Context) ([]types.Application, error)
+	// ListApps returns a page of application resources.
+	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
+	// Apps returns application resources within the range [start, end).
+	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 }
 
-// Apps defines an interface for managing application resources.
-type Apps interface {
+// Applications defines an interface for managing application resources.
+type Applications interface {
 	// AppGetter provides methods for fetching application resources.
 	AppGetter
 	// CreateApp creates a new application resource.
@@ -55,6 +69,69 @@ type Apps interface {
 	DeleteApp(ctx context.Context, name string) error
 	// DeleteAllApps removes all database resources.
 	DeleteAllApps(context.Context) error
+}
+
+// ValidateApp validates the Application resource.
+func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
+	// If no public address is set, there's nothing to validate.
+	if app.GetPublicAddr() == "" {
+		return nil
+	}
+
+	// The app's spec has already been validated in CheckAndSetDefaults, so we can assume the public address is a valid
+	// address. The remainder of this function focuses on detecting conflicts with proxy public addresses because the
+	// proxy addresses are not part of the app spec and need to be fetched separately.
+	appAddr, err := utils.ParseAddr(app.GetPublicAddr())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Convert the application's public address hostname to its ASCII representation for comparison. Strip any trailing
+	// dots to ensure consistent comparison.
+	asciiAppHostname, err := idna.ToASCII(strings.TrimRight(appAddr.Host(), "."))
+	if err != nil {
+		return trace.Wrap(err, "app %q has an invalid IDN hostname %q", app.GetName(), appAddr.Host())
+	}
+
+	proxyServers, err := clientutils.CollectWithFallback(context.TODO(), proxyGetter.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return proxyGetter.GetProxies()
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Prevent routing conflicts and session hijacking by ensuring the application's public address does not match the
+	// public address of any proxy. If an application shares a public address with a proxy, requests intended for the
+	// proxy could be misrouted to the application, compromising security.
+	for _, proxyServer := range proxyServers {
+		proxyAddrs, err := utils.ParseAddrs(proxyServer.GetPublicAddrs())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, proxyAddr := range proxyAddrs {
+			// Also convert the proxy's public address hostname to its ASCII representation for comparison and strip any
+			// trailing dots.
+			asciiProxyHostname, err := idna.ToASCII(strings.TrimRight(proxyAddr.Host(), "."))
+			if err != nil {
+				return trace.Wrap(err, "proxy %q has an invalid IDN hostname %q", proxyServer.GetName(), proxyAddr)
+			}
+
+			// Compare the ASCII-normalized hostnames for equality, ignoring case.
+			if strings.EqualFold(asciiProxyHostname, asciiAppHostname) {
+				return trace.BadParameter(
+					"Application %q public address %q conflicts with the Teleport Proxy public address. "+
+						"Configure the application to use a unique public address that does not match the proxy's public addresses. "+
+						"Refer to https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#customize-public-address.",
+					app.GetName(),
+					app.GetPublicAddr(),
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 // MarshalApp marshals Application resource to JSON.
@@ -92,7 +169,7 @@ func UnmarshalApp(data []byte, opts ...MarshalOption) (types.Application, error)
 	case types.V3:
 		var app types.AppV3
 		if err := utils.FastUnmarshal(data, &app); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -144,7 +221,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	case types.V3:
 		var s types.AppServerV3
 		if err := utils.FastUnmarshal(data, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := s.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -164,7 +241,7 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 // It transforms service fields and annotations into appropriate Teleport app fields.
 // Service labels are copied to app labels.
 func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
-	appURI := buildAppURI(protocol, GetServiceFQDN(service), port.Port)
+	appURI := buildAppURI(protocol, GetServiceFQDN(service), service.GetAnnotations()[types.DiscoveryPathLabel], port.Port)
 
 	rewriteConfig, err := getAppRewriteConfig(service.GetAnnotations())
 	if err != nil {
@@ -183,13 +260,17 @@ func NewApplicationFromKubeService(service corev1.Service, clusterName, protocol
 	}
 
 	app, err := types.NewAppV3(types.Metadata{
-		Name:        appName,
-		Description: fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
-		Labels:      labels,
+		Name: appName,
+		Description: cmp.Or(
+			getDescription(service.GetAnnotations()),
+			fmt.Sprintf("Discovered application in Kubernetes cluster %q", clusterName),
+		),
+		Labels: labels,
 	}, types.AppSpecV3{
 		URI:                appURI,
 		Rewrite:            rewriteConfig,
 		InsecureSkipVerify: getTLSInsecureSkipVerify(service.GetAnnotations()),
+		PublicAddr:         getPublicAddr(service.GetAnnotations()),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create an app from Kubernetes service")
@@ -209,10 +290,11 @@ func GetServiceFQDN(service corev1.Service) string {
 	return fmt.Sprintf("%s.%s.svc.%s", service.GetName(), service.GetNamespace(), clusterDomainResolver())
 }
 
-func buildAppURI(protocol, serviceFQDN string, port int32) string {
+func buildAppURI(protocol, serviceFQDN, path string, port int32) string {
 	return (&url.URL{
 		Scheme: protocol,
-		Host:   fmt.Sprintf("%s:%d", serviceFQDN, port),
+		Host:   net.JoinHostPort(serviceFQDN, strconv.Itoa(int(port))),
+		Path:   path,
 	}).String()
 }
 
@@ -233,6 +315,14 @@ func getAppRewriteConfig(annotations map[string]string) (*types.Rewrite, error) 
 	return &rw, nil
 }
 
+func getDescription(annotations map[string]string) string {
+	return annotations[types.DiscoveryDescription]
+}
+
+func getPublicAddr(annotations map[string]string) string {
+	return annotations[types.DiscoveryPublicAddr]
+}
+
 func getTLSInsecureSkipVerify(annotations map[string]string) bool {
 	val := annotations[types.DiscoveryAppInsecureSkipVerify]
 	if val == "" {
@@ -250,7 +340,7 @@ func getAppName(serviceName, namespace, clusterName, portName, nameAnnotation st
 
 		if len(validation.IsDNS1035Label(name)) > 0 {
 			return "", trace.BadParameter(
-				"application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", name)
+				"application name %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", name)
 		}
 
 		return name, nil
@@ -296,4 +386,28 @@ func getClusterDomain() string {
 		return envDomain
 	}
 	return "cluster.local"
+}
+
+// RewriteHeadersAndApplyValueTraits rewrites the provided request's headers
+// while applying value traits to them.
+func RewriteHeadersAndApplyValueTraits(r *http.Request, rewrites iter.Seq[*types.Header], traits wrappers.Traits, log *slog.Logger) {
+	for header := range rewrites {
+		values, err := ApplyValueTraits(header.Value, traits)
+		if err != nil {
+			log.DebugContext(r.Context(), "Failed to apply traits",
+				"header_value", header.Value,
+				"error", err,
+			)
+			continue
+		}
+		r.Header.Del(header.Name)
+		for _, value := range values {
+			switch http.CanonicalHeaderKey(header.Name) {
+			case teleport.HostHeader:
+				r.Host = value
+			default:
+				r.Header.Add(header.Name, value)
+			}
+		}
+	}
 }

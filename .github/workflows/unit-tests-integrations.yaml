@@ -17,7 +17,7 @@ jobs:
      steps:
        - name: Checkout
          if: ${{ github.event_name == 'merge_group' }}
-         uses: actions/checkout@v4
+         uses: actions/checkout@v6
        - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
          id: changes
          with:
@@ -48,12 +48,12 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
@@ -68,6 +68,10 @@ jobs:
 
       - name: Run terraform provider OSS tests
         run: make test-terraform-provider
+        timeout-minutes: 15
+
+      - name: Run MWI terraform provider OSS tests
+        run: make test-terraform-provider-mwi
         timeout-minutes: 15
 
       - name: Run integrations event-handler tests

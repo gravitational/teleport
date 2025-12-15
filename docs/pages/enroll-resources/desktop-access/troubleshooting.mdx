@@ -1,6 +1,10 @@
 ---
 title: Troubleshooting Desktop Access
 description: Common issues and resolutions for Teleport's desktop access
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Common issues and resolution steps.
@@ -277,7 +281,7 @@ errors similar to:
 skipping desktop discovery: LDAP not yet initialized
 ```
 
-**Solution:** Confirm Teleport certificate is installed
+**Solution 1:** Confirm Teleport certificate is installed
 
 The Teleport Desktop Service uses a Teleport-issued certificate to authenticate
 with the LDAP server. This error occurs when Teleport is unable to authenticate,
@@ -314,11 +318,37 @@ in LDAP, you can force the desktop to sync with the following command:
 $ certutil -pulse
 ```
 
+**Solution 2:** Check for conflicting tools
+
 If you have verified that the Teleport CA certificate is properly installed and
 are still seeing this error, check for any security tools or addons that may be
 interfering with the mTLS connection. Tools such as CrowdStrike's LDAP inspection
 or Silverfort's AD adapter are known to terminate TLS and drop the client certificate,
 which prevents Teleport from authenticating.
+
+**Solution 3:** Ensure you've specified the SID for your LDAP service account
+
+Microsoft's February 2025 security updates switch all domain controllers to
+*full enforcement mode* for certificate mapping. This means that in order for
+Windows to accept Teleport client certificates, the certificates need to embed
+the SID of the user they are issued to.
+
+The fix for this is to ensure that you've set the SID in the configuration file
+for your `windows_desktop_service`:
+
+```yaml
+windows_desktop_service:
+  enabled: true
+  ldap:
+    username: 'MYDOMAIN\svc-teleport'
+    sid: S-1-5-21-...
+```
+
+To look up a user's SID, use the following PowerShell command:
+
+```
+$ Get-AdUser -Identity $USERNAME | Select SID
+```
 
 #### Manually validate a client certificate
 
@@ -461,6 +491,27 @@ To fix this error, ensure that either:
 - the server's `addr` field specifies the correct computer name
 
 See [Computer Name](./active-directory.mdx#computer-name) for more information.
+
+### LDAP connection failing periodically
+
+You see Teleport failing to contact your LDAP server periodically and an error in Teleport logs that looks similar to this:
+
+```
+... "error":"connecting to LDAP server. no LDAP servers responded successfully for domain "example.com" ...
+```
+
+When Teleport attempts to authenticate using LDAP to a Domain Controller, the Domain Controller then attempts
+to validate certificates by downloading Microsoft's Certificate Trust List from `ctldl.windowsupdate.com`.
+If the Domain Controller request timeout (default 15 seconds) takes longer than Teleport's LDAP request timeout
+(30 seconds for v18.2.5 and above or 15 seconds for v18.2.4 and earlier), the request will fail and the Domain
+Controller will cache the failed retrieval for 35 minutes.
+
+**Solution:** Decrease the Domain Controller's timeouts in Certificate Path Validation Settings Properties
+
+Setting **Default URL retrieval timeout** and **Default path validation cumulative retrieval timeout** to less than that
+of Teleport's LDAP request timeout will fix this issue. These settings can be found in the Local Group Policy in Computer
+Configuration > Windows Settings > Security Settings > Public Key Policies > Certificate Path Validation Settings Properties
+then under the Network Retrieval tab.
 
 ## Directory Sharing
 

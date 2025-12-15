@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as types from 'teleterm/types';
 import { LoggerService } from 'teleterm/services/logger/types';
+import * as types from 'teleterm/types';
 
 export default class Logger {
   private static service: types.LoggerService;
@@ -59,7 +59,7 @@ export default class Logger {
 
 // NullService is a logger service implementation which swallows logs. For use in tests.
 export class NullService implements LoggerService {
-  /* eslint-disable @typescript-eslint/no-unused-vars */
+  /* eslint-disable unused-imports/no-unused-vars */
   createLogger(loggerName: string): types.Logger {
     return {
       warn(...args: any[]) {},
@@ -67,5 +67,21 @@ export class NullService implements LoggerService {
       error(...args: any[]) {},
     };
   }
-  /* eslint-enable @typescript-eslint/no-unused-vars */
+  /* eslint-enable unused-imports/no-unused-vars */
+}
+
+export class ConsoleService implements LoggerService {
+  createLogger(loggerName: string): types.Logger {
+    return {
+      warn(...args: any[]) {
+        console.warn(loggerName, ...args);
+      },
+      info(...args: any[]) {
+        console.info(loggerName, ...args);
+      },
+      error(...args: any[]) {
+        console.error(loggerName, ...args);
+      },
+    };
+  }
 }

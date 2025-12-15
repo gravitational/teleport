@@ -31,10 +31,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -53,7 +54,7 @@ func setupFirestoreContext(t *testing.T) *firestoreContext {
 	fakeClock := clockwork.NewFakeClock()
 
 	config := EventsConfig{}
-	config.SetFromParams(map[string]interface{}{
+	config.SetFromParams(map[string]any{
 		"collection_name":                   "tp-events-test",
 		"project_id":                        "tp-testproj",
 		"endpoint":                          "localhost:8618",

@@ -19,7 +19,6 @@
 import { Store } from 'shared/libs/stores';
 
 import cfg from 'teleport/config';
-
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -39,6 +38,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getClusterId() {
     return this.state.cluster.clusterId;
+  }
+
+  getClusterAuthVersion() {
+    return this.state.cluster.authVersion;
   }
 
   getEventAccess() {
@@ -256,7 +259,23 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.bots;
   }
 
+  getBotInstancesAccess() {
+    return this.state.acl.botInstances;
+  }
+
   getContactsAccess() {
     return this.state.acl.contacts;
+  }
+
+  getGitServersAccess() {
+    return this.state.acl.gitServers;
+  }
+
+  getWorkloadIdentityAccess() {
+    return this.state.acl.workloadIdentity;
+  }
+
+  geClientIpRestrictionAccess() {
+    return this.state.acl.clientIpRestriction;
   }
 }

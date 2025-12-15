@@ -1,5 +1,4 @@
 //go:build !desktop_access_rdp
-// +build !desktop_access_rdp
 
 /*
  * Teleport
@@ -42,9 +41,9 @@ func New(cfg Config) (*Client, error) {
 	return nil, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
-// Run starts the rdp client and blocks until the client disconnects,
-// then runs the cleanup.
-func (c *Client) Run(ctx context.Context) error {
+// Run starts the RDP client, using the provided user certificate and private key.
+// It blocks until the client disconnects, then ensures the cleanup is run.
+func (c *Client) Run(ctx context.Context, certDER, keyDER []byte) error {
 	return errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 

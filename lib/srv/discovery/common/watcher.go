@@ -30,6 +30,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -163,9 +164,17 @@ func (w *Watcher) fetchAndSend() {
 				// not others. This is acceptable, so make a debug log instead
 				// of a warning.
 				if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-					w.cfg.Logger.DebugContext(groupCtx, "Skipped fetcher for resources", "error", err, "fetcher", lFetcher, "resource", lFetcher.ResourceType(), "cloud", lFetcher.Cloud())
+					w.cfg.Logger.DebugContext(groupCtx, "Skipped fetcher for resources",
+						"error", err,
+						"fetcher", logutils.StringerAttr(lFetcher),
+						"resource", lFetcher.ResourceType(),
+						"cloud", lFetcher.Cloud())
 				} else {
-					w.cfg.Logger.WarnContext(groupCtx, "Unable to fetch resources", "error", err, "fetcher", lFetcher, "resource", lFetcher.ResourceType(), "cloud", lFetcher.Cloud())
+					w.cfg.Logger.WarnContext(groupCtx, "Unable to fetch resources",
+						"error", err,
+						"fetcher", logutils.StringerAttr(lFetcher),
+						"resource", lFetcher.ResourceType(),
+						"cloud", lFetcher.Cloud())
 				}
 				// never return the error otherwise it will impact other watchers.
 				return nil

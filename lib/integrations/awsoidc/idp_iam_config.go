@@ -27,15 +27,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/common"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -143,7 +145,7 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 	r.issuerURL = issuerURL.String()
 
-	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
+	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName, common.OriginIntegrationAWSOIDC)
 
 	switch r.IntegrationPolicyPreset {
 	case PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
@@ -194,8 +196,8 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 	return &defaultIdPIAMConfigureClient{
 		httpClient:           httpClient,
 		awsConfig:            cfg,
-		Client:               iam.NewFromConfig(cfg),
-		CallerIdentityGetter: sts.NewFromConfig(cfg),
+		Client:               iamutils.NewFromConfig(cfg),
+		CallerIdentityGetter: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 

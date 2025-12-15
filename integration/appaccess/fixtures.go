@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type AppTestOptions struct {
@@ -48,7 +49,7 @@ type AppTestOptions struct {
 	ExtraLeafApps        []servicecfg.App
 	RootClusterListeners helpers.InstanceListenerSetupFunc
 	LeafClusterListeners helpers.InstanceListenerSetupFunc
-	Clock                clockwork.FakeClock
+	Clock                clockwork.Clock
 	MonitorCloseChannel  chan struct{}
 
 	RootConfig func(config *servicecfg.Config)
@@ -65,7 +66,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	log := utils.NewLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
@@ -323,7 +324,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		NodeName:    helpers.Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		Logger:      log,
 	}
 	if opts.RootClusterListeners != nil {
 		rootCfg.Listeners = opts.RootClusterListeners(t, &rootCfg.Fds)
@@ -338,7 +339,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		NodeName:    helpers.Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         log,
+		Logger:      log,
 	}
 	if opts.LeafClusterListeners != nil {
 		leafCfg.Listeners = opts.LeafClusterListeners(t, &leafCfg.Fds)
@@ -346,8 +347,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
 	rcConf := servicecfg.MakeDefaultConfig()
-	rcConf.Console = nil
-	rcConf.Log = log
+	rcConf.Logger = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -364,8 +364,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.Clock = opts.Clock
 
 	lcConf := servicecfg.MakeDefaultConfig()
-	lcConf.Console = nil
-	lcConf.Log = log
+	lcConf.Logger = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")

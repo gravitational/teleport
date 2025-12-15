@@ -111,7 +111,7 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 	coll := &kubeServerCollection{servers: kubes}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
@@ -136,11 +136,13 @@ helm repo update
   --set roles="{{.set_roles}}" \
   --set proxyAddr={{.auth_server}} \
   --set authToken={{.token}} \
+  --set updater.enabled=true \
   --create-namespace \
-  --namespace=teleport-agent
-        
+  --namespace=teleport-agent \
+  --version={{.version}}
+
 Please note:
-        
+
   - This invitation token will expire in {{.minutes}} minutes.
   - {{.auth_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.

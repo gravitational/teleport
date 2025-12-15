@@ -70,6 +70,14 @@ const (
 )
 
 const (
+	// A note on "session_id uuid NOT NULL":
+	//
+	// Some session IDs aren't UUIDs. See [Log.deriveSessionID] for an example.
+	// The wiser choice of type would be "session_id text", ie, handling session
+	// IDs as an opaque identifier.
+	//
+	// If you are writing a new backend and stumbled on this comment, do not use
+	// a storage UUID type for session IDs. Use a string type.
 	schemaV1Table = `CREATE TABLE events (
 		event_time timestamptz NOT NULL,
 		event_id uuid NOT NULL,
@@ -360,14 +368,6 @@ var _ events.AuditLogger = (*Log)(nil)
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
-	var sessionID uuid.UUID
-	if s := events.GetSessionID(event); s != "" {
-		u, err := uuid.Parse(s)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sessionID = u
-	}
 
 	eventJSON, err := utils.FastMarshal(event)
 	if err != nil {
@@ -375,6 +375,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	}
 
 	eventID := uuid.New()
+	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
 
 	start := time.Now()
 	// if an event with the same event_id exists, it means that we inserted it
@@ -409,18 +410,9 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 func (l *Log) searchEvents(
 	ctx context.Context,
 	fromTime, toTime time.Time,
-	eventTypes []string, cond *types.WhereExpr, sessionID string,
+	eventTypes []string, cond *utils.ToFieldsConditionConfig, sessionID string,
 	limit int, order types.EventOrder, startKey string,
-) ([]apievents.AuditEvent, string, error) {
-	var sessionUUID uuid.UUID
-	if sessionID != "" {
-		var err error
-		sessionUUID, err = uuid.Parse(sessionID)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-	}
-
+) ([]events.EventFields, string, error) {
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -441,11 +433,13 @@ func (l *Log) searchEvents(
 	var condFn utils.FieldsCondition
 	if cond != nil {
 		var err error
-		condFn, err = utils.ToFieldsCondition(cond)
+		condFn, err = utils.ToFieldsCondition(*cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
+
+	sessionUUID := l.deriveSessionID(ctx, sessionID)
 
 	var qb strings.Builder
 	qb.WriteString("DECLARE cur CURSOR FOR SELECT" +
@@ -486,7 +480,7 @@ func (l *Log) searchEvents(
 	const fetchSize = defaults.EventsIterationLimit
 	fetchQuery := fmt.Sprintf("FETCH %d FROM cur", fetchSize)
 
-	var evs []apievents.AuditEvent
+	var evs []events.EventFields
 	var sizeLimit bool
 	var endTime time.Time
 	var endID uuid.UUID
@@ -534,12 +528,7 @@ func (l *Log) searchEvents(
 				}
 				totalSize += len(data)
 
-				ev, err := events.FromEventFields(evf)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				evs = append(evs, ev)
+				evs = append(evs, evf)
 				endTime = t
 				endID = id
 
@@ -578,9 +567,35 @@ func (l *Log) searchEvents(
 
 // SearchEvents implements [events.AuditLogger].
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	var emptyCond *types.WhereExpr
+	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
-	return l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
+
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
+	if err != nil {
+		return nil, next, trace.Wrap(err)
+	}
+
+	evts, err := events.FromEventFieldsSlice(evtsRaw)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
+}
+
+// SearchUnstructuredEvents implements [events.AuditLogger].
+func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	var emptyCond *utils.ToFieldsConditionConfig
+	const emptySessionID = ""
+
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EventTypes, emptyCond, emptySessionID, req.Limit, req.Order, req.StartKey)
+	if err != nil {
+		return nil, next, trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSliceToUnstructured(evtsRaw)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -593,5 +608,50 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, req.Limit, req.Order, req.StartKey)
+	if err != nil {
+		return nil, next, trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(evtsRaw)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
+}
+
+// sessionIDBase is a randomly-generated UUID used as the basis for deriving
+// an UUID from session IDs. See [Log.deriveSessionID].
+var sessionIDBase = uuid.MustParse("e481e221-77b0-4b9e-be98-bc2e486b751b")
+
+func (l *Log) deriveSessionID(ctx context.Context, sessionID string) uuid.UUID {
+	if sessionID == "" {
+		return uuid.Nil // return zero UUID for backwards compat
+	}
+
+	u, err := uuid.Parse(sessionID)
+	if err == nil {
+		return u
+	}
+
+	// Some session IDs aren't UUIDs. For example, App session IDs are 32-byte
+	// values encoded as hex. Whether the assumption of UUIDs is philosophically
+	// correct is immaterial, what matters is that we do not drop the audit
+	// event.
+	//
+	// To avoid dropping the event while conforming to the existing schema we
+	// deterministically derive an UUID from the session ID.
+	//
+	// Note that derived IDs are UUIDv5 (instead of the usual UUIDv4 from
+	// uuid.Parse), so that could be used as a hint to which UUIDs are original or
+	// derived.
+	//
+	// * https://github.com/gravitational/teleport/blob/63537e3da5a22b61d9218863f1ed535a31d229ea/lib/auth/sessions.go#L521
+	derived := uuid.NewSHA1(sessionIDBase, []byte(sessionID))
+
+	l.log.DebugContext(ctx,
+		"Failed to parse event session ID, using derived ID",
+		"error", err,
+		"derived_id", derived,
+	)
+	return derived
 }

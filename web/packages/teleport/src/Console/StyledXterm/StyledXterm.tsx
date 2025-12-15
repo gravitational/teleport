@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Box } from 'design';
 
 import '@xterm/xterm/css/xterm.css';

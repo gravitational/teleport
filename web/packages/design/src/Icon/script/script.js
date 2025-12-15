@@ -31,6 +31,8 @@ only do so in that directory and then run the script. Do not edit any of the gen
 const fs = require('fs');
 const path = require('path');
 
+const { optimize } = require('svgo');
+
 const basePath = 'web/packages/design/src/Icon';
 
 const svgAssetsPath = basePath + '/assets';
@@ -43,8 +45,12 @@ function createIconComponent(svgFilePath) {
   const svgContent = fs.readFileSync(svgFilePath, 'utf-8');
   const templateContent = fs.readFileSync(iconComponentTemplate, 'utf-8');
 
+  const { data } = optimize(svgContent, {
+    multipass: true,
+  });
+
   // Get `path` elements.
-  const pathElements = svgContent.match(/<path[^>]*\/>/g);
+  const pathElements = data.match(/<path[^>]*\/>/g);
 
   // Remove `fill` attributes from the path elements, and convert `fill-rule` and `clip-rule` to JSX attributes.
   const processedPathElements = pathElements.map(path =>
@@ -52,6 +58,9 @@ function createIconComponent(svgFilePath) {
       .replace(/fill="[^"]*"/g, '')
       .replace(/fill-rule/g, 'fillRule')
       .replace(/clip-rule/g, 'clipRule')
+      .replace(/stroke-linecap/g, 'strokeLinecap')
+      .replace(/stroke-linejoin/g, 'strokeLinejoin')
+      .replace(/stroke-width/g, 'strokeWidth')
   );
 
   const iconName = path.basename(svgFilePath, '.svg');
@@ -75,6 +84,14 @@ function processSVGFiles() {
   if (svgFiles.length === 0) {
     console.error(`No SVG files found in ${svgAssetsPath}.`);
     return;
+  }
+
+  // Before generating Icon components, delete all the existing ones. This is to prevent Icon components for now-deleted SVG files from persisting.
+  const iconComponentsDir = path.join(basePath, '/Icons/');
+  const files = fs.readdirSync(iconComponentsDir);
+  for (const file of files) {
+    const filePath = path.join(iconComponentsDir, file);
+    fs.unlinkSync(filePath);
   }
 
   svgFiles.forEach(svgFile => {

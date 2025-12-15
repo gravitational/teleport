@@ -17,8 +17,6 @@
 package cryptosuites
 
 import (
-	"testing"
-
 	"github.com/gravitational/teleport/lib/cryptosuites/internal/rsa"
 )
 
@@ -28,11 +26,4 @@ import (
 // is configured). Safe to double-call.
 func PrecomputeRSAKeys() {
 	rsa.PrecomputeKeys()
-}
-
-// PrecomputeRSATestKeys may be called from TestMain to set this package into a
-// mode where it will precompute a fixed number of RSA keys and reuse them to
-// save on CPU usage.
-func PrecomputeRSATestKeys(m *testing.M) {
-	rsa.PrecomputeTestKeys(m)
 }

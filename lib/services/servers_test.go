@@ -105,6 +105,11 @@ func TestServersCompare(t *testing.T) {
 			},
 		}
 		require.Equal(t, Different, CompareServers(node, &node2))
+
+		// Scope has changed
+		node2 = *node
+		node2.Scope = "test"
+		require.Equal(t, Different, CompareServers(node, &node2))
 	})
 
 	t.Run("compare DatabaseServices", func(t *testing.T) {

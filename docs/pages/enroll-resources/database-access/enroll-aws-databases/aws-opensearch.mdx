@@ -1,6 +1,12 @@
 ---
 title: Database Access with Amazon OpenSearch
+sidebar_label: OpenSearch
 description: How to access Amazon OpenSearch with Teleport database access
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon OpenSearch" dbConfigure="via REST API with IAM Authentication"!)
@@ -47,6 +53,13 @@ This guide provides an example configuration of IAM access roles as a model,
 and uses an EC2 instance to serve the Teleport Database Service. The level of
 access provided may not suit your needs, or may not fit your organization's
 access conventions. You should adjust the AWS IAM permissions to fit your needs.
+
+<Admonition type="tip" title="Dashboard in private network">
+To access the OpenSearch Dashboard deployed within private VPC subnets using
+Teleport, you can enroll the Dashboard as a [Web
+application](../../application-access/protect-apps/connecting-apps.mdx)
+in Teleport.
+</Admonition>
 
 ## Step 1/4. Create IAM roles for OpenSearch Managed Cluster access
 
@@ -155,6 +168,8 @@ Create the new role:
 $ tctl create -f aws-opensearch-access.yaml
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="aws-opensearch-access"!)
 
 ## Step 3/4. Install the Teleport Database Service
@@ -195,7 +210,8 @@ your terminal, and manually adjust `/etc/teleport.yaml`.
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service.
 Set the `--proxy` command-line option to the address for your Teleport cluster
-and database parameters to your AWS environment.
+and database parameters to your AWS environment. Assign <Var
+name="opensearch-uri" /> to the hostname of your OpenSearch instance:
 
 ```code
 $ sudo teleport db configure create \
@@ -219,7 +235,7 @@ Create a proxy tunnel:
 
 ```code
 $ tsh proxy db --tunnel --port=8000 --db-user=ExampleTeleportOpenSearchRole example-opensearch
-Started authenticated tunnel for the OpenSearch database "example-opensearch" in cluster "teleport.example.com" on 127.0.0.1:8000.
+Started authenticated tunnel for the OpenSearch database "example-opensearch" in cluster <Var name="teleport.example.com" /> on 127.0.0.1:8000.
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
@@ -229,7 +245,7 @@ Use one of the following commands to connect to the database or to the address a
 
   * run request with opensearch-cli:
 
-  $ opensearch-cli --profile teleport --config /Users/alice/.tsh/teleport.example.dev/example-opensearch/opensearch-cli/8a5ce249.yml curl get --path /
+  $ opensearch-cli --profile teleport --config /Users/alice/.tsh/<Var name="teleport.example.com" />/example-opensearch/opensearch-cli/8a5ce249.yml curl get --path /
 
   * run request with curl:
 

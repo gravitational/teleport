@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
 
 # BUILDPLATFORM is provided by Docker/buildx
-FROM --platform=$BUILDPLATFORM docker.io/debian:12 as builder
+FROM --platform=$BUILDPLATFORM docker.io/debian:12 AS builder
 ARG BUILDARCH
 
 ## Install dependencies.
@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://go.dev/dl/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     chmod a+w /var/lib && \
     chmod a-w /
 ENV GOPATH="/go" \
@@ -77,11 +77,12 @@ ARG TARGETARCH
 # CGO is required for github.com/gravitational/teleport/lib/system
 RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
     CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
+    go build -tags "kustomize_disable_go_plugin_support" -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
-FROM --platform=$TARGETPLATFORM $BASE_IMAGE
+# --platform=${TARGETPLATFORM} is set by default and the docker linter complains if we set it.
+FROM $BASE_IMAGE
 WORKDIR /
 COPY --from=builder /go/bin/teleport-operator .
 

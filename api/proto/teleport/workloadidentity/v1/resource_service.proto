@@ -44,6 +44,10 @@ service WorkloadIdentityResourceService {
   // ListWorkloadIdentities of all workload identities, pagination semantics are
   // applied.
   rpc ListWorkloadIdentities(ListWorkloadIdentitiesRequest) returns (ListWorkloadIdentitiesResponse);
+  // ListWorkloadIdentities of all workload identities, pagination semantics are
+  // applied. Sorting by name or spiffe id is supported, and results can be
+  // filtered using a search term
+  rpc ListWorkloadIdentitiesV2(ListWorkloadIdentitiesV2Request) returns (ListWorkloadIdentitiesResponse);
 }
 
 // The request for CreateWorkloadIdentity.
@@ -83,6 +87,21 @@ message ListWorkloadIdentitiesRequest {
   int32 page_size = 1;
   // The page_token value returned from a previous ListWorkloadIdentities request, if any.
   string page_token = 2;
+}
+
+// The request for ListWorkloadIdentitiesV2.
+message ListWorkloadIdentitiesV2Request {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The page_token value returned from a previous ListWorkloadIdentities request, if any.
+  string page_token = 2;
+  // The sort field to use for the results. If empty, the default sort field is used.
+  string sort_field = 3;
+  // The sort order to use for the results. If empty, the default sort order is used.
+  bool sort_desc = 4;
+  // A search term used to filter the results. If non-empty, it's used to match against supported fields.
+  string filter_search_term = 5;
 }
 
 // The response for ListWorkloadIdentities.

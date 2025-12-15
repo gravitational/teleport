@@ -18,6 +18,7 @@
 
 import { useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Input } from 'design';
 import DialogConfirmation, {
   DialogContent,
@@ -42,7 +43,7 @@ export function UserJobRole(props: {
   onSend(jobRole: string): void;
   hidden?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [jobRole, setJobRole] = useState<string | null>(null);
   const [otherJobRole, setOtherJobRole] = useState('');
 

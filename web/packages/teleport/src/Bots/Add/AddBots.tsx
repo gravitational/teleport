@@ -16,15 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Switch, Route } from 'teleport/components/Router';
+import { FeatureBox } from 'teleport/components/Layout';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
-import { FeatureBox } from 'teleport/components/Layout';
-
 import { BotFlowType } from '../types';
-
 import GitHubActionsFlow from './GitHubActions';
-import { AddBotsPicker } from './AddBotsPicker';
 
 export function AddBots() {
   return (
@@ -34,7 +31,10 @@ export function AddBots() {
           path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
           component={GitHubActionsFlow}
         />
-        <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
+        <Redirect
+          path={cfg.getBotsNewRoute()}
+          to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`}
+        />
       </Switch>
     </FeatureBox>
   );

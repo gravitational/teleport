@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -175,7 +175,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -186,7 +186,7 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 
-	fixtures.AssertNotFound(t, handler.Download(ctx, sid, f))
+	require.True(t, trace.IsNotFound(handler.Download(ctx, sid, f)))
 }
 
 // StreamWithParameters tests stream upload and subsequent download and reads the results
@@ -205,6 +205,10 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
 		ForceFlush:        forceFlush,
+		RetryConfig: &retryutils.LinearConfig{
+			Step: time.Millisecond * 10,
+			Max:  time.Millisecond * 500,
+		},
 	})
 	require.NoError(t, err)
 
@@ -213,7 +217,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -251,7 +255,8 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader := events.NewProtoReader(f)
+	reader := events.NewProtoReader(f, nil)
+
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 
@@ -275,6 +280,10 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 		Uploader:          handler,
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
+		RetryConfig: &retryutils.LinearConfig{
+			Step: time.Millisecond * 10,
+			Max:  time.Millisecond * 500,
+		},
 	})
 	require.NoError(t, err)
 
@@ -299,7 +308,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	// that resume has been started successfully
 	select {
 	case status := <-stream.Status():
-		require.Equal(t, status.LastEventIndex, int64(-1))
+		require.Equal(t, int64(-1), status.LastEventIndex)
 	case <-time.After(time.Second):
 		t.Fatalf("Timed out waiting for status update.")
 	}
@@ -318,7 +327,8 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	reader := events.NewProtoReader(f)
+	reader := events.NewProtoReader(f, nil)
+
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

@@ -20,32 +20,32 @@ import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpr
 
 import cfg from 'teleport/config';
 
-import { StoreNav, StoreNotifications, StoreUserContext } from './stores';
-import * as types from './types';
-import AuditService from './services/audit';
-import RecordingsService from './services/recordings';
-import NodeService from './services/nodes';
-import sessionService from './services/session';
-import ResourceService from './services/resources';
-import userService from './services/user';
+import { notificationContentFactory } from './Notifications';
+import { agentService } from './services/agents';
 import appService from './services/apps';
-import JoinTokenService from './services/joinToken';
-import KubeService from './services/kube';
+import AuditService from './services/audit';
+import ClustersService from './services/clusters/clusters';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
-import userGroupService from './services/userGroups';
+import JoinTokenService from './services/joinToken';
+import KubeService from './services/kube';
 import MfaService from './services/mfa';
-import { agentService } from './services/agents';
-import { storageService } from './services/storageService';
-import ClustersService from './services/clusters/clusters';
+import NodeService from './services/nodes';
 import { NotificationService } from './services/notifications';
-import { notificationContentFactory } from './Notifications';
+import RecordingsService from './services/recordings';
+import ResourceService from './services/resources';
+import sessionService from './services/session';
+import { storageService } from './services/storageService';
+import userService from './services/user';
+import userGroupService from './services/userGroups';
+import { yamlService } from './services/yaml/yaml';
+import { StoreNav, StoreUserContext } from './stores';
+import * as types from './types';
 
 class TeleportContext implements types.Context {
   // stores
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
-  storeNotifications = new StoreNotifications();
 
   // services
   auditService = new AuditService();
@@ -63,6 +63,7 @@ class TeleportContext implements types.Context {
   userGroupService = userGroupService;
   mfaService = new MfaService();
   notificationService = new NotificationService();
+  yamlService = yamlService;
 
   notificationContentFactory = notificationContentFactory;
 
@@ -93,7 +94,7 @@ class TeleportContext implements types.Context {
   // The caller of this function provides the try/catch
   // block.
   // preferences are needed in TeleportContextE, but not in TeleportContext.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
@@ -132,31 +133,6 @@ class TeleportContext implements types.Context {
 
     if (!this.storeUser.state) {
       return disabledFeatureFlags;
-    }
-
-    // If feature hiding is enabled in the license, this returns true if the user has no list access to any feature within the management section.
-    function hasManagementSectionAccess() {
-      if (!cfg.hideInaccessibleFeatures) {
-        return true;
-      }
-      return (
-        userContext.getUserAccess().list ||
-        userContext.getRoleAccess().list ||
-        userContext.getEventAccess().list ||
-        userContext.getSessionsAccess().list ||
-        userContext.getTrustedClusterAccess().list ||
-        userContext.getBillingAccess().list ||
-        userContext.getPluginsAccess().list ||
-        userContext.getIntegrationsAccess().list ||
-        userContext.hasDiscoverAccess() ||
-        userContext.getDeviceTrustAccess().list ||
-        userContext.getLockAccess().list ||
-        userContext.getAccessListAccess().list ||
-        userContext.getAccessGraphAccess().list ||
-        hasAccessMonitoringAccess() ||
-        userContext.getTokenAccess().create ||
-        userContext.getBotsAccess().list
-      );
     }
 
     function hasAccessRequestsAccess() {
@@ -230,18 +206,26 @@ class TeleportContext implements types.Context {
         userContext.getExternalAuditStorageAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
       locks: userContext.getLockAccess().list,
-      newLocks:
-        userContext.getLockAccess().create && userContext.getLockAccess().edit,
+      addLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit, // Presumably because this is an upsert operation so needs both create and edit permissions
+      removeLocks: userContext.getLockAccess().remove,
       accessMonitoring: hasAccessMonitoringAccess(),
-      managementSection: hasManagementSectionAccess(),
       accessGraph: userContext.getAccessGraphAccess().list,
       accessGraphIntegrations: hasAccessGraphIntegrationsAccess(),
-      tokens: userContext.getTokenAccess().create,
+      createTokens: userContext.getTokenAccess().create,
+      listTokens: userContext.getTokenAccess().list,
       externalAuditStorage: userContext.getExternalAuditStorageAccess().list,
       listBots: userContext.getBotsAccess().list,
+      readBots: userContext.getBotsAccess().read,
       addBots: userContext.getBotsAccess().create,
       editBots: userContext.getBotsAccess().edit,
       removeBots: userContext.getBotsAccess().remove,
+      gitServers:
+        userContext.getGitServersAccess().list &&
+        userContext.getGitServersAccess().read,
+      readBotInstances: userContext.getBotInstancesAccess().read,
+      listBotInstances: userContext.getBotInstancesAccess().list,
+      listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
     };
   }
 }
@@ -261,7 +245,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   trustedClusters: false,
   users: false,
   newAccessRequest: false,
-  tokens: false,
+  createTokens: false,
+  listTokens: false,
   accessRequests: false,
   downloadCenter: false,
   supportLink: false,
@@ -272,16 +257,21 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   enrollIntegrationsOrPlugins: false,
   enrollIntegrations: false,
   locks: false,
-  newLocks: false,
-  managementSection: false,
+  addLocks: false,
+  removeLocks: false,
   accessMonitoring: false,
   accessGraph: false,
   accessGraphIntegrations: false,
   externalAuditStorage: false,
   addBots: false,
   listBots: false,
+  readBots: false,
   editBots: false,
   removeBots: false,
+  gitServers: false,
+  readBotInstances: false,
+  listBotInstances: false,
+  listWorkloadIdentities: false,
 };
 
 export default TeleportContext;

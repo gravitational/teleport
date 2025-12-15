@@ -23,7 +23,6 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
-	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -34,6 +33,13 @@ import (
 //   - returns an error if a collector does not fulfill the consistency and
 //     uniqueness criteria
 func RegisterPrometheusCollectors(collectors ...prometheus.Collector) error {
+	return RegisterCollectors(prometheus.DefaultRegisterer, collectors...)
+}
+
+// RegisterCollectors registers the collectors in the registry. Any errors
+// for already registered collectors are ignored. Errors are only returned
+// if a collector does not fulfill the consistency and uniqueness criteria.
+func RegisterCollectors(registry prometheus.Registerer, collectors ...prometheus.Collector) error {
 	var errs []error
 	for _, c := range collectors {
 		if err := prometheus.Register(c); err != nil {
@@ -62,45 +68,4 @@ func BuildCollector() prometheus.Collector {
 		},
 		func() float64 { return 1 },
 	)
-}
-
-// CreateGRPCServerMetrics creates server gRPC metrics configuration that is to be registered and used by the caller
-// in an openmetrics unary and/or stream interceptor
-func CreateGRPCServerMetrics(
-	latencyEnabled bool, labels prometheus.Labels,
-) *grpcprom.ServerMetrics {
-	serverOpts := []grpcprom.ServerMetricsOption{
-		grpcprom.WithServerCounterOptions(grpcprom.WithConstLabels(labels)),
-	}
-	if latencyEnabled {
-		histOpts := grpcHistogramOpts(labels)
-		serverOpts = append(
-			serverOpts, grpcprom.WithServerHandlingTimeHistogram(histOpts...),
-		)
-	}
-	return grpcprom.NewServerMetrics(serverOpts...)
-}
-
-// CreateGRPCClientMetrics creates client gRPC metrics configuration that is to be registered and used by the caller
-// in an openmetrics unary and/or stream interceptor
-func CreateGRPCClientMetrics(
-	latencyEnabled bool, labels prometheus.Labels,
-) *grpcprom.ClientMetrics {
-	clientOpts := []grpcprom.ClientMetricsOption{
-		grpcprom.WithClientCounterOptions(grpcprom.WithConstLabels(labels)),
-	}
-	if latencyEnabled {
-		histOpts := grpcHistogramOpts(labels)
-		clientOpts = append(
-			clientOpts, grpcprom.WithClientHandlingTimeHistogram(histOpts...),
-		)
-	}
-	return grpcprom.NewClientMetrics(clientOpts...)
-}
-
-func grpcHistogramOpts(labels prometheus.Labels) []grpcprom.HistogramOption {
-	return []grpcprom.HistogramOption{
-		grpcprom.WithHistogramBuckets(prometheus.ExponentialBuckets(0.001, 2, 16)),
-		grpcprom.WithHistogramConstLabels(labels),
-	}
 }

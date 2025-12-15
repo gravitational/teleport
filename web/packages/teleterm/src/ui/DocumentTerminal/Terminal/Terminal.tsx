@@ -18,24 +18,22 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
+
 import { Box, Flex } from 'design';
-import { debounce } from 'shared/utils/highbar';
 import {
   Attempt,
   makeEmptyAttempt,
   makeErrorAttemptWithStatusText,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
-
-import { WindowsPty } from 'teleterm/services/pty';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
-import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+import { debounce } from 'shared/utils/highbar';
 
 import { ConfigService } from 'teleterm/services/config';
+import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
 
 import { Reconnect } from '../Reconnect';
-
 import XTermCtrl from './ctrl';
 
 type TerminalProps = {
@@ -61,8 +59,8 @@ type TerminalProps = {
 };
 
 export function Terminal(props: TerminalProps) {
-  const refElement = useRef<HTMLDivElement>();
-  const refCtrl = useRef<XTermCtrl>();
+  const refElement = useRef<HTMLDivElement>(null);
+  const refCtrl = useRef<XTermCtrl>(undefined);
   const [startPtyProcessAttempt, setStartPtyProcessAttempt] =
     useState<Attempt<void>>(makeEmptyAttempt());
   const theme = useTheme();

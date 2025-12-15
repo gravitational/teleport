@@ -30,6 +30,7 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'aurora-hostname',
+    targetHealth: { status: 'unhealthy' },
   },
   {
     kind: 'db',
@@ -42,6 +43,7 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'mongo-bongo',
+    targetHealth: { status: 'unknown' },
   },
   {
     kind: 'db',
@@ -102,6 +104,7 @@ export const databases: Database[] = [
       { name: 'env', value: 'gcp' },
     ],
     hostname: 'postgres-hostname',
+    targetHealth: { status: 'unhealthy' },
   },
   {
     kind: 'db',
@@ -114,6 +117,30 @@ export const databases: Database[] = [
       { name: 'env', value: 'aws' },
     ],
     hostname: 'mysql-hostname',
+  },
+  {
+    kind: 'db',
+    name: 'elasticache-redis',
+    description: 'ElastiCache Redis',
+    type: 'elasticache',
+    protocol: 'redis',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'redis-hostname',
+  },
+  {
+    kind: 'db',
+    name: 'elasticache-serverless-redis',
+    description: 'ElastiCache Serverless Redis',
+    type: 'elasticache-serverless',
+    protocol: 'redis',
+    labels: [
+      { name: 'cluster', value: 'root' },
+      { name: 'env', value: 'aws' },
+    ],
+    hostname: 'redis-hostname',
   },
 ];
 

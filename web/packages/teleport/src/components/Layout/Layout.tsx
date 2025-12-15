@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Flex, H1 } from 'design';
 import { alignItems, space } from 'design/system';
 
@@ -47,9 +48,12 @@ const FeatureHeaderTitle = styled(H1)`
 /**
  * Feature Box (container)
  */
-const FeatureBox = styled(Flex)`
+const FeatureBox = styled(Flex)<{
+  hideBottomSpacing?: boolean;
+  unsetHeight?: boolean;
+}>`
   width: 100%;
-  height: 100%;
+  ${props => !props.unsetHeight && 'height: 100%;'}
   flex-direction: column;
   padding-left: ${props => props.theme.space[6]}px;
   padding-right: ${props => props.theme.space[6]}px;
@@ -59,10 +63,14 @@ const FeatureBox = styled(Flex)`
     Directly assigning margin-bottom impacts the scrollbar area by pushing it up as well.
     It works in all major browsers.
   */
-  &::after {
-    content: ' ';
-    padding-bottom: 24px;
-  }
+  ${props =>
+    !props.hideBottomSpacing &&
+    `
+    &::after {
+      content: ' ';
+      padding-bottom: 24px;
+    }
+  `}
 
   /* Allow overriding padding settings. */
   ${space}

@@ -20,10 +20,10 @@ package presencev1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Backend is the subset of the backend resources that the Service modifies.
@@ -43,12 +44,16 @@ type Backend interface {
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
 
-	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
+
+	DeleteRelayServer(ctx context.Context, name string) error
 }
 
 type Cache interface {
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
+	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
 }
 
 type AuthServer interface {
@@ -65,7 +70,7 @@ type ServiceConfig struct {
 	AuthServer AuthServer
 	Backend    Backend
 	Cache      Cache
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -79,11 +84,13 @@ type Service struct {
 	authServer AuthServer
 	backend    Backend
 	cache      Cache
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
 }
+
+var _ presencepb.PresenceServiceServer = (*Service)(nil)
 
 // NewService returns a new presence gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -103,7 +110,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "presence.service")
+		cfg.Logger = slog.With(teleport.ComponentKey, "presence.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -149,7 +156,11 @@ func (s *Service) GetRemoteCluster(
 
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
+		s.logger.WarnContext(ctx, "unexpected remote cluster type",
+			"got_type", logutils.TypeAttr(rc),
+			"expected_type", "RemoteClusterV3",
+			"remote_cluster", rc.GetName(),
+		)
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
@@ -180,7 +191,11 @@ func (s *Service) ListRemoteClusters(
 	for _, rc := range page {
 		v3, ok := rc.(*types.RemoteClusterV3)
 		if !ok {
-			s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
+			s.logger.WarnContext(ctx, "unexpected remote cluster type",
+				"got_type", logutils.TypeAttr(rc),
+				"expected_type", "RemoteClusterV3",
+				"remote_cluster", rc.GetName(),
+			)
 			continue
 		}
 		concretePage = append(concretePage, v3)
@@ -234,7 +249,11 @@ func (s *Service) UpdateRemoteCluster(
 		}
 		v3, ok := rc.(*types.RemoteClusterV3)
 		if !ok {
-			s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+			s.logger.WarnContext(ctx, "unexpected remote cluster type",
+				"got_type", logutils.TypeAttr(rc),
+				"expected_type", "RemoteClusterV3",
+				"remote_cluster", rc.GetName(),
+			)
 			return nil, trace.BadParameter("encountered unexpected remote cluster type")
 		}
 		return v3, nil
@@ -271,7 +290,11 @@ func (s *Service) UpdateRemoteCluster(
 	}
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+		s.logger.WarnContext(ctx, "unexpected remote cluster type",
+			"got_type", logutils.TypeAttr(rc),
+			"expected_type", "RemoteClusterV3",
+			"remote_cluster", rc.GetName(),
+		)
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
@@ -330,7 +353,11 @@ func (s *Service) ListReverseTunnels(
 	for _, rc := range page {
 		v3, ok := rc.(*types.ReverseTunnelV2)
 		if !ok {
-			s.logger.Warnf("expected type ReverseTunnelV2, got %T for %q", rc, rc.GetName())
+			s.logger.WarnContext(ctx, "unexpected reverse tunnel type",
+				"got_type", logutils.TypeAttr(rc),
+				"expected_type", "ReverseTunnelV2",
+				"reverse_tunnel", rc.GetName(),
+			)
 			continue
 		}
 		concretePage = append(concretePage, v3)
@@ -362,7 +389,7 @@ func (s *Service) UpsertReverseTunnel(
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpsertReverseTunnelV2(ctx, req.ReverseTunnel)
+	res, err := s.backend.UpsertReverseTunnel(ctx, req.ReverseTunnel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -391,4 +418,62 @@ func (s *Service) DeleteReverseTunnel(
 	}
 
 	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.Name))
+}
+
+// GetRelayServer implements [presencepb.PresenceServiceServer].
+func (s *Service) GetRelayServer(ctx context.Context, req *presencepb.GetRelayServerRequest) (*presencepb.GetRelayServerResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	relayServer, err := s.cache.GetRelayServer(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.GetRelayServerResponse{
+		RelayServer: relayServer,
+	}, nil
+}
+
+// ListRelayServers implements [presencepb.PresenceServiceServer].
+func (s *Service) ListRelayServers(ctx context.Context, req *presencepb.ListRelayServersRequest) (*presencepb.ListRelayServersResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	relayServers, nextPageToken, err := s.cache.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.ListRelayServersResponse{
+		Relays:        relayServers,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
+// DeleteRelayServer implements [presencepb.PresenceServiceServer].
+func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteRelayServerRequest) (*presencepb.DeleteRelayServerResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteRelayServer(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.DeleteRelayServerResponse{}, nil
 }

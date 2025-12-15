@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import nodeAccessRO from './nodeAccessRO.yaml?raw';
-import nodeAccessRW from './nodeAccessRW.yaml?raw';
+import awsAppAccessRO from './awsAppAccessRO.yaml?raw';
+import awsAppAccessRW from './awsAppAccessRW.yaml?raw';
 import connDiagRW from './connDiagRW.yaml?raw';
-import kubeAccessRW from './kubeAccessRW.yaml?raw';
-import kubeAccessRO from './kubeAccessRO.yaml?raw';
-import dbAccessRW from './dbAccessRW.yaml?raw';
 import dbAccessRO from './dbAccessRO.yaml?raw';
+import dbAccessRW from './dbAccessRW.yaml?raw';
 import dbCU from './dbCU.yaml?raw';
+import integrationAndAppRW from './integrationAndAppRW.yaml?raw';
 import integrationRWE from './integrationRWE.yaml?raw';
 import integrationRWEAndDbCU from './integrationRWEAndDbCU.yaml?raw';
 import integrationRWEAndNodeRWE from './integrationRWEAndNodeRWE.yaml?raw';
-import integrationAndAppRW from './integrationAndAppRW.yaml?raw';
-import awsAppAccessRW from './awsAppAccessRW.yaml?raw';
-import awsAppAccessRO from './awsAppAccessRO.yaml?raw';
+import kubeAccessRO from './kubeAccessRO.yaml?raw';
+import kubeAccessRW from './kubeAccessRW.yaml?raw';
+import nodeAccessRO from './nodeAccessRO.yaml?raw';
+import nodeAccessRW from './nodeAccessRW.yaml?raw';
 
 export {
   nodeAccessRO,

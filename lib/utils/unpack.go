@@ -141,7 +141,7 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string, dirMode os
 	case tar.TypeSymlink:
 		return writeSymbolicLink(filepath.Join(dir, header.Name), header.Linkname, dirMode)
 	default:
-		slog.WarnContext(context.Background(), "Unsupported type flag for taball",
+		slog.WarnContext(context.Background(), "Unsupported type flag for tarball",
 			"type_flag", header.Typeflag,
 			"header", header.Name,
 		)
@@ -181,7 +181,7 @@ func writeFile(path string, r io.Reader, mode, dirMode os.FileMode) error {
 	err := withDir(path, dirMode, func() error {
 		// Create file only if it does not exist to prevent overwriting existing
 		// files (like session recordings).
-		out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+		out, err := CreateExclusiveFile(path, mode)
 		if err != nil {
 			return trace.ConvertSystemError(err)
 		}

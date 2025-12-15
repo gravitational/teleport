@@ -5,7 +5,7 @@ scope:
   - list
   - paragraph
 message: "Capitalize the names of Teleport services and features (%s is incorrect). See the Core Concepts page (https://goteleport.com/docs/core-concepts/) for a reference."
-level: warning
+level: error
 ignorecase: false
 tokens:
   # Allow for mentions of a local proxy service, but not "proxy service".
@@ -19,7 +19,7 @@ tokens:
   - db service
   - desktop service
   - discovery service
-  - kubernetes service
+  - 'kubernetes service (?!account)'
   - machine id
   - ssh service
   - Teleport agent

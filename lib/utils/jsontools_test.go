@@ -44,7 +44,7 @@ func TestMarshalMapConsistency(t *testing.T) {
 	compareTo, err := FastMarshal(value)
 	require.NoError(t, err)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		roundTrip := make(map[string]string)
 		err := FastUnmarshal(compareTo, &roundTrip)
 		require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestStreamJSONArray(t *testing.T) {
 	require.Equal(t, numbers, numOut)
 
 	var iterative []string
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		var iterBuf bytes.Buffer
 		err = StreamJSONArray(stream.Slice(iterative), &iterBuf, false)
 		require.NoError(t, err)

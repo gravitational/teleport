@@ -60,11 +60,16 @@ type TrackingConn interface {
 	Close() error
 }
 
+type ConnectionMonitorAccessPoint interface {
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+}
+
 // ConnectionMonitorConfig contains dependencies required by
 // the ConnectionMonitor.
 type ConnectionMonitorConfig struct {
 	// AccessPoint is used to retrieve cluster configuration.
-	AccessPoint AccessPoint
+	AccessPoint ConnectionMonitorAccessPoint
 	// LockWatcher ensures lock information is up to date.
 	LockWatcher *services.LockWatcher
 	// Clock is a clock, realtime or fixed in tests.
@@ -189,6 +194,7 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 		Clock:                 c.cfg.Clock,
 		ServerID:              c.cfg.ServerID,
 		TeleportUser:          identity.Username,
+		UserOriginClusterName: identity.OriginClusterName,
 		Emitter:               c.cfg.Emitter,
 		EmitterContext:        c.cfg.EmitterContext,
 		Logger:                c.cfg.Logger,
@@ -228,6 +234,8 @@ type MonitorConfig struct {
 	Login string
 	// TeleportUser is a teleport user name
 	TeleportUser string
+	// UserOriginClusterName is the Teleport Cluster name the user belongs to.
+	UserOriginClusterName string
 	// ServerID is a session server ID
 	ServerID string
 	// Emitter is events emitter
@@ -238,6 +246,8 @@ type MonitorConfig struct {
 	Logger *slog.Logger
 	// IdleTimeoutMessage is sent to the client when the idle timeout expires.
 	IdleTimeoutMessage string
+	// CertificateExpiredMessage is sent to the client when the certificate expires.
+	CertificateExpiredMessage string
 	// MessageWriter wraps a channel to send text messages to the client. Use
 	// for disconnection messages, etc.
 	MessageWriter io.StringWriter
@@ -286,15 +296,19 @@ func StartMonitor(cfg MonitorConfig) error {
 	w := &Monitor{
 		MonitorConfig: cfg,
 	}
-	// If an applicable lock is already in force, close the connection immediately.
-	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
-		w.handleLockInForce(lockErr)
-		return nil
-	}
+	// If an applicable lock is already in force, close the connection immediately. The subscription is
+	// created first to prevent any races with CheckLockInForce and new locks being created.
 	lockWatch, err := w.LockWatcher.Subscribe(w.Context, w.LockTargets...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lockErr := w.LockWatcher.CheckLockInForce(w.LockingMode, w.LockTargets...); lockErr != nil {
+		w.handleLockInForce(lockErr)
+		_ = lockWatch.Close()
+		return nil
+	}
+
 	go func() {
 		w.start(lockWatch)
 		if w.MonitorCloseChannel != nil {
@@ -417,6 +431,15 @@ func (w *Monitor) start(lockWatch types.Watcher) {
 
 func (w *Monitor) disconnectClientOnExpiredCert() {
 	reason := fmt.Sprintf("client certificate expired at %v", w.Clock.Now().UTC())
+	if w.MessageWriter != nil {
+		msg := w.CertificateExpiredMessage
+		if msg == "" {
+			msg = reason
+		}
+		if _, err := w.MessageWriter.WriteString(msg); err != nil {
+			w.Logger.WarnContext(w.Context, "Failed to send certificate expiration message", "error", err)
+		}
+	}
 	w.disconnectClient(reason)
 }
 
@@ -428,7 +451,7 @@ func (w *Monitor) disconnectClient(reason string) {
 	w.Logger.DebugContext(w.Context, "Disconnecting client", "reason", reason)
 
 	if connWithCauseCloser, ok := w.Conn.(withCauseCloser); ok {
-		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied(reason)); err != nil {
+		if err := connWithCauseCloser.CloseWithCause(trace.AccessDenied("%s", reason)); err != nil {
 			w.Logger.ErrorContext(w.Context, "Failed to close connection", "error", err)
 		}
 	} else {
@@ -450,8 +473,9 @@ func (w *Monitor) emitDisconnectEvent(reason string) error {
 			Code: events.ClientDisconnectCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			Login: w.Login,
-			User:  w.TeleportUser,
+			Login:           w.Login,
+			User:            w.TeleportUser,
+			UserClusterName: w.UserOriginClusterName,
 		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  w.Conn.LocalAddr().String(),
@@ -588,31 +612,4 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.lastActive = t.cfg.Clock.Now().UTC()
-}
-
-// See GetDisconnectExpiredCertFromIdentity
-func getDisconnectExpiredCertFromIdentityContext(
-	checker services.AccessChecker,
-	authPref types.AuthPreference,
-	identity *IdentityContext,
-) time.Time {
-	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
-	// the PreviousIdentityExpires value of the certificate will be used, which is the
-	// expiry of the certificate used to issue the short lived MFA verified certificate.
-	//
-	// See https://github.com/gravitational/teleport/issues/18544
-
-	// If the session doesn't need to be disconnected on cert expiry just return the default value.
-	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		return time.Time{}
-	}
-
-	if !identity.PreviousIdentityExpires.IsZero() {
-		// If this is a short-lived mfa verified cert, return the certificate extension
-		// that holds its' issuing cert's expiry value.
-		return identity.PreviousIdentityExpires
-	}
-
-	// Otherwise just return the current cert's expiration
-	return identity.CertValidBefore
 }

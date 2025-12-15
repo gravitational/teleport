@@ -18,9 +18,8 @@
 
 import { ButtonPrimary } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
-import { dateTimeMatcher } from 'design/utils/match';
-
 import * as Icons from 'design/Icon';
+import { dateTimeMatcher } from 'design/utils/match';
 
 import cfg from 'teleport/config';
 import { Recording, RecordingType } from 'teleport/services/recordings';
@@ -110,6 +109,8 @@ const renderIconCell = (type: RecordingType) => {
     Icon = Icons.Kubernetes;
   } else if (type === 'database') {
     Icon = Icons.Database;
+  } else if (type === 'app') {
+    Icon = Icons.Application;
   }
 
   return (

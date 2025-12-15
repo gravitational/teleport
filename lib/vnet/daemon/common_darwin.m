@@ -17,6 +17,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "common_darwin.h"
+#include "../../../lib/utils/darwinbundle/darwinbundle_darwin.h"
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
@@ -29,14 +30,16 @@ const char* const VNEErrorDomain = "com.Gravitational.Vnet.ErrorDomain";
 const int VNEAlreadyRunningError = 1;
 const int VNEMissingCodeSigningIdentifiersError = 2;
 
-NSString *DaemonLabel(NSString *bundlePath) {
-  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
-  if (!main) {
-    return @"";
+const char *DaemonLabel(const char *bundlePath) {
+  @autoreleasepool {
+    NSString *daemonLabel = VNEDaemonLabel(@(bundlePath));
+    return VNECopyNSString(daemonLabel);
   }
+}
 
-  NSString *bundleIdentifier = [main bundleIdentifier];
-  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
+NSString *VNEDaemonLabel(NSString *bundlePath) {
+  NSString *bundleIdentifier = TELBundleIdentifier(bundlePath);
+  if ([bundleIdentifier length] == 0) {
     return @"";
   }
 
@@ -44,10 +47,14 @@ NSString *DaemonLabel(NSString *bundlePath) {
 }
 
 const char *VNECopyNSString(NSString *val) {
-  if (val) {
-    return strdup([val UTF8String]);
+  if (!val) {
+    return strdup("");
   }
-  return strdup("");
+  const char *utf8String = [val UTF8String];
+  if (!utf8String) {
+    return strdup("");
+  }
+  return strdup(utf8String);
 }
 
 bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
@@ -82,7 +89,7 @@ bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
   NSDictionary *codeSignInfo = (NSDictionary *)CFBridgingRelease(cfCodeSignInfo);
   // We don't own kSecCodeInfoIdentifier, so we cannot call CFBridgingRelease on it.
   // __bridge transfers a pointer between Obj-C and CoreFoundation with no transfer of ownership.
-  // Values extracted out of codeSignInfo are cast to toll-free bridged Obj-C types. 
+  // Values extracted out of codeSignInfo are cast to toll-free bridged Obj-C types.
   // https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFDesignConcepts/Articles/tollFreeBridgedTypes.html#//apple_ref/doc/uid/TP40010677-SW2
   // https://stackoverflow.com/questions/18067108/when-should-you-use-bridge-vs-cfbridgingrelease-cfbridgingretain
   NSString *identifier = codeSignInfo[(__bridge NSString *)kSecCodeInfoIdentifier];
@@ -126,18 +133,14 @@ bool getCodeSigningRequirement(NSString **outRequirement, NSError **outError) {
 }
 
 - (void)encodeWithCoder:(nonnull NSCoder *)coder {
-  [coder encodeObject:self.socketPath forKey:@"socketPath"];
-  [coder encodeObject:self.ipv6Prefix forKey:@"ipv6Prefix"];
-  [coder encodeObject:self.dnsAddr forKey:@"dnsAddr"];
-  [coder encodeObject:self.homePath forKey:@"homePath"];
+  [coder encodeObject:self.serviceCredentialPath forKey:@"serviceCredentialPath"];
+  [coder encodeObject:self.clientApplicationServiceAddr forKey:@"clientApplicationServiceAddr"];
 }
 
 - (nullable instancetype)initWithCoder:(nonnull NSCoder *)coder {
   if (self = [super init]) {
-    [self setSocketPath:[coder decodeObjectOfClass:[NSString class] forKey:@"socketPath"]];
-    [self setIpv6Prefix:[coder decodeObjectOfClass:[NSString class] forKey:@"ipv6Prefix"]];
-    [self setDnsAddr:[coder decodeObjectOfClass:[NSString class] forKey:@"dnsAddr"]];
-    [self setHomePath:[coder decodeObjectOfClass:[NSString class] forKey:@"homePath"]];
+    [self setServiceCredentialPath:[coder decodeObjectOfClass:[NSString class] forKey:@"serviceCredentialPath"]];
+    [self setClientApplicationServiceAddr:[coder decodeObjectOfClass:[NSString class] forKey:@"clientApplicationServiceAddr"]];
   }
   return self;
 }

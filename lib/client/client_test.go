@@ -28,15 +28,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestHelperFunctions(t *testing.T) {
@@ -47,32 +47,20 @@ func TestHelperFunctions(t *testing.T) {
 
 func TestNewSession(t *testing.T) {
 	nc := &NodeClient{
-		Namespace: "blue",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		TC:     &TeleportClient{},
+		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
 
 	ctx := context.Background()
 	// defaults:
-	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
+	ses, err := newSession(ctx, nc, nil, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
 	require.Equal(t, nc, ses.NodeClient())
-	require.Equal(t, nc.Namespace, ses.namespace)
 	require.NotNil(t, ses.env)
 	require.Equal(t, os.Stderr, ses.terminal.Stderr())
 	require.Equal(t, os.Stdout, ses.terminal.Stdout())
 	require.Equal(t, os.Stdin, ses.terminal.Stdin())
-
-	// pass environ map
-	env := map[string]string{
-		sshutils.SessionEnvVar: "session-id",
-	}
-	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
-	require.NoError(t, err)
-	require.NotNil(t, ses)
-	require.Empty(t, cmp.Diff(ses.env, env))
-	// the session ID must be taken from tne environ map, if passed:
-	require.Equal(t, "session-id", string(ses.id))
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
@@ -128,7 +116,7 @@ func TestProxyConnection(t *testing.T) {
 	err = localCon.Close()
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)
@@ -160,7 +148,7 @@ func TestProxyConnection(t *testing.T) {
 	err = remoteCon.Close()
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)
@@ -371,4 +359,22 @@ func TestLineLabeledWriter(t *testing.T) {
 			assert.Equal(t, tc.expected, buf.String())
 		})
 	}
+}
+
+func TestRouteToDatabaseToProto(t *testing.T) {
+	input := tlsca.RouteToDatabase{
+		ServiceName: "db-service",
+		Database:    "db-name",
+		Username:    "db-user",
+		Protocol:    "db-protocol",
+		Roles:       []string{"db-role1", "db-role2"},
+	}
+	expected := proto.RouteToDatabase{
+		ServiceName: "db-service",
+		Database:    "db-name",
+		Username:    "db-user",
+		Protocol:    "db-protocol",
+		Roles:       []string{"db-role1", "db-role2"},
+	}
+	require.Equal(t, expected, RouteToDatabaseToProto(input))
 }

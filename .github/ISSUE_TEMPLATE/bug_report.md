@@ -1,7 +1,7 @@
 ---
 name: Bug Report 🐛
 about: Something isn't working as expected? Report it here.
-labels: bug
+type: Bug
 ---
 Expected behavior:
 

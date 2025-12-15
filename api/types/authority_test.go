@@ -52,3 +52,17 @@ func TestRotationZero(t *testing.T) {
 		require.Equal(t, tt.z, tt.r.IsZero(), tt.d)
 	}
 }
+
+// Test that the spec cluster name name will be set to match the resource name
+func TestCheckAndSetDefaults(t *testing.T) {
+	ca := CertAuthorityV2{
+		Metadata: Metadata{Name: "caName"},
+		Spec: CertAuthoritySpecV2{
+			ClusterName: "clusterName",
+			Type:        HostCA,
+		},
+	}
+	err := ca.CheckAndSetDefaults()
+	require.NoError(t, err)
+	require.Equal(t, ca.Metadata.Name, ca.Spec.ClusterName)
+}

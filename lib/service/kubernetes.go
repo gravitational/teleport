@@ -31,10 +31,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -44,6 +46,7 @@ func (process *TeleportProcess) initKubernetes() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
+	process.ExpectService(teleport.ComponentKube)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		conn, err := process.WaitForConnector(KubeIdentityEvent, logger)
 		if conn == nil {
@@ -80,6 +83,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 
 	teleportClusterName := conn.ClusterName()
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
+	relayInfoHolder := new(relaytunnel.InfoHolder)
 
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
@@ -90,6 +94,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	// The listener exposes incoming connections over either mode.
 	var listener net.Listener
 	var agentPool *reversetunnel.AgentPool
+	var relayTunnelClient *relaytunnel.Client
 	switch {
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
@@ -150,6 +155,34 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			}
 		}()
 		logger.InfoContext(process.ExitContext(), "Started reverse tunnel client.")
+
+		if cfg.RelayServer != "" {
+			relayTunnelClient, err = relaytunnel.NewClient(relaytunnel.ClientConfig{
+				Log: logger,
+
+				GetCertificate: conn.ClientGetCertificate,
+				GetPool:        conn.ClientGetPool,
+				Ciphersuites:   cfg.CipherSuites,
+
+				TunnelType: types.KubeTunnel,
+				RelayAddr:  cfg.RelayServer,
+
+				HandleConnection: shtl.HandleConnection,
+				RelayInfoSetter:  relayInfoHolder.SetRelayInfo,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := relayTunnelClient.Start(); err != nil {
+				return trace.Wrap(err)
+			}
+			defer func() {
+				if retErr != nil {
+					relayTunnelClient.Close()
+				}
+			}()
+			logger.InfoContext(process.ExitContext(), "Started relay tunnel client.")
+		}
 	}
 
 	var dynLabels *labels.Dynamic
@@ -191,7 +224,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -203,6 +236,22 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		return trace.Wrap(err)
 	}
 
+	// Create a health check manager.
+	healthCheckManager, err := healthcheck.NewManager(
+		process.ExitContext(),
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  accessPoint,
+			HealthCheckConfigReader: accessPoint,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var publicAddr string
 	if len(cfg.Kube.PublicAddrs) > 0 {
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
@@ -210,21 +259,20 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            cfg.Keygen,
-			ClusterName:       teleportClusterName,
-			Authz:             authorizer,
-			AuthClient:        conn.Client,
-			Emitter:           asyncEmitter,
-			DataDir:           cfg.DataDir,
-			CachingAuthClient: accessPoint,
-			HostID:            cfg.HostUUID,
-			Context:           process.ExitContext(),
-			KubeconfigPath:    cfg.Kube.KubeconfigPath,
-			KubeClusterName:   cfg.Kube.KubeClusterName,
-			KubeServiceType:   kubeproxy.KubeService,
-			Component:         teleport.ComponentKube,
-
+			Namespace:                     apidefaults.Namespace,
+			Keygen:                        cfg.Keygen,
+			ClusterName:                   teleportClusterName,
+			Authz:                         authorizer,
+			AuthClient:                    conn.Client,
+			Emitter:                       asyncEmitter,
+			DataDir:                       cfg.DataDir,
+			CachingAuthClient:             accessPoint,
+			HostID:                        conn.HostUUID(),
+			Context:                       process.ExitContext(),
+			KubeconfigPath:                cfg.Kube.KubeconfigPath,
+			KubeClusterName:               cfg.Kube.KubeClusterName,
+			KubeServiceType:               kubeproxy.KubeService,
+			Component:                     teleport.ComponentKube,
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
@@ -236,13 +284,15 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentKube),
 		GetRotation:          process.GetRotation,
 		ConnectedProxyGetter: proxyGetter,
+		RelayInfoGetter:      relayInfoHolder.GetRelayInfo,
 		ResourceMatchers:     cfg.Kube.ResourceMatchers,
 		StaticLabels:         cfg.Kube.StaticLabels,
 		DynamicLabels:        dynLabels,
 		CloudLabels:          process.cloudLabels,
-		Log:                  process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		Log:                  process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
 		InventoryHandle:      process.inventoryHandle,
+		HealthCheckManager:   healthCheckManager,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -270,7 +320,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("kube.shutdown", func(payload interface{}) {
+	process.OnExit("kube.shutdown", func(payload any) {
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.
@@ -282,8 +332,14 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			warnOnErr(process.ExitContext(), kubeServer.Close(), logger)
 			agentPool.Stop()
 		}
+		if relayTunnelClient != nil {
+			relayTunnelClient.Close()
+		}
 		if asyncEmitter != nil {
 			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		}
+		if healthCheckManager != nil {
+			warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 		}
 		warnOnErr(process.ExitContext(), listener.Close(), logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)

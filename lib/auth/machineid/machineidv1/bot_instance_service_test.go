@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -63,6 +64,14 @@ func TestBotInstanceServiceAccess(t *testing.T) {
 		},
 		{
 			name: "ListBotInstances",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead, types.VerbList},
+		},
+		{
+			name: "ListBotInstancesV2",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthUnauthorized, authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified, authz.AdminActionAuthMFAVerifiedWithReuse,
@@ -257,6 +266,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		createBotInstance bool
 		assertErr         assert.ErrorAssertionFunc
 		wantHeartbeat     bool
+		wantServiceHealth []*machineidv1.BotInstanceServiceHealth
 	}{
 		{
 			name:              "success",
@@ -265,10 +275,30 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 					Hostname: "llama",
 				},
+				ServiceHealth: []*machineidv1.BotInstanceServiceHealth{
+					{
+						Service: &machineidv1.BotInstanceServiceIdentifier{
+							Type: "application-tunnel",
+							Name: "my-application-tunnel",
+						},
+						Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+						Reason: ptr("application is broken"),
+					},
+				},
 			},
 			identity:      goodIdentity,
 			assertErr:     assert.NoError,
 			wantHeartbeat: true,
+			wantServiceHealth: []*machineidv1.BotInstanceServiceHealth{
+				{
+					Service: &machineidv1.BotInstanceServiceIdentifier{
+						Type: "application-tunnel",
+						Name: "my-application-tunnel",
+					},
+					Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+					Reason: ptr("application is broken"),
+				},
+			},
 		},
 		{
 			name:              "missing bot name",
@@ -281,7 +311,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotInstanceID: botInstanceID,
 			},
-			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot name")
 			},
 			wantHeartbeat: false,
@@ -297,7 +327,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotName: botName,
 			},
-			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsAccessDenied(err)) && assert.Contains(t, err.Error(), "identity did not contain bot instance")
 			},
 			wantHeartbeat: false,
@@ -311,7 +341,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				},
 			},
 			identity: goodIdentity,
-			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -322,8 +352,56 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 				Heartbeat: nil,
 			},
 			identity: goodIdentity,
-			assertErr: func(t assert.TestingT, err error, i ...interface{}) bool {
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "heartbeat: must be non-nil")
+			},
+			wantHeartbeat: false,
+		},
+		{
+			name:              "service name too long",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+				ServiceHealth: []*machineidv1.BotInstanceServiceHealth{
+					{
+						Service: &machineidv1.BotInstanceServiceIdentifier{
+							Type: "application-tunnel",
+							Name: strings.Repeat("a", 100),
+						},
+						Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+						Reason: ptr("application is broken"),
+					},
+				},
+			},
+			identity: goodIdentity,
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "is longer than 64 bytes")
+			},
+			wantHeartbeat: false,
+		},
+		{
+			name:              "status reason too long",
+			createBotInstance: true,
+			req: &machineidv1.SubmitHeartbeatRequest{
+				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+					Hostname: "llama",
+				},
+				ServiceHealth: []*machineidv1.BotInstanceServiceHealth{
+					{
+						Service: &machineidv1.BotInstanceServiceIdentifier{
+							Type: "application-tunnel",
+							Name: "my-application-tunnel",
+						},
+						Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
+						Reason: ptr(strings.Repeat("a", 300)),
+					},
+				},
+			},
+			identity: goodIdentity,
+			assertErr: func(t assert.TestingT, err error, i ...any) bool {
+				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "status reason longer than 256 bytes")
 			},
 			wantHeartbeat: false,
 		},
@@ -334,6 +412,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			backend := newBotInstanceBackend(t)
 			service, err := NewBotInstanceService(BotInstanceServiceConfig{
 				Backend: backend,
+				Cache:   backend,
 				Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 					return &authz.Context{
 						Identity: identityGetterFn(func() tlsca.Identity {
@@ -376,6 +455,13 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 					assert.Nil(t, bi.Status.InitialHeartbeat)
 					assert.Empty(t, bi.Status.LatestHeartbeats)
 				}
+				assert.Empty(t,
+					cmp.Diff(
+						bi.Status.ServiceHealth,
+						tt.wantServiceHealth,
+						protocmp.Transform(),
+					),
+				)
 			}
 		})
 	}
@@ -391,6 +477,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	backend := newBotInstanceBackend(t)
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Backend: backend,
+		Cache:   backend,
 		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
 			return &authz.Context{
 				Identity: identityGetterFn(func() tlsca.Identity {
@@ -410,7 +497,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	extraHeartbeats := 5
-	for i := 0; i < (heartbeatHistoryLimit + extraHeartbeats); i++ {
+	for i := range heartbeatHistoryLimit + extraHeartbeats {
 		_, err = service.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
 			Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
 				Hostname: strconv.Itoa(i),
@@ -424,7 +511,7 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	assert.Len(t, bi.Status.LatestHeartbeats, heartbeatHistoryLimit)
 	assert.Equal(t, "0", bi.Status.InitialHeartbeat.Hostname)
 	// Ensure we have the last 10 heartbeats
-	for i := 0; i < heartbeatHistoryLimit; i++ {
+	for i := range heartbeatHistoryLimit {
 		wantHostname := strconv.Itoa(i + extraHeartbeats)
 		assert.Equal(t, wantHostname, bi.Status.LatestHeartbeats[i].Hostname)
 	}
@@ -464,10 +551,8 @@ type fakeChecker struct {
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
 	if resource == types.KindBotInstance {
-		for _, allowedVerb := range f.allowedVerbs {
-			if allowedVerb == verb {
-				return nil
-			}
+		if slices.Contains(f.allowedVerbs, verb) {
+			return nil
 		}
 	}
 
@@ -509,7 +594,7 @@ func createInstances(t *testing.T, ctx context.Context, backend *local.BotInstan
 
 	ids := map[string]struct{}{}
 
-	for i := 0; i < count; i++ {
+	for range count {
 		bi := newBotInstance(botName)
 		_, err := backend.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)
@@ -583,8 +668,11 @@ func newBotInstanceService(
 	service, err := NewBotInstanceService(BotInstanceServiceConfig{
 		Authorizer: authorizer,
 		Backend:    backendService,
+		Cache:      backendService,
 	})
 	require.NoError(t, err)
 
 	return service
 }
+
+func ptr[T any](v T) *T { return &v }

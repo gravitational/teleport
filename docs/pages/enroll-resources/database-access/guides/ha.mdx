@@ -1,6 +1,10 @@
 ---
 title: Database Access High Availability (HA)
 description: How to configure Teleport database access in a Highly Available (HA) configuration.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
 ---
 
 You can deploy the Teleport Database Service in a Highly Available (HA)
@@ -22,7 +26,7 @@ field to its `resources` configuration:
 
 ```yaml
 db_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "region": "us-east-1"
@@ -65,7 +69,7 @@ both agents would be identical:
 ```yaml
 # Same config for both agents.
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   - name: "postgres"
     protocol: "postgres"
@@ -96,7 +100,7 @@ you want to connect to the database over:
 ```yaml
 # Database service instance #1.
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   # Note the name is different than instance #2 but the URI is the same.
   - name: "postgres-us-east-1a"
@@ -107,7 +111,7 @@ db_service:
 ```yaml
 # Database service instance #2.
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   # Note the name is different than instance #1 but the URI is the same.
   - name: "postgres-us-east-1b"
@@ -135,4 +139,4 @@ you're using to connect.
 
 - Get started by [connecting](guides.mdx) your database.
 - Review the [architecture](../../../reference/architecture/agents.mdx) of the Teleport Database
-  Service and other services that run on Teleport agents.
+  Service and other services that run on Teleport Agents.

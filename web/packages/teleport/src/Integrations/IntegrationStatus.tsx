@@ -18,16 +18,21 @@
 
 import { useParams } from 'react-router';
 
-import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
 import { AwsOidcRoutes } from 'teleport/Integrations/status/AwsOidc/AwsOidcRoutes';
+import { AwsRaRoutes } from 'teleport/Integrations/status/AwsRa/AwsRaRoutes';
+import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
 
 export function IntegrationStatus() {
   const { type: integrationType } = useParams<{
     type: PluginKind | IntegrationKind;
   }>();
 
-  if (integrationType === 'aws-oidc') {
+  if (integrationType === IntegrationKind.AwsOidc) {
     return <AwsOidcRoutes />;
+  }
+
+  if (integrationType === IntegrationKind.AwsRa) {
+    return <AwsRaRoutes />;
   }
 
   return <>Status for integration type {integrationType} is not supported</>;

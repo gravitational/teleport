@@ -25,14 +25,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -48,7 +49,7 @@ const (
 	maxConcurrentUpdates = 3
 )
 
-func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automaticupgrades.Channels) error {
+func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automaticupgrades.Channels, cache AWSOIDCDeployServiceUpdaterCache) error {
 	// start process only after teleport process has started
 	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
 		return trace.Wrap(err)
@@ -64,7 +65,7 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	if !resp.ServerFeatures.AutomaticUpgrades {
+	if !resp.GetServerFeatures().GetAutomaticUpgrades() {
 		return nil
 	}
 
@@ -73,13 +74,14 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 		return trace.Wrap(err)
 	}
 
-	clusterNameConfig, err := authClient.GetClusterName()
+	clusterNameConfig, err := authClient.GetClusterName(process.GracefulExitContext())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	updater, err := NewDeployServiceUpdater(AWSOIDCDeployServiceUpdaterConfig{
 		Log:                    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy, "aws_oidc_deploy_service_updater")),
+		Cache:                  cache,
 		AuthClient:             authClient,
 		Clock:                  process.Clock,
 		TeleportClusterName:    clusterNameConfig.GetClusterName(),
@@ -94,12 +96,38 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 	return trace.Wrap(updater.Run(process.GracefulExitContext()))
 }
 
+// AWSOIDCDeployServiceUpdaterCache provides access to reading and listing resources using the cache.
+type AWSOIDCDeployServiceUpdaterCache interface {
+	// GetToken returns a provision token by name.
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
+	// ListIntegrations returns a paginated list of all integration resources.
+	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
+}
+
+// AWSOIDCDeployServiceUpdaterClient provides methods to interact with other cluster services.
+type AWSOIDCDeployServiceUpdaterClient interface {
+	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
+	// AcquireSemaphore acquires lease with requested resources from semaphore.
+	AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error)
+	// CancelSemaphoreLease cancels semaphore lease early.
+	CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error
+	// GetClusterMaintenanceConfig gets the current maintenance window config singleton.
+	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
+	// UpsertToken creates or updates a provision token.
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+}
+
 // AWSOIDCDeployServiceUpdaterConfig specifies updater configs
 type AWSOIDCDeployServiceUpdaterConfig struct {
 	// Log is the logger
 	Log *slog.Logger
 	// AuthClient is the auth api client
-	AuthClient *authclient.Client
+	AuthClient AWSOIDCDeployServiceUpdaterClient
+	// Cache provides access to reading and listing resources.
+	Cache AWSOIDCDeployServiceUpdaterCache
 	// Clock is the local clock
 	Clock clockwork.Clock
 	// TeleportClusterName specifies the teleport cluster name
@@ -114,6 +142,10 @@ type AWSOIDCDeployServiceUpdaterConfig struct {
 func (cfg *AWSOIDCDeployServiceUpdaterConfig) CheckAndSetDefaults() error {
 	if cfg.AuthClient == nil {
 		return trace.BadParameter("auth client required")
+	}
+
+	if cfg.Cache == nil {
+		return trace.BadParameter("cache required")
 	}
 
 	if cfg.TeleportClusterName == "" {
@@ -197,12 +229,9 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// stableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
-	stableVersion = strings.TrimPrefix(stableVersion, "v")
-
 	// minServerVersion specifies the minimum version of the cluster required for
 	// updated AWS OIDC deploy service to remain compatible with the cluster.
-	minServerVersion, err := utils.MajorSemver(stableVersion)
+	minServerVersion, err := utils.MajorSemver(stableVersion.String())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,7 +241,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 		return nil
 	}
 
-	databases, err := updater.AuthClient.GetDatabases(ctx)
+	databases, err := updater.Cache.GetDatabases(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,31 +250,21 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	// for AWS OIDC deploy services to update. In order to reduce the number of api
 	// calls, the aws regions are first reduced to only the regions containing
 	// an RDS database.
-	awsRegions := make(map[string]interface{})
+	awsRegions := make(map[string]any)
 	for _, database := range databases {
 		if database.IsAWSHosted() && database.IsRDS() {
 			awsRegions[database.GetAWS().Region] = nil
 		}
 	}
 
-	integrations, err := updater.AuthClient.ListAllIntegrations(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Perform updates in parallel across regions.
 	sem := semaphore.NewWeighted(maxConcurrentUpdates)
-	for _, ig := range integrations {
-		for region := range awsRegions {
-			if err := sem.Acquire(ctx, 1); err != nil {
-				return trace.Wrap(err)
-			}
-			go func(ig types.Integration, region string) {
-				defer sem.Release(1)
-				if err := updater.updateAWSOIDCDeployService(ctx, ig, region, stableVersion); err != nil {
-					updater.Log.WarnContext(ctx, "Failed to update AWS OIDC Deploy Service", "integration", ig.GetName(), "region", region, "error", err)
-				}
-			}(ig, region)
+	for integration, err := range clientutils.Resources(ctx, updater.Cache.ListIntegrations) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := updater.processIntegration(ctx, sem, awsRegions, integration, stableVersion); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -253,10 +272,28 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployServices(ctx cont
 	return trace.Wrap(sem.Acquire(ctx, maxConcurrentUpdates))
 }
 
-func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion, teleportVersion string) error {
+func (updater *AWSOIDCDeployServiceUpdater) processIntegration(ctx context.Context, sem *semaphore.Weighted, awsRegions map[string]any, ig types.Integration, stableVersion *semver.Version) error {
+	for region := range awsRegions {
+		if err := sem.Acquire(ctx, 1); err != nil {
+			return trace.Wrap(err)
+		}
+		go func(ig types.Integration, region string) {
+			defer sem.Release(1)
+			if err := updater.updateAWSOIDCDeployService(ctx, ig, region, stableVersion); err != nil {
+				updater.Log.WarnContext(ctx, "Failed to update AWS OIDC Deploy Service", "integration", ig.GetName(), "region", region, "error", err)
+			}
+		}(ig, region)
+	}
+	return nil
+}
+
+func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx context.Context, integration types.Integration, awsRegion string, teleportVersion *semver.Version) error {
 	// Do not attempt update if integration is not an AWS OIDC integration.
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
 		return nil
+	}
+	if teleportVersion == nil {
+		return trace.BadParameter("teleport version is required")
 	}
 
 	token, err := updater.AuthClient.GenerateAWSOIDCToken(ctx, integration.GetName())
@@ -271,7 +308,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.
-	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient)
+	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.Cache, updater.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -313,7 +350,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	)
 	if err := awsoidc.UpdateDeployService(ctx, awsOIDCDeployServiceClient, updater.Log, awsoidc.UpdateServiceRequest{
 		TeleportClusterName: updater.TeleportClusterName,
-		TeleportVersionTag:  teleportVersion,
+		TeleportVersionTag:  teleportVersion.String(),
 		OwnershipTags:       ownershipTags,
 	}); err != nil {
 
@@ -324,7 +361,7 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 			// for the integration.
 			updater.Log.DebugContext(ctx, "Integration does not manage any services in given region", "integration", integration.GetName(), "region", awsRegion)
 			return nil
-		case trace.IsAccessDenied(awslib.ConvertIAMv2Error(trace.Unwrap(err))):
+		case trace.IsAccessDenied(awslib.ConvertIAMError(trace.Unwrap(err))):
 			// The AWS OIDC role may lack permissions due to changes in teleport.
 			// In this situation users should be notified that they will need to
 			// re-run the deploy service iam configuration script and update the

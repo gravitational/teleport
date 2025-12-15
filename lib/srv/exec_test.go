@@ -33,13 +33,13 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
 	// If the test is re-executing itself, execute the command that comes over
 	// the pipe.
@@ -63,8 +63,6 @@ func TestEmitExecAuditEvent(t *testing.T) {
 
 	rec, ok := scx.session.recorder.(*mockRecorder)
 	require.True(t, ok)
-
-	scx.GetServer().TargetMetadata()
 
 	expectedUsr, err := user.Current()
 	require.NoError(t, err)
@@ -123,7 +121,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		require.Equal(t, "xxx", execEvent.SessionID)
 		require.Equal(t, "10.0.0.5:4817", execEvent.RemoteAddr)
 		require.Equal(t, "127.0.0.1:3022", execEvent.LocalAddr)
-		require.NotZero(t, events.EventID)
+		require.NotEmpty(t, events.EventID)
 	}
 }
 
@@ -139,7 +137,7 @@ func TestLoginDefsParser(t *testing.T) {
 }
 
 func newExecServerContext(t *testing.T, srv Server) *ServerContext {
-	scx := newTestServerContext(t, srv, nil)
+	scx := newTestServerContext(t, srv, nil, nil)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)
@@ -151,6 +149,7 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 		term:     term,
 		emitter:  rec,
 		recorder: rec,
+		scx:      scx,
 	}
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)

@@ -22,8 +22,9 @@ import {
   FileStorageEventChannel,
   FileStorageEventType,
 } from '../../mainProcess/types';
-
 import { FileStorage } from './fileStorage';
+
+const APP_STATE_FIELDS_MODIFIABLE_FROM_RENDERER = ['state'];
 
 // TODO(ravicious): The main process should not expose the whole interface of FileStorage to the
 // renderer, only what's absolutely needed by the renderer. FileStorage at the moment includes a
@@ -37,11 +38,18 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
         case FileStorageEventType.Get:
           return (event.returnValue = configService.get(item.key));
         case FileStorageEventType.Put:
+          if (!APP_STATE_FIELDS_MODIFIABLE_FROM_RENDERER.includes(item.key)) {
+            throw new Error(
+              `Could not update "${item.key}". This field is readonly in the renderer process.`
+            );
+          }
           return configService.put(item.key, item.json);
         case FileStorageEventType.Write:
           return configService.write();
         case FileStorageEventType.Replace:
-          return configService.replace(item.json);
+          throw new Error(
+            'Replacing state is not allowed in the renderer process.'
+          );
         case FileStorageEventType.GetFilePath:
           return configService.getFilePath();
         case FileStorageEventType.GetFileName:

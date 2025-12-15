@@ -29,4 +29,7 @@ var additionalDescription = map[string]map[string]string{
 	"OIDCConnectorSpecV3": {
 		"ClientSecret": supportsSecretLookupDescription,
 	},
+	"TrustedClusterSpecV2": {
+		"Token": supportsSecretLookupDescription,
+	},
 }

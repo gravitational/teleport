@@ -18,11 +18,11 @@ package types
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils"
@@ -57,6 +57,22 @@ type DatabaseServer interface {
 	SetDatabase(Database) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the database
+	// server is connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the database server
+	// is connected to.
+	GetRelayIDs() []string
+	// GetTargetHealth returns the database server's target health.
+	GetTargetHealth() TargetHealth
+	// SetTargetHealth sets the database server's target health.
+	SetTargetHealth(h TargetHealth)
+	// GetTargetHealthStatus returns target health status
+	GetTargetHealthStatus() TargetHealthStatus
+	// SetTargetHealthStatus sets target health status
+	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewDatabaseServerV3 creates a new database server instance.
@@ -184,6 +200,22 @@ func (s *DatabaseServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [DatabaseServer].
+func (s *DatabaseServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [DatabaseServer].
+func (s *DatabaseServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // String returns the server string representation.
 func (s *DatabaseServerV3) String() string {
 	return fmt.Sprintf("DatabaseServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, Database=%v)",
@@ -274,6 +306,11 @@ func (s *DatabaseServerV3) Copy() DatabaseServer {
 	return utils.CloneProtoMsg(s)
 }
 
+// GetScope returns the scope this server belongs to.
+func (s *DatabaseServerV3) GetScope() string {
+	return s.Scope
+}
+
 // CloneResource returns a copy of this database server object.
 func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
 	return s.Copy()
@@ -283,6 +320,35 @@ func (s *DatabaseServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *DatabaseServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetTargetHealth returns the database server's target health.
+func (s *DatabaseServerV3) GetTargetHealth() TargetHealth {
+	if s.Status.TargetHealth == nil {
+		return TargetHealth{}
+	}
+	return *s.Status.TargetHealth
+}
+
+// SetTargetHealth sets the database server's target health status.
+func (s *DatabaseServerV3) SetTargetHealth(h TargetHealth) {
+	s.Status.TargetHealth = &h
+}
+
+// GetTargetHealthStatus returns target health status
+func (s *DatabaseServerV3) GetTargetHealthStatus() TargetHealthStatus {
+	if s.Status.TargetHealth == nil {
+		return ""
+	}
+	return TargetHealthStatus(s.Status.TargetHealth.Status)
+}
+
+// SetTargetHealthStatus sets target health status
+func (s *DatabaseServerV3) SetTargetHealthStatus(status TargetHealthStatus) {
+	if s.Status.TargetHealth == nil {
+		s.Status.TargetHealth = &TargetHealth{}
+	}
+	s.Status.TargetHealth.Status = string(status)
 }
 
 // DatabaseServers represents a list of database servers.

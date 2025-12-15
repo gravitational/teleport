@@ -1,6 +1,10 @@
 ---
-title: tctl CLI reference
+title: tctl CLI Reference
+sidebar_label: tctl
 description: Comprehensive reference of subcommands, flags, and arguments for the tctl CLI tool.
+tags:
+ - reference
+ - platform-wide
 ---
 
 `tctl` is a CLI tool that allows a cluster administrator to manage all resources
@@ -9,91 +13,8 @@ in a cluster, including nodes, users, tokens, certificates, and devices.
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
 creating new user roles or connecting to trusted clusters.
 
-## Authentication
-
-Before running `tctl` commands, administrators must authenticate to a Teleport
-cluster. This section explains how `tctl` authenticates to the cluster.
-
-<Tabs>
-  <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
-
-### On a remote host with an identity file
-
-`tctl` can authenticate with a user-provided identity file. The Teleport Auth
-Service signs an identity file when a user runs `tctl auth sign` or
-`tsh login --out=<output-path>`, and the user can include the path to the
-identity file in the `--identity` flag when running `tctl` commands.
-
-When using the `--identity` flag, the user must provide the `--auth-server` flag
-with the address of an Auth Service or Proxy Service so `tctl` knows which
-cluster to authenticate to.
-
-### On the same host as the Teleport Auth Service
-
-If there is a Teleport configuration file on the host where `tctl` is run,
-`tctl` attempts to authenticate to the Auth Service named in the configuration
-file using an identity stored in its local backend.
-
-`tctl` authenticates using this method if a configuration file exists at
-`/etc/teleport.yaml` or `TELEPORT_CONFIG_FILE` points to a configuration file
-in another location. If the `auth_service` is disabled in the configuration
-file, then the configuration file is ignored.
-
-<Admonition type="note">
-
-  Note that when a `tctl` command is run locally on the Auth Service, the audit
-  logs will show that it was performed by the Auth Service itself.
-
-  To provide an accurate audit trail, it is important to limit direct SSH access
-  to the Auth Service with
-  [Access Controls](../../admin-guides/access-controls/access-controls.mdx) and ensure that
-  admins use `tctl` remotely instead.
-
-</Admonition>
-
-### On a remote host after running `tsh login`
-
-If `tctl` cannot find a local Teleport configuration file or a user-provided
-identity file, it attempts to load the user's `tsh` profile to authenticate to
-the cluster. The `tsh` profile is created when a user runs `tsh login`.
-
-`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
-a Teleport configuration file is present. If you are using your `tsh` profile to
-authenticate `tctl`, you must ensure that one of these conditions is true:
-
-  </TabItem>
-  <TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
-
-### On a remote host with an identity file
-
-`tctl` can authenticate with a user-provided identity file. The Teleport Auth
-Service signs an identity file when a user runs `tctl auth sign` or
-`tsh login --out=<output-path>`, and the user can include the path to the
-identity file in the `--identity` flag when running `tctl` commands.
-
-When using the `--identity` flag, the user must alo provide the `--auth-server`
-flag with the address of an Auth Service or Proxy Service so `tctl` knows which
-cluster to authenticate to.
-
-### On a remote host after running `tsh login`
-
-If `tctl` cannot find a local Teleport configuration file or a user-provided
-identity file, it attempts to load the user's `tsh` profile to authenticate to
-the cluster. The `tsh` profile is created when a user runs `tsh login`.
-
-`tctl` reads the `TELEPORT_CONFIG_FILE` environment variable to determine if
-a Teleport configuration file is present. If you are using your `tsh` profile to
-authenticate `tctl`, you must ensure that one of these conditions is true:
-
-- `TELEPORT_CONFIG_FILE` is blank
-- No file exists at `/etc/teleport.yaml`
-
-Otherwise `tctl` will attempt to connect to a Teleport cluster on the machine,
-which could result in the error,
-`ERROR: open /var/lib/teleport/host_uuid: permission denied`.
-
-  </TabItem>
-</Tabs>
+For a conceptual overview of `tctl`, see [Getting Started with
+`tctl`](../../zero-trust-access/infrastructure-as-code/using-tctl.mdx).
 
 ## tctl global flags
 
@@ -145,6 +66,99 @@ Removes a user from an Access List.
 $ tctl acl users rm <access-list-name> <user>
 ```
 
+## tctl notifications create
+
+Create a new notification for users in the cluster:
+
+```code
+$ tctl notifications create [<flags>]
+```
+
+There are several ways to specify which users see the notification. To target a specific user, use the `--user` flag. To target
+all users with a particular role (or set of roles), use the `--roles` flag. If you specify multiple roles, all users with at least
+one of the roles will see the notification, in order to require users to have all of the roles specified, add the `--require-all-roles` flag.
+If neither `--user` nor `--roles` are provided, the notification will default to targeting all users in the cluster, regardless of their roles.
+
+### Flags
+
+| Name                  | Default Value(s) | Allowed Value(s)        | Description                                                                                                                                                                        |
+| --------------------- | ---------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`         | none             | **string**              | Required. Sets the notification's title                                                                                                                                            |
+| `--content`           | none             | **string**              | Required. Sets the notification's text content, this is the text that will be displayed when a user clicks on the notification.                                                    |
+| `--user`              | none             | **string**              | If user-specific, the username of the specific user this notification will target.                                                                                                 |
+| `--roles`             | none             | Comma-separated strings | If role-specific, the set of roles users must have to receive this notification.                                                                                                   |
+| `--require-all-roles` | `false`          | `true`,`false`          | If role-specific, setting this to `true` will only targets users who have _all_ of the roles specified in `--roles`. If `false`, users only need to have one or more of the roles. |
+| `--ttl`               | `30d`            | Any duration            | Time duration after which the notification will expire and be deleted.                                                                                                             |
+| `--warning`           | `false`          | `true`,`false`          | Whether this notification should be displayed as a warning.                                                                                                                        |
+| `--labels`            | none             | Comma-separated strings | Custom labels to attach to the notification's metadata. Note that these will have no effect on the native behavior of the notification.                                            |
+
+### Examples
+
+```code
+# Create a notification for a specific user
+$ tctl notifications create --user=alice --title="Upcoming Database Maintenance" --content="We will be conducting a database upgrade tomorrow at 2AM UTC"
+
+# Create a warning notification for all users
+$ tctl notifications create --warning --title="Enroll an MFA device" --content="We will soon be enforcing MFA in this cluster, please enroll a device to avoid being locked out of your account."
+
+# Create a notification for users with the `engineer` role that expires in 2 days
+$ tctl notifications create --roles=engineer --title="Reminder" --content="Please use access requests to request access to production servers" --ttl=2d
+```
+
+## tctl notifications ls
+
+List notifications:
+
+```code
+$ tctl notifications ls [<flags>]
+```
+
+### Flags
+
+| Name       | Default Value(s) | Allowed Value(s)        | Description                                                                                                                                        |
+| ---------- | ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--user`   | none             | **string**              | List only a specific user's notifications.                                                                                                         |
+| `--format` | `text`           | `text`,`yaml`,`json`    | The format of the output, default is `text`.                                                                                                                          |
+| `--all`    | `false`          | `true`,`false`          | If `true`, notifications generated by Teleport will also be returned, as opposed to only notifications created by admins via the `tctl` interface. |
+| `--labels` | none             | Comma-separated strings | Filter notifications by labels.                                                                                                                    |
+
+### Examples
+
+```code
+$ tctl notifications ls
+ID                                   Created             Expires             Title                Labels
+------------------------------------ ------------------- ------------------- -------------------- ------
+0194d8b2-5a38-7858-88fe-5fcee3ff1ceb 06 Feb 25 00:39 UTC 08 Mar 25 00:39 UTC Example notification
+```
+
+## tctl notifications rm
+
+Delete a notification:
+
+```code
+$ tctl notifications rm [<flags>] <id>
+```
+
+### Arguments
+
+- `<id>`: the ID of the notification to delete. This can be retrieved from the output of `tctl notifications ls`.
+
+### Flags
+
+| Name     | Default Value(s) | Allowed Value(s) | Description                                                                                  |
+| -------- | ---------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| `--user` | none             | string           | The username of the user this notification belongs to, if the notification is user-specific. |
+
+### Examples
+
+```code
+# Delete a notification which was either for all users, or role-based.
+$ tctl notifications rm 3b8eb3d6-da9a-5353-aece-cbc885ecbf73
+
+# Delete a notification which was specific to a user.
+$ tctl notifications rm --user=alice 4f548918-c853-52a6-b98b-5718b79d0e96
+```
+
 ## tctl alerts ack
 
 Temporarily acknowledges a cluster alert, preventing the alert from being
@@ -166,6 +180,7 @@ $ tctl alerts ack [<flags>] <id>
 | `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
 | `--clear` | none | | Clear an existing alert acknowledgement |
 | `--reason` | none | | The reason for suppressing this alert |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format, default is `text` |
 
 ### Examples
 
@@ -185,6 +200,18 @@ $ tctl alerts ack --clear upgrade-suggestion
 ## tctl alerts ack ls
 
 Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format, default is `text` |
+
+### Examples
 
 ```code
 $ tctl alerts ack ls
@@ -268,6 +295,7 @@ $ tctl auth export [<flags>]
 | `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
 | `--type` | none | `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `windows`, `db`, `openssh`, `saml-idp` | certificate type |
+| `--out` | none | filepath | if set writes exported authorities to files with the given path prefix |
 
 ### Global flags
 
@@ -327,7 +355,7 @@ $ tctl auth rotate --type=host --grace-period=8h
 <Admonition type="tip" title="Automation">
 `tctl auth sign` is commonly used to generate long-lived certificates for
 automation purposes. On supported platforms,
-[Machine ID](../../enroll-resources/machine-id/introduction.mdx) is a more secure alternative that
+[Machine & Workload Identity](../../machine-workload-identity/introduction.mdx) is a more secure alternative that
 generates short-lived certificates for automation workflows.
 </Admonition>
 
@@ -386,14 +414,14 @@ $ tctl auth sign --ttl=2190h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
-# Exports an identity from the Auth Server in preparation for remote
+# Exports an identity from the Auth Service in preparation for remote
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
 ```
 
 ## tctl bots add
 
-Create a new Machine ID Bot:
+Create a new Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots add <name> [<flags>]
@@ -401,7 +429,7 @@ $ tctl bots add <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to create.
+- `<name>` - name of Machine & Workload Identity Bot to create.
 
 ### Flags
 
@@ -466,7 +494,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots instances list
 
-List all current instances of a Machine ID bot:
+List all current instances of a Machine & Workload Identity bot:
 
 ```code
 $ tctl bots instances list [<name>]
@@ -477,6 +505,16 @@ $ tctl bots instances list [<name>]
 - `[<name>]` - an optional bot name. If provided, filters the result to show
   only instances for the named bot. Otherwise, shows all instances for all bots.
 
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--search` | none | A search term | Optional. Filters the returned bot instances using a fuzzy search based on the term provided. |
+| `--query` | none | Teleport predicate language query | Optional. Filters the returned bot instances based on the Teleport predicate language query provided. |
+| `--sort-index` | `bot_name` | `bot_name`, `active_at_latest`, `version_latest`, `host_name_latest` | Optional. Sorts the returned bot instances using the given field. |
+| `--sort-order` | `ascending` | `ascending`, `descending` | Optional. Sorts the returned bot instances in the given order. |
+| `--format` | `text` | `text`, `json` | If set to `json`, returns results as a machine-readable JSON string. |
+
 ### Examples
 
 This shows all known instances for the bot named "example":
@@ -484,6 +522,25 @@ This shows all known instances for the bot named "example":
 ```code
 $ tctl bots instance list example
 ```
+
+This shows all known instances which contain the term "github";
+
+```code
+$ tctl bots instance list --search github
+```
+
+Searchable fields include; bot name, instance id, hostname, join method, version
+
+This shows all known instances with a version older than "18.0.0";
+
+```code
+$ tctl bots instance list --query `older_than(status.latest_heartbeat.version, "18.0.0")`
+```
+Version-specific functions include;
+
+- `newer_than(version, comparison)`
+- `older_than(version, comparison)`
+- `between(version, lower (inclusive), upper (exclusive))`
 
 ### Global flags
 
@@ -517,7 +574,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots ls
 
-Lists all Machine ID Bots:
+Lists all Machine & Workload Identity Bots:
 
 ```code
 $ tctl bots ls [<flags>]
@@ -530,7 +587,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots rm
 
-Delete a Machine ID Bot:
+Delete a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots rm <name> [<flags>]
@@ -538,7 +595,7 @@ $ tctl bots rm <name> [<flags>]
 
 ### Arguments
 
-- `<name>` - name of Machine ID Bot to delete.
+- `<name>` - name of Machine & Workload Identity Bot to delete.
 
 ### Global flags
 
@@ -547,7 +604,7 @@ These flags are available for all commands: `--debug, --config`. Run
 
 ## tctl bots update
 
-Update a Machine ID bot:
+Update a Machine & Workload Identity Bot:
 
 ```code
 $ tctl bots update <bot> [<flags>]
@@ -593,7 +650,7 @@ These flags are available for all commands: `--debug, --config`. Run
 Create or update a Teleport resource from a YAML file.
 
 The supported resource types are: user, node, cluster, role, connector, and device.
-See the [Resources Reference](../resources.mdx) for complete docs on how to build these yaml files.
+See the [Resources Reference](../infrastructure-as-code/teleport-resources/teleport-resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
 $ tctl create [<flags>] <filename>
@@ -630,7 +687,7 @@ $ tctl create -f cluster.yaml
 Register a device.
 
 ```code
-$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
+$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER [<flags>]
 ```
 
 ### Flags
@@ -640,6 +697,7 @@ $ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
 | `--os` | none | `linux`, `macos`, `windows` | Device operating system |
 | `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
 | `--enroll` | false | boolean | If set, creates a device enrollment token |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format, default is `text` |
 
 ### Examples
 
@@ -687,17 +745,22 @@ tsh device enroll --token=(=devicetrust.enroll_token=)
 List registered devices.
 
 ```code
-$ tctl devices ls
+$ tctl devices ls [<flags>]
 ```
+
+### Flags
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `text`,`yaml`,`json` | Output format, default is `text` |
+
 
 ### Examples
 
 ```code
 $ tctl devices ls
-
-Asset Tag    OS    Enroll Status Device ID
------------- ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+Asset Tag    OS    Source Enroll Status Owner Device ID
+------------ ----- ------ ------------- ----- ------------------------------------
+(=devicetrust.asset_tag=) macOS        not enrolled        d40f2ee4-856d-4aef-b784-c4371e39c036
 ```
 
 ## tctl devices rm
@@ -864,7 +927,7 @@ $ tctl inventory list [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--format` | `text` | `yaml, json` or `text` | Output format, default is `text` |
 | `--older-than` | none | string | Filter for older teleport versions |
 | `--exact-version` | none | string | Filter output by teleport version |
 | `--services` | none | string | Filter output by service (node,kube,proxy,etc) |
@@ -913,7 +976,7 @@ $ tctl inventory status [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--format` | `text` | `yaml, json` or `text` | Output format |
+| `--format` | `text` | `yaml, json` or `text` | Output format, default is `text` |
 | `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |
 
 ### Global flags
@@ -986,6 +1049,46 @@ Total Instances: 19
  Note that newly added Teleport services do not show in the inventory right as the service joins. Those can take around 5 minutes
  under regular circumstances to show in inventory counts and up to 15 minutes for heavy load.
 
+## tctl lock
+
+Create a new lock.
+
+```code
+$ tctl lock [<flags>]
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| --- | --- | --- | --- |
+| `--user` | none | string | Target a specific user by username. |
+| `--role` | none | string | Target a specific role by name. |
+| `--login` | none | string | Target a specific server login. |
+| `--server-id` | none | string | Target a specific node by name or UUID. |
+| `--mfa-device` | none | string | Target a specific MFA device by UUID. |
+| `--windows-desktop` | none | string | Target a specific Windows desktop by name. |
+| `--access-request` | none | string | Target a specific Access Request by ID. |
+| `--device` | none | string | Target a specific trusted device by ID. |
+| `--message` | none | string | Optional message explaining the reason for the lock. |
+| `--expires` | never | timestamp | When the lock should automatically expire (RFC3339). |
+| `--ttl` | none | duration | Time-to-live for the lock (alternative to --expires). |
+
+### Examples
+
+```code
+# Lock a specific user
+$ tctl lock --user alice --message "Security incident investigation"
+
+# Lock a role with expiration
+$ tctl lock --role developers --expires "2025-06-26T00:20:47.16109Z" --message "Emergency maintenance"
+
+# Lock a specific node
+$ tctl lock --server-id web-server-01 --message "Suspected compromise"
+
+# Lock multiple targets (user and access-request combination)
+$ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h --access-request=1234
+```
+
 ## tctl login_rule test
 
 Test a Login Rule resource without installing it in the cluster.
@@ -1000,7 +1103,7 @@ Test a Login Rule resource without installing it in the cluster.
 | - | - | - | - |
 | `--resource-file` | none | **string** filepath | Path to Login Rule resource path, can be repeated for multiple files |
 | `--load-from-cluster` | `false` | `true, false` | When true, all Login Rules currently installed in the cluster will be loaded for the test. Can be combined with `--resource-file` to test interactions. |
-| `--format` | `yaml` | `yaml, json` | Output format for traits |
+| `--format` | `yaml` | `yaml, json` | Output format for traits, default is `yaml` |
 
 ### Global flags
 
@@ -1101,7 +1204,7 @@ $ tctl request approve request-id-1, request-id-2
 Create a pending Access Request.
 
 ```code
-$ tctl request create <username>
+$ tctl request create [<flags>] <username>
 ```
 
 ### Arguments
@@ -1112,10 +1215,10 @@ $ tctl request create <username>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-|`roles`|none|Comma-separated list of strings|Roles to be requested|
-|`resource`|none|Comma-separated list of strings|Resource IDs to be requested|
-|`reason`|none|String|Optional reason message|
-|`dry-run`|none|Boolean|Don't actually generate the Access Request|
+|`--roles`|none|Comma-separated list of strings|Roles to be requested|
+|`--resource`|none|Comma-separated list of strings|Resource IDs to be requested|
+|`--reason`|none|String|Optional reason message|
+|`--dry-run`|none|Boolean|Don't actually generate the Access Request|
 
 Use the `dry-run` flag if you want to validate whether Teleport can create an
 Access Request for the user in the `username` argument, given the user's static
@@ -1211,6 +1314,9 @@ $ tctl rm saml/okta
 
 # Delete a local user called "admin":
 $ tctl rm users/admin
+
+# Delete a lock
+$ tctl rm lock/ed7038cb-a3cc-4f59-8063-09553665b773
 ```
 
 ## tctl sso configure github
@@ -1344,7 +1450,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../admin-guides/access-controls/sso/google-workspace.mdx) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags
@@ -1548,6 +1654,36 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
   Make sure to include `--with-secrets` flag, or the exported auth connector will not be testable.
 </Admonition>
 
+## tctl stable-unix-users ls
+
+List the stored usernames and UIDs for automatically created users:
+
+```code
+$ tctl stable-unix-users ls
+```
+
+### Arguments
+
+This command accepts no arguments.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--format` | `text` | `json` or `text` | Output format, default is `text` |
+
+### Examples
+
+```code
+$ tctl stable-unix-users ls
+Username UID
+-------- -----
+alice    90000
+bob      90002
+carol    90003
+dan      90001
+```
+
 ## tctl status
 
 Report cluster and Certificate Authority status:
@@ -1673,11 +1809,17 @@ $ tctl tokens rm [<token>]
 
 Reports diagnostic information.
 
-The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr=<bind-addr>` for `tctl top` to work.
+`tctl top` can consume metrics from a HTTP diagnostic endpoint.
 
 ```code
 $ tctl top [<diag-addr>] [<refresh>]
 ```
+
+When a specific endpoint is provided, `tctl top` will always attempt to connect to it.
+The endpoint should be a valid HTTP URL, corresponding to a matching
+diagnostic metrics service configuration such as `teleport start --diag-addr=<bind-addr>`.
+
+When no endpoint is specified, `tctl top` will attempt to connect via the debug UNIX socket endpoint, falling back to localhost.
 
 ### Argument
 
@@ -1690,6 +1832,8 @@ $ tctl top [<diag-addr>] [<refresh>]
 $ sudo teleport start --diag-addr=127.0.0.1:3000
 # View stats with a refresh period of 5 seconds
 $ tctl top http://127.0.0.1:3000 5s
+# Use configured defaults
+$ tctl top
 ```
 
 ## tctl users add
@@ -1820,10 +1964,414 @@ $ tctl users update priya --set-azure-identities \
  `/subscriptions/${SUBSCRIPTION_ID?}/resourceGroups/${MY_RESOURCE_GROUP?}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/dba
 ```
 
+## tctl autoupdate client-tools status
+
+```code
+$ tctl autoupdate client-tools status [<flags>]
+```
+
+Requests the current status of client tool managed updates, indicating whether managed updates are enabled and displaying the target version for the update.
+If the `--proxy` flag is defined, tctl sends a request to an unauthenticated endpoint to retrieve the data.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--proxy` | none | none | Address of the Teleport Proxy Service. When defined this address will be used to retrieve client tool auto update configuration. |
+| `--format` | yaml | `json`, `yaml` | Output format: 'yaml' or 'json'. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools status
+mode: enabled
+target_version: 17.2.7
+
+$ tctl autoupdate client-tools status --format json
+{
+    "mode": "enabled",
+    "target_version": "17.2.7"
+}
+
+# Request to an unauthenticated endpoint.
+$ tctl autoupdate client-tools status --proxy proxy.example.com
+mode: enabled
+target_version: 17.2.7
+```
+
+## tctl autoupdate client-tools enable
+
+Enables managed updates for client tools in the cluster. If the target version is not set, the proxy version will be advertised.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools enable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools disable
+
+Disables managed updates for client tools in the cluster.
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools disable
+client tools auto update mode has been changed
+```
+
+## tctl autoupdate client-tools target
+
+```code
+$ tctl autoupdate client-tools target [<flags>] <target-version>
+```
+
+Sets the target version for client tools in the cluster. After login, client tools will be advertised to this version and initiate the update process.
+
+### Arguments
+
+- `<target-version>` - Client tools target version. Clients will be told to update to this version.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--clear` | none | none | Removes the target version, Teleport will default to its current proxy version. |
+
+### Examples
+
+```code
+$ tctl autoupdate client-tools target 17.2.7
+client tools auto update target version has been set
+
+$ tctl autoupdate client-tools target --clear
+client tools auto update target version has been cleared
+```
+
+## tctl autoupdate agents status
+
+Prints the status of automatic updates for Teleport Agents.
+
+### Examples
+
+```code
+$ tctl autoupdate agents status
+Agent autoupdate mode: enabled
+Rollout creation date: 2025-01-14 16:17:36
+Start version: 17.0.1
+Target version: 17.1.5
+Rollout state: Done
+
+Group Name State Start Time          State Reason
+---------- ----- ------------------- --------------
+dev        Done  2025-01-15 12:00:08 outside_window
+stage      Done  2025-01-15 16:17:45 outside_window
+prod       Done  2025-01-15 18:00:12 outside_window
+backup     Done  2025-01-14 20:00:31 outside_window
+```
+
+## tctl autoupdate agents report
+
+Aggregates the agent autoupdate reports and displays agent count per version and per update group.
+
+## tctl autoupdate agents start-update
+
+```code
+$ tctl autoupdate agents start-update [--force] [<groups>...]
+```
+
+Manually initiates an update for the specified groups.
+
+### Arguments
+
+- `<groups>` - Groups to update. If not specified, all groups will be started.
+- `--force` - Skips progressive deployment mechanism such as canaries or backpressure.
+
+### Examples
+
+Manually trigger staging and production updates:
+```code
+$ tctl autoupdate agents start-update stage prod
+Started updating agents groups: [stage prod].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- --------------
+dev        Unstarted                     cannot_start
+stage      Active    2025-03-10 15:04:16 manual_trigger
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+## tctl autoupdate agents mark-done
+
+```code
+$ tctl autoupdate agents mark-done [<groups>...]
+```
+
+Manually marks an agent update group as successfully updated.
+
+### Arguments
+
+- `<groups>` - Groups to mark as updated. If not specified, all groups will be marked.
+
+### Examples
+
+Manually mark the staging group as updated:
+```code
+$ tctl autoupdate agents mark-done stage
+Successfully marked agent groups as completed: [stage].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- ------------------
+dev        Unstarted                     cannot_start
+stage      Done      2025-03-10 15:04:16 manual_forced_done
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+
+## tctl autoupdate agents rollback
+
+```code
+$ tctl autoupdate agents rollback [<groups>...]
+```
+
+Initiates an immediate rollback of Teleport agents from the target version to the start version.
+
+### Arguments
+
+- `<groups>` - Groups to rollback. If not specified, all groups not in the `unstarted` state will be rolled back.
+
+### Examples
+
+Rollback all agents immediately:
+```code
+$ tctl autoupdate agents rollback
+```
+
+## tctl plugins install awsic
+
+Install the AWS Identity Center integration.
+
+```code
+$ tctl plugins install awsic <flags>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--access-list-default-owner` | none | string | Required. A Teleport username to set as the default owner for the imported Access Lists. Multiple flags allowed. |
+| `--scim-url` | none | string | Required. AWS Identity Center SCIM provisioning endpoint. Must be a valid AWS Identity Center SCIM endpoint URL, as per [this AWS Knowledge Center article](https://repost.aws/knowledge-center/iam-identity-center-provision). |
+| `--scim-token` | none | string | Required. The AWS Identify Center SCIM provisioning access bearer token. |
+| `--instance-arn` | none | string | Required. The ARN of the Identity Center instance to manage. |
+| `--instance-region` | none | string | Required. The AWS region where the Identity Center instance is located. |
+| `--[no-]use-system-credentials` | `--no-use-system-credentials` | boolean | Required. Use system AWS credentials to authenticate with AWS. Note that currently only `--use-system-credentials` is supported by `tctl`. |
+| `--assume-role-arn` | none | string | Required. AWS IAM Role ARN value that the integration will use to obtain a temporary security credential. |
+| `--[no]force-scim-url` | `--no-force-scim-url` | boolean | Optional. Force the use of the provided SCIM provisioning endpoint even if it fails SCIM endpoint validation. |
+| `--user-label` | none | string | Optional. Add user label filter, in the form of a comma-separated list of "name=value" pairs. All matching users will be provisioned to AWS Identity Center. If no label filters are supplied, *all* Teleport users will be provisioned to Identity Center. Multiple filters allowed. |
+| `--user-origin` | none | string | Optional. Shorthand for setting a label filter that filters by origin. For example, `--user-origin $ORIGIN` is identical to specifying `--user-label teleport.dev/origin=$ORIGIN`. |
+| `--group-name` | none | string | Optional. Add an AWS Identity Center group to group to the group import list by name. Can be a glob, or enclosed in `^$` to specify a regular expression. If no filters are supplied then *all* AWS groups will be imported. |
+| `--account-name` | none | string | Optional. Add an AWS account to the account import list by name. Can be a glob, or enclosed in `^$` to specify a regular expression. *All* AWS accounts will be imported if no items are added to account import list. Multiple filters allowed. |
+| `--account-id` | none | string | Optional. Adds a specific AWS account to account import list by ID. *All* AWS accounts will be imported if no items are added to account import list. |
+
+### Example
+
+```code
+$ tctl plugins install awsic \
+    --instance-arn "arn:aws:sso:::instance/ssoins-722326ecc902a06a" \
+    --instance-region us-east-1 \
+    --use-system-credentials \
+    --assume-role-arn arn:aws:iam::xxxx:role/role-name-to-assume \
+    --scim-url https://scim.us-east-1.amazonaws.com/f3v9c6bc2ca-b104-4571-b669-f2eba522efe8/scim/v2 \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner admin \
+    --access-list-default-owner root@example.com \
+    --user-origin okta \
+    --user-label "role=aws-admin,dept=engineering" \
+    --account-name "^production ap-southeast-\d$" \
+    --account-id "637423191929" \
+    --group-name "^Group 001\d$"
+```
+
+Multiple `--access-list-default-owner` flags are collected together. In the given
+example, all Access Lists imported by the integration will be created wth owners
+`admin` and `root@example.com`.
+
+Multiple filter flags are ORd together. For example, in the command line above
+the two user filter flags imply that if a user
+
+- was provisioned into Teleport by Okta (from `--user-origin okta`), OR
+- has the label values `role=aws-admin` AND `dept=engineering` (from `--user-label "role=aws-admin,dept=engineering"`)
+
+then they will be provisioned into AWS Identity Center by Teleport.
+
+## tctl plugins install okta
+
+Install the Okta integration.
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--name` | `okta` | string | Required. Name of the plugin resource to create. |
+| `--org` | none | URL | Required. URL of Okta organization. |
+| `--saml-connector` | none | string | Required. SAML connector used for Okta SSO login. |
+| `--app-id` | none | string | Optional. Okta ID of the APP used for SSO via SAML. |
+| `--api-token` | none | string | Optional. Okta API token for the plugin to use. |
+| `--[no-]scim` | `--no-scim` | boolean | Optional. Enable SCIM Okta integration. |
+| `--[no-]users-sync` | `--users-sync` | none | Optional. Enable user synchronization. |
+| `-o`, `--owner` | none | string | Optional. Add a default owner for synced Access Lists. |
+| `--[no-]accesslist-sync` | `--accesslist-sync` | none | Optional. Enable or disable group to Access List synchronization. |
+| `--[no-]appgroup-sync` | `--appgroup-sync` | none | Optional. Enable or disable Okta Applications and Groups sync. |
+| `-g`, `--group-filter` | none | string | Optional. Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support. |
+| `-a`, `--app-filter` | none | string | Optional. Add an app filter. Supports globbing by default. Enclose in `^pattern$` for full regex support. |
+
+### Example
+
+``` code
+$ tctl plugins install okta \
+    --org https://example.okta.com \
+    --saml-connector "okta" \
+    --app-id xxxxxxx \
+    --api-token ${OKTA_API_TOKEN} \
+    --no-scim \
+    --no-accesslist-sync \
+    --no-appgroup-sync
+```
+
+## tctl plugins install entraid
+
+Install the Entra ID plugin.
+
+```code
+$ tctl plugins install entraid <flags>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--name` | `entra-id` | string | Name of the plugin resource to create. |
+| `--auth-connector-name` | `entra-id-default` | string | Name of the SAML connector resource to create. |
+| `--default-owner` | none | string | Required. A Teleport username to set as the default owner for the imported Access Lists. Multiple flags allowed. |
+| `--[no-]access-graph` | `--access-graph` | boolean | Optional. Enable Access Graph cache build. |
+| `--[no-]use-system-credentials` | `--no-use-system-credentials` | boolean | Optional. Use system credentials instead of OIDC. |
+| `--[no-]manual-setup` | `--no-manual-setup` | boolean | Optional. Manually set up the EntraID integration. |
+| `--[no-]force` | `--no-force` | boolean | Optional. Proceed with the installation even if the plugin already exists. |
+| `--group-id` | none | string | Optional. Include group matching the specified group ID. Multiple flags allowed. |
+| `--group-name` | none | string | Optional. Include groups matching the specified group name regex. Multiple flags allowed.  |
+| `--exclude-group-id` | none | string | Optional. Exclude group matching the specified group ID. Multiple flags allowed. |
+| `--exclude-group-name` | none | string | Optional. Exclude groups matching the specified group name regex. Multiple flags allowed. |
+
+
+### Example
+
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=admin \
+    --default-owner=root@example.com \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
+    --group-name "admin*" \
+    --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
+    --exclude-group-name "fin*" 
+```
+
+Multiple flags are collected together. In the given example, based on the 
+two `default-owner` flags, all the Access Lists imported by the integration will 
+be created with owners `admin` and `root@example.com`.
+
+
+## tctl plugins rotate awsic
+
+Rotate the bearer token used by Teleport to authenticate with the AWS IAM Identity
+Center SCIM service when provisioning AWS users and groups.
+
+By default, `tctl` will validate that the token can be used to authenticate with
+the SCIM service configured in the integration. Use the `--no-validate-token`
+flag to disable token validation.
+
+```code
+$ tctl plugins rotate awsic [<flags>] <token>
+```
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target | 
+| `--[no-]validate-token` | `--validate-token` | none | Enables or disables validating the supplied token against the configured SCIM server |
+
+### Examples
+
+Rotate the SCIM bearer token without displaying the token in your command history
+
+```code
+$ tctl plugins rotate awsic $(cat ./aws-iam-ic-bearer-token)
+```
+
+Rotate the the SCIM bearer token for a custom integration enrollment that does not
+have the default name set by the guided enrollment flow.
+
+```code
+$ tctl plugins rotate awsic --plugin-name "my-custom-ic-integration" ${TOKEN_VALUE}
+```
+
 ## tctl version
 
 Print the version of your `tctl` binary:
 
 ```code
 tctl version
+```
+
+## tctl recordings encryption rotate
+
+Rotate the active session recording encryption key. Will fail if rotation is already in
+progress.
+
+### Example
+
+```code
+$ tctl recordings encryption rotate
+```
+
+## tctl recordings encryption status
+
+Print the rotation status of all active encryption keys.
+
+### Flags
+
+| Name       | Default Value(s) | Allowed Value(s)     | Description               |
+| ---------- | ---------------- | -------------------- | ------------------------- |
+| `--format` | `text`           | `text`,`yaml`,`json` | The format of the output, default is `text` |
+
+### Example
+
+```code
+$ tctl recordings encryption status
+```
+
+## tctl recordings encryption complete-rotation
+
+Completes a key rotation.
+
+### Example
+
+```code
+$ tctl recordings encryption complete-rotation
+```
+
+## tctl recordings encryption rollback-rotation
+
+Reverts a key rotation.
+
+### Example
+
+```code
+$ tctl recordings encryption rollback-rotation
 ```

@@ -17,13 +17,14 @@
  */
 
 import { Link as InternalLink } from 'react-router-dom';
-import { OutlineInfo } from 'design/Alert/Alert';
+
 import { Mark } from 'design';
+import { Info } from 'design/Alert/Alert';
 
 import cfg from 'teleport/config';
 
 export const SingleEc2InstanceInstallation = () => (
-  <OutlineInfo mt={3} linkColor="buttons.link.default">
+  <Info mt={3} linkColor="buttons.link.default">
     Auto discovery will enroll all EC2 instances found in a region. If you want
     to enroll a <Mark>single</Mark> EC2 instance instead, consider following the{' '}
     <InternalLink
@@ -35,5 +36,5 @@ export const SingleEc2InstanceInstallation = () => (
       Teleport service installation
     </InternalLink>{' '}
     flow.
-  </OutlineInfo>
+  </Info>
 );

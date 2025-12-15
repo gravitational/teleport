@@ -17,21 +17,21 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
+import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { IconTooltip } from 'design/Tooltip';
-import { useAsync } from 'shared/hooks/useAsync';
 import { ResourceIcon } from 'design/ResourceIcon';
+import { IconTooltip } from 'design/Tooltip';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
-import useStickyClusterId from 'teleport/useStickyClusterId';
+import cfg from 'teleport/config';
+import { getStatus } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
-
 import {
   ExternalAuditStorageIntegration,
   getStatusCodeDescription,
@@ -41,13 +41,11 @@ import {
   IntegrationStatusCode,
   Plugin,
 } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
-
-import { getStatus } from 'teleport/Integrations/helpers';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 
-type Props<IntegrationLike> = {
+type Props = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
   integrationOps?: {
@@ -62,16 +60,19 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
-export function IntegrationList(props: Props<IntegrationLike>) {
+// statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
+const statusKinds = ['okta', IntegrationKind.AwsOidc, IntegrationKind.AwsRa];
+
+export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    if (row.kind !== 'okta' && row.kind !== IntegrationKind.AwsOidc) return;
+    if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (row.kind !== 'okta') return;
+    if (!statusKinds.includes(row.kind)) return;
     return { cursor: 'pointer' };
   }
 
@@ -120,6 +121,15 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         {
           altKey: 'options-btn',
           render: item => {
+            if (
+              item.kind === IntegrationKind.AwsOidc ||
+              item.kind === IntegrationKind.AwsRa
+            ) {
+              // do not show any action menu for aws oidc or roles anywhere;
+              // settings are available on the dashboard
+              return;
+            }
+
             if (item.resourceType === 'plugin') {
               return (
                 <Cell align="right">
@@ -154,26 +164,14 @@ export function IntegrationList(props: Props<IntegrationLike>) {
               return (
                 <Cell align="right">
                   <MenuButton>
-                    {/* Currently, only AWS OIDC supports editing & status dash */}
-                    {item.kind === IntegrationKind.AwsOidc && (
-                      <>
-                        <MenuItem
-                          as={InternalRouteLink}
-                          to={cfg.getIntegrationStatusRoute(
-                            item.kind,
-                            item.name
-                          )}
-                        >
-                          View Status
-                        </MenuItem>
-                        <MenuItem
-                          onClick={() =>
-                            props.integrationOps.onEditIntegration(item)
-                          }
-                        >
-                          Edit...
-                        </MenuItem>
-                      </>
+                    {item.kind === IntegrationKind.GitHub && (
+                      <MenuItem
+                        onClick={() =>
+                          props.integrationOps.onEditIntegration(item)
+                        }
+                      >
+                        Edit...
+                      </MenuItem>
                     )}
                     <MenuItem
                       onClick={() =>
@@ -254,7 +252,10 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
       </Cell>
     );
   }
-  const statusDescription = getStatusCodeDescription(item.statusCode);
+  const statusDescription = getStatusCodeDescription(
+    item.statusCode,
+    item.status?.errorMessage
+  );
   return (
     <Cell>
       <Flex alignItems="center">
@@ -274,6 +275,7 @@ export enum Status {
   Success,
   Warning,
   Error,
+  OktaConfigError = 20,
 }
 
 const StatusLight = styled(Box)<{ status: Status }>`
@@ -285,7 +287,7 @@ const StatusLight = styled(Box)<{ status: Status }>`
     if (status === Status.Success) {
       return theme.colors.success.main;
     }
-    if (status === Status.Error) {
+    if ([Status.Error, Status.OktaConfigError].includes(status)) {
       return theme.colors.error.main;
     }
     if (status === Status.Warning) {
@@ -356,6 +358,17 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'AWS IAM Identity Center';
         icon = <IconContainer name="aws" />;
         break;
+      case 'scim':
+        formattedText = 'SCIM';
+        icon = <IconContainer name="scim" />;
+        break;
+      case 'intune':
+        formattedText = 'Microsoft Intune';
+        icon = <IconContainer name="intune" />;
+        break;
+      default:
+        // TODO(ravicious): Remove openai exemption from here once a branch is added for it.
+        item.kind satisfies never | 'openai';
     }
   } else {
     // Default is integration.
@@ -364,6 +377,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;
         icon = <IconContainer name="aws" />;
+        break;
+      case IntegrationKind.AwsRa:
+        formattedText = item.name;
+        icon = <IconContainer name="awsidentityandaccessmanagementiam" />;
         break;
       case IntegrationKind.AzureOidc:
         formattedText = 'Azure OIDC';

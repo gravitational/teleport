@@ -321,7 +321,7 @@ func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) 
 	if exts == nil {
 		return nil
 	}
-	res := make(map[string]interface{})
+	res := make(map[string]any)
 	if exts.AppId != "" {
 		res[AppIDExtension] = exts.AppId
 	}

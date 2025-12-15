@@ -21,10 +21,10 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 )
 
 // WithMFAUnaryInterceptor intercepts a GRPC client unary call to add MFA credentials

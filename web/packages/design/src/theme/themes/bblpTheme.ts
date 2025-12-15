@@ -29,7 +29,6 @@ import {
 } from 'design/theme/palette';
 
 import { lighten } from '../utils/colorManipulator';
-
 import { sharedColors, sharedStyles } from './sharedStyles';
 import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
@@ -204,6 +203,7 @@ const colors: ThemeColors = {
 
   tooltip: {
     background: 'rgba(255, 255, 255, 0.8)',
+    inverseBackground: 'rgba(0, 0, 0, 0.5)',
   },
 
   progressBarColor: '#00BFA5',
@@ -489,6 +489,56 @@ const colors: ThemeColors = {
     picton: dataVisualisationColors.tertiary.picton,
     sunflower: dataVisualisationColors.tertiary.sunflower,
     caribbean: dataVisualisationColors.tertiary.caribbean,
+  },
+
+  sessionRecording: {
+    resource: '#66C5FF',
+    user: '#C5B6FF',
+    player: {
+      progressBar: {
+        background: 'rgba(255, 255, 255, 0.2)',
+        seeking: 'rgba(255, 255, 255, 0.17)',
+        progress: '#FFA028',
+      },
+    },
+  },
+
+  sessionRecordingTimeline: {
+    background: levels.sunken,
+    headerBackground: 'rgba(0, 0, 0, 0.13)',
+    frameBorder: 'rgba(255, 255, 255, 0.2)',
+    progressLine: '#E53E3E',
+    border: {
+      default: '#474747',
+      hover: '#757575',
+    },
+    cursor: 'rgba(255, 255, 255, 0.4)',
+    events: {
+      inactivity: {
+        background: 'rgba(159,133,255, 0.25)',
+        text: 'rgba(255, 255, 255, 0.6)',
+      },
+      resize: {
+        semiBackground: 'rgba(0, 0, 0, 0.8)',
+        background: '#26323c',
+        border: '#86c4ed',
+        text: '#86c4ed',
+      },
+      join: {
+        background: '#009EFF',
+        text: 'rgba(0, 0, 0, 0.87)',
+      },
+      default: {
+        background: 'rgba(255, 255, 255, 0.54)',
+        text: '',
+      },
+    },
+    timeMarks: {
+      primary: '#E2E8F0',
+      secondary: '#A0AEC0',
+      absolute: '#E2E8F0',
+      text: '#A0AEC0',
+    },
   },
 
   link: '#66ABFF',

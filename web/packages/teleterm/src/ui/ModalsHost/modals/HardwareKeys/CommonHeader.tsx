@@ -16,22 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { H2, ButtonIcon } from 'design';
-import * as icons from 'design/Icon';
+import { ButtonIcon, H2 } from 'design';
 import { DialogHeader } from 'design/Dialog';
-
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import * as icons from 'design/Icon';
 
 export function CommonHeader(props: {
   onCancel(): void;
-  rootClusterUri: RootClusterUri;
+  proxyHostname: string;
 }) {
-  const rootClusterName = routing.parseClusterName(props.rootClusterUri);
-
   return (
     <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
       <H2 mb={4}>
-        Unlock hardware key to access <strong>{rootClusterName}</strong>
+        Verify your identity on <strong>{props.proxyHostname}</strong>
       </H2>
 
       <ButtonIcon

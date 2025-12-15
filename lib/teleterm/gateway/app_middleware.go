@@ -43,12 +43,12 @@ func (m *appMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy
 		return nil
 	}
 
-	// Return early and don't fire onExpiredCert if certs are invalid but not due to expiry.
-	if !errors.As(err, &x509.CertificateInvalidError{}) {
+	// Return early and don't fire onExpiredCert if certs are invalid but not due to expiry or removal.
+	if !errors.As(err, &x509.CertificateInvalidError{}) && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	m.logger.DebugContext(ctx, "Gateway certificates have expired", "error", err)
+	m.logger.DebugContext(ctx, "Gateway certificates have expired or been removed", "error", err)
 
 	cert, err := m.onExpiredCert(ctx)
 	if err != nil {

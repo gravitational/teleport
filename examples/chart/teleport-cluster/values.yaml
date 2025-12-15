@@ -121,7 +121,7 @@ authentication:
   connectorName: ""
 
   # Enable/disable local authentication by setting `authentication.local_auth` in `teleport.yaml`.
-  # Disabling local auth is required for FedRAMP / FIPS; see https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/.
+  # Disabling local auth is required for FedRAMP / FIPS; see https://goteleport.com/docs/zero-trust-access/compliance-frameworks/fedramp/#configure-the-teleport-auth-service
   localAuth: true
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
@@ -129,9 +129,11 @@ authentication:
   # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
   lockingMode: ""
 
-  # Second factor requirements for users of the Teleport cluster.
+  # DEPRECATED: Second factor requirements for users of the Teleport cluster.
   # Controls the `auth_config.authentication.second_factor` field in `teleport.yaml`.
   # Possible values are 'off', 'on', 'otp', 'optional' and 'webauthn'.
+  # This field is kept for backward compatibility purposes, you should use
+  # `secondFactors` instead.
   #
   # WARNING:
   #   If you set `publicAddr` for users to access the cluster under a domain different
@@ -148,7 +150,29 @@ authentication:
   #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
   #
   #   Changing the RP ID will invalidate all already registered webauthn second factors.
-  secondFactor: "on"
+  # secondFactor: ""
+
+  # Second factor requirements for users of the Teleport cluster.
+  # Controls the `auth_config.authentication.second_factors` field in `teleport.yaml`.
+  # This is a list whose possible item values are item values are 'otp', 'sso' and 'webauthn'.
+  # This should be preferred over `secondFactor`.
+  #
+  # WARNING:
+  #   If you set `publicAddr` for users to access the cluster under a domain different
+  #   to clusterName you must manually set the webauthn Relying
+  #   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+  #   If you don't, RP ID will default to `clusterName` and users will fail
+  #   to register second factors.
+  #
+  #   You can do this by setting the value
+  #   `auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+  #
+  #   RP ID must be both a valid domain, and part of the full domain users are connecting to.
+  #   For example, if users are accessing the cluster with the domain
+  #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+  #
+  #   Changing the RP ID will invalidate all already registered webauthn second factors.
+  secondFactors: ["otp", "webauthn"]
 
   # (Optional) When using webauthn this allows to restrict which vendor and key models can be used.
   # webauthn:
@@ -269,7 +293,7 @@ operator:
   #    memory: "1Gi"
   joinMethod: "kubernetes"
   token: "teleport-operator"
-  # This is needed to have a sensible name and predictible service account name.
+  # This is needed to have a sensible name and predictable service account name.
   nameOverride: operator
 
 # If true, create & use Pod Security Policy resources
@@ -323,7 +347,7 @@ createProxyToken: true
 # This CRD is managed by the prometheus-operator and allows workload to
 # get monitored. To use this value, you need to run a `prometheus-operator`
 # in the cluster for this value to take effect.
-# See https://prometheus-operator.dev/docs/prologue/introduction/
+# See https://prometheus-operator.dev/docs/getting-started/introduction/
 podMonitor:
   # Whether the chart should deploy a PodMonitor.
   # Disabled by default as it requires the PodMonitor CRD to be installed.
@@ -568,17 +592,13 @@ tls:
 # Values that you shouldn't need to change.
 ##################################################
 
-# Container image for the cluster.
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport`. Those images will be
-# removed with teleport 14.
+# Container image for the cluster. By default, the image contains only the
+# Teleport application and its runtime dependencies, and does not contain a
+# shell.
 image: public.ecr.aws/gravitational/teleport-distroless
-# Enterprise version of the image
-# Since version 13, hardened distroless images are used by default.
-# You can use the deprecated debian-based images by setting the value to
-# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
-# removed with teleport 14.
+# Enterprise version of the image. By default, the image contains only the
+# Teleport application and its runtime dependencies, and does not contain a
+# shell.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
@@ -607,6 +627,30 @@ log:
 # nodeSelector to apply for pod assignment
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
 nodeSelector: {}
+
+# Turns off the topology spread constraints.
+# The feature is automatically turned off on Kubernetes versions below 1.18.
+disableTopologySpreadConstraints: false
+
+# Pod topology spread constraints:
+# https://kubernetes.io/fr/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+# When unset, the chart defaults to a soft topology spread constraint
+# that tries to spread pods across hosts and zones.
+#
+# ```
+# topologySpreadConstraints
+#   - maxSkew: 1
+#     topologyKey: kubernetes.io/hostname
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels: # dynamically computed
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels: # dynamically computed
+# ```
+topologySpreadConstraints: []
 
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
@@ -781,6 +825,18 @@ resources: {}
 #  limits:
 #    memory: "2Gi"
 
+# goMemLimitRatio configures the GOMEMLIMIT env var set by the chart.
+# GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory
+# below a given threshold. This is a best-effort attempt, but this helps
+# to prevent OOMs in case of bursts.
+#
+# When the memory limits are set and goMemLimitRatio is non-zero,
+# the chart sets the GOMEMLIMIT to `resources.memory.limits * goMemLimitRatio`.
+# The value must be between 0 and 1.
+# Set to 0 to unset GOMEMLIMIT.
+# This has no effect if GOMEMLIMIT is already set through `extraEnv`.
+goMemLimitRatio: 0.9
+
 # Pod security context for any pods created by the chart
 podSecurityContext: {}
   # fsGroup: 65532
@@ -798,7 +854,24 @@ tolerations: []
 
 # Timeouts for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-probeTimeoutSeconds: 1
+probeTimeoutSeconds: 5
+
+# readinessProbe(object) -- configures the readiness probe settings.
+# This can be tuned to keep proxy pods ready even when the auth is unavailable.
+#
+# The default values mark the pod unready after one minute of failing readiness probe.
+readinessProbe:
+  # readinessProbe.initialDelaySeconds(int) -- controls the number of seconds after the container has started before
+  # liveness probes are initiated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+  initialDelaySeconds: 5
+  # readinessProbe.periodSeconds(int) -- controls how often (in seconds) to perform the probe. Minimum value is 1.
+  periodSeconds: 5
+  # readinessProbe.failureThreshold(int) -- is the minimum consecutive failures for the probe to be considered failed
+  # after having succeeded. Minimum value is 1.
+  failureThreshold: 12
+  # readinessProbe.successThreshold(int) -- is the minimum consecutive successes for the probe to be considered
+  # successful after having failed. Minimum value is 1.
+  successThreshold: 1
 
 # Kubernetes termination grace period
 # https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#hook-handler-execution

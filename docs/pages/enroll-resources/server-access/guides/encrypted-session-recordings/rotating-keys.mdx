@@ -1,0 +1,86 @@
+---
+title: Rotating Session Recording Encryption Keys
+description: How to rotate automatically provisioned session recording encryption keys.
+tags:
+  - session-recording
+  - how-to
+  - zero-trust
+  - resiliency
+---
+
+This guide explains how to rotate encryption keys for session recordings using
+the automatic method. In this approach, the Teleport Auth Service manages the
+selection and labeling of encryption keys for you.
+
+For instructions on manually rotating encryption keys for session recordings,
+see [Rotating Manual Session Recording Encryption
+Keys](rotating-manual-keys.mdx).
+
+## How it works
+
+Session recording encryption keys are rotated using `tctl`. Rotation is a
+two-phase process that requires initiating a rotation and then completing that
+rotation. It is also possible to roll back an in-progress rotation in the event
+that the previous key state needs to be restored.
+
+## Prerequisites
+
+This guide assumes that you have followed the setup instructions in [Encrypted
+Session Recordings](encrypted-session-recordings.mdx).
+
+## Step 1/3. Initiate a rotation
+
+First a rotation must be initiated. This will provision a new key and add
+it to the list of active keys, which means newly captured recordings will be
+replayable using both the original key and the new key. This is done with:
+
+```code
+$ tctl recordings encryption rotate
+```
+
+If a rotation is already in progress, then the `rotate` subcommand will result
+in an error.
+
+## Step 2/3. Confirm rotation is in progress
+
+Printing the status of the active encryption keys informs whether or not a
+rotation is in progress. It also shows which key will be rotating out.
+
+```code
+$ tctl recordings encryption status
+Rotation in progress
+Key Pair Fingerprint                                             State
+---------------------------------------------------------------- --------
+48303729235b962c69940fe4cc9d47fcd6f5dd3bcbd149a6d4944098ce01b84c rotating
+8a8581543c70cd2ed5e993080670aefec2c620ef792730f020cb463350adeccb active
+```
+
+It is also possible for a key to be in an `inaccessible` state, which means at
+least one Teleport Auth Service instance does not have access to the key. In
+this case the rotation should be rolled back and the Teleport Auth Service
+instances should be diagnosed for connection or permission issues while
+accessing the key backend. For example, this could be the result of an
+improperly configured security group or IAM role when using the AWS KMS key
+backend.
+
+## Step 3/3. Complete rotation
+
+Completing a key rotation will retain the rotated key for future replay of
+historical session recordings. All recordings captured after completion will
+only be replayable using the new key. You can complete the rotation with:
+
+```code
+$ tctl recordings encryption complete-rotation
+```
+
+If any key is in an `inaccessible` state, then attempting to complete the
+rotation will result in an error.
+
+### Rollback
+
+If an in progress rotation needs to be rolled back for any reason it can be
+reverted to the previous state using:
+
+```code
+$ tctl recordings encryption rollback-rotation
+```

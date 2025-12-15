@@ -21,66 +21,107 @@ package sftp
 import (
 	"context"
 	"io"
-	"io/fs"
 	"os"
 	portablepath "path"
-	"time"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
+
+	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 )
 
-// remoteFS provides API for accessing the files on
+// RemoteFS provides API for accessing the files on
 // the local file system
-type remoteFS struct {
-	c *sftp.Client
+type RemoteFS struct {
+	*sftp.Client
+	session io.Closer
 }
 
-func (r *remoteFS) Type() string {
+// NewRemoteFilesystem creates a new FileSystem over SFTP.
+func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
+	return &RemoteFS{Client: c}
+}
+
+// OpenRemoteFilesystem opens a new remote file system on the given ssh client.
+func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moderatedSessionID string) (fs *RemoteFS, openErr error) {
+	s, err := sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
+		ModeratedSessionID: moderatedSessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if openErr != nil {
+			s.Close()
+		}
+	}()
+
+	// File transfers in a moderated session require this variable
+	// to check for approval on the ssh server
+	// TODO(Joerger): DELETE IN v20.0.0 - moderated session ID is provided
+	// in the session channel params above instead of indirectly through env vars.
+	if moderatedSessionID != "" {
+		s.Setenv(ctx, EnvModeratedSessionID, moderatedSessionID)
+	}
+
+	pe, err := s.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.RequestSubsystem(ctx, teleport.SFTPSubsystem); err != nil {
+		// If the subsystem request failed and a generic error is
+		// returned, return the session's stderr as the error if it's
+		// non-empty, as the session's stderr may have a more useful
+		// error message. String comparison is only used here because
+		// the error is not exported.
+		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
+			var sb strings.Builder
+			if n, _ := io.Copy(&sb, pe); n > 0 {
+				return nil, trace.Errorf("%s", sb.String())
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+	pw, err := s.StdinPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pr, err := s.StdoutPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sftpClient, err := sftp.NewClientPipe(pr, pw,
+		// Use concurrent stream to speed up transfer on slow networks as described in
+		// https://github.com/gravitational/teleport/issues/20579
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &RemoteFS{
+		Client:  sftpClient,
+		session: s,
+	}, nil
+}
+
+func (r *RemoteFS) Type() string {
 	return "remote"
 }
 
-func (r *remoteFS) Glob(ctx context.Context, pattern string) ([]string, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	matches, err := r.c.Glob(pattern)
+func (r *RemoteFS) ReadDir(path string) ([]os.FileInfo, error) {
+	fileInfos, err := r.Client.ReadDir(path)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return matches, nil
-}
-
-func (r *remoteFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fi, err := r.c.Stat(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return fi, nil
-}
-
-func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	fileInfos, err := r.c.ReadDir(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, err
 	}
 	for i := range fileInfos {
-		// if the file is a symlink, return the info of the linked file
-		if fileInfos[i].Mode().Type()&os.ModeSymlink != 0 {
-			fileInfos[i], err = r.c.Stat(portablepath.Join(path, fileInfos[i].Name()))
-			if err != nil {
-				return nil, trace.Wrap(err)
+		// If the file is a valid symlink, return the info of the linked file.
+		if fileInfos[i].Mode()&os.ModeSymlink != 0 {
+			resolvedInfo, err := r.Stat(portablepath.Join(path, fileInfos[i].Name()))
+			if err == nil {
+				fileInfos[i] = resolvedInfo
 			}
 		}
 	}
@@ -88,57 +129,30 @@ func (r *remoteFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, err
 	return fileInfos, nil
 }
 
-func (r *remoteFS) Open(ctx context.Context, path string) (fs.File, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	f, err := r.c.Open(path)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return f, nil
+func (r *RemoteFS) Open(path string) (File, error) {
+	return r.OpenFile(path, os.O_RDONLY)
 }
 
-func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (io.WriteCloser, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	f, err := r.c.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return f, nil
+func (r *RemoteFS) Create(path string, _ int64) (File, error) {
+	return r.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
-func (r *remoteFS) Mkdir(ctx context.Context, path string) error {
-	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err := r.c.MkdirAll(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+func (r *RemoteFS) OpenFile(path string, flags int) (File, error) {
+	return r.Client.OpenFile(path, flags)
 }
 
-func (r *remoteFS) Chmod(ctx context.Context, path string, mode os.FileMode) error {
-	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(r.c.Chmod(path, mode))
+func (r *RemoteFS) Mkdir(path string) error {
+	return r.Client.MkdirAll(path)
 }
 
-func (r *remoteFS) Chtimes(ctx context.Context, path string, atime, mtime time.Time) error {
-	if err := ctx.Err(); err != nil {
-		return trace.Wrap(err)
-	}
+func (r *RemoteFS) Readlink(name string) (string, error) {
+	return r.Client.ReadLink(name)
+}
 
-	return trace.Wrap(r.c.Chtimes(path, atime, mtime))
+func (r *RemoteFS) Close() error {
+	var sessionErr error
+	if r.session != nil {
+		sessionErr = r.session.Close()
+	}
+	return trace.NewAggregate(sessionErr, r.Client.Close())
 }

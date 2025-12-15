@@ -82,6 +82,18 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 			m.Params = &InstallerParams{}
 		}
 
+		if m.Params.Suffix != "" {
+			if !isAlphanumericIncluding(m.Params.Suffix, '-') {
+				return trace.BadParameter("install.suffix can only contain alphanumeric characters and hyphens")
+			}
+		}
+
+		if m.Params.UpdateGroup != "" {
+			if !isAlphanumericIncluding(m.Params.UpdateGroup, '-') {
+				return trace.BadParameter("install.update_group can only contain alphanumeric characters and hyphens")
+			}
+		}
+
 		switch m.Params.JoinMethod {
 		case JoinMethodGCP, "":
 			m.Params.JoinMethod = JoinMethodGCP
@@ -95,6 +107,10 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 
 		if m.Params.ScriptName == "" {
 			m.Params.ScriptName = DefaultInstallerScriptName
+		}
+
+		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

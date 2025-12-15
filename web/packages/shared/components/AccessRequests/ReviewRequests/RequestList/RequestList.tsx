@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Text, LabelState, Flex } from 'design';
+import { Flex, LabelState, Text } from 'design';
 import { Cell } from 'design/DataTable';
 import { ArrowFatLinesUp } from 'design/Icon';
 import { LabelKind } from 'design/LabelState/LabelState';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export const renderUserCell = ({ user }: AccessRequest) => {

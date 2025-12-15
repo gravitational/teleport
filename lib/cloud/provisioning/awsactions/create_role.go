@@ -29,8 +29,8 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // RoleCreator can create an IAM role.
@@ -113,14 +113,14 @@ func CreateRole(
 				RoleName: &roleName,
 			})
 			if err != nil {
-				convertedErr := awslib.ConvertIAMv2Error(err)
+				convertedErr := awslib.ConvertIAMError(err)
 				if !trace.IsNotFound(convertedErr) {
 					return trace.Wrap(convertedErr)
 				}
 				slog.InfoContext(ctx, "Creating IAM role", "role", roleName)
 				_, err = clt.CreateRole(ctx, input)
 				if err != nil {
-					return trace.Wrap(awslib.ConvertIAMv2Error(err))
+					return trace.Wrap(awslib.ConvertIAMError(err))
 				}
 				return nil
 			}

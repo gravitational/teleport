@@ -62,7 +62,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
 	// Setting deadline on connection prevents this case from happening
-	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
+	return tracessh.NewClientWithTimeout(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -124,23 +124,12 @@ func (d proxyDial) Dial(ctx context.Context, network string, addr string, config
 		return nil, trace.Wrap(err)
 	}
 
-	if config.Timeout > 0 {
-		if err := pconn.SetReadDeadline(time.Now().Add(config.Timeout)); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Do the same as ssh.Dial but pass in proxy connection.
-	c, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr, config)
+	c, err := tracessh.NewClientWithTimeout(ctx, pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if config.Timeout > 0 {
-		if err := pconn.SetReadDeadline(time.Time{}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return tracessh.NewClient(c, chans, reqs), nil
+
+	return c, nil
 }
 
 type dialerOptions struct {

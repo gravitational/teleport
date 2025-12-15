@@ -17,15 +17,15 @@
  */
 
 import {
-  useRouteMatch,
-  useParams,
-  useLocation,
-  withRouter,
-  Redirect,
-  Router,
   NavLink,
+  Redirect,
   Route,
+  Router,
   Switch,
+  useLocation,
+  useParams,
+  useRouteMatch,
+  withRouter,
 } from './Router';
 
 export {

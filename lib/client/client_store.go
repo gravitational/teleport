@@ -19,18 +19,20 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -42,32 +44,107 @@ import (
 // when using `tsh --add-keys-to-agent=only`, Store will be made up of an in-memory
 // key store and an FS (~/.tsh) profile and trusted certs store.
 type Store struct {
-	log *logrus.Entry
-
+	StoreConfig
 	KeyStore
 	TrustedCertsStore
 	ProfileStore
 }
 
-// NewMemClientStore initializes an FS backed client store with the given base dir.
-func NewFSClientStore(dirPath string) *Store {
-	dirPath = profile.FullProfilePath(dirPath)
-	return &Store{
-		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
-		KeyStore:          NewFSKeyStore(dirPath),
-		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
-		ProfileStore:      NewFSProfileStore(dirPath),
+// StoreConfig contains shared config options for Store.
+type StoreConfig struct {
+	log                *slog.Logger
+	HardwareKeyService hardwarekey.Service
+}
+
+// StoreConfigOpt applies configuration options.
+type StoreConfigOpt func(o *StoreConfig)
+
+// WithHardwareKeyService sets the hardware key service.
+func WithHardwareKeyService(hwKeyService hardwarekey.Service) StoreConfigOpt {
+	return func(o *StoreConfig) {
+		o.HardwareKeyService = hwKeyService
 	}
 }
 
+// NewFSClientStore initializes an FS backed client store with the given base dir.
+//
+// [WithHardwareKeyService] should be provided in order to successfully create and
+// parse hardware private keys. It is not needed for tests and select commands
+// which do not interact with hardware keys
+func NewFSClientStore(dirPath string, opts ...StoreConfigOpt) *Store {
+	return newClientStore(
+		NewFSKeyStore(dirPath),
+		NewFSTrustedCertsStore(dirPath),
+		NewFSProfileStore(dirPath),
+		opts...,
+	)
+}
+
 // NewMemClientStore initializes a new in-memory client store.
-func NewMemClientStore() *Store {
-	return &Store{
-		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
-		KeyStore:          NewMemKeyStore(),
-		TrustedCertsStore: NewMemTrustedCertsStore(),
-		ProfileStore:      NewMemProfileStore(),
+//
+// [WithHardwareKeyService] should be provided in order to successfully create and
+// parse hardware private keys. It is not needed for tests and select commands
+// which do not interact with hardware keys
+func NewMemClientStore(opts ...StoreConfigOpt) *Store {
+	return newClientStore(
+		NewMemKeyStore(),
+		NewMemTrustedCertsStore(),
+		NewMemProfileStore(),
+		opts...,
+	)
+}
+
+func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ...StoreConfigOpt) *Store {
+	// Start with default config
+	config := StoreConfig{
+		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
 	}
+
+	// Apply opts
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return &Store{
+		StoreConfig:       config,
+		KeyStore:          ks,
+		TrustedCertsStore: tcs,
+		ProfileStore:      ps,
+	}
+}
+
+// NewHardwarePrivateKey create a new hardware private key with the given configuration in this client store.
+func (s *Store) NewHardwarePrivateKey(ctx context.Context, config hardwarekey.PrivateKeyConfig) (*keys.PrivateKey, error) {
+	return keys.NewHardwarePrivateKey(ctx, s.HardwareKeyService, config)
+}
+
+// KnownHardwareKey returns whether the given hardware key ref and info corresponds to a hardware key known
+// to this client store.
+func (s *Store) KnownHardwareKey(ref *hardwarekey.PrivateKeyRef, keyInfo hardwarekey.ContextualKeyInfo) (bool, error) {
+	keyRing, err := s.GetKeyRing(KeyRingIndex{
+		ProxyHost:   keyInfo.ProxyHost,
+		Username:    keyInfo.Username,
+		ClusterName: keyInfo.ClusterName,
+	})
+	if trace.IsNotFound(err) {
+		return false, nil
+	} else if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// There is a known key matching the key info from the agent client, now check
+	// if it is the same key, with the same hardware key reference.
+	hwSigner, ok := keyRing.TLSPrivateKey.Signer.(*hardwarekey.Signer)
+	if !ok {
+		return false, nil
+	}
+
+	// We only need to compare the serial number and slot key. Other values, like the
+	// public key and prompt policy, will be validated against the hardware key directly
+	// when needed.
+	sameKeyRef := hwSigner.Ref.SerialNumber == ref.SerialNumber && hwSigner.Ref.SlotKey == ref.SlotKey
+
+	return sameKeyRef, nil
 }
 
 // AddKeyRing adds the given key ring to the key store. The key's trusted certificates are
@@ -80,12 +157,6 @@ func (s *Store) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// SetCustomHardwareKeyPrompt sets a custom hardware key prompt
-// used to interact with a YubiKey private key.
-func (s *Store) SetCustomHardwareKeyPrompt(prompt keys.HardwareKeyPrompt) {
-	s.KeyStore.SetCustomHardwareKeyPrompt(prompt)
 }
 
 // ErrNoProfile is returned by the client store when a specific profile is not found.
@@ -120,7 +191,7 @@ func IsNoCredentialsError(err error) bool {
 // certs store. If the key ring is not found or is missing data (certificates, etc.),
 // then an ErrNoCredentials error is returned.
 func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, error) {
-	keyRing, err := s.KeyStore.GetKeyRing(idx, opts...)
+	keyRing, err := s.KeyStore.GetKeyRing(idx, s.HardwareKeyService, opts...)
 	if trace.IsNotFound(err) {
 		return nil, newNoCredentialsError(err)
 	} else if err != nil {
@@ -167,16 +238,17 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 
 // ReadProfileStatus returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
-func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
+func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, error) {
 	var err error
-	if profileName == "" {
+	var profileName string
+	if proxyAddressOrProfile == "" {
 		profileName, err = s.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
 		// remove ports from proxy host, because profile name is stored by host name
-		profileName, err = utils.Host(profileName)
+		profileName, err = utils.Host(proxyAddressOrProfile)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -194,58 +266,90 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
+
+	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
+	// or read the full profile status, return a partial status.
+	// This is used for some superficial functions `tsh logout` and `tsh status`.
+	partialStatus := &ProfileStatus{
+		Name: profileName,
+		Dir:  profile.Dir,
+		ProxyURL: url.URL{
+			Scheme: "https",
+			Host:   profile.WebProxyAddr,
+		},
+		Username:    profile.Username,
+		Cluster:     profile.SiteName,
+		KubeEnabled: profile.KubeProxyAddr != "",
+		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
+		ValidUntil:              time.Now(),
+		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+		SSOHost:                 profile.SSOHost,
+	}
+
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			// If we can't find a keyRing to match the profile, or can't connect to
-			// the keyRing (hardware key), return a partial status. This is used for
-			// some superficial functions `tsh logout` and `tsh status`.
-			return &ProfileStatus{
-				Name: profileName,
-				Dir:  profile.Dir,
-				ProxyURL: url.URL{
-					Scheme: "https",
-					Host:   profile.WebProxyAddr,
-				},
-				Username:    profile.Username,
-				Cluster:     profile.SiteName,
-				KubeEnabled: profile.KubeProxyAddr != "",
-				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
-				ValidUntil:              time.Now(),
-				GetKeyRingError:         err,
-				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
-				SSOHost:                 profile.SSOHost,
-			}, nil
+			partialStatus.GetKeyRingError = err
+			return partialStatus, nil
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	return profileStatusFromKeyRing(keyRing, profileOptions{
+	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
+		RelayAddr:               profile.RelayAddr,
+		DefaultRelayAddr:        profile.DefaultRelayAddr,
 		Username:                profile.Username,
 		SiteName:                profile.SiteName,
 		KubeProxyAddr:           profile.KubeProxyAddr,
 		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
 		SSOHost:                 profile.SSOHost,
 		IsVirtual:               !onDisk,
+		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
+	if trace.IsNotFound(err) {
+		return partialStatus, nil
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profileStatus, nil
 }
 
-// FullProfileStatus returns the name of the current profile with a
-// a list of all profile statuses.
-func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
-	currentProfileName, err := s.CurrentProfile()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+// FullProfileStatus returns the status of the active profile along with the
+// statuses of all profiles.
+//
+// The active profile status is determined from the provided profile if given;
+// otherwise, it is read from the current profile.
+//
+// The active profile status is nil if there is no active profile.
+func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
+	var currentProfileName string
+	if proxyAddressOrProfile == "" {
+		profileName, err := s.CurrentProfile()
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfileName = profileName
+	} else {
+		// Remove ports from proxy host, profile name is stored by host name.
+		profileName, err := utils.Host(proxyAddressOrProfile)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfileName = profileName
 	}
 
-	currentProfile, err := s.ReadProfileStatus(currentProfileName)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	var currentProfile *ProfileStatus
+	if currentProfileName != "" {
+		profileStatus, err := s.ReadProfileStatus(currentProfileName)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		currentProfile = profileStatus
 	}
 
 	profileNames, err := s.ListProfiles()
@@ -261,7 +365,10 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 		}
 		status, err := s.ReadProfileStatus(profileName)
 		if err != nil {
-			s.log.WithError(err).Warnf("skipping profile %q due to error", profileName)
+			s.log.WarnContext(context.Background(), "skipping profile due to error",
+				"profile_name", profileName,
+				"error", err,
+			)
 			continue
 		}
 		profiles = append(profiles, status)

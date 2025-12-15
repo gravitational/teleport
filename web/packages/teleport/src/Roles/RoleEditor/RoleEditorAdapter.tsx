@@ -16,32 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback, useEffect, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import { Danger } from 'design/Alert';
 import Flex from 'design/Flex';
 import { Indicator } from 'design/Indicator';
-import React, { useEffect } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
-import { useTheme } from 'styled-components';
-import { H1 } from 'design/Text';
-import Box from 'design/Box';
-import { H3, P, P3 } from 'design/Text/Text';
-import { ButtonSecondary } from 'design/Button';
-import Image from 'design/Image';
-
-import { StepComponentProps, StepSlider } from 'design/StepSlider';
-
-import { ChevronLeft, ChevronRight } from 'design/Icon';
+import { debounce } from 'shared/utils/highbar';
 
 import { State as ResourcesState } from 'teleport/components/useResources';
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 import { yamlService } from 'teleport/services/yaml';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
-import cfg from 'teleport/config';
-
+import { RoleDiffState, RolesProps } from '../Roles';
 import { RoleEditor } from './RoleEditor';
-import tagpromo from './tagpromo.png';
+import {
+  RoleEditorVisualizer,
+  shouldShowRoleDiff,
+} from './RoleEditorVisualizer';
 
 /**
  * This component is responsible for converting from the `Resource`
@@ -52,11 +46,15 @@ export function RoleEditorAdapter({
   resources,
   onSave,
   onCancel,
+  roleDiffProps,
+  forceProcessingStatus = false,
 }: {
   resources: ResourcesState;
   onSave: (role: Partial<RoleWithYaml>) => Promise<void>;
   onCancel: () => void;
-}) {
+  forceProcessingStatus?: boolean;
+} & RolesProps) {
+  const showRoleDiff = roleDiffProps && shouldShowRoleDiff(roleDiffProps);
   const theme = useTheme();
   const [convertAttempt, convertToRole] = useAsync(
     async (yaml: string): Promise<RoleWithYaml | null> => {
@@ -72,21 +70,33 @@ export function RoleEditorAdapter({
     }
   );
 
+  const [editorMinimized, setEditorMinimized] = useState(false);
+
   const originalContent = resources.item?.content ?? '';
   useEffect(() => {
     convertToRole(originalContent);
   }, [originalContent]);
 
+  const onRoleUpdate = useCallback(
+    debounce(role => roleDiffProps?.updateRoleDiff(role), 500),
+    []
+  );
+
   return (
-    <Flex flex="1">
-      <Flex
+    <Container flex="1">
+      {/* This component's width influences how we lay out the permission
+          checkboxes in AdminRules. */}
+      <EditorPane
+        minimized={editorMinimized}
         flexDirection="column"
         borderLeft={1}
         borderColor={theme.colors.interactive.tonal.neutral[0]}
         backgroundColor={theme.colors.levels.surface}
-        width="700px"
+        width="35%"
+        minWidth="494px"
+        maxWidth="672px"
       >
-        {convertAttempt.status === 'processing' && (
+        {(convertAttempt.status === 'processing' || forceProcessingStatus) && (
           <Flex
             flexDirection="column"
             alignItems="center"
@@ -99,140 +109,46 @@ export function RoleEditorAdapter({
         {convertAttempt.status === 'error' && (
           <Danger>{convertAttempt.statusText}</Danger>
         )}
-        {convertAttempt.status === 'success' && (
+
+        {convertAttempt.status === 'success' && !forceProcessingStatus && (
           <RoleEditor
             originalRole={convertAttempt.data}
+            roleDiffAttempt={roleDiffProps?.roleDiffAttempt}
             onCancel={onCancel}
             onSave={onSave}
+            onRoleUpdate={onRoleUpdate}
+            demoMode={roleDiffProps?.roleDiffState === RoleDiffState.DemoReady}
+            minimized={editorMinimized}
+            onMinimizedChange={showRoleDiff ? setEditorMinimized : undefined}
           />
         )}
-      </Flex>
-      <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
-        {/* Same width as promo image + border */}
-        <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
-          <H1 mb={2}>Coming soon: Teleport Policy saves you from mistakes</H1>
-          <Flex mb={4} gap={4} flexWrap="wrap" justifyContent="space-between">
-            <Box flex="1" minWidth="30ch">
-              <P>
-                Teleport Policy will visualize resource access paths as you
-                create and edit roles so you can always see what you are
-                granting before you push a role into production.
-              </P>
-            </Box>
-            <Flex flex="0 0 auto" alignItems="start">
-              {!cfg.isPolicyEnabled && (
-                <>
-                  <ButtonLockedFeature noIcon py={0} width={undefined}>
-                    Contact Sales
-                  </ButtonLockedFeature>
-                  <ButtonSecondary
-                    as="a"
-                    href="https://goteleport.com/platform/policy/"
-                    target="_blank"
-                    ml={2}
-                  >
-                    Learn More
-                  </ButtonSecondary>
-                </>
-              )}
-            </Flex>
-          </Flex>
-          <Flex
-            flexDirection="column"
-            bg={theme.colors.levels.surface}
-            borderRadius={3}
-          >
-            <Box
-              border={2}
-              borderRadius={3}
-              borderColor={theme.colors.interactive.tonal.neutral[0]}
-            >
-              <Image src={tagpromo} width="100%" />
-            </Box>
-            <StepSlider
-              flows={promoFlows}
-              currFlow={
-                resources.status === 'creating' ? 'creating' : 'updating'
-              }
-            />
-          </Flex>
-        </Box>
-      </Flex>
-    </Flex>
+      </EditorPane>
+      <RoleEditorVisualizer
+        roleDiffProps={roleDiffProps}
+        currentFlow={resources.status === 'creating' ? 'creating' : 'updating'}
+      />
+    </Container>
   );
 }
 
-const promoImageWidth = 782;
+const Container = styled(Flex)`
+  position: relative;
+`;
 
-const promoFlows = {
-  creating: [VisualizeAccessPathsPanel, VisualizeDiffPanel],
-  updating: [VisualizeDiffPanel, VisualizeAccessPathsPanel],
-};
+const EditorPane = styled(Flex)<{ minimized: boolean }>`
+  position: ${props => (props.minimized ? 'absolute' : 'static')};
+  left: ${props => props.theme.space[4]}px;
+  top: ${props => props.theme.space[4]}px;
 
-function VisualizeAccessPathsPanel(props: StepComponentProps) {
-  return (
-    <PromoPanel
-      {...props}
-      heading="Visualize access paths granted by your roles"
-      content={
-        <>
-          See what you’re granting before pushing to prod. Teleport Policy will
-          show resource access paths granted by your role before you save
-          changes.
-        </>
-      }
-    />
-  );
-}
+  border-top-left-radius: ${props =>
+    props.minimized ? props.theme.radii[3] : 0}px;
+  border-top-right-radius: ${props => props.theme.radii[3]}px;
+  border-bottom-right-radius: ${props => props.theme.radii[3]}px;
+  border-bottom-left-radius: ${props =>
+    props.minimized ? props.theme.radii[3] : 0}px;
+  box-shadow: ${props => props.theme.boxShadow[3]};
 
-function VisualizeDiffPanel(props: StepComponentProps) {
-  return (
-    <PromoPanel
-      {...props}
-      heading="Visualize the diff in permissions as you edit roles"
-      content={
-        <>
-          Prevent mistakes. Teleport Policy shows you what access is removed and
-          what is added as you make edits to a role—all before you save your
-          changes.
-        </>
-      }
-    />
-  );
-}
-
-function PromoPanel({
-  prev,
-  next,
-  refCallback,
-  stepIndex,
-  flowLength,
-  heading,
-  content,
-}: StepComponentProps & {
-  heading: React.ReactNode;
-  content: React.ReactNode;
-}) {
-  return (
-    <Flex m={4} gap={4} ref={refCallback}>
-      <Box flex="1">
-        <H3>{heading}</H3>
-        <Box flex="1">
-          <P3>{content}</P3>
-        </Box>
-      </Box>
-      <Flex gap={2} alignItems="center">
-        <ButtonSecondary size="small" width="24px" disabled={stepIndex <= 0}>
-          <ChevronLeft size="small" onClick={prev} />
-        </ButtonSecondary>
-        <ButtonSecondary
-          size="small"
-          width="24px"
-          disabled={stepIndex >= flowLength - 1}
-        >
-          <ChevronRight size="small" onClick={next} />
-        </ButtonSecondary>
-      </Flex>
-    </Flex>
-  );
-}
+  // The editor pane needs to appear on top, even though it's before the
+  // visualizer in the DOM tree.
+  z-index: 1;
+`;

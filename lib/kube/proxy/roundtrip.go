@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -31,7 +32,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,7 +42,7 @@ import (
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/internal"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -90,7 +90,7 @@ type roundTripperConfig struct {
 	// headers instead of relying on the certificate to transport it.
 	useIdentityForwarding bool
 	// log specifies the logger.
-	log log.FieldLogger
+	log *slog.Logger
 
 	proxier func(*http.Request) (*url.URL, error)
 }
@@ -222,7 +222,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if s.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(s.ctx, header); err != nil {
+		if header, err = internal.IdentityForwardingHeaders(s.ctx, header); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

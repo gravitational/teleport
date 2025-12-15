@@ -31,11 +31,11 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -57,7 +57,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		User: username,
 		Pass: password,
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, "Setting password for user %q", username)
 
 	// Create POST request to create session.
 	u := url.URL{
@@ -66,17 +66,9 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		Path:   "/v1/webapi/sessions/web",
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
-	require.NoError(t, err)
+	require.NoError(t, err, "Creating session request for user %q", username)
 
-	// Attach CSRF token in cookie and header.
-	csrfToken, err := utils.CryptoRandomHex(32)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{
@@ -87,9 +79,9 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		},
 	}
 	resp, err := client.Do(req)
-	require.NoError(t, err)
+	require.NoError(t, err, "Creating session for user %q", username)
 	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Creating session for user %q", username)
 
 	// Read in response.
 	var csResp *web.CreateSessionResponse
@@ -108,7 +100,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		bearerToken: csResp.Token,
 	}
 
-	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	respStatusCode, bs := webClient.DoWebAPIRequest(t, http.MethodGet, "sites", nil)
 	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
 
 	var clusters []ui.Cluster
@@ -119,38 +111,167 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	return webClient
 }
 
-// DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
+// LoginMFAWebClient receives the host url and a passwordless
+// device to carry out login and return a WebClientPack.
+func LoginMFAWebClient(t *testing.T, host string, passwordlessDevice *mocku2f.Key) *WebClientPack {
+	// Begin login
+	loginReq, err := json.Marshal(client.MFAChallengeRequest{
+		Passwordless: true,
+	})
+	require.NoError(t, err)
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   "/v1/webapi/mfa/login/begin",
+	}
+	beginLoginReq, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(loginReq))
+	require.NoError(t, err)
+
+	beginLoginReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	clt := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	beginLoginResp, err := clt.Do(beginLoginReq)
+	require.NoError(t, err)
+	defer beginLoginResp.Body.Close()
+	require.Equal(t, http.StatusOK, beginLoginResp.StatusCode)
+
+	// Read mfa challenge from response and pass it to the passwordless device.
+	var mfaChallenge *client.MFAAuthenticateChallenge
+	err = json.NewDecoder(beginLoginResp.Body).Decode(&mfaChallenge)
+	require.NoError(t, err)
+
+	origin := fmt.Sprintf("https://%v", host)
+	webauthnResponse, err := passwordlessDevice.SignAssertion(origin, mfaChallenge.WebauthnChallenge)
+	require.NoError(t, err)
+
+	// Finish login and get a web session.
+	finishReq, err := json.Marshal(client.AuthenticateWebUserRequest{
+		WebauthnAssertionResponse: webauthnResponse,
+	})
+	require.NoError(t, err)
+
+	u = url.URL{
+		Scheme: "https",
+		Host:   host,
+		Path:   "/v1/webapi/mfa/login/finishsession",
+	}
+	finishLoginReq, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(finishReq))
+	require.NoError(t, err)
+
+	finishLoginReq.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	// Issue request.
+	finishLoginResp, err := clt.Do(finishLoginReq)
+	require.NoError(t, err)
+	defer finishLoginResp.Body.Close()
+	require.Equal(t, http.StatusOK, finishLoginResp.StatusCode)
+
+	// Read in response.
+	var csResp *web.CreateSessionResponse
+	err = json.NewDecoder(finishLoginResp.Body).Decode(&csResp)
+	require.NoError(t, err)
+
+	// Extract session cookie and bearer token.
+	require.Len(t, finishLoginResp.Cookies(), 1)
+	cookie := finishLoginResp.Cookies()[0]
+	require.Equal(t, websession.CookieName, cookie.Name)
+
+	webClient := &WebClientPack{
+		clt:         clt,
+		host:        host,
+		webCookie:   cookie.Value,
+		bearerToken: csResp.Token,
+	}
+
+	respStatusCode, bs := webClient.DoWebAPIRequest(t, http.MethodGet, "sites", nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
+
+	var clusters []ui.Cluster
+	require.NoError(t, json.Unmarshal(bs, &clusters), string(bs))
+	require.NotEmpty(t, clusters)
+
+	webClient.clusterName = clusters[0].Name
+	return webClient
+}
+
+// DoWebAPIRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Status Code and Body are returned.
 // "$site" in the endpoint is substituted by the current site.
-func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
-	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
-	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
-	u, err := url.Parse(endpoint)
+func (w *WebClientPack) DoWebAPIRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
+	u, err := url.Parse(w.Endpoint("v1", "webapi", endpoint))
 	require.NoError(t, err)
+	return w.MustDoRequest(t, method, u.String(), payload)
+}
 
-	bs, err := json.Marshal(payload)
+// DoWebAPIRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
+// Status Code and Body are returned.
+// "$site" in the endpoint is substituted by the current site.
+func (w *WebClientPack) MustDoRequest(t *testing.T, method, url string, payload any) (int, []byte) {
+	status, body, err := w.DoRequest(method, url, payload)
 	require.NoError(t, err)
+	return status, body
+}
 
-	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(bs))
-	require.NoError(t, err)
+// DoWebAPIRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
+// Status Code and Body are returned.
+// "$site" in the endpoint is substituted by the current site.
+func (w *WebClientPack) DoRequest(method, url string, payload any) (int, []byte, error) {
+	var requestBody io.Reader
+	if payload != nil {
+		bs, err := json.Marshal(payload)
+		if err != nil {
+			return 0, nil, trace.Wrap(err)
+		}
+		requestBody = bytes.NewBuffer(bs)
+	}
 
+	req, err := http.NewRequest(method, url, requestBody)
+	if err != nil {
+		return 0, nil, trace.Wrap(err)
+	}
+	if requestBody != nil {
+		req.Header.Add("Content-Type", "application/json")
+	}
+
+	resp, err := w.Do(req)
+	if err != nil {
+		return 0, nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, nil, trace.Wrap(err)
+	}
+
+	return resp.StatusCode, body, nil
+}
+
+// Do sends an HTTP request with the web session cookie and bearer token.
+func (w *WebClientPack) Do(req *http.Request) (*http.Response, error) {
 	req.AddCookie(&http.Cookie{
 		Name:  websession.CookieName,
 		Value: w.webCookie,
 	})
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %v", w.bearerToken))
-	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := w.clt.Do(req)
-	require.NoError(t, err)
+	return resp, err
+}
 
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	return resp.StatusCode, body
+// Endpoint returns a Teleport API endpoint URL.
+func (w *WebClientPack) Endpoint(params ...string) string {
+	endpoint := fmt.Sprintf("%s://%s/%s", client.HTTPS, w.host, strings.Join(params, "/"))
+	return strings.ReplaceAll(endpoint, "$site", w.clusterName)
 }
 
 // OpenWebsocket opens a websocket on a given Teleport API endpoint.

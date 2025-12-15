@@ -20,79 +20,37 @@ package auth
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/spacelift"
+	"github.com/gravitational/teleport/lib/join/spacelift"
 )
 
-type spaceliftIDTokenValidator interface {
-	Validate(
-		ctx context.Context, domain string, token string,
-	) (*spacelift.IDTokenClaims, error)
+// GetSpaceliftIDTokenValidator returns the server's currently configured
+// Spacelift OIDC token validator.
+func (a *Server) GetSpaceliftIDTokenValidator() spacelift.Validator {
+	return a.spaceliftIDTokenValidator
 }
 
-func (a *Server) checkSpaceliftJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*spacelift.IDTokenClaims, error) {
-	if req.IDToken == "" {
-		return nil, trace.BadParameter("id_token not provided for spacelift join request")
-	}
-	pt, err := a.GetToken(ctx, req.Token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", pt)
-	}
-
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf(
-			"spacelift joining: %w",
-			ErrRequiresEnterprise,
-		)
-	}
-
-	claims, err := a.spaceliftIDTokenValidator.Validate(
-		ctx, token.Spec.Spacelift.Hostname, req.IDToken,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	log.WithFields(logrus.Fields{
-		"claims": claims,
-		"token":  pt.GetName(),
-	}).Info("Spacelift run trying to join cluster")
-
-	return claims, trace.Wrap(checkSpaceliftAllowRules(token, claims))
+// SetSpaceliftIDTokenValidator sets the current Spacelift OIDC token validator,
+// used in tests.
+func (a *Server) SetSpaceliftIDTokenValidator(validator spacelift.Validator) {
+	a.spaceliftIDTokenValidator = validator
 }
 
-func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *spacelift.IDTokenClaims) error {
-	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.Spacelift.Allow {
-		// Please consider keeping these field validators in the same order they
-		// are defined within the ProvisionTokenSpecV2Spacelift proto spec.
-		if rule.SpaceID != "" && claims.SpaceID != rule.SpaceID {
-			continue
-		}
-		if rule.CallerID != "" && claims.CallerID != rule.CallerID {
-			continue
-		}
-		if rule.CallerType != "" && claims.CallerType != rule.CallerType {
-			continue
-		}
-		if rule.Scope != "" && claims.Scope != rule.Scope {
-			continue
-		}
+func (a *Server) checkSpaceliftJoinRequest(
+	ctx context.Context,
+	req *types.RegisterUsingTokenRequest,
+	pt types.ProvisionToken,
+) (*spacelift.IDTokenClaims, error) {
+	claims, err := spacelift.CheckIDToken(ctx, &spacelift.CheckIDTokenParams{
+		ProvisionToken: pt,
+		IDToken:        []byte(req.IDToken),
+		Validator:      a.spaceliftIDTokenValidator,
+	})
 
-		// All provided rules met.
-		return nil
-	}
-
-	return trace.AccessDenied("id token claims did not match any allow rules")
+	// Attempt to return any claims along with the error, used to improve audit
+	// logging on failed join attempts.
+	return claims, trace.Wrap(err)
 }

@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 // OpenIDConnectProviderCreator can create an OpenID Connect Identity Provider
@@ -65,7 +65,7 @@ func CreateOIDCProvider(
 			slog.InfoContext(ctx, "Creating OpenID Connect identity provider")
 			_, err = clt.CreateOpenIDConnectProvider(ctx, input)
 			if err != nil {
-				awsErr := awslib.ConvertIAMv2Error(err)
+				awsErr := awslib.ConvertIAMError(err)
 				if trace.IsAlreadyExists(awsErr) {
 					slog.InfoContext(ctx, "OpenID Connect identity provider already exists")
 					return nil

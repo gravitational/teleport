@@ -26,13 +26,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 )
 
 // Testenv is a test environment for decisionv1.Service.
 type Testenv struct {
-	TestServer *auth.TestServer
+	TestServer *authtest.Server
 
 	// AuthAdminClient is an admin Auth client.
 	AuthAdminClient *authclient.Client
@@ -45,8 +45,8 @@ type Testenv struct {
 func NewTestenv(t *testing.T) *Testenv {
 	t.Helper()
 
-	testServer, err := auth.NewTestServer(auth.TestServerConfig{
-		Auth: auth.TestAuthServerConfig{
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
 			Dir: t.TempDir(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOTP, // Required.
@@ -60,7 +60,7 @@ func NewTestenv(t *testing.T) *Testenv {
 			"testServer.Shutdown failed")
 	})
 
-	adminClient, err := testServer.NewClient(auth.TestAdmin())
+	adminClient, err := testServer.NewClient(authtest.TestAdmin())
 	require.NoError(t, err, "NewClient failed")
 	t.Cleanup(func() {
 		assert.NoError(t, adminClient.Close(), "adminClient.Close() failed")

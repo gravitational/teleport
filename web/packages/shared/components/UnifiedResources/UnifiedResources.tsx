@@ -17,61 +17,65 @@
  */
 
 import React, {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
   Children,
   PropsWithChildren,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
+  type JSX,
 } from 'react';
-
 import styled from 'styled-components';
-import { Box, Flex, ButtonSecondary, Text, ButtonBorder } from 'design';
-import { Icon, Magnifier, PushPin } from 'design/Icon';
+
+import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
+import { Icon, Magnifier, PushPin } from 'design/Icon';
 
 import './unifiedStyles.css';
 
-import { ResourcesResponse } from 'teleport/services/agents';
-
+import { HoverTooltip } from 'design/Tooltip';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { HoverTooltip } from 'design/Tooltip';
-
 import {
+  Attempt as AsyncAttempt,
+  hasFinished,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt as AsyncAttempt,
-  hasFinished,
 } from 'shared/hooks/useAsync';
-import {
-  useKeyBasedPagination,
-  useInfiniteScroll,
-} from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { ResourcesResponse } from 'teleport/services/agents';
+
+import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
+import { CardsView } from './CardsView/CardsView';
+import { FilterPanel } from './FilterPanel';
+import { ListView } from './ListView/ListView';
+import { ResourceTab } from './ResourceTab';
+import { getResourceId } from './shared/StatusInfo';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
-  SharedUnifiedResource,
+  IncludedResourceMode,
   PinningSupport,
+  SharedUnifiedResource,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
-  IncludedResourceMode,
+  VisibleFilterPanelFields,
+  VisibleResourceItemFields,
 } from './types';
-
-import { ResourceTab } from './ResourceTab';
-import { FilterPanel } from './FilterPanel';
-import { CardsView } from './CardsView/CardsView';
-import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -117,15 +121,49 @@ export type BulkAction = {
   action: (selectedResources: SelectedResource[]) => void;
 };
 
+export type ResourceLabel = {
+  name: string;
+  value: string;
+};
+
 export type SelectedResource = {
   unifiedResourceId: string;
   resource: SharedUnifiedResource['resource'];
 };
 
+/*
+ * ResourceFilterKind are resource kinds that can be used for filtering through
+ * ListUnifiedResources API.
+ *
+ * 'mcp' can be used to filter MCP servers by the backend, even though they are
+ * internally just app resources atm.
+ */
+export type ResourceFilterKind =
+  | SharedUnifiedResource['resource']['kind']
+  | 'mcp';
+
 export type FilterKind = {
-  kind: SharedUnifiedResource['resource']['kind'];
+  kind: ResourceFilterKind;
   disabled: boolean;
 };
+
+const filterKindNameMap: Record<ResourceFilterKind, string> = {
+  app: 'Applications',
+  db: 'Databases',
+  windows_desktop: 'Desktops',
+  kube_cluster: 'Kubernetes Clusters',
+  node: 'SSH Resources',
+  user_group: 'User Groups',
+  git_server: 'Git Servers',
+  mcp: 'MCP Servers',
+};
+
+/*
+ * getFilterKindName returns the human-readable name of the filter kind.
+ */
+export function getFilterKindName(kind: ResourceFilterKind): string {
+  return filterKindNameMap[kind] ?? kind;
+}
 
 export type ResourceAvailabilityFilter =
   | {
@@ -149,6 +187,11 @@ export interface UnifiedResourcesProps {
    * Rendered only when the resource list is empty and there's no search query.
    * */
   NoResources: React.ReactElement;
+  /**
+   * If true, it will render the "NoResources" component
+   * regardless of internal "no result" checks.
+   */
+  forceNoResources?: boolean;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
@@ -175,6 +218,38 @@ export interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
+
+  /**
+   * When called, slides opens a InfoGuideSidePanel component
+   * with selected resources status info.
+   */
+  onShowStatusInfo(resource: UnifiedResourceDefinition): void;
+
+  /**
+   * onLabelClick is a custom label click handler.
+   *
+   * Default behavior is to append clicked label to
+   * the query string (aka predicate expression).
+   */
+  onLabelClick?(label: ResourceLabel): void;
+  /**
+   *  className support so that UnifiedResources works with the css prop.
+   */
+  className?: string;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   *
+   * Applies to FilterPanel component.
+   */
+  visibleFilterPanelFields?: VisibleFilterPanelFields;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   *
+   * Applies to row item elements (CardView or ListView).
+   */
+  visibleResourceItemFields?: VisibleResourceItemFields;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -192,13 +267,21 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences,
     ClusterDropdown,
     bulkActions = [],
+    onShowStatusInfo,
+    visibleFilterPanelFields,
+    visibleResourceItemFields,
+    onLabelClick,
+    className,
+    forceNoResources,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
+
+  const { infoGuideConfig } = useInfoGuide();
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [forceCardView, setForceCardView] = useState(false);
@@ -432,17 +515,34 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       ? CardsView
       : ListView;
 
+  let footerElement: JSX.Element;
+  if (forceNoResources) {
+    footerElement = props.NoResources;
+  } else if (noResults) {
+    if (isSearchEmpty && !params.pinnedOnly) {
+      footerElement = props.NoResources;
+    }
+    if (params.pinnedOnly && isSearchEmpty) {
+      footerElement = <NoPinned />;
+    }
+    if (!isSearchEmpty) {
+      footerElement = (
+        <NoResults
+          isPinnedTab={params.pinnedOnly}
+          query={params?.query || params?.search}
+        />
+      );
+    }
+  }
+
+  if (resourcesFetchAttempt.status === 'failed' && resources.length > 0) {
+    footerElement = (
+      <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
+    );
+  }
+
   return (
-    <div
-      className="ContainerContext"
-      css={`
-        width: 100%;
-        max-width: 1800px;
-        margin: 0 auto;
-        min-width: 450px;
-      `}
-      ref={containerRef}
-    >
+    <Container className={`ContainerContext ${className}`} ref={containerRef}>
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
           <Danger
@@ -476,7 +576,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
             bg="levels.sunken"
             details={updatePinnedResourcesAttempt.statusText}
           >
-            Could not update pinned resources:
+            Could not update pinned resources
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
@@ -492,6 +592,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
 
       {props.Header}
       <FilterPanel
+        visibleFilterPanelFields={visibleFilterPanelFields}
         availabilityFilter={availabilityFilter}
         changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}
@@ -565,12 +666,15 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         </Flex>
       )}
       <ViewComponent
-        onLabelClick={label =>
-          setParams({
-            ...params,
-            search: '',
-            query: makeAdvancedSearchQueryForLabel(label, params),
-          })
+        onLabelClick={
+          onLabelClick
+            ? onLabelClick
+            : label =>
+                setParams({
+                  ...params,
+                  search: '',
+                  query: makeAdvancedSearchQueryForLabel(label, params),
+                })
         }
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}
@@ -608,26 +712,19 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
+                onShowStatusInfo: () => onShowStatusInfo(resource),
+                showingStatusInfo:
+                  infoGuideConfig?.id &&
+                  infoGuideConfig.id === getResourceId(resource),
               }))
             : []
         }
         expandAllLabels={expandAllLabels}
+        visibleInputFields={visibleResourceItemFields}
       />
       <div ref={setTrigger} />
-      <ListFooter>
-        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
-          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
-        )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
-        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
-        {noResults && !isSearchEmpty && (
-          <NoResults
-            isPinnedTab={params.pinnedOnly}
-            query={params?.query || params?.search}
-          />
-        )}
-      </ListFooter>
-    </div>
+      <ListFooter>{footerElement}</ListFooter>
+    </Container>
   );
 }
 
@@ -641,6 +738,19 @@ export function useUnifiedResourcesFetch<T>(props: {
     fetchFunc: props.fetchFunc,
     initialFetchSize: INITIAL_FETCH_SIZE,
     fetchMoreSize: FETCH_MORE_SIZE,
+  });
+}
+
+export function useResourceServersFetch<T>(props: {
+  fetchFunc(
+    paginationParams: { limit: number; startKey: string },
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    initialFetchSize: 20,
+    fetchMoreSize: 10,
   });
 }
 
@@ -659,11 +769,15 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateUnifiedResourceKey(
+// TODO (avatus): send and use the generated key from the server so we don't have to keep this in sync.
+export function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
-  if (resource.kind === 'node') {
-    return `${resource.hostname}/${resource.id}/node`.toLowerCase();
+  if (resource.kind === 'node' || resource.kind == 'git_server') {
+    return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
+  }
+  if (resource.kind === 'app' && resource.friendlyName !== '') {
+    return `${resource.friendlyName}/${resource.name}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }
@@ -779,3 +893,10 @@ export function getResourceAvailabilityFilter(
       availableResourceMode satisfies never;
   }
 }
+
+const Container = styled.div`
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  min-width: 450px;
+`;

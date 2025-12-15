@@ -19,12 +19,15 @@ package resource153
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	apitypes "github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -63,6 +66,7 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	}
 
 	value.Value = (*o).AsTime()
+	value.Format = time.RFC3339
 
 	return value
 }
@@ -99,4 +103,16 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 	value.Value = (*o).AsDuration()
 
 	return value
+}
+
+func GenSchemaLabels(ctx context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfschema.GenSchemaLabels(ctx, attr)
+}
+
+func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
+	tfschema.CopyFromLabels(diags, v, o)
+}
+
+func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr.Value) attr.Value {
+	return tfschema.CopyToLabels(diags, o, t, v)
 }

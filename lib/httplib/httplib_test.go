@@ -128,11 +128,11 @@ func newTestHandler() *testHandler {
 	return h
 }
 
-func (h *testHandler) postSessionChunkOriginal(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (interface{}, error) {
+func (h *testHandler) postSessionChunkOriginal(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (any, error) {
 	return "ok", nil
 }
 
-func (h *testHandler) postSessionChunkNamespace(_ http.ResponseWriter, _ *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *testHandler) postSessionChunkNamespace(_ http.ResponseWriter, _ *http.Request, p httprouter.Params) (any, error) {
 	h.capturedNamespace = p.ByName("namespace")
 	h.capturedID = p.ByName("id")
 	return "ok", nil
@@ -433,14 +433,26 @@ func TestOriginLocalRedirectURI(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name:     "host and query parameter",
+			input:    "https://localhost?login_hint=user@goteleport.com",
+			expected: "/?login_hint=user@goteleport.com",
+			errCheck: require.NoError,
+		},
+		{
 			name:     "double slash redirect with host",
 			input:    "https://localhost//goteleport.com/",
 			expected: "",
 			errCheck: require.Error,
 		},
 		{
-			name:     "basic auth redirect with host",
-			input:    "https://localhost/@goteleport.com/",
+			name:     "basic auth redirect with host username and password",
+			input:    "https://username:pw@localhost/",
+			expected: "",
+			errCheck: require.Error,
+		},
+		{
+			name:     "basic auth redirect with host username",
+			input:    "https://username:@localhost/",
 			expected: "",
 			errCheck: require.Error,
 		},

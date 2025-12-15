@@ -1,0 +1,105 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package mcp
+
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcptest"
+)
+
+func Test_handleStdioToSSE(t *testing.T) {
+	sseServer := mcpserver.NewSSEServer(mcptest.NewServer())
+	sseServerWithAuth := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify rewrite headers.
+		if r.Header.Get("Authorization") != "Bearer app-token-for-ai" {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+		sseServer.ServeHTTP(w, r)
+	}))
+	t.Cleanup(sseServerWithAuth.Close)
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "test-sse",
+	}, types.AppSpecV3{
+		URI: fmt.Sprintf("mcp+sse+%s", sseServerWithAuth.URL+"/sse"),
+		Rewrite: &types.Rewrite{
+			Headers: []*types.Header{{
+				Name:  "Authorization",
+				Value: "Bearer {{internal.jwt}}",
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	emitter := eventstest.MockRecorderEmitter{}
+	s, err := NewServer(ServerConfig{
+		Emitter:       &emitter,
+		ParentContext: ctx,
+		HostID:        "my-host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	testCtx := setupTestContext(t, withAdminRole(t), withApp(app))
+	handleDoneCh := make(chan struct{}, 1)
+	go func() {
+		handlerErr := s.HandleSession(ctx, testCtx.SessionCtx)
+		handleDoneCh <- struct{}{}
+		assert.NoError(t, handlerErr)
+	}()
+
+	// Use a real client. Double check start event has the external MCP session
+	// ID.
+	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
+	resp := mcptest.MustInitializeClient(t, stdioClient)
+	require.Equal(t, "test-server", resp.ServerInfo.Name)
+	checkSessionStartAndInitializeEvents(t, emitter.Events(),
+		checkSessionStartWithServerInfo("test-server", "1.0.0"),
+		checkSessionStartHasExternalSessionID(),
+		checkSessionStartWithEgressAuthType("app-jwt"),
+	)
+
+	// Make a tools call.
+	mcptest.MustCallServerTool(t, stdioClient)
+
+	// Now close the client.
+	stdioClient.Close()
+	select {
+	case <-time.After(time.Second * 5):
+		require.Fail(t, "timed out waiting for handler")
+	case <-handleDoneCh:
+	}
+	require.Equal(t, libevents.MCPSessionEndEvent, emitter.LastEvent().GetType())
+}

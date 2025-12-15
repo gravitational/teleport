@@ -48,7 +48,7 @@ type AccessGraphSecretsService struct {
 // SSH Keys. Future implementations might extend them.
 func NewAccessGraphSecretsService(b backend.Backend) (*AccessGraphSecretsService, error) {
 	authorizedKeysSvc, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*accessgraphsecretspb.AuthorizedKey]{
+		generic.ServiceConfig[*accessgraphsecretspb.AuthorizedKey]{
 			Backend:       b,
 			ResourceKind:  types.KindAccessGraphSecretAuthorizedKey,
 			BackendPrefix: backend.NewKey(authorizedKeysPrefix),
@@ -60,7 +60,7 @@ func NewAccessGraphSecretsService(b backend.Backend) (*AccessGraphSecretsService
 	}
 
 	privateKeysSvc, err := generic.NewServiceWrapper(
-		generic.ServiceWrapperConfig[*accessgraphsecretspb.PrivateKey]{
+		generic.ServiceConfig[*accessgraphsecretspb.PrivateKey]{
 			Backend:       b,
 			ResourceKind:  types.KindAccessGraphSecretPrivateKey,
 			BackendPrefix: backend.NewKey(privateKeysPrefix),

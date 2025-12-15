@@ -18,24 +18,20 @@
 
 import { ServerDuplexStream } from '@grpc/grpc-js';
 
-import Logger from 'teleterm/logger';
+import {
+  ManagePtyProcessRequest,
+  ManagePtyProcessResponse,
+  PtyEventData,
+  PtyEventResize,
+  PtyEventStart,
+} from 'gen-proto-ts/teleport/web/teleterm/ptyhost/v1/pty_host_service_pb';
 
 import {
   ptyEventOneOfIsData,
   ptyEventOneOfIsResize,
   ptyEventOneOfIsStart,
 } from 'teleterm/helpers';
-
-import {
-  PtyClientEvent,
-  PtyEventData,
-  PtyEventExit,
-  PtyEventOpen,
-  PtyEventResize,
-  PtyEventStart,
-  PtyEventStartError,
-  PtyServerEvent,
-} from '../api/protogen/ptyHostService_pb';
+import Logger from 'teleterm/logger';
 
 import { PtyProcess } from './ptyProcess';
 
@@ -45,7 +41,10 @@ export class PtyEventsStreamHandler {
   private readonly logger: Logger;
 
   constructor(
-    private readonly stream: ServerDuplexStream<PtyClientEvent, PtyServerEvent>,
+    private readonly stream: ServerDuplexStream<
+      ManagePtyProcessRequest,
+      ManagePtyProcessResponse
+    >,
     private readonly ptyProcesses: Map<string, PtyProcess>
   ) {
     this.ptyId = stream.metadata.get('ptyId')[0].toString();
@@ -57,7 +56,7 @@ export class PtyEventsStreamHandler {
     stream.addListener('end', () => this.handleStreamEnd());
   }
 
-  private handleStreamData(event: PtyClientEvent): void {
+  private handleStreamData(event: ManagePtyProcessRequest): void {
     if (ptyEventOneOfIsStart(event.event)) {
       return this.handleStartEvent(event.event.start);
     }
@@ -73,44 +72,36 @@ export class PtyEventsStreamHandler {
 
   private handleStartEvent(event: PtyEventStart): void {
     this.ptyProcess.onData(data =>
-      this.stream.write(
-        PtyServerEvent.create({
-          event: {
-            oneofKind: 'data',
-            data: PtyEventData.create({ message: data }),
-          },
-        })
-      )
+      this.stream.write({
+        event: {
+          oneofKind: 'data',
+          data: { message: data },
+        },
+      })
     );
     this.ptyProcess.onOpen(() =>
-      this.stream.write(
-        PtyServerEvent.create({
-          event: {
-            oneofKind: 'open',
-            open: PtyEventOpen.create(),
-          },
-        })
-      )
+      this.stream.write({
+        event: {
+          oneofKind: 'open',
+          open: {},
+        },
+      })
     );
-    this.ptyProcess.onExit(({ exitCode, signal }) =>
-      this.stream.write(
-        PtyServerEvent.create({
-          event: {
-            oneofKind: 'exit',
-            exit: PtyEventExit.create({ exitCode, signal }),
-          },
-        })
-      )
+    this.ptyProcess.onExit(payload =>
+      this.stream.write({
+        event: {
+          oneofKind: 'exit',
+          exit: payload,
+        },
+      })
     );
     this.ptyProcess.onStartError(message => {
-      this.stream.write(
-        PtyServerEvent.create({
-          event: {
-            oneofKind: 'startError',
-            startError: PtyEventStartError.create({ message }),
-          },
-        })
-      );
+      this.stream.write({
+        event: {
+          oneofKind: 'startError',
+          startError: { message },
+        },
+      });
     });
     // PtyProcess.prototype.start always returns a fulfilled promise. If an error is caught during
     // start, it's reported through PtyProcess.prototype.onStartError. Similarly, the information

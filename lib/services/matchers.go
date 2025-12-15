@@ -19,11 +19,14 @@
 package services
 
 import (
+	"context"
+	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
@@ -51,7 +54,6 @@ type ResourceMatcherAWS struct {
 func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
 	out := make([]*types.DatabaseResourceMatcher, len(in))
 	for i, resMatcher := range in {
-		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
 			AWS: types.ResourceMatcherAWS{
@@ -95,14 +97,13 @@ func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
 				regions[i] = azureutils.NormalizeLocation(region)
 			}
 		}
-		result = append(result, types.AzureMatcher{
-			Subscriptions:  subs,
-			ResourceGroups: groups,
-			Regions:        regions,
-			Types:          ts,
-			ResourceTags:   m.ResourceTags,
-			Params:         m.Params,
-		})
+		elem := m
+		elem.Subscriptions = subs
+		elem.ResourceGroups = groups
+		elem.Regions = regions
+		elem.Types = ts
+
+		result = append(result, elem)
 	}
 	return result
 }
@@ -115,8 +116,11 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 		}
 		match, _, err := MatchLabels(matcher.Labels, labels)
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to match labels %v: %v.",
-				matcher.Labels, labels)
+			slog.ErrorContext(context.Background(), "Failed to match labels",
+				"error", err,
+				"matcher_labels", matcher.Labels,
+				"resource_labels", labels,
+			)
 			return false
 		}
 		if match {
@@ -126,10 +130,34 @@ func MatchResourceLabels(matchers []ResourceMatcher, labels map[string]string) b
 	return false
 }
 
+// resourceWithTargetHealth wraps a resource to provide target health info.
+type resourceWithTargetHealth struct {
+	types.ResourceWithLabels
+	health types.TargetHealthStatus
+}
+
+func (r *resourceWithTargetHealth) GetTargetHealthStatus() types.TargetHealthStatus {
+	return r.health
+}
+
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
 type ResourceSeenKey struct{ name, kind, addr string }
+
+// MatchResourcesByFilters filters provided resources with profiled filter.
+func MatchResourcesByFilters[E types.ResourceWithLabels, S ~[]E](all S, filter MatchResourceFilter) (S, error) {
+	var filtered S
+	for _, r := range all {
+		match, err := MatchResourceByFilters(r, filter, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if match {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, nil
+}
 
 // MatchResourceByFilters returns true if all filter values given matched against the resource.
 //
@@ -173,9 +201,12 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		if !ok {
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
-		specResource = server.GetDatabase()
+		specResource = &resourceWithTargetHealth{
+			ResourceWithLabels: server.GetDatabase(),
+			health:             server.GetTargetHealthStatus(),
+		}
 		key.name = specResource.GetName()
-	case types.KindAppServer, types.KindSAMLIdPServiceProvider, types.KindAppOrSAMLIdPServiceProvider:
+	case types.KindAppServer, types.KindSAMLIdPServiceProvider:
 		switch appOrSP := resource.(type) {
 		case types.AppServer:
 			app := appOrSP.GetApp()
@@ -192,7 +223,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
 		// and it is not a Kubernetes resource kind, we return an error.
-		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) {
+		if !slices.Contains(types.KubernetesResourcesKinds, filter.ResourceKind) && !strings.HasPrefix(filter.ResourceKind, types.AccessRequestPrefixKindKube) {
 			return false, trace.NotImplemented("filtering for resource kind %q not supported", kind)
 		}
 		specResource = resource
@@ -267,7 +298,10 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 		if kubeCluster == nil {
 			return false, nil
 		}
-		match, err := matchResourceByFilters(kubeCluster, filter)
+		match, err := matchResourceByFilters(&resourceWithTargetHealth{
+			ResourceWithLabels: kubeCluster,
+			health:             server.GetTargetHealthStatus(),
+		}, filter)
 		return match, trace.Wrap(err)
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
@@ -297,4 +331,22 @@ func (m *MatchResourceFilter) IsSimple() bool {
 		len(m.SearchKeywords) == 0 &&
 		m.PredicateExpression == nil &&
 		len(m.Kinds) == 0
+}
+
+// MatchResourceFilterFromListResourceRequest converts a
+// proto.ListResourcesRequest to MatchResourceFilter.
+func MatchResourceFilterFromListResourceRequest(req *proto.ListResourcesRequest) (MatchResourceFilter, error) {
+	filter := MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return MatchResourceFilter{}, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+	return filter, nil
 }

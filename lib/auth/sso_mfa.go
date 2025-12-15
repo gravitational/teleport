@@ -21,6 +21,7 @@ import (
 	"crypto/subtle"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/oauth2"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -34,7 +35,7 @@ import (
 )
 
 // beginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
-func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
+func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
 	chal := &proto.SSOChallenge{
 		Device: sso,
 	}
@@ -53,10 +54,14 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		chal.RequestId = resp.ID
 		chal.RedirectUrl = resp.RedirectURL
 	case constants.OIDC:
+		codeVerifier := oauth2.GenerateVerifier()
+
 		resp, err := a.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
 			ConnectorID:       sso.ConnectorId,
 			Type:              sso.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
+			ProxyAddress:      proxyAddress,
+			PkceVerifier:      codeVerifier,
 			CheckUser:         true,
 		})
 		if err != nil {
@@ -86,14 +91,14 @@ func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, t
 	const notFoundErrMsg = "mfa sso session data not found"
 	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
-		return nil, trace.AccessDenied(notFoundErrMsg)
+		return nil, trace.AccessDenied("%s", notFoundErrMsg)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify the user's name and sso device matches.
 	if mfaSess.Username != username {
-		return nil, trace.AccessDenied(notFoundErrMsg)
+		return nil, trace.AccessDenied("%s", notFoundErrMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.

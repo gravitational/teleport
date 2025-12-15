@@ -17,11 +17,10 @@
  */
 
 import styled from 'styled-components';
+
 import { Rows, SquaresFour } from 'design/Icon';
-
-import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
 import { HoverTooltip } from 'design/Tooltip';
+import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
 export const ViewModeSwitch = ({
   currentViewMode,
@@ -64,7 +63,7 @@ export const ViewModeSwitch = ({
   );
 };
 
-const ViewModeSwitchContainer = styled.div`
+export const ViewModeSwitchContainer = styled.div`
   height: 22px;
   border: ${p => p.theme.borders[1]} ${p => p.theme.colors.spotBackground[2]};
   border-radius: ${p => p.theme.radii[2]}px;
@@ -80,7 +79,10 @@ const ViewModeSwitchContainer = styled.div`
   }
 `;
 
-const ViewModeSwitchButton = styled.button<{ first?: boolean; last?: boolean }>`
+export const ViewModeSwitchButton = styled.button<{
+  first?: boolean;
+  last?: boolean;
+}>`
   height: 100%;
   width: 100%;
   overflow: hidden;

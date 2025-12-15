@@ -1,6 +1,11 @@
 ---
 title: Database Access with Oracle
+sidebar_label: Oracle
 description: How to configure Teleport database access with Oracle.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="Oracle"!)
@@ -11,17 +16,17 @@ description: How to configure Teleport database access with Oracle.
 
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
-![Teleport Database Access Self-hosted Oracle](../../../../img/database-access/guides/oracle_selfhosted.png)
+![Enroll Oracle with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/oracle_selfhosted.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Oracle Cloud](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
+![Enroll Oracle with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
 </TabItem>
 
 </Tabs>
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 - Self-hosted Oracle server instance 18c or later.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
@@ -85,12 +90,10 @@ If your Oracle database presents TLS credentials signed by an existing
 certificate authority, take the following steps instead:
 
 1. Export a Teleport CA certificate for Oracle to authenticate traffic from the
-   Teleport Database Service. Replace <Var name="example.teleport.sh:443" />
-   with the host and web port of the Teleport Proxy Service in your cluster. Run
-   the following command on your workstation:
+   Teleport Database Service. Run the following command on your workstation:
 
    ```code
-   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh:443" /> > server.ca-client.crt
+   $ tctl auth export --type=db-client --auth-server=<Var name="example.teleport.sh" />:443 > server.ca-client.crt
    ```
 
 1. Move `server.ca-client.crt` to a directory in your Oracle server you will use
@@ -156,7 +159,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <Tabs>
 <TabItem label="Linux Server">
 
-(!docs/pages/includes/install-linux-enterprise.mdx!)
+(!docs/pages/includes/install-linux.mdx!)
 
 (!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
 
@@ -185,8 +188,8 @@ audit events from Oracle Audit Trail:
 ```sql
 CREATE USER teleport IDENTIFIED EXTERNALLY AS 'CN=teleport';
 GRANT CREATE SESSION TO teleport;
-GRANT SELECT ON dba_audit_trail TO teleport;
-GRANT SELECT ON V_$SESSION TO teleport;
+GRANT SELECT ON SYS.DBA_AUDIT_TRAIL TO teleport;
+GRANT SELECT ON SYS.V_$SESSION TO teleport;
 ```
 
 Enable the table in Oracle Audit Trail:
@@ -204,16 +207,16 @@ AUDIT ALL STATEMENTS by alice BY access;
 You must enable auditing for each Teleport user that will be used to connect to Oracle.
 Additionally you can create a different audit policy for each user.
 
-Edit the Database Service configuration you created earlier pull audit logs from
-Oracle Audit Trail:
+Edit the Database Service configuration you created earlier to pull audit logs from 
+the Oracle Audit Trail:
 
 ```yaml
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   - name: "oracle"
     protocol: "oracle"
-    uri: oracle.example.com:2484"
+    uri: "oracle.example.com:2484"
     oracle:
       audit_user: "teleport"
 ```
@@ -227,7 +230,7 @@ Once the Database Service has joined the cluster, log in to see the available
 databases:
 
 ```code
-$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
+$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=alice
 $ tsh db ls
 # Name   Description    Allowed Users Labels  Connect
 # ------ -------------- ------------- ------- -------
@@ -259,6 +262,14 @@ $ tsh db logout oracle
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## (Optional) Configure additional hostnames
+
+(!docs/pages/includes/database-access/oracle-multihost.mdx!)
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/oracle-troubleshooting.mdx!)
 
 ## Next steps
 

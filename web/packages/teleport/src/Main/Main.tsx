@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
+import {
   createContext,
   ReactNode,
   Suspense,
@@ -26,52 +26,48 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
+
 import { Box, Flex, Indicator } from 'design';
 import { Failed } from 'design/CardError';
-
+import {
+  InfoGuidePanelProvider,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
+import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { matchPath, useHistory } from 'react-router';
-
-import Dialog from 'design/Dialog';
-
-import { Redirect, Route, Switch } from 'teleport/components/Router';
-import { CatchError } from 'teleport/components/CatchError';
-import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { TopBar } from 'teleport/TopBar';
-import { TopBar as TopBarSideNav } from 'teleport/TopBar/TopBarSideNav';
 import { BannerList } from 'teleport/components/BannerList';
-import { storageService } from 'teleport/services/storageService';
+import type { BannerType } from 'teleport/components/BannerList/BannerList';
+import { useAlerts } from 'teleport/components/BannerList/useAlerts';
+import { CatchError } from 'teleport/components/CatchError';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
+import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
+import cfg from 'teleport/config';
+import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
+import { Navigation } from 'teleport/Navigation';
 import {
   ClusterAlert,
-  LINK_TEXT_LABEL,
   LINK_DESTINATION_LABEL,
+  LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
-import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
-import { Navigation as SideNavigation } from 'teleport/Navigation/SideNavigation/Navigation';
-import { Navigation } from 'teleport/Navigation';
-import { TopBarProps } from 'teleport/TopBar/TopBar';
+import { storageService } from 'teleport/services/storageService';
+import { TopBar } from 'teleport/TopBar';
+import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
-import { QuestionnaireProps } from 'teleport/Welcome/NewCredentials';
+import useTeleport from 'teleport/useTeleport';
 
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
-
-import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
   customBanners?: ReactNode[];
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
-  Questionnaire?: (props: QuestionnaireProps) => React.ReactElement;
-  topBarProps?: TopBarProps;
-  inviteCollaboratorsFeedback?: ReactNode;
+  CustomLogo?: () => React.ReactElement;
 }
 
 export function Main(props: MainProps) {
@@ -81,13 +77,6 @@ export function Main(props: MainProps) {
   const { attempt, setAttempt, run } = useAttempt('processing');
 
   const { preferences } = useUser();
-
-  const isTopBarView = storageService.getIsTopBarView();
-  const TopBarComponent =
-    //TODO(rudream): Add sidenav dashboard view.
-    isTopBarView || cfg.isDashboard ? TopBar : TopBarSideNav;
-  const NavigationComponent =
-    isTopBarView || cfg.isDashboard ? Navigation : SideNavigation;
 
   useEffect(() => {
     if (ctx.storeUser.state) {
@@ -110,9 +99,6 @@ export function Main(props: MainProps) {
   // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
   const [showOnboardDiscover, setShowOnboardDiscover] = useState(
     !ctx.redirectUrl
-  );
-  const [showOnboardSurvey, setShowOnboardSurvey] = useState<boolean>(
-    !!props.Questionnaire
   );
 
   useEffect(() => {
@@ -199,43 +185,31 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBarComponent
-        CustomLogo={
-          props.topBarProps?.showPoweredByLogo
-            ? props.topBarProps.CustomLogo
-            : null
-        }
-      />
+      <TopBar CustomLogo={props.CustomLogo} />
       <Wrapper>
         <MainContainer>
-          <NavigationComponent />
-          <ContentWrapper>
-            <ContentMinWidth>
-              <BannerList
-                banners={banners}
-                customBanners={props.customBanners}
-                billingBanners={featureFlags.billing && props.billingBanners}
-                onBannerDismiss={dismissAlert}
-              />
-              <Suspense fallback={null}>
-                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
-              </Suspense>
-            </ContentMinWidth>
-          </ContentWrapper>
+          <Navigation showPoweredByLogo={!!props.CustomLogo} />
+          <InfoGuidePanelProvider>
+            <ContentWrapper>
+              <ContentMinWidth>
+                <BannerList
+                  banners={banners}
+                  customBanners={props.customBanners}
+                  billingBanners={featureFlags.billing && props.billingBanners}
+                  onBannerDismiss={dismissAlert}
+                />
+                <ToastNotifications />
+                <Suspense fallback={null}>
+                  <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
+                </Suspense>
+              </ContentMinWidth>
+            </ContentWrapper>
+          </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
       {displayOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
-      {showOnboardSurvey && (
-        <Dialog open={showOnboardSurvey}>
-          <props.Questionnaire
-            onSubmit={() => setShowOnboardSurvey(false)}
-            onboard={false}
-          />
-        </Dialog>
-      )}
-      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }
@@ -330,6 +304,8 @@ export const useNoMinWidth = () => {
 
 export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
   const [enforceMinWidth, setEnforceMinWidth] = useState(true);
+  const { infoGuideConfig, panelWidth } = useInfoGuide();
+  const infoGuideSidePanelOpened = infoGuideConfig != null;
 
   return (
     <ContentMinWidthContext.Provider value={{ setEnforceMinWidth }}>
@@ -340,10 +316,16 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           flex: 1;
           ${enforceMinWidth ? 'min-width: 1000px;' : ''}
           min-height: 0;
+          overflow-y: auto;
+          ${marginTransitionCss({
+            sidePanelOpened: infoGuideSidePanelOpened,
+            panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
+          })}
         `}
       >
         {children}
       </div>
+      <InfoGuideSidePanel />
     </ContentMinWidthContext.Provider>
   );
 };

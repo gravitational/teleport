@@ -17,37 +17,59 @@
  */
 
 import styled, { css } from 'styled-components';
-import { Box, blink } from 'design';
 
-type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
+import { blink, Box } from 'design';
+
+export type Status = 'on' | 'off' | 'error' | 'warning' | 'processing';
 
 export const ConnectionStatusIndicator = (props: {
   status: Status;
+  /**
+   * Color for the `on` and `processing` statuses.
+   * Defaults to green (`success`).
+   */
+  activeStatusColor?: string;
   inline?: boolean;
   [key: string]: any;
 }) => {
   const { status, inline, ...styles } = props;
 
-  return <StyledStatus {...styles} $status={status} $inline={inline} />;
+  return (
+    <StyledStatus
+      {...styles}
+      $status={status}
+      $inline={inline}
+      activeStatusColor={props.activeStatusColor}
+    />
+  );
 };
 
-const StyledStatus = styled(Box)<{ $inline?: boolean; $status: Status }>`
+const StyledStatus = styled(Box)<{
+  $inline?: boolean;
+  $status: Status;
+  activeStatusColor?: string;
+}>`
   position: relative;
   ${props => props.$inline && `display: inline-block;`}
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
 
   ${props => {
-    const { $status, theme } = props;
+    const {
+      $status,
+      theme,
+      activeStatusColor = props.theme.colors.interactive.solid.success.default,
+    } = props;
 
     switch ($status) {
       case 'on': {
-        return { backgroundColor: theme.colors.success.main };
+        return { backgroundColor: activeStatusColor };
       }
       case 'processing': {
         return css`
-          background-color: ${props => props.theme.colors.success.main};
+          background-color: ${activeStatusColor};
           animation: ${blink} 1.4s ease-in-out;
           animation-iteration-count: infinite;
         `;
@@ -67,31 +89,43 @@ const StyledStatus = styled(Box)<{ $inline?: boolean; $status: Status }>`
         // To verify that the position of the cross is correct, move the &:after pseudoselector
         // outside of this switch to StyledStatus.
         return css`
-          color: ${theme.colors.error.main};
+          color: ${theme.colors.interactive.solid.danger.default};
           &:after {
-            content: '𐄂';
-            font-size: 19px;
+            // This is "multiplication X" (U+2715) as "aegan check mark" (U+10102) doesn't work on
+            // Windows.
+            content: '✕';
+            font-size: 12px;
 
             ${!props.$inline &&
             `position: absolute;
-            top: -3px;
-            left: -1px;
-            line-height: 8px;`}
+            top: -8px;
+            `}
           }
         `;
       }
       case 'warning': {
         return css`
-          color: ${theme.colors.warning.main};
+          color: ${theme.colors.interactive.solid.alert.default};
           &:after {
             content: '⚠';
             font-size: 12px;
+            ${props.$inline &&
+            `
+            // This cuts out a little portion of the icon on the left. This is most clearly visible
+            // on Windows. But at least it better aligns with the other statuses.
+            //
+            // TODO(ravicious): Rewrite this to not use weird characters to represent different
+            // statuses so that all statuses properly align together.
+            margin: -1px;
+            `}
 
             ${!props.$inline &&
             `
             position: absolute;
             top: -1px;
-            left: -2px;
+            // Visually, -1px seems to be better aligned than -2px, especially when looking at
+            // VnetWarning story.
+            left: -1px;
             line-height: 8px;
             `}
           }

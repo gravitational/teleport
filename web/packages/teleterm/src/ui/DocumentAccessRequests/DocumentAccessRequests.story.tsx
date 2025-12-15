@@ -19,15 +19,15 @@
 import { AccessRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/access_request_pb';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import AppContextProvider from 'teleterm/ui/appContextProvider';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
-import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
-import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
-import * as types from 'teleterm/ui/services/workspacesService';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import { AccessRequestsContextProvider } from 'teleterm/ui/AccessRequests';
+import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { DocumentAccessRequests } from 'teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
+import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import * as types from 'teleterm/ui/services/workspacesService';
 
 const rootCluster = makeRootCluster();
 
@@ -54,14 +54,6 @@ const mockedAccessRequest: AccessRequest = {
   reviews: [],
   suggestedReviewers: ['admin', 'reviewer'],
   thresholdNames: ['default'],
-  resourceIds: [
-    {
-      kind: 'kube_cluster',
-      name: 'minikube',
-      clusterName: 'main',
-      subResourceName: '',
-    },
-  ],
   resources: [
     {
       id: {
@@ -79,6 +71,8 @@ const mockedAccessRequest: AccessRequest = {
   maxDuration: { seconds: 1729026573n, nanos: 0 },
   requestTtl: { seconds: 1729026573n, nanos: 0 },
   sessionTtl: { seconds: 1729026573n, nanos: 0 },
+  reasonMode: 'optional',
+  reasonPrompts: [],
 };
 
 export function Browsing() {
@@ -89,25 +83,16 @@ export function Browsing() {
       startKey: '',
       requests: [mockedAccessRequest],
     });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+  appContext.addRootClusterWithDoc(rootCluster, [doc]);
 
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={doc} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={doc} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
@@ -117,28 +102,16 @@ export function BrowsingError() {
   const appContext = new MockAppContext();
   appContext.tshd.getAccessRequests = () =>
     new MockedUnaryCall(null, new Error('network error'));
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, rootCluster);
-  });
+  appContext.addRootClusterWithDoc(rootCluster, [doc]);
 
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={doc} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={doc} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
@@ -156,31 +129,22 @@ export function CreatingWhenUnifiedResourcesShowOnlyAccessibleResources() {
       startKey: '',
       requests: [mockedAccessRequest],
     });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: docCreating.clusterUri,
-      documents: [docCreating],
-      location: docCreating.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, {
+  appContext.addRootClusterWithDoc(
+    {
       ...rootCluster,
       showResources: ShowResources.ACCESSIBLE_ONLY,
-    });
-  });
+    },
+    [doc]
+  );
 
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={docCreating} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={docCreating} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );
@@ -198,31 +162,22 @@ export function CreatingWhenUnifiedResourcesShowRequestableAndAccessibleResource
       startKey: '',
       requests: [mockedAccessRequest],
     });
-  appContext.workspacesService.setState(draftState => {
-    draftState.rootClusterUri = rootCluster.uri;
-    draftState.workspaces[rootCluster.uri] = {
-      localClusterUri: docCreating.clusterUri,
-      documents: [docCreating],
-      location: docCreating.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
-  appContext.clustersService.setState(draftState => {
-    draftState.clusters.set(rootCluster.uri, {
+  appContext.addRootClusterWithDoc(
+    {
       ...rootCluster,
       showResources: ShowResources.REQUESTABLE,
-    });
-  });
+    },
+    [doc]
+  );
 
   return (
     <AppContextProvider value={appContext}>
       <MockWorkspaceContextProvider>
-        <ResourcesContextProvider>
-          <DocumentAccessRequests doc={docCreating} visible={true} />
-        </ResourcesContextProvider>
+        <AccessRequestsContextProvider rootClusterUri={rootCluster.uri}>
+          <ResourcesContextProvider>
+            <DocumentAccessRequests doc={docCreating} visible={true} />
+          </ResourcesContextProvider>
+        </AccessRequestsContextProvider>
       </MockWorkspaceContextProvider>
     </AppContextProvider>
   );

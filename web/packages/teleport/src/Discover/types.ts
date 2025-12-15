@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { State } from './useDiscover';
+import type { JSX } from 'react';
+
 import { ResourceViewConfig } from './flow';
+import { State } from './useDiscover';
 
 export type AgentStepProps = {
   // agentMeta describes fields specific to an agent kind.

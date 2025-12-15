@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import Box from 'design/Box';
+import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
 import { H2 } from 'design/Text';
-import Flex from 'design/Flex';
-import Box from 'design/Box';
 
 import Input from '.';
 

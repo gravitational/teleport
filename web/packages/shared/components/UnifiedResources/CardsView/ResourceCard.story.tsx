@@ -16,34 +16,38 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta, StoryObj } from '@storybook/react';
-
+import { Meta } from '@storybook/react-vite';
+import { MemoryRouter } from 'react-router';
 import styled from 'styled-components';
 
 import { ButtonBorder } from 'design';
 import { gap, GapProps } from 'design/system';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps } from 'teleport/Apps/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { databases } from 'teleport/Databases/fixtures';
-
-import { kubes } from 'teleport/Kubes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { desktops } from 'teleport/Desktops/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { kubes } from 'teleport/Kubes/fixtures';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { nodes } from 'teleport/Nodes/fixtures';
-
-import makeApp from 'teleport/services/apps/makeApps';
-import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { SamlAppActionProvider } from 'teleport/SamlApplications/useSamlAppActions';
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import makeApp from 'teleport/services/apps/makeApps';
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 
 import {
   makeUnifiedResourceViewItemApp,
   makeUnifiedResourceViewItemDatabase,
+  makeUnifiedResourceViewItemDesktop,
   makeUnifiedResourceViewItemKube,
   makeUnifiedResourceViewItemNode,
-  makeUnifiedResourceViewItemDesktop,
 } from '../shared/viewItemsFactory';
-
 import { PinningSupport } from '../types';
-
 import { ResourceCard } from './ResourceCard';
 
 const additionalResources = [
@@ -83,10 +87,28 @@ const additionalResources = [
   }),
 ];
 
-const meta: Meta<typeof ResourceCard> = {
-  component: ResourceCard,
-  title: 'Shared/UnifiedResources/Items',
+type StoryProps = {
+  withCheckbox: boolean;
+  withPin: boolean;
 };
+
+const meta: Meta<StoryProps> = {
+  title: 'Shared/UnifiedResources/Items',
+  argTypes: {
+    withCheckbox: {
+      control: { type: 'boolean' },
+    },
+    withPin: {
+      control: { type: 'boolean' },
+    },
+  },
+  // default
+  args: {
+    withCheckbox: true,
+    withPin: true,
+  },
+};
+export default meta;
 
 const Grid = styled.div<GapProps>`
   display: grid;
@@ -94,14 +116,11 @@ const Grid = styled.div<GapProps>`
   ${gap}
 `;
 
-export default meta;
-type Story = StoryObj<typeof ResourceCard>;
-
 const ActionButton = <ButtonBorder size="small">Action</ButtonBorder>;
 
-export const Cards: Story = {
-  render() {
-    return (
+export function Cards(props: StoryProps) {
+  return (
+    <MemoryRouter>
       <SamlAppActionProvider>
         <Grid gap={2}>
           {[
@@ -137,16 +156,17 @@ export const Cards: Story = {
               selectResource={() => {}}
               selected={false}
               pinningSupport={PinningSupport.Supported}
-              name={res.name}
-              primaryIconName={res.primaryIconName}
-              SecondaryIcon={res.SecondaryIcon}
-              cardViewProps={res.cardViewProps}
-              labels={res.labels}
-              ActionButton={res.ActionButton}
+              onShowStatusInfo={() => null}
+              showingStatusInfo={false}
+              viewItem={res}
+              visibleInputFields={{
+                checkbox: props.withCheckbox,
+                pin: props.withPin,
+              }}
             />
           ))}
         </Grid>
       </SamlAppActionProvider>
-    );
-  },
-};
+    </MemoryRouter>
+  );
+}

@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { App } from 'teleport/services/apps';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import makeApp from 'teleport/services/apps/makeApps';
 
 import { guessAppIcon } from './guessAppIcon';

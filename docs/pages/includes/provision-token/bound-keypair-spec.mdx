@@ -1,0 +1,65 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-token
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: example
+
+  # Fields related to the bound keypair joining process.
+  bound_keypair:
+    # Fields related to the initial join attempt.
+    onboarding:
+      # If set to a public key in SSH authorized_keys format, the
+      # joining client must have the corresponding private key to join. This
+      # keypair may be created using `tbot keypair create`. If set,
+      # `registration_secret` and `must_register_before` are ignored.
+      initial_public_key: ""
+
+      # If set to a secret string value, a client may use this secret to perform
+      # the first join without pre-registering a public key in
+      # `initial_public_key`. If unset and no `initial_public_key` is provided,
+      # a random value will be generated automatically into
+      # `.status.bound_keypair.registration_secret`.
+      registration_secret: ""
+
+      # If set to an RFC 3339 timestamp, attempts to register via
+      # `registration_secret` will be denied once the timestamp has elapsed. If
+      # more time is needed, this field can be edited to extend the registration
+      # period.
+      must_register_before: ""
+
+    # Fields related to recovery after certificates have expired.
+    recovery:
+      # The maximum number of allowed recovery attempts. This value may
+      # be raised or lowered after creation to allow additional recovery
+      # attempts should the initial limit be exhausted. If `mode` is set to
+      # `standard`, recovery attempts will only be allowed if
+      # `.status.bound_keypair.recovery_count` is less than this limit. This
+      # limit is not enforced if `mode` is set to `relaxed` or `insecure`. This
+      # value must be at least 1 to allow for the initial join during
+      # onboarding, which counts as a recovery.
+      limit: 1
+
+      # The recovery rule enforcement mode. Valid values:
+      # - standard (or unset): all configured rules enforced. The recovery limit
+      #   and client join state are required and verified. This is the most
+      #   secure recovery mode.
+      # - relaxed: recovery limit is not enforced, but client join state is
+      #   still required. This effectively allows unlimited recovery attempts,
+      #   but client join state still helps mitigate stolen credentials.
+      # - insecure: neither the recovery limit nor client join state are
+      #   enforced. This allows any client with the private key to join freely.
+      #   This is less secure, but can be useful in certain situations, like in
+      #   otherwise unsupported CI/CD providers. This mode should be used with
+      #   care, and RBAC rules should be configured to heavily restrict which
+      #   resources this identity can access.
+      mode: "standard"
+
+    # If set to an RFC 3339 timestamp, once elapsed, a keypair rotation will be
+    # forced on next join if it has not already been rotated. The most recent
+    # rotation is recorded in `.status.bound_keypair.last_rotated_at`.
+    rotate_after: ""
+```

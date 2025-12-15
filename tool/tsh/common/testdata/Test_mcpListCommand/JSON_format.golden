@@ -1,0 +1,71 @@
+[
+  {
+    "kind": "app",
+    "sub_kind": "mcp",
+    "version": "v3",
+    "metadata": {
+      "name": "allow-read",
+      "description": "description",
+      "labels": {
+        "env": "dev",
+        "teleport.internal/app-sub-kind": "mcp"
+      }
+    },
+    "spec": {
+      "uri": "mcp+stdio://",
+      "insecure_skip_verify": false,
+      "mcp": {
+        "command": "test",
+        "args": [
+          "arg"
+        ],
+        "run_as_host_user": "test"
+      }
+    },
+    "permissions": {
+      "mcp": {
+        "tools": {
+          "allowed": [
+            "read_*"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "kind": "app",
+    "sub_kind": "mcp",
+    "version": "v3",
+    "metadata": {
+      "name": "deny-write",
+      "description": "description",
+      "labels": {
+        "env": "dev",
+        "teleport.internal/app-sub-kind": "mcp"
+      }
+    },
+    "spec": {
+      "uri": "mcp+stdio://",
+      "insecure_skip_verify": false,
+      "mcp": {
+        "command": "test",
+        "args": [
+          "arg"
+        ],
+        "run_as_host_user": "test"
+      }
+    },
+    "permissions": {
+      "mcp": {
+        "tools": {
+          "allowed": [
+            "*"
+          ],
+          "denied": [
+            "write_*"
+          ]
+        }
+      }
+    }
+  }
+]

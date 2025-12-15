@@ -36,16 +36,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccessGraphService_Query_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/Query"
-	AccessGraphService_GetFile_FullMethodName            = "/accessgraph.v1alpha.AccessGraphService/GetFile"
-	AccessGraphService_EventsStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
-	AccessGraphService_EventsStreamV2_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
-	AccessGraphService_Register_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/Register"
-	AccessGraphService_ReplaceCAs_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
-	AccessGraphService_AWSEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
-	AccessGraphService_GitlabEventsStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
-	AccessGraphService_EntraEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
-	AccessGraphService_AzureEventsStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
+	AccessGraphService_Query_FullMethodName                = "/accessgraph.v1alpha.AccessGraphService/Query"
+	AccessGraphService_GetFile_FullMethodName              = "/accessgraph.v1alpha.AccessGraphService/GetFile"
+	AccessGraphService_EventsStream_FullMethodName         = "/accessgraph.v1alpha.AccessGraphService/EventsStream"
+	AccessGraphService_EventsStreamV2_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/EventsStreamV2"
+	AccessGraphService_AuditLogStream_FullMethodName       = "/accessgraph.v1alpha.AccessGraphService/AuditLogStream"
+	AccessGraphService_AWSCloudTrailStream_FullMethodName  = "/accessgraph.v1alpha.AccessGraphService/AWSCloudTrailStream"
+	AccessGraphService_KubeAuditLogStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/KubeAuditLogStream"
+	AccessGraphService_Register_FullMethodName             = "/accessgraph.v1alpha.AccessGraphService/Register"
+	AccessGraphService_ReplaceCAs_FullMethodName           = "/accessgraph.v1alpha.AccessGraphService/ReplaceCAs"
+	AccessGraphService_AWSEventsStream_FullMethodName      = "/accessgraph.v1alpha.AccessGraphService/AWSEventsStream"
+	AccessGraphService_GitlabEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitlabEventsStream"
+	AccessGraphService_EntraEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/EntraEventsStream"
+	AccessGraphService_AzureEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/AzureEventsStream"
+	AccessGraphService_NetIQEventsStream_FullMethodName    = "/accessgraph.v1alpha.AccessGraphService/NetIQEventsStream"
+	AccessGraphService_GitHubAuditLogStream_FullMethodName = "/accessgraph.v1alpha.AccessGraphService/GitHubAuditLogStream"
+	AccessGraphService_GitHubEventsStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/GitHubEventsStream"
+	AccessGraphService_OktaAuditLogStream_FullMethodName   = "/accessgraph.v1alpha.AccessGraphService/OktaAuditLogStream"
+	AccessGraphService_OktaEventsStream_FullMethodName     = "/accessgraph.v1alpha.AccessGraphService/OktaEventsStream"
 )
 
 // AccessGraphServiceClient is the client API for AccessGraphService service.
@@ -70,6 +78,65 @@ type AccessGraphServiceClient interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EventsStreamV2Request, EventsStreamV2Response], error)
+	// AuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	// - Client requests for server-side bulk export state cleanup.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//     `events` (with resume state updates) or `bulk_sync` commands.
+	AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error)
+	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possilby empty).
+	//  4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
+	AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error)
+	// KubeAuditLogStream establishes a persistent bidirectional stream for exporting
+	// Kubernetes audit logs from a client (teleport) to a server (access-graph). This stream
+	// is separate from other audit log streams as fetching Kubernetes audit logs can
+	// require a variety of mechanisms for retrieving them depending on how/where the
+	// k8s cluster is deployed. It often will not make sense to integrate this audit log
+	// stream with any of the others.
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Logs for multiple clusters can be streamed across the one grpc stream.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
+	//  2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
+	//     a cluster, with a timestamp of the oldest logs it wants.
+	//  4. Server responds with a `KubeAuditLogResumeState` message containing either
+	//     a resumption cursor indicating when logs should be streamed from, or if
+	//     a new cluster or an old outdated resumption point has been stored, sends
+	//     the timestamp from which logs should be sent.
+	//  5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
+	KubeAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse], error)
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -95,6 +162,57 @@ type AccessGraphServiceClient interface {
 	EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse], error)
 	// AzureEventsStream is a stream of commands to the Azure importer
 	AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error)
+	// NetIQEventsStream is a stream of commands to the NetIQ importer.
+	NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error)
+	// GitHubAuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
+	GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error)
+	// GitHubEventsStream establishes a client-to-server stream for continuously
+	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport GitHub connector) to send:
+	// - `upsert` operations: To add new or update existing GitHub resources in the graph.
+	// - `delete` operations: To remove GitHub resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `GitHubEventsStreamResponse` messages, to acknowledge
+	// received operations and maintain stream health.
+	GitHubEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse], error)
+	// OktaAuditLogStream establishes a persistent bidirectional stream for
+	// exporting Okta audit log events from a client (ex.: a Teleport Okta connector)
+	// to the AccessGraphService.
+	//
+	// This stream facilitates:
+	//   - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+	//   - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+	//     the client to the server.
+	//   - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+	//     allowing the client to continue from where it left off after an interruption.
+	OktaAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse], error)
+	// OktaEventsStream establishes a client-to-server stream for continuously
+	// syncing Okta resource states (ex.: users, groups, applications, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport Okta connector) to send:
+	// - `upsert` operations: To add new or update existing Okta resources in the graph.
+	// - `delete` operations: To remove Okta resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
+	// typically to acknowledge received operations and maintain stream health.
+	OktaEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse], error)
 }
 
 type accessGraphServiceClient struct {
@@ -151,6 +269,45 @@ func (c *accessGraphServiceClient) EventsStreamV2(ctx context.Context, opts ...g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_EventsStreamV2Client = grpc.BidiStreamingClient[EventsStreamV2Request, EventsStreamV2Response]
 
+func (c *accessGraphServiceClient) AuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_AuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AuditLogStreamRequest, AuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AuditLogStreamClient = grpc.BidiStreamingClient[AuditLogStreamRequest, AuditLogStreamResponse]
+
+func (c *accessGraphServiceClient) AWSCloudTrailStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_AWSCloudTrailStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AWSCloudTrailStreamClient = grpc.BidiStreamingClient[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]
+
+func (c *accessGraphServiceClient) KubeAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_KubeAuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_KubeAuditLogStreamClient = grpc.BidiStreamingClient[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]
+
 func (c *accessGraphServiceClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterResponse)
@@ -173,7 +330,7 @@ func (c *accessGraphServiceClient) ReplaceCAs(ctx context.Context, in *ReplaceCA
 
 func (c *accessGraphServiceClient) AWSEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[AWSEventsStreamRequest, AWSEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[2], AccessGraphService_AWSEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_AWSEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +343,7 @@ type AccessGraphService_AWSEventsStreamClient = grpc.ClientStreamingClient[AWSEv
 
 func (c *accessGraphServiceClient) GitlabEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitlabEventsStreamRequest, GitlabEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[3], AccessGraphService_GitlabEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[6], AccessGraphService_GitlabEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +356,7 @@ type AccessGraphService_GitlabEventsStreamClient = grpc.BidiStreamingClient[Gitl
 
 func (c *accessGraphServiceClient) EntraEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[EntraEventsStreamRequest, EntraEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[4], AccessGraphService_EntraEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[7], AccessGraphService_EntraEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +369,7 @@ type AccessGraphService_EntraEventsStreamClient = grpc.BidiStreamingClient[Entra
 
 func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[5], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[8], AccessGraphService_AzureEventsStream_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +379,71 @@ func (c *accessGraphServiceClient) AzureEventsStream(ctx context.Context, opts .
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_AzureEventsStreamClient = grpc.BidiStreamingClient[AzureEventsStreamRequest, AzureEventsStreamResponse]
+
+func (c *accessGraphServiceClient) NetIQEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[9], AccessGraphService_NetIQEventsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[NetIQEventsStreamRequest, NetIQEventsStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_NetIQEventsStreamClient = grpc.BidiStreamingClient[NetIQEventsStreamRequest, NetIQEventsStreamResponse]
+
+func (c *accessGraphServiceClient) GitHubAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[10], AccessGraphService_GitHubAuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubAuditLogStreamClient = grpc.BidiStreamingClient[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]
+
+func (c *accessGraphServiceClient) GitHubEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[11], AccessGraphService_GitHubEventsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[GitHubEventsStreamRequest, GitHubEventsStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubEventsStreamClient = grpc.BidiStreamingClient[GitHubEventsStreamRequest, GitHubEventsStreamResponse]
+
+func (c *accessGraphServiceClient) OktaAuditLogStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[12], AccessGraphService_OktaAuditLogStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaAuditLogStreamClient = grpc.BidiStreamingClient[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]
+
+func (c *accessGraphServiceClient) OktaEventsStream(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AccessGraphService_ServiceDesc.Streams[13], AccessGraphService_OktaEventsStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[OktaEventsStreamRequest, OktaEventsStreamResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaEventsStreamClient = grpc.BidiStreamingClient[OktaEventsStreamRequest, OktaEventsStreamResponse]
 
 // AccessGraphServiceServer is the server API for AccessGraphService service.
 // All implementations must embed UnimplementedAccessGraphServiceServer
@@ -245,6 +467,65 @@ type AccessGraphServiceServer interface {
 	// This stream works the same way as EventsStream, but it returns a stream of events
 	// instead of a single response.
 	EventsStreamV2(grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]) error
+	// AuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	// - Client requests for server-side bulk export state cleanup.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AuditLogStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `AuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `AuditLogStreamRequest` messages containing either
+	//     `events` (with resume state updates) or `bulk_sync` commands.
+	AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error
+	// AWSCloudTrailStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `AWSCloudTrailStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `AWSCloudTrailStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possilby empty).
+	//  4. Client sends subsequent `AWSCloudTrailStreamRequest` messages.
+	AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error
+	// KubeAuditLogStream establishes a persistent bidirectional stream for exporting
+	// Kubernetes audit logs from a client (teleport) to a server (access-graph). This stream
+	// is separate from other audit log streams as fetching Kubernetes audit logs can
+	// require a variety of mechanisms for retrieving them depending on how/where the
+	// k8s cluster is deployed. It often will not make sense to integrate this audit log
+	// stream with any of the others.
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Logs for multiple clusters can be streamed across the one grpc stream.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `KubeAuditLogStreamRequest` with `config`.
+	//  2. Server responds with an initial `KubeAuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Client sends a `KubeAuditLogNewStream` message initiating a log stream for
+	//     a cluster, with a timestamp of the oldest logs it wants.
+	//  4. Server responds with a `KubeAuditLogResumeState` message containing either
+	//     a resumption cursor indicating when logs should be streamed from, or if
+	//     a new cluster or an old outdated resumption point has been stored, sends
+	//     the timestamp from which logs should be sent.
+	//  5. Client sends subsequent `KubeAuditLogStreamRequest` messages with new logs.
+	KubeAuditLogStream(grpc.BidiStreamingServer[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]) error
 	// Register submits a new tenant representing this Teleport cluster to the TAG service,
 	// identified by its HostCA certificate.
 	// The method is idempotent: it succeeds if the tenant has already registered and has the specific CA associated.
@@ -270,6 +551,57 @@ type AccessGraphServiceServer interface {
 	EntraEventsStream(grpc.BidiStreamingServer[EntraEventsStreamRequest, EntraEventsStreamResponse]) error
 	// AzureEventsStream is a stream of commands to the Azure importer
 	AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error
+	// NetIQEventsStream is a stream of commands to the NetIQ importer.
+	NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error
+	// GitHubAuditLogStream establishes a persistent bidirectional stream for exporting
+	// audit log events from a client (teleport) to a server (access-graph).
+	//
+	// This stream facilitates:
+	// - Initial configuration exchange and validation.
+	// - Streaming batches of audit log events from client to server.
+	// - Reliable export resumption via client-provided resume state updates.
+	// - Server providing the initial resume state to the client upon connection.
+	//
+	// Basic Interaction Flow:
+	//  1. Client connects and sends an initial `GitHubAuditLogStreamRequest` with `config`.
+	//  2. Server sends first response with an initial `GitHubAuditLogStreamResponse`, confirming the
+	//     effective configuration.
+	//  3. Server sends second response providing the starting `resume_state` (possibly empty).
+	//  4. Client sends subsequent `GitHubAuditLogStreamRequest` messages.
+	GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error
+	// GitHubEventsStream establishes a client-to-server stream for continuously
+	// syncing GitHub resource states (ex.: repositories, user roles, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport GitHub connector) to send:
+	// - `upsert` operations: To add new or update existing GitHub resources in the graph.
+	// - `delete` operations: To remove GitHub resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `GitHubEventsStreamResponse` messages, to acknowledge
+	// received operations and maintain stream health.
+	GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error
+	// OktaAuditLogStream establishes a persistent bidirectional stream for
+	// exporting Okta audit log events from a client (ex.: a Teleport Okta connector)
+	// to the AccessGraphService.
+	//
+	// This stream facilitates:
+	//   - Initial configuration exchange (ex.: setting a start date via `OktaConfigV1`).
+	//   - Streaming batches of Okta audit log events (as `OktaEventV1` messages) from
+	//     the client to the server.
+	//   - Reliable export resumption using a cursor mechanism (`OktaAuditLogV1Cursor`),
+	//     allowing the client to continue from where it left off after an interruption.
+	OktaAuditLogStream(grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]) error
+	// OktaEventsStream establishes a client-to-server stream for continuously
+	// syncing Okta resource states (ex.: users, groups, applications, API tokens)
+	// with the AccessGraphService.
+	//
+	// This stream allows a client (ex.: a Teleport Okta connector) to send:
+	// - `upsert` operations: To add new or update existing Okta resources in the graph.
+	// - `delete` operations: To remove Okta resources from the graph.
+	// - `sync` operations: To signal events like the completion of an initial full synchronization.
+	// The server sends a stream of (empty) `OktaEventsStreamResponse` messages,
+	// typically to acknowledge received operations and maintain stream health.
+	OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error
 	mustEmbedUnimplementedAccessGraphServiceServer()
 }
 
@@ -292,6 +624,15 @@ func (UnimplementedAccessGraphServiceServer) EventsStream(grpc.ClientStreamingSe
 func (UnimplementedAccessGraphServiceServer) EventsStreamV2(grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]) error {
 	return status.Errorf(codes.Unimplemented, "method EventsStreamV2 not implemented")
 }
+func (UnimplementedAccessGraphServiceServer) AuditLogStream(grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method AuditLogStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) AWSCloudTrailStream(grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method AWSCloudTrailStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) KubeAuditLogStream(grpc.BidiStreamingServer[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method KubeAuditLogStream not implemented")
+}
 func (UnimplementedAccessGraphServiceServer) Register(context.Context, *RegisterRequest) (*RegisterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
 }
@@ -309,6 +650,21 @@ func (UnimplementedAccessGraphServiceServer) EntraEventsStream(grpc.BidiStreamin
 }
 func (UnimplementedAccessGraphServiceServer) AzureEventsStream(grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method AzureEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) NetIQEventsStream(grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method NetIQEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) GitHubAuditLogStream(grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method GitHubAuditLogStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) GitHubEventsStream(grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method GitHubEventsStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) OktaAuditLogStream(grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method OktaAuditLogStream not implemented")
+}
+func (UnimplementedAccessGraphServiceServer) OktaEventsStream(grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method OktaEventsStream not implemented")
 }
 func (UnimplementedAccessGraphServiceServer) mustEmbedUnimplementedAccessGraphServiceServer() {}
 func (UnimplementedAccessGraphServiceServer) testEmbeddedByValue()                            {}
@@ -381,6 +737,27 @@ func _AccessGraphService_EventsStreamV2_Handler(srv interface{}, stream grpc.Ser
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_EventsStreamV2Server = grpc.BidiStreamingServer[EventsStreamV2Request, EventsStreamV2Response]
 
+func _AccessGraphService_AuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).AuditLogStream(&grpc.GenericServerStream[AuditLogStreamRequest, AuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AuditLogStreamServer = grpc.BidiStreamingServer[AuditLogStreamRequest, AuditLogStreamResponse]
+
+func _AccessGraphService_AWSCloudTrailStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).AWSCloudTrailStream(&grpc.GenericServerStream[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_AWSCloudTrailStreamServer = grpc.BidiStreamingServer[AWSCloudTrailStreamRequest, AWSCloudTrailStreamResponse]
+
+func _AccessGraphService_KubeAuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).KubeAuditLogStream(&grpc.GenericServerStream[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_KubeAuditLogStreamServer = grpc.BidiStreamingServer[KubeAuditLogStreamRequest, KubeAuditLogStreamResponse]
+
 func _AccessGraphService_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterRequest)
 	if err := dec(in); err != nil {
@@ -445,6 +822,41 @@ func _AccessGraphService_AzureEventsStream_Handler(srv interface{}, stream grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AccessGraphService_AzureEventsStreamServer = grpc.BidiStreamingServer[AzureEventsStreamRequest, AzureEventsStreamResponse]
 
+func _AccessGraphService_NetIQEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).NetIQEventsStream(&grpc.GenericServerStream[NetIQEventsStreamRequest, NetIQEventsStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_NetIQEventsStreamServer = grpc.BidiStreamingServer[NetIQEventsStreamRequest, NetIQEventsStreamResponse]
+
+func _AccessGraphService_GitHubAuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).GitHubAuditLogStream(&grpc.GenericServerStream[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubAuditLogStreamServer = grpc.BidiStreamingServer[GitHubAuditLogStreamRequest, GitHubAuditLogStreamResponse]
+
+func _AccessGraphService_GitHubEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).GitHubEventsStream(&grpc.GenericServerStream[GitHubEventsStreamRequest, GitHubEventsStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_GitHubEventsStreamServer = grpc.BidiStreamingServer[GitHubEventsStreamRequest, GitHubEventsStreamResponse]
+
+func _AccessGraphService_OktaAuditLogStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).OktaAuditLogStream(&grpc.GenericServerStream[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaAuditLogStreamServer = grpc.BidiStreamingServer[OktaAuditLogStreamRequest, OktaAuditLogStreamResponse]
+
+func _AccessGraphService_OktaEventsStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AccessGraphServiceServer).OktaEventsStream(&grpc.GenericServerStream[OktaEventsStreamRequest, OktaEventsStreamResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AccessGraphService_OktaEventsStreamServer = grpc.BidiStreamingServer[OktaEventsStreamRequest, OktaEventsStreamResponse]
+
 // AccessGraphService_ServiceDesc is the grpc.ServiceDesc for AccessGraphService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -482,6 +894,24 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 		{
+			StreamName:    "AuditLogStream",
+			Handler:       _AccessGraphService_AuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "AWSCloudTrailStream",
+			Handler:       _AccessGraphService_AWSCloudTrailStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "KubeAuditLogStream",
+			Handler:       _AccessGraphService_KubeAuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
 			StreamName:    "AWSEventsStream",
 			Handler:       _AccessGraphService_AWSEventsStream_Handler,
 			ClientStreams: true,
@@ -501,6 +931,36 @@ var AccessGraphService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AzureEventsStream",
 			Handler:       _AccessGraphService_AzureEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "NetIQEventsStream",
+			Handler:       _AccessGraphService_NetIQEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GitHubAuditLogStream",
+			Handler:       _AccessGraphService_GitHubAuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "GitHubEventsStream",
+			Handler:       _AccessGraphService_GitHubEventsStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "OktaAuditLogStream",
+			Handler:       _AccessGraphService_OktaAuditLogStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "OktaEventsStream",
+			Handler:       _AccessGraphService_OktaEventsStream_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

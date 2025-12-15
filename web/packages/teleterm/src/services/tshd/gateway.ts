@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { routing, GatewayTargetUri } from 'teleterm/ui/uri';
+import {
+  GatewayTargetUri,
+  isAppUri,
+  isDatabaseUri,
+  isKubeUri,
+  routing,
+} from 'teleterm/ui/uri';
 
 import { GatewayCLICommand } from './types';
 
@@ -70,3 +76,43 @@ export function getTargetNameFromUri(targetUri: GatewayTargetUri): string {
     targetUri
   );
 }
+
+/**
+ * getGatewayTargetUriKind is used when the callsite needs to distinguish between different kinds
+ * of targets that gateways support when given only its target URI.
+ */
+export function getGatewayTargetUriKind(
+  targetUri: string
+): 'db' | 'kube' | 'app' {
+  if (isDatabaseUri(targetUri)) {
+    return 'db';
+  }
+
+  if (isKubeUri(targetUri)) {
+    return 'kube';
+  }
+
+  if (isAppUri(targetUri)) {
+    return 'app';
+  }
+
+  // TODO(ravicious): Optimally we'd use `targetUri satisfies never` here to have a type error when
+  // DocumentGateway['targetUri'] is changed.
+  //
+  // However, at the moment that field is essentially of type string, so there's not much we can do
+  // with regards to type safety.
+}
+
+/**
+ * Available types are listed here:
+ * https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
+ *
+ * The list below can get out of sync with what tsh actually implements.
+ */
+export type GatewayProtocol =
+  | 'postgres'
+  | 'mysql'
+  | 'mongodb'
+  | 'cockroachdb'
+  | 'redis'
+  | 'sqlserver';

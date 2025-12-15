@@ -2,6 +2,10 @@
 title: Using Teleport with OpenSSH in agentless mode (manual installation)
 description: This guide shows you how to set up Teleport to enable secure access to OpenSSH servers so you can protect legacy systems that do not run a Teleport binary.
 videoBanner: x0eYFUEIOrM
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
 ---
 
 In this guide, we will show you how to configure the OpenSSH server `sshd` to
@@ -12,20 +16,24 @@ Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 `teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
 
-- RBAC and resource filtering based on [dynamically updated labels](../../../admin-guides/management/admin/labels.mdx)
-- [Session recording without SSH connection termination](../guides/recording-proxy-mode.mdx)
-- [Session sharing](../../../connect-your-client/tsh.mdx)
+- RBAC and resource filtering based on [dynamically updated labels](../../../zero-trust-access/rbac-get-started/labels.mdx)
+- [Session recording without SSH connection termination](../../../reference/architecture/session-recording.mdx#record-at-the-proxy-service)
+- [Session sharing](../../../connect-your-client/teleport-clients/tsh.mdx)
 - [Advanced session recording](../guides/bpf-session-recording.mdx)
 
-Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles.
+## How it works
 
-If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically generated certificate signed by a Teleport CA. This allows the
-Proxy Service to record and audit connections to OpenSSH nodes.
+At a high level, Teleport supports OpenSSH servers by proxying SSH connections through the Proxy Service.
+The OpenSSH server will be set up to trust connections from the Proxy Service rather than trusting direct
+connections from users. This ensures that all connections to OpenSSH servers go through the
+Proxy Service, where session IO and audit events can be recorded and RBAC can be enforced.
 
-The Proxy Service prevents Teleport users from bypassing auditing by requiring
-a certificate signed by a Teleport CA that only the Auth Service possesses.
-
-In this setup, the Teleport SSH Service performs RBAC checks as well as audits and records sessions on its host, which eliminates the need for connection termination when recording SSH sessions.
+For deeper details as to how this works, you may be interested in the [Registered OpenSSH Nodes RFD](https://github.com/gravitational/teleport/blob/master/rfd/0098-registered-openssh-nodes.md)
+Below are some key details from the RFD:
+- The Proxy Service is uniquely able to request certificates signed by the Auth Service with the Teleport OpenSSH CA on behalf of users, and the OpenSSH server is set up to only trust certificates signed by this CA. Therefore, in order to connect to an OpenSSH server, a user must connect through the Proxy to request and use an OpenSSH certificate.
+- Before connecting the user to the OpenSSH server, the Proxy Service performs RBAC checks to see if the user should be allowed to access it.
+- In order to record the session and its audit events, the Proxy Service terminates (decrypts) the client SSH connection, and establishes its own connection to the OpenSSH server. It then acts as a pipe between the two connections, recording events and IO as it proceeds.
+  - See [Recording Proxy Mode](../../../reference/architecture/session-recording.mdx#record-at-the-proxy-service) for more details.
 
 <Admonition
   type="tip"
@@ -56,23 +64,6 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
   Teleport Proxy Service host.
 - (!docs/pages/includes/tctl.mdx!)
 
-### Upgrading to v14 from legacy OpenSSH nodes
-
-  If you have previously configured OpenSSH nodes to trust a Teleport CA without
-  registering them and you upgrade your Teleport cluster to Teleport 14, you won't
-  be able to connect to them anymore by default. This is because open dialing to
-  OpenSSH servers not registered with the cluster is no longer allowed in Teleport 14.
-  To ensure that you will retain access to your OpenSSH nodes you will need to follow
-  this guide to register every OpenSSH node with Teleport that you previously
-  configured. This must be done *before* your Teleport cluster is upgraded to Teleport 14.
-
-  If you are having issues registering OpenSSH nodes or need to upgrade your
-  Teleport cluster to Teleport 14 before registering all of your OpenSSH nodes, you can
-  pass the `TELEPORT_UNSTABLE_UNLISTED_AGENT_DIALING` environment variable to your
-  Proxy Service and set it to `yes`. This will allow connections to unregistered
-  OpenSSH nodes but will be removed in Teleport v15.
-
-
 ## Step 1/5. Add a node resource to your Teleport cluster
 
 When you request an SSH connection to a OpenSSH node, Teleport needs to be able
@@ -99,9 +90,7 @@ and `spec.hostname` to the name of the node as you would like users to see it in
 
 The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it.
 
-The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
-
-To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen`
+The `metadata.name` field isn't mandatory, but if supplied, it must be a universal unique identifier (UUID).  To generate a new UUID suitable for a `node` name, use the `uuidgen` command
 on Linux or macOS, or use the `New-Guid` cmdlet in Powershell on Windows.
 
 Create the node resource:
@@ -113,7 +102,7 @@ $ tctl create openssh-node-resource.yaml
 <Admonition type="note">
   This step can be done with Infrastructure-as-Code (IaC) tools (tctl,
   Terraform, or Kubernetes Operator). This is described [in the OpenSSH server
-  IaC guide](../../../admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx).
+  IaC guide](../../../zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx).
 </Admonition>
 
 ## Step 2/5. Configure `sshd` to trust the Teleport CA
@@ -186,6 +175,8 @@ $ tctl create host-certifier.yaml
 # role 'host-certifier' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="host-certifier"!)
 
 You will now have the required permissions to export a host key for your `sshd`
@@ -193,7 +184,8 @@ host.
 
 ### Issue a host certificate
 
-<Details title="Find your node's UUID">
+<details>
+<summary>Find your node's UUID</summary>
 
 When you created a `node` resource and if you didn't set the `metadata.name` field earlier,
 the Teleport Auth Service generated a universal unique identifier (UUID) for that node.
@@ -218,13 +210,13 @@ output of this command:
 $ tctl get node/openssh-node
 ```
 
-</Details>
+</details>
 
 #### Create the host certificate
 
 When creating host certificates, it is important to specify all the domain names
 and addresses that refer to your node. If you try to connect to a node with a
-name or address that was not specified when creating it's host certificate,
+name or address that was not specified when creating its host certificate,
 Teleport will reject the SSH connection.
 
 On your local machine, assign the IP address, fully qualified domain name of
@@ -248,13 +240,14 @@ $ tctl auth sign \
 
 The above command will result in a private key and certificate.
 
-<Details title="Issuing certificates for multiple hosts">
+<details>
+<summary>Issuing certificates for multiple hosts</summary>
 
 To generate certificates for multiple hosts, assign the `host` flag to a
 comma-separated list of addresses. Certificates for wildcard domains are not
 supported by OpenSSH, so each domain must be fully qualified.
 
-</Details>
+</details>
 
 Use `ssh-keygen` to verify the contents of the certificate:
 
@@ -371,7 +364,8 @@ This command creates an SSH configuration file at a nonstandard location in
 order to make it easier to clean up, but you can append the output of
 `tsh config` to the default SSH config file (`~/.ssh/config`) if you wish.
 
-<Details title="How does the config work?">
+<details>
+<summary>How does the config work?</summary>
 
 Teleport implements an SSH server that includes several **subsystems**, or
 predefined commands that are run when the server handles a connection. The Proxy
@@ -419,9 +413,10 @@ Notice that the `known_hosts` file used by the command is managed by `tsh`.
 Since the `sshd` host's information is listed in this file, your SSH client can
 authenticate the host via the certificate we generated earlier.
 
-</Details>
+</details>
 
-<Details title="Using PowerShell on Windows?">
+<details>
+<summary>Using PowerShell on Windows?</summary>
 
   If using PowerShell on Windows, note that normal shell redirection may write
   the file with the incorrect encoding. To ensure it's written properly, try the
@@ -431,14 +426,15 @@ authenticate the host via the certificate we generated earlier.
   $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
   ```
 
-</Details>
+</details>
 
-<Details title="Dialing uppercase hostnames with OpenSSH">
+<details>
+<summary>Dialing uppercase hostnames with OpenSSH</summary>
 Routing in Teleport clusters is case-sensitive by default, but OpenSSH always lowercases hostnames. If you
 are using an OpenSSH client and have hosts with uppercase letters in their hostnames, you may need to set
 `case_insensitive_routing: true` in either the `auth_service` block of your Teleport config, or in the
 `cluster_networking_config` resource.
-</Details>
+</details>
 
 <Admonition
   type="tip"
@@ -499,7 +495,8 @@ $ ssh -p ${PORT?} -F ssh_config_teleport "${USER?}@${ADDR_NODE?}.${CLUSTER?}"
 This name does not need to be resolvable via DNS as the connection will be
 routed through your Teleport Proxy Service.
 
-<Details title="Why are we overriding the port here?">
+<details>
+<summary>Why are we overriding the port here?</summary>
 
 By default, the OpenSSH client configuration generated by `tsh config` directs
 the Teleport Proxy Service to dial port 3022 of a node in your Teleport cluster.
@@ -516,9 +513,10 @@ In our case, the `sshd` host is not running Teleport, so no reverse tunnel will
 exist. Instead, the Proxy Service will establish a direct connection on the
 host's SSH port.
 
-</Details>
+</details>
 
-<Details title="Using trusted clusters?">
+<details>
+<summary>Using trusted clusters?</summary>
 
 You can log in to a host in a trusted leaf cluster by placing the name of the cluster
 between the name of the node and the name of your root cluster:
@@ -527,7 +525,7 @@ between the name of the node and the name of your root cluster:
 $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
 ```
 
-</Details>
+</details>
 
 <Admonition
   type="tip"
@@ -540,3 +538,21 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
   qualified domain name, rather than an IP address.
 
 </Admonition>
+
+### OpenSSH rate limiting
+
+Be aware of OpenSSH's built-in rate-limiting. On large numbers of Proxy Service connections, you may encounter errors like:
+
+```txt
+channel 0: open failed: connect failed: ssh: handshake failed: EOF
+```
+
+See the `MaxStartups` setting in `man sshd_config`. This setting means that by
+default, OpenSSH only allows 10 unauthenticated connections at a time and starts
+dropping connections 30% of the time when the number of connections goes over 10.
+When it hits 100 authentication connections, all new connections are
+dropped.
+
+To increase the concurrency level, increase the value to something like
+`MaxStartups 50:30:100`. This allows 50 concurrent connections and a max of 100.
+

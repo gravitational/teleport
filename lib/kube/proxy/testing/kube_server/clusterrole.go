@@ -39,9 +39,9 @@ var clusterRoleList = authv1.ClusterRoleList{
 		ResourceVersion: "1231415",
 	},
 	Items: []authv1.ClusterRole{
-		newClusterRole("nginx-1"),
-		newClusterRole("nginx-2"),
-		newClusterRole("test"),
+		newClusterRole("cr-nginx-1"),
+		newClusterRole("cr-nginx-2"),
+		newClusterRole("cr-test"),
 	},
 }
 
@@ -76,7 +76,7 @@ func (s *KubeMockServer) getClusterRole(w http.ResponseWriter, req *http.Request
 
 func (s *KubeMockServer) deleteClusterRole(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	name := p.ByName("name")
-	deleteOpts, err := parseDeleteCollectionBody(req.Body)
+	deleteOpts, err := parseDeleteCollectionBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

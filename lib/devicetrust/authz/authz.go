@@ -23,12 +23,12 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -48,17 +48,17 @@ func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
 // VerifyTLSUser verifies if the TLS identity has the required extensions to
 // fulfill the device trust configuration.
 func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, identity tlsca.Identity) error {
-	return verifyDeviceExtensions(ctx, dt, identity.Username, IsTLSDeviceVerified(&identity.DeviceExtensions))
+	return verifyDeviceExtensions(ctx, dt, identity.Username, identity.IsBot(), IsTLSDeviceVerified(&identity.DeviceExtensions))
 }
 
 // IsSSHDeviceVerified returns true if cert contains all required device
 // extensions.
-func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
+func IsSSHDeviceVerified(ident *sshca.Identity) bool {
 	// Expect all device extensions to be present.
-	return cert != nil &&
-		cert.Extensions[teleport.CertExtensionDeviceID] != "" &&
-		cert.Extensions[teleport.CertExtensionDeviceAssetTag] != "" &&
-		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
+	return ident != nil &&
+		ident.DeviceID != "" &&
+		ident.DeviceAssetTag != "" &&
+		ident.DeviceCredentialID != ""
 }
 
 // HasDeviceTrustExtensions returns true if the certificate's extension names
@@ -85,24 +85,33 @@ func HasDeviceTrustExtensions(extensions []string) bool {
 
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
-func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, cert *ssh.Certificate) error {
-	if cert == nil {
-		return trace.BadParameter("cert required")
+func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, ident *sshca.Identity) error {
+	if ident == nil {
+		return trace.BadParameter("ssh identity required")
 	}
-
-	username := cert.KeyId
-	return verifyDeviceExtensions(ctx, dt, username, IsSSHDeviceVerified(cert))
+	return verifyDeviceExtensions(ctx, dt, ident.Username, ident.IsBot(), IsSSHDeviceVerified(ident))
 }
 
-func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, verified bool) error {
+func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, isBot bool, verified bool) error {
 	mode := dtconfig.GetEnforcementMode(dt)
-	switch {
-	case mode != constants.DeviceTrustModeRequired:
-		return nil // OK, extensions not enforced.
-	case !verified:
+
+	var pass bool
+	switch mode {
+	case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
+		// OK, extensions not enforced.
+		pass = true
+	case constants.DeviceTrustModeRequiredForHumans:
+		// Humans must use trusted devices, bots can use untrusted devices.
+		pass = verified || isBot
+	case constants.DeviceTrustModeRequired:
+		// Only trusted devices allowed for bot human and bot users.
+		pass = verified
+	}
+
+	if !pass {
 		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)
 		return trace.Wrap(ErrTrustedDeviceRequired)
-	default:
-		return nil
 	}
+
+	return nil
 }

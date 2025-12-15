@@ -33,19 +33,21 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestBotJoinAuth(t *testing.T) {
 	// Configure and start Teleport server
 	clusterName := "root.example.com"
 	ctx := context.Background()
+	logger := logtest.NewLogger()
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logger,
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
@@ -118,17 +120,17 @@ func TestBotJoinAuth(t *testing.T) {
 	authAddr, err := teleportServer.Process.AuthAddr()
 	require.NoError(t, err)
 	botConfig := &BotConfig{
-		Onboarding: config.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: tokenName,
 			JoinMethod: types.JoinMethodToken,
 		},
-		AuthServer:      authAddr.Addr,
-		CertificateTTL:  defaultCertificateTTL,
-		RenewalInterval: defaultRenewalInterval,
-		Oneshot:         true,
-		Debug:           true,
+		AuthServer: authAddr.Addr,
+		CredentialLifetime: bot.CredentialLifetime{
+			TTL:             defaultCertificateTTL,
+			RenewalInterval: defaultRenewalInterval,
+		},
 	}
-	bot, err := New(botConfig)
+	bot, err := New(botConfig, logger)
 	require.NoError(t, err)
 	pong, err := bot.Preflight(ctx)
 	require.NoError(t, err)

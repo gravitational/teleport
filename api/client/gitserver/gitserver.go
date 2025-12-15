@@ -22,6 +22,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// ReadOnlyClient defines getter functions for Git servers.
+type ReadOnlyClient interface {
+	// ListGitServers returns a paginated list of Git servers.
+	ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	// GetGitServer returns a Git server by name.
+	GetGitServer(ctx context.Context, name string) (types.Server, error)
+}
+
 // Client is an Git servers client.
 type Client struct {
 	grpcClient gitserverv1.GitServerServiceClient
@@ -117,11 +125,6 @@ func (c *Client) UpsertGitServer(ctx context.Context, item types.Server) (types.
 func (c *Client) DeleteGitServer(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteGitServer(ctx, &gitserverv1.DeleteGitServerRequest{Name: name})
 	return trace.Wrap(err)
-}
-
-// DeleteAllGitServers removes all Git server resources.
-func (c *Client) DeleteAllGitServers(ctx context.Context) error {
-	return trace.NotImplemented("DeleteAllGitServers servers not implemented")
 }
 
 // CreateGitHubAuthRequest starts GitHub OAuth flow for authenticated user.

@@ -14,6 +14,7 @@ permissions:
 jobs:
   test:
     name: Flaky Tests Detector
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -21,12 +22,11 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
-        TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -60,17 +60,17 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.REVIEWERS_APP_ID }}
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Checkout shared-workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: main
+          ref: 664e788d45a7f56935cf63094b4fb52a41b12015 # workflows/v0.0.2
 
       - name: Find excluded tests
         id: find_excluded
@@ -79,7 +79,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/terraform-mwi/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
           target: test-go-unit
 
       - name: Run touch-id difftest

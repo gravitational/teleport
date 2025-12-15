@@ -68,7 +68,7 @@ func TestLookupSecret(t *testing.T) {
 			name:    "not an uri",
 			input:   "secret://How do you do, fellow kids?",
 			secrets: v1.SecretList{Items: []v1.Secret{okSecret}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "parse")
 			},
 		},
@@ -76,7 +76,7 @@ func TestLookupSecret(t *testing.T) {
 			name:    "uri does not contain secret name",
 			input:   fmt.Sprintf("secret:///%s", keyName),
 			secrets: v1.SecretList{Items: []v1.Secret{okSecret}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "missing secret name")
 			},
 		},
@@ -84,7 +84,7 @@ func TestLookupSecret(t *testing.T) {
 			name:    "uri does not contain secret key",
 			input:   fmt.Sprintf("secret://%s", secretName),
 			secrets: v1.SecretList{Items: []v1.Secret{okSecret}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "missing secret key")
 			},
 		},
@@ -92,7 +92,7 @@ func TestLookupSecret(t *testing.T) {
 			name:    "secret does not exist",
 			input:   fmt.Sprintf("secret://%s/%s", secretName, keyName),
 			secrets: v1.SecretList{Items: []v1.Secret{}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "not found")
 			},
 		},
@@ -100,7 +100,7 @@ func TestLookupSecret(t *testing.T) {
 			name:    "secret has no annotation",
 			input:   fmt.Sprintf("secret://%s/%s", secretName, keyName),
 			secrets: v1.SecretList{Items: []v1.Secret{secretWithAnnotations(nil)}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "annotation")
 			},
 		},
@@ -108,7 +108,7 @@ func TestLookupSecret(t *testing.T) {
 			name:    "secret annotations don't allow inclusion",
 			input:   fmt.Sprintf("secret://%s/%s", secretName, keyName),
 			secrets: v1.SecretList{Items: []v1.Secret{secretWithAnnotations(map[string]string{AllowLookupAnnotation: "not-the-right-cr"})}},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "does not contain")
 			},
 		},
@@ -131,7 +131,7 @@ func TestLookupSecret(t *testing.T) {
 					},
 				},
 			},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is missing key")
 			},
 		},

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Finished as Component } from './Finished';
-
 import type { AgentStepProps } from '../../types';
+import { Finished as Component } from './Finished';
 
 export default {
   title: 'Teleport/Discover/Shared',
@@ -50,6 +49,18 @@ export const FinishedWithAutoEnroll = () => (
         requiredVpcsAndSubnets: undefined,
       },
     }}
+  />
+);
+
+export const FinishedWithMessageProps = () => (
+  <Component
+    {...props}
+    title="Resource Added Custom Message"
+    resourceText="Custom completion details"
+    primaryButtonText="Custom primary button"
+    primaryButtonAction={() => console.info('primary action')}
+    secondaryButtonText="Custom secondary button"
+    secondaryButtonAction={() => console.info('secondary action')}
   />
 );
 

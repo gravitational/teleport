@@ -17,17 +17,17 @@
  */
 
 import {
-  Text,
   Box,
-  ButtonSecondary,
-  Link,
-  Indicator,
   ButtonLink,
+  ButtonSecondary,
+  Indicator,
+  Link,
+  Text,
 } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 
-import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import DownloadLinks from 'teleport/components/DownloadLinks';
+import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
 
 import { State } from './useAddApp';
@@ -101,7 +101,7 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
       <Text bold as="span">
         Step 2
       </Text>
-      {' - Login to Teleport'}
+      {' - Log in to Teleport'}
       <TextSelectCopy mt="2" text={tshLoginCmd} />
     </Box>
     <Box mb={4}>
@@ -132,7 +132,9 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
       {`* Note: For a self-hosted Teleport version, you may need to update DNS and obtain a TLS certificate for this application.
             Learn more about application access `}
       <Link
-        href={'https://goteleport.com/docs/application-access/introduction/'}
+        href={
+          'https://goteleport.com/docs/enroll-resources/application-access/introduction/'
+        }
         target="_blank"
       >
         here

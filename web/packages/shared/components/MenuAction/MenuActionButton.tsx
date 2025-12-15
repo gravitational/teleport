@@ -16,22 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren } from 'react';
-import Menu from 'design/Menu';
-import { ButtonBorder } from 'design';
-import { ChevronDown } from 'design/Icon';
+import React, { PropsWithChildren, Ref } from 'react';
+import styled from 'styled-components';
 
-import { MenuProps, AnchorProps } from './types';
+import { Button, ButtonBorder } from 'design';
+import { ChevronDown } from 'design/Icon';
+import Menu from 'design/Menu';
+
+import { AnchorProps, MenuProps } from './types';
 
 type Props = MenuProps & {
   defaultOpen?: boolean;
   buttonProps?: AnchorProps;
   buttonText?: React.ReactNode;
   menuProps?: MenuProps;
+
+  // If present, button text is not used, and a square icon button is rendered instead of a border button
+  icon?: React.ReactNode;
 };
 
-export default class MenuActionIcon extends React.Component<
-  PropsWithChildren<Props>
+export default function MenuActionIcon({
+  ref,
+  ...otherProps
+}: PropsWithChildren<Props> & { ref?: Ref<HTMLButtonElement> }) {
+  // Since React class components can't forward refs, we wrap it in a function component.
+  // This lets HoverTooltip access the ref to attach the tooltip to it.
+  return <InnerMenuActionIcon {...otherProps} forwardedRef={ref} />;
+}
+
+class InnerMenuActionIcon extends React.Component<
+  PropsWithChildren<Props & { forwardedRef?: Ref<HTMLButtonElement> }>
 > {
   anchorEl = null;
 
@@ -53,20 +67,49 @@ export default class MenuActionIcon extends React.Component<
     this.setState({ open: false });
   };
 
+  private assignRef(e: HTMLButtonElement) {
+    this.anchorEl = e;
+    const { forwardedRef } = this.props;
+    if (typeof forwardedRef === 'function') {
+      forwardedRef(e);
+    } else if (forwardedRef && typeof forwardedRef === 'object') {
+      forwardedRef.current = e;
+    }
+  }
+
   render() {
     const { open } = this.state;
-    const { children, menuProps, buttonProps } = this.props;
+    const { children, menuProps, buttonProps, icon } = this.props;
     return (
       <>
-        <ButtonBorder
-          size="small"
-          setRef={e => (this.anchorEl = e)}
-          onClick={this.onOpen}
-          {...buttonProps}
-        >
-          {this.props.buttonText || 'Options'}
-          <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
-        </ButtonBorder>
+        {icon ? (
+          <FilledButtonIcon
+            intent="neutral"
+            ref={e => {
+              this.assignRef(e);
+            }}
+            onClick={this.onOpen}
+            {...buttonProps}
+          >
+            {icon}
+          </FilledButtonIcon>
+        ) : (
+          <ButtonBorder
+            size="small"
+            ref={e => {
+              this.assignRef(e);
+            }}
+            onClick={this.onOpen}
+            {...buttonProps}
+          >
+            {this.props.buttonText || 'Options'}
+            <ChevronDown
+              ml={2}
+              size="small"
+              color={buttonProps?.color || 'text.slightlyMuted'}
+            />
+          </ButtonBorder>
+        )}
         <Menu
           getContentAnchorEl={null}
           menuListCss={menuListCss}
@@ -91,7 +134,7 @@ export default class MenuActionIcon extends React.Component<
 
   renderItems(children) {
     const filtered = React.Children.toArray(children);
-    const cloned = filtered.map((child: React.ReactElement) => {
+    const cloned = filtered.map((child: React.ReactElement<any>) => {
       return React.cloneElement(child, {
         onClick: this.makeOnClick(child.props.onClick),
       });
@@ -111,4 +154,10 @@ export default class MenuActionIcon extends React.Component<
 
 const menuListCss = () => `
   min-width: 100px;
+`;
+
+const FilledButtonIcon = styled(Button)`
+  width: 32px;
+  height: 32px;
+  padding: 0;
 `;

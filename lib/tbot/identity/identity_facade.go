@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -212,7 +211,7 @@ func (f *Facade) Expiry() (time.Time, bool) {
 	if len(f.identity.TLSCert.Certificate) == 0 {
 		return time.Time{}, false
 	}
-	cert, _, err := keys.X509Certificate(f.identity.TLSCert.Certificate[0])
+	cert, err := x509.ParseCertificate(f.identity.TLSCert.Certificate[0])
 	if err != nil {
 		return time.Time{}, false
 	}

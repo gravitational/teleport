@@ -16,12 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, useState, MouseEvent } from 'react';
+import { Component, MouseEvent, useState } from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Box, Flex, Text, H2 } from '..';
-
 import Popover, { GrowDirections, Origin } from '.';
+import { Box, ButtonPrimary, Flex, H2, Text } from '..';
 
 export default {
   title: 'Design/Popover',
@@ -171,7 +170,12 @@ class SimplePopover extends Component<any, SimplePopoverState> {
     return (
       <div>
         <Box>
-          <ButtonPrimary mt={7} setRef={e => (this.btnRef = e)}>
+          <ButtonPrimary
+            mt={7}
+            ref={e => {
+              this.btnRef = e;
+            }}
+          >
             This is anchor element
           </ButtonPrimary>
           <Popover

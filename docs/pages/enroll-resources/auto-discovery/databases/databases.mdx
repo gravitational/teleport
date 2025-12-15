@@ -1,6 +1,10 @@
 ---
 title: Database Discovery
 description: Detailed guides for configuring database discovery.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
 ---
 
 Teleport can be configured to discover databases automatically and register
@@ -46,7 +50,7 @@ information such as:
     "rds", "redshift", etc.
 - *Endpoint Info*: Connection endpoint the database can be reached at
 
-<Notice type="tip">
+<Admonition type="tip">
 You can override a discovered database's name by using a special tag attached
 to the database in your cloud provider:
  - ***key***: `TeleportDatabaseName`
@@ -56,7 +60,7 @@ The Discovery Service will check if the database metadata includes the tag and
 use its value as the resource name in Teleport.
 The name override will be used verbatim, i.e. additional metadata will not be
 appended to it.
-</Notice>
+</Admonition>
 
 The Teleport Discovery Service only needs access to APIs that it can poll for
 databases - it does not need network connectivity or permissions to connect to
@@ -87,7 +91,8 @@ discovery_service:
       # 'rdsproxy' - Amazon RDS Proxy databases.
       # 'redshift' - Amazon Redshift databases.
       # 'redshift-serverless' - Amazon Redshift Serverless databases.
-      # 'elasticache' - Amazon ElastiCache Redis databases.
+      # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
+      # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
       # 'memorydb' - Amazon MemoryDB Redis databases.
       # 'opensearch' - Amazon OpenSearch Redis databases.
       # 'docdb' - Amazon DocumentDB databases.
@@ -146,7 +151,7 @@ Here's how it works in detail:
 
 For more information about Discovery Service configuration, refer to
 [one of the guides above](#supported-clouds) or the
-[Discovery Service Config File Reference](../../../reference/config.mdx).
+[Discovery Service Config File Reference](../../../reference/deployment/config.mdx).
 
 ## How the Database Service works
 
@@ -186,6 +191,10 @@ db_service:
         "teleport.dev/cloud": "AWS"
         # Specific to AWS. This is the AWS account ID.
         "account-id": "123456789012"
+        # Use specific label selectors so each Database Service only matches
+        # databases it can actually reach.
+        "env": "staging"
+        "vpc-id": "vpc-id-123"
       aws:
         # This is an optional AWS role ARN to assume when forwarding connections
         # to AWS databases.
@@ -212,10 +221,13 @@ Here's how it works in detail:
 1. **Label matching:** The Database Service monitors `db` resources and the
   first label selector in `db_service.resources[].labels` that matches a `db`
   will be used. If no selector matches, then the `db` resource is ignored.
-1. **Permissions:** The Database Service will assume the identity configured in
+
+  (!docs/pages/includes/discovery/db-label-warning.mdx!)
+
+2. **Permissions:** The Database Service will assume the identity configured in
   the label selector that matched. If the selector does not specify an identity,
   then the Database Service will use its own identity.
-1. **Connection:** The Database Service, acting as either its own identity or
+3. **Connection:** The Database Service, acting as either its own identity or
   the identity it assumed, will retrieve credentials to authenticate to the
   database and use those credentials to act as a proxy for an authorized
   Teleport user.

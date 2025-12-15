@@ -25,35 +25,24 @@ import (
 	"net"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/opensearch"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
-
-func registerTestOpenSearchEngine() {
-	common.RegisterEngine(newTestOpenSearchEngine, defaults.ProtocolOpenSearch)
-}
-
-func newTestOpenSearchEngine(ec common.EngineConfig) common.Engine {
-	return &opensearch.Engine{
-		EngineConfig: ec,
-		// inject mock AWS credentials.
-		CredentialsGetter: awsutils.NewStaticCredentialsGetter(
-			credentials.NewStaticCredentials("AKIDl", "SECRET", "SESSION"),
-		),
-	}
-}
 
 func TestAccessOpenSearch(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withOpenSearch("OpenSearch"))
+	testCtx := setupTestContext(ctx, t)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:         []types.Database{withOpenSearch("OpenSearch")(t, ctx, testCtx)},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+	})
 	go testCtx.startHandlingConnections()
 
 	tests := []struct {
@@ -151,7 +140,11 @@ func TestAccessOpenSearch(t *testing.T) {
 
 func TestAuditOpenSearch(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withOpenSearch("OpenSearch"))
+	testCtx := setupTestContext(ctx, t)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:         []types.Database{withOpenSearch("OpenSearch")(t, ctx, testCtx)},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+	})
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{types.Wildcard})

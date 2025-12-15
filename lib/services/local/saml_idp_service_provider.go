@@ -22,14 +22,15 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -55,7 +56,7 @@ type SAMLIdPServiceProviderService struct {
 	// backend is used to spawn Plugins storage service so that
 	// it can be queried from the SAML service.
 	backend    backend.Backend
-	log        logrus.FieldLogger
+	logger     *slog.Logger
 	httpClient *http.Client
 }
 
@@ -86,7 +87,7 @@ func NewSAMLIdPServiceProviderService(b backend.Backend, opts ...SAMLIdPOption) 
 	samlSPService := &SAMLIdPServiceProviderService{
 		svc:     *svc,
 		backend: b,
-		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "saml-idp"}),
+		logger:  slog.With(teleport.ComponentKey, "saml-idp"),
 	}
 
 	for _, opt := range opts {
@@ -120,14 +121,18 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
 		// logging instead of returning an error cause we do not want to break cache writes on a cluster
 		// that already has a service provider with unsupported characters/scheme in the acs_url or relay_state.
-		s.log.Warn(err)
+		s.logger.WarnContext(ctx, "Provided SAML IdP service provided is invalid", "error", err)
 	}
 	if sp.GetEntityDescriptor() == "" {
 		if err := s.configureEntityDescriptorPerPreset(sp); err != nil {
 			errMsg := fmt.Errorf("failed to configure entity descriptor with the given entity_id %q and acs_url %q: %w",
 				sp.GetEntityID(), sp.GetACSURL(), err)
-			s.log.Errorf(errMsg.Error())
-			return trace.BadParameter(errMsg.Error())
+			s.logger.ErrorContext(ctx, "failed to configure entity descriptor",
+				"entity_id", sp.GetEntityID(),
+				"acs_url", sp.GetACSURL(),
+				"error", err,
+			)
+			return trace.BadParameter("%s", errMsg)
 		}
 	}
 
@@ -142,7 +147,7 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	item, err := s.svc.MakeBackendItem(sp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -166,7 +171,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
 		// logging instead of returning an error cause we do not want to break cache writes on a cluster
 		// that already has a service provider with unsupported characters/scheme in the acs_url or relay_state.
-		s.log.Warn(err)
+		s.logger.WarnContext(ctx, "Provided SAML IdP service provided is invalid", "error", err)
 	}
 
 	// we only verify if the entity ID field in the spec matches with the entity descriptor.
@@ -180,7 +185,7 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	item, err := s.svc.MakeBackendItem(sp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -221,7 +226,6 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 		var listSps []types.SAMLIdPServiceProvider
 		var err error
 		listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
-
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -244,13 +248,16 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 // configureEntityDescriptorPerPreset configures entity descriptor based on SAML service provider preset.
 func (s *SAMLIdPServiceProviderService) configureEntityDescriptorPerPreset(sp types.SAMLIdPServiceProvider) error {
 	switch sp.GetPreset() {
-	case preset.GCPWorkforce:
+	case preset.GCPWorkforce, preset.MicrosoftEntraID:
 		return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
 	default:
 		// fetchAndSetEntityDescriptor is expected to return error if it fails
 		// to fetch a valid entity descriptor.
 		if err := s.fetchAndSetEntityDescriptor(sp); err != nil {
-			s.log.Debugf("Failed to fetch entity descriptor from %q: %v.", sp.GetEntityID(), err)
+			s.logger.DebugContext(context.Background(), "Failed to fetch entity descriptor",
+				"entity_id", sp.GetEntityID(),
+				"error", err,
+			)
 			// We aren't interested in checking error type as any occurrence of error
 			// mean entity descriptor was not set.
 			return trace.Wrap(s.generateAndSetEntityDescriptor(sp))
@@ -295,7 +302,10 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 // generateAndSetEntityDescriptor generates and sets Service Provider entity descriptor
 // with ACS URL, Entity ID and unspecified NameID format.
 func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
-	s.log.Infof("Generating a default entity_descriptor with entity_id %q and acs_url %q.", sp.GetEntityID(), sp.GetACSURL())
+	s.logger.InfoContext(context.Background(), "Generating a default entity_descriptor",
+		"entity_id", sp.GetEntityID(),
+		"acs_url", sp.GetACSURL(),
+	)
 
 	acsURL, err := url.Parse(sp.GetACSURL())
 	if err != nil {
@@ -305,7 +315,7 @@ func (s *SAMLIdPServiceProviderService) generateAndSetEntityDescriptor(sp types.
 	newServiceProvider := saml.ServiceProvider{
 		EntityID:          sp.GetEntityID(),
 		AcsURL:            *acsURL,
-		AuthnNameIDFormat: saml.UnspecifiedNameIDFormat,
+		AuthnNameIDFormat: nameIDFormatPerPreset(sp.GetPreset()),
 	}
 
 	ed := newServiceProvider.Metadata()
@@ -335,11 +345,13 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 	switch attrMapLen := len(sp.GetAttributeMapping()); {
 	case attrMapLen == 0:
 		if teleportSPSSODescriptorIndex == 0 {
-			s.log.Debugf("No custom attribute mapping values provided for %s. SAML assertion will default to uid and eduPersonAffiliate", sp.GetEntityID())
+			s.logger.DebugContext(context.Background(), "No custom attribute mapping values provided,SAML assertion will default to uid and eduPersonAffiliate",
+				"entity_id", sp.GetEntityID(),
+			)
 			return nil
 		} else {
 			// delete Teleport SPSSODescriptor
-			ed.SPSSODescriptors = append(ed.SPSSODescriptors[:teleportSPSSODescriptorIndex], ed.SPSSODescriptors[teleportSPSSODescriptorIndex+1:]...)
+			ed.SPSSODescriptors = slices.Delete(ed.SPSSODescriptors, teleportSPSSODescriptorIndex, teleportSPSSODescriptorIndex+1)
 		}
 	case attrMapLen > 0:
 		if teleportSPSSODescriptorIndex == 0 {
@@ -430,4 +442,13 @@ func spReferencedByAWSICPlugin(ctx context.Context, bk backend.Backend, serviceP
 	}
 
 	return nil
+}
+
+func nameIDFormatPerPreset(presetType string) saml.NameIDFormat {
+	switch presetType {
+	case preset.MicrosoftEntraID:
+		return saml.PersistentNameIDFormat
+	default:
+		return saml.UnspecifiedNameIDFormat
+	}
 }

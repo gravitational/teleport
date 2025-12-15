@@ -73,7 +73,7 @@ function waitForMatchInStdout(
     let chunks = '';
 
     const timeout = setTimeout(() => {
-      rejectOnError(
+      rejectWithCleanup(
         new ResolveError(requestedAddress, process, 'the operation timed out')
       );
     }, timeoutMs);
@@ -94,9 +94,21 @@ function waitForMatchInStdout(
       }
     };
 
-    const rejectOnError = (error: Error) => {
+    const rejectWithCleanup = (error: Error) => {
       reject(error);
       removeListeners();
+    };
+
+    const rejectOnError = (error: Error) => {
+      const errorToReport = error.message.includes(process.spawnfile)
+        ? error
+        : // Attach spawnfile so that the process can be identified without looking at the stacktrace.
+          // resolveNetworkAddress is the only function that ends up surfacing to the UI the error
+          // event of a process.
+          new Error(`${process.spawnfile}: ${error.message}`, {
+            cause: error,
+          });
+      rejectWithCleanup(errorToReport);
     };
 
     const rejectOnClose = (code: number, signal: NodeJS.Signals) => {
@@ -108,7 +120,7 @@ function waitForMatchInStdout(
         .filter(Boolean)
         .join(' ');
       const details = codeOrSignal ? ` with ${codeOrSignal}` : '';
-      rejectOnError(
+      rejectWithCleanup(
         new ResolveError(
           requestedAddress,
           process,

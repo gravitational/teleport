@@ -18,25 +18,26 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Box, Alert, Flex, Label, H3 } from 'design';
+
+import { Alert, Box, ButtonPrimary, Flex, H3, Label, Text } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
-
 import { HoverTooltip } from 'design/Tooltip';
-
-import Validation, { Validator } from 'shared/components/Validation';
 import { FieldSelect } from 'shared/components/FieldSelect';
-import { Option } from 'shared/components/Select';
-import { Attempt } from 'shared/hooks/useAsync';
-import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
+import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+import { Attempt } from 'shared/hooks/useAsync';
+import {
+  AccessRequest,
+  RequestKind,
+  RequestState,
+} from 'shared/services/accessRequests';
 
-import { AccessRequest, RequestState } from 'shared/services/accessRequests';
-
-import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationReview } from '../../../AccessDuration';
-
-import { SuggestedAccessList, SubmitReview } from '../types';
+import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
+import { SubmitReview, SuggestedAccessList } from '../types';
 
 type ReviewStateOption = Option<RequestState, React.ReactElement> & {
   disabled?: boolean;
@@ -301,9 +302,13 @@ function makeReviewStateOptions(
     );
   }
 
-  return [
+  const opts: ReviewStateOption[] = [
     { value: 'DENIED', label: <>Reject request</> },
-    {
+  ];
+
+  // Don't allow approving short-term access for long-term requests.
+  if (request.requestKind !== RequestKind.LongTerm) {
+    opts.push({
       value: 'APPROVED',
       label: (
         <>
@@ -311,16 +316,19 @@ function makeReviewStateOptions(
           {shortTermDuration ? ` (${shortTermDuration})` : ''}
         </>
       ),
-    },
-    {
-      value: 'PROMOTED',
-      disabled:
-        fetchSuggestedAccessListsAttempt.status === 'error' ||
-        (fetchSuggestedAccessListsAttempt.status === 'success' &&
-          fetchSuggestedAccessListsAttempt.data.length === 0),
-      label: <>{promotedContent}</>,
-    },
-  ];
+    });
+  }
+
+  opts.push({
+    value: 'PROMOTED',
+    disabled:
+      fetchSuggestedAccessListsAttempt.status === 'error' ||
+      (fetchSuggestedAccessListsAttempt.status === 'success' &&
+        fetchSuggestedAccessListsAttempt.data.length === 0),
+    label: <>{promotedContent}</>,
+  });
+
+  return opts;
 }
 
 const TextMutedNoEllipsis = styled.div`

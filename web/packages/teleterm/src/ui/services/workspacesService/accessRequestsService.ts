@@ -16,17 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ModalsService } from 'teleterm/ui/services/modals';
 import {
+  AppUri,
+  ClusterUri,
+  DatabaseUri,
+  KubeResourceNamespaceUri,
+  KubeUri,
   ResourceUri,
   routing,
-  ClusterUri,
   ServerUri,
-  DatabaseUri,
-  KubeUri,
-  AppUri,
-  KubeResourceNamespaceUri,
+  WindowsDesktopUri,
 } from 'teleterm/ui/uri';
-import { ModalsService } from 'teleterm/ui/services/modals';
 
 export class AccessRequestsService {
   constructor(
@@ -303,6 +304,12 @@ export type ResourceRequest =
         uri: AppUri;
         samlApp: boolean;
       };
+    }
+  | {
+      kind: 'windows_desktop';
+      resource: {
+        uri: WindowsDesktopUri;
+      };
     };
 
 type SharedResourceAccessRequestKind =
@@ -311,7 +318,8 @@ type SharedResourceAccessRequestKind =
   | 'node'
   | 'kube_cluster'
   | 'saml_idp_service_provider'
-  | 'aws_ic_account_assignment';
+  | 'aws_ic_account_assignment'
+  | 'windows_desktop';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -348,6 +356,16 @@ export function extractResourceRequestProperties({
     case 'kube': {
       const { kubeId } = routing.parseKubeUri(resource.uri).params;
       return { kind: 'kube_cluster', id: kubeId, name: kubeId };
+    }
+    case 'windows_desktop': {
+      const { windowsDesktopId } = routing.parseWindowsDesktopUri(
+        resource.uri
+      ).params;
+      return {
+        kind: 'windows_desktop',
+        id: windowsDesktopId,
+        name: windowsDesktopId,
+      };
     }
     default:
       kind satisfies never;
@@ -479,6 +497,17 @@ export function toResourceRequest({
           }),
         },
         kind: 'kube',
+      };
+    case 'windows_desktop':
+      return {
+        resource: {
+          uri: routing.getWindowsDesktopUri({
+            rootClusterId,
+            leafClusterId,
+            windowsDesktopId: resourceId,
+          }),
+        },
+        kind: 'windows_desktop',
       };
     default:
       kind satisfies never;

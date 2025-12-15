@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
-import { ContextProvider, Context } from 'teleport';
+import { Context, ContextProvider } from 'teleport';
 
 import { AuditContainer as Audit } from './Audit';
 import EventList from './EventList';
@@ -67,9 +67,10 @@ export const Failed = () => {
 export const AllPossibleEvents = () => (
   <EventList
     events={events}
-    fetchMore={() => null}
-    fetchStatus={''}
-    pageSize={1000}
+    search=""
+    setSearch={() => null}
+    setSort={() => null}
+    sort={{ dir: 'ASC', fieldName: 'created' }}
   />
 );
 

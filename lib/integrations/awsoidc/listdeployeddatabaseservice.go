@@ -27,7 +27,7 @@ import (
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
 // ListDeployedDatabaseServicesRequest contains the required fields to list the deployed database services in Amazon ECS.
@@ -139,7 +139,16 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 
 	listServicesOutput, err := clt.ListServices(ctx, listServicesInput)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		convertedError := awslib.ConvertRequestFailureError(err)
+		if trace.IsNotFound(convertedError) {
+			return &ListDeployedDatabaseServicesResponse{}, nil
+		}
+
+		return nil, trace.Wrap(convertedError)
+	}
+
+	if len(listServicesOutput.ServiceArns) == 0 {
+		return &ListDeployedDatabaseServicesResponse{}, nil
 	}
 
 	describeServicesOutput, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
@@ -151,7 +160,7 @@ func ListDeployedDatabaseServices(ctx context.Context, clt ListDeployedDatabaseS
 		return nil, trace.Wrap(err)
 	}
 
-	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.Integration)
+	ownershipTags := defaultResourceCreationTags(req.TeleportClusterName, req.Integration)
 
 	deployedDatabaseServices := []DeployedDatabaseService{}
 	for _, ecsService := range describeServicesOutput.Services {

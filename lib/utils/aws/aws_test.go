@@ -19,9 +19,21 @@
 package aws
 
 import (
+	"crypto/tls"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestExtractCredFromAuthHeader test the extractCredFromAuthHeader function logic.
@@ -50,19 +62,42 @@ func TestExtractCredFromAuthHeader(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
-			name:  "signed headers section missing",
-			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			name:  "valid header without spaces",
+			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,SignedHeaders=host;x-amz-content-sha256;x-amz-date,Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
 			expCred: &SigV4{
 				KeyID:     "AKIAIOSFODNN7EXAMPLE",
 				Date:      "20130524",
 				Region:    "us-east-1",
 				Service:   "s3",
 				Signature: "fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+				SignedHeaders: []string{
+					"host",
+					"x-amz-content-sha256",
+					"x-amz-date",
+				},
 			},
 			wantErr: require.NoError,
 		},
 		{
-			name:    "credential  section missing",
+			name:  "valid with empty list of signed headers",
+			input: "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request,SignedHeaders=,Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			expCred: &SigV4{
+				KeyID:         "AKIAIOSFODNN7EXAMPLE",
+				Date:          "20130524",
+				Region:        "us-east-1",
+				Service:       "s3",
+				Signature:     "fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+				SignedHeaders: nil,
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name:    "signed headers section missing",
+			input:   "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+			wantErr: require.Error,
+		},
+		{
+			name:    "credential section missing",
 			input:   "AWS4-HMAC-SHA256 SignedHeaders=host;range;x-amz-date, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
 			wantErr: require.Error,
 		},
@@ -494,32 +529,100 @@ func TestResourceARN(t *testing.T) {
 	}
 }
 
-func TestMaybeHashRoleSessionName(t *testing.T) {
-	for _, tt := range []struct {
-		name     string
-		role     string
-		expected string
+func TestVerifyAWSSignature(t *testing.T) {
+	creds1 := credentials.NewStaticCredentialsProvider("sameid", "secret1", "")
+	creds2 := credentials.NewStaticCredentialsProvider("sameid", "secret2", "")
+	creds3 := credentials.NewStaticCredentialsProvider("otherid", "secret1", "")
+	tests := []struct {
+		desc              string
+		clientCreds       aws.CredentialsProvider
+		serverCreds       aws.CredentialsProvider
+		checksumAlgorithm s3types.ChecksumAlgorithm
+		noTLS             bool
+		wantSha256Header  string
+		wantError         string
 	}{
 		{
-			name:     "role session name not hashed, less than 64 characters",
-			role:     "MyRole",
-			expected: "MyRole",
+			desc:             "unsigned payload",
+			clientCreds:      creds1,
+			serverCreds:      creds1,
+			wantSha256Header: "UNSIGNED-PAYLOAD",
 		},
 		{
-			name:     "role session name not hashed, exactly 64 characters",
-			role:     "Role123456789012345678901234567890123456789012345678901234567890",
-			expected: "Role123456789012345678901234567890123456789012345678901234567890",
+			desc:        "signed payload",
+			clientCreds: creds1,
+			serverCreds: creds1,
+			// echo -n 'llama' | sha256sum
+			wantSha256Header: "fc5a1047f5919892fcdf8aa79ea5d6bb6531b5c176939ef0110906cb225941c1",
+			noTLS:            true,
 		},
 		{
-			name:     "role session name hashed, longer than 64 characters",
-			role:     "remote-raimundo.oliveira@abigcompany.com-teleport.abigcompany.com",
-			expected: "remote-raimundo.oliveira@abigcompany.com-telepo-8fe1f87e599b043e",
+			desc:              "streaming unsigned payload trailer",
+			clientCreds:       creds1,
+			serverCreds:       creds1,
+			checksumAlgorithm: s3types.ChecksumAlgorithmCrc32,
+			wantSha256Header:  "STREAMING-UNSIGNED-PAYLOAD-TRAILER",
 		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := MaybeHashRoleSessionName(tt.role)
-			require.Equal(t, tt.expected, actual)
-			require.LessOrEqual(t, len(actual), MaxRoleSessionNameLength)
+		{
+			desc:             "different credential ID",
+			clientCreds:      creds3,
+			serverCreds:      creds1,
+			wantSha256Header: "UNSIGNED-PAYLOAD",
+			wantError:        "AccessKeyID does not match",
+		},
+		{
+			desc:             "different credential secret",
+			clientCreds:      creds2,
+			serverCreds:      creds1,
+			wantSha256Header: "UNSIGNED-PAYLOAD",
+			wantError:        "signature verification failed",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				assert.Equal(t, test.wantSha256Header, req.Header.Get("x-amz-content-sha256"))
+				bodyBefore, err := utils.GetAndReplaceRequestBody(req)
+				assert.NoError(t, err)
+				err = VerifyAWSSignature(req, test.serverCreds)
+				if test.wantError != "" {
+					assert.ErrorContains(t, err, test.wantError)
+				} else {
+					assert.NoError(t, err)
+				}
+				bodyAfter, err := io.ReadAll(req.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, string(bodyBefore), string(bodyAfter),
+					"checking a signature should not modify the request contents",
+				)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+			if test.noTLS {
+				srv.Start()
+			} else {
+				srv.StartTLS()
+			}
+			tr := http.DefaultTransport.(*http.Transport).Clone()
+			tr.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+			clt := s3.New(s3.Options{
+				Credentials:      test.clientCreds,
+				BaseEndpoint:     aws.String(srv.URL),
+				Region:           "us-west-2",
+				RetryMaxAttempts: 1,
+				HTTPClient: &http.Client{
+					Transport: tr,
+				},
+			})
+			_, err := clt.PutObject(t.Context(), &s3.PutObjectInput{
+				ChecksumAlgorithm: test.checksumAlgorithm,
+				Bucket:            aws.String("bucket"),
+				Key:               aws.String("key"),
+				Body:              strings.NewReader("llama"),
+			})
+			require.NoError(t, err)
 		})
 	}
 }

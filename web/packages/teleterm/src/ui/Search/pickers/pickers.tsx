@@ -19,7 +19,6 @@
 import React from 'react';
 
 import { ParametrizedAction } from '../actions';
-
 import { ActionPicker } from './ActionPicker';
 import { ParameterPicker } from './ParameterPicker';
 

@@ -17,20 +17,19 @@
  */
 
 import React, { useState } from 'react';
+
 import { Box, ButtonPrimary, Flex, Image, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
+import { StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
-import { Auth2faType } from 'shared/services';
-
 import { Attempt } from 'shared/hooks/useAttemptNext';
-
-import { StepHeader } from 'design/StepSlider';
+import { Auth2faType } from 'shared/services';
+import createMfaOptions from 'shared/utils/createMfaOptions';
 
 import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';

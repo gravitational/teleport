@@ -27,22 +27,29 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base32"
 	"encoding/pem"
 	"fmt"
 	"math/big"
 	"net"
+	"os"
+	"slices"
 	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -114,6 +121,11 @@ type Identity struct {
 	// Username is the name of the user (for end-users/bots) or the Host ID (for
 	// Teleport processes).
 	Username string
+	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+	// set, the Groups field must not be set.
+	ScopePin *scopesv1.Pin
+	// AgentScope is the scope this identity belongs to.
+	AgentScope string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
@@ -189,6 +201,9 @@ type Identity struct {
 	// BotInstanceID is a unique identifier for Machine ID bots that is
 	// persisted through renewals.
 	BotInstanceID string
+	// JoinToken contains the name of the join token used when a Machine ID bot
+	// joins. It is empty for other identity types.
+	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
@@ -203,6 +218,14 @@ type Identity struct {
 
 	// UserType indicates if the User was created by an SSO Provider or locally.
 	UserType types.UserType
+
+	// JoinAttributes holds the attributes that resulted from the
+	// Bot/Agent join process.
+	JoinAttributes *workloadidentityv1pb.JoinAttrs
+
+	// OriginClusterName is the name of the cluster where the identity is
+	// authenticated.
+	OriginClusterName string
 }
 
 // RouteToApp holds routing information for applications.
@@ -240,6 +263,11 @@ type RouteToApp struct {
 	// apps. It is appended to the hostname from the URI in the app spec, since the URI from
 	// RouteToApp is not used as the source of truth for routing.
 	TargetPort int
+
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AWSCredentialProcessCredentials string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -342,6 +370,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 
 	return events.Identity{
 		User:                    id.Username,
+		ScopePin:                pinning.ToEventsPin(id.ScopePin),
 		Impersonator:            id.Impersonator,
 		Roles:                   id.Groups,
 		Usage:                   id.Usage,
@@ -370,6 +399,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DeviceExtensions:        devExts,
 		BotName:                 id.BotName,
 		BotInstanceID:           id.BotInstanceID,
+		JoinToken:               id.JoinToken,
 	}
 }
 
@@ -378,8 +408,15 @@ func (id *Identity) CheckAndSetDefaults() error {
 	if id.Username == "" {
 		return trace.BadParameter("missing identity username")
 	}
-	if len(id.Groups) == 0 {
-		return trace.BadParameter("missing identity groups")
+	if len(id.Groups) == 0 && id.ScopePin == nil {
+		return trace.BadParameter("missing identity groups or scope pin")
+	}
+
+	// Set the origin cluster name to the teleport cluster name.
+	// OriginClusterName is never encoded in the certificate
+	// so we set it to cert's TeleportCluster.
+	if id.OriginClusterName == "" {
+		id.OriginClusterName = id.TeleportCluster
 	}
 
 	return nil
@@ -475,6 +512,11 @@ var (
 	// target port into a certificate.
 	AppTargetPortASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 21}
 
+	// AppAWSCredentialProcessCredentialsASN1ExtensionOID is an extension that encodes the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AppAWSCredentialProcessCredentialsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 22}
+
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
 	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
@@ -556,6 +598,24 @@ var (
 	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
 	// instance identifier into a certificate.
 	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
+
+	// JoinAttributesASN1ExtensionOID is an extension that encodes the
+	// attributes that resulted from the Bot/Agent join process.
+	JoinAttributesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
+
+	// ADStatusOID is an extension OID used to indicate that we're connecting to AD-joined desktop.
+	ADStatusOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 22}
+
+	// JoinTokenOID is an extension OID that contains the name of the join token
+	// used when a bot joins.
+	JoinTokenASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 23}
+
+	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
+	// used to tie the certificate to a specific scope and set of scoped roles.
+	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
+	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
+	// used to tie the certificate to a spec
+	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
 )
 
 // Device Trust OIDs.
@@ -678,6 +738,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AWSRoleARNsASN1ExtensionOID,
 				Value: id.AWSRoleARNs[i],
+			})
+	}
+	if id.RouteToApp.AWSCredentialProcessCredentials != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppAWSCredentialProcessCredentialsASN1ExtensionOID,
+				Value: id.RouteToApp.AWSCredentialProcessCredentials,
 			})
 	}
 	if id.RouteToApp.AzureIdentity != "" {
@@ -855,6 +922,35 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.JoinToken != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  JoinTokenASN1ExtensionOID,
+				Value: id.JoinToken,
+			})
+	}
+
+	if id.ScopePin != nil {
+		pin, err := protojson.Marshal(id.ScopePin)
+		if err != nil {
+			return pkix.Name{}, trace.Errorf("failed to encode scope pin: %w", err)
+		}
+
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ScopePinASN1ExtensionOID,
+				Value: string(pin),
+			})
+	}
+
+	if id.AgentScope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AgentScopeASN1ExtensionOID,
+				Value: id.AgentScope,
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -891,6 +987,24 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  ConnectionDiagnosticIDASN1ExtensionOID,
 				Value: id.ConnectionDiagnosticID,
+			},
+		)
+	}
+
+	if id.JoinAttributes != nil && shouldPersistJoinAttrs() {
+		encoded, err := protojson.MarshalOptions{
+			// Use the proto field names as this is what we use in the
+			// templating engine and this being consistent for any user who
+			// inspects the cert is kind.
+			UseProtoNames: true,
+		}.Marshal(id.JoinAttributes)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err, "encoding join attributes as protojson")
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  JoinAttributesASN1ExtensionOID,
+				Value: string(encoded),
 			},
 		)
 	}
@@ -998,6 +1112,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
+			}
+		case attr.Type.Equal(AppAWSCredentialProcessCredentialsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.AWSCredentialProcessCredentials = val
 			}
 		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1119,6 +1238,23 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.BotInstanceID = val
 			}
+		case attr.Type.Equal(JoinTokenASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.JoinToken = val
+			}
+		case attr.Type.Equal(ScopePinASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				var pin scopesv1.Pin
+				if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(val), &pin); err != nil {
+					return nil, trace.Errorf("failed to unmarshal scope pin: %w", err)
+				}
+				id.ScopePin = &pin
+			}
+		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
+			id.AgentScope = attr.Value.(string)
+
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1158,6 +1294,19 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.UserType = types.UserType(val)
 			}
+		case attr.Type.Equal(JoinAttributesASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.JoinAttributes = &workloadidentityv1pb.JoinAttrs{}
+				unmarshaler := protojson.UnmarshalOptions{
+					// We specifically want to DiscardUnknown or unmarshaling
+					// will fail if the proto message was issued by a newer
+					// auth server w/ new fields.
+					DiscardUnknown: true,
+				}
+				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 		}
 	}
 
@@ -1177,11 +1326,20 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		}
 	}
 
-	userKind := events.UserKind_USER_KIND_HUMAN
-	if id.BotName != "" {
+	_, systemRoleCheckErr := types.NewTeleportRoles(id.Groups)
+	var userKind events.UserKind
+	switch {
+	case id.BotName != "":
 		userKind = events.UserKind_USER_KIND_BOT
+	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil && len(id.Groups) > 0:
+		userKind = events.UserKind_USER_KIND_SYSTEM
+	default:
+		userKind = events.UserKind_USER_KIND_HUMAN
 	}
-
+	userTeleportCluster := id.OriginClusterName
+	if userTeleportCluster == "" {
+		userTeleportCluster = id.TeleportCluster
+	}
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1193,6 +1351,9 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		TrustedDevice:     device,
 		BotName:           id.BotName,
 		BotInstanceID:     id.BotInstanceID,
+		UserRoles:         slices.Clone(id.Groups),
+		UserTraits:        id.Traits.Clone(),
+		UserClusterName:   userTeleportCluster,
 	}
 }
 
@@ -1210,6 +1371,11 @@ func (id Identity) GetSessionMetadata(sid string) events.SessionMetadata {
 // should be re-verified for login procedures or admin actions.
 func (id *Identity) IsMFAVerified() bool {
 	return id.MFAVerified != "" || id.PrivateKeyPolicy.MFAVerified()
+}
+
+// IsBot returns whether this identity belongs to a bot.
+func (id *Identity) IsBot() bool {
+	return id.BotName != ""
 }
 
 // CertificateRequest is a X.509 signing certificate request
@@ -1243,7 +1409,7 @@ func (c *CertificateRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter PublicKey")
 	}
 	if c.Subject.CommonName == "" {
-		return trace.BadParameter("missing parameter Subject.Common name")
+		return trace.BadParameter("missing parameter Subject.CommonName")
 	}
 	if c.NotAfter.IsZero() {
 		return trace.BadParameter("missing parameter NotAfter")
@@ -1278,6 +1444,7 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"dns_names", req.DNSNames,
 		"key_usage", req.KeyUsage,
 		"common_name", req.Subject.CommonName,
+		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
 
 	template := &x509.Certificate{
@@ -1311,4 +1478,11 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certBytes}), nil
+}
+
+// shouldPersistJoinAttrs returns true if the join attributes should be persisted
+// into the X509 identity. This provides an emergency "off" handle for this
+// new behavior until we are confident it is working as expected.
+func shouldPersistJoinAttrs() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_JOIN_ATTRS") != "yes"
 }

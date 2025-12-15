@@ -17,17 +17,17 @@
  */
 
 import {
+  createContext,
   FC,
   PropsWithChildren,
   useCallback,
   useContext,
-  createContext,
 } from 'react';
 
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { AccessRequestsService } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 const WorkspaceContext = createContext<{
   rootClusterUri: RootClusterUri;

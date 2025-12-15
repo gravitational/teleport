@@ -16,29 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
+import { delay, http, HttpResponse } from 'msw';
+import { PropsWithChildren } from 'react';
 import { withoutQuery } from 'web/packages/build/storybook';
 
-import { http, HttpResponse, delay } from 'msw';
-
-import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { userContext } from 'teleport/Main/fixtures';
+import {
+  RequiredDiscoverProviders,
+  resourceSpecServerLinuxUbuntu,
+} from 'teleport/Discover/Fixtures/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-
-import { UserContextProvider } from 'teleport/User';
 import {
   INTERNAL_RESOURCE_ID_LABEL_KEY,
   JoinToken,
@@ -65,7 +59,7 @@ export const Polling: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -74,7 +68,7 @@ export const Polling: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -88,7 +82,7 @@ export const PollingSuccess: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return HttpResponse.json({ items: [{}] });
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -97,7 +91,7 @@ export const PollingSuccess: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -113,7 +107,7 @@ export const PollingError: StoryObj = {
         http.get(nodesPathWithoutQuery, () => {
           return delay('infinite');
         }),
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(joinToken);
         }),
       ],
@@ -122,7 +116,7 @@ export const PollingError: StoryObj = {
   render() {
     return (
       <Provider interval={50}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -132,7 +126,7 @@ export const Processing: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return delay('infinite');
         }),
       ],
@@ -141,7 +135,7 @@ export const Processing: StoryObj = {
   render() {
     return (
       <Provider interval={5}>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
@@ -151,7 +145,7 @@ export const Failed: StoryObj = {
   parameters: {
     msw: {
       handlers: [
-        http.post(cfg.api.joinTokenPath, () => {
+        http.post(cfg.api.discoveryJoinToken.createV2, () => {
           return HttpResponse.json(
             {
               error: { message: 'Whoops, something went wrong.' },
@@ -165,79 +159,37 @@ export const Failed: StoryObj = {
   render() {
     return (
       <Provider>
-        <DownloadScript />
+        <DownloadScript prevStep={() => null} />
       </Provider>
     );
   },
 };
 
-const Provider = props => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-name',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
+const agentMeta: AgentMeta = {
+  awsIntegration: {
+    kind: IntegrationKind.AwsOidc,
+    name: 'some-name',
+    resourceType: 'integration',
+    spec: {
+      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+      issuerS3Bucket: '',
+      issuerS3Prefix: '',
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: 'kube',
-      kind: ResourceKind.Kubernetes,
-      icon: 'kube',
-      keywords: [],
-      event: DiscoverEventResource.Kubernetes,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
-  return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
-    >
-      <UserContextProvider>
-        <ContextProvider ctx={ctx}>
-          <PingTeleportProvider
-            interval={props.interval || 100000}
-            resourceKind={ResourceKind.Server}
-          >
-            <DiscoverProvider mockCtx={discoverCtx}>
-              {props.children}
-            </DiscoverProvider>
-          </PingTeleportProvider>
-        </ContextProvider>
-      </UserContextProvider>
-    </MemoryRouter>
-  );
+    statusCode: IntegrationStatusCode.Running,
+  },
 };
 
-function createTeleportContext() {
-  const ctx = new TeleportContext();
-
-  ctx.isEnterprise = false;
-  ctx.storeUser.setState(userContext);
-
-  return ctx;
-}
+const Provider: React.FC<PropsWithChildren<{ interval?: number }>> = props => {
+  return (
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecServerLinuxUbuntu}
+      interval={props.interval}
+    >
+      {props.children}
+    </RequiredDiscoverProviders>
+  );
+};
 
 const joinToken: JoinToken = {
   id: 'some-id',

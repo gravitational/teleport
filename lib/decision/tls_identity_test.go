@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	traitpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -42,7 +43,15 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 	}
 
 	fullIdentity := &decisionpb.TLSIdentity{
-		Username:          "user",
+		Username: "user",
+		ScopePin: &scopesv1.Pin{
+			Scope: "/foo",
+			Assignments: map[string]*scopesv1.PinnedAssignments{
+				"/": {
+					Roles: []string{"role1", "role2"},
+				},
+			},
+		},
 		Impersonator:      "impersonator",
 		Groups:            []string{"role1", "role2"},
 		SystemRoles:       []string{"system1", "system2"},
@@ -61,15 +70,16 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			{Key: "trait2", Values: []string{"val1", "val2"}},
 		},
 		RouteToApp: &decisionpb.RouteToApp{
-			SessionId:         "session-id",
-			PublicAddr:        "public-addr",
-			ClusterName:       "cluster-name",
-			Name:              "name",
-			AwsRoleArn:        "aws-role-arn",
-			AzureIdentity:     "azure-id",
-			GcpServiceAccount: "gcp-service-account",
-			Uri:               "uri",
-			TargetPort:        111,
+			SessionId:                       "session-id",
+			PublicAddr:                      "public-addr",
+			ClusterName:                     "cluster-name",
+			Name:                            "name",
+			AwsRoleArn:                      "aws-role-arn",
+			AzureIdentity:                   "azure-id",
+			GcpServiceAccount:               "gcp-service-account",
+			Uri:                             "uri",
+			TargetPort:                      111,
+			AwsCredentialprocessCredentials: "aws-cred-process-creds",
 		},
 		TeleportCluster: "teleport-cluster",
 		RouteToDatabase: &decisionpb.RouteToDatabase{

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ButtonPrimary, ButtonSecondary, Flex, P2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
 } from 'design/DialogConfirmation';
-import { ButtonPrimary, ButtonSecondary, Flex, P2 } from 'design';
 import { ConfirmHardwareKeySlotOverwriteRequest } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 
 import { CommonHeader } from './CommonHeader';
@@ -49,11 +49,11 @@ export function OverwriteSlot(props: {
       >
         <CommonHeader
           onCancel={props.onCancel}
-          rootClusterUri={props.req.rootClusterUri}
+          proxyHostname={props.req.proxyHostname}
         />
 
         <DialogContent mb={4}>
-          <P2 color="text.slightlyMuted">{props.req.message}</P2>
+          <P2>{props.req.message}</P2>
         </DialogContent>
 
         <DialogFooter>

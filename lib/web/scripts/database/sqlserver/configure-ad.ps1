@@ -115,7 +115,7 @@ $OUTPUT=@'
 Use the following teleport.yaml to start a Database Access Service.
 For a detailed configuration reference, see
 
-https://goteleport.com/docs/database-access/reference/configuration/
+https://goteleport.com/docs/reference/agent-services/database-access-reference/configuration/
 
 
 {0}

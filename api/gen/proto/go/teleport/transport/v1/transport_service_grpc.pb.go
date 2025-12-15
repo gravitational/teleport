@@ -33,9 +33,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TransportService_GetClusterDetails_FullMethodName = "/teleport.transport.v1.TransportService/GetClusterDetails"
-	TransportService_ProxySSH_FullMethodName          = "/teleport.transport.v1.TransportService/ProxySSH"
-	TransportService_ProxyCluster_FullMethodName      = "/teleport.transport.v1.TransportService/ProxyCluster"
+	TransportService_GetClusterDetails_FullMethodName          = "/teleport.transport.v1.TransportService/GetClusterDetails"
+	TransportService_ProxySSH_FullMethodName                   = "/teleport.transport.v1.TransportService/ProxySSH"
+	TransportService_ProxyCluster_FullMethodName               = "/teleport.transport.v1.TransportService/ProxyCluster"
+	TransportService_ProxyWindowsDesktopSession_FullMethodName = "/teleport.transport.v1.TransportService/ProxyWindowsDesktopSession"
 )
 
 // TransportServiceClient is the client API for TransportService service.
@@ -64,6 +65,8 @@ type TransportServiceClient interface {
 	// connection is established. After which the connection can be used to construct a new
 	// auth.Client to the tunneled cluster.
 	ProxyCluster(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ProxyClusterRequest, ProxyClusterResponse], error)
+	// Bidirectional stream for proxying Windows desktop sessions.
+	ProxyWindowsDesktopSession(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse], error)
 }
 
 type transportServiceClient struct {
@@ -110,6 +113,19 @@ func (c *transportServiceClient) ProxyCluster(ctx context.Context, opts ...grpc.
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TransportService_ProxyClusterClient = grpc.BidiStreamingClient[ProxyClusterRequest, ProxyClusterResponse]
 
+func (c *transportServiceClient) ProxyWindowsDesktopSession(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TransportService_ServiceDesc.Streams[2], TransportService_ProxyWindowsDesktopSession_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TransportService_ProxyWindowsDesktopSessionClient = grpc.BidiStreamingClient[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse]
+
 // TransportServiceServer is the server API for TransportService service.
 // All implementations must embed UnimplementedTransportServiceServer
 // for forward compatibility.
@@ -136,6 +152,8 @@ type TransportServiceServer interface {
 	// connection is established. After which the connection can be used to construct a new
 	// auth.Client to the tunneled cluster.
 	ProxyCluster(grpc.BidiStreamingServer[ProxyClusterRequest, ProxyClusterResponse]) error
+	// Bidirectional stream for proxying Windows desktop sessions.
+	ProxyWindowsDesktopSession(grpc.BidiStreamingServer[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse]) error
 	mustEmbedUnimplementedTransportServiceServer()
 }
 
@@ -154,6 +172,9 @@ func (UnimplementedTransportServiceServer) ProxySSH(grpc.BidiStreamingServer[Pro
 }
 func (UnimplementedTransportServiceServer) ProxyCluster(grpc.BidiStreamingServer[ProxyClusterRequest, ProxyClusterResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method ProxyCluster not implemented")
+}
+func (UnimplementedTransportServiceServer) ProxyWindowsDesktopSession(grpc.BidiStreamingServer[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ProxyWindowsDesktopSession not implemented")
 }
 func (UnimplementedTransportServiceServer) mustEmbedUnimplementedTransportServiceServer() {}
 func (UnimplementedTransportServiceServer) testEmbeddedByValue()                          {}
@@ -208,6 +229,13 @@ func _TransportService_ProxyCluster_Handler(srv interface{}, stream grpc.ServerS
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TransportService_ProxyClusterServer = grpc.BidiStreamingServer[ProxyClusterRequest, ProxyClusterResponse]
 
+func _TransportService_ProxyWindowsDesktopSession_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TransportServiceServer).ProxyWindowsDesktopSession(&grpc.GenericServerStream[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TransportService_ProxyWindowsDesktopSessionServer = grpc.BidiStreamingServer[ProxyWindowsDesktopSessionRequest, ProxyWindowsDesktopSessionResponse]
+
 // TransportService_ServiceDesc is the grpc.ServiceDesc for TransportService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -230,6 +258,12 @@ var TransportService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ProxyCluster",
 			Handler:       _TransportService_ProxyCluster_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "ProxyWindowsDesktopSession",
+			Handler:       _TransportService_ProxyWindowsDesktopSession_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

@@ -16,25 +16,61 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * BaseView is a recursive type representing a view in a Wizard flow.
+ *
+ * @template T - Any view-specific properties.
+ */
 export type BaseView<T> = T & {
+  /**
+   * Whether to hide the view from the list of views.
+   */
   hide?: boolean;
+  /**
+   * Current step index in the wizard.
+   */
   index?: number;
+  /**
+   * Current visible step index in the wizard (ignoring any hidden steps).
+   */
+  displayIndex?: number;
+  /**
+   * Optional list of sub-views.
+   */
   views?: BaseView<T>[];
+  /**
+   * Title of this view in the wizard flow.
+   */
   title: string;
 };
 
 /**
  * computeViewChildrenSize calculates how many children a view has, without counting the first
  * child. This is because the first child shares the same index with its parent, so we don't
- * need to count it as it's not taking up a new index
+ * need to count it as it's not taking up a new index.
+ *
+ * If `constrainToVisible` is true, then we only count the visible views.
  */
-export function computeViewChildrenSize<T>(views: BaseView<T>[]) {
+export function computeViewChildrenSize<T>({
+  views,
+  constrainToVisible = false,
+}: {
+  views: BaseView<T>[];
+  constrainToVisible?: boolean;
+}) {
   let size = 0;
   for (const view of views) {
+    if (constrainToVisible && view.hide) {
+      continue;
+    }
+
     if (view.views) {
-      size += computeViewChildrenSize(view.views);
+      size += computeViewChildrenSize({
+        views: view.views,
+        constrainToVisible,
+      });
     } else {
-      size += 1;
+      size++;
     }
   }
 
@@ -48,7 +84,8 @@ export function computeViewChildrenSize<T>(views: BaseView<T>[]) {
  */
 export function addIndexToViews<T>(
   views: BaseView<T>[],
-  index = 0
+  index = 0,
+  displayIndex = 1
 ): BaseView<T>[] {
   const result: BaseView<T>[] = [];
 
@@ -60,11 +97,20 @@ export function addIndexToViews<T>(
     };
 
     if (view.views) {
-      copy.views = addIndexToViews(view.views, index);
-
-      index += computeViewChildrenSize(view.views);
+      copy.views = addIndexToViews(view.views, index, displayIndex);
+      index += computeViewChildrenSize({ views: view.views });
     } else {
-      index += 1;
+      index++;
+    }
+
+    if (!view.hide) {
+      copy.displayIndex = displayIndex;
+      displayIndex += view.views
+        ? computeViewChildrenSize({
+            views: view.views,
+            constrainToVisible: true,
+          })
+        : 1;
     }
 
     result.push(copy);

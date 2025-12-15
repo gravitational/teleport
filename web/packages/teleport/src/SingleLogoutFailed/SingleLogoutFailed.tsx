@@ -17,6 +17,7 @@
  */
 
 import { useLocation } from 'react-router';
+
 import { LogoutFailed } from 'design/CardError';
 
 import { LogoHero } from 'teleport/components/LogoHero';

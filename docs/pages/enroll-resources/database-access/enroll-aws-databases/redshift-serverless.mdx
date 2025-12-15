@@ -1,6 +1,12 @@
 ---
 title: Database Access with Amazon Redshift Serverless
+sidebar_label: Redshift Serverless
 description: How to configure Teleport database access with Amazon Redshift Serverless.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon Redshift Serverless" dbConfigure="with IAM authentication"!)
@@ -16,10 +22,10 @@ This guide will help you to:
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Teleport Database Access Redshift Self-Hosted](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
+![Enroll Redshift with a Self-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_selfhosted_serverless.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Teleport Database Access Redshift Cloud](../../../../img/database-access/guides/redshift_cloud_serverless.png)
+![Enroll Redshift with a Cloud-Hosted Teleport Cluster](../../../../img/database-access/guides/redshift_cloud_serverless.png)
 </TabItem>
 
 </Tabs>
@@ -43,9 +49,10 @@ Create an AWS IAM role to provide user access to Redshift Serverless. This role
 will be granted to Teleport users via a corresponding Teleport role. In this
 guide we will give this role the name `teleport-redshift-serverless-access`.
 
-Configure the role's trust policy to trust the AWS account.
-This will be sufficient to allow the Teleport Database Service to assume the
-role, which we'll be setting up in the next step:
+Configure the role's trust policy to trust the AWS account.  This will be
+sufficient to allow the Teleport Database Service to assume the role, which
+we'll be setting up in the next step. Assign <Var name="aws-account-id"/> to
+your AWS account ID:
 
 ```json
 {
@@ -126,24 +133,10 @@ host.
 ### Generate a config file
 
 Update <Var name="REDSHIFT_SERVERLESS_URI" /> to the domain name and port of the
-cluster.
-On the node that is running the Database Service, create a configuration file:
-
-<Tabs>
-<TabItem label="Self-Hosted">
-
-```code
-$ sudo teleport db configure create \
-   -o file \
-   --name="redshift-serverless" \
-   --proxy=teleport.example.com:3080 \
-   --protocol=postgres \
-   --uri=<Var name="REDSHIFT_SERVERLESS_URI" /> \
-   --token=/tmp/token
-```
-
-</TabItem>
-<TabItem label="Teleport Enterprise (Cloud)">
+cluster.  On the node that is running the Database Service, create a
+configuration file, replacing <Var name="example.teleport.sh:443" /> with the
+host and web port of your Teleport Proxy Service (e.g., `example.teleport.sh` if
+using Teleport Cloud):
 
 ```code
 $ sudo teleport db configure create \
@@ -154,9 +147,6 @@ $ sudo teleport db configure create \
    --uri=<Var name="REDSHIFT_SERVERLESS_URI" /> \
    --token=/tmp/token
 ```
-
-</TabItem>
-</Tabs>
 
 The command will generate a Database Service configuration to proxy your AWS
 Redshift Serverless instance and place it at the `/etc/teleport.yaml` location.
@@ -206,6 +196,8 @@ $ tctl create -f redshift-role.yaml
 role 'redshift-serverless-access' has been created
 ```
 
+(!docs/pages/includes/create-role-using-web.mdx!)
+
 (!docs/pages/includes/add-role-to-user.mdx role="redshift-serverless-access"!)
 
 ## Step 5/5. Connect
@@ -217,9 +209,9 @@ Service or cloud tenant:
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-Name        Description                    Labels
------------ ------------------------------ --------
-my-redshift                                ...
+Name        Description Labels
+----------- ----------- ------
+my-redshift             ...
 ```
 
 To connect to the Redshift Serverless instance:
@@ -234,6 +226,8 @@ Type "help" for help.
 
 dev=>
 ```
+
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
 
@@ -273,5 +267,5 @@ prior to logging in as this new IAM role to avoid or resolve user permission iss
   credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
 - Learn how to [restrict access](../rbac.mdx) to certain users and databases.
 - View the [High Availability (HA)](../guides/ha.mdx) guide.
-- Take a look at the YAML configuration [reference](../../../reference/agent-services/database-access-reference/configuration.mdx).
+- Take a look at the YAML configuration [reference](../reference/configuration.mdx).
 

@@ -1,7 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: null
   name: teleportprovisiontokens.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -61,6 +60,10 @@ spec:
                         identity of joining nodes must match this ARN. Supports wildcards
                         "*" and "?".
                       type: string
+                    aws_organization_id:
+                      description: AWSOrganizationID is used for the IAM join method,
+                        the AWS identity of joining nodes must belong to this organization.
+                      type: string
                     aws_regions:
                       description: AWSRegions is used for the EC2 join method and
                         is a list of AWS regions a node is allowed to join from.
@@ -102,6 +105,43 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              azure_devops:
+                description: AzureDevops allows the configuration of options specific
+                  to the "azure_devops" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of TokenRules, nodes using this token
+                      must match one allow rule to use this token. At least one allow
+                      rule must be specified.
+                    items:
+                      properties:
+                        definition_id:
+                          type: string
+                        pipeline_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        repository_ref:
+                          type: string
+                        repository_uri:
+                          type: string
+                        repository_version:
+                          type: string
+                        sub:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  organization_id:
+                    description: OrganizationID specifies the UUID of the Azure DevOps
+                      organization that this join token will grant access to. This
+                      is used to identify the correct issuer verification of the ID
+                      token. This is a required field.
+                    type: string
+                type: object
               bitbucket:
                 description: Bitbucket allows the configuration of options specific
                   to the "bitbucket" join method.
@@ -140,6 +180,45 @@ spec:
                 description: BotName is the name of the bot this token grants access
                   to, if any
                 type: string
+              bound_keypair:
+                description: BoundKeypair allows the configuration of options specific
+                  to the "bound_keypair" join method.
+                nullable: true
+                properties:
+                  onboarding:
+                    description: Onboarding contains parameters related to initial
+                      onboarding and keypair registration.
+                    nullable: true
+                    properties:
+                      initial_public_key:
+                        type: string
+                      must_register_before:
+                        format: date-time
+                        type: string
+                      registration_secret:
+                        type: string
+                    type: object
+                  recovery:
+                    description: Recovery contains parameters related to recovery
+                      after identity expiration.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: RotateAfter is an optional timestamp that forces
+                      clients to perform a keypair rotation on the next join or recovery
+                      attempt after the given date. If `LastRotatedAt` is unset or
+                      before this timestamp, a rotation will be requested. It is recommended
+                      to set this value to the current timestamp if a rotation should
+                      be triggered on the next join attempt.
+                    format: date-time
+                    type: string
+                type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
                   to the "circleci" join method.
@@ -159,6 +238,42 @@ spec:
                     type: array
                   organization_id:
                     type: string
+                type: object
+              env0:
+                description: Env0 allows the configuration of options specific to
+                  the "env0" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, jobs using this token must
+                      match at least one allow rule to use this token.
+                    items:
+                      properties:
+                        deployer_email:
+                          type: string
+                        deployment_type:
+                          type: string
+                        env0_tag:
+                          type: string
+                        environment_id:
+                          type: string
+                        environment_name:
+                          type: string
+                        organization_id:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        template_id:
+                          type: string
+                        template_name:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                 type: object
               gcp:
                 description: GCP allows the configuration of options specific to the
@@ -295,6 +410,12 @@ spec:
                       will default to `gitlab.com` - but can be set to the domain
                       of your self-hosted GitLab e.g `gitlab.example.com`.
                     type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GitLab signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitLab CI instances that
+                      are not reachable by the Teleport Auth Service.
+                    type: string
                 type: object
               join_method:
                 description: 'JoinMethod is the joining method required in order to
@@ -316,6 +437,15 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  oidc:
+                    description: OIDCConfig configures the `oidc` type.
+                    nullable: true
+                    properties:
+                      insecure_allow_http_issuer:
+                        type: boolean
+                      issuer:
+                        type: string
+                    type: object
                   static_jwks:
                     description: StaticJWKS is the configuration specific to the `static_jwks`
                       type.
@@ -327,8 +457,40 @@ spec:
                   type:
                     description: 'Type controls which behavior should be used for
                       validating the Kubernetes Service Account token. Support values:
-                      - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
+                      - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults
+                      to `in_cluster`.'
                     type: string
+                type: object
+              oracle:
+                description: Oracle allows the configuration of options specific to
+                  the "oracle" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        instances:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        parent_compartments:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        tenancy:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that
@@ -359,6 +521,10 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  enable_glob_matching:
+                    description: EnableGlobMatching enables glob-style matching for
+                      the space_id and caller_id fields in the rules.
+                    type: boolean
                   hostname:
                     description: Hostname is the hostname of the Spacelift tenant
                       that tokens will originate from. E.g `example.app.spacelift.io`

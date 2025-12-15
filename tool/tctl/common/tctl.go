@@ -25,12 +25,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -72,11 +74,7 @@ type CLICommand interface {
 //
 // distribution: name of the Teleport distribution
 func Run(ctx context.Context, commands []CLICommand) {
-	if err := tools.CheckAndUpdateLocal(ctx, teleport.Version); err != nil {
-		utils.FatalError(err)
-	}
-
-	err := TryRun(commands, os.Args[1:])
+	err := TryRun(ctx, commands, os.Args[1:])
 	if err != nil {
 		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
@@ -88,18 +86,42 @@ func Run(ctx context.Context, commands []CLICommand) {
 
 // TryRun is a helper function for Run to call - it runs a tctl command and returns an error.
 // This is useful for testing tctl, because we can capture the returned error in tests.
-func TryRun(commands []CLICommand, args []string) error {
+func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelWarn)
 
-	// app is the command line parser
-	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	var ccf tctlcfg.GlobalCLIFlags
+	muApp := utils.InitHiddenCLIParser()
+	muApp.Flag("auth-server",
+		fmt.Sprintf("Attempts to connect to specific auth/proxy address(es) instead of local auth [%v]", defaults.AuthConnectAddr().Addr)).
+		Envar(authAddrEnvVar).
+		StringsVar(&ccf.AuthServerAddr)
+	// We need to parse the arguments before executing managed updates to identify
+	// the profile name and the required version for the current cluster.
+	// All other commands and flags may change between versions, so full parsing
+	// should be performed only after managed updates are applied.
+	if _, err := muApp.Parse(utils.FilterArguments(args, muApp.Model())); err != nil {
+		slog.WarnContext(ctx, "can't identify current profile", "error", err)
+	}
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
+	if cfg.TeleportHome != "" {
+		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
+	}
 
-	var ccf tctlcfg.GlobalCLIFlags
+	var name string
+	if len(ccf.AuthServerAddr) != 0 {
+		name = utils.TryHost(strings.TrimPrefix(strings.ToLower(ccf.AuthServerAddr[0]), "https://"))
+	}
+	if err := tools.CheckAndUpdateLocal(ctx, name, args); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// app is the command line parser
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
 
 	// Each command will add itself to the CLI parser.
 	for i := range commands {
@@ -112,7 +134,9 @@ func TryRun(commands []CLICommand, args []string) error {
 	if configFileEnv, ok := os.LookupEnv(defaults.ConfigFileEnvar); ok {
 		ccf.ConfigFile = configFileEnv
 	} else {
-		if utils.FileExists(defaults.ConfigFilePath) {
+		// Skip the default config path on windows since the C:\etc\ directory
+		// does not exist by default and low-privileged users can create the folder.
+		if runtime.GOOS != constants.WindowsOS && utils.FileExists(defaults.ConfigFilePath) {
 			ccf.ConfigFile = defaults.ConfigFilePath
 		}
 	}
@@ -154,14 +178,8 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.BadParameter("tctl --identity also requires --auth-server")
 	}
 
-	cfg.TeleportHome = os.Getenv(types.HomeEnvVar)
-	if cfg.TeleportHome != "" {
-		cfg.TeleportHome = filepath.Clean(cfg.TeleportHome)
-	}
-
 	cfg.Debug = ccf.Debug
 
-	ctx := context.Background()
 	clientFunc := commonclient.GetInitFunc(ccf, cfg)
 	// Execute whatever is selected.
 	for _, c := range commands {

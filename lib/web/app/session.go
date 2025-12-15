@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"math/rand/v2"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,7 +56,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	// Query the cluster this application is running in to find the public
 	// address and cluster name pair which will be encoded into the certificate.
-	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
+	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, identity.RouteToApp.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,10 +65,10 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := Match(
+	servers, err := MatchUnshuffled(
 		ctx,
 		accessPoint,
-		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+		appServerMatcher(h.c.ClusterGetter, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,11 +78,15 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.NotFound("failed to match applications")
 	}
 
+	rand.Shuffle(len(servers), func(i, j int) {
+		servers[i], servers[j] = servers[j], servers[i]
+	})
+
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
 		log:                   h.logger,
 		clock:                 h.c.Clock,
-		proxyClient:           h.c.ProxyClient,
+		clusterGetter:         h.c.ClusterGetter,
 		accessPoint:           h.c.AccessPoint,
 		cipherSuites:          h.c.CipherSuites,
 		identity:              identity,
@@ -120,7 +125,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 // appServerMatcher returns a Matcher function used to find which AppServer can
 // handle the application requests.
-func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string, clusterName string) Matcher {
+func appServerMatcher(clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) Matcher {
 	// Match healthy and PublicAddr servers. Having a list of only healthy
 	// servers helps the transport fail before the request is forwarded to a
 	// server (in cases where there are no healthy servers). This process might
@@ -130,6 +135,6 @@ func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string,
 		MatchPublicAddr(publicAddr),
 		// NOTE: Try to leave this matcher as the last one to dial only the
 		// application servers that match the requested application.
-		MatchHealthy(proxyClient, clusterName),
+		MatchHealthy(clusterGetter, clusterName),
 	)
 }

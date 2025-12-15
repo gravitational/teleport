@@ -17,31 +17,44 @@
  */
 
 import React from 'react';
-
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
+import { ContextProvider } from 'teleport';
+import { Route } from 'teleport/components/Router';
 import {
   awsOidcStatusContext,
   AwsOidcStatusContextState,
 } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
-import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { Acl } from 'teleport/services/user';
 
 export const MockAwsOidcStatusProvider = ({
   children,
   value,
+  initialEntries,
+  path,
+  customAcl,
 }: {
   children?: React.ReactNode;
   value: AwsOidcStatusContextState;
+  path: string;
+  initialEntries?: string[];
+  customAcl?: Acl;
 }) => {
-  const ctx = createTeleportContext();
+  const ctx = customAcl
+    ? createTeleportContext({ customAcl })
+    : createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initialEntries}>
       <ContextProvider ctx={ctx}>
-        <awsOidcStatusContext.Provider value={value}>
-          {children}
-        </awsOidcStatusContext.Provider>
+        <InfoGuidePanelProvider>
+          <awsOidcStatusContext.Provider value={value}>
+            <Route path={path} render={() => <>{children}</>} />
+          </awsOidcStatusContext.Provider>
+        </InfoGuidePanelProvider>
       </ContextProvider>
     </MemoryRouter>
   );

@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { contextBridge, webUtils } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+import { contextBridge, webUtils } from 'electron';
 
-import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
-import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
-import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
-import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
-import { createPtyService } from 'teleterm/services/pty/ptyService';
+import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import {
-  GrpcCertName,
   createClientCredentials,
-  createServerCredentials,
   createInsecureClientCredentials,
   createInsecureServerCredentials,
+  createServerCredentials,
   generateAndSaveGrpcCert,
+  GrpcCertName,
   readGrpcCert,
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
-import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
+import { createFileLoggerService } from 'teleterm/services/logger';
+import { createPtyService } from 'teleterm/services/pty/ptyService';
+import {
+  createTshdClient,
+  createVnetClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
+import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
@@ -67,7 +71,7 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     channelCredentials: credentials.tshd,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
   });
-  const tshClient = createTshdClient(tshdTransport);
+  const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
@@ -163,4 +167,23 @@ async function withErrorLogging<ReturnValue>(
     logger.error(e);
     throw e;
   }
+}
+
+/**
+ * Returns a copy of `TshdClient` with insecure methods disabled
+ * to prevent access from the untrusted renderer process.
+ *
+ * As a result, disabled methods are inaccessible in the renderer process
+ * since the prototype of tshdClient is not shared with the renderer process.
+ * The renderer process also does not receive the ability to start a new arbitrary client,
+ * which could then be used to circumvent this protection.
+ */
+function withoutInsecureTshdMethods(client: TshdClient): TshdClient {
+  return {
+    ...client,
+    setSharedDirectoryForDesktopSession: () => {
+      // Prevent the renderer process from sharing directories at arbitrary paths.
+      throw new Error('This method is not permitted in the renderer process.');
+    },
+  };
 }

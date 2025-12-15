@@ -17,19 +17,17 @@
  */
 
 import { forwardRef } from 'react';
-import * as Icons from 'design/Icon';
 
 import { ButtonProps, ButtonSecondary } from 'design/Button';
-
+import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
-
 import { AuthProviderType, SSOType } from 'shared/services';
 
 const ButtonSso = forwardRef<HTMLButtonElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
 
   return (
-    <ButtonSecondary gap={3} size="extra-large" block {...rest} setRef={ref}>
+    <ButtonSecondary gap={3} size="extra-large" block {...rest} ref={ref}>
       <SSOIcon type={ssoType} />
       {title}
     </ButtonSecondary>

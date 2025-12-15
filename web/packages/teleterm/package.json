@@ -10,10 +10,10 @@
   },
   "license": "Apache-2.0",
   "scripts": {
-    "start": "electron-vite dev",
-    "build": "electron-vite build",
+    "start": "pnpm build-wasm && electron-vite dev",
+    "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "generate-grpc-shared": "npx -y --target_arch=x64 --package=@protobuf-ts/plugin@2.9.3 -- protoc -I=src/sharedProcess/api/proto --ts_opt long_type_number,eslint_disable,add_pb_suffix,client_grpc1,server_grpc1,ts_nocheck --ts_out=src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
   },
   "repository": {
     "type": "git",
@@ -23,39 +23,36 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
-    "@grpc/grpc-js": "1.12.2",
+    "@grpc/grpc-js": "1.14.1",
     "@types/which": "^3.0.4",
-    "node-forge": "^1.3.1",
-    "node-pty": "1.1.0-beta14",
+    "node-forge": "^1.3.2",
+    "node-pty": "1.1.0-beta35",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
-    "strip-ansi": "^7.1.0",
-    "tar-fs": "^3.0.6",
-    "which": "^5.0.0",
-    "winston": "^3.17.0"
+    "strip-ansi": "^7.1.2",
+    "tar-fs": "^3.1.1",
+    "which": "^6.0.0",
+    "winston": "^3.18.3"
   },
   "devDependencies": {
-    "@electron/notarize": "^2.5.0",
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
-    "@protobuf-ts/grpc-transport": "^2.9.4",
-    "@types/node-forge": "^1.3.11",
+    "@protobuf-ts/grpc-transport": "^2.11.1",
+    "@types/node-forge": "^1.3.14",
     "@types/tar-fs": "^2.0.4",
-    "@types/whatwg-url": "^11.0.5",
+    "@types/whatwg-url": "^13.0.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
-    "electron": "33.2.1",
-    "electron-builder": "^25.1.8",
-    "electron-vite": "^2.3.0",
+    "electron": "39.2.2",
+    "electron-builder": "^26.0.12",
+    "electron-updater": "^6.7.0",
+    "electron-vite": "^4.0.1",
     "events": "3.3.0",
-    "immer": "^10.1.1",
-    "jest-canvas-mock": "^2.5.2",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
-    "whatwg-url": "^14.0.0",
-    "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.5"
+    "whatwg-url": "^15.1.0",
+    "zod": "^4.1.13"
   },
   "productName": "Teleport Connect"
 }

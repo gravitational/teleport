@@ -31,24 +31,24 @@ import (
 
 // newAzureMySQLFetcher creates a fetcher for Azure MySQL.
 func newAzureMySQLFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
+	return newAzureFetcher(config, &azureDBServerPlugin{})
 }
 
 // newAzureMySQLFetcher creates a fetcher for Azure PostgreSQL.
 func newAzurePostgresFetcher(config azureFetcherConfig) (common.Fetcher, error) {
-	return newAzureFetcher[*azure.DBServer, azure.DBServersClient](config, &azureDBServerPlugin{})
+	return newAzureFetcher(config, &azureDBServerPlugin{})
 }
 
 // azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgreSQL.
 type azureDBServerPlugin struct{}
 
-func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
+func (p *azureDBServerPlugin) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {
 	case types.AzureMatcherMySQL:
-		client, err := cfg.AzureClients.GetAzureMySQLClient(subID)
+		client, err := cfg.AzureClients.GetMySQLClient(ctx, subID)
 		return client, trace.Wrap(err)
 	case types.AzureMatcherPostgres:
-		client, err := cfg.AzureClients.GetAzurePostgresClient(subID)
+		client, err := cfg.AzureClients.GetPostgresClient(ctx, subID)
 		return client, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown matcher type %q", cfg.Type)
@@ -69,7 +69,7 @@ func (p *azureDBServerPlugin) NewDatabaseFromServer(ctx context.Context, server 
 	}
 
 	if !server.IsAvailable() {
-		logger.DebugContext(ctx, "Skippin unavailable Azure server",
+		logger.DebugContext(ctx, "Skipping unavailable Azure server",
 			"server", server.Name,
 			"state", server.Properties.UserVisibleState)
 		return nil

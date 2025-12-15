@@ -41,13 +41,20 @@ type Cache interface {
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 
 	// GetClusterName returns local cluster name of the current auth server
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of registered proxies.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // KeyStoreManager defines methods to get signers using the server's keystore.
@@ -132,7 +139,7 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 		return "", trace.Wrap(err)
 	}
 
-	clusterName, err := cacheClt.GetClusterName()
+	clusterName, err := cacheClt.GetClusterName(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

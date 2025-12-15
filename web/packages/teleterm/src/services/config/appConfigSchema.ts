@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { en } from 'zod/locales';
 
 import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
@@ -38,6 +39,7 @@ export const CUSTOM_SHELL_ID = 'custom' as const;
  */
 export const CONFIG_MODIFIABLE_FROM_RENDERER: (keyof AppConfig)[] = [
   'usageReporting.enabled',
+  'skipVersionCheck',
 ];
 
 export const createAppConfigSchema = (settings: RuntimeSettings) => {
@@ -48,6 +50,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
     CUSTOM_SHELL_ID,
   ];
 
+  const pathSchema = tildeExpandingPathSchema(settings.homeDir);
   const shortcutSchema = createKeyboardShortcutSchema(settings.platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
@@ -56,6 +59,22 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .enum(['light', 'dark', 'system'])
       .default('system')
       .describe('Color theme for the app.'),
+    skipVersionCheck: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
+      ),
+    runInBackground: z
+      .boolean()
+      .default(settings.platform === 'darwin' || settings.platform === 'win32')
+      .describe(
+        'Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions.'
+      ),
+    tshHome: pathSchema({
+      defaultPath: settings.tshd.defaultHomeDir,
+      description: 'Home location for tsh configuration and data.',
+    }),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -67,7 +86,6 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .default(defaultTerminalFont)
       .describe('Font family for the terminal.'),
     'terminal.fontSize': z
-      .number()
       .int()
       .min(1)
       .max(256)
@@ -90,16 +108,16 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           availableShellIdsWithCustom.some(
             shellId => shellId === configuredShell
           ),
-        configuredShell => ({
-          message: `Cannot find the shell "${configuredShell}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
-        })
+        {
+          error: iss =>
+            `Cannot find the shell "${iss.input}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
+        }
       ),
-    'terminal.customShell': z
-      .string()
-      .default('')
-      .describe(
-        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).'
-      ),
+    'terminal.customShell': pathSchema({
+      defaultPath: '',
+      description:
+        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).',
+    }),
     'terminal.rightClick': z
       .enum(['paste', 'copyPaste', 'menu'])
       .default(settings.platform === 'win32' ? 'copyPaste' : 'menu')
@@ -206,6 +224,16 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
           "'no' never attempts to add them, 'yes' always attempts to add them, " +
           "'only' always attempts to add the keys to the agent but it does not save them on disk."
       ),
+    // Defaults to true for prod, false for dev. Otherwise dev instances would
+    // claim the hardware key agent runner over prod instances by default.
+    'hardwareKeyAgent.enabled': z
+      .boolean()
+      .default(!settings.dev)
+      .describe('Controls whether the hardware key agent will be started.'),
+    'debug.searchResultsScore': z
+      .boolean()
+      .default(false)
+      .describe('Enables display of scores for search results.'),
   });
 };
 
@@ -324,4 +352,45 @@ function getDefaultTerminalFont(platform: Platform) {
 
 function getShortcutDesc(actionDesc: string): string {
   return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
+}
+
+// Explicitly load the English locale to avoid being tree-shaken by Vite
+// https://github.com/colinhacks/zod/issues/4891
+z.config(en());
+
+const optionsFormatter = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'disjunction',
+});
+
+z.config({
+  customError: iss => {
+    switch (iss.code) {
+      case 'invalid_type':
+        return `Expected ${iss.expected}, received ${typeof iss.input}`;
+      case 'invalid_value':
+        return `Expected ${optionsFormatter.format(iss.values.map(v => `"${String(v)}"`))}, received "${iss.input}"`;
+      default:
+        return undefined;
+    }
+  },
+});
+
+/**
+ * Creates a Zod string schema for filesystem paths that automatically expand
+ * leading "~" to the provided home directory.
+ */
+function tildeExpandingPathSchema(homeDir: string) {
+  return ({
+    defaultPath,
+    description,
+  }: {
+    defaultPath: string;
+    description: string;
+  }) =>
+    z
+      .string()
+      .default(defaultPath)
+      .describe(description)
+      .transform(p => p.replace(/^~/, homeDir));
 }

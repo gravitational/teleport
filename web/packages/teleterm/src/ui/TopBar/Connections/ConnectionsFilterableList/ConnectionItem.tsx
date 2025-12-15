@@ -17,15 +17,15 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { ButtonIcon, Flex, Text } from 'design';
-import { Trash, Unlink } from 'design/Icon';
-
 import styled from 'styled-components';
 
-import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
-import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ButtonIcon, Flex, Text } from 'design';
+import { Trash, Unlink } from 'design/Icon';
+import { typography, TypographyProps } from 'design/system';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ExtendedTrackedConnection } from 'teleterm/ui/services/connectionTracker';
 import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
 
 import { ConnectionStatusIndicator } from './ConnectionStatusIndicator';
@@ -58,7 +58,7 @@ export function ConnectionItem(props: {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -99,18 +99,9 @@ export function ConnectionItem(props: {
               line-height: 16px;
             `}
           >
-            <span
-              css={`
-                font-size: 10px;
-                background: ${props => props.theme.colors.spotBackground[2]};
-                opacity: 0.85;
-                padding: 1px 2px;
-                margin-right: 4px;
-                border-radius: 4px;
-              `}
-            >
+            <ConnectionKindIndicator>
               {getKindName(props.item)}
-            </span>
+            </ConnectionKindIndicator>
             <span
               css={`
                 vertical-align: middle;
@@ -153,10 +144,23 @@ const ConnectionListItem = styled(ListItem)<{ $showClusterName?: boolean }>`
   height: unset;
 `;
 
+export const ConnectionKindIndicator = styled.span<TypographyProps>`
+  font-size: 10px;
+  background: ${props => props.theme.colors.spotBackground[2]};
+  opacity: 0.85;
+  padding: 1px 2px;
+  margin-right: 4px;
+  border-radius: 4px;
+  ${typography}
+`;
+
 function getKindName(connection: ExtendedTrackedConnection): string {
   switch (connection.kind) {
     case 'connection.gateway':
       if (isAppUri(connection.targetUri)) {
+        if (connection.targetProtocol === 'MCP') {
+          return 'MCP';
+        }
         return 'APP';
       }
       if (isDatabaseUri(connection.targetUri)) {
@@ -167,13 +171,9 @@ function getKindName(connection: ExtendedTrackedConnection): string {
       return 'SSH';
     case 'connection.kube':
       return 'KUBE';
+    case 'connection.desktop':
+      return 'DESKTOP';
     default:
-      // The default branch is triggered when the state read from the disk
-      // contains a connection not supported by the given Connect version.
-      //
-      // For example, the user can open an app connection in Connect v15
-      // and then downgrade to a version that doesn't support apps.
-      // That connection should be shown as 'UNKNOWN' in the connection list.
       return 'UNKNOWN';
   }
 }

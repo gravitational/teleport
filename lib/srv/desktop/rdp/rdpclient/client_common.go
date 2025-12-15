@@ -23,21 +23,27 @@ import (
 	"context"
 	"image/png"
 	"log/slog"
-	"time"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
+
+// LicenseStore implements client-side license storage for Microsoft
+// Remote Desktop Services (RDS) licenses.
+type LicenseStore interface {
+	WriteRDPLicense(ctx context.Context, key *types.RDPLicenseKey, license []byte) error
+	ReadRDPLicense(ctx context.Context, key *types.RDPLicenseKey) ([]byte, error)
+}
 
 // Config for creating a new Client.
 type Config struct {
 	// Addr is the network address of the RDP server, in the form host:port.
 	Addr string
 
-	// UserCertGenerator generates user certificates for RDP authentication.
-	GenerateUserCert GenerateUserCertFn
-	CertTTL          time.Duration
+	LicenseStore LicenseStore
+	HostID       string
 
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
 	AuthorizeFn func(login string) error
@@ -79,23 +85,17 @@ type Config struct {
 	// KDCAddr is the address of Key Distribution Center.
 	// This is used to support RDP Network Level Authentication (NLA)
 	// when connecting to hosts enrolled in Active Directory.
-	// This filed is not used when AD is false.
+	// This field is not used when AD is false.
 	KDCAddr string
 
 	// AD indicates whether the desktop is part of an Active Directory domain.
 	AD bool
 }
 
-// GenerateUserCertFn generates user certificates for RDP authentication.
-type GenerateUserCertFn func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error)
-
 //nolint:unused // used in client.go that is behind desktop_access_rdp build flag
 func (c *Config) checkAndSetDefaults() error {
 	if c.Addr == "" {
 		return trace.BadParameter("missing Addr in rdpclient.Config")
-	}
-	if c.GenerateUserCert == nil {
-		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
 	}
 	if c.Conn == nil {
 		return trace.BadParameter("missing Conn in rdpclient.Config")

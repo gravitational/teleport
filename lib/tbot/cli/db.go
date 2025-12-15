@@ -18,8 +18,6 @@
 
 package cli
 
-import "context"
-
 // DBCommand contains fields for `tbot db`
 type DBCommand struct {
 	*genericExecutorHandler[DBCommand]
@@ -27,11 +25,6 @@ type DBCommand struct {
 	DestinationDir string
 	Cluster        string
 	ProxyServer    string
-
-	// LegacyProxy is the legacy --proxy flag.
-	// TODO(timothyb89): DELETE IN 17.0.0
-	// TODO(timothyb89): Or maybe remove in this PR.
-	LegacyProxyFlag string
 
 	RemainingArgs *[]string
 }
@@ -41,20 +34,7 @@ func NewDBCommand(app KingpinClause, action func(*DBCommand) error) *DBCommand {
 	cmd := app.Command("db", "Execute database commands through tsh.")
 
 	c := &DBCommand{}
-	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, func(c *DBCommand) error {
-		// Prepend an action to handle --proxy deprecation.
-		if c.LegacyProxyFlag != "" {
-			c.ProxyServer = c.LegacyProxyFlag
-			log.WarnContext(context.TODO(), "The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
-		}
-
-		return nil
-	}, action)
-
-	// We're migrating from --proxy to --proxy-server so this flag is hidden
-	// but still supported.
-	// TODO(strideynet): DELETE IN 17.0.0
-	cmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().Envar(ProxyServerEnvVar).StringVar(&c.LegacyProxyFlag)
+	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
 	cmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
 	cmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&c.DestinationDir)

@@ -18,10 +18,11 @@
 
 import { useState } from 'react';
 
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-import { Indicator, Box } from 'design';
-import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
+import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
+import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
 import RangePicker from 'teleport/components/EventRangePicker';
 import {
   FeatureBox,
@@ -30,10 +31,7 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 
-import { ExternalAuditStorageCta } from '@gravitational/teleport/src/components/ExternalAuditStorageCta';
-
 import RecordingsList from './RecordingsList';
-
 import useRecordings, { State } from './useRecordings';
 
 export function RecordingsContainer() {
@@ -48,7 +46,6 @@ export function Recordings({
   fetchMore,
   range,
   setRange,
-  rangeOptions,
   attempt,
   clusterId,
   ctx,
@@ -58,12 +55,7 @@ export function Recordings({
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle mr="8">Session Recordings</FeatureHeaderTitle>
-        <RangePicker
-          ml="auto"
-          range={range}
-          ranges={rangeOptions}
-          onChangeRange={setRange}
-        />
+        <RangePicker ml="auto" range={range} onChangeRange={setRange} />
       </FeatureHeader>
       <ExternalAuditStorageCta />
       {!errorMessage && (

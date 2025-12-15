@@ -46,12 +46,14 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common"
 )
 
 // TestTCTLTerraformCommand_ProxyJoin validates that the command `tctl terraform env` can run against a Teleport Proxy
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
 	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
@@ -61,7 +63,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -127,7 +129,7 @@ func TestTCTLTerraformCommand_ProxyJoin(t *testing.T) {
 // TestTCTLTerraformCommand_AuthJoin validates that the command `tctl terraform env` can run against a Teleport Auth
 // service and generates valid credentials Terraform can use to connect to Teleport.
 func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
-	t.Parallel()
+	// test is not Parallel because of the metrics black hole
 	testDir := t.TempDir()
 	prometheus.DefaultRegisterer = metricRegistryBlackHole{}
 
@@ -137,7 +139,7 @@ func TestTCTLTerraformCommand_AuthJoin(t *testing.T) {
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -239,7 +241,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewSlogLoggerForTests(),
+		Log:                  logtest.NewLogger(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
@@ -292,7 +294,7 @@ func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username strin
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewSlogLoggerForTests(),
+		Log:                  logtest.NewLogger(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,

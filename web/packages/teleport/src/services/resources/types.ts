@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AuthType } from 'shared/services';
+
+import { ResourceLabel } from '../agents';
+
 export type Resource<T extends Kind> = {
   id: string;
   kind: T;
@@ -36,7 +40,18 @@ export type Kind =
   | KindJoinToken;
 
 /** Teleport role in a resource format. */
-export type RoleResource = Resource<KindRole>;
+export type RoleResource = Resource<KindRole> & {
+  /**
+   * Only defined if querying roles were requested with "includeObject".
+   */
+  object?: Role;
+};
+
+/** Teleport role with only the role name and description, used for displaying requestable roles. */
+export type RequestableRole = {
+  name: string;
+  description?: string;
+};
 
 /**
  * Teleport role in full format, as returned from Teleport API.
@@ -44,6 +59,7 @@ export type RoleResource = Resource<KindRole>;
  */
 export type Role = {
   kind: KindRole;
+  version: RoleVersion;
   metadata: {
     name: string;
     description?: string;
@@ -51,12 +67,108 @@ export type Role = {
     expires?: string;
     revision?: string;
   };
-  spec: {
-    allow: RoleConditions;
-    deny: RoleConditions;
-    options: RoleOptions;
-  };
-  version: string;
+  spec: RoleSpec;
+};
+
+export type RoleSpec = {
+  allow: RoleConditions;
+  deny: RoleConditions;
+  options: RoleOptions;
+};
+
+export enum RoleVersion {
+  V3 = 'v3',
+  V4 = 'v4',
+  V5 = 'v5',
+  V6 = 'v6',
+  V7 = 'v7',
+  V8 = 'v8',
+}
+
+/**
+ * isLegacySamlIdpRbac checks if a role version is v7 or lower.
+ * It should be called to check if a role supports legacy
+ * SAML IDP RBAC, i.e. role.options.idp.saml.enabled = true/false.
+ */
+export function isLegacySamlIdpRbac(roleVersion: RoleVersion): boolean {
+  return [
+    RoleVersion.V7,
+    RoleVersion.V6,
+    RoleVersion.V5,
+    RoleVersion.V4,
+    RoleVersion.V3,
+  ].includes(roleVersion);
+}
+
+/**
+ * Defines the identity to access an AWS IC application.
+ */
+export type AccountAssignment = {
+  /* the AWS Account ID */
+  account?: string;
+  /* the ARN that starts with "arn:aws:sso:::" */
+  permission_set?: string;
+};
+
+/**
+ * Fields related to application access.
+ */
+export type ApplicationResourceAccess = {
+  app_labels?: Labels;
+
+  aws_role_arns?: string[];
+  azure_identities?: string[];
+  gcp_service_accounts?: string[];
+  mcp?: MCPPermissions;
+  account_assignments?: AccountAssignment[];
+};
+
+/**
+ * Fields related to database access.
+ */
+export type DatabaseResourceAccess = {
+  db_labels?: Labels;
+  db_service_labels?: Labels;
+
+  db_names?: string[];
+  db_users?: string[];
+  db_roles?: string[];
+};
+
+/**
+ * Fields related to git server access.
+ */
+export type GitHubResourceAccess = {
+  github_permissions?: GitHubPermission[];
+};
+
+/**
+ * Fields related to kube cluster access.
+ */
+export type KubernetesResourceAccess = {
+  kubernetes_labels?: Labels;
+
+  kubernetes_groups?: string[];
+  kubernetes_resources?: KubernetesResource[];
+  kubernetes_users?: string[];
+};
+
+/**
+ * Fields related to server access.
+ */
+export type ServerResourceAccess = {
+  node_labels?: Labels;
+
+  logins?: string[];
+};
+
+/**
+ * Fields related to windows desktop access.
+ */
+export type WindowsDesktopResourceAccess = {
+  windows_desktop_labels?: Labels;
+
+  windows_desktop_logins?: string[];
 };
 
 /**
@@ -64,67 +176,28 @@ export type Role = {
  * follow the snake case convention to match the wire format.
  */
 export type RoleConditions = {
-  node_labels?: Labels;
-  logins?: string[];
-
-  kubernetes_groups?: string[];
-  kubernetes_labels?: Labels;
-  kubernetes_resources?: KubernetesResource[];
-
-  app_labels?: Labels;
-  aws_role_arns?: string[];
-  azure_identities?: string[];
-  gcp_service_accounts?: string[];
-
-  db_labels?: Labels;
-  db_names?: string[];
-  db_users?: string[];
-  db_roles?: string[];
-
-  windows_desktop_labels?: Labels;
-  windows_desktop_logins?: string[];
-
   rules?: Rule[];
-};
+} & ApplicationResourceAccess &
+  DatabaseResourceAccess &
+  GitHubResourceAccess &
+  KubernetesResourceAccess &
+  ServerResourceAccess &
+  WindowsDesktopResourceAccess;
 
 export type Labels = Record<string, string | string[]>;
 
+export type DefaultAuthConnector = {
+  name?: string;
+  type: AuthType;
+};
+
 export type KubernetesResource = {
-  kind?: KubernetesResourceKind;
+  kind?: string;
   name?: string;
   namespace?: string;
   verbs?: KubernetesVerb[];
+  api_group?: string;
 };
-
-/**
- * Supported Kubernetes resource kinds. This type needs to be kept in sync with
- * `KubernetesResourcesKinds` in `api/types/constants.go, as well as
- * `kubernetesResourceKindOptions` in
- * `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
- */
-export type KubernetesResourceKind =
-  | '*'
-  | 'pod'
-  | 'secret'
-  | 'configmap'
-  | 'namespace'
-  | 'service'
-  | 'serviceaccount'
-  | 'kube_node'
-  | 'persistentvolume'
-  | 'persistentvolumeclaim'
-  | 'deployment'
-  | 'replicaset'
-  | 'statefulset'
-  | 'daemonset'
-  | 'clusterrole'
-  | 'kube_role'
-  | 'clusterrolebinding'
-  | 'rolebinding'
-  | 'cronjob'
-  | 'job'
-  | 'certificatesigningrequest'
-  | 'ingress';
 
 /**
  * Supported Kubernetes resource verbs. This type needs to be kept in sync with
@@ -146,8 +219,13 @@ export type KubernetesVerb =
   | 'portforward';
 
 export type Rule = {
-  resources?: ResourceKind[];
+  /**
+   * Typically, this is ResourceKind[], though in general, we allow
+   * unrecognized legacy resource types.
+   */
+  resources?: string[];
   verbs?: Verb[];
+  where?: string;
 };
 
 export enum ResourceKind {
@@ -166,7 +244,6 @@ export enum ResourceKind {
   AccessMonitoringRule = 'access_monitoring_rule',
   AccessRequest = 'access_request',
   App = 'app',
-  AppOrSAMLIdPServiceProvider = 'app_server_or_saml_idp_sp',
   AppServer = 'app_server',
   AuditQuery = 'audit_query',
   AuthServer = 'auth_server',
@@ -198,6 +275,7 @@ export enum ResourceKind {
   GithubConnector = 'github',
   GlobalNotification = 'global_notification',
   HeadlessAuthentication = 'headless_authentication',
+  HealthCheckConfig = 'health_check_config',
   Identity = 'identity',
   IdentityCenterAccount = 'aws_ic_account',
   IdentityCenterAccountAssignment = 'aws_ic_account_assignment',
@@ -283,6 +361,7 @@ export enum ResourceKind {
   WebToken = 'web_token',
   WindowsDesktop = 'windows_desktop',
   WindowsDesktopService = 'windows_desktop_service',
+  WorkloadIdentity = 'workload_identity',
 
   // Resources that have no actual data representation, but serve for checking
   // access to various features.
@@ -310,7 +389,6 @@ export enum ResourceKind {
   // refer to resource subkind names that are not used for access control.
   //
   // KindAppSession = "app_session"
-  // KindSAMLIdPSession = "saml_idp_session"
   // KindSnowflakeSession = "snowflake_session"
 }
 
@@ -327,6 +405,14 @@ export type Verb =
   | 'update'
   | 'use';
 
+export type GitHubPermission = {
+  orgs?: string[];
+};
+
+export type MCPPermissions = {
+  tools?: string[];
+};
+
 /**
  * Teleport role options in full format, as returned from Teleport API. Note
  * that its fields follow the snake case convention to match the wire format.
@@ -339,21 +425,25 @@ export type RoleOptions = {
   desktop_directory_sharing: boolean;
   enhanced_recording: string[];
   forward_agent: boolean;
-  idp: {
+  /**
+   * idp option only supported for role version 7 and below.
+   */
+  idp?: null | {
     // There's a subtle quirk in `Rolev6.CheckAndSetDefaults`: if you ask
     // Teleport to create a resource with `idp` field set to null, it's instead
     // going to create the entire idp->saml->enabled structure. However, it's
     // possible to create a role with idp set to an empty object, and the
     // server will retain this state. This makes the `saml` field optional.
     saml?: {
-      enabled: boolean;
+      enabled?: boolean;
     };
   };
   max_session_ttl: string;
   pin_source_ip: boolean;
-  ssh_port_forwarding: SSHPortForwarding;
+  ssh_port_forwarding?: SSHPortForwarding;
+  port_forwarding?: boolean;
   record_session: {
-    default: SessionRecordingMode;
+    default?: SessionRecordingMode;
     ssh?: SessionRecordingMode;
     desktop: boolean;
   };
@@ -366,11 +456,11 @@ export type RoleOptions = {
 };
 
 export type SSHPortForwarding = {
-  local: {
-    enabled: boolean;
+  local?: {
+    enabled?: boolean;
   };
-  remote: {
-    enabled: boolean;
+  remote?: {
+    enabled?: boolean;
   };
 };
 
@@ -394,3 +484,57 @@ export type RoleWithYaml = {
    */
   yaml: string;
 };
+
+export type GitHubServerMetadata = {
+  /**
+   * specifies the name of the github org
+   */
+  organization: string;
+  /**
+   * name of the github integration associated with this server
+   */
+  integration: string;
+};
+
+export type GitServer = {
+  // Kind is the kind of resource.
+  kind: string;
+  // SubKind is a git server subkind such as GitHub
+  subKind: string;
+  // Name is this server name
+  id: string;
+  // ClusterName is this server cluster name
+  siteId: string;
+  // Hostname is this server hostname
+  hostname: string;
+  // Addr is this server ip address
+  addr: string;
+  // Labels is this server list of labels
+  tags: ResourceLabel[];
+  // RequireRequest indicates if a returned resource is only accessible after an access request
+  requiresRequest: boolean;
+  // GitHub contains metadata for GitHub proxy severs.
+  github: GitHubServerMetadata;
+};
+
+export type CreateOrOverwriteGitServerBase = {
+  id: string;
+  /**
+   * if true, performs an update of existing resource
+   */
+  overwrite?: boolean;
+};
+
+export type CreateOrOverwriteGithubServer = CreateOrOverwriteGitServerBase & {
+  subKind: 'github';
+  github?: GitHubServerMetadata;
+};
+
+export type CreateOrOverwriteGitServer = CreateOrOverwriteGithubServer;
+
+// AccessMonitoringRuleState defines the desired states of the access monitoring
+// rule subject.
+export type AccessMonitoringRuleState = '' | 'reviewed';
+
+// AccessReviewDecision defines the access review propsed states.
+export type AccessReviewDecision = '' | 'APPROVED' | 'DENIED';

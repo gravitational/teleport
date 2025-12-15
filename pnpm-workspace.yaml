@@ -1,3 +1,65 @@
 packages:
-  - 'web/packages/*'
-  - 'e/web/*'
+  - web/packages/*
+  - e/web/*
+onlyBuiltDependencies:
+  - '@swc/core'
+  - electron
+  - esbuild
+  - msw
+  - node-pty
+  - protobufjs
+  - unrs-resolver
+ignoredBuiltDependencies:
+  # Imported by jsdom-testing-mocks but not needed by us.
+  - puppeteer
+# Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
+# and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
+# start complaining that electron-winstaller is not in onlyBuiltDependencies.
+#
+# We could instead solve this by adding electron-winstaller to ignoredBuiltDependencies, but why
+# pull in deps that we don't use? Ultimately, the problem is that electron-builder-squirrel-windows
+# is defined as a peer dep of one of electron-builder deps, while in reality it's more like an
+# optional dep.
+autoInstallPeers: false
+# strictPeerDependencies cannot be set to true. Dependabot updates deps one-by-one and runs `pnpm
+# install` after each update. With this option set to true, that command is likely to fail when
+# updating a dep without updating its peer deps at the same time.
+strictPeerDependencies: false
+peerDependencyRules:
+  ignoreMissing:
+    # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
+    # don't use. https://www.electron.build/squirrel-windows.html
+    - electron-builder-squirrel-windows
+# shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
+shellEmulator: true
+# packageImportMethod avoids an issue building the web UI in docker on mac. It does not seem to
+# affect performance outside of docker.
+# https://github.com/gravitational/teleport/issues/46019
+packageImportMethod: clone-or-copy
+patchedDependencies:
+  # Needed for roundRect support which was merged to jest-canvas-mock but not released.
+  jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
+# Do not install packages released less than 2 days (2880 minutes) ago
+minimumReleaseAge: 2880
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  # semver v6 and v5 is published with no provenance.
+  - semver@6.3.1 || 5.7.2
+  # Subpackages of swc have no provenance. https://github.com/swc-project/swc/issues/11342
+  - "@swc/core-darwin-x64@1.15.3"
+  - "@swc/core-darwin-arm64@1.15.3"
+  - "@swc/core-linux-x64-musl@1.15.3"
+  - "@swc/core-linux-x64-gnu@1.15.3"
+  - "@swc/core-linux-arm64-gnu@1.15.3"
+  - "@swc/core-linux-arm64-musl@1.15.3"
+  - "@swc/core-win32-x64-msvc@1.15.3"
+  - "@swc/core-linux-arm-gnueabihf@1.15.3"
+  - "@swc/core-win32-ia32-msvc@1.15.3"
+  - "@swc/core-win32-arm64-msvc@1.15.3"
+  # undici-types v6 is published with no provenance. https://github.com/nodejs/undici/issues/4666
+  - undici-types@6.21.0
+overrides:
+  # styled-components hardcodes specific version of csstype. Our design package also pulls in
+  # csstype. Unfortunately, it looks like types from 3.1.3 are incompatible with 3.2.3. Since this
+  # is a types-only package, we override it to 3.2.3 so that it matches the version from design.
+  "styled-components@6.1.19>csstype@3.1.3": "^3.2.3"

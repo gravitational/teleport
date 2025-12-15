@@ -21,19 +21,21 @@ import React, { useState } from 'react';
 import { Box, ButtonBorder, Flex, H3, Menu, MenuItem, Text } from 'design';
 import { ChevronDown, Warning } from 'design/Icon';
 
-import cfg from 'teleport/config';
-import { ParticipantMode } from 'teleport/services/session';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import cfg from 'teleport/config';
+import { ParticipantMode, SessionKind } from 'teleport/services/session';
 import { CtaEvent } from 'teleport/services/userEvent';
 
 export const SessionJoinBtn = ({
   sid,
+  kind,
   clusterId,
   participantModes,
   showCTA,
   showModeratedCTA,
 }: {
   sid: string;
+  kind: SessionKind;
   clusterId: string;
   participantModes: ParticipantMode[];
   showCTA: boolean;
@@ -43,6 +45,17 @@ export const SessionJoinBtn = ({
 
   function closeMenu() {
     setAnchorEl(null);
+  }
+
+  function joinSession(joinMode: ParticipantMode): string {
+    switch (kind) {
+      case 'ssh':
+        return cfg.getSshSessionRoute({ sid, clusterId }, joinMode);
+      case 'k8s':
+        return cfg.getKubeExecSessionRoute({ sid, clusterId }, joinMode);
+      default:
+        return '';
+    }
   }
 
   return (
@@ -61,7 +74,7 @@ export const SessionJoinBtn = ({
       <JoinMenuItem
         title="As an Observer"
         description={modeDescription.observer}
-        url={cfg.getSshSessionRoute({ sid, clusterId }, 'observer')}
+        url={joinSession('observer')}
         hasAccess={participantModes.includes('observer')}
         participantMode="observer"
         key="observer"
@@ -71,7 +84,7 @@ export const SessionJoinBtn = ({
       <JoinMenuItem
         title="As a Moderator"
         description={modeDescription.moderator}
-        url={cfg.getSshSessionRoute({ sid, clusterId }, 'moderator')}
+        url={joinSession('moderator')}
         hasAccess={participantModes.includes('moderator')}
         participantMode="moderator"
         key="moderator"
@@ -81,7 +94,7 @@ export const SessionJoinBtn = ({
       <JoinMenuItem
         title="As a Peer"
         description={modeDescription.peer}
-        url={cfg.getSshSessionRoute({ sid, clusterId }, 'peer')}
+        url={joinSession('peer')}
         hasAccess={participantModes.includes('peer')}
         participantMode="peer"
         key="peer"

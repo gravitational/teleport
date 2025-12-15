@@ -21,12 +21,15 @@ package local
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -162,6 +165,85 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	// a CompareFailed instead of a NotFound.
 	var revisionMismatchError *trace.CompareFailedError
 	_, err = service.UpdateAutoUpdateVersion(ctx, version)
+	require.ErrorAs(t, err, &revisionMismatchError)
+}
+
+// TestAutoUpdateServiceAgentReportCRUD verifies get/create/update/upsert/delete methods of the backend service
+// for AutoUpdateAgentReport resource.
+func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
+	t.Parallel()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewAutoUpdateService(bk)
+	require.NoError(t, err)
+
+	authID := uuid.New()
+	oldDate := time.Now()
+	newDate := time.Now().Add(2 * time.Minute)
+
+	ctx := context.Background()
+	report := &autoupdatev1pb.AutoUpdateAgentReport{
+		Kind:     types.KindAutoUpdateAgentReport,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{Name: authID.String()},
+		Spec: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			Timestamp: timestamppb.New(oldDate),
+			Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
+				"": {
+					Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+						"1.2.3": {Count: 10},
+						"1.2.4": {Count: 2},
+					},
+				},
+				"prod": {
+					Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
+						"1.2.3": {Count: 5},
+					},
+				},
+			},
+		},
+	}
+
+	created, err := service.CreateAutoUpdateAgentReport(ctx, report)
+	require.NoError(t, err)
+	diff := cmp.Diff(report, created,
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.Transform(),
+	)
+	require.Empty(t, diff)
+	require.NotEmpty(t, created.GetMetadata().GetRevision())
+
+	got, err := service.GetAutoUpdateAgentReport(ctx, authID.String())
+	require.NoError(t, err)
+	diff = cmp.Diff(report, got,
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.Transform(),
+	)
+	require.Empty(t, diff)
+	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
+
+	report.Spec.Timestamp = timestamppb.New(newDate)
+
+	updated, err := service.UpdateAutoUpdateAgentReport(ctx, report)
+	require.NoError(t, err)
+	require.NotEqual(t, got.GetSpec().GetTimestamp(), updated.GetSpec().GetTimestamp())
+
+	_, err = service.UpsertAutoUpdateAgentReport(ctx, report)
+	require.NoError(t, err)
+
+	err = service.DeleteAutoUpdateAgentReport(ctx, authID.String())
+	require.NoError(t, err)
+
+	_, err = service.GetAutoUpdateAgentReport(ctx, authID.String())
+	var notFoundError *trace.NotFoundError
+	require.ErrorAs(t, err, &notFoundError)
+
+	// If we try to conditionally update a missing resource, we receive
+	// a CompareFailed instead of a NotFound.
+	var revisionMismatchError *trace.CompareFailedError
+	_, err = service.UpdateAutoUpdateAgentReport(ctx, report)
 	require.ErrorAs(t, err, &revisionMismatchError)
 }
 

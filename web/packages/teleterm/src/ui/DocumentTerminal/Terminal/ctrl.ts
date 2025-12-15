@@ -17,18 +17,19 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
-import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
+
 import { FitAddon } from '@xterm/addon-fit';
+import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
+
 import {
   SearchAddon,
   TerminalSearcher,
 } from 'shared/components/TerminalSearch';
 import { debounce } from 'shared/utils/highbar';
 
-import { WindowsPty } from 'teleterm/services/pty';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
-import { ConfigService, AppConfig } from 'teleterm/services/config';
+import { AppConfig, ConfigService } from 'teleterm/services/config';
+import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
@@ -196,11 +197,17 @@ export default class TtyTerminal implements TerminalSearcher {
     this.fitAddon.fit();
 
     this.term.onData(data => {
-      this.ptyProcess.write(data);
+      this.ptyProcess.write(data).catch(error => {
+        this.logger.error(`Failed to write to the PTY process: ${error}`);
+      });
     });
 
     this.term.onResize(size => {
-      this.ptyProcess.resize(size.cols, size.rows);
+      this.ptyProcess.resize(size.cols, size.rows).catch(error => {
+        this.logger.error(
+          `Failed to send resize request to the PTY process: ${error}`
+        );
+      });
     });
 
     this.removePtyProcessOnDataListener = this.ptyProcess.onData(data =>
@@ -211,7 +218,9 @@ export default class TtyTerminal implements TerminalSearcher {
     // This is what is causing the terminal to visually repeat the input on hot reload.
     // The shared process version of PtyProcess knows whether it was started or not (the status
     // field), so it's a matter of exposing this field through gRPC and reading it here.
-    this.ptyProcess.start(this.term.cols, this.term.rows);
+    this.ptyProcess.start(this.term.cols, this.term.rows).catch(error => {
+      this.logger.error(`Failed to start the PTY process: ${error}`);
+    });
 
     window.addEventListener('resize', this.debouncedResize);
   }

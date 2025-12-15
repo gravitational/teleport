@@ -22,7 +22,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/lib/autoupdate"
 )
 
 func TestNewRevisionFromDir(t *testing.T) {
@@ -46,7 +47,7 @@ func TestNewRevisionFromDir(t *testing.T) {
 			dir:  "1.2.3_ent_fips",
 			rev: Revision{
 				Version: "1.2.3",
-				Flags:   FlagEnterprise | FlagFIPS,
+				Flags:   autoupdate.FlagEnterprise | autoupdate.FlagFIPS,
 			},
 		},
 		{
@@ -54,7 +55,7 @@ func TestNewRevisionFromDir(t *testing.T) {
 			dir:  "1.2.3_ent",
 			rev: Revision{
 				Version: "1.2.3",
-				Flags:   FlagEnterprise,
+				Flags:   autoupdate.FlagEnterprise,
 			},
 		},
 		{
@@ -125,71 +126,110 @@ func TestNewRevisionFromDir(t *testing.T) {
 	}
 }
 
-func TestInstallFlagsYAML(t *testing.T) {
+func TestValidateConfigSpec(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
 		name     string
-		yaml     string
-		flags    InstallFlags
-		skipYAML bool
+		config   UpdateSpec
+		override UpdateSpec
+		result   UpdateSpec
+		errMatch string
 	}{
 		{
-			name:  "both",
-			yaml:  `["Enterprise", "FIPS"]`,
-			flags: FlagEnterprise | FlagFIPS,
+			name: "overrides",
+			config: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+			override: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
+			result: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
 		},
 		{
-			name:     "order",
-			yaml:     `["FIPS", "Enterprise"]`,
-			flags:    FlagEnterprise | FlagFIPS,
-			skipYAML: true,
+			name: "default overrides",
+			config: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+			override: UpdateSpec{
+				Proxy:   "default",
+				Path:    "default",
+				Group:   "default",
+				BaseURL: "default",
+			},
+			result: UpdateSpec{
+				Proxy: "default",
+				Path:  "default",
+			},
 		},
 		{
-			name:     "extra",
-			yaml:     `["FIPS", "Enterprise", "bad"]`,
-			flags:    FlagEnterprise | FlagFIPS,
-			skipYAML: true,
+			name: "only overrides",
+			override: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
+			result: UpdateSpec{
+				Enabled: true,
+				Pinned:  true,
+				Proxy:   "overrideProxy",
+				Path:    "/overridePath",
+				Group:   "group2",
+				BaseURL: "https://example.com",
+			},
 		},
 		{
-			name:  "enterprise",
-			yaml:  `["Enterprise"]`,
-			flags: FlagEnterprise,
+			name: "no overrides",
+			config: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
+			result: UpdateSpec{
+				Proxy:   "proxy",
+				Path:    "/path",
+				Group:   "group",
+				BaseURL: "https://example.com",
+			},
 		},
 		{
-			name:  "fips",
-			yaml:  `["FIPS"]`,
-			flags: FlagFIPS,
-		},
-		{
-			name: "empty",
-			yaml: `[]`,
-		},
-		{
-			name:     "nil",
-			skipYAML: true,
+			name: "BaseURL validation fails",
+			override: UpdateSpec{
+				BaseURL: "http://example.com",
+			},
+			errMatch: "must use TLS",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			var flags InstallFlags
-			err := yaml.Unmarshal([]byte(tt.yaml), &flags)
-			require.NoError(t, err)
-			require.Equal(t, tt.flags, flags)
-
-			// verify test YAML
-			var v any
-			err = yaml.Unmarshal([]byte(tt.yaml), &v)
-			require.NoError(t, err)
-			res, err := yaml.Marshal(v)
-			require.NoError(t, err)
-
-			// compare verified YAML to flag output
-			out, err := yaml.Marshal(flags)
-			require.NoError(t, err)
-
-			if !tt.skipYAML {
-				require.Equal(t, string(res), string(out))
+			err := updateConfigSpec(&tt.config, OverrideConfig{UpdateSpec: tt.override})
+			if tt.errMatch != "" {
+				require.ErrorContains(t, err, tt.errMatch)
+				return
 			}
+			require.NoError(t, err)
+			require.Equal(t, tt.result, tt.config)
 		})
 	}
 }

@@ -147,6 +147,10 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_KUBERNETES_EKS = 40;
 
   DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
+
+  DISCOVER_RESOURCE_MCP_STDIO = 42;
+  DISCOVER_RESOURCE_MCP_SSE = 43;
+  DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -245,6 +249,7 @@ enum CTA {
   CTA_OKTA_USER_SYNC = 11;
   CTA_ENTRA_ID = 12;
   CTA_OKTA_SCIM = 13;
+  CTA_IDENTITY_SECURITY = 14;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -409,7 +414,12 @@ message UIDiscoverCompletedEvent {
 message UICreateNewRoleClickEvent {}
 
 // UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
-message UICreateNewRoleSaveClickEvent {}
+message UICreateNewRoleSaveClickEvent {
+  bool standard_used = 1;
+  bool yaml_used = 2;
+  string mode_when_saved = 3;
+  repeated string fields_with_conversion_errors = 4;
+}
 
 // UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleCancelClickEvent {}
@@ -539,6 +549,9 @@ message AccessListGrantsToUser {
 
   // count_inherited_traits_granted is the number of traits granted to a user inherited from nested access lists.
   int32 count_inherited_traits_granted = 4;
+
+  // user_name is the Teleport username of the user for whom a role or trait was granted for.
+  string user_name = 5;
 }
 
 // AccessListReviewCreate is an event that is emitted when an access list review is created.
@@ -602,6 +615,10 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_AZURE = 23;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 24;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 25;
+  INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER = 26;
+  INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS = 27;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
+  INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -626,6 +643,150 @@ message UIIntegrationEnrollStartEvent {
 // completed enrolling an integration.
 message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
+}
+
+// IntegrationEnrollStep defines inner configuration steps
+// for a given integration type.
+enum IntegrationEnrollStep {
+  INTEGRATION_ENROLL_STEP_UNSPECIFIED = 0;
+
+  // AWSIC denotes AWS Identity Center integration.
+  INTEGRATION_ENROLL_STEP_AWSIC_CONNECT_OIDC = 1;
+  INTEGRATION_ENROLL_STEP_AWSIC_SET_ACCESSLIST_DEFAULT_OWNER = 2;
+  INTEGRATION_ENROLL_STEP_AWSIC_UPLOAD_AWS_SAML_SP_METADATA = 3;
+  INTEGRATION_ENROLL_STEP_AWSIC_TEST_SCIM_CONNECTION = 4;
+
+  // GITHUBRA denotes GitHub Repo Access.
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_INTEGRATION = 5;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_GIT_SERVER = 6;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CONFIGURE_SSH_CERT = 7;
+  INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB = 9;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
+  INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
+}
+
+// IntegrationEnrollStatusCode defines status code for an integration enroll step.
+enum IntegrationEnrollStatusCode {
+  INTEGRATION_ENROLL_STATUS_CODE_UNSPECIFIED = 0;
+  // The user tried to complete the action and it succeeded.
+  INTEGRATION_ENROLL_STATUS_CODE_SUCCESS = 1;
+  // The user or system skipped the step.
+  // For example:
+  // When setting up an AWS IAM Identity Center integration, we allow reusing
+  // OIDC integrationn if it was previously created for the Identity Center.
+  INTEGRATION_ENROLL_STATUS_CODE_SKIPPED = 2;
+  // The user tried to complete the action and it failed.
+  INTEGRATION_ENROLL_STATUS_CODE_ERROR = 3;
+  // The user did not complete the action and left the wizard.
+  INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
+}
+
+// IntegrationEnrollStepStatus defines fields that track a particular step outcome,
+// for example connection test failed or succeeded, or user aborted the step.
+message IntegrationEnrollStepStatus {
+  // Code indicates the step outcome.
+  IntegrationEnrollStatusCode code = 1;
+  // Error contains error details in case of an error status code.
+  // Error message should not include any identifiable information
+  // like server address.
+  string error = 2;
+}
+
+// UIIntegrationEnrollStepEvent defines configuration step event
+// with a status for a specific integration enroll kind.
+message UIIntegrationEnrollStepEvent {
+  // Metadata is the metadata of an event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step is the name of the step for a given integration kind.
+  IntegrationEnrollStep step = 2;
+  // Status is the status of the step outcome.
+  IntegrationEnrollStepStatus status = 3;
+}
+
+// UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
+// a section (e.g. "Advanced Options") in an integration setup wizard.
+message UIIntegrationEnrollSectionOpenEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the section was opened.
+  IntegrationEnrollStep step = 2;
+  // Section that was opened.
+  IntegrationEnrollSection section = 3;
+}
+
+// IntegrationEnrollSection identifies a section the user opened or expanded in
+// an integration setup wizard.
+enum IntegrationEnrollSection {
+  INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
+  INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
+}
+
+// UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
+// field in an integration setup wizard.
+message UIIntegrationEnrollFieldCompleteEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the field was completed.
+  IntegrationEnrollStep step = 2;
+  // Field that was completed.
+  IntegrationEnrollField field = 3;
+}
+
+// IntegrationEnrollField identifies a field the user completed in an integration
+// setup wizard.
+enum IntegrationEnrollField {
+  INTEGRATION_ENROLL_FIELD_UNSPECIFIED = 0;
+
+  // MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL = 1;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH = 2;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW = 3;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT = 4;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF = 5;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 8;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 9;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 10;
+  INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11;
+}
+
+// UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
+// IaC (e.g. Terraform) code in an integration setup wizard.
+message UIIntegrationEnrollCodeCopyEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the code was copied.
+  IntegrationEnrollStep step = 2;
+  // Type of code that was copied.
+  IntegrationEnrollCodeType type = 3;
+}
+
+// IntegrationEnrollCodeType identifies the type of code that was copied in an
+// integration setup wizard.
+enum IntegrationEnrollCodeType {
+  INTEGRATION_ENROLL_CODE_TYPE_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM = 1;
+  INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
+}
+
+// UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
+// documentation, etc. in an integration setup wizard.
+message UIIntegrationEnrollLinkClickEvent {
+  // Metadata of the event.
+  IntegrationEnrollMetadata metadata = 1;
+  // Step where the link was clicked.
+  IntegrationEnrollStep step = 2;
+  // Link that was clicked.
+  string link = 3;
 }
 
 // ResourceCreateEvent is emitted when a resource is created.
@@ -847,6 +1008,11 @@ message UsageEventOneOf {
     AccessGraphAWSScanEvent access_graph_aws_scan_event = 58;
     UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 59;
     UserTaskStateEvent user_task_state_event = 60;
+    UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 61;
+    UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 62;
+    UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 63;
+    UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 64;
+    UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 65;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
