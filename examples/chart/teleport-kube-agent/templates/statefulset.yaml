@@ -189,7 +189,7 @@ spec:
           {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/{{ .Values.tls.existingCASecretKeyName | default "ca.pem" }}
+            value: /etc/teleport-tls-ca/{{ .Values.tls.existingCASecretKeyName }}
           {{- end }}
           {{- if .Values.extraEnv }}
             {{- toYaml .Values.extraEnv | nindent 10 }}

@@ -188,7 +188,7 @@ spec:
         {{- end }}
         {{- if $proxy.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
-          value: /etc/teleport-tls-ca/{{ .Values.tls.existingCASecretKeyName | default "ca.pem" }}
+          value: /etc/teleport-tls-ca/{{ .Values.tls.existingCASecretKeyName }}
         {{- end }}
         {{- end }}
         args:
