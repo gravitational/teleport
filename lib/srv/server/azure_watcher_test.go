@@ -159,13 +159,12 @@ func TestAzureWatcher(t *testing.T) {
 			watcher := NewWatcher[AzureInstances](ctx)
 
 			const noDiscoveryConfig = ""
-
-			fetchersFunc := func() []Fetcher[AzureInstances] {
-				return MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher}, func(ctx context.Context, integration string) (azure.Clients, error) {
-					return &clients, nil
-				}, noDiscoveryConfig)
-			}
-			watcher.SetFetchers(noDiscoveryConfig, fetchersFunc())
+			watcher.SetFetchers(noDiscoveryConfig,
+				MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher},
+					func(ctx context.Context, integration string) (azure.Clients, error) {
+						return &clients, nil
+					}, noDiscoveryConfig),
+			)
 
 			go watcher.Run()
 			t.Cleanup(watcher.Stop)
