@@ -3523,7 +3523,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
