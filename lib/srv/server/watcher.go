@@ -51,7 +51,7 @@ type Fetcher[Instances any] interface {
 type Option[Instances any] func(*Watcher[Instances])
 
 // WithPollInterval sets the interval at which the watcher will fetch
-// instances from AWS.
+// instances.
 func WithPollInterval[Instances any](interval time.Duration) Option[Instances] {
 	return func(w *Watcher[Instances]) {
 		w.pollInterval = interval
