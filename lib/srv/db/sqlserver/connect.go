@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/kerberos"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
@@ -175,16 +174,4 @@ func getHostPort(db types.Database) (string, string, error) {
 		return "", "", trace.Wrap(err, "failed to parse database URI")
 	}
 	return host, port, nil
-}
-
-// NewEndpointsResolver returns an endpoint resolver.
-func NewEndpointsResolver(_ context.Context, db types.Database, _ endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
-	host, port, err := getHostPort(db)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	addr := net.JoinHostPort(host, port)
-	return endpoints.ResolverFn(func(context.Context) ([]string, error) {
-		return []string{addr}, nil
-	}), nil
 }

@@ -409,7 +409,10 @@ func NewProxyWatcher(ctx context.Context, cfg ProxyWatcherConfig) (*GenericWatch
 		ResourceKind:          types.KindProxy,
 		ResourceKey:           types.Server.GetName,
 		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
-			return proxyGetter.GetProxies()
+			return clientutils.CollectWithFallback(ctx, proxyGetter.ListProxyServers, func(context.Context) ([]types.Server, error) {
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+				return proxyGetter.GetProxies()
+			})
 		},
 		ResourcesC:                          cfg.ProxiesC,
 		ResourceDiffer:                      cfg.ProxyDiffer,
@@ -776,18 +779,30 @@ func (g *genericCollector[T, R]) refreshStaleResources(ctx context.Context) erro
 	}
 
 	_, err := utils.FnCacheGet(ctx, g.cache, g.GenericWatcherConfig.ResourceKind, func(ctx context.Context) (any, error) {
-		current, err := g.getResources(ctx)
+		newCurrent, err := g.getResources(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// There is a chance that the watcher reinitialized while
-		// getting resources happened above. Check if we are still stale
-		if g.stale.CompareAndSwap(true, false) {
-			g.rw.Lock()
-			g.current = current
-			g.rw.Unlock()
+		// as an optimization, we can check if the collector is still stale
+		// before grabbing the write lock
+		if !g.stale.Load() {
+			// the view is no longer stale, discard newCurrent and proceed with
+			// the data in g.current
+			return nil, nil
 		}
+
+		g.rw.Lock()
+		defer g.rw.Unlock()
+
+		// check the staleness again since it might've changed since we were not
+		// holding the lock
+		if !g.stale.Load() {
+			return nil, nil
+		}
+
+		g.current = newCurrent
+		g.stale.Store(false)
 
 		return nil, nil
 	})

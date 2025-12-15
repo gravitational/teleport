@@ -16,21 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO(gavin): delete this package after updating e to not depend on it.
 package endpoints
 
 import (
 	"context"
-	"sync"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
-)
-
-var (
-	resolverBuilders   = make(map[string]ResolverBuilder)
-	resolverBuildersMu sync.RWMutex
+	"github.com/gravitational/teleport/lib/healthcheck"
+	"github.com/gravitational/teleport/lib/srv/db/healthchecks"
 )
 
 // ResolverBuilder constructs a [Resolver].
@@ -58,58 +55,19 @@ type ResolverBuilderConfig struct {
 
 // GCPClients are clients used to resolve GCP endpoints.
 type GCPClients interface {
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
-	// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
-	GetGCPAlloyDBClient(context.Context) (gcp.AlloyDBAdminClient, error)
+	// GetSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetAlloyDBClient returns GCP AlloyDB Admin client.
+	GetAlloyDBClient(context.Context) (gcp.AlloyDBAdminClient, error)
 }
 
 // RegisterResolver registers a new database endpoint resolver.
 func RegisterResolver(builder ResolverBuilder, names ...string) {
-	resolverBuildersMu.Lock()
-	defer resolverBuildersMu.Unlock()
-	for _, name := range names {
-		resolverBuilders[name] = builder
-	}
-}
-
-// GetResolverBuilders is used in tests to cleanup after overriding a resolver.
-func GetResolverBuilders(names ...string) (map[string]ResolverBuilder, error) {
-	resolverBuildersMu.RLock()
-	defer resolverBuildersMu.RUnlock()
-	out := map[string]ResolverBuilder{}
-	for _, name := range names {
-		builder, ok := resolverBuilders[name]
-		if !ok {
-			return nil, trace.NotFound("database endpoint resolver builder %q is not registered", name)
+	healthchecks.RegisterHealthChecker(func(ctx context.Context, cfg healthchecks.HealthCheckerConfig) (healthcheck.HealthChecker, error) {
+		resolver, err := builder(ctx, cfg.Database, ResolverBuilderConfig{GCPClients: cfg.GCPClients})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		out[name] = builder
-	}
-	return out, nil
-}
-
-// GetResolver returns a resolver for the given database.
-func GetResolver(ctx context.Context, db types.Database, cfg ResolverBuilderConfig) (Resolver, error) {
-	name := db.GetProtocol()
-	resolverBuildersMu.RLock()
-	builder, ok := resolverBuilders[name]
-	resolverBuildersMu.RUnlock()
-	if !ok {
-		return nil, trace.NotFound("database endpoint resolver %q is not registered", name)
-	}
-
-	resolver, err := builder(ctx, db, cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resolver, nil
-}
-
-// IsRegistered returns true if the given database protocol has been registered.
-func IsRegistered(db types.Database) bool {
-	name := db.GetProtocol()
-	resolverBuildersMu.RLock()
-	defer resolverBuildersMu.RUnlock()
-	_, ok := resolverBuilders[name]
-	return ok
+		return healthcheck.NewTargetDialer(resolver.Resolve), nil
+	}, names...)
 }

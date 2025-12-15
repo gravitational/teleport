@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.summarizer.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
@@ -317,6 +318,10 @@ message CommandAnalysis {
   bool data_exfiltration = 19;
   // Persistence indicates whether the command involved persistence mechanisms.
   bool persistence = 20;
+  // StartOffset is the start time of the command, relative to the start of the session.
+  google.protobuf.Duration start_offset = 21;
+  // EndOffset is the end time of the command, relative to the start of the session.
+  google.protobuf.Duration end_offset = 22;
 }
 
 // SecurityRecommendation represents a security recommendation related to a command
@@ -327,6 +332,15 @@ message SecurityRecommendation {
   string description = 2;
   // Severity indicates the severity level of the recommendation.
   RiskLevel severity = 3;
+}
+
+// NeedsReviewReason represents the reason why a session needs further review.
+enum NeedsReviewReason {
+  // NeedsReviewReasonUnspecified is the default value and indicates that the reason
+  // for needing review is not specified.
+  NEEDS_REVIEW_REASON_UNSPECIFIED = 0;
+  // NeedsReviewReasonTooLarge indicates that the session is too large to be fully analyzed.
+  NEEDS_REVIEW_REASON_TOO_LARGE = 1;
 }
 
 // EnhancedSummary represents an enhanced summary of a session recording,
@@ -346,4 +360,6 @@ message EnhancedSummary {
   repeated int32 notable_command_indexes = 6;
   // Commands is a list of command summaries extracted from the session.
   repeated CommandAnalysis commands = 7;
+  // NeedsFurtherReview indicates the reason why the session needs further review.
+  optional NeedsReviewReason needs_further_review = 8;
 }

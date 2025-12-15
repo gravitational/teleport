@@ -2071,6 +2071,83 @@ prod       Done  2025-01-15 18:00:12 outside_window
 backup     Done  2025-01-14 20:00:31 outside_window
 ```
 
+## tctl autoupdate agents report
+
+Aggregates the agent autoupdate reports and displays agent count per version and per update group.
+
+## tctl autoupdate agents start-update
+
+```code
+$ tctl autoupdate agents start-update [--force] [<groups>...]
+```
+
+Manually initiates an update for the specified groups.
+
+### Arguments
+
+- `<groups>` - Groups to update. If not specified, all groups will be started.
+- `--force` - Skips progressive deployment mechanism such as canaries or backpressure.
+
+### Examples
+
+Manually trigger staging and production updates:
+```code
+$ tctl autoupdate agents start-update stage prod
+Started updating agents groups: [stage prod].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- --------------
+dev        Unstarted                     cannot_start
+stage      Active    2025-03-10 15:04:16 manual_trigger
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+## tctl autoupdate agents mark-done
+
+```code
+$ tctl autoupdate agents mark-done [<groups>...]
+```
+
+Manually marks an agent update group as successfully updated.
+
+### Arguments
+
+- `<groups>` - Groups to mark as updated. If not specified, all groups will be marked.
+
+### Examples
+
+Manually mark the staging group as updated:
+```code
+$ tctl autoupdate agents mark-done stage
+Successfully marked agent groups as completed: [stage].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- ------------------
+dev        Unstarted                     cannot_start
+stage      Done      2025-03-10 15:04:16 manual_forced_done
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+
+## tctl autoupdate agents rollback
+
+```code
+$ tctl autoupdate agents rollback [<groups>...]
+```
+
+Initiates an immediate rollback of Teleport agents from the target version to the start version.
+
+### Arguments
+
+- `<groups>` - Groups to rollback. If not specified, all groups not in the `unstarted` state will be rolled back.
+
+### Examples
+
+Rollback all agents immediately:
+```code
+$ tctl autoupdate agents rollback
+```
+
 ## tctl plugins install awsic
 
 Install the AWS Identity Center integration.

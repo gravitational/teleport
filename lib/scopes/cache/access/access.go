@@ -34,6 +34,7 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/cache/roles"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -399,7 +400,7 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 func (c *Cache) fetch(ctx context.Context) (state, error) {
 	roleCache := roles.NewRoleCache()
 
-	for role, err := range StreamRoles(ctx, c.cfg.Reader) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRolesRequest{}) {
 		if err != nil {
 			return state{}, trace.Wrap(err)
 		}
@@ -411,7 +412,7 @@ func (c *Cache) fetch(ctx context.Context) (state, error) {
 
 	assignmentCache := assignments.NewAssignmentCache()
 
-	for assignment, err := range StreamAssignments(ctx, c.cfg.Reader) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		if err != nil {
 			return state{}, trace.Wrap(err)
 		}

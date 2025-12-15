@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -46,7 +46,7 @@ type azureListClient[DBType comparable] interface {
 // functions that can be used by the common Azure fetcher.
 type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
 	// GetListClient returns the azureListClient for the provided subscription.
-	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
+	GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (ListClient, error)
 	// GetServerLocation returns the server location.
 	GetServerLocation(server DBType) string
 	// NewDatabaseFromServer creates a types.Database from provided server.
@@ -77,7 +77,7 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 // azureFetcherConfig is the Azure database servers fetcher configuration.
 type azureFetcherConfig struct {
 	// AzureClients are the Azure API clients.
-	AzureClients cloud.AzureClients
+	AzureClients azure.Clients
 	// Type is the type of DB matcher, such as "mysql" or "postgres"
 	Type string
 	// Subscription is the Azure subscription selector.
@@ -93,6 +93,8 @@ type azureFetcherConfig struct {
 	regionSet map[string]struct{}
 	// DiscoveryConfigName is the name of the discovery config which originated the resource.
 	DiscoveryConfigName string
+	// Integration is the name of Azure integration used for auth.
+	Integration string
 }
 
 // regionMatches returns whether a given region matches the configured Regions selector
@@ -154,8 +156,7 @@ func (f *azureFetcher[DBType, ListClient]) FetcherType() string {
 
 // IntegrationName returns the integration name.
 func (f *azureFetcher[DBType, ListClient]) IntegrationName() string {
-	// There is currently no integration that supports Auto Discover for Azure resources.
-	return ""
+	return f.cfg.Integration
 }
 
 // GetDiscoveryConfigName is the name of the discovery config which originated the resource.
@@ -191,7 +192,7 @@ func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context)
 	if f.cfg.Subscription != types.Wildcard {
 		return []string{f.cfg.Subscription}, nil
 	}
-	client, err := f.cfg.AzureClients.GetAzureSubscriptionClient()
+	client, err := f.cfg.AzureClients.GetSubscriptionClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -201,7 +202,7 @@ func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context)
 
 // getDBServersInSubscription fetches Azure DB servers within a given subscription.
 func (f *azureFetcher[DBType, ListClient]) getDBServersInSubscription(ctx context.Context, subID string) ([]DBType, error) {
-	client, err := f.GetListClient(&f.cfg, subID)
+	client, err := f.GetListClient(ctx, &f.cfg, subID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

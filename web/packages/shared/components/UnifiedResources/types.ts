@@ -196,6 +196,19 @@ export interface UnifiedResourceViewItem {
   status?: ResourceHealthStatus;
 }
 
+export type VisibleFilterPanelFields = {
+  checkbox: boolean;
+  clusterOpts: boolean;
+  healthStatusOpts: boolean;
+  resourceTypeOpts: boolean;
+  resourceAvailabilityOpts: boolean;
+};
+
+export type VisibleResourceItemFields = {
+  checkbox: boolean;
+  pin: boolean;
+};
+
 export enum PinningSupport {
   Supported = 'Supported',
   /**
@@ -230,6 +243,11 @@ export type ResourceItemProps = {
    * Used as a flag to render different styling.
    */
   showingStatusInfo: boolean;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleInputFields?: VisibleResourceItemFields;
 };
 
 // Props that are needed for the Card view.
@@ -273,6 +291,11 @@ export type ResourceViewProps = {
     showingStatusInfo: boolean;
   }[];
   expandAllLabels: boolean;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleInputFields?: VisibleResourceItemFields;
 };
 
 /**

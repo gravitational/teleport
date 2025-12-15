@@ -68,7 +68,7 @@ type BaseJSONRPCMessage struct {
 	// ID is the ID for request and response. ID is nil for notification.
 	ID mcp.RequestId `json:"id"`
 	// Method is the request or notification method. Method is empty for response.
-	Method mcp.MCPMethod `json:"method,omitempty"`
+	Method string `json:"method,omitempty"`
 	// Params is the params for request and notification.
 	Params JSONRPCParams `json:"params,omitempty"`
 	// Result is the response result.
@@ -126,7 +126,7 @@ func (m *BaseJSONRPCMessage) MakeResponse() *JSONRPCResponse {
 // https://modelcontextprotocol.io/specification/2025-03-26/basic#notifications
 type JSONRPCNotification struct {
 	JSONRPC string        `json:"jsonrpc"`
-	Method  mcp.MCPMethod `json:"method"`
+	Method  string        `json:"method"`
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
 
@@ -135,7 +135,7 @@ type JSONRPCNotification struct {
 // https://modelcontextprotocol.io/specification/2025-03-26/basic#requests
 type JSONRPCRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
-	Method  mcp.MCPMethod `json:"method"`
+	Method  string        `json:"method"`
 	ID      mcp.RequestId `json:"id"`
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
@@ -154,7 +154,7 @@ type JSONRPCResponse struct {
 	Error   json.RawMessage `json:"error,omitempty"`
 }
 
-// GetListToolResult assumes the result is for mcp.MethodToolsList and returns
+// GetListToolResult assumes the result is for MethodToolsList and returns
 // the corresponding go object.
 func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	var listResult mcp.ListToolsResult
@@ -164,7 +164,7 @@ func (r *JSONRPCResponse) GetListToolResult() (*mcp.ListToolsResult, error) {
 	return &listResult, nil
 }
 
-// GetInitializeResult assumes the result is for mcp.MethodInitialize and
+// GetInitializeResult assumes the result is for MethodInitialize and
 // returns the corresponding go object.
 func (r *JSONRPCResponse) GetInitializeResult() (*mcp.InitializeResult, error) {
 	var result mcp.InitializeResult
@@ -188,6 +188,60 @@ func unmarshalResponse(rawMessage string) (*JSONRPCResponse, error) {
 }
 
 const (
+	// MethodInitialize initiates connection and negotiates protocol capabilities.
+	MethodInitialize = "initialize"
+
+	// MethodPing verifies connection liveness between client and server.
+	MethodPing = "ping"
+
+	// MethodResourcesList lists all available server resources.
+	MethodResourcesList = "resources/list"
+
+	// MethodResourcesTemplatesList provides URI templates for constructing resource URIs.
+	MethodResourcesTemplatesList = "resources/templates/list"
+
+	// MethodResourcesRead retrieves content of a specific resource by URI.
+	MethodResourcesRead = "resources/read"
+
+	// MethodPromptsList lists all available prompt templates.
+	MethodPromptsList = "prompts/list"
+
+	// MethodPromptsGet retrieves a specific prompt template with filled parameters.
+	MethodPromptsGet = "prompts/get"
+
+	// MethodToolsList lists all available executable tools.
+	MethodToolsList = "tools/list"
+
+	// MethodToolsCall invokes a specific tool with provided parameters.
+	MethodToolsCall = "tools/call"
+
+	// MethodSetLogLevel configures the minimum log level for client
+	MethodSetLogLevel = "logging/setLevel"
+
+	// MethodElicitationCreate requests additional information from the user during interactions.
+	MethodElicitationCreate = "elicitation/create"
+
+	// MethodListRoots requests roots list from the client during interactions.
+	MethodListRoots = "roots/list"
+
+	// MethodSamplingCreateMessage is sent by server to request client to sample messages from LLM.
+	MethodSamplingCreateMessage = "sampling/createMessage"
+
+	// MethodNotificationResourcesListChanged notifies when the list of available resources changes.
+	MethodNotificationResourcesListChanged = "notifications/resources/list_changed"
+
+	// MethodNotificationResourceUpdated notifies when a resource changes.
+	MethodNotificationResourceUpdated = "notifications/resources/updated"
+
+	// MethodNotificationPromptsListChanged notifies when the list of available prompt templates changes.
+	MethodNotificationPromptsListChanged = "notifications/prompts/list_changed"
+
+	// MethodNotificationToolsListChanged notifies when the list of available tools changes.
+	MethodNotificationToolsListChanged = "notifications/tools/list_changed"
+
+	// MethodNotificationRootsListChanged notifies when the list of available roots changes.
+	MethodNotificationRootsListChanged = "notifications/roots/list_changed"
+
 	// MethodNotificationInitialized defines the method used for "initialized"
 	// notification. This notification is sent by the client after it receives
 	// the initialize response.
