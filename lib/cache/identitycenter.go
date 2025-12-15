@@ -94,62 +94,35 @@ func (c *Cache) ListIdentityCenterAccounts(ctx context.Context, pageSize int, pa
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccounts")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.identityCenterAccounts)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	lister := genericLister[*identitycenterv1.Account, identityCenterAccountIndex]{
+		cache:        c,
+		collection:   c.collections.identityCenterAccounts,
+		index:        identityCenterAccountNameIndex,
+		upstreamList: c.Config.IdentityCenter.ListIdentityCenterAccounts,
+		nextToken: func(t *identitycenterv1.Account) string {
+			return t.GetMetadata().Name
+		},
 	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		accounts, next, err := c.Config.IdentityCenter.ListIdentityCenterAccounts(ctx, pageSize, pageToken)
-		return accounts, next, trace.Wrap(err)
-	}
-
-	if pageSize == 0 {
-		pageSize = 100
-	}
-
-	var accounts []*identitycenterv1.Account
-	for account := range rg.store.resources(identityCenterAccountNameIndex, pageToken, "") {
-		if len(accounts) == pageSize {
-			return accounts, account.Metadata.GetName(), nil
-		}
-
-		accounts = append(accounts, utils.CloneProtoMsg(account))
-
-	}
-	return accounts, "", nil
+	page, next, err := lister.list(ctx, pageSize, pageToken)
+	return page, next, trace.Wrap(err)
 }
 
 func (c *Cache) ListIdentityCenterAccountsWithFilter(ctx context.Context, pageSize int, pageToken string, filter func(*identitycenterv1.Account) bool) ([]*identitycenterv1.Account, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterAccountsWithFilter")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.identityCenterAccounts)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
+	lister := genericLister[*identitycenterv1.Account, identityCenterAccountIndex]{
+		cache:        c,
+		collection:   c.collections.identityCenterAccounts,
+		index:        identityCenterAccountNameIndex,
+		upstreamList: c.Config.IdentityCenter.ListIdentityCenterAccounts,
+		nextToken: func(t *identitycenterv1.Account) string {
+			return t.GetMetadata().Name
+		},
+		filter: filter,
 	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		accounts, next, err := c.Config.IdentityCenter.ListIdentityCenterAccountsWithFilter(ctx, pageSize, pageToken, filter)
-		return accounts, next, trace.Wrap(err)
-	}
-
-	if pageSize == 0 {
-		pageSize = 100
-	}
-
-	var accounts []*identitycenterv1.Account
-	for account := range rg.store.resources(identityCenterAccountNameIndex, pageToken, "") {
-		if len(accounts) == pageSize {
-			return accounts, account.Metadata.GetName(), nil
-		}
-
-		accounts = append(accounts, utils.CloneProtoMsg(account))
-
-	}
-	return accounts, "", nil
+	page, next, err := lister.list(ctx, pageSize, pageToken)
+	return page, next, trace.Wrap(err)
 }
 
 type identityCenterAccountAssignmentIndex string
