@@ -9,13 +9,6 @@ resource "teleport_role" "upgrade" {
       kubernetes_labels = {
         env = ["dev", "prod"]
       }
-      kubernetes_resources = [{
-        kind      = "pods"
-        api_group = ""
-        name      = "*"
-        namespace = "*"
-        verbs     = ["*"]
-      }]
     }
   }
 
