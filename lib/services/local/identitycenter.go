@@ -163,31 +163,16 @@ func (svc *IdentityCenterService) ListIdentityCenterAccountsWithFilter(
 	ctx context.Context,
 	pageSize int,
 	page string,
-	matcher func(services.IdentityCenterAccount) bool,
-) ([]services.IdentityCenterAccount, string, error) {
+	matcher func(*identitycenterv1.Account) bool,
+) ([]*identitycenterv1.Account, string, error) {
 	if pageSize == 0 {
 		pageSize = identityCenterPageSize
 	}
-
-	pageToken, err := page.Consume()
-	if err != nil {
-		return nil, "", trace.Wrap(err, "listing identity center assignment records")
-	}
-
-	wrappedMatcher := func(a *identitycenterv1.Account) bool {
-		return matcher(services.IdentityCenterAccount{Account: a})
-	}
-
-	accounts, nextPage, err := svc.accounts.ListResourcesWithFilter(ctx, pageSize, pageToken, wrappedMatcher)
+	accounts, nextPage, err := svc.accounts.ListResourcesWithFilter(ctx, pageSize, page, matcher)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-
-	result := make([]services.IdentityCenterAccount, len(accounts))
-	for i, acct := range accounts {
-		result[i] = services.IdentityCenterAccount{Account: acct}
-	}
-	return result, pagination.NextPageToken(nextPage), nil
+	return accounts, nextPage, nil
 }
 
 // CreateIdentityCenterAccount creates a new Identity Center Account record

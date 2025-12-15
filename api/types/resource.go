@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
-	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
@@ -712,19 +711,19 @@ func FriendlyName(resource ResourceWithLabels) string {
 	}
 
 	switch rr := resource.(type) {
-	case Resource153Unwrapper:
-		// RFD-153 style resources are generally data-only and do not have any
-		// methods beyond the minimal [Resource153] interface. Because we can't
-		// rely on them being able to implement an interface in order to generate
-		// a friendly name, any 153-style resources that *want* a friendly name
-		// will have to manually generate it.
-		switch urr := rr.Unwrap().(type) {
-		case *identitycenterv1.Account:
-			return urr.GetSpec().GetName()
+	// case Resource153Unwrapper:
+	// 	// RFD-153 style resources are generally data-only and do not have any
+	// 	// methods beyond the minimal [Resource153] interface. Because we can't
+	// 	// rely on them being able to implement an interface in order to generate
+	// 	// a friendly name, any 153-style resources that *want* a friendly name
+	// 	// will have to manually generate it.
+	// 	switch urr := rr.Unwrap().(type) {
+	// 	case *identitycenterv1.Account:
+	// 		return urr.GetSpec().GetName()
 
-		case *identitycenterv1.AccountAssignment:
-			return urr.GetSpec().GetDisplay()
-		}
+	// 	case *identitycenterv1.AccountAssignment:
+	// 		return urr.GetSpec().GetDisplay()
+	// 	}
 	case interface{ GetHostname() string }:
 		return rr.GetHostname()
 	case interface{ GetDisplayName() string }:

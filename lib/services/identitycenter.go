@@ -78,8 +78,8 @@ type IdentityCenterAccounts interface {
 		context.Context,
 		int,
 		string,
-		func(IdentityCenterAccount) bool,
-	) ([]IdentityCenterAccount, string, error)
+		func(*identitycenterv1.Account) bool,
+	) ([]*identitycenterv1.Account, string, error)
 
 	// CreateIdentityCenterAccount creates a new Identity Center Account record
 	CreateIdentityCenterAccount(context.Context, *identitycenterv1.Account) (*identitycenterv1.Account, error)
