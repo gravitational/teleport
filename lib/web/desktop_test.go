@@ -116,7 +116,7 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpbClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.WithDecoder(tdp.TDPBDecoder))
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.WithTDPBDecoder())
 
 		rdpMsg := &tdpbv1.RDPResponsePDU{
 			Response: []byte("hello"),
@@ -212,7 +212,7 @@ func TestProxyConnection(t *testing.T) {
 			name:           "tdp-tdpb-no-latency-monitor",
 			clientProtocol: protocolTDP,
 			serverProtocol: protocolTDPB,
-			/* server version does support latency monitoring */
+			/* server version does not support latency monitoring */
 			version:  "17.0.0",
 			clientFn: tdpClient,
 			echoFn:   tdpbEchoServer,

@@ -70,7 +70,7 @@ func TestMessageOperations(t *testing.T) {
 		Message Message
 	}{
 		{Name: "raw-message-happy-path", Message: rawMessage},
-		{Name: "decoded-message-path", Message: &decodedMessage},
+		{Name: "decoded-message-path", Message: decodedMessage},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			protoMsg, err := ToTDPBProto(test.Message)

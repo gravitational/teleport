@@ -195,8 +195,12 @@ type handshakeData struct {
 func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboardLayout bool) error {
 	// Do we need to construct the screenspec from modern messages?
 	if h.screenSpec == nil {
-		h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.ScreenSpec.Width, Height: h.screenSpec.Height}
-		h.keyboardLayout = &tdp.ClientKeyboardLayout{KeyboardLayout: h.keyboardLayout.KeyboardLayout}
+		if h.hello != nil {
+			h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.GetScreenSpec().GetWidth(), Height: h.hello.GetScreenSpec().GetHeight()}
+		} else {
+			return trace.Errorf("No client screen spec nor client hello message reeived. Cannot complete TDP/TDPB handhsake")
+		}
+		h.keyboardLayout = &tdp.ClientKeyboardLayout{KeyboardLayout: h.hello.GetKeyboardLayout()}
 	}
 
 	messages := make([]tdp.Message, 0, 3)
@@ -255,7 +259,7 @@ func SendTDPError(w tdp.MessageReadWriter, err error) error {
 }
 
 func SendTDPBError(w tdp.MessageReadWriter, err error) error {
-	if err != nil {
+	if err == nil {
 		slog.Warn("SendTDPBError called with empty message")
 		err = errors.New("")
 	}
@@ -329,7 +333,7 @@ func (h *Handler) createDesktopConnection(
 					continue
 				default:
 					msg, err := tdp.DecodeTDPB(bytes.NewReader(data))
-					return &msg, trace.Wrap(err)
+					return msg, trace.Wrap(err)
 				}
 			}
 		}}
@@ -732,7 +736,7 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == protocolTDPB {
-		return tdp.NewConn(rwc, tdp.WithDecoder(tdp.TDPBDecoder))
+		return tdp.NewConn(rwc, tdp.WithTDPBDecoder())
 	}
 	return tdp.NewConn(rwc)
 }
@@ -753,20 +757,23 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 		return trace.Wrap(err)
 	}
 
+	// Create a single pair of tdp.Conn instances. tdp.Conn protects the underlying
+	// streams with a mutex.
+	serverConn := tdp.MessageReadWriteCloser(newConn(wds, serverProtocol))
+	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
+
 	pingChan := make(chan []byte)
 	pinger := desktopPinger{
 		// The pinger handles translation internally.
-		server:           tdp.NewConn(wds),
-		client:           tdp.NewConn(&WebsocketIO{Conn: ws}),
+		server:           serverConn,
+		client:           clientConn,
 		latencySupported: latencySupported,
 		ch:               pingChan,
 	}
 
-	// Convert websocket and net.Conn to MessageReadWriteClosers using the correct decoder
-	// for each one's native dialect.
-	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
 	// The ping interceptor is installed on the server connection
-	serverConn := tdp.NewReadWriteInterceptor(newConn(wds, serverProtocol), pinger.intercept, nil)
+	// regardless of whether or not translation is needed
+	serverConn = tdp.NewReadWriteInterceptor(serverConn, pinger.intercept, nil)
 
 	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
 	needTranslation := clientProtocol != serverProtocol

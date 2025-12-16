@@ -54,7 +54,7 @@ type Conn struct {
 	rwc       io.ReadWriteCloser
 	writeMu   sync.Mutex
 	bufr      *bufio.Reader
-	decode    DecoderFunc
+	decode    decoderFunc
 	closeOnce sync.Once
 
 	// OnSend is an optional callback that is invoked when a TDP message
@@ -72,14 +72,19 @@ type Conn struct {
 	remoteAddr net.Addr
 }
 
-// DecoderFunc is a function that
-type DecoderFunc func(byteReader) (Message, error)
+// decoderFunc is a function that decodes incoming data
+// into a Message.
+type decoderFunc func(io.Reader) (Message, error)
 
 type connOption func(c *Conn)
 
-func WithDecoder(d DecoderFunc) connOption {
+// WithDecoder configures the Conn to interpret incoming data
+// as TDPB messages, as opposed to the default TDP.
+func WithTDPBDecoder() connOption {
 	return func(c *Conn) {
-		c.decode = d
+		c.decode = func(r io.Reader) (Message, error) {
+			return DecodeTDPB(r)
+		}
 	}
 }
 
@@ -87,10 +92,14 @@ func WithDecoder(d DecoderFunc) connOption {
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
 func NewConn(rwc io.ReadWriteCloser, opts ...connOption) *Conn {
+	br := bufio.NewReader(rwc)
 	c := &Conn{
-		rwc:    rwc,
-		bufr:   bufio.NewReader(rwc),
-		decode: decode,
+		rwc:  rwc,
+		bufr: br,
+		// Default to legacy TDP decoder
+		decode: func(r io.Reader) (Message, error) {
+			return decode(br)
+		},
 	}
 
 	for _, opt := range opts {

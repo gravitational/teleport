@@ -26,7 +26,7 @@ type convertChallenge func(*proto.MFAAuthenticateChallenge) (Message, error)
 //   - nil if a valid, non-nil MFA messages was found.
 type isMFAResponse func(Message) (*proto.MFAAuthenticateResponse, error)
 
-// newMfaPrompt constructs a function that reads encodes and sends an MFA challenge to the client
+// newMfaPrompt constructs a function that reads, encodes, and sends an MFA challenge to the client,
 // and waits for the corresponding MFA response message. It caches any non-MFA messages received so
 // that they may be forwarded to the server later on.
 func newMfaPrompt(rw MessageReadWriter, isResponse isMFAResponse, toMessage convertChallenge, withheld *[]Message) mfa.PromptFunc {
@@ -50,7 +50,7 @@ func newMfaPrompt(rw MessageReadWriter, isResponse isMFAResponse, toMessage conv
 			if err != nil {
 				if errors.Is(err, ErrUnexpectedMessageType) {
 					// Withhold this non-MFA message and try reading again
-					slog.DebugContext(ctx, "Got non-MFA message", "message", msg)
+					slog.DebugContext(ctx, "Received non-MFA message", "message", msg)
 					*withheld = append(*withheld, msg)
 					continue
 				} else {
@@ -60,6 +60,7 @@ func newMfaPrompt(rw MessageReadWriter, isResponse isMFAResponse, toMessage conv
 				}
 			}
 			// Found our MFA response!
+			slog.DebugContext(ctx, "Received MFA response")
 			return resp, nil
 		}
 	}
@@ -108,21 +109,42 @@ func NewTDPMFAPrompt(rw MessageReadWriter, withheld *[]Message) func(string) mfa
 func NewTDPBMFAPrompt(rw MessageReadWriter, withheld *[]Message) func(string) mfa.PromptFunc {
 	return func(channelID string) mfa.PromptFunc {
 		convert := func(challenge *proto.MFAAuthenticateChallenge) (Message, error) {
-			mfaMsg := &tdpbv1.MFA{
-				ChannelId: channelID,
-				Challenge: &mfav1.AuthenticateChallenge{
-					WebauthnChallenge: challenge.WebauthnChallenge,
-				},
+			if challenge == nil {
+				return nil, errors.New("empty MFA challenge")
 			}
 
-			if challenge.SSOChallenge != nil {
-				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{
-					RequestId:   challenge.SSOChallenge.RequestId,
-					RedirectUrl: challenge.SSOChallenge.RedirectUrl,
-					Device:      challenge.SSOChallenge.Device,
+			slog.Warn("MFA challenge", "challenge", challenge)
+			mfaMsg := &tdpbv1.MFA{
+				ChannelId: channelID,
+			}
+
+			if challenge.WebauthnChallenge != nil {
+				slog.Warn("webauthn challenge != nil")
+				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
+					WebauthnChallenge: challenge.WebauthnChallenge,
 				}
 			}
 
+			if challenge.SSOChallenge != nil {
+				slog.Warn("SSO challenge != nil")
+				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
+					SsoChallenge: &mfav1.SSOChallenge{
+						RequestId:   challenge.SSOChallenge.RequestId,
+						RedirectUrl: challenge.SSOChallenge.RedirectUrl,
+						Device:      challenge.SSOChallenge.Device,
+					},
+				}
+			}
+
+			if challenge.TOTP != nil {
+				slog.Warn("TOTP challenge!")
+			}
+
+			if challenge.WebauthnChallenge == nil && challenge.SSOChallenge == nil && challenge.TOTP == nil {
+				return nil, trace.Wrap(authclient.ErrNoMFADevices)
+			}
+
+			slog.Warn("sending TDPB MFA message", "message", mfaMsg)
 			return NewTDPBMessage(mfaMsg), nil
 		}
 
@@ -132,7 +154,7 @@ func NewTDPBMFAPrompt(rw MessageReadWriter, withheld *[]Message) func(string) mf
 			if err := AsTDPB(msg, mfaMsg); err != nil {
 				// AsTDPB returns the well-known ErrUnexpectedMessageType error
 				// if we got a valid TDPB message, but it wasn't an MFA message specifically.
-				return nil, err
+				return nil, trace.Wrap(err)
 			}
 
 			if mfaMsg.AuthenticationResponse == nil {

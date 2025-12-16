@@ -45,7 +45,7 @@ func init() {
 
 // TDPBMessageType determines the TDPB message type of the message.
 func TDPBMessageType(msg Message) tdpbv1.MessageType {
-	if m, ok := msg.(*TdpbMessage); ok {
+	if m, ok := msg.(TdpbMessage); ok {
 		return m.messageType
 	}
 	return tdpbv1.MessageType_MESSAGE_TYPE_UNSPECIFIED
@@ -54,10 +54,10 @@ func TDPBMessageType(msg Message) tdpbv1.MessageType {
 // AsTDPB is a convenience for working with TDP messages.
 // Uses reflection to populate the .
 func AsTDPB(msg Message, p proto.Message) error {
-	if m, ok := msg.(*TdpbMessage); ok {
+	if m, ok := msg.(TdpbMessage); ok {
 		return m.As(p)
 	}
-	return ErrInvalidMessage
+	return trace.Errorf("expected a tdpb message type, but got %T: %w", msg, ErrInvalidMessage)
 }
 
 // ToTDPBProto attempts to extract the underlying proto.Message
@@ -74,16 +74,11 @@ func ToTDPBProto(msg Message) (proto.Message, error) {
 }
 
 // DecodeTDPB decodes a TDPB message
-func DecodeTDPB(rdr byteReader) (TdpbMessage, error) {
-	return globalDecoder.decodeFrom(rdr)
+func DecodeTDPB(rdr io.Reader) (TdpbMessage, error) {
+	return decodeFrom(rdr)
 }
 
-// TODO: consolidate to single TDPB decode function
-func TDPBDecoder(rdr byteReader) (Message, error) {
-	return globalDecoder.decodeFrom(rdr)
-}
-
-func (m *messageDecoder) decodeFrom(rdr io.Reader) (TdpbMessage, error) {
+func decodeFrom(rdr io.Reader) (TdpbMessage, error) {
 	mType, mBytes, err := readTDPBMessage(rdr)
 	if err != nil {
 		return TdpbMessage{}, err
@@ -135,16 +130,33 @@ func newMessageDecoder() (*messageDecoder, error) {
 func readTDPBMessage(in io.Reader) (tdpb.MessageType, []byte, error) {
 	msgBuffer := bytes.NewBuffer(make([]byte, 0, 1024))
 
-	_, err := io.CopyN(msgBuffer, in, tdpbHeaderLength)
-	if err != nil {
-		return 0, nil, err
+	// Read until we find a valid message
+	for {
+		// Start by searching for the header
+		_, err := io.CopyN(msgBuffer, in, tdpbHeaderLength)
+		if err != nil {
+			return 0, nil, err
+		}
+
+		// Determine the message type and length
+		mType := int32(binary.BigEndian.Uint32(msgBuffer.Bytes()[:4]))
+		mLength := binary.BigEndian.Uint32(msgBuffer.Bytes()[4:])
+
+		// Make sure this is a known message type. Simply discard it if the message
+		// type does not match. We want to tolerate unknown message types in the case
+		// that we add new messages later.
+		_, ok := tdpb.MessageType_name[int32(mType)]
+		if !ok || tdpb.MessageType(mType) == tdpb.MessageType_MESSAGE_TYPE_UNSPECIFIED {
+			// Invalid/unknown message. Discard it
+			slog.Info("discarding unknown TDPB message", "message-type", int32(mType), "length", mLength)
+			io.CopyN(io.Discard, in, int64(mLength))
+			msgBuffer.Reset()
+			continue
+		}
+
+		_, err = io.CopyN(msgBuffer, in, int64(mLength))
+		return tdpb.MessageType(mType), msgBuffer.Bytes(), trace.Wrap(err)
 	}
-
-	mType := binary.BigEndian.Uint32(msgBuffer.Bytes()[:4])
-	mLength := binary.BigEndian.Uint32(msgBuffer.Bytes()[4:])
-
-	_, err = io.CopyN(msgBuffer, in, int64(mLength))
-	return tdpb.MessageType(mType), msgBuffer.Bytes(), err
 }
 
 // Scenarios for creating a tdpbMessage
@@ -169,8 +181,8 @@ type TdpbMessage struct {
 	msg proto.Message
 }
 
-func NewTDPBMessage(msg proto.Message) *TdpbMessage {
-	return &TdpbMessage{
+func NewTDPBMessage(msg proto.Message) TdpbMessage {
+	return TdpbMessage{
 		msg: msg,
 	}
 }
@@ -188,7 +200,7 @@ func (i TdpbMessage) Encode() ([]byte, error) {
 
 // EncodeTo is a convenience function that calls 'Encode' on
 // the message and writes the resulting data to the writer.
-func (i *TdpbMessage) EncodeTo(w io.Writer) error {
+func (i TdpbMessage) EncodeTo(w io.Writer) error {
 	data, err := i.Encode()
 	if err != nil {
 		return trace.Wrap(err)
@@ -198,7 +210,7 @@ func (i *TdpbMessage) EncodeTo(w io.Writer) error {
 }
 
 // Get the unmarshalled protobuf message.
-func (i *TdpbMessage) Proto() (proto.Message, error) {
+func (i TdpbMessage) Proto() (proto.Message, error) {
 	switch {
 	case i.msg != nil:
 		return i.msg, nil
@@ -211,7 +223,7 @@ func (i *TdpbMessage) Proto() (proto.Message, error) {
 	}
 }
 
-func (i *TdpbMessage) As(p proto.Message) error {
+func (i TdpbMessage) As(p proto.Message) error {
 	switch {
 	case i.msg != nil:
 		if i.msg.ProtoReflect().Type() != p.ProtoReflect().Type() {
@@ -382,9 +394,7 @@ func TranslateToLegacy(msg Message) ([]Message, error) {
 		})
 	case *tdpb.MouseWheel:
 		messages = append(messages, MouseWheel{
-			// TODO: Fix this hack
-			Axis: MouseWheelAxis(m.Axis - 1),
-			// TODO: validate size
+			Axis:  MouseWheelAxis(m.Axis - 1),
 			Delta: int16(m.Delta),
 		})
 	case *tdpb.ClipboardData:
@@ -507,10 +517,9 @@ func TranslateToLegacy(msg Message) ([]Message, error) {
 				BytesWritten: m.BytesWritten,
 			})
 		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_MOVE:
-			messages = append(messages, SharedDirectoryWriteResponse{
+			messages = append(messages, SharedDirectoryMoveResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				BytesWritten: m.BytesWritten,
 			})
 		case tdpb.DirectoryOperation_DIRECTORY_OPERATION_TRUNCATE:
 			messages = append(messages, SharedDirectoryTruncateResponse{
@@ -532,12 +541,8 @@ func TranslateToLegacy(msg Message) ([]Message, error) {
 		} else {
 			messages = append(messages, Ping{UUID: id})
 		}
-	//case *tdpb.ClientKeyboardLayout:
-	//	messages = append(messages, ClientKeyboardLayout{
-	//		KeyboardLayout: m.KeyboardLayout,
-	//	})
 	default:
-		slog.Warn("Encountered unknown TDPB message!")
+		return nil, trace.Errorf("Could not translate to TDP. Encountered unexpected message type %T", m)
 	}
 
 	return messages, nil
@@ -596,10 +601,6 @@ func TranslateToModern(msg Message) ([]Message, error) {
 		messages = append(messages, &tdpb.ClipboardData{
 			Data: m,
 		})
-	//case ClientUsername:
-	//	messages = append(messages, &tdpb.ClientUsername{
-	//		Username: m.Username,
-	//	})
 	case MouseWheel:
 		messages = append(messages, &tdpb.MouseWheel{
 			Axis:  tdpb.MouseWheelAxis(m.Axis + 1),
@@ -633,11 +634,17 @@ func TranslateToModern(msg Message) ([]Message, error) {
 			Response: m,
 		})
 	case ConnectionActivated:
-		messages = append(messages, &tdpb.ConnectionActivated{
-			IoChannelId:   uint32(m.IOChannelID),
-			UserChannelId: uint32(m.UserChannelID),
-			ScreenWidth:   uint32(m.ScreenWidth),
-			ScreenHeight:  uint32(m.ScreenHeight),
+		// Legacy TDP servers send this message once at the start
+		// of the connection.
+		messages = append(messages, &tdpbv1.ServerHello{
+			ActivationSpec: &tdpb.ConnectionActivated{
+				IoChannelId:   uint32(m.IOChannelID),
+				UserChannelId: uint32(m.UserChannelID),
+				ScreenWidth:   uint32(m.ScreenWidth),
+				ScreenHeight:  uint32(m.ScreenHeight),
+			},
+			// Assume all legacy TDP servers support clipboard sharing
+			ClipboardEnabled: true,
 		})
 	case SyncKeys:
 		messages = append(messages, &tdpb.SyncKeys{
@@ -779,6 +786,8 @@ func TranslateToModern(msg Message) ([]Message, error) {
 			CompletionId:  m.CompletionID,
 			ErrorCode:     m.ErrCode,
 		})
+	default:
+		return nil, trace.Errorf("Could not translate to TDPB. Encountered unexpected message type %T", m)
 	}
 
 	wrapped := []Message{}
