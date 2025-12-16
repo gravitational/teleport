@@ -51,7 +51,7 @@ message Token {
   // join_method is type of join method to allow for the token
   string join_method = 1;
   // allow defines the AWS Accounts and ARNs to allow joining from
-  repeated IAMAllow allow = 2;
+  repeated Allow allow = 2;
 }
 
 // CloudClusterStatus is populated with status from Teleport Cloud about the child cloud cluster
@@ -66,8 +66,8 @@ message CloudClusterStatus {
   google.protobuf.Timestamp state_changed_at = 4;
 }
 
-// IAMAllow configures an IAM join token
-message IAMAllow {
+// Allow configures rules for using the corresponding join method
+message Allow {
   string aws_account = 1;
   string aws_arn = 2;
 }

@@ -236,7 +236,7 @@ type Token struct {
 	// join_method is type of join method to allow for the token
 	JoinMethod string `protobuf:"bytes,1,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// allow defines the AWS Accounts and ARNs to allow joining from
-	Allow         []*IAMAllow `protobuf:"bytes,2,rep,name=allow,proto3" json:"allow,omitempty"`
+	Allow         []*Allow `protobuf:"bytes,2,rep,name=allow,proto3" json:"allow,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -278,7 +278,7 @@ func (x *Token) GetJoinMethod() string {
 	return ""
 }
 
-func (x *Token) GetAllow() []*IAMAllow {
+func (x *Token) GetAllow() []*Allow {
 	if x != nil {
 		return x.Allow
 	}
@@ -358,8 +358,8 @@ func (x *CloudClusterStatus) GetStateChangedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// IAMAllow configures an IAM join token
-type IAMAllow struct {
+// Allow configures rules for using the corresponding join method
+type Allow struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AwsAccount    string                 `protobuf:"bytes,1,opt,name=aws_account,json=awsAccount,proto3" json:"aws_account,omitempty"`
 	AwsArn        string                 `protobuf:"bytes,2,opt,name=aws_arn,json=awsArn,proto3" json:"aws_arn,omitempty"`
@@ -367,20 +367,20 @@ type IAMAllow struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *IAMAllow) Reset() {
-	*x = IAMAllow{}
+func (x *Allow) Reset() {
+	*x = Allow{}
 	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *IAMAllow) String() string {
+func (x *Allow) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*IAMAllow) ProtoMessage() {}
+func (*Allow) ProtoMessage() {}
 
-func (x *IAMAllow) ProtoReflect() protoreflect.Message {
+func (x *Allow) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_cloudcluster_v1_cloudcluster_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -392,19 +392,19 @@ func (x *IAMAllow) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IAMAllow.ProtoReflect.Descriptor instead.
-func (*IAMAllow) Descriptor() ([]byte, []int) {
+// Deprecated: Use Allow.ProtoReflect.Descriptor instead.
+func (*Allow) Descriptor() ([]byte, []int) {
 	return file_teleport_cloudcluster_v1_cloudcluster_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *IAMAllow) GetAwsAccount() string {
+func (x *Allow) GetAwsAccount() string {
 	if x != nil {
 		return x.AwsAccount
 	}
 	return ""
 }
 
-func (x *IAMAllow) GetAwsArn() string {
+func (x *Allow) GetAwsArn() string {
 	if x != nil {
 		return x.AwsArn
 	}
@@ -429,17 +429,17 @@ const file_teleport_cloudcluster_v1_cloudcluster_proto_rawDesc = "" +
 	"\x03bot\x18\x02 \x01(\v2\x1d.teleport.cloudcluster.v1.BotR\x03bot\x125\n" +
 	"\x05token\x18\x03 \x01(\v2\x1f.teleport.cloudcluster.v1.TokenR\x05token\"\x19\n" +
 	"\x03Bot\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"b\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"_\n" +
 	"\x05Token\x12\x1f\n" +
 	"\vjoin_method\x18\x01 \x01(\tR\n" +
-	"joinMethod\x128\n" +
-	"\x05allow\x18\x02 \x03(\v2\".teleport.cloudcluster.v1.IAMAllowR\x05allow\"\xa2\x01\n" +
+	"joinMethod\x125\n" +
+	"\x05allow\x18\x02 \x03(\v2\x1f.teleport.cloudcluster.v1.AllowR\x05allow\"\xa2\x01\n" +
 	"\x12CloudClusterStatus\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\tR\x05state\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12D\n" +
-	"\x10state_changed_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0estateChangedAt\"D\n" +
-	"\bIAMAllow\x12\x1f\n" +
+	"\x10state_changed_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x0estateChangedAt\"A\n" +
+	"\x05Allow\x12\x1f\n" +
 	"\vaws_account\x18\x01 \x01(\tR\n" +
 	"awsAccount\x12\x17\n" +
 	"\aaws_arn\x18\x02 \x01(\tR\x06awsArnBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1;cloudclusterb\x06proto3"
@@ -463,7 +463,7 @@ var file_teleport_cloudcluster_v1_cloudcluster_proto_goTypes = []any{
 	(*Bot)(nil),                   // 2: teleport.cloudcluster.v1.Bot
 	(*Token)(nil),                 // 3: teleport.cloudcluster.v1.Token
 	(*CloudClusterStatus)(nil),    // 4: teleport.cloudcluster.v1.CloudClusterStatus
-	(*IAMAllow)(nil),              // 5: teleport.cloudcluster.v1.IAMAllow
+	(*Allow)(nil),                 // 5: teleport.cloudcluster.v1.Allow
 	(*v1.Metadata)(nil),           // 6: teleport.header.v1.Metadata
 	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
 }
@@ -473,7 +473,7 @@ var file_teleport_cloudcluster_v1_cloudcluster_proto_depIdxs = []int32{
 	4, // 2: teleport.cloudcluster.v1.CloudCluster.status:type_name -> teleport.cloudcluster.v1.CloudClusterStatus
 	2, // 3: teleport.cloudcluster.v1.CloudClusterSpec.bot:type_name -> teleport.cloudcluster.v1.Bot
 	3, // 4: teleport.cloudcluster.v1.CloudClusterSpec.token:type_name -> teleport.cloudcluster.v1.Token
-	5, // 5: teleport.cloudcluster.v1.Token.allow:type_name -> teleport.cloudcluster.v1.IAMAllow
+	5, // 5: teleport.cloudcluster.v1.Token.allow:type_name -> teleport.cloudcluster.v1.Allow
 	7, // 6: teleport.cloudcluster.v1.CloudClusterStatus.state_changed_at:type_name -> google.protobuf.Timestamp
 	7, // [7:7] is the sub-list for method output_type
 	7, // [7:7] is the sub-list for method input_type
