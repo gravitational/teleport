@@ -198,38 +198,54 @@ override is prepared long before downstream systems have their trust updated.
 
 Note that the downstream system should trust both the self-signed Teleport CA
 and the external CA, so that enabling the override won't require tight
-coordination.
+coordination. Once the override is enabled then downstream systems could remove
+trust of the self-signed Teleport CA.
 
-Once the override is enabled then downstream systems could remove trust of the
-self-signed Teleport CA.
-
-Using the CLI:
+A rotation may be optionally initialized prior to creating the disabled
+override. The example shows how to perform the initial override along with a CA
+rotation.
 
 ```shell
-# 1. Create the CSR.
-tctl auth create-override-csr --type=db_client
+# Print the public key of the current CA.
+tctl auth export --type=db-client | tctl auth pub-key-hash
+> 1BCDEF...
 
-# 2. Sign the CSR using the external CA.
+# 1. Start a rotation.
+tctl auth rotate --type=db_client --phase=init
 
-# 3. Create the disabled override.
+# 2. Create the CSR.
+tctl auth create-override-csr --type=db_client \
+  --subject='OU=Llama Unit,CN=Llama Teleport DB client CA'
+> (Writes files for OLD and NEW keys.)
+
+# 3. Sign the CSR for the NEW key using the external CA.
+
+# 4. Create the disabled override.
 tctl auth create-override \
   --type=db_client \
   --set-disabled=true cert.pem
-> Created override for db_client, public key 'AB:CD:EF:...'.
+> Created override for db_client, public key '2B:CD:EF:...'
 
-# 4. Enable the override. Takes effect immediately.
+# Time passes until downstream trust is configured for both OLD and NEW
+# (overriden) certificates.
+
+# 5. Enable the override.
 tctl auth update-override
   --type=db_client \
-  --public-key='AB:CD:EF:...' \
+  --public-key='2B:CD:EF:...' \
   --set-disabled=false
+
+# 6. Advance rotation.
+# NEW, overriden certificate is now used to sign client certificates.
+tctl auth rotate --type=db_client --phase=update_clients
 ```
 
 Using a declarative resource:
 
 ```shell
-# 1. and 2. as above.
+# Steps 1, 2 and 3 as above.
 
-# 3. Create the disabled override.
+# 4. Create the disabled override.
 cat >db_client_override.yaml <<EOF
 type: cert_authority_override
 version: v1
@@ -245,9 +261,13 @@ spec:
 EOF
 tctl create db_client_override.yaml
 
-# 4. Enable the override. Takes effect immediately.
+# Time passes.
+
+# 5. Enable the override when ready. Takes effect immediately.
 yq eval '.spec.certificate_overrides[0].disabled=false' -i db_client_override.yaml
 tctl create -f db_client_override.yaml
+
+# Step 6 as above.
 
 # `cat` and `yq` used as an example, replace with your favorite editor.
 ```
@@ -716,6 +736,7 @@ how to mint certificates from the CSR.
   - [ ] `tctl auth create-override`
   - [ ] `tctl auth update-override`
   - [ ] `tctl auth delete-override`
+  - [ ] `tctl auth pub-key-hash` (client-side only, doesn't write to audit)
   - [ ] `tctl create` (kind:cert_authority_override)
   - [ ] `tctl edit`   (kind:cert_authority_override)
   - [ ] `tctl delete` (kind:cert_authority_override)
