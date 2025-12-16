@@ -37,7 +37,7 @@ import { H2, P2 } from 'design/Text/Text';
 import cfg from 'teleport/config';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { CodePanelPlaceholder } from './CodePanel';
+import { CodePanel } from './CodePanel';
 
 export function Finish(props: FlowStepProps) {
   const { prevStep } = props;
@@ -96,7 +96,7 @@ export function Finish(props: FlowStepProps) {
       </Box>
 
       <CodeContainer>
-        <CodePanelPlaceholder>Code panel coming soon...</CodePanelPlaceholder>
+        <CodePanel />
       </CodeContainer>
 
       <Dialog open={showDoneCheck} onClose={() => setShowDoneCheck(false)}>

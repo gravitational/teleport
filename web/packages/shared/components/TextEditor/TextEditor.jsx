@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-terraform.js';
 import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
@@ -57,6 +58,14 @@ class TextEditor extends Component {
     }
     if (prevProps.readOnly !== this.props.readOnly) {
       this.editor.setReadOnly(this.props.readOnly);
+    }
+
+    // If the data changes, reset the value in each session so changes are
+    // rendered.
+    if (prevProps.data !== this.props.data) {
+      this.props.data.forEach((doc, i) => {
+        this.sessions[i].setValue(doc.content);
+      });
     }
 
     this.editor.resize();
@@ -160,6 +169,16 @@ function getMode(docType) {
     return 'ace/mode/json';
   }
 
+  if (docType === 'terraform') {
+    return 'ace/mode/terraform';
+  }
+
+  if (docType === 'yaml') {
+    return 'ace/mode/yaml';
+  }
+
+  // Makes more sense to default to `ace/mode/text`, but there are existing uses
+  // that don't provide a type.
   return 'ace/mode/yaml';
 }
 

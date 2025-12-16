@@ -17,9 +17,18 @@
  */
 
 import { Meta, StoryObj } from '@storybook/react-vite';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
+
+import { ContextProvider } from 'teleport/index';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  genWizardCiCdError,
+  genWizardCiCdForever,
+  genWizardCiCdSuccess,
+} from 'teleport/test/helpers/bots';
 
 import { ConfigureAccess } from './ConfigureAccess';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
@@ -33,15 +42,51 @@ type Story = StoryObj<typeof meta>;
 
 export default meta;
 
-export const Happy: Story = {};
+export const Happy: Story = {
+  parameters: {
+    msw: {
+      handlers: [genWizardCiCdSuccess()],
+    },
+  },
+};
+
+export const TemplateFetchFailed: Story = {
+  parameters: {
+    msw: {
+      handlers: [genWizardCiCdError(500, 'something went wrong')],
+    },
+  },
+};
+
+export const TemplateFetching: Story = {
+  parameters: {
+    msw: {
+      handlers: [genWizardCiCdForever()],
+    },
+  },
+};
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
 
 function Wrapper() {
+  const ctx = createTeleportContext();
   return (
-    <GitHubK8sFlowProvider>
-      <Container>
-        <ConfigureAccess />
-      </Container>
-    </GitHubK8sFlowProvider>
+    <QueryClientProvider client={queryClient}>
+      <ContextProvider ctx={ctx}>
+        <GitHubK8sFlowProvider>
+          <Container>
+            <ConfigureAccess />
+          </Container>
+        </GitHubK8sFlowProvider>
+      </ContextProvider>
+    </QueryClientProvider>
   );
 }
 

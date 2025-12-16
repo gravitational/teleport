@@ -16,11 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, useContext, useReducer } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import React, {
+  PropsWithChildren,
+  useContext,
+  useEffect,
+  useReducer,
+} from 'react';
+import { useDebounceCallback } from 'usehooks-ts';
 
+import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
 import { RefType } from 'teleport/services/bot/types';
+import useTeleport from 'teleport/useTeleport';
 
-import { parseRepoAddress } from '../Shared/github';
+import { GITHUB_HOST, parseRepoAddress } from '../Shared/github';
+import { makeGhaWorkflow } from './templates';
 
 export function useGitHubK8sFlow() {
   return useContext(context);
@@ -38,9 +48,86 @@ export function GitHubK8sFlowProvider(
     ...intitialState,
   });
 
+  const ctx = useTeleport();
+  const cluster = ctx.storeUser.state.cluster;
+
+  const { mutate, data, isPending, error } = useMutation({
+    mutationFn: (vars: Parameters<typeof generateGhaK8sTemplates>[0]) =>
+      generateGhaK8sTemplates(vars),
+    retry: 3,
+    scope: {
+      id: 'gha-k8s', // mutations in this scope are executed serially, in-order
+    },
+  });
+
+  // Hold the previous data value so we always have something to display after
+  // the initial fetch. When the mutation runs, data is set to null until the
+  // new data arrives.
+  const prevData = usePrevious(data);
+
+  const regenerateTemplates = useDebounceCallback(mutate, 1000);
+
+  // This effect triggers the code templates to be regenerated when state
+  // changes. It's debounced to reduce the number of api calls.
+  useEffect(() => {
+    const includeKubernetes =
+      state.kubernetesGroups.length > 0 || state.kubernetesUsers.length > 0;
+
+    regenerateTemplates({
+      github: {
+        allow: [
+          {
+            environment: state.environment,
+            owner: state.info?.owner || 'gravitational',
+            ref: state.ref,
+            ref_type: state.refType,
+            repository: state.info?.repository || 'teleport',
+            workflow: state.workflow,
+            // actor: state.actor - we don't allow actor to be specified
+          },
+        ],
+        enterprise_server_host:
+          state.info?.host === GITHUB_HOST ? undefined : state.info?.host,
+        enterprise_slug: state.enterpriseSlug,
+        static_jwks: state.enterpriseJwks,
+      },
+      kubernetes: includeKubernetes
+        ? {
+            groups: state.kubernetesGroups,
+            users: state.kubernetesUsers,
+          }
+        : undefined,
+    });
+  }, [
+    regenerateTemplates,
+    state.enterpriseJwks,
+    state.enterpriseSlug,
+    state.environment,
+    state.info?.host,
+    state.info?.owner,
+    state.info?.repository,
+    state.kubernetesGroups,
+    state.kubernetesUsers,
+    state.ref,
+    state.refType,
+    state.workflow,
+  ]);
+
   const value = {
     state,
     dispatch,
+    template: {
+      terraform: {
+        data: (data ?? prevData)?.terraform,
+        loading: isPending,
+        error,
+      },
+      ghaWorkflow: makeGhaWorkflow({
+        tokenName: `gha-${state.info?.owner ?? 'gravitational'}-${state.info?.repository ?? 'teleport'}`,
+        clusterPublicUrl: cluster.publicURL,
+        toolsVersion: cluster.authVersion,
+      }),
+    },
   };
 
   return <context.Provider value={value}>{children}</context.Provider>;
@@ -191,10 +278,36 @@ const defaultState: State = {
 type Context = {
   state: State;
   dispatch: React.ActionDispatch<[Action]>;
+  template: {
+    terraform: {
+      data?: string;
+      loading: boolean;
+      error: Error | null;
+    };
+    ghaWorkflow?: string;
+  };
 };
 const context = React.createContext<Context>({
   dispatch: () => {
     throw new Error('not implemented');
   },
   state: defaultState,
+  template: {
+    terraform: {
+      loading: false,
+      error: null,
+    },
+  },
 });
+
+function usePrevious<T>(value: T) {
+  const [current, setCurrent] = React.useState<T>(value);
+  const [previous, setPrevious] = React.useState<T | undefined>(undefined);
+
+  if (value !== current) {
+    setPrevious(current);
+    setCurrent(value);
+  }
+
+  return previous;
+}
