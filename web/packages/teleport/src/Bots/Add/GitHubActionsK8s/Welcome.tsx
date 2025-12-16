@@ -26,7 +26,13 @@ import Link from 'design/Link/Link';
 import { H2, P2 } from 'design/Text/Text';
 import { Theme } from 'design/theme/themes/types';
 
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
+
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import welcomeDark from './gha-k8s-welcome-dark.svg';
 import welcomeLight from './gha-k8s-welcome-light.svg';
 
@@ -34,10 +40,20 @@ export function Welcome(props: FlowStepProps) {
   const { nextStep } = props;
 
   const theme = useTheme();
+  const tracking = useTracking();
 
   const welcomeImage: ImageSpec = {
     light: welcomeLight,
     dark: welcomeDark,
+  };
+
+  const handleNext = () => {
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SWelcome,
+      IntegrationEnrollStatusCode.Success
+    );
+
+    nextStep?.();
   };
 
   return (
@@ -62,7 +78,10 @@ export function Welcome(props: FlowStepProps) {
           See the{' '}
           <Link
             target="_blank"
-            href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/"
+            href={IAC_LINK}
+            onClick={() => {
+              tracking.link(IntegrationEnrollStep.MWIGHAK8SWelcome, IAC_LINK);
+            }}
           >
             Infrastructure as Code
           </Link>{' '}
@@ -70,7 +89,7 @@ export function Welcome(props: FlowStepProps) {
         </P2>
 
         <Flex gap={2} pt={5}>
-          <ButtonPrimary onClick={nextStep}>Start</ButtonPrimary>
+          <ButtonPrimary onClick={handleNext}>Start</ButtonPrimary>
         </Flex>
       </Box>
 
@@ -89,3 +108,6 @@ const Container = styled(Flex)`
 type ImageSpec = {
   [K in Theme['type']]: string;
 };
+
+const IAC_LINK =
+  'https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/';

@@ -94,6 +94,7 @@ export const SectionBox = ({
   removable,
   isProcessing = false,
   validation,
+  onExpand,
   onRemove,
   initiallyCollapsed = false,
 }: React.PropsWithChildren<{
@@ -102,6 +103,7 @@ export const SectionBox = ({
   removable?: boolean;
   isProcessing?: boolean;
   validation?: ValidationResult;
+  onExpand?(): void;
   onRemove?(): void;
   initiallyCollapsed?: boolean;
 }>) => {
@@ -140,6 +142,8 @@ export const SectionBox = ({
         ? ExpansionState.Collapsing
         : ExpansionState.Measuring
     );
+
+    onExpand?.();
   };
 
   // Triggered when the collapse animation is finished and we can finally make

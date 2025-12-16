@@ -21,6 +21,7 @@ import { ResourceIcon } from 'design/ResourceIcon';
 import { useNoMinWidth } from 'teleport/Main';
 
 import { GuidedFlow, View } from '../Shared/GuidedFlow';
+import { TrackingProvider } from '../Shared/useTracking';
 import { ConfigureAccess } from './ConfigureAccess';
 import { ConnectGitHub } from './ConnectGitHub';
 import { Finish } from './Finish';
@@ -47,6 +48,16 @@ const views: View[] = [
 ];
 
 export function GitHubActionsK8s() {
+  useNoMinWidth();
+
+  return (
+    <TrackingProvider>
+      <GitHubActionsK8sWithoutTracking />
+    </TrackingProvider>
+  );
+}
+
+export function GitHubActionsK8sWithoutTracking() {
   useNoMinWidth();
 
   return (

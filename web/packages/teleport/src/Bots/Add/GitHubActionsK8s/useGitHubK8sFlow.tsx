@@ -31,6 +31,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { GITHUB_HOST, parseRepoAddress } from '../Shared/github';
 import { KubernetesLabel } from '../Shared/kubernetes';
+import { useTracking } from '../Shared/useTracking';
 import { makeGhaWorkflow } from './templates';
 
 export function useGitHubK8sFlow() {
@@ -51,6 +52,16 @@ export function GitHubK8sFlowProvider(
 
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
+
+  const tracking = useTracking();
+
+  // This effect sends a user event when the flow starts and ends
+  useEffect(() => {
+    tracking.start();
+    return () => {
+      tracking.complete();
+    };
+  }, [tracking]);
 
   const { mutate, data, isPending, error } = useMutation({
     mutationFn: (vars: Parameters<typeof generateGhaK8sTemplates>[0]) =>
