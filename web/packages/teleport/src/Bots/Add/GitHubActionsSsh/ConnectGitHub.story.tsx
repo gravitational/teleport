@@ -22,8 +22,9 @@ import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
-import { AddBotToWorkflow } from './AddBotToWorkflow';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { ConnectGitHub } from './ConnectGitHub';
+import { Finish } from './Finish';
+import { GitHubSshFlowProvider } from './useGitHubSshFlow';
 
 const Provider = ({ children }) => {
   const ctx = createTeleportContext();
@@ -31,19 +32,25 @@ const Provider = ({ children }) => {
   return (
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <GitHubFlowProvider>{children}</GitHubFlowProvider>
+        <GitHubSshFlowProvider>{children}</GitHubSshFlowProvider>
       </ContextProvider>
     </MemoryRouter>
   );
 };
 
 export default {
-  title: 'Teleport/Bots/Add/GitHubActions',
+  title: 'Teleport/Bots/Add/GitHubActions+SSH',
 };
 
-export const AddBot = () => (
+export const RepoRules = () => (
   <Provider>
-    <AddBotToWorkflow {...props} />
+    <ConnectGitHub {...props} />
+  </Provider>
+);
+
+export const Finished = () => (
+  <Provider>
+    <Finish />
   </Provider>
 );
 
