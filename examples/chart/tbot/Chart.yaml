@@ -1,4 +1,4 @@
-.version: &version "18.5.1-dev.reveal.1"
+.version: &version "18.5.1-dev.reveal.2"
 
 name: tbot
 apiVersion: v2
