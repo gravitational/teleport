@@ -185,18 +185,17 @@ function Picker(props: {
       const index = prev.findIndex(l => l.name === name);
       if (index == -1) {
         return [...prev, { name, values: [value] }];
-      } else {
-        return prev.map(l => {
-          if (l.name === name) {
-            const vs = new Set([...l.values, value]);
-            return {
-              ...l,
-              values: [...vs],
-            };
-          }
-          return l;
-        });
       }
+      return prev.map(l => {
+        if (l.name === name) {
+          const vs = new Set([...l.values, value]);
+          return {
+            ...l,
+            values: [...vs],
+          };
+        }
+        return l;
+      });
     });
   };
 
