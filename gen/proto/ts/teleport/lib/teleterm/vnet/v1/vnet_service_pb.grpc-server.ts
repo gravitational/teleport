@@ -24,6 +24,8 @@ import { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
+import { GetWindowsServiceStatusResponse } from "./vnet_service_pb";
+import { GetWindowsServiceStatusRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -64,6 +66,13 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
+    /**
+     * GetBackgroundItemStatus returns the status of the background item responsible for launching
+     * VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+     *
+     * @generated from protobuf rpc: GetWindowsServiceStatus(teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusResponse);
+     */
+    getWindowsServiceStatus: grpc.handleUnaryCall<GetWindowsServiceStatusRequest, GetWindowsServiceStatusResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -130,6 +139,16 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => GetBackgroundItemStatusRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
+    },
+    getWindowsServiceStatus: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetWindowsServiceStatus",
+        originalName: "GetWindowsServiceStatus",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetWindowsServiceStatusResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetWindowsServiceStatusRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetWindowsServiceStatusResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetWindowsServiceStatusRequest.toBinary(value))
     },
     runDiagnostics: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",

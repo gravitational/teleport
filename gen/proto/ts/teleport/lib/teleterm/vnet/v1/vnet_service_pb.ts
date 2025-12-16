@@ -119,6 +119,28 @@ export interface GetBackgroundItemStatusResponse {
     status: BackgroundItemStatus;
 }
 /**
+ * Request for GetBackgroundItemStatus.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusRequest
+ */
+export interface GetWindowsServiceStatusRequest {
+}
+/**
+ * Response for GetBackgroundItemStatus.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusResponse
+ */
+export interface GetWindowsServiceStatusResponse {
+    /**
+     * @generated from protobuf field: bool installed = 1;
+     */
+    installed: boolean;
+    /**
+     * @generated from protobuf field: string version = 2;
+     */
+    version: string;
+}
+/**
  * Request for RunDiagnostics.
  *
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
@@ -454,6 +476,86 @@ class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItem
  */
 export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetWindowsServiceStatusRequest$Type extends MessageType<GetWindowsServiceStatusRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusRequest", []);
+    }
+    create(value?: PartialMessage<GetWindowsServiceStatusRequest>): GetWindowsServiceStatusRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetWindowsServiceStatusRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetWindowsServiceStatusRequest): GetWindowsServiceStatusRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetWindowsServiceStatusRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusRequest
+ */
+export const GetWindowsServiceStatusRequest = new GetWindowsServiceStatusRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetWindowsServiceStatusResponse$Type extends MessageType<GetWindowsServiceStatusResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusResponse", [
+            { no: 1, name: "installed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 2, name: "version", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetWindowsServiceStatusResponse>): GetWindowsServiceStatusResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.installed = false;
+        message.version = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetWindowsServiceStatusResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetWindowsServiceStatusResponse): GetWindowsServiceStatusResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool installed */ 1:
+                    message.installed = reader.bool();
+                    break;
+                case /* string version */ 2:
+                    message.version = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetWindowsServiceStatusResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool installed = 1; */
+        if (message.installed !== false)
+            writer.tag(1, WireType.Varint).bool(message.installed);
+        /* string version = 2; */
+        if (message.version !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.version);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsServiceStatusResponse
+ */
+export const GetWindowsServiceStatusResponse = new GetWindowsServiceStatusResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
     constructor() {
         super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest", []);
@@ -582,6 +684,7 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
+    { name: "GetWindowsServiceStatus", options: {}, I: GetWindowsServiceStatusRequest, O: GetWindowsServiceStatusResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
     { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
 ]);

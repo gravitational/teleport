@@ -341,6 +341,19 @@ func (s *Service) stopLocked() error {
 	return nil
 }
 
+// AutoConfigureSSH automatically configures OpenSSH-compatible clients for
+// connections to Teleport SSH servers through VNet.
+func (s *Service) GetWindowsServiceStatus(ctx context.Context, _ *api.GetWindowsServiceStatusRequest) (*api.GetWindowsServiceStatusResponse, error) {
+	serStatus, err := vnet.GetServiceStatus(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &api.GetWindowsServiceStatusResponse{
+		Installed: serStatus.Installed,
+		Version:   serStatus.Version,
+	}, nil
+}
+
 // Close stops VNet service and prevents it from being started again. Blocks until VNet stops.
 // Intended for cleanup code when tsh daemon gets terminated.
 func (s *Service) Close() error {

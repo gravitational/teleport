@@ -36,6 +36,9 @@ service VnetService {
   // GetBackgroundItemStatus returns the status of the background item responsible for launching
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
+  // GetBackgroundItemStatus returns the status of the background item responsible for launching
+  // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+  rpc GetWindowsServiceStatus(GetWindowsServiceStatusRequest) returns (GetWindowsServiceStatusResponse);
 
   // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
   // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -82,6 +85,15 @@ message GetBackgroundItemStatusRequest {}
 // Response for GetBackgroundItemStatus.
 message GetBackgroundItemStatusResponse {
   BackgroundItemStatus status = 1;
+}
+
+// Request for GetBackgroundItemStatus.
+message GetWindowsServiceStatusRequest {}
+
+// Response for GetBackgroundItemStatus.
+message GetWindowsServiceStatusResponse {
+  bool installed = 1;
+  string version = 2;
 }
 
 // BackgroundItemStatus maps to SMAppServiceStatus of the Service Management framework in macOS.

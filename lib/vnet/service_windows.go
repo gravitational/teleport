@@ -139,6 +139,48 @@ func ServiceMain() error {
 	return trace.Wrap(closeFn(), "closing logger")
 }
 
+// ServiceMain runs the Windows VNet admin service.
+func GetServiceStatus(ctx context.Context) (ServiceStatus, error) {
+	// 1. Open the Service Control Manager
+	// MachineName: nil (local machine)
+	// DatabaseName: nil (default services active database)
+	// DesiredAccess: SC_MANAGER_CONNECT (minimal required access)
+	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return nil, trace.Wrap(err, "opening Windows service manager")
+	}
+	defer windows.CloseServiceHandle(scManager)
+	serviceNamePtr, err := syscall.UTF16PtrFromString(serviceName)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting service name to UTF16")
+	}
+	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
+	if err != nil {
+		return nil, trace.Wrap(err, "opening Windows service %v", serviceName)
+	}
+	service := &mgr.Service{
+		Name:   serviceName,
+		Handle: serviceHandle,
+	}
+
+	// 3. Query the Status (calls QueryServiceStatus)
+	var status SERVICE_STATUS
+	// QueryServiceStatusEx is usually preferred, but QueryServiceStatus is simpler here.
+	err = windows.QueryServiceStatus(svcHandle, &status)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to query status for %s: %w", serviceName, err)
+	}
+
+	// 4. Return the result
+	state := status.CurrentState
+	stateString := rawStateToString[state]
+	if stateString == "" {
+		stateString = fmt.Sprintf("Unknown State (0x%X)", state)
+	}
+
+	return state, stateString, nil
+}
+
 // windowsService implements [svc.Handler].
 type windowsService struct{}
 

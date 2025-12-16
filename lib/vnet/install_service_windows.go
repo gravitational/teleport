@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,8 +31,13 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
+
+const registryKey = `HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall\TeleportVNetService`
+const destinationTsh = "C:\\Program Files\\Teleport VNet\\tsh.exe"
+const destinationWintun = "C:\\Program Files\\Teleport VNet\\wintun.dll"
 
 // InstallService installs the VNet windows service.
 //
@@ -42,12 +48,22 @@ import (
 func InstallService(ctx context.Context) (err error) {
 	tshPath, err := os.Executable()
 	if err != nil {
-		return trace.Wrap(err, "getting current exe path")
+		return trace.Wrap(err, destinationTsh)
 	}
-	if err := assertTshInProgramFiles(tshPath); err != nil {
+	err := copyFile(tshPath, destinationTsh)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dir := filepath.Dir(tshPath)
+	wintunPath := filepath.Join(dir, "wintun.dll")
+	err := copyFile(wintunPath, destinationWintun)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := assertTshInProgramFiles(destinationTsh); err != nil {
 		return trace.Wrap(err, "checking if tsh.exe is installed under %%PROGRAMFILES%%")
 	}
-	if err := assertWintunInstalled(tshPath); err != nil {
+	if err := assertWintunInstalled(destinationTsh); err != nil {
 		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
 	}
 
@@ -63,7 +79,7 @@ func InstallService(ctx context.Context) (err error) {
 		// The service has not been created yet and must be installed.
 		svc, err = svcMgr.CreateService(
 			serviceName,
-			tshPath,
+			destinationTsh,
 			mgr.Config{
 				StartType: mgr.StartManual,
 			},
@@ -85,7 +101,57 @@ func InstallService(ctx context.Context) (err error) {
 	if err := logInstallationEvent("VNet service installed"); err != nil {
 		trace.Wrap(err, "logging installation event")
 	}
+
+	// now check for and create the individual session key
+	pk, err := registry.GetOrCreateRegistryKey(registryKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer pk.Close()
+
+	if err := registry.WriteString(pk, "DisplayName", "VNet Background Service"); err != nil {
+		return trace.Wrap(err)
+	}
+	uninstallString := fmt.Sprintf("powershell.exe -WindowStyle Hidden -Command \"Start-Process '%v' -ArgumentList 'uninstall-vnet-service' -Verb RunAs\"", tshPath)
+	if err := registry.WriteString(pk, "UninstallString", uninstallString); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := registry.WriteString(pk, "Publisher", "Teleport"); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := registry.WriteString(pk, "DisplayVersion", api.Version); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
+}
+
+func copyFile(src, dest string) error {
+	// 1. Open the source file
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer sourceFile.Close()
+
+	// 2. Create the destinationTsh file
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destinationFile.Close() // Ensure the file handle is closed
+
+	// 3. Copy the data stream
+	bytesCopied, err := io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return 0, fmt.Errorf("failed to copy data: %w", err)
+	}
+
+	// 4. Ensure data is written to disk (flush)
+	if err := destinationFile.Sync(); err != nil {
+		return 0, fmt.Errorf("failed to sync data to disk: %w", err)
+	}
+
+	return bytesCopied, nil
 }
 
 // UninstallService uninstalls the VNet windows service.
@@ -110,6 +176,10 @@ func UninstallService(ctx context.Context) (err error) {
 	}
 	if err := eventlogutils.Remove(eventlogutils.LogName, eventSource); err != nil {
 		return trace.Wrap(err, "removing event source for logging")
+	}
+	err := registry.DeleteKey(registryKey)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

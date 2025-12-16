@@ -18,7 +18,7 @@
 
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 
-import { Box, ButtonSecondary, Flex, Text } from 'design';
+import { Alert, Box, ButtonSecondary, Flex, P3, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
 import { useRefAutoFocus } from 'shared/hooks';
@@ -43,6 +43,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     status,
     startAttempt,
     stopAttempt,
+    serviceStatus,
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
@@ -74,6 +75,17 @@ export const VnetSliderStep = (props: StepComponentProps) => {
         outline: none;
       `}
     >
+      <P3>Windows Service</P3>
+      <Alert>
+        {serviceStatus.status === 'error' && serviceStatus.statusText}
+      </Alert>
+      <P3>
+        {serviceStatus.status === 'success' &&
+          serviceStatus.data.installed.toString()}
+      </P3>
+      <P3>
+        {serviceStatus.status === 'success' && serviceStatus.data.version}
+      </P3>
       <VnetSliderStepHeader
         goBack={props.prev}
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
@@ -117,9 +129,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
             </Flex>
           ))}
       </Flex>
-
       {status.value === 'running' && <VnetStatus />}
-
       <DiagnosticsAlert
         runDiagnosticsFromVnetPanel={runDiagnosticsFromVnetPanel}
       />

@@ -32,6 +32,7 @@ import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
+  GetWindowsServiceStatusResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
@@ -128,6 +129,7 @@ export type VnetContext = {
     /** Optional callback that will be invoked after SSH clients are configured. */
     onSuccess?: () => void;
   }) => void;
+  serviceStatus: Attempt<GetWindowsServiceStatusResponse>;
 };
 
 export type VnetStatus =
@@ -354,6 +356,17 @@ export const VnetContextProvider: FC<
     handleAutoStart();
   }, [isWorkspaceStateInitialized]);
 
+  const [serviceStatus, getServiceStatus] = useAsync(
+    useCallback(async () => {
+      const { response } = await appCtx.vnet.getWindowsServiceStatus({});
+      return response;
+    }, [appCtx.vnet])
+  );
+
+  useEffect(() => {
+    void getServiceStatus();
+  }, [getServiceStatus]);
+
   useEffect(
     function handleUnexpectedShutdown() {
       const removeListener = appCtx.addUnexpectedVnetShutdownListener(
@@ -514,6 +527,7 @@ export const VnetContextProvider: FC<
   return (
     <VnetContext.Provider
       value={{
+        serviceStatus,
         isSupported,
         status,
         start,

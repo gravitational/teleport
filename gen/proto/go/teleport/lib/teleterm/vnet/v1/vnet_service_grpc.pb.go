@@ -39,6 +39,7 @@ const (
 	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
 	VnetService_GetServiceInfo_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo"
 	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
+	VnetService_GetWindowsServiceStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetWindowsServiceStatus"
 	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
 	VnetService_AutoConfigureSSH_FullMethodName        = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
 )
@@ -58,6 +59,9 @@ type VnetServiceClient interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
+	// GetBackgroundItemStatus returns the status of the background item responsible for launching
+	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+	GetWindowsServiceStatus(ctx context.Context, in *GetWindowsServiceStatusRequest, opts ...grpc.CallOption) (*GetWindowsServiceStatusResponse, error)
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error)
@@ -114,6 +118,16 @@ func (c *vnetServiceClient) GetBackgroundItemStatus(ctx context.Context, in *Get
 	return out, nil
 }
 
+func (c *vnetServiceClient) GetWindowsServiceStatus(ctx context.Context, in *GetWindowsServiceStatusRequest, opts ...grpc.CallOption) (*GetWindowsServiceStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetWindowsServiceStatusResponse)
+	err := c.cc.Invoke(ctx, VnetService_GetWindowsServiceStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *vnetServiceClient) RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RunDiagnosticsResponse)
@@ -149,6 +163,9 @@ type VnetServiceServer interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
+	// GetBackgroundItemStatus returns the status of the background item responsible for launching
+	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
+	GetWindowsServiceStatus(context.Context, *GetWindowsServiceStatusRequest) (*GetWindowsServiceStatusResponse, error)
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error)
@@ -176,6 +193,9 @@ func (UnimplementedVnetServiceServer) GetServiceInfo(context.Context, *GetServic
 }
 func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
+}
+func (UnimplementedVnetServiceServer) GetWindowsServiceStatus(context.Context, *GetWindowsServiceStatusRequest) (*GetWindowsServiceStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWindowsServiceStatus not implemented")
 }
 func (UnimplementedVnetServiceServer) RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunDiagnostics not implemented")
@@ -276,6 +296,24 @@ func _VnetService_GetBackgroundItemStatus_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VnetService_GetWindowsServiceStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWindowsServiceStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VnetServiceServer).GetWindowsServiceStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VnetService_GetWindowsServiceStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VnetServiceServer).GetWindowsServiceStatus(ctx, req.(*GetWindowsServiceStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _VnetService_RunDiagnostics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RunDiagnosticsRequest)
 	if err := dec(in); err != nil {
@@ -334,6 +372,10 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBackgroundItemStatus",
 			Handler:    _VnetService_GetBackgroundItemStatus_Handler,
+		},
+		{
+			MethodName: "GetWindowsServiceStatus",
+			Handler:    _VnetService_GetWindowsServiceStatus_Handler,
 		},
 		{
 			MethodName: "RunDiagnostics",
