@@ -86,7 +86,7 @@
     "react-day-picker": "^9.11.2",
     "react-dom": "^19.2.3",
     "react-error-boundary": "^6.0.0",
-    "react-is": "^19.2.0",
+    "react-is": "^19.2.3",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
     "react-select": "^5.10.2",
