@@ -29,7 +29,9 @@ import {
   genWizardCiCdForever,
   genWizardCiCdSuccess,
 } from 'teleport/test/helpers/bots';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
+import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
 
@@ -48,7 +50,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdSuccess()],
+      handlers: [genWizardCiCdSuccess(), userEventCaptureSuccess()],
     },
   },
 };
@@ -56,7 +58,10 @@ export const Happy: Story = {
 export const TemplateFetchFailed: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdError(500, 'something went wrong')],
+      handlers: [
+        genWizardCiCdError(500, 'something went wrong'),
+        userEventCaptureSuccess(),
+      ],
     },
   },
 };
@@ -64,7 +69,7 @@ export const TemplateFetchFailed: Story = {
 export const TemplateFetching: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdForever()],
+      handlers: [genWizardCiCdForever(), userEventCaptureSuccess()],
     },
   },
 };
@@ -83,11 +88,13 @@ function Wrapper() {
   return (
     <QueryClientProvider client={queryClient}>
       <ContextProvider ctx={ctx}>
-        <GitHubK8sFlowProvider>
-          <Container>
-            <ConnectGitHub />
-          </Container>
-        </GitHubK8sFlowProvider>
+        <TrackingProvider>
+          <GitHubK8sFlowProvider>
+            <Container>
+              <ConnectGitHub />
+            </Container>
+          </GitHubK8sFlowProvider>
+        </TrackingProvider>
       </ContextProvider>
     </QueryClientProvider>
   );

@@ -35,8 +35,13 @@ import Link from 'design/Link/Link';
 import { H2, P2 } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
+import {
+  IntegrationEnrollStatusCode,
+  IntegrationEnrollStep,
+} from 'teleport/services/userEvent';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
+import { useTracking } from '../Shared/useTracking';
 import { CodePanel } from './CodePanel';
 
 export function Finish(props: FlowStepProps) {
@@ -45,8 +50,14 @@ export function Finish(props: FlowStepProps) {
   const [showDoneCheck, setShowDoneCheck] = useState(false);
 
   const history = useHistory();
+  const tracking = useTracking();
 
   const handleDone = () => {
+    tracking.step(
+      IntegrationEnrollStep.MWIGHAK8SSetupWorkflow,
+      IntegrationEnrollStatusCode.Success
+    );
+
     history.replace(cfg.getBotsRoute());
   };
 
@@ -69,7 +80,13 @@ export function Finish(props: FlowStepProps) {
           See the{' '}
           <Link
             target="_blank"
-            href="https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/"
+            href={IAC_LINK}
+            onClick={() => {
+              tracking.link(
+                IntegrationEnrollStep.MWIGHAK8SSetupWorkflow,
+                IAC_LINK
+              );
+            }}
           >
             Infrastructure as Code
           </Link>{' '}
@@ -80,7 +97,13 @@ export function Finish(props: FlowStepProps) {
           See the{' '}
           <Link
             target="_blank"
-            href="https://goteleport.com/docs/machine-workload-identity/deployment/github-actions/"
+            href={TBOT_GHA_LINK}
+            onClick={() => {
+              tracking.link(
+                IntegrationEnrollStep.MWIGHAK8SSetupWorkflow,
+                TBOT_GHA_LINK
+              );
+            }}
           >
             Deploying tbot on GitHub Actions
           </Link>{' '}
@@ -96,7 +119,9 @@ export function Finish(props: FlowStepProps) {
       </Box>
 
       <CodeContainer>
-        <CodePanel />
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SSetupWorkflow}
+        />
       </CodeContainer>
 
       <Dialog open={showDoneCheck} onClose={() => setShowDoneCheck(false)}>
@@ -140,3 +165,8 @@ const CodeContainer = styled(Flex)`
   flex-direction: column;
   overflow: auto;
 `;
+
+const IAC_LINK =
+  'https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/';
+const TBOT_GHA_LINK =
+  '"https://goteleport.com/docs/machine-workload-identity/deployment/github-actions/"';
