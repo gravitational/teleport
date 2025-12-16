@@ -163,6 +163,10 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 
+	if err := m.validateOrganizationAccountDiscovery(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if m.AssumeRole != nil {
 		if m.AssumeRole.RoleARN != "" {
 			if err := awsapiutils.CheckRoleARN(m.AssumeRole.RoleARN); err != nil {
@@ -264,4 +268,46 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
+}
+
+// HasOrganizationMatcher returns true if the matcher has an organization ID set.
+func (m *AWSMatcher) HasOrganizationMatcher() bool {
+	return m.Organization != nil && m.Organization.OrganizationID != ""
+}
+
+func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
+	if m.Organization.IsEmpty() {
+		return nil
+	}
+
+	if m.Organization.OrganizationID == "" {
+		return trace.BadParameter("organization ID required but missing")
+	}
+
+	if m.Organization.OrganizationalUnits == nil {
+		return trace.BadParameter("organizational units required but missing")
+	}
+
+	if len(m.Organization.OrganizationalUnits.Include) == 0 {
+		return trace.BadParameter("at least one organizational unit must be included ('*' can be used to include everything)")
+	}
+
+	if m.AssumeRole == nil || m.AssumeRole.RoleName == "" {
+		return trace.BadParameter("assume role name is required when organization id is set")
+	}
+
+	if m.AssumeRole.RoleARN != "" {
+		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts")
+	}
+
+	if err := awsapiutils.IsValidIAMRoleName(m.AssumeRole.RoleName); err != nil {
+		return trace.BadParameter("assume role must be set to the role name (not the arn) when discovering accounts: %v", err)
+	}
+
+	return nil
+}
+
+// IsEmpty returns true if the AWSOrganizationMatcher is empty.
+func (m *AWSOrganizationMatcher) IsEmpty() bool {
+	return m == nil || deriveTeleportEqualAWSOrganizationMatcher(&AWSOrganizationMatcher{}, m)
 }
