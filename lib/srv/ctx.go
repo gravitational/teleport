@@ -1441,7 +1441,7 @@ func (c *ServerContext) GetChildError() error {
 	}
 
 	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
-		c.Logger.DebugContext(c.CancelContext(), "Unexpected error message from child process", "errMsg", errMsg.String())
+		c.Logger.DebugContext(c.CancelContext(), "Unexpected error message from child process", "err_msg", errMsg.String())
 		return nil
 	}
 
