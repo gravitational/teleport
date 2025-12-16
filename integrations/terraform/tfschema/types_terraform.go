@@ -2839,24 +2839,32 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						"kubernetes_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"api_group": {
-									Description: "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "APIGroup specifies the Kubernetes API group of the Kubernetes resource. It supports wildcards.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"kind": {
-									Description: "Kind specifies the Kubernetes Resource type.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "Kind specifies the Kubernetes Resource type.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"name": {
-									Description: "Name is the resource name. It supports wildcards.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "Name is the resource name. It supports wildcards.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"namespace": {
-									Description: "Namespace is the resource namespace. It supports wildcards.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "Namespace is the resource namespace. It supports wildcards.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"verbs": {
 									Computed:      true,
@@ -2869,7 +2877,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Computed:      true,
 							Description:   "KubernetesResources is the Kubernetes Resources this Role grants access to.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{DefaultKubernetesResources()},
 						},
 						"kubernetes_users": {
 							Description: "KubeUsers is an optional kubernetes users to impersonate",
