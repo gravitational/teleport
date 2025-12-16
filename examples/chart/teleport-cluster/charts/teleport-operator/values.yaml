@@ -89,7 +89,7 @@ annotations:
   # put on the `Deployment` resource created by the chart.
   serviceAccount: {}
 
-# annotations --
+# labels --
 labels:
   # labels.deployment(object) -- contains the Kubernetes labels
   # put on the `Deployment` resource created by the chart.
