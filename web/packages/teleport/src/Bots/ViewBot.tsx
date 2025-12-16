@@ -28,7 +28,7 @@ import TextEditor from 'shared/components/TextEditor';
 import { ViewBotProps } from 'teleport/Bots/types';
 import useTeleport from 'teleport/useTeleport';
 
-import { getWorkflowExampleYaml } from './Add/GitHubActions/AddBotToWorkflow';
+import { getWorkflowExampleYaml } from './Add/GitHubActionsSsh/AddBotToWorkflow';
 
 export function ViewBot({ bot, onClose }: ViewBotProps) {
   const ctx = useTeleport();

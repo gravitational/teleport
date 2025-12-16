@@ -4344,7 +4344,11 @@ export enum IntegrationEnrollStep {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
      */
-    MWIGHAK8S_SETUP_WORKFLOW = 11
+    MWIGHAK8S_SETUP_WORKFLOW = 11,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
+     */
+    MWIGHAK8S_WELCOME = 12
 }
 /**
  * IntegrationEnrollStatusCode defines status code for an integration enroll step.
