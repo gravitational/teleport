@@ -3241,6 +3241,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 				case <-sub:
 				case <-time.After(3 * time.Second):
 					require.Fail(t, "timed out waiting for an update")
+				case <-t.Context().Done():
+					require.Fail(t, "test context done while waiting for an update")
 				}
 			}
 
