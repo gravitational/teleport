@@ -16,13 +16,59 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import { useState } from 'react';
 
-import Box from 'design/Box/Box';
+import { Tabs } from 'shared/components/Editor/Tabs';
+import TextEditor from 'shared/components/TextEditor/TextEditor';
 
-export const CodePanelPlaceholder = styled(Box)`
-  flex: 1;
-  padding: ${({ theme }) => theme.space[3]}px;
-  background-color: black;
-  color: white;
-`;
+import { useGitHubK8sFlow } from './useGitHubK8sFlow';
+
+export function CodePanel() {
+  const [activeCodeTab, setActiveCodeTab] = useState(0);
+
+  const { template } = useGitHubK8sFlow();
+
+  return (
+    <>
+      <Tabs
+        items={files}
+        activeIndex={activeCodeTab}
+        onSelect={setActiveCodeTab}
+      />
+      <TextEditor
+        bg="levels.deep"
+        data={[
+          {
+            content: makeTerraformContent(template),
+            type: 'terraform',
+          },
+          {
+            content: template.ghaWorkflow || '# Loading template...',
+            type: 'yaml',
+          },
+        ]}
+        activeIndex={activeCodeTab}
+        readOnly={true}
+        copyButton={true}
+        downloadButton={true}
+        downloadFileName={files[activeCodeTab]}
+      />
+    </>
+  );
+}
+
+const files = ['main.tf', 'gha-workflow.yaml'];
+
+function makeTerraformContent(
+  template: ReturnType<typeof useGitHubK8sFlow>['template']
+) {
+  if (template.terraform.error) {
+    return `# Failed to fetch template\n# ${template.terraform.error.message}`;
+  }
+
+  if (template.terraform.data) {
+    return template.terraform.data;
+  }
+
+  return '# Loading template...';
+}

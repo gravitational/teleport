@@ -18,6 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { Router } from 'react-router';
 
@@ -33,12 +34,25 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 
 import { BotFlowType } from 'teleport/Bots/types';
 import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 
 import { GitHubActionsK8s } from './GitHubActionsK8s';
 
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+afterAll(() => server.close());
+
 describe('GitHubActionsK8s', () => {
   test('complete flow: minimal', async () => {
+    server.use(genWizardCiCdSuccess());
+
     const { user, history } = renderComponent();
     const replaceMock = jest.spyOn(history, 'replace');
 
@@ -102,16 +116,20 @@ function makeWrapper(opts: {
   history: ReturnType<typeof createMemoryHistory>;
 }) {
   const { history } = opts;
+  const ctx = createTeleportContext();
+
   return ({ children }: PropsWithChildren) => {
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
-          <InfoGuidePanelProvider>
-            <ContentMinWidth>
-              <Router history={history}>{children}</Router>
-            </ContentMinWidth>
-          </InfoGuidePanelProvider>
-        </ConfiguredThemeProvider>
+        <ContextProvider ctx={ctx}>
+          <ConfiguredThemeProvider theme={darkTheme}>
+            <InfoGuidePanelProvider>
+              <ContentMinWidth>
+                <Router history={history}>{children}</Router>
+              </ContentMinWidth>
+            </InfoGuidePanelProvider>
+          </ConfiguredThemeProvider>
+        </ContextProvider>
       </QueryClientProvider>
     );
   };
