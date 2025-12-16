@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentProps } from 'react';
 
 import { Icon } from 'design/Icon';
-import { IconProps } from 'design/Icon/Icon';
-import { LabelKind } from 'design/Label';
-import { IconPlacement } from 'design/Label/types';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
@@ -231,23 +229,16 @@ export type IncludedResourceMode =
   | 'requestable'
   | 'accessible';
 
-export type ResourceLabelConfig = {
-  /**
-   * If defined, LabelButtonWithIcon component is used that
-   * renders icon and applies button hover states.
-   *
-   * Default is to use Label component without any hover states.
-   */
-  Icon?: React.ComponentType<IconProps>;
-  /**
-   * If field "Icon" is defined, default renders the icon to the right.
-   */
-  iconPlacement?: IconPlacement;
-  /**
-   * Default label kind is "secondary".
-   */
-  kind?: LabelKind;
-};
+/**
+ * If this field is not provided, the default config will be:
+ * - No icon, just text label
+ * - Label kind is "secondary"
+ * - No hover states
+ */
+export type ResourceLabelConfig = Omit<
+  ComponentProps<typeof LabelButtonWithIcon>,
+  'children'
+>;
 
 export type ResourceItemProps = {
   onLabelClick?: (label: ResourceLabel) => void;

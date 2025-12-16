@@ -1,35 +1,48 @@
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
 import { IconProps } from 'design/Icon/Icon';
 
 import Label, { LabelProps } from './Label';
-import { IconPlacement } from './types';
 
 export function LabelButtonWithIcon({
-  Icon,
-  placement,
+  IconLeft,
+  IconRight,
   children,
+  title,
+  withHoverState = false,
   ...labelProps
-}: LabelProps & {
-  Icon: React.ComponentType<IconProps>;
-  placement: IconPlacement;
-  children: React.ReactNode;
+}: {
+  IconLeft?: React.ComponentType<IconProps>;
+  IconRight?: React.ComponentType<IconProps>;
   onClick?: () => void;
-}) {
-  const icon = (
-    <ButtonIcon>
-      <Icon size="small" />
-    </ButtonIcon>
-  );
+  title?: string;
+  withHoverState?: boolean;
+} & LabelProps &
+  PropsWithChildren) {
+  const Icon = IconLeft ?? IconRight;
+
+  let icon;
+  if (Icon) {
+    icon = (
+      <ButtonIcon>
+        <Icon size="small" />
+      </ButtonIcon>
+    );
+  }
 
   return (
-    <LabelWithHoverAffect {...labelProps} withHoverState>
+    <LabelWithHoverAffect
+      {...labelProps}
+      title={title}
+      withHoverState={withHoverState}
+      tabIndex={0}
+    >
       <Flex gap={1} alignItems="center">
-        {placement === 'left' && icon}
+        {IconLeft && icon}
         {children}
-        {placement === 'right' && icon}
+        {IconRight && icon}
       </Flex>
     </LabelWithHoverAffect>
   );
@@ -42,6 +55,6 @@ const ButtonIcon = styled.div`
 
 const LabelWithHoverAffect = styled(Label)`
   &:hover {
-    cursor: pointer;
+    cursor: ${p => (p.withHoverState ? 'pointer' : 'default')};
   }
 `;

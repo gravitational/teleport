@@ -84,6 +84,23 @@ const kind = ({
     };
   }
 
+  if (kind === 'outline-success') {
+    return {
+      color: theme.colors.success.main,
+      backgroundColor: theme.colors.interactive.tonal.success[0],
+      borderColor: theme.colors.success.main,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['success'].hover,
+        },
+      }),
+    };
+  }
+
   if (kind === 'outline-primary') {
     return {
       color: theme.colors.brand,
@@ -174,7 +191,8 @@ export type LabelKind =
   | 'outline-secondary'
   | 'outline-warning'
   | 'outline-danger'
-  | 'outline-primary';
+  | 'outline-primary'
+  | 'outline-success';
 
 export type LabelProps = {
   kind?: LabelKind;

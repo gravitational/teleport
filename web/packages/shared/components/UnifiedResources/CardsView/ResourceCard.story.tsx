@@ -23,7 +23,6 @@ import styled from 'styled-components';
 import { ButtonBorder } from 'design';
 import { Plus } from 'design/Icon';
 import { LabelKind } from 'design/Label';
-import { IconPlacement } from 'design/Label/types';
 import { gap, GapProps } from 'design/system';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
@@ -93,8 +92,8 @@ const additionalResources = [
 type StoryProps = {
   withCheckbox: boolean;
   withPin: boolean;
-  withLabelButtonIcon: boolean;
-  withLabelButtonIconPlacement: IconPlacement;
+  withLabelIcon: boolean;
+  labelIconPlacement: 'left' | 'right';
   labelKind: LabelKind;
 };
 
@@ -107,10 +106,10 @@ const meta: Meta<StoryProps> = {
     withPin: {
       control: { type: 'boolean' },
     },
-    withLabelButtonIcon: {
+    withLabelIcon: {
       control: { type: 'boolean' },
     },
-    withLabelButtonIconPlacement: {
+    labelIconPlacement: {
       control: { type: 'select' },
       options: ['left', 'right'],
     },
@@ -123,7 +122,7 @@ const meta: Meta<StoryProps> = {
   args: {
     withCheckbox: true,
     withPin: true,
-    withLabelButtonIcon: false,
+    withLabelIcon: false,
   },
 };
 export default meta;
@@ -181,11 +180,18 @@ export function Cards(props: StoryProps) {
                 checkbox: props.withCheckbox,
                 pin: props.withPin,
               }}
-              {...((props.withLabelButtonIcon || props.labelKind) && {
+              {...((props.withLabelIcon || props.labelKind) && {
                 resourceLabelConfig: {
-                  Icon: props.withLabelButtonIcon ? Plus : undefined,
-                  iconPlacement: props.withLabelButtonIconPlacement,
+                  IconLeft:
+                    props.labelIconPlacement === 'left' && props.withLabelIcon
+                      ? Plus
+                      : undefined,
+                  IconRight:
+                    props.labelIconPlacement === 'right' && props.withLabelIcon
+                      ? Plus
+                      : undefined,
                   kind: props.labelKind,
+                  withHoverState: props.withLabelIcon,
                 },
               })}
             />

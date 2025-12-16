@@ -19,7 +19,7 @@
 import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonLink, Flex, Label, Text } from 'design';
+import { Box, ButtonLink, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
@@ -286,26 +286,16 @@ export function ResourceCard({
                 </MoreLabelsButton>
                 {labels.map((label, i) => {
                   const labelText = makeLabelTag(label);
-                  const sharedProps = {
-                    title: labelText,
-                    onClick: () => onLabelClick?.(label),
-                    kind: resourceLabelConfig?.kind || 'secondary',
-                    'data-is-label': '',
-                  };
-                  if (resourceLabelConfig?.Icon) {
-                    return (
-                      <StyledLabelButton
-                        key={i}
-                        {...sharedProps}
-                        Icon={resourceLabelConfig.Icon}
-                        placement={resourceLabelConfig.iconPlacement ?? 'right'}
-                      >
-                        {labelText}
-                      </StyledLabelButton>
-                    );
-                  }
                   return (
-                    <StyledLabel key={i} {...sharedProps}>
+                    <StyledLabel
+                      key={i}
+                      title={labelText}
+                      onClick={() => onLabelClick?.(label)}
+                      withHoverState={!!onLabelClick}
+                      kind="secondary"
+                      data-is-label=""
+                      {...resourceLabelConfig}
+                    >
                       {labelText}
                     </StyledLabel>
                   );
@@ -489,7 +479,7 @@ const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
   overflow: hidden;
 `;
 
-const sharedLabelStyle = css`
+const StyledLabel = styled(LabelButtonWithIcon)`
   height: ${labelHeight}px;
   margin: 1px 0;
   overflow: hidden;
@@ -497,14 +487,6 @@ const sharedLabelStyle = css`
   white-space: nowrap;
   cursor: pointer;
   line-height: ${labelHeight - labelVerticalMargin}px;
-`;
-
-const StyledLabel = styled(Label)`
-  ${sharedLabelStyle}
-`;
-
-const StyledLabelButton = styled(LabelButtonWithIcon)`
-  ${sharedLabelStyle}
 `;
 
 /**
