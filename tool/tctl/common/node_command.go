@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -185,7 +186,12 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	authServers, err := client.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		client.ListAuthServers,
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		func(context.Context) ([]types.Server, error) { return client.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -206,7 +212,10 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 			}
 
 			if err == nil && pingResponse.GetServerFeatures().Cloud {
-				proxies, err := client.GetProxies()
+				proxies, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+					//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+					return client.GetProxies()
+				})
 				if err != nil {
 					return trace.Wrap(err)
 				}

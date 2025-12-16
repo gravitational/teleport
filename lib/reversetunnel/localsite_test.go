@@ -356,6 +356,10 @@ func (m *mockLocalSiteClient) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockLocalSiteClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return m.proxies, "", nil
+}
+
 type mockWatcher struct {
 	events chan types.Event
 }

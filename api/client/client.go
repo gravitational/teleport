@@ -3675,6 +3675,38 @@ func (c *Client) DeleteAllApps(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
+// ListAuthServers returns a paginated list of auth servers registered in the cluster.
+func (c *Client) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	resp, err := c.PresenceServiceClient().ListAuthServers(ctx, &presencepb.ListAuthServersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	servers := make([]types.Server, 0, len(resp.Servers))
+	for _, server := range resp.Servers {
+		servers = append(servers, server)
+	}
+	return servers, resp.NextPageToken, nil
+}
+
+// ListProxyServers returns a paginated list of proxy servers registered in the cluster.
+func (c *Client) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	resp, err := c.PresenceServiceClient().ListProxyServers(ctx, &presencepb.ListProxyServersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	servers := make([]types.Server, 0, len(resp.Servers))
+	for _, server := range resp.Servers {
+		servers = append(servers, server)
+	}
+	return servers, resp.NextPageToken, nil
+}
+
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (c *Client) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	kubeClusterV3, ok := cluster.(*types.KubernetesClusterV3)
