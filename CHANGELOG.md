@@ -12,7 +12,7 @@
 * Added a new global configuration section auth_connection_config allowing users to configure the backoff behavior for Proxy and Agent instances connecting to the Auth Service. [#62139](https://github.com/gravitational/teleport/pull/62139)
 
 Enterprise:
-* Automatically pass username to IdP when using identifier first login. [#7733](https://github.com/gravitational/teleport.e/pull/7733)
+* Automatically pass username to IdP when using identifier first login.
 
 ## 18.5.1 (12/12/25)
 
