@@ -85,6 +85,7 @@ Optional:
 
 - `external_id` (String) ExternalID is the external ID used to assume a role in another account.
 - `role_arn` (String) RoleARN is the fully specified AWS IAM role ARN.
+- `role_name` (String) RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.
 
 
 ### Nested Schema for `spec.access_graph.aws.cloud_trail_logs`
@@ -133,6 +134,7 @@ Optional:
 
 - `external_id` (String) ExternalID is the external ID used to assume a role in another account.
 - `role_arn` (String) RoleARN is the fully specified AWS IAM role ARN.
+- `role_name` (String) RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.
 
 
 ### Nested Schema for `spec.aws.install`
@@ -179,8 +181,8 @@ Optional:
 
 Optional:
 
-- `exclude` (List of String) Exclude is a list of AWS Organizational Unit IDs to exclude. Only exact matches or wildcard (*) are supported. If empty, no Organizational Units are excluded by default.
-- `include` (List of String) Include is a list of AWS Organizational Unit IDs to match. Only exact matches or wildcard (*) are supported. If empty, all Organizational Units are included by default.
+- `exclude` (List of String) Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.
+- `include` (List of String) Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.
 
 
 

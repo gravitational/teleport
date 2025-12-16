@@ -1834,6 +1834,8 @@ type AWSMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// AssumeRoleARN is the AWS role to assume for database discovery.
 	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// AssumeRoleName is the AWS role name to assume for discovery.
+	AssumeRoleName string `yaml:"assume_role_name,omitempty"`
 	// ExternalID is the AWS external ID to use when assuming a role for
 	// database discovery in an external AWS account.
 	ExternalID string `yaml:"external_id,omitempty"`
@@ -1853,6 +1855,34 @@ type AWSMatcher struct {
 	KubeAppDiscovery bool `yaml:"kube_app_discovery"`
 	// SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
 	SetupAccessForARN string `yaml:"setup_access_for_arn"`
+	// Organization is an AWS Organization matcher for discovering resources across multiple accounts under an Organization.
+	Organization *AWSOrganizationMatcher `yaml:"organization,omitempty"`
+}
+
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+type AWSOrganizationMatcher struct {
+	// OrganizationID is the AWS Organization ID to match against.
+	// Required.
+	OrganizationID string `yaml:"organization_id,omitempty"`
+
+	// OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+	OrganizationalUnits AWSOrganizationUnitsMatcher `yaml:"organizational_units,omitempty"`
+}
+
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+type AWSOrganizationUnitsMatcher struct {
+	// Include is a list of AWS Organizational Unit IDs and children OUs to include.
+	// Accounts that belong to these OUs, and their children, will be included.
+	// Only exact matches or wildcard (*) are supported.
+	// Required.
+	Include []string `yaml:"include,omitempty"`
+
+	// Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+	// Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+	// Only exact matches are supported.
+	// Optional. If empty, no OUs are excluded.
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 // InstallParams sets join method to use on discovered nodes

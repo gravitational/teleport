@@ -312,8 +312,8 @@ exclude:
 
 |Field Name|Description|Type|
 |---|---|---|
-|exclude|A list of AWS Organizational Unit IDs to exclude. Only exact matches or wildcard (*) are supported. If empty, no Organizational Units are excluded by default.|[]string|
-|include|A list of AWS Organizational Unit IDs to match. Only exact matches or wildcard (*) are supported. If empty, all Organizational Units are included by default.|[]string|
+|exclude|A list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.|[]string|
+|include|A list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.|[]string|
 
 ## AWSSSM
 
@@ -440,12 +440,14 @@ Example:
 ```yaml
 role_arn: "string"
 external_id: "string"
+role_name: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |external_id|The external ID used to assume a role in another account.|string|
 |role_arn|The fully specified AWS IAM role ARN.|string|
+|role_name|The AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.|string|
 
 ## Azure Installer Params
 
