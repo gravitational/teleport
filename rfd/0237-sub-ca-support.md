@@ -82,7 +82,7 @@ example](#ux1).
 
 ```shell
 tctl auth create-override-csr --type=db_client \
-    --subject 'O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA'
+    --subject='O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA'
 ```
 
 The Subject string is an RFC 2253-like string. The specifics will be documented
