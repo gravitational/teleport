@@ -40,7 +40,7 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 metadata:
-  name: teleport-plugin-event-handeler-identity
+  name: teleport-plugin-event-handler-identity
 data:
   auth_id: #...
 ```
@@ -132,7 +132,7 @@ When unset, the event handler forwards all events.
 | `list` | `[]` |
 
 `eventHandler.skipSessionTypes` is the list of session recording event types to skip.
-When unset, the event handler skips spammy and binary events.
+When unset, the event handler skips noisy and binary events.
 
 See the [Teleport-event-handler README](https://github.com/gravitational/teleport/blob/1d2bd5eb8fc3500deb7d7108f6835efde98b7b24/integrations/event-handler/README.md)
 for a list of default skipped events.
@@ -159,7 +159,7 @@ for a list of default skipped events.
 |------|---------|
 | `int` | `5` |
 
-`eventHandler.concurrency` is the number of concurent sessions to process. By default, this is set to 5.
+`eventHandler.concurrency` is the number of concurrent sessions to process. By default, this is set to 5.
 
 #### `eventHandler.lock.enabled`
 
