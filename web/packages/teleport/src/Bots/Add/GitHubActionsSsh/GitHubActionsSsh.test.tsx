@@ -25,8 +25,8 @@ import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 import * as botService from 'teleport/services/bot/bot';
 import TeleportContext from 'teleport/teleportContext';
 
-import { GitHubActions } from './GitHubActions';
-import { GitHubFlowProvider } from './useGitHubFlow';
+import { GitHubActionsSsh } from './GitHubActionsSsh';
+import { GitHubSshFlowProvider } from './useGitHubSshFlow';
 
 const tokenName = 'generated-test-token';
 const authVersion = 'v15.0.0';
@@ -83,9 +83,9 @@ describe('gitHub component', () => {
     render(
       <MemoryRouter>
         <ContextProvider ctx={ctx}>
-          <GitHubFlowProvider>
-            <GitHubActions />
-          </GitHubFlowProvider>
+          <GitHubSshFlowProvider>
+            <GitHubActionsSsh />
+          </GitHubSshFlowProvider>
         </ContextProvider>
       </MemoryRouter>
     );
