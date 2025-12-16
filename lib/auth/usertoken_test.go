@@ -265,6 +265,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 func TestUserTokenCreationSettings(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
+	ctx := t.Context()
 
 	username := "joe@example.com"
 	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
@@ -276,7 +277,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
-	token, err := srv.Auth().NewUserToken(req)
+	token, err := srv.Auth().NewUserToken(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, req.Name, token.GetUser())
 	require.Equal(t, req.Type, token.GetSubKind())
@@ -459,6 +460,13 @@ func (s *debugAuth) GetProxies() ([]types.Server, error) {
 		return nil, trace.BadParameter("failed to fetch proxies")
 	}
 	return s.proxies, nil
+}
+
+func (s *debugAuth) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	if s.proxiesError {
+		return nil, "", trace.BadParameter("failed to fetch proxies")
+	}
+	return s.proxies, "", nil
 }
 
 func (s *debugAuth) GetDomainName() (string, error) {
