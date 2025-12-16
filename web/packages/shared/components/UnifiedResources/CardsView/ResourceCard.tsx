@@ -19,8 +19,9 @@
 import { Ref, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonLink, Flex, Label, Text } from 'design';
+import { Box, ButtonLink, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -67,6 +68,7 @@ export function ResourceCard({
   showingStatusInfo,
   viewItem,
   visibleInputFields = { pin: true, checkbox: true },
+  resourceLabelConfig,
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
   const {
     name,
@@ -289,8 +291,10 @@ export function ResourceCard({
                       key={i}
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
+                      withHoverState={!!onLabelClick}
                       kind="secondary"
                       data-is-label=""
+                      {...resourceLabelConfig}
                     >
                       {labelText}
                     </StyledLabel>
@@ -475,7 +479,7 @@ const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
   overflow: hidden;
 `;
 
-const StyledLabel = styled(Label)`
+const StyledLabel = styled(LabelButtonWithIcon)`
   height: ${labelHeight}px;
   margin: 1px 0;
   overflow: hidden;
