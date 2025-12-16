@@ -293,8 +293,8 @@ message FileSystemObject {
 // as well as between the proxy and client.
 message LatencyStats {
   option (tdp_type_option) = MESSAGE_TYPE_LATENCY_STATS;
-  uint32 client_latency = 1;
-  uint32 server_latency = 2;
+  uint32 client_latency_ms = 1;
+  uint32 server_latency_ms = 2;
 }
 
 // A ping message used to time latency between the web client and proxy.

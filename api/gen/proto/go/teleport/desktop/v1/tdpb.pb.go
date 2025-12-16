@@ -144,7 +144,7 @@ func (MessageType) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{0}
 }
 
-// Specifies which mount button was pressed.
+// Specifies which mouse button was pressed.
 type MouseButtonType int32
 
 const (
@@ -700,7 +700,7 @@ func (x *FastPathPDU) GetPdu() []byte {
 	return nil
 }
 
-// Contains a raw RDP response PDU to send be interpreted by the server.
+// Contains a raw RDP response PDU to send to the server.
 type RDPResponsePDU struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Response      []byte                 `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
@@ -1736,11 +1736,11 @@ func (x *FileSystemObject) GetPath() string {
 // Contains latency metrics between the proxy and RDP host
 // as well as between the proxy and client.
 type LatencyStats struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ClientLatency uint32                 `protobuf:"varint,1,opt,name=client_latency,json=clientLatency,proto3" json:"client_latency,omitempty"`
-	ServerLatency uint32                 `protobuf:"varint,2,opt,name=server_latency,json=serverLatency,proto3" json:"server_latency,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ClientLatencyMs uint32                 `protobuf:"varint,1,opt,name=client_latency_ms,json=clientLatencyMs,proto3" json:"client_latency_ms,omitempty"`
+	ServerLatencyMs uint32                 `protobuf:"varint,2,opt,name=server_latency_ms,json=serverLatencyMs,proto3" json:"server_latency_ms,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *LatencyStats) Reset() {
@@ -1773,16 +1773,16 @@ func (*LatencyStats) Descriptor() ([]byte, []int) {
 	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21}
 }
 
-func (x *LatencyStats) GetClientLatency() uint32 {
+func (x *LatencyStats) GetClientLatencyMs() uint32 {
 	if x != nil {
-		return x.ClientLatency
+		return x.ClientLatencyMs
 	}
 	return 0
 }
 
-func (x *LatencyStats) GetServerLatency() uint32 {
+func (x *LatencyStats) GetServerLatencyMs() uint32 {
 	if x != nil {
-		return x.ServerLatency
+		return x.ServerLatencyMs
 	}
 	return 0
 }
@@ -1790,7 +1790,7 @@ func (x *LatencyStats) GetServerLatency() uint32 {
 // A ping message used to time latency between the web client and proxy.
 type Ping struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// UUID is used to correlate message send by proxy and received from the Windows Desktop Service
+	// UUID is used to correlate message sent by proxy and received from the Windows Desktop Service
 	Uuid          []byte `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1946,10 +1946,10 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x04size\x18\x02 \x01(\x04R\x04size\x12\x1b\n" +
 	"\tfile_type\x18\x03 \x01(\rR\bfileType\x12\x19\n" +
 	"\bis_empty\x18\x04 \x01(\bR\aisEmpty\x12\x12\n" +
-	"\x04path\x18\x05 \x01(\tR\x04path\"b\n" +
-	"\fLatencyStats\x12%\n" +
-	"\x0eclient_latency\x18\x01 \x01(\rR\rclientLatency\x12%\n" +
-	"\x0eserver_latency\x18\x02 \x01(\rR\rserverLatency:\x04\xb8\xeb\x1d\x10\" \n" +
+	"\x04path\x18\x05 \x01(\tR\x04path\"l\n" +
+	"\fLatencyStats\x12*\n" +
+	"\x11client_latency_ms\x18\x01 \x01(\rR\x0fclientLatencyMs\x12*\n" +
+	"\x11server_latency_ms\x18\x02 \x01(\rR\x0fserverLatencyMs:\x04\xb8\xeb\x1d\x10\" \n" +
 	"\x04Ping\x12\x12\n" +
 	"\x04uuid\x18\x01 \x01(\fR\x04uuid:\x04\xb8\xeb\x1d\x11*\xbc\x05\n" +
 	"\vMessageType\x12\x1c\n" +

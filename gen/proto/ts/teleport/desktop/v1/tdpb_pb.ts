@@ -117,7 +117,7 @@ export interface FastPathPDU {
     pdu: Uint8Array;
 }
 /**
- * Contains a raw RDP response PDU to send be interpreted by the server.
+ * Contains a raw RDP response PDU to send to the server.
  *
  * @generated from protobuf message teleport.desktop.v1.RDPResponsePDU
  */
@@ -484,13 +484,13 @@ export interface FileSystemObject {
  */
 export interface LatencyStats {
     /**
-     * @generated from protobuf field: uint32 client_latency = 1;
+     * @generated from protobuf field: uint32 client_latency_ms = 1;
      */
-    clientLatency: number;
+    clientLatencyMs: number;
     /**
-     * @generated from protobuf field: uint32 server_latency = 2;
+     * @generated from protobuf field: uint32 server_latency_ms = 2;
      */
-    serverLatency: number;
+    serverLatencyMs: number;
 }
 /**
  * A ping message used to time latency between the web client and proxy.
@@ -499,7 +499,7 @@ export interface LatencyStats {
  */
 export interface Ping {
     /**
-     * UUID is used to correlate message send by proxy and received from the Windows Desktop Service
+     * UUID is used to correlate message sent by proxy and received from the Windows Desktop Service
      *
      * @generated from protobuf field: bytes uuid = 1;
      */
@@ -597,7 +597,7 @@ export enum MessageType {
     CLIENT_SCREEN_SPEC = 20
 }
 /**
- * Specifies which mount button was pressed.
+ * Specifies which mouse button was pressed.
  *
  * @generated from protobuf enum teleport.desktop.v1.MouseButtonType
  */
@@ -2053,14 +2053,14 @@ export const FileSystemObject = new FileSystemObject$Type();
 class LatencyStats$Type extends MessageType$<LatencyStats> {
     constructor() {
         super("teleport.desktop.v1.LatencyStats", [
-            { no: 1, name: "client_latency", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 2, name: "server_latency", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "client_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "server_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_LATENCY_STATS" });
     }
     create(value?: PartialMessage<LatencyStats>): LatencyStats {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.clientLatency = 0;
-        message.serverLatency = 0;
+        message.clientLatencyMs = 0;
+        message.serverLatencyMs = 0;
         if (value !== undefined)
             reflectionMergePartial<LatencyStats>(this, message, value);
         return message;
@@ -2070,11 +2070,11 @@ class LatencyStats$Type extends MessageType$<LatencyStats> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* uint32 client_latency */ 1:
-                    message.clientLatency = reader.uint32();
+                case /* uint32 client_latency_ms */ 1:
+                    message.clientLatencyMs = reader.uint32();
                     break;
-                case /* uint32 server_latency */ 2:
-                    message.serverLatency = reader.uint32();
+                case /* uint32 server_latency_ms */ 2:
+                    message.serverLatencyMs = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2088,12 +2088,12 @@ class LatencyStats$Type extends MessageType$<LatencyStats> {
         return message;
     }
     internalBinaryWrite(message: LatencyStats, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* uint32 client_latency = 1; */
-        if (message.clientLatency !== 0)
-            writer.tag(1, WireType.Varint).uint32(message.clientLatency);
-        /* uint32 server_latency = 2; */
-        if (message.serverLatency !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.serverLatency);
+        /* uint32 client_latency_ms = 1; */
+        if (message.clientLatencyMs !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.clientLatencyMs);
+        /* uint32 server_latency_ms = 2; */
+        if (message.serverLatencyMs !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.serverLatencyMs);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
