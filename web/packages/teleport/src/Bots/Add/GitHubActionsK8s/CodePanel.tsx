@@ -28,16 +28,12 @@ export function CodePanel() {
 
   const { template } = useGitHubK8sFlow();
 
-  const handleCodeTabChanged = (index: number) => {
-    setActiveCodeTab(index);
-  };
-
   return (
     <>
       <Tabs
         items={files}
         activeIndex={activeCodeTab}
-        onSelect={handleCodeTabChanged}
+        onSelect={setActiveCodeTab}
       />
       <TextEditor
         bg="levels.deep"

@@ -44,7 +44,6 @@ func TestProtoStreamer(t *testing.T) {
 		name           string
 		minUploadBytes int64
 		events         []apievents.AuditEvent
-		err            error
 	}
 	testCases := []testCase{
 		{
@@ -91,10 +90,6 @@ func TestProtoStreamer(t *testing.T) {
 			evts := tc.events
 			for _, event := range evts {
 				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-				if tc.err != nil {
-					require.IsType(t, tc.err, err)
-					return
-				}
 				require.NoError(t, err)
 			}
 			err = stream.Complete(ctx)

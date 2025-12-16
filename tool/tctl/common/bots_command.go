@@ -195,7 +195,11 @@ type botsCommandClient interface {
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 	GetRole(context.Context, string) (types.Role, error)
 	UpsertLock(ctx context.Context, lock types.Lock) error
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	PerformMFACeremony(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }
 
@@ -370,7 +374,7 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
+	return trace.Wrap(outputToken(ctx, c.stdout, c.format, client, bot, token))
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
@@ -744,7 +748,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 			return trace.Wrap(err)
 		}
 
-		return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
+		return trace.Wrap(outputToken(ctx, c.stdout, c.format, client, bot, token))
 	}
 
 	// There's not much to do in this case, but we can validate the token.
@@ -769,7 +773,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 			c.tokenID, token.GetBotName(), c.botName)
 	}
 
-	return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
+	return trace.Wrap(outputToken(ctx, c.stdout, c.format, client, bot, token))
 }
 
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
@@ -862,7 +866,7 @@ type botJSONResponse struct {
 }
 
 // outputToken writes token information to stdout, depending on the token format.
-func outputToken(wr io.Writer, format string, client botsCommandClient, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
+func outputToken(ctx context.Context, wr io.Writer, format string, client botsCommandClient, bot *machineidv1pb.Bot, token types.ProvisionToken) error {
 	if format == teleport.JSON {
 		tokenTTL := time.Duration(0)
 		if exp := token.Expiry(); !exp.IsZero() {
@@ -886,7 +890,10 @@ func outputToken(wr io.Writer, format string, client botsCommandClient, bot *mac
 		return nil
 	}
 
-	proxies, err := client.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return client.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

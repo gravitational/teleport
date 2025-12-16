@@ -120,14 +120,7 @@ export function ConfigureAccess(props: FlowStepProps) {
               {/* TODO(nicholasmarais1158): Make SectionBox a component instead of reusing it from Roles */}
               <SectionBox
                 titleSegments={['Advanced options']}
-                initiallyCollapsed={
-                  [
-                    'workflow',
-                    'environment',
-                    'enterpriseSlug',
-                    'enterpriseJwks',
-                  ].every(k => !state[k]) && state.refType === 'branch'
-                }
+                initiallyCollapsed={state.kubernetesUsers.length === 0}
                 validation={{
                   valid: true,
                 }}

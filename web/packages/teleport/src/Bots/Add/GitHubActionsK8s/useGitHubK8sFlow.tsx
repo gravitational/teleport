@@ -22,10 +22,8 @@ import React, {
   useContext,
   useEffect,
   useReducer,
-  useRef,
 } from 'react';
-
-import { debounce } from 'shared/utils/highbar';
+import { useDebounceCallback } from 'usehooks-ts';
 
 import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
 import { RefType } from 'teleport/services/bot/types';
@@ -41,12 +39,15 @@ export function useGitHubK8sFlow() {
 
 export function GitHubK8sFlowProvider(
   props: PropsWithChildren & {
-    intitialState?: State;
+    intitialState?: Partial<State>;
   }
 ) {
-  const { children, intitialState = defaultState } = props;
+  const { children, intitialState = {} } = props;
 
-  const [state, dispatch] = useReducer(reducer, intitialState);
+  const [state, dispatch] = useReducer(reducer, {
+    ...defaultState,
+    ...intitialState,
+  });
 
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
@@ -65,7 +66,7 @@ export function GitHubK8sFlowProvider(
   // new data arrives.
   const prevData = usePrevious(data);
 
-  const regenerateTemplates = useRef(debounce(mutate, 1000));
+  const regenerateTemplates = useDebounceCallback(mutate, 1000);
 
   // This effect triggers the code templates to be regenerated when state
   // changes. It's debounced to reduce the number of api calls.
@@ -75,7 +76,7 @@ export function GitHubK8sFlowProvider(
       state.kubernetesLabels.length > 0 ||
       state.kubernetesUsers.length > 0;
 
-    regenerateTemplates.current({
+    regenerateTemplates({
       github: {
         allow: [
           {

@@ -189,7 +189,7 @@ func TestConfigure(t *testing.T) {
 			// typo
 			output: "sddout",
 		})
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		err = onConfigDump(dumpFlags{
 			output: "file://" + filepath.Join(t.TempDir(), "test"),
