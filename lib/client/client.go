@@ -414,6 +414,7 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, joinSessionID stri
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer nodeSession.Close()
 
 	if err = nodeSession.runShell(ctx, sessionParams, beforeStart, c.TC.OnShellCreated); err != nil {
 		var exitErr *ssh.ExitError
