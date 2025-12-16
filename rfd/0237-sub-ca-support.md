@@ -186,7 +186,7 @@ delete may be forced with the `--force-immediate-delete` flag.
 1. Alice advances the rotation to the `update_clients` step:
 
     ```shell
-    $ tctl auth rotate --manual --type=db_client --phase=update_clients`
+    $ tctl auth rotate --manual --type=db_client --phase=update_clients
     # OK, all overrides are addressed.
     ```
 
