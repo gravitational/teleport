@@ -169,4 +169,4 @@ const CodeContainer = styled(Flex)`
 const IAC_LINK =
   'https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/';
 const TBOT_GHA_LINK =
-  '"https://goteleport.com/docs/machine-workload-identity/deployment/github-actions/"';
+  'https://goteleport.com/docs/machine-workload-identity/deployment/github-actions/';

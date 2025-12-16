@@ -74,6 +74,17 @@ export const integrations: BotIntegration[] = [
   //   tags: ['bot', 'cicd'],
   // },
   {
+    title: 'GitHub Actions + Kubernetes',
+    description:
+      'Use Machine & Workload Identity to grant GitHub Actions CI/CD access to Teleport resources.',
+    link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s),
+    icon: 'github',
+    kind: IntegrationEnrollKind.MachineIDGitHubActionsKubernetes,
+    type: 'bot',
+    guided: true,
+    tags: ['bot', 'cicd'],
+  },
+  {
     title: 'CircleCI',
     description: 'Use Machine ID to power CircleCI CI/CD workflows.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/circleci/',
