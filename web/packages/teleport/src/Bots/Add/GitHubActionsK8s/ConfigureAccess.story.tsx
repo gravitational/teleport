@@ -29,6 +29,7 @@ import {
   genWizardCiCdForever,
   genWizardCiCdSuccess,
 } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 
 import { ConfigureAccess } from './ConfigureAccess';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
@@ -36,6 +37,9 @@ import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
 const meta = {
   title: 'Teleport/Bots/Add/GitHubActions+K8s/ConfigureAccess',
   component: Wrapper,
+  beforeEach: () => {
+    queryClient.clear(); // Prevent cached data sharing between stories
+  },
 } satisfies Meta<typeof Wrapper>;
 
 type Story = StoryObj<typeof meta>;
@@ -45,7 +49,7 @@ export default meta;
 export const Happy: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdSuccess()],
+      handlers: [genWizardCiCdSuccess(), fetchUnifiedResourcesSuccess()],
     },
   },
 };
@@ -53,7 +57,10 @@ export const Happy: Story = {
 export const TemplateFetchFailed: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdError(500, 'something went wrong')],
+      handlers: [
+        genWizardCiCdError(500, 'something went wrong'),
+        fetchUnifiedResourcesSuccess(),
+      ],
     },
   },
 };
@@ -61,7 +68,7 @@ export const TemplateFetchFailed: Story = {
 export const TemplateFetching: Story = {
   parameters: {
     msw: {
-      handlers: [genWizardCiCdForever()],
+      handlers: [genWizardCiCdForever(), fetchUnifiedResourcesSuccess()],
     },
   },
 };
