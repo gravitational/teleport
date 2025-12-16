@@ -48,7 +48,7 @@ import {
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
-// import { ActivityTab } from './ActivityTab';
+import { ActivityTab } from './ActivityTab';
 import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
@@ -71,8 +71,7 @@ type TabId = 'overview' | 'activity';
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
-  // add activity tab in next PR
-  // { id: 'activity', label: 'Activity' },
+  { id: 'activity', label: 'Activity' },
 ] as const;
 
 export function IaCIntegrationOverview() {
@@ -141,12 +140,10 @@ export function IaCIntegrationOverview() {
       {activeTab === 'overview' && (
         <OverviewTab
           stats={stats}
-          // onViewIssues={() => setActiveTab('activity')}
-          onViewIssues={() => alert('setting to activity tab in next PR')}
+          onViewIssues={() => setActiveTab('activity')}
         />
       )}
-      {/* enabled in next PR */}
-      {/* {activeTab === 'activity' && <ActivityTab stats={stats} />} */}
+      {activeTab === 'activity' && <ActivityTab stats={stats} />}
     </FeatureBox>
   );
 }
