@@ -346,9 +346,8 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 		return nil, trace.Wrap(err)
 	}
 
-	// hook up stdout/err the channel so the user can interact with the command
+	// hook up stdout the channel so the user can interact with the command
 	e.session.Stdout = ch
-	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
