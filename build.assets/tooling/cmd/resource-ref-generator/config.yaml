@@ -7,10 +7,22 @@ resources:
     package: types
     yaml_kind: app
     yaml_version: v3
+    introduction: |
+      The `app` resource represents a single application protected by Teleport.
+      To learn more about using the `app` resource, see [Dynamic App
+      Registration](../../../enroll-resources/application-access/configuration/dynamic-registration.mdx).
   - type: AppServerV3
     package: types
     yaml_kind: app_server
     yaml_version: v3
+    introduction: |
+      The `app_server` resource represents an instance of the Teleport
+      Application Service, which allows you to [protect
+      applications](../../../enroll-resources/application-access/application-access.mdx)
+      with Teleport.
+
+      To manage applications proxied by Teleport instead, you can use the [`app`
+      resource](app-v3.mdx).
   - type: DiscoveryConfig
     package: discoveryconfig
     yaml_kind: discovery_config
