@@ -188,8 +188,7 @@ function Picker(props: {
       } else {
         return prev.map(l => {
           if (l.name === name) {
-            const vs = new Set(l.values);
-            vs.add(value);
+            const vs = new Set([...l.values, value]);
             return {
               ...l,
               values: [...vs],
