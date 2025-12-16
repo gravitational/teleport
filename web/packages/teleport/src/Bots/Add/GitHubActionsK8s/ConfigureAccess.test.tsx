@@ -154,7 +154,7 @@ describe('ConfigureAccess', () => {
 
     const modal = screen.getByTestId('Modal');
     const manualInput = within(modal).getByPlaceholderText('name: value');
-    await user.type(manualInput, 'foo:bar{enter}');
+    await user.type(manualInput, 'foo: bar{enter}');
     await user.click(within(modal).getByRole('button', { name: 'Done' }));
 
     expect(modal).not.toBeInTheDocument();

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -108,6 +109,7 @@ func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.Ac
 		ScopedAuthorizer: authz,
 		Reader:           bk.cache,
 		Writer:           bk.service,
+		BackendReader:    bk.service,
 	})
 	require.NoError(t, err)
 
@@ -917,7 +919,7 @@ func waitForRoleCondition(t *testing.T, reader services.ScopedRoleReader, condit
 	timeout := time.After(30 * time.Second)
 	for {
 		var roles []*scopedaccessv1.ScopedRole
-		for role, err := range scopedaccesscache.StreamRoles(t.Context(), reader) {
+		for role, err := range scopedutils.RangeScopedRoles(t.Context(), reader, &scopedaccessv1.ListScopedRolesRequest{}) {
 			require.NoError(t, err)
 			roles = append(roles, role)
 		}
@@ -939,7 +941,7 @@ func waitForAssignmentCondition(t *testing.T, reader services.ScopedRoleAssignme
 	timeout := time.After(30 * time.Second)
 	for {
 		var assignments []*scopedaccessv1.ScopedRoleAssignment
-		for assignment, err := range scopedaccesscache.StreamAssignments(t.Context(), reader) {
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(t.Context(), reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 			require.NoError(t, err)
 			assignments = append(assignments, assignment)
 		}

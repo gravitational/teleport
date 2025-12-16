@@ -127,7 +127,7 @@ type CommandLineFlags struct {
 	// It's useful for learning Teleport (following quick starts, etc).
 	InsecureMode bool
 
-	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140 compliant
 	// configuration.
 	FIPS bool
 
@@ -644,6 +644,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.CachePolicy = *cachePolicy
 
+	authConnectionConfig, err := fc.AuthConnectionConfig.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.AuthConnectionConfig = *authConnectionConfig
+
 	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC
@@ -856,20 +862,17 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
-	logger, level, err := logutils.Initialize(logutils.Config{
+	cfg.LogConfig = logutils.Config{
 		Output:       loggerConfig.Output,
 		Severity:     loggerConfig.Severity,
 		Format:       loggerConfig.Format.Output,
 		ExtraFields:  loggerConfig.Format.ExtraFields,
 		EnableColors: utils.IsTerminal(os.Stderr),
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
-	cfg.Logger = logger
-	cfg.LoggerLevel = level
-	return nil
+	var err error
+	cfg.Logger, cfg.LoggerLevel, cfg.LogWriter, err = logutils.Initialize(cfg.LogConfig)
+	return trace.Wrap(err)
 }
 
 // applyAuthConfig applies file configuration for the "auth_service" section.
@@ -1567,9 +1570,10 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		var assumeRole *types.AssumeRole
-		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" {
+		if matcher.AssumeRoleARN != "" || matcher.ExternalID != "" || matcher.AssumeRoleName != "" {
 			assumeRole = &types.AssumeRole{
 				RoleARN:    matcher.AssumeRoleARN,
+				RoleName:   matcher.AssumeRoleName,
 				ExternalID: matcher.ExternalID,
 			}
 		}
@@ -1589,6 +1593,17 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var organizationMatcher *types.AWSOrganizationMatcher
+		if matcher.Organization != nil {
+			organizationMatcher = &types.AWSOrganizationMatcher{
+				OrganizationID: matcher.Organization.OrganizationID,
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: matcher.Organization.OrganizationalUnits.Include,
+					Exclude: matcher.Organization.OrganizationalUnits.Exclude,
+				},
+			}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
@@ -1599,6 +1614,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
+			Organization:      organizationMatcher,
 		}
 		if err := serviceMatcher.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -2635,8 +2651,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		return trace.Wrap(err)
 	}
 
-	// If FIPS mode is specified, validate Teleport configuration is FedRAMP/FIPS
-	// 140-2 compliant.
+	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
 		//
@@ -2657,10 +2672,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}
 
-		// Make sure cluster settings are also FedRAMP/FIPS 140-2 compliant.
+		// Make sure cluster settings are also FedRAMP/FIPS compliant.
 		if cfg.Auth.Enabled {
 			// Only SSO based authentication is supported. The SSO provider is where
-			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
+			// any FedRAMP/FIPS compliance (like password complexity) should be
 			// enforced.
 			if cfg.Auth.Preference.GetAllowLocalAuth() {
 				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")

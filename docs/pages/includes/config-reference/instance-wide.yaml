@@ -116,6 +116,14 @@ teleport:
     connection_limits:
         max_connections: 1000
 
+    # Auth Service connection configuration.
+    # These settings can be tweaked to control how aggresively the Proxy or Agent instances will retry to connect. In addition
+    # each instance will apply jitter.
+    # auth_connection_config:
+    #     upper_limit_between_retries: "90s"  # Cannot be lower than 10s
+    #     initial_connection_delay: "9s"      # When unset upper_limit_between_retries / 10
+    #     backoff_step_duration: "18s"        # When unset upper_limit_between_retries / 5
+
     # Logging configuration. Possible output values to disk via
     # '/var/lib/teleport/teleport.log',
     # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,

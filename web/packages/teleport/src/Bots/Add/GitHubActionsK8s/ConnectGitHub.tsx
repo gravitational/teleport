@@ -38,6 +38,7 @@ import {
 } from 'teleport/services/userEvent';
 
 import {
+  GITHUB_HOST,
   RefTypeOption,
   refTypeOptions,
   requireValidRepository,
@@ -74,6 +75,8 @@ export function ConnectGitHub(props: FlowStepProps) {
 
   const refTypeValue: RefTypeOption =
     refTypeOptions.find(o => o.value === state.refType) ?? refTypeOptions[0];
+
+  const hasGHEHost = !!state.info?.host && state.info.host !== GITHUB_HOST;
 
   return (
     <Container>
@@ -269,7 +272,7 @@ export function ConnectGitHub(props: FlowStepProps) {
 
                 <FieldInput
                   label="Enterprise slug"
-                  disabled={cfg.edition !== 'ent'}
+                  disabled={cfg.edition !== 'ent' || hasGHEHost}
                   placeholder="octo-enterprise"
                   value={state.enterpriseSlug}
                   onChange={e => {
@@ -283,11 +286,17 @@ export function ConnectGitHub(props: FlowStepProps) {
                       !e.target.value.length
                     );
                   }}
+                  toolTipContent="Allows the slug of a GitHub Enterprise (GHE) organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the include_enterprise_slug option in GHE."
+                  helperText={
+                    hasGHEHost
+                      ? `Only available for repositories at ${GITHUB_HOST}.`
+                      : undefined
+                  }
                 />
 
                 <FieldInput
                   label="Enterprise JWKS"
-                  disabled={cfg.edition !== 'ent'}
+                  disabled={cfg.edition !== 'ent' || !hasGHEHost}
                   placeholder='{"keys":[ --snip-- ]}'
                   value={state.enterpriseJwks}
                   onChange={e => {
@@ -301,6 +310,12 @@ export function ConnectGitHub(props: FlowStepProps) {
                       !e.target.value.length
                     );
                   }}
+                  toolTipContent="When using GitHub Enterprise Server (GHES), allows the JSON Web Key Set (JWKS) used to verify the token issued by GitHub Actions to be overridden. This can be used in scenarios where the Teleport Auth Service is unable to reach a GHE server."
+                  helperText={
+                    hasGHEHost
+                      ? undefined
+                      : 'Used only with GitHub Enterprise Server (GHES).'
+                  }
                 />
               </SectionBox>
 

@@ -248,6 +248,9 @@ export class ClusterLifecycleManager {
     // The watcher 'changed' event may be emitted right after the user logs in
     // or assumes a role via Connect (which already closes all clients
     // for the profile), so we avoid closing them again if they're already up to date.
+    //
+    // This needs to be done before the check for changed access. It handles a scenario where the
+    // user logged in again via tsh and the auth server has disconnect_expired_cert enabled.
     await client.clearStaleClusterClients({ rootClusterUri: next.uri });
     await this.syncOrUpdateCluster(next);
 

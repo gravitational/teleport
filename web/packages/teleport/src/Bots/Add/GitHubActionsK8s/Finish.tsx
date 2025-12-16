@@ -32,7 +32,7 @@ import DialogHeader from 'design/Dialog/DialogHeader';
 import DialogTitle from 'design/Dialog/DialogTitle';
 import Flex from 'design/Flex/Flex';
 import Link from 'design/Link/Link';
-import Text, { H2, P2 } from 'design/Text/Text';
+import { H2, P2 } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
 import {
@@ -68,15 +68,15 @@ export function Finish(props: FlowStepProps) {
           Setup Workflow
         </H2>
 
-        <Text as="p" mt={3}>
+        <P2>
           <strong>To complete the setup</strong>;
-        </Text>
+        </P2>
         <ul>
           <li>Use the Infrastructure as Code templates to create resources</li>
           <li>Copy the workflow template and add it to your repository</li>
         </ul>
 
-        <Text as="p">
+        <P2>
           See the{' '}
           <Link
             target="_blank"
@@ -91,9 +91,9 @@ export function Finish(props: FlowStepProps) {
             Infrastructure as Code
           </Link>{' '}
           docs for information about setting up and using IaC with Teleport.
-        </Text>
+        </P2>
 
-        <Text as="p" mt={3}>
+        <P2>
           See the{' '}
           <Link
             target="_blank"
@@ -108,7 +108,7 @@ export function Finish(props: FlowStepProps) {
             Deploying tbot on GitHub Actions
           </Link>{' '}
           docs for information about running tbot in a GitHub Actions workflow.
-        </Text>
+        </P2>
 
         <Flex gap={2} pt={5}>
           <ButtonPrimary onClick={() => setShowDoneCheck(true)}>

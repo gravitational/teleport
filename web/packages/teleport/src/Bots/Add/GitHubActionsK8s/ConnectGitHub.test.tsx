@@ -18,7 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
-import { PropsWithChildren } from 'react';
+import { ComponentProps, PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -40,7 +40,7 @@ import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
-import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
+import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
 
 const server = setupServer();
 
@@ -237,7 +237,7 @@ describe('ConnectGitHub', () => {
     );
   });
 
-  test('input ref', async () => {
+  test('input ref and type', async () => {
     const tracking = trackingTester();
 
     const { user } = renderComponent();
@@ -247,26 +247,6 @@ describe('ConnectGitHub', () => {
 
     expect(input).toHaveValue('release-*');
     expect(screen.getByLabelText('Branch')).toHaveValue('release-*');
-
-    // Skip start event
-    tracking.skip();
-
-    // Field tracking is debounced, so move time along to send the event
-    await act(() => jest.advanceTimersByTimeAsync(1000));
-    tracking.assertField(
-      expect.any(String),
-      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
-      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF'
-    );
-  });
-
-  test('input ref type', async () => {
-    const tracking = trackingTester();
-
-    const { user } = renderComponent();
-
-    const input = screen.getByLabelText('Git Ref');
-    await user.type(input, 'release-*');
 
     // Skip start event
     tracking.skip();
@@ -337,6 +317,14 @@ describe('ConnectGitHub', () => {
 
     const { user } = renderComponent({
       isEnterprise: true,
+      initialState: {
+        gitHubUrl: 'example.com/owner/repo',
+        info: {
+          host: 'example.com',
+          owner: 'owner',
+          repository: 'repo',
+        },
+      },
     });
 
     const input = screen.getByLabelText('Enterprise JWKS');
@@ -358,7 +346,7 @@ describe('ConnectGitHub', () => {
 });
 
 function renderComponent(opts?: {
-  initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
+  initialState?: ComponentProps<typeof GitHubK8sFlowProvider>['intitialState'];
   isEnterprise?: boolean;
   disableTracking?: boolean;
 }) {
@@ -378,7 +366,7 @@ function renderComponent(opts?: {
 }
 
 function makeWrapper(opts?: {
-  initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
+  initialState?: ComponentProps<typeof GitHubK8sFlowProvider>['intitialState'];
   isEnterprise?: boolean;
   disableTracking?: boolean;
 }) {
