@@ -586,6 +586,7 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 // This is only used if the matcher does not specify a ProxyAddress.
 // Example: proxy.example.com:3080 or proxy.example.com
 func (s *Server) publicProxyAddress(ctx context.Context) (string, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	proxies, err := s.AccessPoint.GetProxies()
 	if err != nil {
 		return "", trace.Wrap(err)

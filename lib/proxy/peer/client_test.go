@@ -48,21 +48,21 @@ func TestClientConn(t *testing.T) {
 	require.Len(t, client.conns, 2)
 
 	// dial first server and send a test data frame
-	stream, cached, err := client.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	stream, cached, err := client.dial([]string{"s1"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
 	stream.Close()
 
 	// dial second server
-	stream, cached, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	stream, cached, err = client.dial([]string{"s2"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
 	stream.Close()
 
 	// redial second server
-	stream, cached, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	stream, cached, err = client.dial([]string{"s2"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream)
@@ -71,7 +71,7 @@ func TestClientConn(t *testing.T) {
 	// close second server
 	// and attempt to redial it
 	server2.Shutdown()
-	stream, cached, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	stream, cached, err = client.dial([]string{"s2"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.Error(t, err)
 	require.True(t, cached)
 	require.Nil(t, stream)
@@ -93,10 +93,10 @@ func TestClientUpdate(t *testing.T) {
 	require.Contains(t, client.conns, "s1")
 	require.Contains(t, client.conns, "s2")
 
-	s1, _, err := client.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	s1, _, err := client.dial([]string{"s1"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, s1)
-	s2, _, err := client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	s2, _, err := client.dial([]string{"s2"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, s2)
 
@@ -117,7 +117,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is still going strong
-	_, _, err = client.dial([]string{"s2"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	_, _, err = client.dial([]string{"s2"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.Error(t, err) // can't dial server2, obviously
 
 	// peer address change
@@ -127,7 +127,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
-	s3, _, err := client.dial([]string{"s1"}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	s3, _, err := client.dial([]string{"s1"}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.NotNil(t, s3)
 
@@ -224,7 +224,7 @@ func TestBackupClient(t *testing.T) {
 	require.NoError(t, err)
 	waitForGRPCConns(t, client.conns, time.Second*2)
 
-	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, "", &utils.NetAddr{}, &utils.NetAddr{}, "")
+	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, "", "", &utils.NetAddr{}, &utils.NetAddr{}, "")
 	require.NoError(t, err)
 	require.True(t, dialCalled)
 }

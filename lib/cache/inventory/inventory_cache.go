@@ -435,6 +435,7 @@ func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
+	ic.cfg.Logger.InfoContext(ctx, "Inventory cache init succeeded")
 
 	// This runs infinitely until the context is canceled.
 	ic.processEvents(ctx, watcher)
