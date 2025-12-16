@@ -64,6 +64,7 @@ describe('ConnectGitHub', () => {
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
+        kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
       },
     });
@@ -109,6 +110,7 @@ describe('ConnectGitHub', () => {
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
+        kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
       },
     });

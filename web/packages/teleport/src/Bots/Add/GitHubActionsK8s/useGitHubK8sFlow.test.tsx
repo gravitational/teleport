@@ -384,6 +384,38 @@ describe('useGitHubK8sFlow', () => {
     );
   });
 
+  test('kubernetes labels', async () => {
+    withGenWizardCiCdSuccess();
+
+    const { result } = renderHook(() => useGitHubK8sFlow(), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current.dispatch({
+        type: 'kubernetes-labels-changed',
+        value: [{ name: 'foo', values: ['bar'] }],
+      });
+    });
+
+    expect(result.current.state).toStrictEqual(
+      withDefaultState({
+        kubernetesLabels: [
+          {
+            name: 'foo',
+            values: ['bar'],
+          },
+        ],
+      })
+    );
+
+    await waitForAPI(result.current);
+
+    expect(result.current.template.terraform.data).toContain(
+      '"labels":{"foo":["bar"]}'
+    );
+  });
+
   test('kubernetes users', async () => {
     withGenWizardCiCdSuccess();
 
@@ -432,6 +464,12 @@ function withDefaultState(
     refType: 'branch',
     workflow: '',
     kubernetesGroups: [],
+    kubernetesLabels: [
+      {
+        name: '*',
+        values: ['*'],
+      },
+    ],
     kubernetesUsers: [],
     ...overrides,
   };

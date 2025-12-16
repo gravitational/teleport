@@ -30,6 +30,7 @@ import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
 import { CodePanel } from './CodePanel';
+import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 import { useGitHubK8sFlow } from './useGitHubK8sFlow';
 
 export function ConfigureAccess(props: FlowStepProps) {
@@ -64,6 +65,28 @@ export function ConfigureAccess(props: FlowStepProps) {
           {({ validator }) => (
             <>
               <div>
+                <KubernetesLabelsSelect
+                  mt={2}
+                  selected={state.kubernetesLabels}
+                  onChange={labels =>
+                    dispatch({
+                      type: 'kubernetes-labels-changed',
+                      value: labels,
+                    })
+                  }
+                />
+                <Text mt={3} mb={3}>
+                  Your workflow will have access to Kubernetes clusters which
+                  satisfy the labels you specify. Visit the{' '}
+                  <Link
+                    target="_blank"
+                    href="https://goteleport.com/docs/enroll-resources/kubernetes-access/controls/"
+                  >
+                    Teleport Kubernetes Access Controls
+                  </Link>{' '}
+                  docs for information about using Kubernetes labels.
+                </Text>
+
                 <FieldSelectCreatable
                   label="Kubernetes Groups"
                   mt={2}
