@@ -578,9 +578,8 @@ message CertAuthorityOverrideMetadata {
 message CertAuthorityCertificateOverrideMetadata {
   CertificateOverrideMetadata certificate = 1;
   repeated CertificateOverrideMetadata chain = 2;
-  string cluster_name = 3;
-  bool disabled = 4;
-  // Note: entry delete tracked by code.
+  bool disabled = 3;
+  // Note: entry delete tracked by the event code.
 }
 
 message CertificateOverrideMetadata {
