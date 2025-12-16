@@ -120,6 +120,7 @@ export { Floppy } from './Icons/Floppy';
 export { FlowArrow } from './Icons/FlowArrow';
 export { FolderPlus } from './Icons/FolderPlus';
 export { FolderShared } from './Icons/FolderShared';
+export { Git } from './Icons/Git';
 export { GitHub } from './Icons/GitHub';
 export { Google } from './Icons/Google';
 export { Graph } from './Icons/Graph';
