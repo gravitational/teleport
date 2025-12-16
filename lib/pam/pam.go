@@ -228,22 +228,21 @@ func lookupHandler(handlerIndex int) (handler, error) {
 	return handle, nil
 }
 
-var buildHasPAM bool = true
-var systemHasPAM bool = false
-
 // pamHandle is a opaque handle to the libpam object.
-var pamHandle unsafe.Pointer
+var globalPAMHandle unsafe.Pointer
 
-func init() {
-	// Obtain a handle to the PAM library at runtime. The package level variable
-	// SystemHasPAM is updated to true if a handle is obtained.
-	//
-	// Note: Since this handle is needed the entire time Teleport runs, dlclose()
-	// is never called. The OS will cleanup when the process exits.
-	pamHandle = C.dlopen(C.library_name(), C.RTLD_NOW)
-	if pamHandle != nil {
-		systemHasPAM = true
-	}
+var globalPAMHandleOnce sync.Once
+
+func getPAMHandle() unsafe.Pointer {
+	globalPAMHandleOnce.Do(func() {
+		// Obtain a handle to the PAM library at runtime. The package level variable
+		// SystemHasPAM is updated to true if a handle is obtained.
+		//
+		// Note: Since this handle is needed the entire time Teleport runs, dlclose()
+		// is never called. The OS will cleanup when the process exits.
+		globalPAMHandle = C.dlopen(C.library_name(), C.RTLD_NOW)
+	})
+	return globalPAMHandle
 }
 
 // PAM is used to create a PAM context and initiate PAM transactions to check
@@ -316,6 +315,8 @@ func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 	// and a instance of a PAM context.
 	p.handlerIndex = registerHandler(p)
 
+	pamHandle := getPAMHandle()
+
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
@@ -381,7 +382,7 @@ func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 func (p *PAM) Close() error {
 	// Close the PAM session. Closing a session can entail anything from
 	// unmounting a home directory and updating auth.log.
-	p.retval = C._pam_close_session(pamHandle, p.pamh, 0)
+	p.retval = C._pam_close_session(getPAMHandle(), p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
 		return p.codeToError(p.retval)
 	}
@@ -408,7 +409,7 @@ func (p *PAM) Close() error {
 //	of the calling application to free() this memory.
 func (p *PAM) Environment() []string {
 	// Get list of additional environment variables requested from PAM.
-	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)
+	pam_envlist := C._pam_getenvlist(getPAMHandle(), p.pamh)
 	defer C.free(unsafe.Pointer(pam_envlist))
 
 	// Find out how many environment variables exist and size the output
@@ -434,7 +435,7 @@ func (p *PAM) free() {
 	// Only free memory one time to prevent double free bugs.
 	p.once.Do(func() {
 		// Terminate the PAM transaction.
-		retval := C._pam_end(pamHandle, p.pamh, p.retval)
+		retval := C._pam_end(getPAMHandle(), p.pamh, p.retval)
 		if retval != C.PAM_SUCCESS {
 			logger.WarnContext(context.Background(), "Failed to end PAM transaction", "error", p.codeToError(retval))
 		}
@@ -488,7 +489,7 @@ func (p *PAM) codeToError(returnValue C.int) error {
 
 	// Error strings are not allocated on the heap, so memory does not need
 	// released.
-	err := C._pam_strerror(pamHandle, p.pamh, returnValue)
+	err := C._pam_strerror(getPAMHandle(), p.pamh, returnValue)
 	if err != nil {
 		return trace.BadParameter("%s", C.GoString(err))
 	}
@@ -499,10 +500,10 @@ func (p *PAM) codeToError(returnValue C.int) error {
 // BuildHasPAM returns true if the binary was build with support for PAM
 // compiled in.
 func BuildHasPAM() bool {
-	return buildHasPAM
+	return true
 }
 
 // SystemHasPAM returns true if the PAM library exists on the system.
 func SystemHasPAM() bool {
-	return systemHasPAM
+	return getPAMHandle() != nil
 }
