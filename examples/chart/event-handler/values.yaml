@@ -31,7 +31,7 @@ teleport:
   # kind: Secret
   # type: Opaque
   # metadata:
-  #   name: teleport-plugin-event-handeler-identity
+  #   name: teleport-plugin-event-handler-identity
   # data:
   #   auth_id: #...
   # ```
@@ -68,7 +68,7 @@ eventHandler:
   # eventHandler.skipEventTypes(list) -- is the list of audit event types to skip.
   skipEventTypes: []
   # eventHandler.skipSessionTypes(list) -- is the list of session recording event types to skip.
-  # When unset, the event handler skips spammy and binary events.
+  # When unset, the event handler skips noisy and binary events.
   #
   # See the [Teleport-event-handler README](https://github.com/gravitational/teleport/blob/1d2bd5eb8fc3500deb7d7108f6835efde98b7b24/integrations/event-handler/README.md)
   # for a list of default skipped events.
@@ -77,7 +77,7 @@ eventHandler:
   startTime: ""
   # eventHandler.dryRun(bool) -- enables dry run without sending events to fluentd.
   dryRun: false
-  # eventHandler.concurrency(int) -- is the number of concurent sessions to process. By default, this is set to 5.
+  # eventHandler.concurrency(int) -- is the number of concurrent sessions to process. By default, this is set to 5.
   concurrency: 5
   lock:
     # eventHandler.lock.enabled(bool) -- controls whether user auto-locking is enabled.
@@ -99,7 +99,7 @@ fluentd:
   sessionUrl: ""
   certificate:
     # fluentd.certificate.secretName(string) -- is the secret containing the credentials to connect to Fluentd.
-    # It must to contain the CA certificate, the client key and the client certificate.
+    # It must contain the CA certificate, the client key and the client certificate.
     secretName: ""
     # fluentd.certificate.caPath(string) -- is the name of the key which contains the CA certificate inside the secret.
     caPath: "ca.crt"
