@@ -53,7 +53,8 @@ export type BotIntegration = {
 export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
-    description: 'Use Machine ID to power GitHub CI/CD workflows.',
+    description:
+      'Use Machine & Workload Identity to grant GitHub Actions CI/CD access to Teleport resources.',
     link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh),
     icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
@@ -61,6 +62,17 @@ export const integrations: BotIntegration[] = [
     guided: true,
     tags: ['bot', 'cicd'],
   },
+  // Hiding the new guide for now.
+  // {
+  //   title: 'GitHub Actions + Kubernetes',
+  //   description: 'Use Machine & Workload Identity to grant GitHub Actions CI/CD access to Teleport resources.',
+  //   link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s),
+  //   icon: 'github',
+  //   kind: IntegrationEnrollKind.MachineIDGitHubActionsK8s,
+  //   type: 'bot',
+  //   guided: true,
+  //   tags: ['bot', 'cicd'],
+  // },
   {
     title: 'CircleCI',
     description: 'Use Machine ID to power CircleCI CI/CD workflows.',
