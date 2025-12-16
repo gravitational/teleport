@@ -1288,8 +1288,16 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.AddCloser(ch)
 	ch = scx.TrackActivity(ch)
 
-	// Copy stderr.
-	remoteSession.Stderr = ch.Stderr()
+	// Start copying stderr right away.
+	stderr, err := remoteSession.StderrPipe()
+	if err != nil {
+		s.logger.WarnContext(ctx, "Error setting remote stderr pipe", "error", err)
+	}
+	go func() {
+		if _, err := io.Copy(ch.Stderr(), stderr); err != nil {
+			s.logger.DebugContext(ctx, "Error reading remote stderr", "error", err)
+		}
+	}()
 
 	// inform the client of the session ID that is going to be used in a new
 	// goroutine to reduce latency.

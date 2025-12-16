@@ -219,6 +219,17 @@ func (ns *NodeSession) createServerSession(ctx context.Context, sessionParams *t
 		return nil, trace.Wrap(err)
 	}
 
+	// Start copying stderr right away.
+	stderr, err := sess.StderrPipe()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
+			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
+		}
+	}()
+
 	// If X11 forwading is requested and the server accepts,
 	// X11 channel requests from the server will be accepted.
 	// Otherwise, all X11 channel requests must be rejected.
@@ -378,18 +389,9 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	stderr, err := s.StderrPipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if ns.terminal.IsAttached() {
 		go ns.updateTerminalSize(ctx, s)
 	}
-	go func() {
-		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
-			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
-		}
-	}()
 	return utils.NewPipeNetConn(
 		reader,
 		writer,
