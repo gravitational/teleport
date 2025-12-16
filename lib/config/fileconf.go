@@ -1864,13 +1864,16 @@ type AWSOrganizationMatcher struct {
 // AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
 // Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
 type AWSOrganizationUnitsMatcher struct {
-	// Include is a list of AWS Organizational Unit IDs to match.
+	// Include is a list of AWS Organizational Unit IDs and children OUs to include.
+	// Accounts that belong to these OUs, and their children, will be included.
 	// Only exact matches or wildcard (*) are supported.
+	// Required.
 	Include []string `yaml:"include,omitempty"`
 
-	// Exclude is a list of AWS Organizational Unit IDs to exclude.
-	// Only exact matches or wildcard (*) are supported.
-	// If empty, no Organizational Units are excluded by default.
+	// Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+	// Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+	// Only exact matches are supported.
+	// Optional. If empty, no OUs are excluded.
 	Exclude []string `yaml:"exclude,omitempty"`
 }
 

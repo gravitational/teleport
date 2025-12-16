@@ -21,7 +21,6 @@ package organizations
 import (
 	"context"
 	"fmt"
-	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,6 +28,8 @@ import (
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockOrganizationsClient struct {
@@ -38,8 +39,9 @@ type mockOrganizationsClient struct {
 }
 
 type ouItem struct {
-	innerOUs      []string
-	innerAccounts []string
+	innerOUs               []string
+	innerAccounts          []string
+	innerNotActiveAccounts []string
 }
 
 func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
@@ -91,37 +93,15 @@ func (m *mockOrganizationsClient) ListAccountsForParent(ctx context.Context, inp
 			Arn:   aws.String(accountARN),
 		})
 	}
-	return &organizations.ListAccountsForParentOutput{
-		Accounts: accounts,
-	}, nil
-}
-
-func (m *mockOrganizationsClient) listAllAccountsUnderOU(ou string) []string {
-	ouItem, ok := m.ouItems[ou]
-	if !ok {
-		return []string{}
-	}
-
-	accountIDs := slices.Clone(ouItem.innerAccounts)
-
-	for _, childOU := range ouItem.innerOUs {
-		accountIDs = append(accountIDs, m.listAllAccountsUnderOU(childOU)...)
-	}
-	return accountIDs
-}
-
-func (m *mockOrganizationsClient) ListAccounts(ctx context.Context, input *organizations.ListAccountsInput, opts ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
-	var accounts []organizationstypes.Account
-
-	for _, accountID := range m.listAllAccountsUnderOU(m.rootOUID) {
+	for _, accountID := range ouItem.innerNotActiveAccounts {
 		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
 		accounts = append(accounts, organizationstypes.Account{
 			Id:    aws.String(accountID),
+			State: organizationstypes.AccountStateSuspended,
 			Arn:   aws.String(accountARN),
-			State: organizationstypes.AccountStateActive,
 		})
 	}
-	return &organizations.ListAccountsOutput{
+	return &organizations.ListAccountsForParentOutput{
 		Accounts: accounts,
 	}, nil
 }
@@ -170,6 +150,56 @@ func TestMatchingAccounts(t *testing.T) {
 			},
 			errCheck:         require.Error,
 			expectedAccounts: []string{},
+		},
+		{
+			name: "missing organization id returns an error",
+			filter: MatchingAccountsFilter{
+				ExcludeOUs: []string{"*"},
+				IncludeOUs: []string{"r-1"},
+			},
+			orgsClient: &mockOrganizationsClient{
+				organizationID: "o-1",
+				rootOUID:       "r-1",
+				ouItems: map[string]ouItem{
+					"r-1": {
+						innerAccounts: []string{"o1-r1-01", "o1-r1-02"},
+					},
+				},
+			},
+			errCheck:         require.Error,
+			expectedAccounts: []string{},
+		},
+		{
+			name: "non-active accounts are discarded",
+			filter: MatchingAccountsFilter{
+				OrganizationID: "o-1",
+				IncludeOUs:     []string{"*"},
+			},
+			orgsClient: &mockOrganizationsClient{
+				organizationID: "o-1",
+				rootOUID:       "r-1",
+				ouItems: map[string]ouItem{
+					"r-1": {
+						innerAccounts: []string{"o1-r1-01", "o1-r1-02"},
+						innerNotActiveAccounts: []string{
+							"o1-r1-01-suspended",
+							"o1-r1-02-suspended",
+							"o1-r1-03-suspended",
+							"o1-r1-04-suspended",
+							"o1-r1-05-suspended",
+							"o1-r1-06-suspended",
+							"o1-r1-07-suspended",
+							"o1-r1-08-suspended",
+							"o1-r1-09-suspended",
+							"o1-r1-10-suspended",
+							"o1-r1-11-suspended",
+							"o1-r1-12-suspended",
+						},
+					},
+				},
+			},
+			errCheck:         require.NoError,
+			expectedAccounts: []string{"o1-r1-01", "o1-r1-02"},
 		},
 		{
 			name: "only root OU, no filter, invalid org: returns error",
@@ -421,6 +451,7 @@ func TestMatchingAccounts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			matchingAccounts, err := MatchingAccounts(
 				t.Context(),
+				logtest.NewLogger(),
 				tt.orgsClient,
 				tt.filter,
 			)

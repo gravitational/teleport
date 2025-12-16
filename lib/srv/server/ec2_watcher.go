@@ -536,7 +536,7 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 		return nil, trace.Wrap(err)
 	}
 
-	accountIDs, err := organizations.MatchingAccounts(ctx, orgsClient, organizations.MatchingAccountsFilter{
+	accountIDs, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
 		IncludeOUs:     includeOUs,
 		ExcludeOUs:     excludeOUs,
 		OrganizationID: organizationID,
@@ -544,6 +544,7 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 	if err != nil {
 		convertedErr := libcloudaws.ConvertRequestFailureError(err)
 		if trace.IsAccessDenied(convertedErr) {
+			// TODO(marco): create UserTask to alert users about missing permissions.
 			return nil, trace.BadParameter("discovering instances under an organization requires the following permissions: [%s], add those to the IAM Role used by the Discovery Service", strings.Join(organizations.RequiredAPIs(), ", "))
 		}
 

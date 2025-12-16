@@ -75,17 +75,78 @@ func (m *mockAWSAccountClient) ListRegions(ctx context.Context, input *account.L
 	return m.output, nil
 }
 
-type mockAWSOrganizationsClient struct {
-	organizations.ListAccountsAPIClient
-	listAccountsResp *organizations.ListAccountsOutput
-
-	organizations.ListChildrenAPIClient
-	organizations.ListRootsAPIClient
-	organizations.ListAccountsForParentAPIClient
+type mockOrganizationsClient struct {
+	organizationID string
+	rootOUID       string
+	ouItems        map[string]ouItem
 }
 
-func (m *mockAWSOrganizationsClient) ListAccounts(ctx context.Context, input *organizations.ListAccountsInput, opts ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
-	return m.listAccountsResp, nil
+type ouItem struct {
+	innerOUs               []string
+	innerAccounts          []string
+	innerNotActiveAccounts []string
+}
+
+func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
+	if input.ChildType != organizationtypes.ChildTypeOrganizationalUnit {
+		return nil, trace.NotImplemented("unexpected call to organizations.ListChildren, with ChildType != OU")
+	}
+
+	ouItem, ok := m.ouItems[*input.ParentId]
+	if !ok {
+		return nil, trace.NotFound("OU %s does not exist", *input.ParentId)
+	}
+
+	var children []organizationtypes.Child
+	for _, ouID := range ouItem.innerOUs {
+		children = append(children, organizationtypes.Child{
+			Id:   aws.String(ouID),
+			Type: organizationtypes.ChildTypeOrganizationalUnit,
+		})
+	}
+	return &organizations.ListChildrenOutput{
+		Children: children,
+	}, nil
+}
+
+func (m *mockOrganizationsClient) ListRoots(ctx context.Context, input *organizations.ListRootsInput, opts ...func(*organizations.Options)) (*organizations.ListRootsOutput, error) {
+	rootARN := fmt.Sprintf("arn:aws:organizations::0000000000:root/%s/%s", m.organizationID, m.rootOUID)
+	return &organizations.ListRootsOutput{
+		Roots: []organizationtypes.Root{
+			{
+				Id:  aws.String(m.rootOUID),
+				Arn: aws.String(rootARN),
+			},
+		},
+	}, nil
+}
+
+func (m *mockOrganizationsClient) ListAccountsForParent(ctx context.Context, input *organizations.ListAccountsForParentInput, opts ...func(*organizations.Options)) (*organizations.ListAccountsForParentOutput, error) {
+	ouItem, ok := m.ouItems[*input.ParentId]
+	if !ok {
+		return nil, trace.NotFound("OU %s does not exist", *input.ParentId)
+	}
+
+	var accounts []organizationtypes.Account
+	for _, accountID := range ouItem.innerAccounts {
+		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
+		accounts = append(accounts, organizationtypes.Account{
+			Id:    aws.String(accountID),
+			State: organizationtypes.AccountStateActive,
+			Arn:   aws.String(accountARN),
+		})
+	}
+	for _, accountID := range ouItem.innerNotActiveAccounts {
+		accountARN := fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", m.organizationID, accountID)
+		accounts = append(accounts, organizationtypes.Account{
+			Id:    aws.String(accountID),
+			State: organizationtypes.AccountStateSuspended,
+			Arn:   aws.String(accountARN),
+		})
+	}
+	return &organizations.ListAccountsForParentOutput{
+		Accounts: accounts,
+	}, nil
 }
 
 func instanceMatches(inst ec2types.Instance, filters []ec2types.Filter) bool {
@@ -512,18 +573,15 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	}
 
 	organizationsGetter := func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
-		return &mockAWSOrganizationsClient{
-			listAccountsResp: &organizations.ListAccountsOutput{
-				Accounts: []organizationtypes.Account{
-					{
-						Arn:   aws.String(fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", organizationID, "000000000001")),
-						Id:    aws.String("000000000001"),
-						State: organizationtypes.AccountStateActive,
-					},
-					{
-						Arn:   aws.String(fmt.Sprintf("arn:aws:organizations::0000000000:account/%s/%s", organizationID, "000000000002")),
-						Id:    aws.String("000000000002"),
-						State: organizationtypes.AccountStateActive,
+		return &mockOrganizationsClient{
+			organizationID: organizationID,
+			rootOUID:       "r-123",
+			ouItems: map[string]ouItem{
+				"r-123": ouItem{
+					innerOUs: []string{},
+					innerAccounts: []string{
+						"000000000001",
+						"000000000002",
 					},
 				},
 			},

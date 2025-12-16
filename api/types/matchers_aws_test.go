@@ -459,3 +459,29 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 		})
 	}
 }
+
+func TestAWSOrganizationMatcherIsEmpty(t *testing.T) {
+	tests := []struct {
+		name     string
+		matcher  *AWSOrganizationMatcher
+		expected bool
+	}{
+		{
+			name:     "nil matcher",
+			matcher:  nil,
+			expected: true,
+		},
+		{
+			name:     "empty matcher",
+			matcher:  &AWSOrganizationMatcher{},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.matcher.IsEmpty()
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}

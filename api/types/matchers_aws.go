@@ -285,19 +285,20 @@ func (m *AWSMatcher) HasOrganizationMatcher() bool {
 }
 
 func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
-	if m.Organization == nil {
+	if m.Organization.IsEmpty() {
 		return nil
 	}
 
 	if m.Organization.OrganizationID == "" {
-		// If no organization is set, accounts filter cannot be set.
-		if m.Organization.OrganizationalUnits != nil {
-			if len(m.Organization.OrganizationalUnits.Exclude) > 0 || len(m.Organization.OrganizationalUnits.Include) > 0 {
-				return trace.BadParameter("organization id is required when using organizational units filter")
-			}
-		}
+		return trace.BadParameter("organization ID required but missing")
+	}
 
-		return nil
+	if m.Organization.OrganizationalUnits == nil {
+		return trace.BadParameter("organizational units required but missing")
+	}
+
+	if len(m.Organization.OrganizationalUnits.Include) == 0 {
+		return trace.BadParameter("at least one organizational unit must be included ('*' can be used to include everything)")
 	}
 
 	if m.AssumeRole == nil || m.AssumeRole.RoleName == "" {
@@ -313,4 +314,9 @@ func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 	}
 
 	return nil
+}
+
+// IsEmpty returns true if the AWSOrganizationMatcher is empty.
+func (m *AWSOrganizationMatcher) IsEmpty() bool {
+	return m == nil || deriveTeleportEqualAWSOrganizationMatcher(&AWSOrganizationMatcher{}, m)
 }
