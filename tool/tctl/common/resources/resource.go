@@ -36,6 +36,7 @@ func Handlers() map[string]Handler {
 	return map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
+		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),
@@ -47,6 +48,7 @@ func Handlers() map[string]Handler {
 		types.KindAutoUpdateVersion:                  autoUpdateVersionHandler(),
 		types.KindBot:                                botHandler(),
 		types.KindBotInstance:                        botInstanceHandler(),
+		types.KindCertAuthority:                      certAuthorityHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
 		types.KindConnectors:                         connectorsHandler(),

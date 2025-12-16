@@ -18,7 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
-import { PropsWithChildren } from 'react';
+import { ComponentProps, PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
@@ -36,7 +36,7 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 
 import { ConnectGitHub } from './ConnectGitHub';
-import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
+import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
 
 const server = setupServer();
 
@@ -171,7 +171,7 @@ describe('ConnectGitHub', () => {
     expect(input).toHaveValue('production');
   });
 
-  test('input ref', async () => {
+  test('input ref and type', async () => {
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Git Ref');
@@ -179,13 +179,6 @@ describe('ConnectGitHub', () => {
 
     expect(input).toHaveValue('release-*');
     expect(screen.getByLabelText('Branch')).toHaveValue('release-*');
-  });
-
-  test('input ref type', async () => {
-    const { user } = renderComponent();
-
-    const input = screen.getByLabelText('Git Ref');
-    await user.type(input, 'release-*');
 
     const select = screen.getByLabelText('Ref Type');
     await selectEvent.select(select, ['Tag']);
@@ -222,6 +215,14 @@ describe('ConnectGitHub', () => {
   test('input jwks', async () => {
     const { user } = renderComponent({
       isEnterprise: true,
+      initialState: {
+        gitHubUrl: 'example.com/owner/repo',
+        info: {
+          host: 'example.com',
+          owner: 'owner',
+          repository: 'repo',
+        },
+      },
     });
 
     const input = screen.getByLabelText('Enterprise JWKS');
@@ -232,7 +233,7 @@ describe('ConnectGitHub', () => {
 });
 
 function renderComponent(opts?: {
-  initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
+  initialState?: ComponentProps<typeof GitHubK8sFlowProvider>['intitialState'];
   isEnterprise?: boolean;
 }) {
   const user = userEvent.setup();
@@ -249,7 +250,7 @@ function renderComponent(opts?: {
 }
 
 function makeWrapper(opts?: {
-  initialState?: ReturnType<typeof useGitHubK8sFlow>['state'];
+  initialState?: ComponentProps<typeof GitHubK8sFlowProvider>['intitialState'];
   isEnterprise?: boolean;
 }) {
   const { initialState, isEnterprise = false } = opts ?? {};

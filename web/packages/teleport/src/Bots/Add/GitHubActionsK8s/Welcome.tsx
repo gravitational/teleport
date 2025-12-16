@@ -23,7 +23,7 @@ import { ButtonPrimary } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
 import Image from 'design/Image/Image';
 import Link from 'design/Link/Link';
-import Text, { H2 } from 'design/Text/Text';
+import { H2, P2 } from 'design/Text/Text';
 import { Theme } from 'design/theme/themes/types';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
@@ -35,7 +35,7 @@ export function Welcome(props: FlowStepProps) {
 
   const theme = useTheme();
 
-  const welcomeImage: IconSpec = {
+  const welcomeImage: ImageSpec = {
     light: welcomeLight,
     dark: welcomeDark,
   };
@@ -47,20 +47,18 @@ export function Welcome(props: FlowStepProps) {
           GitHub Actions + Kubernetes
         </H2>
 
-        <Text as="p">
+        <P2>
           Use <code>kubectl</code> and other tools from your GitHub Actions
           workflows.
-        </Text>
+        </P2>
 
-        <Text as="p" mt={3}>
-          You’ll need:
-        </Text>
+        <P2>You’ll need:</P2>
         <ul>
           <li>A GitHub repository</li>
           <li>Access rules for your workflow</li>
         </ul>
 
-        <Text as="p">
+        <P2>
           See the{' '}
           <Link
             target="_blank"
@@ -69,7 +67,7 @@ export function Welcome(props: FlowStepProps) {
             Infrastructure as Code
           </Link>{' '}
           docs for information about setting up and using IaC with Teleport.
-        </Text>
+        </P2>
 
         <Flex gap={2} pt={5}>
           <ButtonPrimary onClick={nextStep}>Start</ButtonPrimary>
@@ -88,6 +86,6 @@ const Container = styled(Flex)`
   gap: ${({ theme }) => theme.space[1]}px;
 `;
 
-type IconSpec = {
+type ImageSpec = {
   [K in Theme['type']]: string;
 };

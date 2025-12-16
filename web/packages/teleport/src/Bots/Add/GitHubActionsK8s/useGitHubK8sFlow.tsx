@@ -38,12 +38,15 @@ export function useGitHubK8sFlow() {
 
 export function GitHubK8sFlowProvider(
   props: PropsWithChildren & {
-    intitialState?: State;
+    intitialState?: Partial<State>;
   }
 ) {
-  const { children, intitialState = defaultState } = props;
+  const { children, intitialState = {} } = props;
 
-  const [state, dispatch] = useReducer(reducer, intitialState);
+  const [state, dispatch] = useReducer(reducer, {
+    ...defaultState,
+    ...intitialState,
+  });
 
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;

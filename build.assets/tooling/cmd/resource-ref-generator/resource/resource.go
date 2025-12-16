@@ -82,7 +82,6 @@ func NewSourceData(rootPath string) (SourceData, error) {
 	// information about dynamic resource fields, which we can look up by
 	// package and declaration name.
 	typeDecls := make(map[PackageInfo]DeclarationInfo)
-	possibleFuncDecls := []DeclarationInfo{}
 
 	// Load each file in the source directory individually. Not using
 	// packages.Load here since the resulting []*Package does not expose
@@ -128,15 +127,8 @@ func NewSourceData(rootPath string) (SourceData, error) {
 		// - Type declarations
 		pn := NamedImports(file)
 		for _, decl := range file.Decls {
-			di := DeclarationInfo{
-				Decl:         decl,
-				FilePath:     relDeclPath,
-				PackageName:  file.Name.Name,
-				NamedImports: pn,
-			}
 			l, ok := decl.(*ast.GenDecl)
 			if !ok {
-				possibleFuncDecls = append(possibleFuncDecls, di)
 				continue
 			}
 			if len(l.Specs) != 1 {
@@ -390,10 +382,10 @@ func (e NotAGenDeclError) Error() string {
 	return "the declaration is not a GenDecl"
 }
 
-// getRawTypes returns a representation of the type spec of decl to use for
+// typeForDecl returns a representation of the type spec of decl to use for
 // further processing. Returns an error if there is either no type spec or more
 // than one.
-func getRawTypes(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (rawType, error) {
+func typeForDecl(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (rawType, error) {
 	gendecl, ok := decl.Decl.(*ast.GenDecl)
 	if !ok {
 		return rawType{}, NotAGenDeclError{}
@@ -734,12 +726,12 @@ func printableDescription(description, ident string) string {
 	return result
 }
 
-// handleEmbeddedStructFields finds embedded structs within fld and recursively
+// allFieldsForDecl finds embedded structs within fld and recursively
 // processes the fields of those structs as though the fields belonged to the
 // containing struct. Uses decl and allDecls to look up fields within the base
 // structs. Returns a modified slice of fields that include all non-embedded
 // fields within fld.
-func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
+func allFieldsForDecl(decl DeclarationInfo, fld []rawField, allDecls map[PackageInfo]DeclarationInfo) ([]rawField, error) {
 	fieldsToProcess := []rawField{}
 	for _, l := range fld {
 		// Not an embedded struct field, so append it to the final
@@ -787,14 +779,14 @@ func handleEmbeddedStructFields(decl DeclarationInfo, fld []rawField, allDecls m
 				c.name,
 			)
 		}
-		e, err := getRawTypes(d, allDecls)
+		e, err := typeForDecl(d, allDecls)
 		if err != nil && !errors.As(err, &NotAGenDeclError{}) {
 			return nil, err
 		}
 
 		// The embedded struct field may have its own embedded struct
 		// fields.
-		nf, err := handleEmbeddedStructFields(decl, e.fields, allDecls)
+		nf, err := allFieldsForDecl(decl, e.fields, allDecls)
 		if err != nil {
 			return nil, err
 		}
@@ -827,12 +819,12 @@ func NamedImports(file *ast.File) map[string]string {
 // ReferenceDataFromDeclaration gets data for the reference by examining decl.
 // Looks up decl's fields in allDecls and methods in allMethods.
 func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo]DeclarationInfo) (map[PackageInfo]ReferenceEntry, error) {
-	rs, err := getRawTypes(decl, allDecls)
+	rs, err := typeForDecl(decl, allDecls)
 	if err != nil {
 		return nil, err
 	}
 
-	fieldsToProcess, err := handleEmbeddedStructFields(decl, rs.fields, allDecls)
+	fieldsToProcess, err := allFieldsForDecl(decl, rs.fields, allDecls)
 	if err != nil {
 		return nil, err
 	}
@@ -872,7 +864,7 @@ func ReferenceDataFromDeclaration(decl DeclarationInfo, allDecls map[PackageInfo
 	// For any fields within decl that have a custom type, look up the
 	// declaration for that type and create a separate reference entry for
 	// it.
-	for _, f := range rs.fields {
+	for _, f := range fieldsToProcess {
 		// Don't make separate reference entries for embedded structs
 		// since they are part of the containing struct for the purposes
 		// of unmarshaling YAML.
