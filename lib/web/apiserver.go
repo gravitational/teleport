@@ -232,7 +232,7 @@ type Config struct {
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -2578,7 +2578,7 @@ type AuthParams struct {
 	HostSigners []types.CertAuthority
 	// ClientRedirectURL is a URL to redirect client to
 	ClientRedirectURL string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 	// MFAToken is an SSO MFA token.
