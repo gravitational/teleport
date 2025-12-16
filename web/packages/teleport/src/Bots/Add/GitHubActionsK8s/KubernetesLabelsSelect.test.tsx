@@ -276,6 +276,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.type(input, 'foo: bar{enter}');
     await user.type(input, 'foo2:bar: baz{enter}'); // colon in name
     await user.type(input, 'foo3: bar:baz{enter}'); // colon in value
+    await user.type(input, 'foo4: bar: baz{enter}'); // colon in value
     await user.type(input, 'env: *{enter}');
     // Extra square brackets are required to escape the initial pair
     await user.type(input, 'region: ^eu-(west|east)-[[0-9]]+$');
@@ -284,7 +285,7 @@ describe('KubernetesLabelsSelect', () => {
     );
 
     expect(
-      within(modal).getByRole('heading', { name: 'Selected Labels (5)' })
+      within(modal).getByRole('heading', { name: 'Selected Labels (6)' })
     ).toBeInTheDocument();
 
     expect(

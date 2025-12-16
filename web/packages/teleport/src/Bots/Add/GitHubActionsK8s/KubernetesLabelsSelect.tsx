@@ -204,9 +204,9 @@ function Picker(props: {
       return;
     }
 
-    const [n, v] = manualInput.split(': ');
+    const [n, ...rest] = manualInput.split(': ');
     const name = n.trim();
-    const value = v.trim();
+    const value = rest.join(': ').trim();
     handleAdd(name, value);
 
     validator.reset();
