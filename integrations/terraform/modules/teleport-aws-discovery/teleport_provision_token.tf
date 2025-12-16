@@ -3,18 +3,14 @@
 ################################################################################
 
 locals {
+  apply_teleport_resource_labels  = var.apply_teleport_resource_labels
   aws_account_id                  = try(data.aws_caller_identity.this[0].account_id, "")
-  default_teleport_resource_name  = "aws-account-${local.aws_account_id}"
   create_teleport_provision_token = local.create
+  default_teleport_resource_name  = "aws-account-${local.aws_account_id}"
   teleport_provision_token_name = "${local.name_prefix}${coalesce(
     var.teleport_provision_token_name,
     local.default_teleport_resource_name,
   )}"
-  apply_teleport_resource_labels = var.apply_teleport_resource_labels
-}
-
-data "aws_caller_identity" "this" {
-  count = local.create ? 1 : 0
 }
 
 resource "teleport_provision_token" "aws_iam" {

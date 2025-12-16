@@ -193,7 +193,7 @@ variable "discovery_service_iam_credential_source" {
     use_oidc_integration = optional(bool, true) # the default
     trust_role = optional(object({
       role_arn    = string
-      external_id = string
+      external_id = optional(string, "")
     }))
   })
   default  = {}
@@ -213,11 +213,8 @@ variable "discovery_service_iam_credential_source" {
       var.create
       && !var.discovery_service_iam_credential_source.use_oidc_integration
       && var.discovery_service_iam_credential_source.trust_role != null
-      && (
-        var.discovery_service_iam_credential_source.trust_role.role_arn == ""
-        || var.discovery_service_iam_credential_source.trust_role.external_id == ""
-      )
+      && var.discovery_service_iam_credential_source.trust_role.role_arn == ""
     )
-    error_message = "`trust_role` must include non-empty values for both the trusted role's ARN and an external ID to use in the trust policy of the AWS IAM role for discovery."
+    error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
   }
 }

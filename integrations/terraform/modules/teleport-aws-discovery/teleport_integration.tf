@@ -4,15 +4,15 @@
 
 locals {
   create_teleport_integration = local.create && local.use_oidc_integration
-  teleport_integration_name = "${local.name_prefix}${coalesce(
-    var.teleport_integration_name,
-    local.default_teleport_resource_name,
-  )}"
   discovery_aws_iam_role_arn = try(
     aws_iam_role.teleport_discovery_service[0].arn,
     data.aws_iam_role.teleport_discovery_service[0].arn,
     ""
   )
+  teleport_integration_name = "${local.name_prefix}${coalesce(
+    var.teleport_integration_name,
+    local.default_teleport_resource_name,
+  )}"
 }
 
 resource "teleport_integration" "aws_oidc" {

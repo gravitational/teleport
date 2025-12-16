@@ -3,18 +3,18 @@
 ################################################################################
 
 locals {
+  aws_iam_oidc_provider_aud = "discover.teleport"
+  # strip the port since AWS OIDC provider doesn't support port in the url
+  aws_iam_oidc_provider_url = replace(local.teleport_proxy_public_url, "/:[0-9]+.*/", "")
   create_aws_iam_openid_connect_provider = (
     local.create
     && local.use_oidc_integration
     && var.create_aws_iam_openid_connect_provider
   )
-  aws_iam_oidc_provider_aud = "discover.teleport"
-  # strip the port since AWS OIDC provider doesn't support port in the url
-  aws_iam_oidc_provider_url  = replace(local.teleport_proxy_public_url, "/:[0-9]+.*/", "")
   default_aws_resource_name  = "teleport-discovery"
-  use_oidc_integration       = var.discovery_service_iam_credential_source.use_oidc_integration
   teleport_proxy_public_addr = var.teleport_proxy_public_addr
   teleport_proxy_public_url  = "https://${local.teleport_proxy_public_addr}"
+  use_oidc_integration       = var.discovery_service_iam_credential_source.use_oidc_integration
 }
 
 data "tls_certificate" "teleport_proxy" {

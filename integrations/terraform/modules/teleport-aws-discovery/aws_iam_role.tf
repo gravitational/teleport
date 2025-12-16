@@ -8,30 +8,15 @@ locals {
     data.aws_iam_openid_connect_provider.teleport[0].arn,
     "",
   )
-  create_aws_iam_role = local.create && var.create_aws_iam_role
   aws_iam_role_name = "${local.name_prefix}${coalesce(
     var.aws_iam_role_name,
     local.default_aws_resource_name,
   )}"
-  trust_roles = ([
-    for r in [
-      var.discovery_service_iam_credential_source.trust_role,
-    ] : r
-    if r != null
-  ])
-  teleport_ping         = try(jsondecode(data.http.teleport_ping[0].response_body), null)
+  create_aws_iam_role   = local.create && var.create_aws_iam_role
   teleport_cluster_name = try(local.teleport_ping.cluster_name, "")
-}
-
-data "http" "teleport_ping" {
-  count = local.create ? 1 : 0
-
-  url = "${local.teleport_proxy_public_url}/webapi/ping"
-
-  # Optional request headers
-  request_headers = {
-    Accept = "application/json"
-  }
+  trust_roles = try({
+    local.trust_role.role_arn = local.trust_role
+  }, {})
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {

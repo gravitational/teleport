@@ -3,10 +3,6 @@
 ################################################################################
 
 locals {
-  trust_role = try({
-    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,
-    external_id = var.discovery_service_iam_credential_source.trust_role.external_id,
-  }, null)
   create_teleport_discovery_config = local.create
   match_aws_regions                = var.match_aws_regions
   match_aws_tags                   = var.match_aws_tags
@@ -16,6 +12,10 @@ locals {
     local.default_teleport_resource_name,
   )}"
   teleport_discovery_group_name = var.teleport_discovery_group_name
+  trust_role = try({
+    role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,
+    external_id = var.discovery_service_iam_credential_source.trust_role.external_id,
+  }, null)
 }
 
 resource "teleport_discovery_config" "aws" {
