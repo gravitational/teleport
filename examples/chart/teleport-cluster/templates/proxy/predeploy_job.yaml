@@ -46,7 +46,7 @@ spec:
   {{- end }}
   {{- if $proxy.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
-          value: /etc/teleport-tls-ca/{{ .Values.tls.existingCASecretKeyName }}
+          value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
   {{- end }}
 {{- end }}
         command:
