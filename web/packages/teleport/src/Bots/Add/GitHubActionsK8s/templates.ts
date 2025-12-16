@@ -69,7 +69,7 @@ jobs:
       with:
         version: $TELEPORT_TOOLS_VERSION
 
-    - name: Fetch credentials using Machine ID
+    - name: Fetch credentials using Machine & Workload Identity
       uses: teleport-actions/auth-k8s@v2
       with:
         proxy: $TELEPORT_PROXY_ADDR
