@@ -91,7 +91,7 @@ message FastPathPDU {
   bytes pdu = 1;
 }
 
-// Contains a raw RDP response PDU to send be interpreted by the server.
+// Contains a raw RDP response PDU to send to the server.
 message RDPResponsePDU {
   option (tdp_type_option) = MESSAGE_TYPE_RDP_RESPONSE_PDU;
   bytes response = 1;
@@ -122,7 +122,7 @@ message MouseMove {
   uint32 y = 2;
 }
 
-// Specifies which mount button was pressed.
+// Specifies which mouse button was pressed.
 enum MouseButtonType {
   MOUSE_BUTTON_TYPE_UNSPECIFIED = 0;
   MOUSE_BUTTON_TYPE_LEFT = 1;
@@ -300,6 +300,6 @@ message LatencyStats {
 // A ping message used to time latency between the web client and proxy.
 message Ping {
   option (tdp_type_option) = MESSAGE_TYPE_PING;
-  // UUID is used to correlate message send by proxy and received from the Windows Desktop Service
+  // UUID is used to correlate message sent by proxy and received from the Windows Desktop Service
   bytes uuid = 1;
 }
