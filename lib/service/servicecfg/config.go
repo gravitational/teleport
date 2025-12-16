@@ -210,7 +210,7 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// SkipVersionCheck means the version checking between server and client
@@ -244,8 +244,8 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
-	MaxRetryPeriod time.Duration
+	// AuthConnectionConfig defines the Auth Service connection configuration.
+	AuthConnectionConfig AuthConnectionConfig
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -354,6 +354,59 @@ type AuditLogConfig struct {
 	Enabled bool
 	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
 	StartDate time.Time
+}
+
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	InitialConnectionDelay time.Duration
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
+	const minWatcherBackoff = 10 * time.Second
+
+	if c.UpperLimitBetweenRetries < 1 {
+		c.UpperLimitBetweenRetries = defaults.MaxWatcherBackoff
+	} else if c.UpperLimitBetweenRetries < minWatcherBackoff {
+		return trace.BadParameter("upper_limit_between_retries (%s) cannot be set below %s", c.UpperLimitBetweenRetries, minWatcherBackoff)
+	}
+
+	if c.InitialConnectionDelay < 1 {
+		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 10
+	} else if c.InitialConnectionDelay > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"initial_connection_delay (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.InitialConnectionDelay,
+			c.UpperLimitBetweenRetries,
+		)
+	}
+
+	if c.BackoffStepDuration < 1 {
+		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 5
+	} else if c.BackoffStepDuration > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"backoff_step_duration (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.BackoffStepDuration,
+			c.UpperLimitBetweenRetries,
+		)
+	}
+
+	return nil
+}
+
+// DefaultRatioAuthConnectionConfig returns AuthConnectionConfig with parameters based on UpperLimitBetweenRetries
+func DefaultRatioAuthConnectionConfig(UpperLimitBetweenRetries time.Duration) *AuthConnectionConfig {
+	return &AuthConnectionConfig{
+		UpperLimitBetweenRetries: UpperLimitBetweenRetries,
+		InitialConnectionDelay:   UpperLimitBetweenRetries / 10,
+		BackoffStepDuration:      UpperLimitBetweenRetries / 5,
+	}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -531,7 +584,7 @@ func (cfg *Config) DebugDumpToYAML() string {
 	return string(out)
 }
 
-// ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
+// ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
 // compliant.
 func ApplyFIPSDefaults(cfg *Config) {
 	cfg.FIPS = true
@@ -543,12 +596,12 @@ func ApplyFIPSDefaults(cfg *Config) {
 	cfg.MACAlgorithms = defaults.FIPSMACAlgorithms
 
 	// Only SSO based authentication is supported in FIPS mode. The SSO
-	// provider is where any FedRAMP/FIPS 140-2 compliance (like password
+	// provider is where any FedRAMP/FIPS compliance (like password
 	// complexity) should be enforced.
 	cfg.Auth.Preference.SetAllowLocalAuth(false)
 
 	// Update cluster configuration to record sessions at node, this way the
-	// entire cluster is FedRAMP/FIPS 140-2 compliant.
+	// entire cluster is FedRAMP/FIPS compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
 
@@ -653,7 +706,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 
