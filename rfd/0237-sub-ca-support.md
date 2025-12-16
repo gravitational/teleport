@@ -380,6 +380,19 @@ Managed Subjects may have, at the system's discretion, the certificate serial
 number added to their Subject. Customized Subjects are not changed in this
 regard.
 
+### The "db_client" CA and JWT
+
+The Database Access / Snowflake integration doesn't use TLS, but instead relies
+on JWTs signed by the db_client CA. Trust is established via a known public key.
+
+Sub CA overrides have no effect or impact on this integration. The exceptional
+behavior is noted here for completeness only.
+
+References:
+
+* [Database Access with Snowflake](https://goteleport.com/docs/enroll-resources/database-access/enrollment/managed/snowflake/#step-35-export-a-public-key)
+* [lib/auth.Server.GenerateSnowflakeJWT](https://github.com/gravitational/teleport/blob/fcc6b798afa5f39f9353129ee8c0dafcc3611593/lib/auth/db.go#L328-L380)
+
 ### The "windows" CA
 
 The "windows" CA is used to issue per-user RDP (Remote Desktop Protocol)
