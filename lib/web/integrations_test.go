@@ -317,6 +317,13 @@ func TestCollectIntegrationStats(t *testing.T) {
 			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved, TaskType: usertasks.TaskTypeDiscoverEC2}})
 		}
 
+		var openUserTasksList []*usertasksv1.UserTask
+		for _, ut := range userTasksList {
+			if ut.GetSpec().GetState() == usertasks.TaskStateOpen {
+				openUserTasksList = append(openUserTasksList, ut)
+			}
+		}
+
 		userTasksClient := &mockUserTasksLister{
 			defaultPageSize: 3,
 			userTasks:       userTasksList,
@@ -339,6 +346,7 @@ func TestCollectIntegrationStats(t *testing.T) {
 				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
 			},
 			UnresolvedUserTasks: ec2UserTasks + rdsUserTasks,
+			UserTasks:           ui.MakeUserTasks(openUserTasksList),
 			AWSEC2: ui.ResourceTypeSummary{
 				UnresolvedUserTasks: ec2UserTasks,
 			},
