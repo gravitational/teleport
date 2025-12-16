@@ -57,11 +57,10 @@ func NewSFTPProxy(
 		logger = slog.With(teleport.ComponentKey, "SFTP")
 	}
 
-	client, err := sftp.NewClient(scx.RemoteClient.Client)
+	remoteFS, err := sftputils.OpenRemoteFilesystem(scx.CancelContext(), scx.RemoteClient, "" /*moderatedSessionID*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteFS := sftputils.NewRemoteFilesystem(client)
 	wd, err := remoteFS.Getwd()
 	if err != nil {
 		logger.WarnContext(scx.CancelContext(), `Unable to get working directory, defaulting to "/"`)
