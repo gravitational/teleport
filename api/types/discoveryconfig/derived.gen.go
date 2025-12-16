@@ -245,7 +245,8 @@ func deriveTeleportEqual_15(this, that *types.AssumeRole) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.RoleARN == that.RoleARN &&
-			this.ExternalID == that.ExternalID
+			this.ExternalID == that.ExternalID &&
+			this.RoleName == that.RoleName
 }
 
 // deriveTeleportEqual_16 returns whether this and that are equal.

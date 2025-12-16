@@ -9121,14 +9121,16 @@ message AWSOrganizationMatcher {
 // AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
 // Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
 message AWSOrganizationUnitsMatcher {
-  // Include is a list of AWS Organizational Unit IDs to match.
+  // Include is a list of AWS Organizational Unit IDs and children OUs to include.
+  // Accounts that belong to these OUs, and their children, will be included.
   // Only exact matches or wildcard (*) are supported.
-  // If empty, all Organizational Units are included by default.
+  // Required.
   repeated string Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
 
-  // Exclude is a list of AWS Organizational Unit IDs to exclude.
-  // Only exact matches or wildcard (*) are supported.
-  // If empty, no Organizational Units are excluded by default.
+  // Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+  // Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+  // Only exact matches are supported.
+  // Optional. If empty, no OUs are excluded.
   repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
 }
 
@@ -9139,6 +9141,9 @@ message AssumeRole {
   string RoleARN = 1 [(gogoproto.jsontag) = "role_arn"];
   // ExternalID is the external ID used to assume a role in another account.
   string ExternalID = 2 [(gogoproto.jsontag) = "external_id"];
+  // RoleName is the AWS IAM Role name to assume.
+  // This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.
+  string RoleName = 3 [(gogoproto.jsontag) = "role_name"];
 }
 
 // InstallParams sets join method to use on discovered nodes
