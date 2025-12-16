@@ -542,10 +542,6 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	stderr, err := t.session.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	stdin, err := t.session.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -553,8 +549,7 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 
 	// create a pty buffer that stdin and stdout are hooked up to
 	t.ptyBuffer = &ptyBuffer{
-		// combine stdout and stderr
-		r: io.MultiReader(stdout, stderr),
+		r: stdout,
 		w: stdin,
 	}
 
@@ -580,6 +575,7 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 
 	// we want an interactive shell
 	t.log.DebugContext(ctx, "Requesting an interactive terminal", "term_type", t.termType)
+
 	if err := t.session.Shell(ctx); err != nil {
 		return trace.Wrap(err)
 	}

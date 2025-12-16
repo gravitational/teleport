@@ -1923,8 +1923,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// X11 forwarding requests should not fail, just send the error message to the client
 		// and attempt to continue the session.
 		if err := s.handleX11Forward(ctx, ch, req, serverContext); err != nil {
-			// X11 forwarding requests should not fail, just send the error message to the client
-			// and attempt to continue the session.
 			message := utils.FormatErrorWithNewline(err)
 			s.writeStderr(ctx, ch, "X11 forwarding request failed: "+message)
 		}

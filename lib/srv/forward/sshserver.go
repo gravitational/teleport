@@ -1288,6 +1288,9 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.AddCloser(ch)
 	ch = scx.TrackActivity(ch)
 
+	// Copy stderr.
+	remoteSession.Stderr = ch.Stderr()
+
 	// inform the client of the session ID that is going to be used in a new
 	// goroutine to reduce latency.
 	go func() {
@@ -1417,7 +1420,12 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case x11.ForwardRequest:
-		return s.handleX11Forward(ctx, ch, req, scx)
+		// X11 forwarding requests should not fail, just send the error message to the client
+		// and attempt to continue the session.
+		if err := s.handleX11Forward(ctx, ch, req, scx); err != nil {
+			scx.Logger.DebugContext(ctx, "failure x11 forwarding", "error", err)
+		}
+		return nil
 	case sshutils.AgentForwardRequest:
 		// to maintain interoperability with OpenSSH, agent forwarding requests
 		// should never fail, all errors should be logged and we should continue
@@ -1543,12 +1551,6 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			event.Metadata.Code = events.X11ForwardFailureCode
 			event.Status.Success = false
 			event.Status.Error = err.Error()
-		}
-		if trace.IsAccessDenied(err) {
-			// denied X11 requests are ok from a protocol perspective so we
-			// don't return them, just reply over ssh and emit the audit log.
-			s.replyError(ctx, ch, req, err)
-			err = nil
 		}
 		if err := s.EmitAuditEvent(ctx, event); err != nil {
 			scx.Logger.WarnContext(ctx, "Failed to emit x11-forward event", "error", err)
