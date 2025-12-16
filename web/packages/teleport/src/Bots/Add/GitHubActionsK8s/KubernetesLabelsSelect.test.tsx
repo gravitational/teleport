@@ -273,16 +273,18 @@ describe('KubernetesLabelsSelect', () => {
       .closest('div');
 
     const input = within(selectedSection!).getByPlaceholderText('name: value');
-    await user.type(input, 'foo:bar{enter}');
-    await user.type(input, 'env:*{enter}');
+    await user.type(input, 'foo: bar{enter}');
+    await user.type(input, 'foo2:bar: baz{enter}'); // colon in name
+    await user.type(input, 'foo3: bar:baz{enter}'); // colon in value
+    await user.type(input, 'env: *{enter}');
     // Extra square brackets are required to escape the initial pair
-    await user.type(input, 'region:^eu-(west|east)-[[0-9]]+$');
+    await user.type(input, 'region: ^eu-(west|east)-[[0-9]]+$');
     await user.click(
       within(selectedSection!).getByRole('button', { name: 'Add' })
     );
 
     expect(
-      within(modal).getByRole('heading', { name: 'Selected Labels (3)' })
+      within(modal).getByRole('heading', { name: 'Selected Labels (5)' })
     ).toBeInTheDocument();
 
     expect(
@@ -307,7 +309,7 @@ describe('KubernetesLabelsSelect', () => {
     const modal = screen.getByTestId('Modal');
 
     const input = within(modal).getByPlaceholderText('name: value');
-    await user.type(input, 'foo:bar{enter}');
+    await user.type(input, 'foo: bar{enter}');
 
     await user.click(within(modal).getByRole('button', { name: 'Done' }));
 

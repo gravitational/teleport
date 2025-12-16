@@ -206,9 +206,9 @@ function Picker(props: {
       return;
     }
 
-    const [n, ...rest] = manualInput.split(':');
+    const [n, v] = manualInput.split(': ');
     const name = n.trim();
-    const value = rest.join(':').trim(); // Allow label values to contain `:`
+    const value = v.trim();
     handleAdd(name, value);
 
     validator.reset();
@@ -415,12 +415,12 @@ function formatLabel(label: KubernetesLabel) {
   return `${label.name}: ${label.values.join(' or ')}`;
 }
 
-const manualLabelRegex = /^ *[a-z0-9*]+ *:.+$/;
+const manualLabelRegex = /^ *[a-z0-9:*]+ *: .+$/;
 export const requireValidManualLabel: Rule = value => () => {
   const match = manualLabelRegex.test(value);
   return {
     valid: match,
-    message: match ? undefined : 'Must be in the format name:value',
+    message: match ? undefined : 'Must be in the format "name: value"',
   };
 };
 
