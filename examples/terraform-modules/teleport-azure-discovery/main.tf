@@ -75,7 +75,7 @@ resource "teleport_provision_token" "azure_token" {
   metadata = {
     name = local.names.token
     labels = {
-      origin = "terraform"
+      "teleport.dev/origin" = "terraform"
     }
   }
 
@@ -97,7 +97,7 @@ resource "teleport_integration" "azure_oidc" {
   metadata = {
     name = local.names.integration
     labels = {
-      origin = "terraform"
+      "teleport.dev/origin" = "terraform"
     }
   }
   spec = {
@@ -115,7 +115,7 @@ resource "teleport_discovery_config" "azure_teleport" {
     metadata = {
       name = local.names.discovery_config
       labels = {
-        origin = "terraform"
+        "teleport.dev/origin" = "terraform"
       }
     }
   }
