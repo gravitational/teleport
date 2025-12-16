@@ -270,6 +270,10 @@ computed_fields:
     # - TestTerraform/TestRoleVersionUpgrade
     # - TestTerraform/TestRoleWithKubernetesResources
     - "RoleV6.Spec.Allow.KubernetesResources"
+    - "RoleV6.Spec.Allow.KubernetesResources.APIGroup"
+    - "RoleV6.Spec.Allow.KubernetesResources.Kind"
+    - "RoleV6.Spec.Allow.KubernetesResources.Name"
+    - "RoleV6.Spec.Allow.KubernetesResources.Namespace"
     - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
     - "RoleV6.Spec.Options.BPF"
     - "RoleV6.Kind"
@@ -445,6 +449,8 @@ plan_modifiers:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
     RoleV6.Spec.Options:
       - "DefaultRoleOptions()"
+    RoleV6.Spec.Allow.KubernetesResources:
+      - "DefaultKubernetesResources()"
 
 validators:
   # Expires must be in the future
