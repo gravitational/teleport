@@ -349,7 +349,7 @@ func TestEC2Watcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[EC2Instances](t.Context(), WithMissedRotation(make(<-chan []types.Server)))
+	watcher := NewWatcher[EC2Instances](t.Context())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
