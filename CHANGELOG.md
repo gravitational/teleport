@@ -1,5 +1,22 @@
 # Changelog
 
+## 17.7.12 (12/15/25)
+
+* Fixed an Auth Service bug causing the event handler to miss up to 1 event every 5 minutes when storing audit events in S3. [#62149](https://github.com/gravitational/teleport/pull/62149)
+* Fixed bug where event handler dies on malformed session events. [#62142](https://github.com/gravitational/teleport/pull/62142)
+* Changed "tsh --mfa-mode=cross-platform" to favor security keys on current Windows versions. [#62136](https://github.com/gravitational/teleport/pull/62136)
+* Improved detail of error messages for `identity` service in `tbot`. [#62121](https://github.com/gravitational/teleport/pull/62121)
+* Fixed bug where event handler `types` filter is ignored for Teleport clients using Athena storage backend. [#62083](https://github.com/gravitational/teleport/pull/62083)
+* Fixed intermittent issues with VNet on Windows when other NRPT rules from GPOs are present under `HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\DnsPolicyConfig`. [#62053](https://github.com/gravitational/teleport/pull/62053)
+
+Enterprise:
+* Fix a potential race where Okta assignments may never be cleaned up if the Okta integration is down while the assignment expires.
+* Updated AWS Identity Center integration sign-in start URL format to support AWS GovCloud accounts.
+* Added support for AWS Account name and ID labels (`teleport.dev/account-id`, `teleport.dev/account-name`) on AWS Identity Center resources (`aws_ic_account_assignment` and `aws_ic_account`). These labels improve compatibility with Access Monitoring Rules, allowing users to more easily target and audit AWS IC accounts.
+* Prevented Trivy from reporting false positives when scanning the Teleport binaries.
+* Added support for Jamf's /v2/computers-inventory API (addresses Jamf's deprecation of /v1/computers-inventory).
+* Updated the AWS Identity Center resource synchronizer to handle AWS Account name changes more gracefully.
+
 ## 17.7.11 (12/08/25)
 
 * Reduced memory consumption of the Application service. [#62013](https://github.com/gravitational/teleport/pull/62013)
