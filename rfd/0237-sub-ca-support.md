@@ -49,9 +49,7 @@ override, in case a Teleport downgrade is ever required.
 
     ```shell
     $ tctl auth create-override-csr --type=db_client
-    > -----BEGIN CERTIFICATE REQUEST-----
-    > ...
-    > -----END CERTIFICATE REQUEST-----
+    > (Writes "db_client-${public_key}.pem".)
     ```
 
     Note: if HSMs are configured then `tctl auth create-override-csr` must be
@@ -125,7 +123,7 @@ Disabling an override makes it inactive, falling back to the corresponding
 Teleport self-signed certificate, but retains the configuration. Disables take
 effect immediately.
 
-`tctl auth disable-override --type=db_client`
+`tctl auth update-override --set-disabled=true --type=db_client`
 
 Disables are only allowed for keys in the [AdditionalTrustedKeys set](
 https://github.com/gravitational/teleport/blob/3121f066a27a4c24cb330452416a7261147eb2fa/api/proto/teleport/legacy/types/types.proto#L1398),
@@ -156,7 +154,7 @@ delete may be forced with the `--force-immediate-delete` flag.
     > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
     > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth disable-override --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --set-disabled=true --type=db_client --public-key='AB:CD:EF:...'
 
     $ tctl auth rotate --manual --type=db_client --phase=update_clients
     > ERROR: Found CA overrides for authority "db_client". You must either
@@ -165,7 +163,7 @@ delete may be forced with the `--force-immediate-delete` flag.
     > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
     > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth disable-override --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --set-disabled=true --type=db_client --public-key='AB:CD:EF:...'
     ```
 
     Note: the interactive rotation wizard will print similar messages to above.
@@ -176,7 +174,7 @@ delete may be forced with the `--force-immediate-delete` flag.
 
     ```shell
     $ tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
-    > (CSR PEM)
+    > (Writes "db_client-${public_key}.pem".)
 
     # Alice issues certificate from CSR.
 
@@ -192,6 +190,67 @@ delete may be forced with the `--force-immediate-delete` flag.
 
     Once a private key is removed from a CA, Teleport will also remove its
     corresponding overrides.
+
+### Alice creates a disabled override, then enables it
+
+Creating a disabled override is useful for long migration processes, where the
+override is prepared long before downstream systems have their trust updated.
+
+Note that the downstream system should trust both the self-signed Teleport CA
+and the external CA, so that enabling the override won't require tight
+coordination.
+
+Once the override is enabled then downstream systems could remove trust of the
+self-signed Teleport CA.
+
+Using the CLI:
+
+```shell
+# 1. Create the CSR.
+tctl auth create-override-csr --type=db_client
+
+# 2. Sign the CSR using the external CA.
+
+# 3. Create the disabled override.
+tctl auth create-override \
+  --type=db_client \
+  --set-disabled=true cert.pem
+> Created override for db_client, public key 'AB:CD:EF:...'.
+
+# 4. Enable the override. Takes effect immediately.
+tctl auth update-override
+  --type=db_client \
+  --public-key='AB:CD:EF:...' \
+  --set-disabled=false
+```
+
+Using a declarative resource:
+
+```shell
+# 1. and 2. as above.
+
+# 3. Create the disabled override.
+cat >db_client_override.yaml <<EOF
+type: cert_authority_override
+version: v1
+metadata:
+  name: db_client
+spec:
+  certificate_overrides:
+  - disabled: true
+    certificate: |-
+      ----- BEGIN CERTIFICATE -----
+      (...)
+      ----- END CERTIFICATE -----
+EOF
+tctl create db_client_override.yaml
+
+# 4. Enable the override. Takes effect immediately.
+yq eval '.spec.certificate_overrides[0].disabled=false' -i db_client_override.yaml
+tctl create -f db_client_override.yaml
+
+# `cat` and `yq` used as an example, replace with your favorite editor.
+```
 
 ## Details
 
@@ -455,7 +514,7 @@ service SubCAService {
   rpc UpsertCertAuthorityOverride(UpsertCertAuthorityOverrideRequest)
     returns (UpsertCertAuthorityOverrideResponse);
 
-  // Implementation note: used by `tctl auth create-override|disable-override`.
+  // Implementation note: used by `tctl auth create-override|update-override`.
   rpc AddCertificateOverride(AddCertificateOverrideRequest)
     returns (AddCertificateOverrideResponse);
 
@@ -655,7 +714,7 @@ how to mint certificates from the CSR.
       access.
 - [ ] Exercise tctl commands, verify that audit events are issued
   - [ ] `tctl auth create-override`
-  - [ ] `tctl auth disable-override`
+  - [ ] `tctl auth update-override`
   - [ ] `tctl auth delete-override`
   - [ ] `tctl create` (kind:cert_authority_override)
   - [ ] `tctl edit`   (kind:cert_authority_override)
