@@ -200,19 +200,17 @@ function Picker(props: {
       const index = prev.findIndex(l => l.name === name);
       if (index == -1) {
         return [...prev, { name, values: [value] }];
-      } else {
-        return prev.map(l => {
-          if (l.name === name) {
-            const vs = new Set(l.values);
-            vs.add(value);
-            return {
-              ...l,
-              values: [...vs],
-            };
-          }
-          return l;
-        });
       }
+      return prev.map(l => {
+        if (l.name === name) {
+          const vs = new Set([...l.values, value]);
+          return {
+            ...l,
+            values: [...vs],
+          };
+        }
+        return l;
+      });
     });
   };
 
@@ -221,9 +219,9 @@ function Picker(props: {
       return;
     }
 
-    const [n, v] = manualInput.split(':');
+    const [n, ...rest] = manualInput.split(': ');
     const name = n.trim();
-    const value = v.trim();
+    const value = rest.join(': ').trim();
     handleAdd(name, value);
 
     validator.reset();
@@ -430,12 +428,12 @@ function formatLabel(label: KubernetesLabel) {
   return `${label.name}: ${label.values.join(' or ')}`;
 }
 
-const manualLabelRegex = /^ *[a-z0-9*]+ *:.+$/;
+const manualLabelRegex = /^ *[a-z0-9:*]+ *: .+$/;
 export const requireValidManualLabel: Rule = value => () => {
   const match = manualLabelRegex.test(value);
   return {
     valid: match,
-    message: match ? undefined : 'Must be in the format name:value',
+    message: match ? undefined : 'Must be in the format "name: value"',
   };
 };
 

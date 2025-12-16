@@ -37,16 +37,12 @@ export function CodePanel(props: { trackingStep: IntegrationEnrollStep }) {
 
   const tracking = useTracking();
 
-  const handleCodeTabChanged = (index: number) => {
-    setActiveCodeTab(index);
-  };
-
   return (
     <>
       <Tabs
         items={files}
         activeIndex={activeCodeTab}
-        onSelect={handleCodeTabChanged}
+        onSelect={setActiveCodeTab}
       />
       <TextEditor
         bg="levels.deep"

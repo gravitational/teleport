@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -216,14 +217,19 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 		return testPack{}, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
-		return testPack{}, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
-		return testPack{}, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
-		return testPack{}, trace.Wrap(err)
+	clusterName := p.clusterName.GetClusterName()
+	for _, caType := range []types.CertAuthType{
+		types.UserCA,
+		types.HostCA,
+		types.OpenSSHCA,
+	} {
+		ca, err := authcatest.NewCA(caType, clusterName)
+		if err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
+		if err := p.a.UpsertCertAuthority(ctx, ca); err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
 	}
 
 	return p, nil
@@ -1315,8 +1321,12 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "test")))
+	userCA, err := authcatest.NewCA(types.UserCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, userCA))
+	hostCA, err := authcatest.NewCA(types.HostCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, hostCA))
 
 	err = s.a.CreateReverseTunnel(ctx, tc)
 	require.NoError(t, err)
@@ -3201,7 +3211,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	deleteReqUsingToken := func(tokenReq authclient.CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
-			token, err := authServer.NewUserToken(tokenReq)
+			token, err := authServer.NewUserToken(ctx, tokenReq)
 			require.NoError(t, err, "newUserToken")
 
 			_, err = authServer.CreateUserToken(ctx, token)
@@ -3406,7 +3416,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			deleteReq := test.deleteReq
 
 			if test.tokenRequest != nil {
-				token, err := authServer.NewUserToken(*test.tokenRequest)
+				token, err := authServer.NewUserToken(ctx, *test.tokenRequest)
 				require.NoError(t, err)
 				_, err = authServer.CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
@@ -3624,7 +3634,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 			wantErr: true,
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
 				// Obtain a non privilege token.
-				token, err := authServer.NewUserToken(authclient.CreateUserTokenRequest{
+				token, err := authServer.NewUserToken(ctx, authclient.CreateUserTokenRequest{
 					Name: u.username,
 					TTL:  5 * time.Minute,
 					Type: authclient.UserTokenTypeResetPassword,
@@ -3813,7 +3823,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			tokenID := "test-token-not-found"
 
 			if tc.tokenRequest != nil {
-				token, err := srv.Auth().NewUserToken(*tc.tokenRequest)
+				token, err := srv.Auth().NewUserToken(ctx, *tc.tokenRequest)
 				require.NoError(t, err)
 				_, err = srv.Auth().CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
@@ -4047,7 +4057,9 @@ func TestCAGeneration(t *testing.T) {
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := authtest.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			ca, err := authcatest.NewCA(caType, clusterName, privKey)
+			require.NoError(t, err)
+			testKeySet := ca.Spec.ActiveKeys
 			keySet, err := auth.NewKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
@@ -4281,8 +4293,11 @@ func TestAccessRequestNotifications(t *testing.T) {
 		Clock: fakeClock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	testTLSServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
 
 	reviewerUsername := "reviewer"
 	requesterUsername := "requester"
@@ -4524,6 +4539,7 @@ func TestCleanupNotifications(t *testing.T) {
 		CacheEnabled: true,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	srv, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -4918,6 +4934,7 @@ func TestServerHostnameSanitization(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	cases := []struct {
 		name            string

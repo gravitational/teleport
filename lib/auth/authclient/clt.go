@@ -1616,6 +1616,7 @@ type ClientI interface {
 	services.HealthCheckConfig
 	services.AppAuthConfig
 	types.Events
+	services.ScopedAccessClientGetter
 
 	types.WebSessionsGetter
 	services.WebToken

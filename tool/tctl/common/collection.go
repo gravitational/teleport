@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
-	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
@@ -44,7 +43,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -76,43 +74,6 @@ func printMetadataLabels(labels map[string]string) string {
 		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
 	}
 	return strings.Join(pairs, ",")
-}
-
-type authorityCollection struct {
-	cas []types.CertAuthority
-}
-
-func (a *authorityCollection) Resources() (r []types.Resource) {
-	for _, resource := range a.cas {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (a *authorityCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Cluster Name", "CA Type", "Fingerprint", "Role Map"})
-	for _, a := range a.cas {
-		for _, key := range a.GetTrustedSSHKeyPairs() {
-			fingerprint, err := sshutils.AuthorizedKeyFingerprint(key.PublicKey)
-			if err != nil {
-				fingerprint = fmt.Sprintf("<bad key: %v>", err)
-			}
-			var roles string
-			if a.GetType() == types.HostCA {
-				roles = "N/A"
-			} else {
-				roles = fmt.Sprintf("%v", a.CombinedMapping())
-			}
-			t.AddRow([]string{
-				a.GetClusterName(),
-				string(a.GetType()),
-				fingerprint,
-				roles,
-			})
-		}
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
 }
 
 type reverseTunnelCollection struct {
@@ -913,35 +874,6 @@ func (c *pluginCollection) WriteText(w io.Writer, verbose bool) error {
 			plugin.GetStatus().GetCode().String(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type accessMonitoringRuleCollection struct {
-	items []*accessmonitoringrulesv1pb.AccessMonitoringRule
-}
-
-func (c *accessMonitoringRuleCollection) Resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
-	}
-	return r
-}
-
-// writeText formats the user tasks into a table and writes them into w.
-// If verbose is disabled, labels column can be truncated to fit into the console.
-func (c *accessMonitoringRuleCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, item := range c.items {
-		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), labels})
-	}
-	headers := []string{"Name", "Labels"}
-	t := asciitable.MakeTable(headers, rows...)
-
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
