@@ -403,6 +403,39 @@ ends will also include the `"enhanced_recording": true` field, similar to the fo
 </TabItem>
 </Tabs>
 
+## [Optional] Filtering events
+
+You can filter the events that Enhanced Session Recording sends to the Teleport
+Auth Service for a given user.
+
+Edit the `spec.options.enhanced_recording` field as follows:
+
+```yaml
+version: v6
+kind: role
+metadata:
+  name: enhanced-recording
+spec:
+  options:
+    enhanced_recording:
+      - command
+      - disk
+      - network
+```
+
+This example enables the Teleport SSH Service to capture events related to
+commands, disk, and network activity. If at least one of a user's roles includes
+a given option, the Teleport SSH Service will capture the specified kind of
+traffic for that user. 
+
+If the `enhanced_recording` field is empty in a role, the default value for that
+role becomes:
+
+```yaml
+- command
+- network
+```
+
 ## Next steps
 
 - Read more about
