@@ -286,7 +286,7 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 		return nil
 	}
 
-	if ctx.Identity.ProxyingPermit != nil && h.c.Component == teleport.ComponentProxy {
+	if ctx.Identity.ProxyingPermit != nil && h.c.Component == teleport.ComponentForwardingNode {
 		// we are a proxy and not the access-controlling boundary. allow agent forwarding
 		// in order to ensure that session recording functions correctly. Note that it is
 		// the ForwardingNode component that actually does session recording, but the
