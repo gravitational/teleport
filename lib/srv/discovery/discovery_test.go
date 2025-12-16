@@ -3558,6 +3558,8 @@ func TestGCPVMDiscovery(t *testing.T) {
 				case <-sub:
 				case <-time.After(3 * time.Second):
 					t.Fatal("timed out waiting for channel update")
+				case <-t.Context().Done():
+					require.Fail(t, "test context done while waiting for an update")
 				}
 			}
 
