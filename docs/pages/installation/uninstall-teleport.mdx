@@ -175,13 +175,7 @@ Follow the instructions for your Linux distribution:
 
   Remove the Teleport binaries from the machine:
 
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  $ sudo rm -f /usr/local/bin/fdpass-teleport
-  ```
+  (!docs/pages/includes/uninstall-teleport-binaries.mdx!)
 
   </TabItem>
 </Tabs>
@@ -195,21 +189,15 @@ Follow the instructions for your Linux distribution:
 
   Remove the Teleport binaries and links to Teleport software from the machine:
 
-  ```code
-  $ sudo rm -f /usr/local/bin/tbot
-  $ sudo rm -f /usr/local/bin/tctl
-  $ sudo rm -f /usr/local/bin/teleport
-  $ sudo rm -f /usr/local/bin/tsh
-  $ sudo rm -f /usr/local/bin/fdpass-teleport
-  ```
+  (!docs/pages/includes/uninstall-teleport-binaries.mdx!)
 
   <Admonition type="note" title="Uninstall macOS client tools">
 
   You may have Teleport software in the `/Applications` folder if you:
   - Installed from a macOS tarball for v17+ that includes `tsh.app` and `tctl.app`
   - Installed the macOS `tsh` client-only package for v16 or older versions.
-  - Installed Teleport Connect for macOS  
-     
+  - Installed Teleport Connect for macOS
+
   You can remove those with these commands:
 
   ```code
@@ -314,3 +302,44 @@ Follow the instructions for your Linux distribution:
 Teleport is now removed from your system.
 
 Any Teleport services will stop appearing in your Teleport Web UI or the output of `tsh ls` once their last heartbeat has timed out. This usually occurs within 10-15 minutes of stopping the Teleport process.
+
+## Troubleshooting
+
+### Error with "Teleport system symlinks creation"
+
+If you have manually installed Teleport binaries from a tarball into the `/usr/local/bin` directory on your system,
+you may see an error similar to the following when trying to install the `teleport` or `teleport-ent` RPM/DEB package:
+
+```
+Setting up teleport-ent (18.5.0) ...
+Teleport system symlinks creation...
+2025-12-12T16:34:56.715-04:00 INFO [UPDATER]   Validating binary name:fdpass-teleport agent/validate.go:68
+2025-12-12T16:34:56.716-04:00 INFO [UPDATER]   Binary does not support version command name:fdpass-teleport agent/validate.go:79
+2025-12-12T16:34:56.716-04:00 ERRO [UPDATER]   Command failed. error:[
+ERROR REPORT:
+Original Error: *errors.errorString file present
+Stack Trace:
+	github.com/gravitational/teleport/lib/autoupdate/agent/installer.go:875 github.com/gravitational/teleport/lib/autoupdate/agent.needsLink
+	github.com/gravitational/teleport/lib/autoupdate/agent/installer.go:835 github.com/gravitational/teleport/lib/autoupdate/agent.(*LocalInstaller).tryLinks
+	github.com/gravitational/teleport/lib/autoupdate/agent/installer.go:483 github.com/gravitational/teleport/lib/autoupdate/agent.(*LocalInstaller).TryLinkSystem
+	github.com/gravitational/teleport/lib/autoupdate/agent/updater.go:1401 github.com/gravitational/teleport/lib/autoupdate/agent.(*Updater).LinkPackage
+	github.com/gravitational/teleport/tool/teleport-update/main.go:443 main.cmdLinkPackage	github.com/gravitational/teleport/tool/teleport-update/main.go:251 main.Run
+	github.com/gravitational/teleport/tool/teleport-update/main.go:73 main.main
+	runtime/proc.go:283 runtime.main
+	runtime/asm_amd64.s:1700 runtime.goexit
+User Message: failed to link system package installation
+	error evaluating link for fdpass-teleport
+		refusing to replace file at /usr/local/bin/fdpass-teleport
+			file present] teleport-update/main.go:271
+dpkg: error processing package teleport-ent (--configure):
+ installed teleport-ent package post-installation script subprocess returned error exit status 1
+Errors were encountered while processing:
+ teleport-ent
+needrestart is being skipped since dpkg has failed
+E: Sub-process /usr/bin/dpkg returned an error code (1)
+```
+
+This error can be resolved by running the following commands to remove any previously-installed versions of the binaries,
+and then re-running the package installation using your original command.
+
+(!docs/pages/includes/uninstall-teleport-binaries.mdx!)
