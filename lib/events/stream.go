@@ -573,6 +573,9 @@ type sliceWriter struct {
 	sessionStartTime time.Time
 	// sessionEndTime is the time of the last event in the session
 	sessionEndTime time.Time
+	// sessionHasBracketedPaste is set to true if the session has bracketed paste sequences
+	// in the first print event (indicating that the session can be
+	sessionHasBracketedPaste bool
 	// shouldProcessSession is set to true if the session should be processed
 	// by the recording metadata service (currently, this is true if the session
 	// is a SSH session).
@@ -617,6 +620,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 	clock := w.proto.cfg.Clock
 
+	var hasSeenPrintEvent bool
 	var lastEvent time.Time
 	var flushCh <-chan time.Time
 	for {
@@ -700,6 +704,10 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 			case *apievents.OneOf_SessionPrint:
 				w.sessionEndTime = e.SessionPrint.Time
+
+				if !hasSeenPrintEvent {
+					hasSeenPrintEvent = true
+				}
 
 			case *apievents.OneOf_Resize:
 				w.sessionEndTime = e.Resize.Time
