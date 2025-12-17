@@ -298,8 +298,9 @@ resource avoids direct changes to cert_authority, a sensitive Teleport-managed
 resource.
 
 Certificates supplied to an override are validated to make sure they can
-function as CA certificates and fulfill Teleport's requirements (see [Subject
-customization](#subject-customization)).
+function as CA certificates and fulfill Teleport's requirements. This includes
+[Subject requirements][#subject-customization] and that the certificate's
+expiration is not after than the corresponding self-signed CA certificate.
 
 Creating an override automatically generates the corresponding empty CRL.
 
