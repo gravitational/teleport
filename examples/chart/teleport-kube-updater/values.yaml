@@ -65,6 +65,10 @@ group: ""
 # than a Teleport-published image.
 image: public.ecr.aws/gravitational/teleport-kube-agent-updater
 
+# appImage(string) -- sets the container image used for updating pods monitored by this
+# chart.
+appImage: ""
+
 # containerName(string) -- sets the name of the main container in the Teleport Kube Agent Updater pod.
 # This value is typically left empty and is required to be set during installation.
 containerName: ""

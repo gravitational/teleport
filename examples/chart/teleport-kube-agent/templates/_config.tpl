@@ -3,12 +3,18 @@
 {{- $appRolePresent := contains "app" (.Values.roles | toString) -}}
 {{- $discoveryEnabled := contains "discovery" (.Values.roles | toString) -}}
 {{- $appDiscoveryEnabled := and ($appRolePresent) ($discoveryEnabled) -}}
+{{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
 version: v3
+{{- end }}
 teleport:
   join_params:
     method: "{{ .Values.joinParams.method }}"
     token_name: "/etc/teleport-secrets/auth-token"
+  {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
   proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
+  {{- else }}
+  auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+  {{- end }}
   {{- with .Values.relayAddr }}
   relay_server: {{ . | quote }}
   {{- end }}

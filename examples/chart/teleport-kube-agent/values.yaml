@@ -66,6 +66,69 @@ enterprise: false
 # roles `App` and `Kube`.
 authToken: ""
 
+# updater -- controls whether the Kube Updater should be deployed alongside.
+# The updater fetches the target version, validates the image signature, and updates the teleport deployment.
+#
+# The updater can fetch the update information using two protocols:
+# - the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+# - the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+#
+# The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+# The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+# The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+# For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
+#
+# All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+# ... default to the agent values. However, they can be overridden from the
+# `updater` object. For example:
+#
+# ```yaml
+# # the agent pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+# resources:
+#   requests:
+#     cpu: "1"
+#     memory: "2Gi"
+#   limits:
+#     memory: "2Gi"
+#
+# # the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+# updater:
+#   resources:
+#     requests:
+#       cpu: "0.5"
+#       memory: "512Mi"
+#     limits: ~
+# ```
+#
+# Other updater-specific values that can be defined in `updater` are described
+# below.
+updater:
+  # enabled(bool) -- Enables the Kube Updater and deploys it alongside the Teleport Agent.
+  # You can enable this when:
+  #
+  # - using Teleport Cloud and your tenant is enrolled into automatic updates.
+  #   (You can check this through the web UI, choose `Add Kubernetes` and
+  #   `Enroll New Resource of type Kubernetes`, and check if the value is turned
+  #   on.)
+  # - using self-hosted Teleport and you maintain your own version server.
+  #
+  # You must not enable this when:
+  #
+  # - you are a Teleport Cloud customer not enrolled in automatic updates.
+  # - you are a self-hosted Teleport user and have not set up your Teleport cluster to
+  #   support automatic updates.
+  enabled: false
+  # containerName(string) -- sets the name of the main container in the teleport pod.
+  # This value is used to identify the container in Kubernetes and is typically set to "teleport"
+  # for the teleport-kube-agent chart.
+  containerName: "teleport"
+  # appImage(string) -- sets the container image used for tbot pods created by this
+  # chart.
+  #
+  # You can override this to use your own tbot image rather than a
+  # Teleport-published image.
+  appImage: public.ecr.aws/gravitational/teleport-distroless
+
 # joinParams -- controls how the Teleport Agent joins the Teleport cluster.
 # These sub-values must be configured for the agent to connect to a cluster.
 #
@@ -156,7 +219,7 @@ kubeClusterName: ""
 #   Application Service configuration in the [Application Service Configuration
 #   Reference](../../enroll-resources/application-access/reference.mdx#configuration).
 # </Admonition>
-apps: []
+apps: [ ]
 
 # appResources(list) -- is a set of labels the agent will monitor. Any application
 # matching those labels will be proxied by the agent. See [the Teleport
@@ -181,7 +244,7 @@ apps: []
 # Once `appResources` is set, you can dynamically register application with
 # `tsh` by following [the Dynamic App Registration guide](../../enroll-resources/application-access/guides/dynamic-registration.mdx).
 # </Admonition>
-appResources: []
+appResources: [ ]
 
 # clusterDomain(string) -- sets the domain name used by the Kubernetes cluster. This value is used to build the
 # FQDN application URIs. For example, if the cluster domain is `anything.local`, the agent will proxy the application
@@ -235,7 +298,7 @@ clusterDomain: "cluster.local"
 #   serviceAccount:
 #     eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
 # ```
-awsDatabases: []
+awsDatabases: [ ]
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
@@ -308,7 +371,7 @@ awsDatabases: []
 #   - name: AZURE_CLIENT_ID
 #     value: "11111111-2222-3333-4444-555555555555"
 # ```
-azureDatabases: []
+azureDatabases: [ ]
 
 # databases(list) -- is a static list of databases that should be proxied by
 # the agent. See [the Teleport Database access documentation](../../enroll-resources/database-access/database-access.mdx)
@@ -370,7 +433,7 @@ azureDatabases: []
 #       readOnly: true
 #   ```
 # </Admonition>
-databases: []
+databases: [ ]
 
 # databaseResources(list) -- is a set of labels the agent will monitor.
 # Any database matching those labels will be proxied by the agent. See [the Teleport
@@ -397,7 +460,7 @@ databases: []
 # Once `databaseResources` is set, you can dynamically register database with
 # `tsh` by following [this guide](../../enroll-resources/database-access/guides/dynamic-registration.mdx).
 # </Admonition>
-databaseResources: []
+databaseResources: [ ]
 
 ################################################################
 # Values that must be provided for Kubernetes Discovery
@@ -431,8 +494,8 @@ databaseResources: []
 #     env: testing
 # ```
 kubernetesDiscovery:
-  - types: ["app"]
-    namespaces: ["*"]
+  - types: [ "app" ]
+    namespaces: [ "*" ]
     labels:
       "*": "*"
 
@@ -523,7 +586,7 @@ teleportVersionOverride: ""
 # Each list element can be the pin itself (recommended), or a path to a file
 # containing the pin. For the latter, it is your responsibility to mount
 # the file, using [`extraVolumes`](#extraVolumes).
-caPin: []
+caPin: [ ]
 
 # insecureSkipProxyTLSVerify(bool) -- disables TLS verification of the TLS
 # certificate presented by the Proxy Service.
@@ -556,7 +619,7 @@ insecureSkipProxyTLSVerify: false
 #       tags:
 #         "*":"*"
 # ```
-teleportConfig: {}
+teleportConfig: { }
 
 # terminationGracePeriodSeconds(integer) -- is the time the pod has to do a graceful shutdown.
 # If teleport has not existed after this delay, the process gets killed.
@@ -643,7 +706,7 @@ podSecurityPolicy:
 #   environment: production
 #   region: us-east
 # ```
-labels: {}
+labels: { }
 
 # highAvailability -- contains settings controlling the availability of the
 # Teleport Agent deployed by the chart.
@@ -724,7 +787,7 @@ podMonitor:
   #   additionalLabels:
   #     prometheus: default
   # ```
-  additionalLabels: {}
+  additionalLabels: { }
 
   # podMonitor.interval(string) -- is the interval between two metrics scrapes.
   interval: 30s
@@ -796,11 +859,6 @@ adminClusterRoleBinding:
 # [`enterpriseImage`](#enterpriseImage) instead.
 image: public.ecr.aws/gravitational/teleport-distroless
 
-# containerName(string) -- sets the name of the main container in the Teleport Kubernetes Agent pod.
-# This value is used to identify the container in Kubernetes and is typically set to "teleport"
-# for the Teleport Kubernetes Agent.
-containerName: "teleport"
-
 # enterpriseImage(string) -- sets the container image used for Teleport Enterprise
 # agent pods created by the chart.
 #
@@ -826,7 +884,7 @@ enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # which can be optionally used to access a private Docker registry.
 #
 # See the [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) for more details.
-imagePullSecrets: []
+imagePullSecrets: [ ]
 
 # Number of replicas for the agent deployment.
 # DEPRECATED Use highAvailability.replicaCount instead
@@ -963,7 +1021,7 @@ log:
   #
   # See the [Teleport config file reference](../../reference/deployment/config.mdx) for
   # more details on possible values for `extra_fields`.
-  extraFields: ["timestamp", "level", "component", "caller"]
+  extraFields: [ "timestamp", "level", "component", "caller" ]
 
 ##################################
 # Extra Kubernetes configuration #
@@ -972,7 +1030,7 @@ log:
 # affinity(object) -- sets the affinities for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 # for more details.
-affinity: {}
+affinity: { }
 
 # disableTopologySpreadConstraints(bool) -- turns off the topology spread constraints.
 # The feature is automatically turned off on Kubernetes versions below 1.18.
@@ -998,7 +1056,7 @@ disableTopologySpreadConstraints: false
 #     labelSelector:
 #       matchLabels: # dynamically computed
 # ```
-topologySpreadConstraints: []
+topologySpreadConstraints: [ ]
 
 # dnsConfig(object) -- contains custom Pod DNS Configuration for the agent pods.
 # This value is useful if you need to reduce the DNS load: set "ndots" to 0 and
@@ -1019,7 +1077,7 @@ topologySpreadConstraints: []
 #    - name: ndots
 #      value: "2"
 # ```
-dnsConfig: {}
+dnsConfig: { }
 
 # dnsPolicy(string) -- sets the Pod's DNS Policy
 #
@@ -1031,7 +1089,7 @@ dnsPolicy: ""
 # nodeSelector(object) -- sets the node selector for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
 # for more details.
-nodeSelector: {}
+nodeSelector: { }
 
 # extraLabels -- contains additional Kubernetes labels to apply on the resources
 # created by the chart.
@@ -1040,30 +1098,30 @@ nodeSelector: {}
 # for more information.
 extraLabels:
   # extraLabels.clusterRole(object) -- are labels to set on the ClusterRole.
-  clusterRole: {}
+  clusterRole: { }
   # extraLabels.clusterRoleBinding(object) -- are labels to set on the ClusterRoleBinding.
-  clusterRoleBinding: {}
+  clusterRoleBinding: { }
   # extraLabels.role(object) -- are labels to set on the Role.
-  role: {}
+  role: { }
   # extraLabels.roleBinding(object) -- are labels to set on the RoleBinding.
-  roleBinding: {}
+  roleBinding: { }
   # extraLabels.config(object) -- are labels to set on the ConfigMap.
-  config: {}
+  config: { }
   # extraLabels.deployment(object) -- are labels to set on the Deployment or StatefulSet.
-  deployment: {}
+  deployment: { }
   # extraLabels.job(object) -- are labels to set on the post-delete Job created by the chart.
-  job: {}
+  job: { }
   # extraLabels.pod(object) -- are labels to set on the Pods created by the
   # Deployment, StatefulSet, or Job.
-  pod: {}
+  pod: { }
   # extraLabels.podDisruptionBudget(object) -- are labels to set on the podDisruptionBudget.
-  podDisruptionBudget: {}
+  podDisruptionBudget: { }
   # extraLabels.podSecurityPolicy(object) -- are labels to set on the podSecurityPolicy.
-  podSecurityPolicy: {}
+  podSecurityPolicy: { }
   # extraLabels.secret(object) -- are labels to set on the Secret.
-  secret: {}
+  secret: { }
   # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
-  serviceAccount: {}
+  serviceAccount: { }
 
 # annotations -- contains annotations to apply to the different Kubernetes
 # objects created by the chart. See [the Kubernetes annotation
@@ -1072,24 +1130,24 @@ extraLabels:
 annotations:
   # annotations.config(object) -- contains the Kubernetes annotations
   # put on the `ConfigMap` resource created by the chart.
-  config: {}
+  config: { }
   # annotations.deployment(object) -- contains the Kubernetes annotations
   # put on the `Deployment` or `StatefulSet` resource created by the chart.
-  deployment: {}
+  deployment: { }
   # annotations.pod(object) -- contains the Kubernetes annotations
   # put on the `Pod` resources created by the chart.
-  pod: {}
+  pod: { }
   # annotations.secret(object) -- contains the Kubernetes annotations
   # put on the `Secret` resource created by the chart.
   # This has no effect when `joinTokenSecret.create` is `false`.
-  secret: {}
+  secret: { }
   # annotations.serviceAccount(object) -- contains the Kubernetes annotations
   # put on the `ServiceAccount` resource created by the chart.
-  serviceAccount: {}
+  serviceAccount: { }
 
 # extraArgs(list) -- contains extra arguments to pass to `teleport start` for
 # the main Teleport pod
-extraArgs: []
+extraArgs: [ ]
 
 # extraEnv(list) -- contains extra environment variables to set in the main
 # Teleport pod.
@@ -1100,7 +1158,7 @@ extraArgs: []
 #   - name: HTTPS_PROXY
 #     value: "http://username:password@my.proxy.host:3128"
 # ```
-extraEnv: []
+extraEnv: [ ]
 
 # extraContainers(list) -- contains extra containers to add in the main Teleport
 # pod.
@@ -1120,7 +1178,7 @@ extraEnv: []
 #     privileged: true
 #     runAsNonRoot: false
 # ```
-extraContainers: []
+extraContainers: [ ]
 
 # extraVolumes(list) -- contains extra volumes to mount into the Teleport pods.
 # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
@@ -1133,7 +1191,7 @@ extraContainers: []
 #   secret:
 #     secretName: testSecret
 # ```
-extraVolumes: []
+extraVolumes: [ ]
 
 # extraVolumeMounts(list) -- contains extra volumes mounts for the main Teleport container.
 # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
@@ -1145,7 +1203,7 @@ extraVolumes: []
 # - name: myvolume
 #   mountPath: /path/on/host
 # ```
-extraVolumeMounts: []
+extraVolumeMounts: [ ]
 
 # hostAliases -- sets Host aliases in the Teleport Pod.
 # See [the Kubernetes hosts file documentation](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
@@ -1163,7 +1221,7 @@ extraVolumeMounts: []
 #       - "foo.remote"
 #       - "bar.remote"
 # ```
-hostAliases: []
+hostAliases: [ ]
 
 # imagePullPolicy(string) -- sets the pull policy for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
@@ -1181,12 +1239,12 @@ imagePullPolicy: IfNotPresent
 #   image: "alpine"
 #   args: ["echo test"]
 # ```
-initContainers: []
+initContainers: [ ]
 
 # resources(object) -- sets the resource requests/limits for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 # for more details.
-resources: {}
+resources: { }
 
 # goMemLimitRatio(float) -- configures the GOMEMLIMIT env var set by the chart.
 # GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory
@@ -1254,7 +1312,7 @@ priorityClassName: ""
 # tolerations(list) -- sets the tolerations for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 # for more details.
-tolerations: []
+tolerations: [ ]
 
 # probeTimeoutSeconds(int) -- sets the timeout for the readiness and liveness probes
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
