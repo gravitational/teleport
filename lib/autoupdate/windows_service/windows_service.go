@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"os/exec"
 	"syscall"
@@ -14,10 +15,17 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	"github.com/gravitational/teleport"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const serviceName = "TeleportUpdateService"
 const ServiceCommand = "update-service"
+const terminateTimeout = 5 * time.Second
+
+var log = logutils.NewPackageLogger(teleport.ComponentKey, "update-service")
+var logger = slog.Default()
 
 func InstallService(ctx context.Context) (err error) {
 	tshPath, err := os.Executable()
