@@ -19,9 +19,10 @@
 import { useEffect, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonIcon, Flex, Label, Text } from 'design';
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { Tags, Warning } from 'design/Icon';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -51,6 +52,7 @@ export function ResourceListItem({
   showingStatusInfo,
   viewItem,
   visibleInputFields = { pin: true, checkbox: true },
+  resourceLabelConfig,
 }: ResourceItemProps) {
   const {
     name,
@@ -285,12 +287,12 @@ export function ResourceListItem({
           >
             {labels.map((label, i) => {
               const labelText = makeLabelTag(label);
-              // We can use the index i as the key since it will always be unique to this label.
               return (
-                <Label
+                <LabelButtonWithIcon
                   key={i}
                   title={labelText}
                   onClick={() => onLabelClick?.(label)}
+                  withHoverState={!!onLabelClick}
                   kind="secondary"
                   mr={2}
                   css={`
@@ -302,9 +304,10 @@ export function ResourceListItem({
                     text-overflow: ellipsis;
                     white-space: nowrap;
                   `}
+                  {...resourceLabelConfig}
                 >
                   {labelText}
-                </Label>
+                </LabelButtonWithIcon>
               );
             })}
           </Box>
