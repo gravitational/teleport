@@ -379,9 +379,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if cfg.LDAPConfig.Enabled() {
 		var err error
 		sidCache, err = utils.NewFnCache(utils.FnCacheConfig{
-			TTL:     4 * time.Hour,
-			Clock:   cfg.Clock,
-			Context: ctx,
+			TTL:         4 * time.Hour,
+			Clock:       cfg.Clock,
+			Context:     ctx,
+			ReloadOnErr: true,
 		})
 		if err != nil {
 			close()
