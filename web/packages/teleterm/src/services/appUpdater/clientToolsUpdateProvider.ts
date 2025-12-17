@@ -31,6 +31,8 @@ import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider'
 
 import { compare, major } from 'shared/utils/semVer';
 
+import { NsisCustomUpdater } from 'teleterm/services/appUpdater/nsisCustomUpdater';
+
 import { UnsupportedVersionError } from './errors';
 
 const CHECKSUM_FETCH_TIMEOUT = 5_000;
@@ -124,7 +126,7 @@ function makeDownloadFilename(updater: AppUpdater, version: string): string {
   if (updater instanceof MacUpdater) {
     return `Teleport Connect-${version}-mac.zip`;
   }
-  if (updater instanceof NsisUpdater) {
+  if (updater instanceof NsisCustomUpdater) {
     return `Teleport Connect Setup-${version}.exe`;
   }
   if (updater instanceof RpmUpdater) {

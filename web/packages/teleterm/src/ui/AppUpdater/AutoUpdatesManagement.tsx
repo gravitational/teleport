@@ -19,8 +19,10 @@
 import { ReactNode, useState } from 'react';
 
 import { Alert } from 'design/Alert';
+import Box from 'design/Box';
+import { ButtonSecondary } from 'design/Button';
 import Flex, { Stack } from 'design/Flex';
-import { Cog } from 'design/Icon';
+import { Check, Checks, Cog, ShieldWarning, Warning } from 'design/Icon';
 import Link from 'design/Link';
 import { RadioGroup } from 'design/RadioGroup';
 import { H3, P3 } from 'design/Text';
@@ -179,9 +181,19 @@ function makeOptions({
       return {
         disabled,
         label: getProfileName(c.clusterUri),
-        helperText: [`Teleport Connect ${c.toolsVersion}`, compatibility]
-          .filter(Boolean)
-          .join(' · '),
+        helperText: (
+          <Stack gap={0}>
+            <div>
+              {[`Teleport Connect ${c.toolsVersion}`, compatibility]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+            <Flex gap={1}>
+              <Check color="success.main" size="small" />
+              Allowed to provide system-wide updates. <Link>Change...</Link>
+            </Flex>
+          </Stack>
+        ),
         value: c.clusterUri,
       };
     });
