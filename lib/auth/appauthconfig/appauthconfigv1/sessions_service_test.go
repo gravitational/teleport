@@ -30,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
@@ -37,13 +38,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/appauthconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
 )
 
 func TestRetrieveJWKS(t *testing.T) {
@@ -132,7 +132,7 @@ func TestRetrieveJWKS(t *testing.T) {
 			},
 		} {
 			t.Run(name, func(t *testing.T) {
-				httpSrv := httptest.NewServer(http.HandlerFunc(tc.httpHandler))
+				httpSrv := httptest.NewServer(tc.httpHandler)
 				t.Cleanup(func() { httpSrv.Close() })
 
 				jwks, sigs, err := retrieveJWKSAppAuthConfig(
@@ -171,6 +171,7 @@ func TestVerifyJWTToken(t *testing.T) {
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
 				IssuedAt: jwt.NewNumericDate(time.Now()),
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			},
 			usernameClaim: struct {
 				Username string `json:"username"`
@@ -189,6 +190,7 @@ func TestVerifyJWTToken(t *testing.T) {
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
 				IssuedAt: jwt.NewNumericDate(time.Now()),
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			},
 			usernameClaim: struct {
 				Email string `json:"email"`
@@ -207,6 +209,7 @@ func TestVerifyJWTToken(t *testing.T) {
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"random-app"},
 				IssuedAt: jwt.NewNumericDate(time.Now()),
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			},
 			usernameClaim: struct {
 				Email string `json:"email"`
@@ -223,6 +226,7 @@ func TestVerifyJWTToken(t *testing.T) {
 				Issuer:   "https://random-issuer/",
 				Audience: []string{"teleport"},
 				IssuedAt: jwt.NewNumericDate(time.Now()),
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			},
 			usernameClaim: struct {
 				Email string `json:"email"`
@@ -239,6 +243,7 @@ func TestVerifyJWTToken(t *testing.T) {
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
 				IssuedAt: jwt.NewNumericDate(time.Now()),
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 			},
 			usernameClaim:  struct{}{},
 			assertError:    require.Error,
@@ -252,6 +257,23 @@ func TestVerifyJWTToken(t *testing.T) {
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
+				Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			},
+			usernameClaim: struct {
+				Email string `json:"email"`
+			}{Email: "user@example.com"},
+			assertError:    require.Error,
+			assertUsername: require.Empty,
+		},
+		"missing exp claim": {
+			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+				Issuer:   "https://issuer-url/",
+				Audience: "teleport",
+			},
+			claims: jwt.Claims{
+				Issuer:   "https://issuer-url/",
+				Audience: []string{"teleport"},
+				IssuedAt: jwt.NewNumericDate(time.Now()),
 			},
 			usernameClaim: struct {
 				Email string `json:"email"`
@@ -328,6 +350,9 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 	encodedJwks, err := json.Marshal(baseJwks)
 	require.NoError(t, err)
 
+	user, err := types.NewUser("user")
+	require.NoError(t, err)
+
 	config := appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
 		Issuer:              issuer,
 		AuthorizationHeader: header,
@@ -349,6 +374,7 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 
 	for name, tc := range map[string]struct {
 		authorizer          authz.AuthorizerFunc
+		userGetter          *mockUserGetter
 		config              *appauthconfigv1.AppAuthConfig
 		configErr           error
 		createAppSessionErr error
@@ -366,6 +392,7 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 				}, nil
 
 			},
+			userGetter:  &mockUserGetter{getStateErr: trace.NotFound(""), user: user},
 			assertError: require.NoError,
 			assertAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.IsType(t, &apievents.AppAuthConfigVerify{}, i1, i2...)
@@ -374,6 +401,20 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 				require.Equal(t, events.AppAuthConfigVerifySuccessEvent, evt.Metadata.Type)
 				require.True(t, evt.Status.Success)
 			},
+		},
+		"user not found": {
+			config: config,
+			token:  jwtToken,
+			authorizer: func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Identity: authz.BuiltinRole{Role: types.RoleProxy},
+					Checker:  &fakeAccessChecker{role: types.RoleProxy},
+				}, nil
+
+			},
+			userGetter:       &mockUserGetter{getStateErr: trace.NotFound(""), getUserErr: trace.NotFound("")},
+			assertError:      require.Error,
+			assertAuditEvent: assertAuditEventFailure,
 		},
 		"wrong role requesting": {
 			config: config,
@@ -425,6 +466,7 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 					sessionErr: tc.createAppSessionErr,
 				},
 				Authorizer: tc.authorizer,
+				UserGetter: tc.userGetter,
 			})
 			require.NoError(t, err)
 
@@ -464,12 +506,6 @@ func (m *mockSessionsCreator) CreateAppSessionForAppAuth(ctx context.Context, re
 	return m.session, m.sessionErr
 }
 
-type identityGetterFn func() tlsca.Identity
-
-func (f identityGetterFn) GetIdentity() tlsca.Identity {
-	return f()
-}
-
 type fakeAccessChecker struct {
 	services.AccessChecker
 	role types.SystemRole
@@ -477,6 +513,23 @@ type fakeAccessChecker struct {
 
 func (f fakeAccessChecker) HasRole(role string) bool {
 	return string(f.role) == role
+}
+
+type mockUserGetter struct {
+	services.UserOrLoginStateGetter
+
+	state       *userloginstate.UserLoginState
+	getStateErr error
+	user        types.User
+	getUserErr  error
+}
+
+func (m *mockUserGetter) GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error) {
+	return m.state, m.getStateErr
+}
+
+func (m *mockUserGetter) GetUser(context.Context, string, bool) (types.User, error) {
+	return m.user, m.getUserErr
 }
 
 func newJWTSigner(t *testing.T) (jose.Signer, []jose.SignatureAlgorithm, *jose.JSONWebKeySet) {
@@ -505,6 +558,7 @@ func generateJWTToken(t *testing.T, signer jose.Signer, issuer, audience string)
 		Issuer:   issuer,
 		Audience: jwt.Audience{audience},
 		IssuedAt: jwt.NewNumericDate(time.Now()),
+		Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 	}).Claims(
 		struct {
 			Email string `json:"email"`

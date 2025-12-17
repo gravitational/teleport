@@ -26,10 +26,10 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/gravitational/teleport"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
