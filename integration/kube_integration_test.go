@@ -2569,6 +2569,9 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// send exit command to close the session
 	term.Type("\aexit 0\n\r")
 
+	// drain participant stdout to ensure it doesn't block on writes
+	go io.Copy(io.Discard, participantStdoutR)
+
 	_ = term.Close()
 
 	// wait for all clients to finish
