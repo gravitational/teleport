@@ -711,8 +711,8 @@ func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
 
 func (d desktopPinger) reportTDPB(_ context.Context, stats latency.Statistics) error {
 	return d.client.WriteMessage(tdp.NewTDPBMessage(&tdpbv1.LatencyStats{
-		ClientLatency: uint32(stats.Client),
-		ServerLatency: uint32(stats.Server),
+		ClientLatencyMs: uint32(stats.Client),
+		ServerLatencyMs: uint32(stats.Server),
 	}))
 }
 

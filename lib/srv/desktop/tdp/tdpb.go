@@ -531,8 +531,8 @@ func TranslateToLegacy(msg Message) ([]Message, error) {
 		}
 	case *tdpb.LatencyStats:
 		messages = append(messages, LatencyStats{
-			ClientLatency: m.ClientLatency,
-			ServerLatency: m.ServerLatency,
+			ClientLatency: m.ClientLatencyMs,
+			ServerLatency: m.ServerLatencyMs,
 		})
 	case *tdpb.Ping:
 		id, err := uuid.FromBytes(m.Uuid)
@@ -655,8 +655,8 @@ func TranslateToModern(msg Message) ([]Message, error) {
 		})
 	case LatencyStats:
 		messages = append(messages, &tdpb.LatencyStats{
-			ClientLatency: m.ClientLatency,
-			ServerLatency: m.ServerLatency,
+			ClientLatencyMs: m.ClientLatency,
+			ServerLatencyMs: m.ServerLatency,
 		})
 	case Ping:
 		messages = append(messages, &tdpb.Ping{
