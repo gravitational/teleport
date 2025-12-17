@@ -35,11 +35,13 @@ package networking
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -47,7 +49,6 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
@@ -149,7 +150,7 @@ func (p *Process) start(ctx context.Context) error {
 			buf := make([]byte, RequestBufferSize)
 			n, err := p.conn.Read(buf)
 			if err != nil {
-				if utils.IsOKNetworkError(err) {
+				if isOKNetworkError(err) {
 					return
 				}
 				slog.WarnContext(ctx, "Failed to read error from networking process.", "error", err)
@@ -172,6 +173,38 @@ func (p *Process) start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func isUseOfClosedNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, net.ErrClosed) || strings.Contains(err.Error(), "use of closed network connection")
+}
+
+// IsFailedToSendCloseNotifyError returns true if the provided error is the
+// "tls: failed to send closeNotify".
+func isFailedToSendCloseNotifyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "tls: failed to send closeNotify alert (but connection was closed anyway)")
+}
+
+func isOKNetworkError(err error) bool {
+	// trace.Aggregate contains at least one error and all the errors are
+	// non-nil
+	var a trace.Aggregate
+	if errors.As(trace.Unwrap(err), &a) {
+		for _, err := range a.Errors() {
+			if !isOKNetworkError(err) {
+				return false
+			}
+		}
+		return true
+	}
+	return errors.Is(err, io.EOF) || isUseOfClosedNetworkError(err) || isFailedToSendCloseNotifyError(err)
 }
 
 // Close stops the process and frees up its related resources.

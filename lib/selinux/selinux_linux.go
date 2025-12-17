@@ -23,6 +23,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -30,10 +31,6 @@ import (
 
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
-
-	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 const (
@@ -90,7 +87,7 @@ func FileContexts(dataDir, configPath, execPathOverride string) (string, error) 
 		BinaryPath:     binaryPath,
 		DataDir:        dataDir,
 		ConfigPath:     configPath,
-		UpgradeUnitDir: versioncontrol.UnitConfigDir,
+		UpgradeUnitDir: versioncontrolUnitConfigDir,
 	})
 	if err != nil {
 		return "", trace.Wrap(err, "failed to expand file contexts template")
@@ -194,7 +191,7 @@ func diagnoseWrongDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 		logger.WarnContext(
 			context.Background(),
 			"Teleport is not running as the system_u:system_r SELinux user and role, running Teleport as a Systemd service is recommended when --enable-selinux is passed",
-			"selinux_context", logutils.StringerAttr(procCtx),
+			"selinux_context", stringerAttr{procCtx},
 		)
 	}
 	const fallbackErrMsg = "" +
@@ -224,6 +221,17 @@ func diagnoseWrongDomain(procCtx *selinuxContext, logger *slog.Logger) error {
 	return fallbackErr
 }
 
+type stringerAttr struct {
+	fmt.Stringer
+}
+
+func (s stringerAttr) LogValue() slog.Value {
+	if s.Stringer == nil {
+		return slog.StringValue("")
+	}
+	return slog.StringValue(s.Stringer.String())
+}
+
 // ModuleInstalled returns true if the SSH SELinux module is installed.
 func ModuleInstalled() (bool, error) {
 	selinuxType, err := readConfig(selinuxTypeTag)
@@ -247,7 +255,7 @@ func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive 
 	disabledModPath := filepath.Join(modulesDir, "disabled", moduleName)
 	// SELinux modules can't be disabled and permissive, so we can
 	// safely return here
-	if utils.FileExists(disabledModPath) {
+	if fileExists(disabledModPath) {
 		disabled = true
 		installed = true
 		return
@@ -266,7 +274,7 @@ func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive 
 		path := filepath.Join(modulesDir, name)
 
 		permModPath := filepath.Join(path, permissiveModuleName)
-		if utils.FileExists(permModPath) {
+		if fileExists(permModPath) {
 			// if the module is permissive, we also know it's installed
 			// so we can safely return
 			permissive = true
@@ -275,7 +283,7 @@ func moduleStatus(modulesDir string) (installed bool, disabled bool, permissive 
 		}
 
 		modPath := filepath.Join(path, moduleName)
-		if utils.FileExists(modPath) {
+		if fileExists(modPath) {
 			installed = true
 		}
 	}
@@ -300,4 +308,12 @@ func UserContext(login string) (string, error) {
 	}
 
 	return seContext, nil
+}
+
+func fileExists(fp string) bool {
+	_, err := os.Stat(fp)
+	if err != nil && os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
