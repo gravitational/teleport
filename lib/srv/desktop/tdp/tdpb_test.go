@@ -3,12 +3,16 @@ package tdp
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"io"
+	"math"
 	"net"
 	"testing"
 
 	tdpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -32,13 +36,22 @@ func TestInvalidEncode(t *testing.T) {
 	// Rectangle is not allowed to be encoded
 	// as it's not a full fledged "Message Type"
 	msg := &tdpb.Rectangle{}
-	// This works because it's convenient for this function
+	// This succeeds because it's convenient for this function
 	// to be infallible. It should instead fail when we try
 	// to encode it.
 	tdpbMsg := NewTDPBMessage(msg)
 
 	// Encode fails
 	_, err := tdpbMsg.Encode()
+	require.Error(t, err)
+
+	// Try encoding a non-TDPB protobuf
+	metadata := &headerv1.Metadata{}
+	tdpbMsg = NewTDPBMessage(metadata)
+	// Fails because we cannot determine the message type.
+	// Non-TDPB messages do not have the type option
+	// used to identy TDPB message protos.
+	_, err = tdpbMsg.Encode()
 	require.Error(t, err)
 }
 
@@ -70,7 +83,7 @@ func TestMessageOperations(t *testing.T) {
 		Message Message
 	}{
 		{Name: "raw-message-happy-path", Message: rawMessage},
-		{Name: "decoded-message-path", Message: decodedMessage},
+		{Name: "decoded-message-happy-path", Message: decodedMessage},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			protoMsg, err := ToTDPBProto(test.Message)
@@ -88,21 +101,56 @@ func TestMessageOperations(t *testing.T) {
 	}
 
 	t.Run("decode-corrupted-message", func(t *testing.T) {
-		validMessage, err := rawMessage.Encode()
+		mouseMove := &tdpbv1.MouseMove{X: 1, Y: 2}
+		raw := NewTDPBMessage(mouseMove)
+		// message is a perfectly valid, encoded TDPB message
+		message, err := raw.Encode()
 		require.NoError(t, err)
 
-		corruptedMessage := bytes.NewBuffer(validMessage[:8])
-		_, _ = corruptedMessage.WriteString("this is not a valid protobuf message!")
+		// Corrupt the payload, but leave the valid header intact.
+		offset := 8
+		for idx := range message[8:] {
+			message[idx+offset] = 0xFF
+		}
 
 		// DecodeTDPB doesn't fail because it lazily decodes the underlying proto!
-		badMsg, err := DecodeTDPB(corruptedMessage)
+		badMsg, err := DecodeTDPB(bytes.NewReader(message))
 		require.NoError(t, err)
 
 		// Inspecting the proto will result in an error
-		_, err = ToTDPBProto(&badMsg)
+		_, err = ToTDPBProto(badMsg)
 		require.Error(t, err)
 
+		// Other methods of inspection also fail
+		newMouseMove := &tdpbv1.MouseMove{}
+		require.Error(t, AsTDPB(badMsg, newMouseMove))
 	})
+}
+
+func TestHandleUnknownMessageTypes(t *testing.T) {
+	// The decoder should quietly ignore unknown message types.
+	// This gives us flexibility to add new TDPB messages later on
+	// without fear of breaking old implementations.
+	goodMessage, err := NewTDPBMessage(&tdpbv1.MouseMove{X: 1, Y: 2}).Encode()
+	require.NoError(t, err)
+
+	// Make a copy of the valid message, but change the MessageType
+	// in the header to an invalid message type.
+	badMessage := make([]byte, len(goodMessage))
+	copy(badMessage, goodMessage)
+	binary.BigEndian.PutUint32(badMessage[:4], math.MaxUint32)
+
+	// Write the bad message first, then a good message
+	buf := bytes.NewBuffer(badMessage)
+	_, _ = buf.Write(goodMessage) /* infallible write */
+
+	msg, err := DecodeTDPB(buf)
+	// Decode should succeed and we should get the
+	// valid MouseMove message. The unknown message type
+	// is quietly ignore and its message body discarded.
+	require.NoError(t, err)
+	move := &tdpbv1.MouseMove{}
+	require.NoError(t, AsTDPB(msg, move))
 }
 
 func TestSendRecv(t *testing.T) {
