@@ -574,7 +574,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			}
 			return nil
 		},
-		trustXForwardedFor: true,
+		middleware: NewXForwardedForMiddleware,
 	})
 	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
 
