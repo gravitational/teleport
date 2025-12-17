@@ -24,3 +24,5 @@ type filePaths struct {
 	ConfigPath     string
 	UpgradeUnitDir string
 }
+
+const versioncontrolUnitConfigDir = "/etc/teleport-upgrade.d"

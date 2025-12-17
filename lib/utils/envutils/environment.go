@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ReadEnvironmentFile will read environment variables from a passed in location.
@@ -39,8 +38,9 @@ import (
 func ReadEnvironmentFile(filename string) ([]string, error) {
 	// open the users environment file. if we don't find a file, move on as
 	// having this file for the user is optional.
-	file, err := utils.OpenFileNoUnsafeLinks(filename)
+	file, err := os.Open(filename)
 	if err != nil {
+		err = trace.ConvertSystemError(err)
 		slog.WarnContext(context.Background(), "Unable to open environment file, skipping",
 			"file", filename,
 			"error", err,

@@ -25,7 +25,14 @@ import (
 	"text/template"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
+
+func _() {
+	const mustBeTrue = versioncontrolUnitConfigDir == versioncontrol.UnitConfigDir
+	_ = map[bool]struct{}{false: {}, mustBeTrue: {}}
+}
 
 // tests that the file contexts template is well formed
 func TestFileContextTemplate(t *testing.T) {

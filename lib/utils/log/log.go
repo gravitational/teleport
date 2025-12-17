@@ -25,8 +25,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport"
 )
 
 // Config configures teleport logging
@@ -73,7 +71,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 		level.Set(slog.LevelInfo)
 	case "err", "error":
 		level.Set(slog.LevelError)
-	case teleport.DebugLevel:
+	case "debug":
 		level.Set(slog.LevelDebug)
 	case "warn", "warning":
 		level.Set(slog.LevelWarn)
