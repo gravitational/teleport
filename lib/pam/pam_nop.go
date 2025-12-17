@@ -20,7 +20,7 @@
 
 package pam
 
-import "github.com/gravitational/teleport/lib/service/servicecfg"
+import "github.com/gravitational/teleport/lib/service/servicecfg/pamconfig"
 
 // PAM is used to create a PAM context and initiate PAM transactions to checks
 // the users account and open/close a session.
@@ -29,7 +29,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *servicecfg.PAMConfig) (*PAM, error) {
+func Open(config *pamconfig.PAMConfig) (*PAM, error) {
 	return &PAM{}, nil
 }
 
