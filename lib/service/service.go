@@ -6195,18 +6195,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
-
-		var kpms []certreloader.KeyPairWithMetric
-		for _, kpm := range process.Config.Proxy.KeyPairs {
-			kpms = append(kpms, certreloader.KeyPairWithMetric{
-				KeyPairPath: kpm,
-				Expiry:      nil,
-			})
-		}
 		certReloader := certreloader.New(certreloader.Config{
-			KeyPairsWithMetric:     kpms,
+			KeyPairs:               process.Config.Proxy.KeyPairs,
 			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
-		}, "proxytls", teleport.ComponentProxy)
+		}, "proxytls", teleport.ComponentProxy, nil)
 		if err := certReloader.Run(process.ExitContext()); err != nil {
 			return nil, trace.Wrap(err)
 		}
