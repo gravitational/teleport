@@ -253,3 +253,82 @@ func TestProxyConnection(t *testing.T) {
 		})
 	}
 }
+
+func TestHandshakeData(t *testing.T) {
+
+	t.Run("empty-handshake", func(t *testing.T) {
+		// Make sure empty handshake data doesn't cause a panic
+		data := handshakeData{}
+		require.Error(t, data.ForwardTDP(io.Discard, "user", false))
+		require.Error(t, data.ForwardTDPB(io.Discard, "user"))
+	})
+
+	// Make sure that all combinations of TDP/TDPB input and output
+	for _, test := range []struct {
+		name string
+		data handshakeData
+	}{
+		{"tdpb-input", handshakeData{
+			hello: &tdpbv1.ClientHello{
+				ScreenSpec: &tdpbv1.ClientScreenSpec{
+					Height: 64,
+					Width:  128,
+				},
+				KeyboardLayout: 1,
+			},
+		}},
+		{"tdp-input", handshakeData{
+			screenSpec: &tdp.ClientScreenSpec{
+				Height: 64,
+				Width:  128,
+			},
+			keyboardLayout: &tdp.ClientKeyboardLayout{
+				KeyboardLayout: 1,
+			},
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			buf := bufCloser{Buffer: &bytes.Buffer{}}
+			// ForwardTDPB should yield a single client_hello
+			require.NoError(t, test.data.ForwardTDPB(buf, "user"))
+			msg, err := tdp.DecodeTDPB(buf)
+			require.NoError(t, err)
+			hello := &tdpbv1.ClientHello{}
+			require.NoError(t, tdp.AsTDPB(msg, hello))
+			_, err = tdp.DecodeTDPB(buf)
+			require.ErrorIs(t, err, io.EOF)
+
+			// ForwardTDP should yield 3 messages (if forwardKeyboardLayout == true)
+			require.NoError(t, test.data.ForwardTDP(buf, "user", true))
+			conn := tdp.NewConn(buf)
+
+			tdpMessage, err := conn.ReadMessage()
+			require.NoError(t, err)
+			requireMessageIs[tdp.ClientUsername](t, tdpMessage)
+
+			tdpMessage, err = conn.ReadMessage()
+			require.NoError(t, err)
+			requireMessageIs[tdp.ClientScreenSpec](t, tdpMessage)
+
+			tdpMessage, err = conn.ReadMessage()
+			require.NoError(t, err)
+			requireMessageIs[tdp.ClientKeyboardLayout](t, tdpMessage)
+
+			_, err = conn.ReadMessage()
+			require.ErrorIs(t, err, io.EOF)
+		})
+	}
+
+}
+
+func requireMessageIs[T any](t *testing.T, msg tdp.Message) {
+	_, ok := msg.(T)
+	require.True(t, ok)
+}
+
+// Need a simple buffer that can act as a tdp.ReadWriterCloser
+type bufCloser struct {
+	*bytes.Buffer
+}
+
+func (_ bufCloser) Close() error { return nil }
