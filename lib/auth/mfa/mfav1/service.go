@@ -111,7 +111,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     slog.Default().With(teleport.ComponentKey, "mfa.service"),
+		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
 		authServer: cfg.AuthServer,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
@@ -136,15 +136,8 @@ func (s *Service) CreateSessionChallenge(
 	// Determine which second factors are allowed.
 	enableWebauthn, enableSSO := pref.IsSecondFactorWebauthnAllowed(), pref.IsSecondFactorSSOAllowed()
 
-	// Get the user's U2F preference. If it doesn't exist, continue since U2F may not be enabled.
-	u2fPref, err := pref.GetU2F()
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get the user's Webauthn preference. If it doesn't exist, continue since Webauthn may not be enabled.
-	webConfig, err := pref.GetWebauthn()
-	if err != nil && !trace.IsNotFound(err) {
+	u2fPref, webConfig, err := mfaPreferences(pref)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -394,15 +387,8 @@ func (s *Service) validateWebauthnResponse(
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the user's U2F preference. If it doesn't exist, continue since U2F may not be enabled.
-	u2fPref, err := pref.GetU2F()
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get the user's Webauthn preference. If it doesn't exist, continue since Webauthn may not be enabled.
-	webConfig, err := pref.GetWebauthn()
-	if err != nil && !trace.IsNotFound(err) {
+	u2fPref, webConfig, err := mfaPreferences(pref)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -442,4 +428,20 @@ func (s *Service) validateSSOResponse(
 	}
 
 	return data.Device, nil
+}
+
+func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, error) {
+	// Get the user's U2F preference. If it doesn't exist, continue since U2F may not be enabled.
+	u2f, err := pref.GetU2F()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Get the user's WebAuthn preference. If it doesn't exist, continue since WebAuthn may not be enabled.
+	webauthn, err := pref.GetWebauthn()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return u2f, webauthn, nil
 }
