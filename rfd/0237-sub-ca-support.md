@@ -522,6 +522,16 @@ commands are removed from the CLI.
 Workload override API endpoints, similarly, will error for a full release and be
 removed on N+1.
 
+### Expiration alerts
+
+The following cluster alerts are created automatically, based on the remaining
+validity of the CA certificate. Works for both overrides (preferred if present)
+and self-signed certificates.
+
+* 365d = low priority alert
+* 180d = medium priority alert
+* 90d  = high priority alert
+
 ### Auth service changes
 
 A new Auth-bound gRPC service is responsible for managing
