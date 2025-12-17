@@ -297,7 +297,6 @@ steps:
 - name: Open a database tunnel
   uses: teleport-actions/start@v1
   with:
-    bot-id: bot-api
     kind: database-tunnel
     config: |
       listen: tcp://127.0.0.1:25432
@@ -307,7 +306,6 @@ steps:
 - name: Open a application tunnel
   uses: teleport-actions/start@v1
   with:
-    bot-id: bot-api
     kind: application-tunnel
     config: |
       listen: tcp://127.0.0.1:1234
