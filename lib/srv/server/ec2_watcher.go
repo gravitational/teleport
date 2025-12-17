@@ -190,8 +190,8 @@ type MatcherToEC2FetcherParams struct {
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher[EC2Instances], error) {
-	var ret []Fetcher[EC2Instances]
+func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher[*EC2Instances], error) {
+	var ret []Fetcher[*EC2Instances]
 	for _, matcher := range matcherParams.Matchers {
 		fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
 			Matcher:               matcher,
@@ -351,7 +351,7 @@ func ssmRunCommandParameters(ctx context.Context, cfg ec2FetcherConfig) (map[str
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
-func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]EC2Instances, error) {
+func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]*EC2Instances, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -410,12 +410,12 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []t
 
 // chunkInstances splits instances into chunks of 50.
 // This is required because SSM SendCommand API calls only accept up to 50 instance IDs at a time.
-func chunkInstances(instancesByRegion map[string]EC2Instances) []EC2Instances {
-	var instColl []EC2Instances
+func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
+	var instColl []*EC2Instances
 	for _, insts := range instancesByRegion {
 		for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
 			end := min(i+awsEC2APIChunkSize, len(insts.Instances))
-			inst := EC2Instances{
+			inst := &EC2Instances{
 				AccountID:           insts.AccountID,
 				Region:              insts.Region,
 				DocumentName:        insts.DocumentName,
@@ -469,14 +469,14 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsco
 }
 
 // GetInstances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]EC2Instances, error) {
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*EC2Instances, error) {
 	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	f.cachedInstances.clear()
-	var allInstances []EC2Instances
+	var allInstances []*EC2Instances
 
 	awsOpts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
@@ -508,13 +508,13 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 }
 
 // getInstancesInRegion fetches all EC2 instances in a given region.
-func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation bool, region string, awsOpts []awsconfig.OptionsFn, ssmRunParams map[string]string) ([]EC2Instances, error) {
+func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation bool, region string, awsOpts []awsconfig.OptionsFn, ssmRunParams map[string]string) ([]*EC2Instances, error) {
 	ec2Client, err := f.EC2ClientGetter(ctx, region, awsOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var instances []EC2Instances
+	var instances []*EC2Instances
 
 	paginator := ec2.NewDescribeInstancesPaginator(ec2Client, &ec2.DescribeInstancesInput{
 		Filters: f.Filters,
@@ -530,7 +530,7 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, rotation 
 			for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
 				end := min(i+awsEC2APIChunkSize, len(res.Instances))
 				ownerID := aws.ToString(res.OwnerId)
-				inst := EC2Instances{
+				inst := &EC2Instances{
 					AccountID:           ownerID,
 					Region:              region,
 					DocumentName:        f.Matcher.SSM.DocumentName,

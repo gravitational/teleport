@@ -385,7 +385,7 @@ type Server struct {
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// ec2Watcher periodically retrieves EC2 instances.
-	ec2Watcher *server.Watcher[server.EC2Instances]
+	ec2Watcher *server.Watcher[*server.EC2Instances]
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer ssmInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
@@ -598,13 +598,13 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	s.caRotationCh = make(chan []types.Server)
 
-	s.ec2Watcher = server.NewWatcher[server.EC2Instances](
+	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
 		server.WithMissedRotation(s.caRotationCh),
-		server.WithPollInterval[server.EC2Instances](s.PollInterval),
-		server.WithTriggerFetchC[server.EC2Instances](s.newDiscoveryConfigChangedSub()),
-		server.WithPreFetchHookFn[server.EC2Instances](s.ec2WatcherIterationStarted),
-		server.WithClock[server.EC2Instances](s.clock),
+		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
+		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
+		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
+		server.WithClock[*server.EC2Instances](s.clock),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
@@ -642,7 +642,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	return nil
 }
 
-func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[server.EC2Instances]) {
+func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2Instances]) {
 	if len(fetchers) == 0 {
 		return
 	}
@@ -651,7 +651,7 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[server.EC2
 
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
-		func(f server.Fetcher[server.EC2Instances]) (awsResourceGroup, bool) {
+		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
 			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
@@ -704,7 +704,7 @@ func (s *Server) initKubeAppWatchers(matchers []types.KubernetesMatcher) error {
 }
 
 // awsServerFetchersFromMatchers converts Matchers into a set of AWS EC2 Fetchers.
-func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]server.Fetcher[server.EC2Instances], error) {
+func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []types.AWSMatcher, discoveryConfigName string) ([]server.Fetcher[*server.EC2Instances], error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AWSMatcherEC2
 	})
@@ -1353,7 +1353,7 @@ func (s *Server) handleEC2Discovery() {
 				integration:         instances.Integration,
 			}, len(instances.Instances))
 
-			if err := s.handleEC2Instances(&instances); err != nil {
+			if err := s.handleEC2Instances(instances); err != nil {
 				s.logHandleInstancesErr(err)
 			}
 

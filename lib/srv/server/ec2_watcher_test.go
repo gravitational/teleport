@@ -349,12 +349,12 @@ func TestEC2Watcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[EC2Instances](t.Context())
+	watcher := NewWatcher[*EC2Instances](t.Context())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
 
-	expectedInstances := []EC2Instances{
+	expectedInstances := []*EC2Instances{
 		{
 			Region:     "us-west-2",
 			Instances:  []EC2Instance{toEC2Instance(present)},
