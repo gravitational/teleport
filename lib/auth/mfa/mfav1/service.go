@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 )
 
-// AuthServer defines the subset of Auth server methods used by the MFA service.
+// AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
 type AuthServer interface {
 	BeginSSOMFAChallenge(
 		ctx context.Context,
@@ -42,7 +42,7 @@ type AuthServer interface {
 		sso *types.SSOMFADevice,
 		ssoClientRedirectURL,
 		proxyAddress string,
-		_ *mfav1.ChallengeExtensions,
+		ext *mfav1.ChallengeExtensions,
 		sip *mfav1.SessionIdentifyingPayload,
 	) (*proto.SSOChallenge, error)
 
@@ -51,11 +51,12 @@ type AuthServer interface {
 		username,
 		sessionID,
 		token string,
-		_ *mfav1.ChallengeExtensions,
+		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
 }
 
 // Cache defines the subset of cache methods used by the MFA service.
+// See lib/auth.Server.Cache / lib/authclient.Cache.
 type Cache interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
@@ -98,20 +99,15 @@ type Service struct {
 
 // NewService creates a new [Service] instance.
 func NewService(cfg ServiceConfig) (*Service, error) {
-	if cfg.AuthServer == nil {
-		return nil, trace.BadParameter("AuthServer is required for MFA service")
-	}
-
-	if cfg.Cache == nil {
-		return nil, trace.BadParameter("Cache is required for MFA service")
-	}
-
-	if cfg.Emitter == nil {
-		return nil, trace.BadParameter("Emitter is required for MFA service")
-	}
-
-	if cfg.Identity == nil {
-		return nil, trace.BadParameter("Identity is required for MFA service")
+	switch {
+	case cfg.AuthServer == nil:
+		return nil, trace.BadParameter("param AuthServer is required for MFA service")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("param Cache is required for MFA service")
+	case cfg.Emitter == nil:
+		return nil, trace.BadParameter("param Emitter is required for MFA service")
+	case cfg.Identity == nil:
+		return nil, trace.BadParameter("param Identity is required for MFA service")
 	}
 
 	return &Service{
@@ -170,9 +166,9 @@ func (s *Service) CreateSessionChallenge(
 	s.logger.DebugContext(
 		ctx,
 		"Fetched devices for MFA challenge",
-		"username", username,
-		"webauthn_devices", len(webauthnDevices),
-		"sso_device", ssoDevice != nil,
+		"user", username,
+		"num_webauthn_devices", len(webauthnDevices),
+		"has_sso_device", ssoDevice != nil,
 	)
 
 	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{}}
@@ -241,9 +237,9 @@ func (s *Service) CreateSessionChallenge(
 	s.logger.DebugContext(
 		ctx,
 		"Created MFA challenge",
-		"username", username,
-		"webauthn_challenge", challenge.MfaChallenge.WebauthnChallenge != nil,
-		"sso_challenge", challenge.MfaChallenge.SsoChallenge != nil,
+		"user", username,
+		"has_webauthn_challenge", challenge.MfaChallenge.WebauthnChallenge != nil,
+		"has_sso_challenge", challenge.MfaChallenge.SsoChallenge != nil,
 	)
 
 	return challenge, nil
@@ -311,7 +307,7 @@ func (s *Service) ValidateSessionChallenge(
 	s.logger.DebugContext(
 		ctx,
 		"Validated MFA challenge",
-		"username", username,
+		"user", username,
 		"device", device.GetName(),
 		"device_type", device.MFAType(),
 	)
@@ -327,10 +323,6 @@ func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequ
 	payload := req.GetPayload()
 	if payload == nil {
 		return trace.BadParameter("missing CreateSessionChallengeRequest payload")
-	}
-
-	if payload.GetSshSessionId() == nil {
-		return trace.BadParameter("missing SshSessionId in payload")
 	}
 
 	if len(payload.GetSshSessionId()) == 0 {
@@ -387,7 +379,7 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 	}
 
 	if mfaResp.GetWebauthn() == nil && mfaResp.GetSso() == nil {
-		return trace.BadParameter("at least one of WebauthnResponse or SsoResponse must be provided")
+		return trace.BadParameter("at least one of WebauthnResponse or SSOResponse must be provided")
 	}
 
 	return nil

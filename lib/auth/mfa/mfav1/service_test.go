@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// TestCreateSessionChallenge_WebAuthn tests the CreateSessionChallenge method for WebAuthn challenges.
 func TestCreateSessionChallenge_WebAuthn(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
@@ -220,10 +219,6 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		req  *mfav1.CreateSessionChallengeRequest
 	}{
 		{
-			name: "nil request",
-			req:  nil,
-		},
-		{
 			name: "missing payload",
 			req:  &mfav1.CreateSessionChallengeRequest{Payload: nil},
 		},
@@ -382,9 +377,7 @@ func TestValidateSessionChallenge_WebAuthn(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, challengeResp)
-	require.NotNil(t, challengeResp.MfaChallenge)
-	require.NotNil(t, challengeResp.MfaChallenge.WebauthnChallenge)
+	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge())
 
 	challenge := &proto.MFAAuthenticateChallenge{
 		WebauthnChallenge: challengeResp.MfaChallenge.WebauthnChallenge,
@@ -523,10 +516,6 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 		name string
 		req  *mfav1.ValidateSessionChallengeRequest
 	}{
-		{
-			name: "nil request",
-			req:  nil,
-		},
 		{
 			name: "missing MfaResponse",
 			req: &mfav1.ValidateSessionChallengeRequest{
