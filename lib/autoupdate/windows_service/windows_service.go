@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -196,16 +197,35 @@ func startService(ctx context.Context, cfg *Config) (*mgr.Service, error) {
 	return service, nil
 }
 
+func setupServiceLogger() (func() error, error) {
+	level := slog.LevelInfo
+	if envVar := os.Getenv(teleport.VerboseLogsEnvVar); envVar != "" {
+		isDebug, err := strconv.ParseBool(envVar)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing %s", teleport.VerboseLogsEnvVar)
+		}
+		if isDebug {
+			level = slog.LevelDebug
+		}
+	}
+
+	handler, close, err := logutils.NewSlogEventLogHandler("updateservice", level)
+	if err != nil {
+		return nil, trace.Wrap(err, "initializing log handler")
+	}
+	slog.SetDefault(slog.New(handler))
+	return close, nil
+}
+
 // ServiceMain runs the Windows VNet admin service.
 func ServiceMain() error {
-	//closeFn, err := setupServiceLogger()
-	//if err != nil {
-	//	return trace.Wrap(err, "setting up logger for service")
-	//}
-	closeFn := func() error { return nil }
+	closeFn, err := setupServiceLogger()
+	if err != nil {
+		return trace.Wrap(err, "setting up logger for service")
+	}
 
 	if err := svc.Run(serviceName, &windowsService{}); err != nil {
-		//closeFn()
+		closeFn()
 		return trace.Wrap(err, "running Windows service")
 	}
 
