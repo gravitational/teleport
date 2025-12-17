@@ -18,11 +18,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"os/exec"
 )
+
+func CommandOSTweaks(cmd *exec.Cmd) {
+	reexecCommandOSTweaks(cmd)
+}
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {}
 
