@@ -93,7 +93,7 @@ type Watcher[Instances any] struct {
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetcherMap *utils.SyncMap[string, []Fetcher[Instances]]
+	fetcherMap utils.SyncMap[string, []Fetcher[Instances]]
 
 	pollInterval   time.Duration
 	clock          clockwork.Clock
@@ -107,7 +107,6 @@ type Watcher[Instances any] struct {
 func NewWatcher[Instances any](ctx context.Context, opts ...Option[Instances]) *Watcher[Instances] {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher[Instances]{
-		fetcherMap:   &utils.SyncMap[string, []Fetcher[Instances]]{},
 		ctx:          cancelCtx,
 		cancel:       cancelFn,
 		clock:        clockwork.NewRealClock(),
