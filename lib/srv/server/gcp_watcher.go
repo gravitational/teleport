@@ -65,8 +65,8 @@ func (instances *GCPInstances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 }
 
 // MatchersToGCPInstanceFetchers converts a list of GCP GCE Matchers into a list of GCP GCE Fetchers.
-func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher[GCPInstances] {
-	fetchers := make([]Fetcher[GCPInstances], 0, len(matchers))
+func MatchersToGCPInstanceFetchers(matchers []types.GCPMatcher, gcpClient gcp.InstancesClient, projectsClient gcp.ProjectsClient, discoveryConfigName string) []Fetcher[*GCPInstances] {
+	fetchers := make([]Fetcher[*GCPInstances], 0, len(matchers))
 
 	for _, matcher := range matchers {
 		fetchers = append(fetchers, newGCPInstanceFetcher(gcpFetcherConfig{
@@ -115,7 +115,7 @@ func newGCPInstanceFetcher(cfg gcpFetcherConfig) *gcpInstanceFetcher {
 	}
 }
 
-func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]GCPInstances, error) {
+func (*gcpInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]*GCPInstances, error) {
 	return nil, trace.NotImplemented("not implemented for gcp fetchers")
 }
 
@@ -130,7 +130,7 @@ func (f *gcpInstanceFetcher) IntegrationName() string {
 }
 
 // GetInstances fetches all GCP virtual machines matching configured filters.
-func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]GCPInstances, error) {
+func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*GCPInstances, error) {
 	// Key by project ID, then by zone.
 	instanceMap := make(map[string]map[string][]*gcpimds.Instance)
 	projectIDs, err := f.getProjectIDs(ctx)
@@ -159,11 +159,11 @@ func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]GCPIns
 		}
 	}
 
-	var instances []GCPInstances
+	var instances []*GCPInstances
 	for projectID, vmsByZone := range instanceMap {
 		for zone, vms := range vmsByZone {
 			if len(vms) > 0 {
-				instances = append(instances, GCPInstances{
+				instances = append(instances, &GCPInstances{
 					InstallerParams: f.InstallerParams,
 					ProjectID:       projectID,
 					Zone:            zone,

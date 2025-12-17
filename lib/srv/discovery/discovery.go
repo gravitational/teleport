@@ -394,7 +394,7 @@ type Server struct {
 	// virtual machines.
 	azureInstaller azureInstaller
 	// gcpWatcher periodically retrieves GCP virtual machines.
-	gcpWatcher *server.Watcher[server.GCPInstances]
+	gcpWatcher *server.Watcher[*server.GCPInstances]
 	// gcpInstaller is used to start the installation process on discovered GCP
 	// virtual machines
 	gcpInstaller gcpInstaller
@@ -733,7 +733,7 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 }
 
 // gcpServerFetchersFromMatchers converts Matchers into a set of GCP Servers Fetchers.
-func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfigName string) ([]server.Fetcher[server.GCPInstances], error) {
+func (s *Server) gcpServerFetchersFromMatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfigName string) ([]server.Fetcher[*server.GCPInstances], error) {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.GCPMatcherCompute
 	})
@@ -923,16 +923,16 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		return trace.Wrap(err)
 	}
 
-	s.gcpWatcher = server.NewWatcher[server.GCPInstances](
+	s.gcpWatcher = server.NewWatcher(
 		s.ctx,
-		server.WithPreFetchHookFn[server.GCPInstances](func(fetchers []server.Fetcher[server.GCPInstances]) {
+		server.WithPreFetchHookFn[*server.GCPInstances](func(fetchers []server.Fetcher[*server.GCPInstances]) {
 			if len(fetchers) > 0 {
 				s.submitFetchEvent(types.CloudGCP, types.GCPMatcherCompute)
 			}
 		}),
-		server.WithPollInterval[server.GCPInstances](s.PollInterval),
-		server.WithTriggerFetchC[server.GCPInstances](s.newDiscoveryConfigChangedSub()),
-		server.WithClock[server.GCPInstances](s.clock),
+		server.WithPollInterval[*server.GCPInstances](s.PollInterval),
+		server.WithTriggerFetchC[*server.GCPInstances](s.newDiscoveryConfigChangedSub()),
+		server.WithClock[*server.GCPInstances](s.clock),
 	)
 	s.gcpWatcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
@@ -1536,7 +1536,7 @@ func (s *Server) handleGCPDiscovery() {
 		select {
 		case instances := <-s.gcpWatcher.InstancesC:
 			s.Log.DebugContext(s.ctx, "GCP instances discovered, starting installation", "project_id", instances.ProjectID, "instances", genGCPInstancesLogStr(instances.Instances))
-			if err := s.handleGCPInstances(&instances); err != nil {
+			if err := s.handleGCPInstances(instances); err != nil {
 				if errors.Is(err, errNoInstances) {
 					s.Log.DebugContext(s.ctx, "All discovered GCP VMs are already part of the cluster")
 				} else {
