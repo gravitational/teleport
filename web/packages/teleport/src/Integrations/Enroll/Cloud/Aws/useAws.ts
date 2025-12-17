@@ -34,7 +34,7 @@ export function useAws(initialAwsConfig?: Partial<AwsConfig>) {
     accountId: '',
     regions: ['*'] as WildcardRegion,
     ec2Config: {
-      enabled: false,
+      enabled: true,
       tags: [],
     },
   };

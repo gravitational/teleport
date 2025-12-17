@@ -30,6 +30,8 @@ export const buildTerraformConfig = ({
 }: AwsDiscoverTerraformModuleConfig): string => {
   const ec2Config = awsConfig.ec2Config;
 
+  const matchAwsTypes = ec2Config.enabled ? ['ec2'] : null;
+
   const integrationName =
     awsConfig.integration.name.trim() || '<integration_name>';
 
@@ -64,6 +66,8 @@ module "aws_discovery" {
   teleport_cluster_name         = ${cfg.proxyCluster}
   teleport_proxy_public_addr    = ${cfg.proxyCluster + ':443'}
   teleport_discovery_group_name = "cloud-discovery-group"
+
+  match_aws_types  = ${matchAwsTypes}
 
   match_aws_regions = ${regions}
 

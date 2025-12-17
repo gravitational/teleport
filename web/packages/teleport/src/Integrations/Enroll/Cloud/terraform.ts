@@ -22,6 +22,31 @@ interface TFObject {
 
 type TFValue = string | number | boolean | TFValue[] | TFObject | null;
 
+/**
+ * hcl is a tagged template function for generating Terraform HCL
+ *  configuration. Formats objects, arrays and primitives. If a null value is
+ *  used, it will omit the current line and preceding whitespace.
+ *
+ * @example
+ * const teleportAddr = "teleport.mycluster.example"
+ * const clientIdList = ["discover.teleport"];
+ * const tags         = null;
+ *
+ * const config = hcl`
+ * resource "aws_iam_openid_connect_provider" "teleport_oidc_provider" {
+ *   url             = ${teleportAddr}
+ *   client_id_list  = ${clientIdList}
+ *   tags            = ${tags}
+ * }
+ * `;
+ *
+ *
+ * // Generates:
+ * // resource "aws_iam_openid_connect_provider" "teleport_oidc_provider" {
+ * //   url            = "teleport.mycluster.example"
+ * //   client_id_list = ["discover.teleport"]
+ * // }
+ **/
 export const hcl = (
   strings: TemplateStringsArray,
   ...values: TFValue[]
@@ -30,6 +55,13 @@ export const hcl = (
 
   strings.forEach((str, i) => {
     if (i < values.length && values[i] === null) {
+      // If null, remove current line and preceding whitespace
+      const lines = str.split('\n').slice(0, -1);
+
+      const lastContentIndex = lines.findLastIndex(line => line.trim() !== '');
+
+      result += lines.slice(0, lastContentIndex + 1).join('\n');
+
       return;
     }
 
@@ -79,18 +111,25 @@ const renderValue = (value: TFValue, indent: number): string => {
 
   // TFObject
   if (typeof value === 'object') {
-    if (Object.keys(value).length === 0) return '{}';
-
-    const maxLength = Math.max(...Object.keys(value).map(a => a.length));
-    const spaces = '  '.repeat(indent + 1);
-    const entries = Object.entries(value).map(([key, value]) => {
-      const padding = ' '.repeat(maxLength - key.length);
-      return `${key}${padding} = ${renderValue(value, indent)}`;
-    });
-    return `{\n${spaces}${entries.join(`\n${spaces}`)}\n${'  '.repeat(indent)}}`;
+    return renderObject(value, indent);
   }
 
   return '';
+};
+
+const renderObject = (value: TFObject, indent: number): string => {
+  if (Object.keys(value).length === 0) return '{}';
+
+  const maxLength = Math.max(
+    ...Object.keys(value).map(k => renderKey(k).length)
+  );
+
+  const spaces = '  '.repeat(indent + 1);
+  const entries = Object.entries(value).map(([key, value]) => {
+    const padding = ' '.repeat(maxLength - renderKey(key).length);
+    return `${renderKey(key)}${padding} = ${renderValue(value, indent)}`;
+  });
+  return `{\n${spaces}${entries.join(`\n${spaces}`)}\n${'  '.repeat(indent)}}`;
 };
 
 const renderArray = (value: TFValue[], indent: number): string => {
@@ -105,4 +144,16 @@ const renderArray = (value: TFValue[], indent: number): string => {
   const spaces = '  '.repeat(indent + 1);
   const items = value.map(v => renderValue(v, indent + 1));
   return `[\n${spaces}${items.join(`,\n${spaces}`)}\n${'  '.repeat(indent)}]`;
+};
+
+const renderKey = (key: string): string => {
+  // Source: https://developer.hashicorp.com/terraform/language/syntax/configuration#identifiers
+  // Keys can be left unquoted if they are a valid identifier
+  //
+  // Identifiers can contain letters, digits, underscores (_), and hyphens
+  // (-). The first character of an identifier must not be a digit, to avoid
+  // ambiguity with literal numbers.
+
+  const needsQuotes = !/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(key);
+  return needsQuotes ? JSON.stringify(key) : key;
 };
