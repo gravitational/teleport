@@ -50,8 +50,7 @@ func (a *Server) SetAWSOrganizationsDescribeAccountClientGetter(describeAccountC
 	a.awsOrganizationsDescribeAccountClientGetter = describeAccountClientGetter
 }
 
-// SetAWSOrganizationsDescribeAccountClientGetter returns an HTTP client that should be used for sending
-// client-signed sts:GetCallerIdentity requests to AWS.
+// SetAWSOrganizationsDescribeAccountClientGetter returns client getter which is capable of describing accounts in AWS Organizations.
 func (a *Server) GetAWSOrganizationsDescribeAccountClientGetter() iamjoin.DescribeAccountClientGetter {
 	return a.awsOrganizationsDescribeAccountClientGetter
 }

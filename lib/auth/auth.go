@@ -49,6 +49,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
@@ -576,11 +577,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.AWSOrganizationsDescribeAccountClientGetter == nil {
-		cachedProvider, err := awsconfig.NewCache()
+		cfg.AWSOrganizationsDescribeAccountClientGetter, err = awsOrganizationsClientUsingAmbientCredentials(closeCtx, cfg.Clock, describeAccountRemoteAPI)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cfg.AWSOrganizationsDescribeAccountClientGetter = organizationsClientUsingAmbientCredentials(cachedProvider)
 	}
 
 	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
@@ -902,9 +902,25 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	return as, nil
 }
 
-// organizationsClientUsingAmbientCredentials returns an AWS Organizations client getter
+// awsOrganizationsClientUsingAmbientCredentials returns an AWS Organizations client getter
 // that uses ambient credentials to create the client.
-func organizationsClientUsingAmbientCredentials(awsConfigProvider awsconfig.Provider) iamjoin.DescribeAccountClientGetter {
+func awsOrganizationsClientUsingAmbientCredentials(ctx context.Context, clock clockwork.Clock, describeAccountRemoteAPI func(aws.Config) iamjoin.DescribeAccountAPIClient) (iamjoin.DescribeAccountClientGetter, error) {
+	awsConfigProvider, err := awsconfig.NewCache()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Adding a cache layer for the DescribeAccount calls allows us to avoid being rate limited when thousands of EC2 instances try to join at once.
+	describeAccountAPICache, err := utils.NewFnCache(utils.FnCacheConfig{
+		// Organizations data doesn't change often, so we can cache it for a long period.
+		TTL:     1 * time.Minute,
+		Clock:   clock,
+		Context: ctx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
 		// For IAM Join flow, the join token might allow instances under an Organization to join the cluster.
 		// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
@@ -916,15 +932,33 @@ func organizationsClientUsingAmbientCredentials(awsConfigProvider awsconfig.Prov
 			return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not supported in Teleport Cloud")
 		}
 
-		// Use cached AWS config without specifying a region, as Organizations is a global service.
+		// AWS Organizations API has a global API, so no region is required to be passed.
 		const noRegion = ""
 		awsCfg, err := awsConfigProvider.GetConfig(ctx, noRegion, awsconfig.WithAmbientCredentials())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return organizations.NewFromConfig(awsCfg).DescribeAccount, nil
-	}
+		return wrapDescribeAccountAPIClientWithCache(
+			describeAccountRemoteAPI(awsCfg),
+			describeAccountAPICache,
+		)
+	}, nil
+}
+
+func describeAccountRemoteAPI(awsCfg aws.Config) iamjoin.DescribeAccountAPIClient {
+	return organizations.NewFromConfig(awsCfg).DescribeAccount
+}
+
+func wrapDescribeAccountAPIClientWithCache(remoteAPI iamjoin.DescribeAccountAPIClient, describeAccountAPICache *utils.FnCache) (iamjoin.DescribeAccountAPIClient, error) {
+	return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+		describeAccountOutput, err := utils.FnCacheGet(ctx, describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+			remoteDescribeAccountOutput, err := remoteAPI(ctx, params, optFns...)
+			return remoteDescribeAccountOutput, trace.Wrap(err)
+		})
+
+		return describeAccountOutput, trace.Wrap(err)
+	}, nil
 }
 
 // GetWebSession returns existing web session described by req.
