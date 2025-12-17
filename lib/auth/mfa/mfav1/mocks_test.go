@@ -37,6 +37,12 @@ type mockAuthServer struct {
 
 // NewMockAuthServer creates a new instance of mockAuthServer.
 func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*mockAuthServer, error) {
+	// The authtest.AuthServer implementation currently does not support SSO MFA devices like it does for TOTP and
+	// Webauthn. We work around this by wrapping the Identity service with our mock that returns the provided SSO MFA
+	// devices after merging with any registered devices during the test. Additionally, this mock AuthServer that wraps
+	// authtest.AuthServer overrides the SSO MFA challenge methods to provide mock implementations. Support for SSO MFA
+	// devices will be added in https://github.com/gravitational/teleport/issues/62271.
+	// TODO(cthach): Remove this workaround once authtest.AuthServer supports SSO MFA devices.
 	authServer, err := authtest.NewTestServer(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -84,20 +90,20 @@ func (m *mockAuthServer) VerifySSOMFASession(
 	}
 
 	// Find the first SSO MFA device. Good enough for this mock.
-	var mfaDevice *types.MFADevice
+	var ssoDevice *types.MFADevice
 
 	for _, dev := range devices {
 		if _, ok := dev.Device.(*types.MFADevice_Sso); ok {
-			mfaDevice = dev
+			ssoDevice = dev
 			break
 		}
 	}
 
-	if mfaDevice == nil {
+	if ssoDevice == nil {
 		return nil, trace.NotFound("SSO MFA device not found %q", sessionID)
 	}
 
-	return &authz.MFAAuthData{Device: mfaDevice}, nil
+	return &authz.MFAAuthData{Device: ssoDevice}, nil
 }
 
 type mockAuthServerIdentity struct {
