@@ -145,7 +145,7 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 // upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
 // sessionID, connector details, and challenge extensions.
 func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload) error {
-	err := a.UpsertSSOMFASessionData(ctx, &services.SSOMFASessionData{
+	data := &services.SSOMFASessionData{
 		Username:      user,
 		RequestID:     sessionID,
 		ConnectorID:   connectorID,
@@ -154,11 +154,15 @@ func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID
 			Scope:      ext.Scope,
 			AllowReuse: ext.AllowReuse,
 		},
-		Payload: &mfatypes.SessionIdentifyingPayload{
+	}
+
+	if sip != nil {
+		data.Payload = &mfatypes.SessionIdentifyingPayload{
 			SSHSessionID: sip.GetSshSessionId(),
-		},
-	})
-	return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(a.UpsertSSOMFASessionData(ctx, data))
 }
 
 // UpsertSSOMFASessionWithToken upserts the given SSO MFA session with a random mfa token.
