@@ -383,7 +383,6 @@ func TestValidateSessionChallenge_Webauthn(t *testing.T) {
 		WebauthnChallenge: challengeResp.MfaChallenge.WebauthnChallenge,
 	}
 
-	// Simulate solving the Webauthn challenge so it is stored in the backend and can be retrieved for validation.
 	mfaResp, err := device.SolveAuthn(challenge)
 	require.NoError(t, err)
 
