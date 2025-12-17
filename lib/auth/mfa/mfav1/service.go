@@ -63,11 +63,13 @@ type Cache interface {
 }
 
 // Emitter defines the subset of event emitter methods used by the MFA service.
+// See lib/auth.Server.Emitter.
 type Emitter interface {
 	EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error
 }
 
 // Identity defines the subset of identity methods used by the MFA service.
+// See lib/auth.Server.Identity.
 type Identity interface {
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	GetWebauthnLocalAuth(ctx context.Context, user string) (*types.WebauthnLocalAuth, error)
