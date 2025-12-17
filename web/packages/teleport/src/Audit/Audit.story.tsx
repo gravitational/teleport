@@ -67,9 +67,10 @@ export const Failed = () => {
 export const AllPossibleEvents = () => (
   <EventList
     events={events}
-    fetchMore={() => null}
-    fetchStatus={''}
-    pageSize={1000}
+    search=""
+    setSearch={() => null}
+    setSort={() => null}
+    sort={{ dir: 'ASC', fieldName: 'created' }}
   />
 );
 

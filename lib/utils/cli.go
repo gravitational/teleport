@@ -123,7 +123,7 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		o.format = LogFormatJSON
 	}
 
-	logger, _, err := logutils.Initialize(logutils.Config{
+	logger, _, _, err := logutils.Initialize(logutils.Config{
 		Severity:       level.String(),
 		Format:         o.format,
 		EnableColors:   IsTerminal(os.Stderr),
@@ -238,6 +238,51 @@ func formatCertError(err error) string {
 
 	var hostnameErr x509.HostnameError
 	if errors.As(err, &hostnameErr) {
+		// Special case for connecting to Auth via Proxy using internal cluster domain.
+		if strings.HasSuffix(hostnameErr.Host, ".teleport.cluster.local") {
+			var proxyEnvBuilder strings.Builder
+			for _, key := range []string{
+				"https_proxy", "http_proxy", "no_proxy",
+				"HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+			} {
+				if val, ok := os.LookupEnv(key); ok {
+					fmt.Fprintf(&proxyEnvBuilder, "    %s: %s\n", key, val)
+				}
+			}
+
+			return fmt.Sprintf(`Cannot connect to the Auth service via the Teleport Proxy.
+
+  There might be one or more network intermediaries (like a proxy or VPN) that are modifying your connection before it
+  reaches the Teleport Proxy. These intermediaries can alter how your connection is seen by the Teleport Proxy and
+  routed, leading to certificate mismatches.
+
+  To fix this, ensure that any network intermediaries are properly configured and not interfering with your connection.
+
+DEBUG INFO:
+  Host: %s
+
+  Proxy Environment Variables:
+%s
+  Server Certificate Details:
+    Subject: %s
+    Issuer: %s
+    Serial Number: %s
+    Not Before: %s
+    Not After: %s
+    DNS Names: %v
+    IP Addresses: %v`,
+				hostnameErr.Host,
+				proxyEnvBuilder.String(),
+				hostnameErr.Certificate.Subject,
+				hostnameErr.Certificate.Issuer,
+				hostnameErr.Certificate.SerialNumber,
+				hostnameErr.Certificate.NotBefore,
+				hostnameErr.Certificate.NotAfter,
+				hostnameErr.Certificate.DNSNames,
+				hostnameErr.Certificate.IPAddresses,
+			)
+		}
+
 		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
 			hostnameErr.Host,
 			hostnameErr.Error(),
@@ -431,7 +476,7 @@ Usage: {{.App.Name}}{{template "FormatUsage" .App}}
 {{end -}}
 {{if .Context.Flags -}}
 Flags:
-{{.Context.Flags|FlagsToTwoColumnsCompact|FormatTwoColumns}}
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
 {{end -}}
 {{if .Context.Args -}}
 Args:

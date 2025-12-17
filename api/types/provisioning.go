@@ -1050,6 +1050,9 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 				i,
 			)
 		}
+		if len(rule.Instances) > 100 {
+			return trace.BadParameter("allow[%d]: maximum 100 instances may be set (found %d)", i, len(rule.Instances))
+		}
 	}
 	return nil
 }

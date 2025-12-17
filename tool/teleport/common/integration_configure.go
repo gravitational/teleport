@@ -223,6 +223,7 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 		SQSQueueURL:         params.SQSQueueURL,
 		CloudTrailBucketARN: params.CloudTrailBucketARN,
 		KMSKeyARNs:          params.KMSKeyARNs,
+		EnableEKSAuditLogs:  params.EnableEKSAuditLogs,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }

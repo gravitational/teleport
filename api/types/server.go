@@ -112,6 +112,8 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *GitHubServerMetadata
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewServer creates an instance of Server.
@@ -747,6 +749,11 @@ func (s *ServerV2) GetAWSInfo() *AWSInfo {
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *ServerV2) GetScope() string {
+	return s.Scope
 }
 
 // CommandLabel is a label that has a value as a result of the

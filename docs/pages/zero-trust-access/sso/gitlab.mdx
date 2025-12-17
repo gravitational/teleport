@@ -1,5 +1,6 @@
 ---
 title: Authentication With GitLab as an SSO provider
+sidebar_label: GitLab
 description: How to configure Teleport access using GitLab for SSO
 tags:
  - sso
@@ -32,7 +33,7 @@ like:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Configure GitLab
+## Step 1/3. Configure GitLab
 
 You should have at least one group configured in GitLab to map to Teleport roles.
 In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users
@@ -67,67 +68,17 @@ to each of these groups.
    `https://gitlab.com/.well-known/openid-configuration`. If you are self
    hosting the issuer address is the path to your GitLab instance.
 
-## Step 2/4. Create Teleport Roles
+## Step 2/3. Connect GitLab to Teleport
 
-We are going to create 2 roles, privileged role admin who is able to login as
-root and is capable of administrating the cluster and non-privileged dev.
+In this section, you will create an authentication connector that provides
+Teleport with the information it needs to exchange OIDC messages with GitLab and
+issue certificates to users.
 
-```yaml
-kind: role
-version: v5
-metadata:
-  name: admin
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [root]
-    node_labels:
-      "*": "*"
-    rules:
-      - resources: ["*"]
-        verbs: ["*"]
-```
+### Assign a role mapping
 
-The developer role:
+(!docs/pages/includes/sso/role-mapping.mdx fieldType="claim"!)
 
-```yaml
-kind: role
-version: v5
-metadata:
-  name: dev
-spec:
-  options:
-    max_session_ttl: 24h
-  allow:
-    logins: [ "{{email.local(external.email)}}", ubuntu ]
-    node_labels:
-      access: relaxed
-```
-
-- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
-- Developers can log in as `ubuntu` user
-- Notice the `{{external.email}}` login. It configures Teleport to look at the
-  *"email"* GitLab claim and use that field as an allowed login for each user.
-  The `email.local(external.trait)` function removes the `@domain` and preserves
-  the username prefix. For full details on how variable expansion works in
-  Teleport roles, see the [Access Controls
-  Reference](../../reference/access-controls/roles.mdx).
-- Developers also do not have any "allow rules" i.e. they will not be able to
-  see/replay past sessions or re-configure the Teleport cluster.
-
-Create both roles on the Auth Service:
-
-```code
-$ tctl create -f admin.yaml
-$ tctl create -f dev.yaml
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
-## Step 3/4. Configure Teleport
-
-### Create a OIDC Connector
+### Configure an OIDC connector
 
 Create an OIDC connector resource using `tctl`.
 
@@ -142,8 +93,8 @@ Replace the application ID and secret with the values from GitLab:
 $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
 --secret $( cat client-secret.txt) \
---claims-to-roles groups,company/admin,admin \
---claims-to-roles groups,company/dev,dev > oidc.yaml
+--claims-to-roles <Var name="mapping_1" /> \
+--claims-to-roles <Var name="mapping_2" /> > oidc.yaml
 ```
 
 </TabItem>
@@ -156,8 +107,8 @@ $ tctl sso configure oidc --preset gitlab \
 --id <APPLICATION-ID> \
 --issuer-url https://gitlab.company.com \
 --secret $( cat client-secret.txt) \
---claims-to-roles groups,company/admin,admin \
---claims-to-roles groups,company/dev,dev > oidc.yaml
+--claims-to-roles <Var name="mapping_1" /> \
+--claims-to-roles <Var name="mapping_2" /> > oidc.yaml
 ```
 
 </TabItem>
@@ -190,6 +141,10 @@ version: v3
 
 ```
 
+(!docs/pages/includes/sso/username-claim.mdx!)
+
+### Test the connector
+
 Test the connector resource by piping the file to `tctl sso test`:
 
 ```code
@@ -200,15 +155,13 @@ After authorizing the application in GitLab you should get a
 **Login Successful** message in your web browser. Otherwise, consult the output
 of the command to diagnose.
 
+### Create the connector
+
 Create the connector using `tctl` tool:
 
 ```code
 $ tctl create -f oidc.yaml
 ```
-
-## Step 4/4. Enable default OIDC authentication
-
-(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
 The Web UI will now contain a new button: "Login with GitLab". The CLI is
 the same as before:
@@ -236,6 +189,14 @@ automatically in a browser).
   means you can not initiate login from your identity provider, you have to
   initiate login from either the Teleport Web UI or CLI.
 </Admonition>
+
+## Step 3/3. Configure authentication preferences
+
+(!docs/pages/includes/sso/cap.mdx type="oidc"!)
+
+## Next steps
+
+(!docs/pages/includes/sso/next-step-traits.mdx!)
 
 ## Troubleshooting
 

@@ -18,6 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { action } from 'storybook/internal/actions';
 import styled from 'styled-components';
 
 import { CardTile } from 'design/CardTile/CardTile';
@@ -47,51 +48,54 @@ type Story = StoryObj<typeof meta>;
 
 export default meta;
 
-export const listBotInstancesSuccessHandler = listBotInstancesSuccess({
-  bot_instances: [
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'my-svc.my-namespace.svc.cluster-domain.example',
-      join_method_latest: 'github',
-      os_latest: 'linux',
-      version_latest: '4.4.0',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'win-123a',
-      join_method_latest: 'tpm',
-      os_latest: 'windows',
-      version_latest: '4.3.18+ab12hd',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'mac-007',
-      join_method_latest: 'kubernetes',
-      os_latest: 'darwin',
-      version_latest: '3.9.99',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-      active_at_latest: '2025-07-22T10:54:00Z',
-      host_name_latest: 'aws:g49dh27dhjm3',
-      join_method_latest: 'ec2',
-      os_latest: 'linux',
-      version_latest: '1.3.2',
-    },
-    {
-      bot_name: 'ansible-worker',
-      instance_id: crypto.randomUUID(),
-    },
-  ],
-  next_page_token: '',
-});
+export const listBotInstancesSuccessHandler = listBotInstancesSuccess(
+  {
+    bot_instances: [
+      {
+        bot_name: 'ansible-worker',
+        instance_id: crypto.randomUUID(),
+        active_at_latest: '2025-07-22T10:54:00Z',
+        host_name_latest: 'my-svc.my-namespace.svc.cluster-domain.example',
+        join_method_latest: 'github',
+        os_latest: 'linux',
+        version_latest: '4.4.0',
+      },
+      {
+        bot_name: 'ansible-worker',
+        instance_id: crypto.randomUUID(),
+        active_at_latest: '2025-07-22T10:54:00Z',
+        host_name_latest: 'win-123a',
+        join_method_latest: 'tpm',
+        os_latest: 'windows',
+        version_latest: '4.3.18+ab12hd',
+      },
+      {
+        bot_name: 'ansible-worker',
+        instance_id: crypto.randomUUID(),
+        active_at_latest: '2025-07-22T10:54:00Z',
+        host_name_latest: 'mac-007',
+        join_method_latest: 'kubernetes',
+        os_latest: 'darwin',
+        version_latest: '3.9.99',
+      },
+      {
+        bot_name: 'ansible-worker',
+        instance_id: crypto.randomUUID(),
+        active_at_latest: '2025-07-22T10:54:00Z',
+        host_name_latest: 'aws:g49dh27dhjm3',
+        join_method_latest: 'ec2',
+        os_latest: 'linux',
+        version_latest: '1.3.2',
+      },
+      {
+        bot_name: 'ansible-worker',
+        instance_id: crypto.randomUUID(),
+      },
+    ],
+    next_page_token: '',
+  },
+  'v1'
+);
 
 export const Happy: Story = {
   parameters: {
@@ -142,7 +146,10 @@ function Wrapper(props: { hasBotInstanceListPermission?: boolean }) {
       <TeleportProviderBasic teleportCtx={ctx}>
         <Container>
           <InnerContainer>
-            <InstancesPanel botName="ansible-worker" />
+            <InstancesPanel
+              botName="ansible-worker"
+              onItemSelected={action('onItemSelected')}
+            />
           </InnerContainer>
         </Container>
       </TeleportProviderBasic>

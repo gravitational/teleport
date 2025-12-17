@@ -341,7 +341,7 @@ func TestWebTokenCRUD(t *testing.T) {
 		Token: "doesnotexist",
 		User:  "alice",
 	})
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Upsert.
 	expected[1].SetUser("alice")
@@ -398,7 +398,7 @@ func TestWebTokenCRUD(t *testing.T) {
 		Token: "doesnotexist",
 		User:  "doesnotexist",
 	})
-	require.IsType(t, trace.NotFound(""), err)
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	err = identity.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 		Token: expected[0].GetToken(),

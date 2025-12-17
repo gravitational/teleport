@@ -1,0 +1,10 @@
+If you haven't set up a Machine ID bot yet, refer to the
+[deployment guide](../../machine-workload-identity/deployment/deployment.mdx)
+to run the `tbot` binary on your infrastructure.
+
+Next, allow the Machine ID bot to generate credentials for the `access-plugin`
+role. You can do this using `tctl`, replacing `my-bot` with the name of your bot:
+
+```code
+$ tctl bots update my-bot --add-roles access-plugin
+```

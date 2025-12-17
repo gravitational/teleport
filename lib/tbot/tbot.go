@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -57,7 +58,7 @@ import (
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot")
 
-var clientMetrics = metrics.CreateGRPCClientMetrics(
+var clientMetrics = grpcmetrics.CreateGRPCClientMetrics(
 	false,
 	prometheus.Labels{},
 )

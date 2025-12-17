@@ -224,12 +224,15 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -342,6 +345,8 @@ func (c *Config) SetDefaults() {
 	if c.AutomaticUpgradesChannels == nil {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
+
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
 
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
@@ -872,7 +877,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/db/exec/ws", h.WithClusterAuthWebSocket(h.dbConnect))
 
 	// Audit events handlers.
-	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
+	// TODO (avatus): delete in v21
+	// Deprecated: Use the v2 endpoint instead.
+	//
+	// clusterSearchEvents handles audit event retrieval for a given site.
+	// This legacy endpoint returns event listings without advanced search capabilities.
+	// Prefer using /v2/webapi/sites/:site/events/search for full query-based filtering.
+	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents)) // search site events
+	// clusterSearchEventsV2 handles audit event retrieval for a given site with support for
+	// advanced search filters and query parameters.
+	h.GET("/v2/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEventsV2))            // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
@@ -980,7 +994,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
+	// TODO(kimlisa): DELETE IN 20.0 along with the api path defined in `config.ts`
+	// Replaced by its v2 endpoint
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
+	// v2 introduces a query param for optionally including system roles
+	// in the list and optionally include returning the object version
+	// of resource (only supported for roles).
+	h.GET("/v2/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
@@ -1197,6 +1217,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	// MWI IaC Wizards
+	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2303,13 +2326,13 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	req, err := ParseSSORequestParams(r)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to extract SSO parameters from request", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
@@ -2322,7 +2345,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return response.RedirectURL
@@ -2361,6 +2384,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		RouteToCluster:          req.RouteToCluster,
 		KubernetesCluster:       req.KubernetesCluster,
 		ClientLoginIP:           remoteAddr,
+		Scope:                   req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)
@@ -2395,10 +2419,10 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			}
 		}
 		if errors.Is(err, auth.ErrGithubNoTeams) {
-			return client.LoginFailedUnauthorizedRedirectURL
+			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 
-		return client.LoginFailedBadCallbackRedirectURL
+		return sso.LoginFailedBadCallbackRedirectURL
 	}
 
 	// if we created web session, set session cookie and redirect to original url
@@ -2415,7 +2439,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
 			logger.ErrorContext(r.Context(), "Error setting web session.", "error", err)
-			return client.LoginFailedRedirectURL
+			return sso.LoginFailedRedirectURL
 		}
 
 		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
@@ -2434,7 +2458,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger.InfoContext(r.Context(), "Callback is redirecting to console login")
 	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
 		logger.ErrorContext(r.Context(), "Not a web or console login request")
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	redirectURL, err := ConstructSSHResponse(AuthParams{
@@ -2450,7 +2474,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error constructing ssh response", "error", err)
-		return client.LoginFailedRedirectURL
+		return sso.LoginFailedRedirectURL
 	}
 
 	return redirectURL.String()
@@ -2554,7 +2578,7 @@ type AuthParams struct {
 	HostSigners []types.CertAuthority
 	// ClientRedirectURL is a URL to redirect client to
 	ClientRedirectURL string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 	// MFAToken is an SSO MFA token.
@@ -2733,6 +2757,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	var webSession types.WebSession
 	switch {
@@ -2771,9 +2796,20 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 }
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
+	var maxTouchPoints int
+	// The frontend client sends Max-Touch-Points only to endpoints that lead to the Device Trust
+	// prompt in the Web UI.
+	rawMaxTouchPoints := r.Header.Get("Max-Touch-Points")
+	if rawMaxTouchPoints != "" {
+		if value, err := strconv.Atoi(rawMaxTouchPoints); err == nil {
+			maxTouchPoints = value
+		}
+	}
+
 	return &authclient.ForwardedClientMetadata{
-		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
+		UserAgent:      r.UserAgent(),
+		RemoteAddr:     r.RemoteAddr,
+		MaxTouchPoints: maxTouchPoints,
 	}
 }
 
@@ -3118,6 +3154,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3142,6 +3180,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
 	// Since checking for private key policy meant that they passed authn,
@@ -3151,6 +3191,11 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Return a friendlier error if an SSO user tried to do passwordless.
 	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
+		return nil, trace.Wrap(err)
+
+	// Return a friendlier error if the user has assigned a role that doesn't exist in the
+	// backend.
+	case errors.Is(err, types.ErrNonExistingRoleAssigned):
 		return nil, trace.Wrap(err)
 
 	// Obscure all other errors.
@@ -3675,7 +3720,19 @@ func (h *Handler) getClusterLocks(
 		return nil, trace.Wrap(err)
 	}
 
-	locks, err := clt.GetLocks(ctx, false)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			var noFilter *types.LockFilter
+			return clt.ListLocks(ctx, limit, start, noFilter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			const inForceOnlyFalse = false
+			return clt.GetLocks(ctx, inForceOnlyFalse)
+		},
+	)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3700,7 +3757,10 @@ func (h *Handler) getClusterLocksV2(
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(okraport): DELETE IN v21
 	var targets []types.LockTarget
+	filter := &types.LockFilter{}
+
 	if r.URL.Query().Has("target") {
 		ts := r.URL.Query()["target"]
 		for _, ts := range ts {
@@ -3734,15 +3794,26 @@ func (h *Handler) getClusterLocksV2(
 				return nil, trace.BadParameter("invalid target type %q", parts[0])
 			}
 			targets = append(targets, target)
+			filter.Targets = append(filter.Targets, &target)
 		}
 	}
 
 	inForceOnly := false
 	if r.URL.Query().Has("in_force_only") {
 		inForceOnly = r.URL.Query().Get("in_force_only") == "true"
+		filter.InForceOnly = inForceOnly
 	}
 
-	locks, err := clt.GetLocks(ctx, inForceOnly, targets...)
+	locks, err := clientutils.CollectWithFallback(
+		ctx,
+		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
+			return clt.ListLocks(ctx, limit, start, filter)
+		},
+		func(ctx context.Context) ([]types.Lock, error) {
+			// TODO(okraport): DELETE IN v21
+			return clt.GetLocks(ctx, inForceOnly, targets...)
+		},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3894,15 +3965,14 @@ func (h *Handler) siteNodeConnect(
 	)
 
 	clusterName := cluster.GetName()
-	if req.SessionID.IsZero() {
-		// An existing session ID was not provided so we need to create a new one.
+	if req.JoinSessionID.IsZero() {
 		sessionData, err = h.generateSession(r.Context(), &req, clusterName, sessionCtx)
 		if err != nil {
 			h.logger.DebugContext(r.Context(), "Unable to generate new ssh session", "error", err)
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, &req, clusterName)
+		sessionData, tracker, err = h.fetchJoinSession(ctx, clt, &req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3922,7 +3992,6 @@ func (h *Handler) siteNodeConnect(
 	h.logger.DebugContext(r.Context(), "New terminal request",
 		"server", req.Server,
 		"login", req.Login,
-		"sid", sessionData.ID,
 		"websid", sessionCtx.GetSessionID(),
 	)
 
@@ -4236,9 +4305,19 @@ func (h *Handler) generateSession(ctx context.Context, req *TerminalRequest, clu
 	}, nil
 }
 
-// fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
-	sessionID, err := session.ParseID(req.SessionID.String())
+// fetchJoinSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
+func (h *Handler) fetchJoinSession(ctx context.Context, clt authclient.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
+	// Session joining is not supported in proxy recording mode
+	if recConfig, err := h.auth.accessPoint.GetSessionRecordingConfig(ctx); err != nil {
+		// If the user can't see the recording mode, just let them try joining below
+		if !trace.IsAccessDenied(err) {
+			return session.Session{}, nil, trace.Wrap(err)
+		}
+	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
+		return session.Session{}, nil, trace.BadParameter("session joining is not supported in proxy recording mode. If you are a Teleport administrator, you can learn more about recording modes at: https://goteleport.com/docs/reference/architecture/session-recording")
+	}
+
+	sessionID, err := session.ParseID(req.JoinSessionID.String())
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
 	}
@@ -4247,6 +4326,10 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt authclient.Clien
 	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
 	if err != nil {
 		return session.Session{}, nil, trace.Wrap(err)
+	}
+
+	if types.IsOpenSSHNodeSubKind(tracker.GetTargetSubKind()) {
+		return session.Session{}, nil, trace.BadParameter("session joining is only supported for nodes which are Teleport agents, not OpenSSH nodes")
 	}
 
 	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
@@ -4368,6 +4451,47 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 	}
 
 	return el, nil
+}
+
+// clusterSearchEventsV2 returns all audit log events matching the provided criteria
+//
+// GET /v2/webapi/sites/:site/events/search
+//
+// Query parameters:
+//
+//	"from"    : date range from, encoded as RFC3339
+//	"to"      : date range to, encoded as RFC3339
+//	"limit"   : optional maximum number of events to return on each fetch
+//	"startKey": resume events search from the last event received,
+//	            empty string means start search from beginning
+//	"include" : optional comma-separated list of event names to return e.g.
+//	            include=session.start,session.end, all are returned if empty
+//	"order":    optional ordering of events. Can be either "asc" or "desc"
+//	            for ascending and descending respectively.
+//	            If no order is provided it defaults to descending.
+//	"search":   optional search term to filter events by (case-insensitive substring match)
+func (h *Handler) clusterSearchEventsV2(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	values := r.URL.Query()
+
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ",")
+	}
+
+	search := values.Get("search")
+
+	searchEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
+			From:       from,
+			To:         to,
+			EventTypes: eventTypes,
+			Limit:      limit,
+			Order:      order,
+			StartKey:   startKey,
+			Search:     search,
+		})
+	}
+	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchEvents)
 }
 
 // clusterSearchEvents returns all audit log events matching the provided criteria
@@ -4528,7 +4652,7 @@ func QueryLimitAsInt32(query url.Values, name string, def int32) (int32, error) 
 // queryOrder returns the order parameter with the specified name from the
 // query string or a default if the parameter is not provided.
 func queryOrder(query url.Values, name string, def types.EventOrder) (types.EventOrder, error) {
-	value := query.Get(name)
+	value := strings.ToLower(query.Get(name))
 	switch value {
 	case "desc":
 		return types.EventOrderDescending, nil
@@ -4590,13 +4714,15 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
-			ClientMetadata:           clientMetaFromReq(r),
+			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,
@@ -4975,7 +5101,7 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 
 		redirectURL := fn(w, r, p)
 		if !IsValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 	}
@@ -4989,7 +5115,7 @@ func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		redirectURL := fn(w, r, p)
 		if !IsValidRedirectURL(redirectURL) {
-			redirectURL = client.LoginFailedRedirectURL
+			redirectURL = sso.LoginFailedRedirectURL
 		}
 		err := app.MetaRedirect(w, redirectURL)
 		if err != nil {
@@ -5031,7 +5157,7 @@ func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
 // This is a good default to use as both Cluster and User auth are checked here, but `WithLimiter` can be used if
 // you're certain that no authenticated requests will be made.
 func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.limiter)
 }
 
 // WithUnauthenticatedHighLimiter adds a conditional IP-based rate limiting that will limit only unauthenticated
@@ -5039,20 +5165,75 @@ func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.
 // This higher rate limit should only be used on endpoints which are only CPU constrained
 // (no file or other resources used).
 func (h *Handler) WithUnauthenticatedHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithHighLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.highLimiter)
 }
 
-func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc func(fn httplib.HandlerFunc) httplib.HandlerFunc) httprouter.Handle {
+func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// check if the request remote is rate limited before attempting authentication.
+		isLimited, err := isRequestRateLimited(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if isLimited {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
 		if _, _, err := h.authenticateRequestWithCluster(w, r, p); err != nil {
 			// retry with user auth
 			if _, err = h.AuthenticateRequest(w, r, true /* check token */); err != nil {
 				// no auth passed, limit request
-				return rateFunc(fn)(w, r, p)
+				return withLimiterHandlerFunc(fn, limiter)(w, r, p)
 			}
 		}
 		// auth passed, call directly
 		return fn(w, r, p)
+	})
+}
+
+func withLimiterHandlerFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		err := rateLimitRequest(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p)
+	}
+}
+
+// WithAccessDeniedLimiter adds conditional IP-based rate limiting that only applies
+// when the request handler returns an access denied error.
+//
+// This is different from WithUnauthenticatedLimiter in an important way:
+//   - WithUnauthenticatedLimiter: Checks authentication BEFORE executing the handler using local
+//     authentication mechanisms (user auth session cookie). If authentication fails locally, it
+//     applies rate limiting BEFORE executing the handler.
+//   - WithAccessDeniedLimiter: Executes the handler first, delegates authentication
+//     to the handler, then applies rate limiting ONLY if the handler returns an access denied error.
+//
+// Use this limiter for endpoints where authentication happens downstream (e.g., SCIM
+// endpoints where auth is handled by the auth server, not in the proxy).
+func (h *Handler) WithAccessDeniedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return h.conditionalLimiterFunc(fn, h.limiter, trace.IsAccessDenied)
+}
+
+func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter, shouldLimit func(error) bool) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		remoteAddr, err := getRemoteAddressFromRequest(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if limiter.IsRateLimited(remoteAddr) {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+		result, err := fn(w, r, p)
+		if err != nil {
+			if shouldLimit(err) {
+				if err := limiter.RegisterRequest(remoteAddr, nil); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+		return result, err
 	})
 }
 
@@ -5076,34 +5257,39 @@ func (h *Handler) WithHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		err := rateLimitRequest(r, h.limiter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return fn(w, r, p)
-	}
+	return withLimiterHandlerFunc(fn, h.limiter)
 }
 
 // WithHighLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This is similar to WithLimiterHandlerFunc
 // but provides a higher rate limit.  This should only be used for requests which are only CPU bound (no disk or other
 // resources used).
 func (h *Handler) WithHighLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		err := rateLimitRequest(r, h.highLimiter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return fn(w, r, p)
+	return withLimiterHandlerFunc(fn, h.highLimiter)
+}
+
+// isRequestRateLimited checks if the request would be rate-limited without consuming any tokens.
+// Returns true if the request is rate-limited, false otherwise.
+func isRequestRateLimited(r *http.Request, limiter *limiter.RateLimiter) (bool, error) {
+	remote, err := getRemoteAddressFromRequest(r)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
+	return limiter.IsRateLimited(remote), nil
+}
+
+func getRemoteAddressFromRequest(r *http.Request) (string, error) {
+	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return remote, nil
 }
 
 func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
-	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	remote, err := getRemoteAddressFromRequest(r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
 }
 
@@ -5360,6 +5546,8 @@ type SSORequestParams struct {
 	ConnectorID string
 	// CSRFToken is used to protect against login-CSRF in SSO flows.
 	CSRFToken string
+	// LoginHint is the user's identifier (email) for identifier-first login.
+	LoginHint string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5387,6 +5575,10 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	}
 
 	query := r.URL.Query()
+	loginHint := query.Get("login_hint")
+	if len(loginHint) > teleport.MaxUsernameLength {
+		loginHint = ""
+	}
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
@@ -5401,6 +5593,7 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
+		LoginHint:         loginHint,
 	}, nil
 }
 

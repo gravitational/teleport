@@ -1,0 +1,55 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.mfa.v1;
+
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
+
+// ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
+message ValidatedMFAChallenge {
+  // Resource kind, always 'validated_mfa_challenge'.
+  string kind = 1;
+  // No sub-kinds are currently defined and can be empty. Reserved for future use.
+  string sub_kind = 2;
+  // Currently only 'v1' is supported.
+  string version = 3;
+  // Common metadata for the resource.
+  types.Metadata metadata = 4;
+  // Validated challenge specification.
+  ValidatedMFAChallengeSpec spec = 5;
+}
+
+// ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
+message ValidatedMFAChallengeSpec {
+  // Value that uniquely identifies the user's session. Supplied in CreateSessionChallengeRequest.
+  SessionIdentifyingPayload payload = 1;
+  // Name of the cluster where the validated challenge originated.
+  string source_cluster = 2;
+  // Name of the cluster where the SSH session is being established and this resource is intended for.
+  string target_cluster = 3;
+}
+
+// SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the
+// client from session state and is used to bind MFA challenges to specific sessions.
+message SessionIdentifyingPayload {
+  oneof payload {
+    // SSH session hash computed from session state. For example, in Go this is the value from
+    // crypto/ssh#ConnMetadata.SessionID().
+    bytes ssh_session_id = 1;
+  }
+}

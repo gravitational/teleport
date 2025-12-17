@@ -71,6 +71,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 						Name:      "1",
 					},
 					Spec: types.AppServerSpecV3{
+						App:      &types.AppV3{},
 						Hostname: "2",
 					},
 				}
@@ -198,7 +199,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			require.Equal(t, HeartbeatStateKeepAlive, hb.state)
 			_, err = hb.announce()
 			require.Error(t, err)
-			require.IsType(t, announcer.err, err)
+			require.ErrorIs(t, err, announcer.err)
 			require.Equal(t, HeartbeatStateInit, hb.state)
 			require.Equal(t, 2, announcer.upsertCalls[hb.Mode])
 

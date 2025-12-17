@@ -926,6 +926,19 @@ func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
 	pub, err := keys.MarshalPublicKey(priv.Public())
 	require.NoError(t, err)
 
+	// Impersonating the requester name fails.
+	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		TLSPublicKey: pub,
+		Username:     user.GetName(),
+		Expires:      time.Now().Add(time.Hour),
+		RouteToApp: proto.RouteToApp{
+			Name:       appName,
+			AWSRoleARN: roleARN,
+		},
+		RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
+	})
+	require.Error(t, err)
+
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: pub,
 		Username:     user.GetName(),
@@ -1889,6 +1902,7 @@ type testDynamicallyConfigurableRBACParams struct {
 func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurableRBACParams) {
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 
 	testOperation := func(op func(*auth.ServerWithRoles) error, allowRules []types.Rule, expectErr, withConfigFile bool) func(*testing.T) {
 		return func(t *testing.T) {
@@ -2642,6 +2656,7 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 
 	as, err := authtest.NewAuthServer(authServerConfig)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
@@ -3712,6 +3727,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
@@ -3850,7 +3866,9 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, nil)
 			},
-			want: proto.MFARequired_MFA_REQUIRED_NO,
+			// MFA should be required if the role says so, regardless of whether
+			// the database name matches or not.
+			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 		{
 			name:       "RequireSessionMFA on Postgres protocol database name matches",
@@ -3874,6 +3892,32 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 				role.SetDatabaseNames(types.Allow, []string{"example"})
 			},
+			want: proto.MFARequired_MFA_REQUIRED_YES,
+		},
+		{
+			name:       "RequireSessionMFA database user does not match",
+			dbProtocol: defaults.ProtocolPostgres,
+			req: &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Database{
+					Database: &proto.RouteToDatabase{
+						ServiceName: databaseName,
+						Protocol:    defaults.ProtocolPostgres,
+						Username:    userName,
+						Database:    "example",
+					},
+				},
+			},
+			modifyRoleFunc: func(role types.Role) {
+				roleOpt := role.GetOptions()
+				roleOpt.RequireMFAType = types.RequireMFAType_SESSION
+				role.SetOptions(roleOpt)
+
+				role.SetDatabaseUsers(types.Allow, nil)
+				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+				role.SetDatabaseNames(types.Allow, []string{"example"})
+			},
+			// MFA should be required if the role says so, regardless of whether
+			// the database user matches or not.
 			want: proto.MFARequired_MFA_REQUIRED_YES,
 		},
 	}
@@ -3952,6 +3996,7 @@ func TestKindClusterConfig(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
 		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I))
@@ -4744,6 +4789,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
@@ -4853,6 +4899,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -7313,6 +7360,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err, trace.DebugReport(err))
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	roles := types.LocalServiceMappings()
 	for _, role := range roles {
@@ -8891,6 +8939,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	_, err = authtest.CreateRole(ctx, srv.AuthServer.Services, "rolename", types.RoleSpecV6{})
 	require.NoError(t, err)

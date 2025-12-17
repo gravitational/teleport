@@ -1,5 +1,6 @@
 ---
 title: Set up Single Sign-On with GitHub
+sidebar_label: GitHub
 description: Setting up GitHub SSO
 videoBanner: XjgN2WWFCX8
 tags:
@@ -36,7 +37,7 @@ reading data from the OAuth 2.0 access token. In particular, the Auth Service:
 GitHub usernames are not formatted as email addresses. As a result, any Teleport
 plugin that expects to send email to a user based on their Teleport username
 will not work as expected. For example, the [PagerDuty Access Request
-plugin](../../identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx) has this
+plugin](../../identity-governance/access-requests/plugins/pagerduty.mdx) has this
 limitation.
 
 </Admonition>
@@ -58,7 +59,7 @@ limitation.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Create a GitHub OAuth app
+## Step 1/3. Create a GitHub OAuth app
 
 Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
 App's "Authentication callback URL" is the following:
@@ -83,7 +84,54 @@ Create a client secret to use along with the client ID in the next step:
 
 ![A GitHub Oauth App, highlighting Client ID and secret](../../../img/sso/github-app-vars.png)
 
-## Step 2/4. Create a GitHub authentication connector
+## Step 2/3. Connect GitHub to Teleport
+
+In this section, you will create an authentication connector that provides
+Teleport with the information it needs to connect to GitHub and issue
+certificates to users.
+
+### Assign a role mapping
+
+When a user authenticates to Teleport, the Teleport Auth Service issues SSH and
+TLS certificates to the user that contain the user's Teleport roles. 
+
+For SSO authentication connectors, the Auth Service determines which roles to
+encode in the certificate by reading the authentication connector's **role
+mapping**. The role mapping indicates which Teleport roles to assign based on
+data that your identity provider stores about the user.
+
+When you configure the GitHub authentication connector using the `tctl` CLI, a
+role mapping takes the following format:
+
+```text
+<github_org_name>,<github_team_name>,<teleport_role_1>,<teleport_role_2>,...,<teleport_role_n>
+```
+
+For example, the following role mapping means that any user with the team
+`admins` in the `gravitational` org receives the Teleport roles `editor` and
+`auditor`:
+
+```text
+gravitational,admins,editor,auditor
+```
+
+For the purpose of this guide, assign two separate role mappings:
+
+- A more permissive role mapping: <Var name="github_mapping_1" initial="org,admins,auditor,editor" />
+- A more restrictive role mapping: <Var name="github_mapping_2" initial="org,users,access" />
+
+GitHub organizations and teams should be referred to by their slug, not display
+name. To create the team slug, GitHub replaces special characters in the name
+string, changes all words to lowercase, and replaces spaces with a `-`
+separator. 
+
+For example, `My TEam Näme` would become `my-team-name`.  The organization slug
+is treated the same except the organization is not changed to lowercase. You can
+confirm the slug in GitHub Web application URLs or via the GitHub API. Example:
+navigate to the team `My Team` in the GitHub web application. The URL
+`https://github.com/orgs/org-name/teams/my-team` shows the slug is `my-team`.
+
+### Configure a GitHub authentication connector
 
 In this section, you will define a GitHub authentication connector using `tctl`.
 
@@ -104,19 +152,10 @@ for a full reference of flags for this command:
 $ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/> \
 --secret=$(cat client-secret.txt) \
---teams-to-roles=<Var name="ORG-NAME,github-team,access,editor"/> \
+--teams-to-roles=<Var name="github_mapping_1" /> \
+--teams-to-roles=<Var name="github_mapping_2" /> \
 > github.yaml
 ```
-<Admonition type="tip">
-  GitHub organizations and teams should be referred to by their slug, not display name.
-  To create the team slug, GitHub replaces special characters in the name string, changes all words to lowercase,
-  and replaces spaces with a `-` separator. For example, `My TEam Näme` would become `my-team-name`.
-  The organization slug is treated the same except the organization is not changed to lowercase.
-  You can confirm the slug in GitHub Web application URLs or via the GitHub API.
-  Example: navigate to the team `My Team` in the GitHub web application.
-  The URL `https://github.com/orgs/org-name/teams/my-team`
-  shows the slug is `my-team`.
-</Admonition>
 
 The contents of `github.yaml` should resemble the following:
 
@@ -172,6 +211,7 @@ version: v3
 
 <details>
 <summary>Mapping multiple roles</summary>
+
 You can add multiple instances of the `--teams-to-roles` flag or edit the connector
 file to define multiple mappings. For example:
 
@@ -234,6 +274,8 @@ spec:
 
 </details>
 
+### Test the connector
+
 You can test the connector configuration before applying it to your cluster.
 This is strongly encouraged to avoid interruption to active clusters:
 
@@ -276,6 +318,8 @@ username: alice
 For more details repeat the command with --debug flag.
 ```
 
+### Create the connector
+
 Finally, create the connector using `tctl`:
 
 ```code
@@ -304,8 +348,6 @@ Here is an example role configuration snippet using the trait variable:
     node_labels:
       '*': '*'
 ```
-
-## Step 3/4. Log in to Teleport using GitHub
 
 You can now log in with Teleport using GitHub SSO. Run the following to log out
 of Teleport and log in again using GitHub SSO.
@@ -406,7 +448,7 @@ You will receive the details of your user session within the CLI:
 
 </Tabs>
 
-## Step 4/4. Configure authentication preference
+## Step 3/3. Configure authentication preferences
 
 In the previous step we signed in to Teleport using GitHub credentials by
 specifying GitHub as our auth type. By editing the `cluster_auth_preference`
@@ -459,6 +501,10 @@ auth_service:
 After logging out of `tsh`, you can log back in without specifying
 `--auth=github`. You will automatically be redirected to the GitHub auth flow.
 
+## Next steps
+
+(!docs/pages/includes/sso/next-step-traits.mdx!)
+
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
@@ -485,13 +531,4 @@ shows the slug is `my-team`. Update the teams to roles mapping.
         - reviewer
       team: my-team
 ```
-
-## Next steps
-
-
-The role we illustrated in this guide uses the `internal.logins` trait,
-which Teleport replaces with values from the Teleport local user
-database. For full details on how traits work in Teleport roles,
-see the [Access Controls
-Reference](../../reference/access-controls/roles.mdx).
 

@@ -1,5 +1,6 @@
 ---
 title: Export Teleport Audit Events to Panther 
+sidebar_label: Panther
 description: How to configure the Teleport Event Handler plugin and Fluentd to send audit logs to Panther
 tags:
  - how-to
@@ -56,7 +57,7 @@ from Teleport's events API, and forwards them to Fluentd.
 ### Enable issuing of credentials for the Event Handler role
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/rbac-impersonate-event-handler-machine-id.mdx!)
 </TabItem>
 <TabItem label="Long-lived identity files">
@@ -72,7 +73,7 @@ dangerous if exfiltrated, though in demo deployments, you can generate
 longer-lived identity files with `tctl`:
 
 <Tabs>
-<TabItem label="Machine ID">
+<TabItem label="Machine & Workload Identity">
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">

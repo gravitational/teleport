@@ -106,13 +106,48 @@ func onAppLogin(cf *CLIConf) error {
 		AccessRequests: appInfo.profile.ActiveRequests,
 	}
 
+	// When using `tsh app login`, certs should generally be saved to disk, whether standard certs or
+	// single-use MFA-verified 1m TTL certs. However, in cases where we are exceeding the standard
+	// 1m TTL for single-use certs, we must ensure the certs are not saved to disk.
+	saveCertificateToDisk := true
+	if app.GetAWSRolesAnywhereProfileARN() != "" {
+		singleUseCerts, err := isMFARequiredForAppAccess(cf.Context, tc, appInfo.RouteToApp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if singleUseCerts {
+			// Prevent single use certificates from being written to disk.
+			saveCertificateToDisk = false
+
+			appCertParams.RequesterName = proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS
+
+			// When using single use certs (aka per-session MFA), tsh cannot write the certificate or AWS credentials to disk.
+			// Instead, ask user to use the `--env` flag which only outputs the credentials, in an eval friendly format.
+			if !cf.AppLoginAWSEnvOutput {
+				return trace.BadParameter(`AWS access is configured to use per-session MFA and credentials are only available to a single session. Pass the --env flag to the previous command and export the credentials using eval.
+Example:
+        eval "$(tsh apps login %s --aws-role %s --env)"
+
+You can now run the AWS CLI or other AWS SDK based tools as usual.
+Example:
+        aws sts get-caller-identity`,
+					shsprintf.EscapeDefaultContext(app.GetName()),
+					shsprintf.EscapeDefaultContext(appInfo.RouteToApp.AWSRoleARN),
+				)
+			}
+		}
+	}
+
 	key, err := appLogin(cf.Context, clusterClient, rootClient, appCertParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
-		return trace.Wrap(err)
+	if saveCertificateToDisk {
+		if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	appInfo, err = reloadAppInfoFromKeyring(app, appInfo, key)
@@ -120,7 +155,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := writeFilesForExternalApps(appInfo); err != nil {
+	if err := writeFilesForExternalApps(cf.Stdout(), appInfo, cf.AppLoginAWSEnvOutput); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -129,6 +164,26 @@ func onAppLogin(cf *CLIConf) error {
 	}
 
 	return nil
+}
+
+// isMFARequiredForAppAccess calls the IsMFARequired endpoint in order to get from user roles if access to the application
+// requires MFA.
+func isMFARequiredForAppAccess(ctx context.Context, tc *client.TeleportClient, routeToApp proto.RouteToApp) (bool, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	mfaResp, err := clusterClient.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_App{
+			App: &routeToApp,
+		},
+	})
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return mfaResp.GetRequired(), nil
 }
 
 func reloadAppInfoFromKeyring(app types.Application, appInfo *appInfo, key *client.KeyRing) (*appInfo, error) {
@@ -185,6 +240,11 @@ func printAppCommand(cf *CLIConf, tc *client.TeleportClient, app types.Applicati
 
 	switch {
 	case app.IsAWSConsole():
+		// When using env output, skip printing the login instructions because they were already emitted alongside the env var exports.
+		if cf.AppLoginAWSEnvOutput {
+			return nil
+		}
+
 		if routeToApp.AWSCredentialProcessCredentials != "" {
 			return awsNamedProfileLoginTemplate.Execute(output, map[string]string{
 				"awsAppName":        app.GetName(),

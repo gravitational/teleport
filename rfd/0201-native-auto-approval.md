@@ -56,6 +56,7 @@ For example, the requesting user is pre-approved to access all resources in the
 9. Support configuration of automatic reviews using the Terraform provider.
 10. Support automatic reviews of access requests created by a Machine ID bot
 user.
+11. Support automatic reviews of access requests during specified schedules.
 
 Note: Development is in progress to refactor the access plugins and implement a
 unified set of interfaces. This will help achieve feature parity across access
@@ -109,6 +110,7 @@ for automatic reviews.
   requested resources will be automatically reviewed.
   - `User Traits` input accepts a map of traits. These are used to match a
     requesting user's Teleport traits.
+  - `Schedule` input accepts a timezone and a set of shifts for each selected day.
 - `Notifications` optionally configures `access_monitoring_rules.spec.notification`
   field. The initial implementation will not include the notifications section,
   but we'd like to support configuration of both automatic reviews and notifications
@@ -145,6 +147,9 @@ form, the resource labels are:
 The resulting expression uses AND across the intersection of labels. All requested
 resources must have both labels `env: dev` and `service: demo`.
 
+The `Schedule` input is written to `spec.schedules` with the `default` schedule
+name.
+
 The `User Traits` input is converted into a series of `contains_any` expressions.
 The resulting expression uses AND across traits, and OR logic within a trait.
 The requester must match at least one of the values among each configured trait.
@@ -171,6 +176,17 @@ spec:
     contains_any(user.traits["level"], set("L1", "L2")) &&
     contains_any(user.traits["team"], set("Cloud")) &&
     contains_any(user.traits["location"], set("Seattle"))
+  schedules:
+    default:
+      time:
+        timezone: America/Los_Angeles
+        shifts:
+          - weekday: Sunday
+            start: "00:00"
+            end: "17:00"
+          - weekday: Saturday
+            start: "00:00"
+            end: "17:00"
   desired_state: reviewed
   notification:
     name: slack
@@ -211,6 +227,11 @@ the `builtin` value. This indicates that Teleport is responsible for monitoring
 the rule.
 - `spec.automatic_review.decision` field specifies the proposed state of the
 access request review. This can be either `APPROVED` or `DENIED`.
+- `spec.schedules` field specifies a map of schedules. All schedules are used
+during evaluation. If the creation time of the access request is within any of
+the configured schedules, the rule will apply. Note that the `start` and `end`
+values are clock times represented as a 24-hour formatted string containing the
+hour and minute. For example, "17:15".
 
 The `spec.condition` expression has been extended to support new functions and
 dynamic variables:
@@ -265,6 +286,37 @@ spec:
   automatic_review:
     integration: builtin
     decision: DENIED
+```
+
+```yaml
+# This AMR automatically approves requests for the `cloud-prod` role if the
+# requesting user has the `team: cloud` trait and the current time is between
+# 00:00 and 17:00 on either Sunday or Saturday.
+kind: access_monitoring_rule
+version: v1
+metadata:
+  name: cloud-on-call
+spec:
+  subjects:
+    - access_request
+  condition: |-
+    contains_all(set("cloud-prod"), access_request.spec.roles) &&
+    user.traits["team"].contains("cloud")
+  schedules:
+    default:
+      time:
+        timezone: UTC
+        shifts:
+          - weekday: Sunday
+            start: "00:00"
+            end: "17:00"
+          - weekday: Saturday
+            start: "00:00"
+            end: "17:00"
+  desired_state: reviewed
+  automatic_review:
+    integration: builtin
+    decision: APPROVED
 ```
 
 ### Internal automatic review service
@@ -473,6 +525,37 @@ condition: |-
   )
 ```
 
+### Importing schedules from integrations
+We currently support automatic reviews based on schedules from external on-call
+services like PagerDuty, Datadog, and a few others. However, configuring these
+rules is not user-friendly, we rely on annotations embedded in a Teleport user's
+role to determine when to apply them.
+
+We'd like to improve this experience by enabling users to configure automatic
+reviews using access monitoring rules based on external on-call schedules. While
+this feature is outside the scope of this RFD, we should consider how the
+`spec.schedules` field could be extended to support externally sourced schedules.
+
+One approach is to support an additional `source` type schedule. A source schedule
+is dynamically retrieved using a specified `integration` and `schedule_id`,
+with optional fields like `team` and `service` for more configuration options.
+
+```yaml
+# Example spec to import on-call services
+spec:
+  schedules:
+    pagerduty-teleport-cloud:
+      source:
+        integration: pagerduty
+        schedule_id: teleport-cloud-on-call
+        team: teleport-dev
+        service: cloud
+    datadog-teleport-cloud:
+      source:
+        integration: datadog
+        schedule_id: teleport-cloud-on-call
+```
+
 ## Implementation Plan
 
 ### Role Access Request
@@ -496,3 +579,11 @@ access requests.
 with requested resources.
 4. Update automatic review documentation to include details of resource access
 requests.
+
+### Time-based Access Monitoring Rules
+1. Extend the Access Monitoring Rule to support the `spec.schedules` spec and
+`in_schedule(time, schedule)` function.
+2. Update WebUI standard editor to support configuration of Access Monitoring
+Rules within specified time intervals.
+3. Update Access Monitoring Rules documentation to include details of time-based
+conditions.

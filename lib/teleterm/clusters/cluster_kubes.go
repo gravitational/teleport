@@ -58,15 +58,6 @@ type KubeServer struct {
 
 // reissueKubeCert issue new certificates for kube cluster and saves them to disk.
 func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.ClusterClient, kubeCluster string) (tls.Certificate, error) {
-	// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
-	err := clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
-		RouteToCluster: c.clusterClient.SiteName,
-		AccessRequests: c.status.ActiveRequests,
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
 	result, err := clusterClient.IssueUserCertsWithMFA(
 		ctx, client.ReissueParams{
 			RouteToCluster:    c.clusterClient.SiteName,

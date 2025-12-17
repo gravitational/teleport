@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendtest"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1791,6 +1794,16 @@ func createAccessList(t *testing.T, service *AccessListService, name string, clo
 	return upserted
 }
 
+func getAccessList(t *testing.T, service *AccessListService, name string) *accesslist.AccessList {
+	t.Helper()
+	ctx := context.Background()
+
+	al, err := service.GetAccessList(ctx, name)
+	require.NoError(t, err)
+
+	return al
+}
+
 type accessListMemberOptions struct {
 	membershipKind string
 	expires        time.Time
@@ -1831,6 +1844,17 @@ func newAccessListMember(t *testing.T, accessList, name string, opts ...accessLi
 	require.NoError(t, err)
 
 	return member
+}
+
+func createAccessListMember(t *testing.T, service *AccessListService, accessList, name string, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+	t.Helper()
+	ctx := t.Context()
+
+	m := newAccessListMember(t, accessList, name, opts...)
+	m, err := service.UpsertAccessListMember(ctx, m)
+	require.NoError(t, err)
+
+	return m
 }
 
 func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Review {
@@ -2227,6 +2251,220 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 	})
 }
 
+func TestAccessListService_CleanupAccessListStatus(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	const a1, a2, a3, a4, a5, a6 = "al_1", "al_2", "al_3", "al_4", "al_5", "al_6"
+
+	userOwner := accesslist.Owner{MembershipKind: accesslist.MembershipKindUser, Name: "test_user_1"}
+	a1Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a1}
+
+	// a1 is the target access list which status will be fixed
+	_ = createAccessList(t, service, a1, clock)
+	// a2 is a list owned by a1
+	_ = createAccessList(t, service, a2, clock,
+		withOwners([]accesslist.Owner{userOwner, a1Owner}))
+	// a3 is an owned list which will be deleted without updating a1 status
+	_ = createAccessList(t, service, a3, clock,
+		withOwners([]accesslist.Owner{userOwner, a1Owner}))
+	// a4 is another owned list by a1, for this one ownership will be removed without updating a1 status
+	a4List := createAccessList(t, service, a4, clock,
+		withOwners([]accesslist.Owner{userOwner, a1Owner}))
+	// a5 is a parent for a1 (a1 is a member of a3)
+	_ = createAccessList(t, service, a5, clock)
+	_ = createAccessListMember(t, service, a5, a1, withMembershipKind(accesslist.MembershipKindList))
+	// a6 is the list of which a1 is a member; the membership will be removed without updating a1 status
+	_ = createAccessList(t, service, a6, clock)
+	_ = createAccessListMember(t, service, a6, a1, withMembershipKind(accesslist.MembershipKindList))
+
+	// Let's verify the a1 status is correct
+	requireStatusOwnerOf(t, service, a1, []string{a2, a3, a4})
+	requireStatusMemberOf(t, service, a1, []string{a5, a6})
+
+	// Let's now break the a1 status, we need to use generic service directly to bypass status
+	// updates
+	service.service.DeleteResource(ctx, a3)
+	a4List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
+	service.service.UpdateResource(ctx, a4List)
+	service.memberService.WithPrefix(a6).DeleteResource(ctx, a1)
+
+	// Let's check the status remain untouched:
+	// - a3 should be removed from owner_of because it doesn't exist anymore
+	// - a4 should be removed from owner_of because a1 is not an owner anymore
+	requireStatusOwnerOf(t, service, a1, []string{a2, a3, a4})
+	// - a6 should be removed from member_of because a6/a1 membership doesn't exist anymore
+	requireStatusMemberOf(t, service, a1, []string{a5, a6})
+
+	// Run cleanup
+	fixedA1List, err := service.CleanupAccessListStatus(ctx, a1)
+	require.NoError(t, err)
+
+	// Check status of the returned list
+	require.Equal(t, []string{a2}, fixedA1List.Status.OwnerOf)
+	require.Equal(t, []string{a5}, fixedA1List.Status.MemberOf)
+
+	// Also check the status in the storage
+	requireStatusOwnerOf(t, service, a1, []string{a2})
+	requireStatusMemberOf(t, service, a1, []string{a5})
+
+	// Now let's see if CleanupStatus can cope with emptying status completely
+
+	// Let's remove remove a1->a2 ownership and a5->a1 membership using the generic service and
+	// therefore bypassing status update
+	a2List := getAccessList(t, service, a2)
+	a2List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
+	service.service.UpdateResource(ctx, a2List)
+	service.memberService.WithPrefix(a5).DeleteResource(ctx, a1)
+
+	// Verify the status is broken now as it should be empty
+	requireStatusOwnerOf(t, service, a1, []string{a2})
+	requireStatusMemberOf(t, service, a1, []string{a5})
+
+	// Run cleanup
+	fixedA1List, err = service.CleanupAccessListStatus(ctx, a1)
+	require.NoError(t, err)
+
+	// Check status of the returned list
+	require.Empty(t, fixedA1List.Status.OwnerOf)
+	require.Empty(t, fixedA1List.Status.MemberOf)
+
+	// Also check the status in the storage
+	requireStatusOwnerOf(t, service, a1, []string{})
+	requireStatusMemberOf(t, service, a1, []string{})
+}
+
+func TestAccessListService_CleanupAccessListStatus_does_not_panic(t *testing.T) {
+	for range 10 {
+		ctx := t.Context()
+		clock := clockwork.NewFakeClock()
+
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		const a1, a2, a3, a4, a5 = "al_1", "al_2", "al_3", "al_4", "al_5"
+
+		a1Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a1}
+
+		// a1 is owner of a2 and a3 and member of a4 and a5
+		_ = createAccessList(t, service, a1, clock)
+
+		_ = createAccessList(t, service, a2, clock,
+			withOwners([]accesslist.Owner{a1Owner}))
+		_ = createAccessList(t, service, a3, clock,
+			withOwners([]accesslist.Owner{a1Owner}))
+		_ = createAccessList(t, service, a4, clock)
+		_ = createAccessListMember(t, service, a4, a1, withMembershipKind(accesslist.MembershipKindList))
+		_ = createAccessList(t, service, a5, clock)
+		_ = createAccessListMember(t, service, a5, a1, withMembershipKind(accesslist.MembershipKindList))
+
+		// Recreate the service, but with the randomly erroring backend. This is a wrapper so all
+		// the data will be retained.
+		service = newAccessListService(t, backendtest.NewRandomlyErroringBackend(mem), clock, true /* igsEnabled */)
+
+		require.NotPanics(t, func() {
+			_, _ = service.CleanupAccessListStatus(ctx, a1)
+		})
+	}
+}
+
+func TestAccessListService_EnsureNestedAccessListStatuses(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	const a1, a2, a3, a4, a5, a6 = "al_1", "al_2", "al_3", "al_4", "al_5", "al_6"
+	const ghost = "ghost_list"
+
+	a2Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a2}
+	a3Owner := accesslist.Owner{MembershipKind: accesslist.MembershipKindList, Name: a3}
+
+	// Setup:
+	// - a1 is the list that will be missing from other list status owner_of/member_of
+	// - a2 is the owned list which status.owned_of will be fixed by adding a1
+	// - a3 is the owned list which status.owned_of will be partially fixed by adding a1
+	// - a4 is the member list which status.member_of will be fixed by adding a1
+	// - a5 is the member list which status.member_of will be partially fixed by adding a1
+
+	a2List := createAccessList(t, service, a2, clock)
+	a3List := createAccessList(t, service, a3, clock)
+
+	_ = createAccessList(t, service, a1, clock, withOwners([]accesslist.Owner{a2Owner, a3Owner}))
+
+	a4List := createAccessList(t, service, a4, clock)
+	_ = createAccessListMember(t, service, a1, a4, withMembershipKind(accesslist.MembershipKindList))
+	a5List := createAccessList(t, service, a5, clock)
+	_ = createAccessListMember(t, service, a1, a5, withMembershipKind(accesslist.MembershipKindList))
+
+	// Verify the target statuses
+	requireStatusOwnerOf(t, service, a2, []string{a1})
+	requireStatusOwnerOf(t, service, a3, []string{a1})
+	requireStatusOwnerOf(t, service, a4, []string{})
+	requireStatusOwnerOf(t, service, a5, []string{})
+
+	requireStatusMemberOf(t, service, a2, []string{})
+	requireStatusMemberOf(t, service, a3, []string{})
+	requireStatusMemberOf(t, service, a4, []string{a1})
+	requireStatusMemberOf(t, service, a5, []string{a1})
+
+	// Let's break the statuses
+	a2List.Status.OwnerOf = nil
+	a3List.Status.OwnerOf = []string{ghost}
+	a4List.Status.MemberOf = nil
+	a5List.Status.MemberOf = []string{ghost}
+	for _, al := range []*accesslist.AccessList{a2List, a3List, a4List, a5List} {
+		_, err := service.service.UpdateResource(ctx, al)
+		require.NoError(t, err, "access_list = %q", al.GetName())
+	}
+
+	// Verify the statuses are broken now:
+	requireStatusOwnerOf(t, service, a2, []string{})
+	requireStatusOwnerOf(t, service, a3, []string{ghost})
+	requireStatusOwnerOf(t, service, a4, []string{})
+	requireStatusOwnerOf(t, service, a5, []string{})
+
+	requireStatusMemberOf(t, service, a2, []string{})
+	requireStatusMemberOf(t, service, a3, []string{})
+	requireStatusMemberOf(t, service, a4, []string{})
+	requireStatusMemberOf(t, service, a5, []string{ghost})
+
+	// Ensure a1 is present where it should be (apply the fix)
+	err = service.EnsureNestedAccessListStatuses(ctx, a1)
+	require.NoError(t, err)
+
+	// Verify the statuses are fixed (a1 is added back, but ghost is not removed as we applied
+	// the fix for a1 only):
+	requireStatusOwnerOf(t, service, a2, []string{a1})
+	requireStatusOwnerOf(t, service, a3, []string{ghost, a1})
+	requireStatusOwnerOf(t, service, a4, []string{})
+	requireStatusOwnerOf(t, service, a5, []string{})
+
+	requireStatusMemberOf(t, service, a2, []string{})
+	requireStatusMemberOf(t, service, a3, []string{})
+	requireStatusMemberOf(t, service, a4, []string{a1})
+	requireStatusMemberOf(t, service, a5, []string{ghost, a1})
+}
+
 func requireStatusOwnerOf(t *testing.T, service *AccessListService, accessListName string, ownerOf []string) {
 	t.Helper()
 	ctx := context.Background()
@@ -2247,7 +2485,7 @@ func requireStatusMemberOf(t *testing.T, service *AccessListService, accessListN
 	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
 }
 
-func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Clock, igsEnabled bool) *AccessListService {
+func newAccessListService(t *testing.T, b backend.Backend, clock clockwork.Clock, igsEnabled bool) *AccessListService {
 	t.Helper()
 
 	modulestest.SetTestModules(t, modulestest.Modules{
@@ -2259,7 +2497,7 @@ func newAccessListService(t *testing.T, mem *memory.Memory, clock clockwork.Cloc
 		},
 	})
 
-	service, err := NewAccessListService(backend.NewSanitizer(mem), clock)
+	service, err := NewAccessListService(backend.NewSanitizer(b), clock)
 	require.NoError(t, err)
 
 	return service
@@ -2270,4 +2508,353 @@ func assertMemberOf(t *testing.T, ctx context.Context, svc *AccessListService, n
 	item, err := svc.GetAccessList(ctx, name)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, item.Status.MemberOf)
+}
+
+func TestInsertAccessListCollection(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	t.Run("memberOf and ownerOf check", func(t *testing.T) {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		list1 := newAccessList(t, "list1", clock)
+		list2 := newAccessList(t, "list2", clock)
+		list3 := newAccessList(t, "list3", clock)
+		list4 := newAccessList(t, "list4", clock)
+
+		list1.Spec.Owners = append(list1.Spec.Owners, accesslist.Owner{
+			Name:           list2.GetName(),
+			MembershipKind: accesslist.MembershipKindList,
+		})
+
+		collection := &accesslists.Collection{}
+		require.NoError(t, collection.AddAccessList(list1, nil))
+		require.NoError(t, collection.AddAccessList(list2, nil))
+		require.NoError(t, collection.AddAccessList(list3, []*accesslist.AccessListMember{
+			newAccessListMember(t, list3.GetName(), list1.GetName(), withMembershipKind(accesslist.MembershipKindList))}),
+		)
+		require.NoError(t, collection.AddAccessList(list4, []*accesslist.AccessListMember{
+			newAccessListMember(t, list4.GetName(), list2.GetName(), withMembershipKind(accesslist.MembershipKindList))}),
+		)
+
+		err = service.InsertAccessListCollection(ctx, collection)
+		require.NoError(t, err)
+
+		// list1: no ownerOf, memberOf list3
+		result1, err := service.GetAccessList(ctx, list1.GetName())
+		require.NoError(t, err)
+		require.Empty(t, result1.Status.OwnerOf)
+		require.Equal(t, []string{list3.GetName()}, result1.Status.MemberOf)
+
+		// list2: ownerOf list1, memberOf list4
+		result2, err := service.GetAccessList(ctx, list2.GetName())
+		require.NoError(t, err)
+		require.Equal(t, []string{list1.GetName()}, result2.Status.OwnerOf)
+		require.Equal(t, []string{list4.GetName()}, result2.Status.MemberOf)
+
+		// list3 and list4: no ownerOf, no memberOf
+		result3, err := service.GetAccessList(ctx, list3.GetName())
+		require.NoError(t, err)
+		require.Empty(t, result3.Status.OwnerOf)
+		require.Empty(t, result3.Status.MemberOf)
+		result4, err := service.GetAccessList(ctx, list4.GetName())
+		require.NoError(t, err)
+		require.Empty(t, result4.Status.OwnerOf)
+		require.Empty(t, result4.Status.MemberOf)
+	})
+
+	t.Run("circular reference in nested lists", func(t *testing.T) {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		list1 := newAccessList(t, "list1", clock)
+		list2 := newAccessList(t, "list2", clock)
+
+		// Create circular reference: list1 -> list2 -> list1
+		member1 := newAccessListMember(t, list1.GetName(), list2.GetName(), withMembershipKind(accesslist.MembershipKindList))
+		member2 := newAccessListMember(t, list2.GetName(), list1.GetName(), withMembershipKind(accesslist.MembershipKindList))
+
+		collection := &accesslists.Collection{
+			MembersByAccessList: make(map[string][]*accesslist.AccessListMember),
+			AccessListsByName:   make(map[string]*accesslist.AccessList),
+		}
+		err = collection.AddAccessList(list1, []*accesslist.AccessListMember{member1})
+		require.NoError(t, err)
+		err = collection.AddAccessList(list2, []*accesslist.AccessListMember{member2})
+		require.NoError(t, err)
+
+		require.Error(t, service.InsertAccessListCollection(ctx, collection))
+	})
+
+	t.Run("insert large collection with 1k+ members", func(t *testing.T) {
+		mem, err := memory.New(memory.Config{
+			Context: ctx,
+			Clock:   clock,
+		})
+		require.NoError(t, err)
+
+		service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+		collection := &accesslists.Collection{}
+
+		// Create 3 access lists with different member counts to test chunking.
+		// Total members: 500 + 600 + 400 = 1500 members across 3 lists.
+		list1 := newAccessList(t, "large-list-1", clock)
+		members1 := make([]*accesslist.AccessListMember, 500)
+		for i := 0; i < 500; i++ {
+			members1[i] = newAccessListMember(t, list1.GetName(), fmt.Sprintf("member-%d", i))
+		}
+		require.NoError(t, collection.AddAccessList(list1, members1))
+
+		list2 := newAccessList(t, "large-list-2", clock)
+		members2 := make([]*accesslist.AccessListMember, 600)
+		for i := 0; i < 600; i++ {
+			members2[i] = newAccessListMember(t, list2.GetName(), fmt.Sprintf("member-%d", i))
+		}
+		require.NoError(t, collection.AddAccessList(list2, members2))
+
+		list3 := newAccessList(t, "large-list-3", clock)
+		members3 := make([]*accesslist.AccessListMember, 400)
+		for i := 0; i < 400; i++ {
+			members3[i] = newAccessListMember(t, list3.GetName(), fmt.Sprintf("member-%d", i))
+		}
+		require.NoError(t, collection.AddAccessList(list3, members3))
+
+		err = service.InsertAccessListCollection(ctx, collection)
+		require.NoError(t, err)
+
+		acls, err := service.service.GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, acls, 3)
+
+		allMembers1, err := service.memberService.WithPrefix(list1.GetName()).GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allMembers1, 500)
+
+		allMembers2, err := service.memberService.WithPrefix(list2.GetName()).GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allMembers2, 600)
+
+		allMembers3, err := service.memberService.WithPrefix(list3.GetName()).GetResources(ctx)
+		require.NoError(t, err)
+		require.Len(t, allMembers3, 400)
+	})
+}
+
+type nestedAccessListCase struct {
+	name         string
+	targetName   string
+	relatedNames []string
+}
+
+// runNestedAccessListCases encapsulates common logic for testing nested access list deletion prevention.
+func runNestedAccessListCases(
+	t *testing.T,
+	role string,
+	cases []nestedAccessListCase,
+	setup func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList),
+	cleanup func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList),
+) {
+	t.Helper()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, clock, true /* igsEnabled */)
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			target, err := service.UpsertAccessList(ctx, newAccessList(t, tc.targetName, clock))
+			require.NoError(t, err)
+
+			related := make([]*accesslist.AccessList, 0, len(tc.relatedNames))
+			for _, name := range tc.relatedNames {
+				rel, err := service.UpsertAccessList(ctx, newAccessList(t, name, clock))
+				require.NoError(t, err)
+				related = append(related, rel)
+			}
+
+			setup(t, ctx, service, target, related)
+
+			// Deletion should be denied initially
+			err = service.DeleteAccessList(ctx, target.GetName())
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+
+			relatedTitles := make([]string, len(related))
+			for i, l := range related {
+				relatedTitles[i] = fmt.Sprintf(`"%s"`, l.Spec.Title)
+			}
+
+			expected := fmt.Sprintf(
+				`Cannot delete "%s", as it is %s of Access Lists: %s`,
+				target.Spec.Title,
+				role,
+				strings.Join(relatedTitles, ", "),
+			)
+			require.Contains(t, err.Error(), expected)
+
+			cleanup(t, ctx, service, target, related)
+
+			// Now deletion should succeed
+			err = service.DeleteAccessList(ctx, target.GetName())
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestAccessListDeletePrevention_NestedMemberLists(t *testing.T) {
+	runNestedAccessListCases(
+		t,
+		"a member",
+		[]nestedAccessListCase{
+			{
+				name:         "cannot delete list that is a member of another list",
+				targetName:   "child-list",
+				relatedNames: []string{"parent-list"},
+			},
+			{
+				name:         "handles formatting multiple member relationships",
+				targetName:   "child-list",
+				relatedNames: []string{"parent-list-1", "parent-list-2"},
+			},
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Create membership between target and all related lists
+			for _, parent := range related {
+				member := newAccessListMember(t, parent.GetName(), target.GetName(), withMembershipKind(accesslist.MembershipKindList))
+				_, err := service.UpsertAccessListMember(ctx, member)
+				require.NoError(t, err)
+			}
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Remove all created memberships
+			for _, parent := range related {
+				err := service.DeleteAccessListMember(ctx, parent.GetName(), target.GetName())
+				require.NoError(t, err)
+			}
+		},
+	)
+}
+
+func TestAccessListDeletePrevention_NestedOwnerLists(t *testing.T) {
+	runNestedAccessListCases(
+		t,
+		"an owner",
+		[]nestedAccessListCase{
+			{
+				name:         "cannot delete list that is an owner of another list",
+				targetName:   "owner-list",
+				relatedNames: []string{"target-list"},
+			},
+			{
+				name:         "handles formatting multiple owner relationships",
+				targetName:   "owner-list",
+				relatedNames: []string{"owned-1", "owned-2", "owned-3"},
+			},
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Add target as owner to all related lists
+			for _, owned := range related {
+				owned.Spec.Owners = append(owned.Spec.Owners, accesslist.Owner{
+					Name:           target.GetName(),
+					MembershipKind: accesslist.MembershipKindList,
+					Description:    "owner list as owner",
+				})
+				_, err := service.UpsertAccessList(ctx, owned)
+				require.NoError(t, err)
+			}
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Remove target as owner from all related lists
+			for _, owned := range related {
+				owned.Spec.Owners = slices.DeleteFunc(owned.Spec.Owners, func(o accesslist.Owner) bool {
+					return o.Name == target.GetName()
+				})
+				_, err := service.UpsertAccessList(ctx, owned)
+				require.NoError(t, err)
+			}
+		},
+	)
+}
+
+func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
+	runNestedAccessListCases(
+		t,
+		"a member",
+		[]nestedAccessListCase{
+			{
+				name:         "missing member references allow deletion",
+				targetName:   "child-list",
+				relatedNames: []string{"parent-list"},
+			},
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Create membership between target and all related lists
+			for _, parent := range related {
+				member := newAccessListMember(t, parent.GetName(), target.GetName(), withMembershipKind(accesslist.MembershipKindList))
+				_, err := service.UpsertAccessListMember(ctx, member)
+				require.NoError(t, err)
+			}
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Simulate stale references: hard-delete related lists and their members.
+			for _, parent := range related {
+				err := service.service.DeleteResource(ctx, parent.GetName())
+				require.NoError(t, err)
+				err = service.memberService.WithPrefix(parent.GetName()).DeleteAllResources(ctx)
+				require.NoError(t, err)
+			}
+		},
+	)
+	runNestedAccessListCases(
+		t,
+		"an owner",
+		[]nestedAccessListCase{
+			{
+				name:         "missing owner references allow deletion",
+				targetName:   "owner-list",
+				relatedNames: []string{"target-list"},
+			},
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Add target as owner to all related lists
+			for _, owned := range related {
+				owned.Spec.Owners = append(owned.Spec.Owners, accesslist.Owner{
+					Name:           target.GetName(),
+					MembershipKind: accesslist.MembershipKindList,
+					Description:    "owner list as owner",
+				})
+				_, err := service.UpsertAccessList(ctx, owned)
+				require.NoError(t, err)
+			}
+		},
+		func(t *testing.T, ctx context.Context, service *AccessListService, target *accesslist.AccessList, related []*accesslist.AccessList) {
+			// Simulate stale references: hard-delete related lists and their members.
+			for _, owned := range related {
+				err := service.service.DeleteResource(ctx, owned.GetName())
+				require.NoError(t, err)
+				err = service.memberService.WithPrefix(owned.GetName()).DeleteAllResources(ctx)
+				require.NoError(t, err)
+			}
+		},
+	)
 }

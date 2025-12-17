@@ -42,7 +42,12 @@ import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredIamProfileName,
+  requiredIamRoleName,
+  requiredIamTrustAnchorName,
+  requiredIntegrationName,
+} from 'shared/components/Validation/rules';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
@@ -265,12 +270,12 @@ export function IamIntegration() {
                 <FieldInput
                   label="Integration Name"
                   placeholder="teleport-aws-prod"
-                  rule={requiredField('Name is required')}
+                  rule={requiredIntegrationName}
                   value={formState.integrationName}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {
                     return setFormState(prev => ({
                       ...prev,
-                      integrationName: e.target.value,
+                      integrationName: e.target.value.trim(),
                     }));
                   }}
                 />
@@ -283,6 +288,7 @@ export function IamIntegration() {
                   <FieldInput
                     label="IAM Roles Anywhere Trust Anchor Name"
                     placeholder=""
+                    rule={requiredIamTrustAnchorName}
                     value={formState.trustAnchorName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({
@@ -294,17 +300,19 @@ export function IamIntegration() {
                   <FieldInput
                     label="IAM Role Name (used for profile synchronization)"
                     placeholder=""
+                    rule={requiredIamRoleName}
                     value={formState.syncRoleName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({
                         ...prev,
-                        syncRoleName: e.target.value,
+                        syncRoleName: e.target.value.trim(),
                       }));
                     }}
                   />
                   <FieldInput
                     label="IAM Roles Anywhere Profile Name (used for profile synchronization)"
                     placeholder=""
+                    rule={requiredIamProfileName}
                     value={formState.syncProfileName}
                     onChange={(e: ChangeEvent<HTMLInputElement>) => {
                       return setFormState(prev => ({

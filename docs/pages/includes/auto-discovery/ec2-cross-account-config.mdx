@@ -10,6 +10,8 @@ discovery_service:
   discovery_group: "aws-prod"
   aws:
   - types: ["ec2"]
+    ssm:
+      document_name: "AWS-RunShellScript"
     # Add new entry after existing entries
   - types: ["ec2"]
     regions: ["us-east-1","us-west-1"]
@@ -17,11 +19,15 @@ discovery_service:
       join_params:
         token_name: aws-discovery-iam-token
         method: iam
+    ssm:
+      document_name: "AWS-RunShellScript"
     tags:
       "env": "prod" # Match EC2 instances where tag:env=prod
     assume_role_arn: "<Var name="role ARN" />"
     external_id: "<Var name="optional external ID" />"
   - types: ["ec2"]
+    ssm:
+      document_name: "AWS-RunShellScript"
     # Add a new entry for each account.
     # ...
 ```

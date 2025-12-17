@@ -581,6 +581,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Wait for proxy to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := s.proxyClient.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) != 0 {
@@ -959,11 +960,13 @@ func Test_clientMetaFromReq(t *testing.T) {
 		http.MethodGet, "https://example.com/webapi/foo", nil,
 	)
 	r.Header.Set("User-Agent", ua)
+	r.Header.Set("Max-Touch-Points", "5")
 
 	got := clientMetaFromReq(r)
 	require.Equal(t, &authclient.ForwardedClientMetadata{
-		UserAgent:  ua,
-		RemoteAddr: "192.0.2.1:1234",
+		UserAgent:      ua,
+		RemoteAddr:     "192.0.2.1:1234",
+		MaxTouchPoints: 5,
 	}, got)
 }
 
@@ -7007,7 +7010,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
-				require.True(t, foundTrace, "expected trace %v was not found", expectedTrace)
+				require.True(t, foundTrace, "expected trace '%v' was not found, got '%v'", expectedTrace, connectionDiagnostic.Traces)
 			}
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
@@ -8401,6 +8404,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) == numProxies {
@@ -8591,11 +8595,17 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		}
 	}()
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clustername,
-		AccessPoint: authServer.Auth(),
-		LockWatcher: proxyLockWatcher,
-	})
+	authorizerOpts := authz.AuthorizerOpts{
+		ClusterName:      clustername,
+		AccessPoint:      authServer.Auth(),
+		ScopedRoleReader: authServer.Auth().ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
+	require.NoError(t, err)
+
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	require.NoError(t, err)
 
 	tlscfg, err := authServer.Identity.TLSConfig(utils.DefaultCipherSuites())
@@ -8624,7 +8634,8 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		UserGetter: &authz.Middleware{
 			ClusterName: authServer.ClusterName(),
 		},
-		Authorizer: authorizer,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: scopedAuthorizer,
 	})
 	require.NoError(t, err)
 
@@ -8650,8 +8661,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
-			return agentless.SignerFromAuthzContext(authzCtx, client, clusterName)
+		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+			}
+
+			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
+				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
+				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
+			}
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),
@@ -9292,6 +9310,93 @@ func TestWithLimiterHandlerFunc(t *testing.T) {
 	r.RemoteAddr = fmt.Sprintf("127.0.0.1:%v", burst)
 	_, err = hf(nil, r, nil)
 	require.True(t, trace.IsLimitExceeded(err), "WithLimiterHandlerFunc returned err = %T, want trace.LimitExceededError", err)
+}
+
+func TestWitWithAccessDeniedLimiter(t *testing.T) {
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{Period: time.Minute, Average: 2, Burst: 3},
+		},
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	h := &Handler{limiter: rateLimiter}
+
+	callCount := 0
+	shouldFail := false
+	handle := h.WithAccessDeniedLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		callCount++
+		if shouldFail {
+			return nil, trace.AccessDenied("invalid credentials")
+		}
+		return "success", nil
+	})
+
+	r := &http.Request{RemoteAddr: "192.168.1.1:1234"}
+
+	// Make some successful requests - these should not count toward rate limit
+	for i := 0; i < 5; i++ {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+
+	// Now make access denied requests - only these should count
+	shouldFail = true
+	for i := 0; i < 3; i++ {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusForbidden, w.Code)
+	}
+	require.Equal(t, 8, callCount)
+
+	// Next request should be rate limited (handler not called)
+	w := httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+
+	require.Equal(t, 8, callCount)
+}
+
+func TestWithUnauthenticatedLimiter(t *testing.T) {
+	rateLimiter, err := limiter.NewRateLimiter(limiter.Config{
+		Rates: []limiter.Rate{
+			{Period: time.Minute, Average: 2, Burst: 3},
+		},
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	h := &Handler{limiter: rateLimiter}
+
+	callCount := 0
+	handle := h.WithUnauthenticatedLimiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		callCount++
+		return "success", nil
+	})
+
+	r := &http.Request{RemoteAddr: "192.168.1.1:1234"}
+
+	// Request should return the error from handler
+	w := httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, 1, callCount)
+
+	// Should be able to make more requests (they still count toward rate limit)
+	for range 2 {
+		w := httptest.NewRecorder()
+		handle(w, r, nil)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+	require.Equal(t, 3, callCount)
+
+	// Next request should be rate limited
+	w = httptest.NewRecorder()
+	handle(w, r, nil)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	require.Equal(t, 3, callCount)
 }
 
 // kubeClusterConfig defines the cluster to be created
@@ -10801,7 +10906,11 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 }
 
 func TestGithubConnector(t *testing.T) {
-	ctx := context.Background()
+	// We run this test as a Teleport Enterprise server to bypass the check for whether
+	// the GitHub org uses SSO.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]

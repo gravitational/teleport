@@ -37,7 +37,6 @@ type ManagedDevice struct {
 	// certificateReset, notRegisteredPendingEnrollment, unknown.
 	DeviceRegistrationState string `json:"deviceRegistrationState"`
 	SerialNumber            string `json:"serialNumber"`
-	Model                   string `json:"model"`
 	// OperatingSystem is the OS of the device, e.g. "Windows", "macOS", "Linux (ubuntu)".
 	OperatingSystem string `json:"operatingSystem"`
 	// OSVersion is the version of the OS, e.g. "10.0.26100.4351" (Windows), "15.5 (24F74)" (macOS),
@@ -47,7 +46,7 @@ type ManagedDevice struct {
 
 // selectManagedDevice is the value for the $select query param when fetching managed devices so
 // that the client fetches only the fields that it needs.
-const selectManagedDevice = "id,lastSyncDateTime,deviceRegistrationState,operatingSystem,serialNumber,model,osVersion"
+const selectManagedDevice = "id,lastSyncDateTime,deviceRegistrationState,operatingSystem,serialNumber,osVersion"
 
 // IterateManagedDevicePages iterates over managed devices, returning them page by page.
 // https://learn.microsoft.com/en-us/graph/api/intune-devices-manageddevice-list?view=graph-rest-1.0

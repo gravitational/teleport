@@ -381,6 +381,9 @@ spec:
         # is required for all Access Requests requesting roles or resources allowed by
         # this role. It applies only to users who have this role assigned.
         mode: "optional"
+        # 'prompt' is a custom message prompted to the user for the requested roles or resources searchable
+	      # as other roles. This is only applied to the requested roles and resources specifying the prompt.
+        prompt: I am a reason prompt specific to a requested role or resource
 
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)

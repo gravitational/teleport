@@ -254,9 +254,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	loginsByRole, err := a.getLoginsByRole(ctx, req)
-	if trace.IsAccessDenied(err) {
-		log.WarnContext(ctx, "Missing permissions to get logins by role, please add role.read to the associated role", "error", err)
-	} else if err != nil {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -524,38 +522,61 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	return nil
 }
 
-func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
-	loginsByRole := make(map[string][]string, len(req.GetRoles()))
-	log := logger.Get(ctx)
-
-	user, err := a.apiClient.GetUser(ctx, req.GetUser(), false)
-	if err != nil {
-		log.WarnContext(ctx, "Missing permissions to apply user traits to login roles, please add user.read to the associated role", "error", err)
-		for _, role := range req.GetRoles() {
-			currentRole, err := a.apiClient.GetRole(ctx, role)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			loginsByRole[role] = currentRole.GetLogins(types.Allow)
+func getRoles(ctx context.Context, client services.RoleGetter, roleNames []string) ([]types.Role, error) {
+	var roles []types.Role
+	for _, roleName := range roleNames {
+		role, err := client.GetRole(ctx, roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return loginsByRole, nil
+		roles = append(roles, role)
 	}
-	for _, role := range req.GetRoles() {
-		currentRole, err := a.apiClient.GetRole(ctx, role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		currentRole, err = services.ApplyTraits(currentRole, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		logins := currentRole.GetLogins(types.Allow)
+	return roles, nil
+}
+
+func getAllowedLogins(roles []types.Role) map[string][]string {
+	allowedLogins := make(map[string][]string, len(roles))
+	for _, role := range roles {
+		logins := role.GetLogins(types.Allow)
 		if logins == nil {
 			logins = []string{}
 		}
-		loginsByRole[role] = logins
+		allowedLogins[role.GetName()] = logins
 	}
-	return loginsByRole, nil
+	return allowedLogins
+}
+
+func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	log := logger.Get(ctx)
+
+	roles, err := getRoles(ctx, a.apiClient, req.GetRoles())
+	switch {
+	case trace.IsAccessDenied(err):
+		// Return an empty map if missing roles read permissions.
+		log.WarnContext(ctx, `Missing permissions to read user.roles, please use the preset "access-plugin" role`, "error", err)
+		return map[string][]string{}, nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	userState, err := services.GetUserOrLoginState(ctx, a.apiClient, req.GetUser())
+	switch {
+	case trace.IsAccessDenied(err):
+		// Return un-applied logins if missing user_login_state and user read permissions.
+		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
+		return getAllowedLogins(roles), nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	userTraits := userState.GetTraits()
+	for _, role := range roles {
+		_, err := services.ApplyTraits(role, userTraits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return getAllowedLogins(roles), nil
 }
 
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {

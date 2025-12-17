@@ -54,7 +54,14 @@ type Cache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
 
 	// GetProxies returns a list of registered proxies.
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of registered proxies.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// IntegrationsGetter defines methods to access Integration resources.
 	services.IntegrationsGetter
@@ -256,7 +263,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
-		if err := awscommon.ValidIntegratioName(req.Integration.GetName()); err != nil {
+		if err := awscommon.ValidIntegrationName(req.Integration.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

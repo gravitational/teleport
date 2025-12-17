@@ -26,12 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
@@ -410,6 +412,24 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 		return
 	}
 	require.ErrorContains(t, err, "does not exist")
+
+	t.Run("Connection pool is shared", func(t *testing.T) {
+		var eg errgroup.Group
+		for i := range 100 {
+			eg.Go(func() error {
+				client, err := makeClient(t, "admin")
+				if err != nil {
+					return trace.Wrap(err, "failed to create client %d", i)
+				}
+				t.Cleanup(func() {
+					assert.NoError(t, client.Disconnect(t.Context()))
+				})
+				return nil
+			})
+		}
+		require.NoError(t, eg.Wait())
+		require.LessOrEqual(t, int32(9), p.Root.mongo.GetActiveConnectionsCount())
+	})
 
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.

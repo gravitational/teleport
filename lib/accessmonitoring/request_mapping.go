@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -41,7 +42,27 @@ type AccessRequestExpressionEnv struct {
 
 	// UserTraits includes arbitrary user traits dynamically provided by the
 	// access monitoring rule handler.
-	UserTraits map[string][]string
+	UserTraits trait.Traits
+}
+
+// NewAccessRequestExpressionEnv constructs an AccessRequestExpressionEnv from
+// the provided request and additional fields.
+func NewAccessRequestExpressionEnv(
+	req types.AccessRequest,
+	userTraits trait.Traits,
+	requestedResources []types.ResourceWithLabels,
+) AccessRequestExpressionEnv {
+	return AccessRequestExpressionEnv{
+		Roles:              req.GetRoles(),
+		RequestedResources: requestedResources,
+		SuggestedReviewers: req.GetSuggestedReviewers(),
+		Annotations:        req.GetSystemAnnotations(),
+		User:               req.GetUser(),
+		RequestReason:      req.GetRequestReason(),
+		CreationTime:       req.GetCreationTime(),
+		Expiry:             req.Expiry(),
+		UserTraits:         userTraits,
+	}
 }
 
 type accessRequestExpression typical.Expression[AccessRequestExpressionEnv, any]

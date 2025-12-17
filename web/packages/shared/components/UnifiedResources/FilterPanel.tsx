@@ -34,6 +34,7 @@ import {
   IncludedResourceMode,
   ResourceHealthStatus,
   UnifiedResourcesQueryParams,
+  VisibleFilterPanelFields,
 } from './types';
 import {
   FilterKind,
@@ -87,6 +88,11 @@ interface FilterPanelProps {
   availabilityFilter?: ResourceAvailabilityFilter;
   changeAvailableResourceMode(mode: IncludedResourceMode): void;
   onRefresh(): void;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleFilterPanelFields?: VisibleFilterPanelFields;
 }
 
 export function FilterPanel({
@@ -105,6 +111,13 @@ export function FilterPanel({
   changeAvailableResourceMode,
   ClusterDropdown = null,
   onRefresh,
+  visibleFilterPanelFields = {
+    checkbox: true,
+    clusterOpts: true,
+    healthStatusOpts: true,
+    resourceTypeOpts: true,
+    resourceAvailabilityOpts: true,
+  },
 }: FilterPanelProps) {
   const { sort, kinds, statuses } = params;
 
@@ -143,54 +156,64 @@ export function FilterPanel({
       alignItems="center"
     >
       <Flex gap={2}>
-        <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
-          <CheckboxInput
-            css={`
-              // add extra margin so it aligns with the checkboxes of the resources
-              margin-left: 19px;
-            `}
-            checked={selected}
-            onChange={selectVisible}
-            data-testid="select_all"
-          />
-        </HoverTooltip>
-        <MultiselectMenu
-          options={availableKinds
-            .toSorted((a, b) =>
-              getFilterKindName(a.kind).localeCompare(getFilterKindName(b.kind))
-            )
-            .map(({ kind, disabled }) => ({
-              value: kind as string,
-              label: getFilterKindName(kind),
-              disabled,
+        {visibleFilterPanelFields.checkbox && (
+          <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
+            <CheckboxInput
+              css={`
+                // add extra margin so it aligns with the checkboxes of the resources
+                margin-left: 19px;
+              `}
+              checked={selected}
+              onChange={selectVisible}
+              data-testid="select_all"
+            />
+          </HoverTooltip>
+        )}
+        {visibleFilterPanelFields.resourceTypeOpts &&
+          availableKinds.length > 0 && (
+            <MultiselectMenu
+              options={availableKinds
+                .toSorted((a, b) =>
+                  getFilterKindName(a.kind).localeCompare(
+                    getFilterKindName(b.kind)
+                  )
+                )
+                .map(({ kind, disabled }) => ({
+                  value: kind as string,
+                  label: getFilterKindName(kind),
+                  disabled,
+                }))}
+              selected={kinds || []}
+              onChange={onKindsChanged}
+              label="Types"
+              tooltip="Filter by resource type"
+              buffered
+            />
+          )}
+        {visibleFilterPanelFields.clusterOpts && ClusterDropdown}
+        {visibleFilterPanelFields.resourceAvailabilityOpts &&
+          availabilityFilter && (
+            <IncludedResourcesSelector
+              availabilityFilter={availabilityFilter}
+              onChange={changeAvailableResourceMode}
+            />
+          )}
+        {visibleFilterPanelFields.healthStatusOpts && (
+          <MultiselectMenu
+            options={resourceStatusOptions.map(({ label, value }) => ({
+              value,
+              label,
             }))}
-          selected={kinds || []}
-          onChange={onKindsChanged}
-          label="Types"
-          tooltip="Filter by resource type"
-          buffered
-        />
-        {ClusterDropdown}
-        {availabilityFilter && (
-          <IncludedResourcesSelector
-            availabilityFilter={availabilityFilter}
-            onChange={changeAvailableResourceMode}
+            selected={statuses || []}
+            onChange={onHealthStatusChange}
+            label="Health Status"
+            tooltip={
+              'Health status filter is only available for database and Kubernetes resources. Support for more resource types will be added in the future.'
+            }
+            disabled={!isResourceStatusFilterSupported}
+            buffered
           />
         )}
-        <MultiselectMenu
-          options={resourceStatusOptions.map(({ label, value }) => ({
-            value,
-            label,
-          }))}
-          selected={statuses || []}
-          onChange={onHealthStatusChange}
-          label="Health Status"
-          tooltip={
-            'Health status filter is only available for database and Kubernetes resources. Support for more resource types will be added in the future.'
-          }
-          disabled={!isResourceStatusFilterSupported}
-          buffered
-        />
       </Flex>
       <Flex gap={2} alignItems="center">
         <Flex mr={1}>{BulkActions}</Flex>
@@ -239,11 +262,16 @@ export function FilterPanel({
           </>
         )}
         <SortMenu
-          selectedKey={activeSortFieldOption.key}
-          selectedOrder={sort.dir}
-          items={sortFieldOptions}
+          selectedKey={activeSortFieldOption?.key ?? sortFieldOptions[0].key}
+          selectedOrder={sort?.dir ?? 'ASC'}
+          items={sortFieldOptions.filter(opt => {
+            if (opt.key === 'kind' && availableKinds.length === 0) {
+              return false;
+            }
+            return true;
+          })}
           onChange={(key, order) => {
-            if (order !== sort.dir) {
+            if (order !== sort?.dir) {
               onSortOrderButtonClicked();
             }
             if (key !== activeSortFieldOption?.key) {

@@ -223,7 +223,7 @@ type ConnectParams struct {
 }
 
 func (p *ConnectParams) CheckAndSetDefaults() error {
-	if p.Logger != nil {
+	if p.Logger == nil {
 		p.Logger = slog.Default()
 	}
 

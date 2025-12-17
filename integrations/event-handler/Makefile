@@ -96,7 +96,7 @@ install: build
 
 .PHONY: test
 test:
-	go test -coverprofile=cover.out
+	gotestsum --junitfile unit-tests-event-handler.xml --jsonfile unit-tests-event-handler.json
 
 .PHONY: configure
 configure: build

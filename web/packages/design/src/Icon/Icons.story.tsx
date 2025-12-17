@@ -131,6 +131,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.FlowArrow} text="FlowArrow" />
     <IconBox IconCmpt={Icon.FolderPlus} text="FolderPlus" />
     <IconBox IconCmpt={Icon.FolderShared} text="FolderShared" />
+    <IconBox IconCmpt={Icon.Git} text="Git" />
     <IconBox IconCmpt={Icon.GitHub} text="GitHub" />
     <IconBox IconCmpt={Icon.Google} text="Google" />
     <IconBox IconCmpt={Icon.Graph} text="Graph" />
@@ -247,6 +248,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
     <IconBox IconCmpt={Icon.Wrench} text="Wrench" />
+    <IconBox IconCmpt={Icon.XCheck} text="XCheck" />
     <IconBox IconCmpt={Icon.Youtube} text="Youtube" />
   </Flex>
 );

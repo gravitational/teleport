@@ -162,7 +162,7 @@ environment variable `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE`.
 Opsgenie plugin users, role annotations must now contain
 `teleport.dev/notify-services` to receive notification on Opsgenie.
 `teleport.dev/schedules` is now the label used to determine auto approval flow.
-See [the Opsgenie plugin documentation](docs/pages/identity-governance/access-request-plugins/opsgenie.mdx)
+See [the Opsgenie plugin documentation](docs/pages/identity-governance/access-requests/plugins/opsgenie.mdx)
 for setup instructions.
 
 #### Teleport Assist has been removed
@@ -185,8 +185,7 @@ Support for disabling multi-factor authentication has been removed
 
 Users with custom `ssh_config` should modify their ProxyCommand to use the new,
 more performant, `tbot ssh-proxy-command`. See the
-[v16 upgrade guide](docs/pages/reference/machine-workload-identity/machine-id/v16-upgrade-guide.mdx) for
-more details.
+v16 upgrade guide for more details.
 
 #### Default keyboard shortcuts in Teleport Connect have been changed
 
@@ -194,7 +193,7 @@ On Windows and Linux, some of the default shortcuts conflicted with the default 
 (e.g. Ctrl + E, Ctrl + K).
 On those platforms, the default shortcuts have been changed to a combination of Ctrl + Shift + *.
 We also updated the shortcut to open a new terminal on macOS to Control + Shift + \`.
-See [configuration](docs/pages/connect-your-client/teleport-connect.mdx#configuration)
+See [configuration](docs/pages/connect-your-client/teleport-clients/teleport-connect.mdx#configuration)
 for the current list of shortcuts.
 
 ## 15.0.0 (xx/xx/24)
@@ -557,14 +556,14 @@ protocols. When using HTTP protocol, the user's query activity is captured in
 the Teleport audit log.
 
 See how to connect ClickHouse to Teleport
-[here](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/clickhouse-self-hosted.mdx).
+[here](docs/pages/enroll-resources/database-access/enrollment/self-hosted/clickhouse-self-hosted.mdx).
 
 #### Oracle database access audit logging support
 
 In Teleport 14, database access for Oracle integration is updated with query
 audit logging support.
 
-See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted.mdx).
+See documentation on how to configure it in the [Oracle guide](docs/pages/enroll-resources/database-access/enrollment/self-hosted/oracle-self-hosted.mdx).
 
 #### Limited passwordless access for local Windows users in Teleport Community Edition
 
@@ -588,7 +587,7 @@ tsh on Windows now supports the `tsh puttyconfig` command, which can
 configure saved sessions inside the well-known PuTTY client to connect to
 Teleport-protected servers.
 
-For more information, see [docs](docs/pages/connect-your-client/putty-winscp.mdx).
+For more information, see [docs](docs/pages/connect-your-client/third-party/putty-winscp.mdx).
 
 #### Support for TLS routing in Terraform deployment examples
 
@@ -602,7 +601,7 @@ In Teleport 14, `tbot` can now be configured to write artifacts such as
 credentials and configuration files directly to a Kubernetes secret rather than
 a directory on the local file system.
 
-For more information, see [docs](docs/pages/reference/machine-workload-identity/machine-id/configuration.mdx).
+For more information, see [docs](docs/pages/reference/machine-workload-identity/configuration.mdx).
 
 ### Breaking changes and deprecations
 
@@ -1504,7 +1503,7 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth-k8s
 
 For a more in-depth guide, see our
-[documentation](docs/pages/machine-workload-identity/machine-id/deployment/github-actions.mdx) for using
+[documentation](docs/pages/machine-workload-identity/deployment/github-actions.mdx) for using
 Teleport with GitHub Actions.
 
 ### Secure certificate mapping for desktop access
@@ -1773,8 +1772,8 @@ editing files on remote systems.
 The following guides explain how to use IDEs to connect to a remote machine via
 Teleport:
 
-- [VS Code](./docs/pages/enroll-resources/server-access/guides/vscode.mdx)
-- [JetBrains](./docs/pages/enroll-resources/server-access/guides/jetbrains-sftp.mdx)
+- [VS Code](docs/pages/connect-your-client/third-party/vscode.mdx)
+- [JetBrains](docs/pages/connect-your-client/third-party/jetbrains-sftp.mdx)
 
 In addition, Teleport 11 clients will use SFTP protocol for file transfer under
 the hood instead of the obsolete scp protocol. Server-side scp is still
@@ -1804,7 +1803,7 @@ label resources.
 
 Teleport database access now supports auto-discovery for Azure-hosted PostgreSQL
 and MySQL databases. See the [Azure
-guide](docs/pages/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx) for more
+guide](docs/pages/enroll-resources/database-access/enrollment/azure/azure-postgres-mysql.mdx) for more
 details.
 
 In addition, Teleport database access will now use Azure AD managed identity
@@ -2004,7 +2003,7 @@ to other supported database protocols.
 Teleport database access for SQL Server remains in Preview mode with more UX
 improvements coming in future releases.
 
-Refer to [the guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx) to set
+Refer to [the guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/sql-server-ad.mdx) to set
 up access to a SQL Server with Active Directory authentication.
 
 ### Snowflake database access (Preview)
@@ -2015,7 +2014,7 @@ standard database access features like role-based access control and audit
 logging, including query activity.
 
 Connect your Snowflake database to Teleport following the
-[documentation](docs/pages/enroll-resources/database-access/enroll-managed-databases/snowflake.mdx).
+[documentation](docs/pages/enroll-resources/database-access/enrollment/managed/snowflake.mdx).
 
 ### Elasticache/MemoryDB database access (Preview)
 
@@ -2024,8 +2023,7 @@ this integration by adding native support for AWS-hosted Elasticache and
 MemoryDB, including auto-discovery and automatic credential management in some
 deployment configurations.
 
-Learn more about it in the [documentation](
-docs/pages/enroll-resources/database-access/enroll-aws-databases/redis-aws.mdx).
+Learn more about it in the [documentation](docs/pages/enroll-resources/database-access/enrollment/aws/redis-aws.mdx).
 
 ### Teleport Connect for server and database access (Preview)
 
@@ -2042,7 +2040,7 @@ In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
 You can find Machine ID guide for database access in the
-[documentation](docs/pages/machine-workload-identity/machine-id/access-guides/databases.mdx).
+[documentation](docs/pages/machine-workload-identity/access-guides/databases.mdx).
 
 ### Breaking changes
 
@@ -2515,7 +2513,7 @@ Redis cluster and view Redis commands in the Teleport audit log. We will be
 adding support for Amazon Elasticache in the coming weeks.
 
 [Self-hosted Redis
-guide](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/redis.mdx)
+guide](docs/pages/enroll-resources/database-access/enrollment/self-hosted/redis.mdx)
 
 #### SQL Server (Preview)
 
@@ -2524,7 +2522,7 @@ Directory authentication support for database access. Audit logging of query
 activity is not included in the preview release and will be implemented in a
 later 9.x release.
 
-[SQL Server guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/sql-server-ad.mdx)
+[SQL Server guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/sql-server-ad.mdx)
 
 #### RDS MariaDB
 
@@ -2532,7 +2530,7 @@ Teleport 9 updates MariaDB support with auto-discovery and connection to AWS RDS
 MariaDB databases using IAM authentication. The minimum MariaDB version that
 supports IAM authentication is 10.6.
 
-[Updated RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
+[Updated RDS guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
 
 #### Other Improvements
 
@@ -2544,8 +2542,8 @@ Database Service when running on AWS.
 
 CLI commands reference:
 - [`teleport db configure
-  create`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
-- [`teleport db configure bootstrap`](docs/pages/reference/agent-services/database-access-reference/cli.mdx)
+  create`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
+- [`teleport db configure bootstrap`](docs/pages/enroll-resources/database-access/reference/cli.mdx)
 
 ### Moderated Sessions
 
@@ -2628,7 +2626,7 @@ without needing to update static YAML configuration or restart application or
 database agents.
 
 See dynamic registration guides for
-[apps](docs/pages/enroll-resources/application-access/guides/dynamic-registration.mdx)
+[apps](docs/pages/enroll-resources/application-access/configuration/dynamic-registration.mdx)
 and
 [databases](docs/pages/enroll-resources/database-access/guides/dynamic-registration.mdx).
 
@@ -2638,7 +2636,7 @@ With RDS auto discovery Teleport database agents can automatically discover RDS
 instances and Aurora clusters in an AWS account.
 
 See updated
-[RDS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx) for
+[RDS guide](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx) for
 more information.
 
 #### WebAuthn
@@ -2742,13 +2740,13 @@ Teleport 7.0 is a major release of Teleport that contains new features, improvem
 
 Added support for [MongoDB](https://www.mongodb.com) to Teleport database access. [#6600](https://github.com/gravitational/teleport/issues/6600).
 
-View the [database access with MongoDB](docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted.mdx) for more details.
+View the [database access with MongoDB](docs/pages/enroll-resources/database-access/enrollment/self-hosted/mongodb-self-hosted.mdx) for more details.
 
 #### Cloud SQL MySQL
 
 Added support for [GCP Cloud SQL MySQL](https://cloud.google.com/sql/docs/mysql) to Teleport database access. [#7302](https://github.com/gravitational/teleport/pull/7302)
 
-View the Cloud SQL MySQL [guide](docs/pages/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql.mdx) for more details.
+View the Cloud SQL MySQL [guide](docs/pages/enroll-resources/database-access/enrollment/google-cloud/mysql-cloudsql.mdx) for more details.
 
 #### AWS Console
 
@@ -2811,7 +2809,7 @@ before upgrading.
 
 Added support for [Amazon Redshift](https://aws.amazon.com/redshift) to Teleport database access.[#6479](https://github.com/gravitational/teleport/pull/6479).
 
-View the [database access with Redshift on AWS guide](docs/pages/enroll-resources/database-access/enroll-aws-databases/postgres-redshift.mdx) for more details.
+View the [database access with Redshift on AWS guide](docs/pages/enroll-resources/database-access/enrollment/aws/postgres-redshift.mdx) for more details.
 
 ### Improvements
 
@@ -2967,11 +2965,11 @@ Configure database access following the [Getting Started](./docs/pages/enroll-re
 ##### Guides
 
 * [AWS RDS/Aurora
-  PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-* [AWS RDS/Aurora MySQL](./docs/pages/enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-* [Self-hosted PostgreSQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx)
-* [Self-hosted MySQL](./docs/pages/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted.mdx)
-* [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
+  PostgreSQL](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
+* [AWS RDS/Aurora MySQL](docs/pages/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
+* [Self-hosted PostgreSQL](docs/pages/enroll-resources/database-access/enrollment/self-hosted/postgres-self-hosted.mdx)
+* [Self-hosted MySQL](docs/pages/enroll-resources/database-access/enrollment/self-hosted/mysql-self-hosted.mdx)
+* [GUI clients](docs/pages/connect-your-client/third-party/gui-clients.mdx)
 
 ##### Resources
 
@@ -2979,7 +2977,7 @@ To learn more about configuring role-based access control for database access, c
 
 [Architecture](./docs/pages/enroll-resources/database-access/database-access.mdx) provides a more in-depth look at database access internals such as networking and security.
 
-See [Reference](docs/pages/reference/agent-services/database-access-reference/database-access-reference.mdx) for an overview of database access related configuration and CLI commands.
+See [Reference](docs/pages/enroll-resources/database-access/reference/reference.mdx) for an overview of database access related configuration and CLI commands.
 
 Finally, check out [Frequently Asked Questions](docs/pages/enroll-resources/database-access/faq.mdx).
 
@@ -3045,7 +3043,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](docs/pages/zero-trust-access/management/admin/admin.mdx) to upgrade your cluster.
+Please follow our [standard upgrade procedure](docs/pages/index.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -3181,7 +3179,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/introduction.mdx).
+You can learn more in [Introduction to Enrolling Applications](./docs/pages/enroll-resources/application-access/application-access.mdx).
 
 ##### Teleport Kubernetes access
 
@@ -3269,7 +3267,7 @@ Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/authen
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/deploy-a-cluster/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -3296,7 +3294,7 @@ Other updates:
 
 * We now provide local user management via `https://[cluster-url]/web/users`, providing the ability to edit, reset and delete local users.
 * Teleport Node & App Install scripts. This is currently an Enterprise-only feature that provides customers with an 'auto-magic' installer script. Enterprise customers can enable this feature by modifying the 'token' resource. See note above.
-* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/identity-governance/access-request-plugins/access-request-plugins.mdx)
+* We've added a Waiting Room for customers using Access Workflows. [Docs](docs/pages/identity-governance/access-requests/plugins/plugins.mdx)
 
 ##### Signed RPM and Releases
 
@@ -3559,12 +3557,12 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 
 ##### Teleport Plugins
 
-Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/identity-governance/access-request-plugins/access-request-plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
+Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](docs/pages/identity-governance/access-requests/plugins/plugins.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
-*   [PagerDuty](docs/pages/identity-governance/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira](docs/pages/identity-governance/access-request-plugins/ssh-approval-jira.mdx)
-*   [Slack](docs/pages/identity-governance/access-request-plugins/ssh-approval-slack.mdx)
-*   [Mattermost](docs/pages/identity-governance/access-request-plugins/ssh-approval-mattermost.mdx)
+*   [PagerDuty](docs/pages/identity-governance/access-requests/plugins/pagerduty.mdx)
+*   [Jira](docs/pages/identity-governance/access-requests/plugins/jira.mdx)
+*   [Slack](docs/pages/identity-governance/access-requests/plugins/slack.mdx)
+*   [Mattermost](docs/pages/identity-governance/access-requests/plugins/mattermost.mdx)
 
 #### Improvements
 
@@ -3607,7 +3605,7 @@ teleport:
 ```
 
 Rotate the cluster CA, following [these
-docs](docs/pages/zero-trust-access/management/operations/ca-rotation.mdx).
+docs](docs/pages/zero-trust-access/management/security/ca-rotation.mdx).
 
 ##### Web UI
 
@@ -3638,7 +3636,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/management/operations/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/deploy-a-cluster/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 
@@ -3769,7 +3767,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/admin/trustedclusters.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/deploy-a-cluster/trustedclusters.mdx).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.11
@@ -4001,7 +3999,7 @@ With this release of Teleport, we have built out the foundation to help Teleport
 
 ### Improvements
 
-* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/zero-trust-access/management/operations/scaling.mdx)
+* Teleport now support 10,000 remote connections to a single Teleport cluster. [Using our recommend hardware setup.](docs/pages/reference/deployment/scaling.mdx)
 * Added ability to delete node using `tctl rm`. [#2685](https://github.com/gravitational/teleport/pull/2685)
 * Output of `tsh ls` is now sorted by node name. [#2534](https://github.com/gravitational/teleport/pull/2534)
 

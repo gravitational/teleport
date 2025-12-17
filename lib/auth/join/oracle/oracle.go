@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package oracle includes functions and types used by the legacy oracle join
+// method, which will be removed in v20.
+//
+// TODO(nklaassen): DELETE IN 20 when removing the legacy join service.
 package oracle
 
 import (
@@ -31,9 +35,21 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
-	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+// Claims are the claims extracted from the instance certificate.
+type Claims = oraclejoin.Claims
+
+var (
+	// ParseRegion parses a string into a full (not abbreviated) Oracle Cloud
+	// region. It returns the empty string if the input is not a valid region.
+	ParseRegion = oraclejoin.ParseRegion
+	// ParseRegionFromOCID parses an Oracle OCID and returns the embedded region.
+	// It returns an error if the input is not a valid OCID.
+	ParseRegionFromOCID = oraclejoin.ParseRegionFromOCID
 )
 
 const teleportUserAgent = "teleport/" + api.Version
@@ -61,37 +77,6 @@ type authenticateClientRequest struct {
 	Challenge string                    `contributesTo:"header" name:"x-teleport-challenge"`
 	UserAgent string                    `contributesTo:"header" name:"User-Agent"`
 	Details   authenticateClientDetails `contributesTo:"body"`
-}
-
-// Claims are the claims returned by the authenticateClient endpoint.
-type Claims struct {
-	// TenancyID is the ID of the instance's tenant.
-	TenancyID string `json:"tenant_id"`
-	// CompartmentID is the ID of the instance's compartment.
-	CompartmentID string `json:"compartment_id"`
-	// InstanceID is the instance's ID.
-	InstanceID string `json:"-"`
-}
-
-// JoinAttrs returns the protobuf representation of the attested identity.
-// This is used for auditing and for evaluation of WorkloadIdentity rules and
-// templating.
-func (c Claims) JoinAttrs() *workloadidentityv1pb.JoinAttrsOracle {
-	attrs := &workloadidentityv1pb.JoinAttrsOracle{
-		TenancyId:     c.TenancyID,
-		CompartmentId: c.CompartmentID,
-		InstanceId:    c.InstanceID,
-	}
-	return attrs
-}
-
-// Region extracts the region from an instance's claims.
-func (c Claims) Region() string {
-	region, err := ParseRegionFromOCID(c.InstanceID)
-	if err != nil {
-		return ""
-	}
-	return region
 }
 
 type claim struct {
@@ -317,66 +302,4 @@ func FetchOraclePrincipalClaims(ctx context.Context, req *http.Request) (Claims,
 		return Claims{}, trace.Wrap(unmarshalErr)
 	}
 	return resp.Result.Principal.getClaims(), nil
-}
-
-// Hack: StringToRegion will lazily load regions from a config file if its
-// input isn't in its hard-coded list, in a non-threadsafe way. Call it here
-// to load the config ahead of time so future calls are threadsafe.
-var _ = common.StringToRegion("")
-
-// ParseRegion parses a string into a full (not abbreviated) Oracle Cloud
-// region. It returns the empty string if the input is not a valid region.
-func ParseRegion(rawRegion string) (region, realm string) {
-	canonicalRegion := common.StringToRegion(rawRegion)
-	realm, err := canonicalRegion.RealmID()
-	if err != nil {
-		return "", ""
-	}
-	return string(canonicalRegion), realm
-}
-
-var ociRealms = map[string]struct{}{
-	"oc1": {}, "oc2": {}, "oc3": {}, "oc4": {}, "oc8": {}, "oc9": {},
-	"oc10": {}, "oc14": {}, "oc15": {}, "oc19": {}, "oc20": {}, "oc21": {},
-	"oc23": {}, "oc24": {}, "oc26": {}, "oc29": {}, "oc35": {},
-}
-
-// ParseRegionFromOCID parses an Oracle OCID and returns the embedded region.
-// It returns an error if the input is not a valid OCID.
-func ParseRegionFromOCID(ocid string) (string, error) {
-	// OCID format: ocid1.<RESOURCE TYPE>.<REALM>.[REGION][.FUTURE USE].<UNIQUE ID>
-	// Check format.
-	ocidParts := strings.Split(ocid, ".")
-	switch len(ocidParts) {
-	case 5, 6:
-	default:
-		return "", trace.BadParameter("not an ocid")
-	}
-	// Check version.
-	if ocidParts[0] != "ocid1" {
-		return "", trace.BadParameter("invalid ocid version: %v", ocidParts[0])
-	}
-	// Check realm.
-	if _, ok := ociRealms[ocidParts[2]]; !ok {
-		return "", trace.BadParameter("invalid realm: %v", ocidParts[2])
-	}
-	resourceType := ocidParts[1]
-	region, realm := ParseRegion(ocidParts[3])
-	// Check type. Only instance OCIDs should have a region.
-	switch resourceType {
-	case "instance":
-		if region == "" {
-			return "", trace.BadParameter("invalid region: %v", region)
-		}
-		if realm != ocidParts[2] {
-			return "", trace.BadParameter("invalid realm %q for region %q", ocidParts[2], region)
-		}
-	case "compartment", "tenancy":
-		if ocidParts[3] != "" {
-			return "", trace.BadParameter("resource type %v should not have a region", resourceType)
-		}
-	default:
-		return "", trace.BadParameter("unsupported resource type: %v", resourceType)
-	}
-	return region, nil
 }

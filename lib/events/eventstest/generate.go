@@ -19,6 +19,7 @@
 package eventstest
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 	"time"
@@ -37,10 +38,16 @@ import (
 // for generated session
 type SessionParams struct {
 	// PrintEvents sets up print events count. Ignored if PrintData is set.
+	// The size of the resulting event stream varies due to compression, but with
+	// a sufficiently large number of events results in approximately 64 bytes per event.
 	PrintEvents int64
 	// PrintData is optional data to use for print events. Each element of the
 	// slice represents data for one print event.
 	PrintData []string
+	// PrintUntilBytes works similarly to PrintEvents, but instead of generating
+	// a fixed number of events, it generates events until the total size of the
+	// the generated events exceeds PrintUntilBytes.
+	PrintUntilBytes int64
 	// Clock is an optional clock setting start
 	// and offset time of the event
 	Clock clockwork.Clock
@@ -52,6 +59,32 @@ type SessionParams struct {
 	ClusterName string
 	// UserName is name of the user interacting with the session
 	UserName string
+}
+
+// genPrintData generates print events based on the given SessionParams. It
+// prioritizes generating events by count if specified. Otherwise it will
+// attempt to generate enough event to reach a total byte size.
+func (p *SessionParams) genPrintData() {
+	var i int64
+	var bytesEmitted int64
+	shouldContinue := func() bool {
+		if p.PrintEvents > 0 {
+			return i < p.PrintEvents
+		}
+
+		if p.PrintUntilBytes > 0 {
+			return bytesEmitted < p.PrintUntilBytes
+		}
+
+		return false
+	}
+
+	p.PrintData = make([]string, 0, int(cmp.Or(p.PrintEvents, 500)))
+	for shouldContinue() {
+		p.PrintData = append(p.PrintData, strings.Repeat("hello", int(i%177+1)))
+		bytesEmitted += int64(len(p.PrintData[i]))
+		i++
+	}
 }
 
 // SetDefaults sets parameters defaults
@@ -67,10 +100,7 @@ func (p *SessionParams) SetDefaults() {
 		p.SessionID = uuid.New().String()
 	}
 	if p.PrintData == nil {
-		p.PrintData = make([]string, p.PrintEvents)
-		for i := range p.PrintEvents {
-			p.PrintData[i] = strings.Repeat("hello", int(i%177+1))
-		}
+		p.genPrintData()
 	}
 	if p.UserName == "" {
 		p.UserName = "alice@example.com"

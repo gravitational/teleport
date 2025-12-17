@@ -22,6 +22,7 @@ import styled from 'styled-components';
 
 import 'ace-builds/src-noconflict/mode-json';
 import 'ace-builds/src-noconflict/mode-yaml';
+import 'ace-builds/src-noconflict/mode-terraform.js';
 import 'ace-builds/src-noconflict/ext-searchbox';
 
 import { ButtonSecondary } from 'design/Button';
@@ -57,6 +58,14 @@ class TextEditor extends Component {
     }
     if (prevProps.readOnly !== this.props.readOnly) {
       this.editor.setReadOnly(this.props.readOnly);
+    }
+
+    // If the data changes, reset the value in each session so changes are
+    // rendered.
+    if (prevProps.data !== this.props.data) {
+      this.props.data.forEach((doc, i) => {
+        this.sessions[i].setValue(doc.content);
+      });
     }
 
     this.editor.resize();
@@ -118,6 +127,16 @@ class TextEditor extends Component {
     this.session = null;
   }
 
+  handleCopy() {
+    copyToClipboard(this.editor.session.getValue());
+    this.props.onCopy?.();
+  }
+
+  handleDownload() {
+    downloadObject(this.props.downloadFileName, this.editor.session.getValue());
+    this.props.onDownload?.();
+  }
+
   render() {
     const { bg = 'levels.sunken' } = this.props;
     const hasButton = this.props.copyButton || this.props.downloadButton;
@@ -130,7 +149,7 @@ class TextEditor extends Component {
             {this.props.copyButton && (
               <EditorButton
                 title="Copy to clipboard"
-                onClick={() => copyToClipboard(this.editor.session.getValue())}
+                onClick={() => this.handleCopy()}
               >
                 <Copy size="medium" />
               </EditorButton>
@@ -138,12 +157,7 @@ class TextEditor extends Component {
             {this.props.downloadButton && (
               <EditorButton
                 title="Download"
-                onClick={() =>
-                  downloadObject(
-                    this.props.downloadFileName,
-                    this.editor.session.getValue()
-                  )
-                }
+                onClick={() => this.handleDownload()}
               >
                 <Download size="medium" />
               </EditorButton>
@@ -160,6 +174,16 @@ function getMode(docType) {
     return 'ace/mode/json';
   }
 
+  if (docType === 'terraform') {
+    return 'ace/mode/terraform';
+  }
+
+  if (docType === 'yaml') {
+    return 'ace/mode/yaml';
+  }
+
+  // Makes more sense to default to `ace/mode/text`, but there are existing uses
+  // that don't provide a type.
   return 'ace/mode/yaml';
 }
 
