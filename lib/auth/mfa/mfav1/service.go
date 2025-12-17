@@ -252,21 +252,18 @@ func (s *Service) ValidateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	var device *types.MFADevice
+	var (
+		device      *types.MFADevice
+		validateErr error
+	)
 
-	// Validate the challenge response.
+	// Validate the challenge response. Error is captured to report in the audit event and handled later.
 	switch resp := req.MfaResponse.GetResponse().(type) {
 	case *mfav1.AuthenticateResponse_Webauthn:
-		device, err = s.validateWebauthnResponse(ctx, username, resp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		device, validateErr = s.validateWebauthnResponse(ctx, username, resp)
 
 	case *mfav1.AuthenticateResponse_Sso:
-		device, err = s.validateSSOResponse(ctx, username, resp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		device, validateErr = s.validateSSOResponse(ctx, username, resp)
 
 	default:
 		return nil, trace.BadParameter("unknown MFA response type %T", resp)
@@ -279,29 +276,41 @@ func (s *Service) ValidateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitter.EmitAuditEvent(ctx, &apievents.ValidateMFAAuthResponse{
+	event := &apievents.ValidateMFAAuthResponse{
 		Metadata: apievents.Metadata{
 			Type:        events.ValidateMFAAuthResponseEvent,
-			Code:        events.ValidateMFAAuthResponseCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
 		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		FlowType:     apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND,
-		MFADevice: &apievents.MFADeviceMetadata{
+	}
+	if validateErr != nil {
+		event.Code = events.ValidateMFAAuthResponseFailureCode
+		event.Success = false
+		event.UserMessage = validateErr.Error()
+		event.Error = validateErr.Error()
+	} else {
+		event.Code = events.ValidateMFAAuthResponseCode
+		event.Success = true
+		event.MFADevice = &apievents.MFADeviceMetadata{
 			DeviceName: device.GetName(),
 			DeviceID:   device.Id,
 			DeviceType: device.MFAType(),
-		},
-	}); err != nil {
+		}
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit ValidateMFAAuthResponse event", "error", err)
+	}
+
+	if validateErr != nil {
+		return nil, trace.AccessDenied("validate MFA response: %v", validateErr)
 	}
 
 	s.logger.DebugContext(
 		ctx,
 		"Validated MFA challenge",
 		"user", username,
-		"device", device.GetName(),
-		"device_type", device.MFAType(),
 	)
 
 	return &mfav1.ValidateSessionChallengeResponse{}, nil

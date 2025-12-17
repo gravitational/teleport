@@ -27,6 +27,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	mfav1impl "github.com/gravitational/teleport/lib/auth/mfa/mfav1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -109,7 +110,6 @@ func TestCreateSessionChallenge_Webauthn(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 }
 
-// TestCreateSessionChallenge_SSO tests the CreateSessionChallenge method for SSO challenges.
 func TestCreateSessionChallenge_SSO(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
@@ -180,6 +180,7 @@ func TestCreateSessionChallenge_SSO(t *testing.T) {
 	require.Equal(t, "test-device-connector-id", resp.GetMfaChallenge().GetSsoChallenge().GetDevice().ConnectorId)
 	require.Equal(t, constants.SAML, resp.GetMfaChallenge().GetSsoChallenge().GetDevice().ConnectorType)
 	require.Equal(t, "https://sso/redirect", resp.GetMfaChallenge().GetSsoChallenge().GetRedirectUrl())
+
 	// Verify emitted event.
 	event := emitter.LastEvent()
 	require.Equal(t, events.CreateMFAAuthChallengeEvent, event.GetType())
@@ -191,7 +192,6 @@ func TestCreateSessionChallenge_SSO(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 }
 
-// TestCreateSessionChallenge_InvalidRequest tests that CreateSessionChallenge returns errors for invalid requests.
 func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -265,7 +265,6 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	}
 }
 
-// TestCreateSessionChallenge_NoMFADevices tests the CreateSessionChallenge method when no MFA devices are registered.
 func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -309,7 +308,6 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 	require.ErrorContains(t, err, "has no registered MFA devices")
 }
 
-// TestValidateSessionChallenge tests the ValidateSessionChallenge method for Webauthn challenges.
 func TestValidateSessionChallenge_Webauthn(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
@@ -407,7 +405,6 @@ func TestValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 }
 
-// TestValidateSessionChallenge tests the ValidateSessionChallenge method for SSO challenges.
 func TestValidateSessionChallenge_SSO(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
@@ -488,7 +485,6 @@ func TestValidateSessionChallenge_SSO(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 }
 
-// TestValidateSessionChallenge_InvalidRequest tests that ValidateSessionChallenge returns errors for invalid requests.
 func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -530,4 +526,94 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 			require.True(t, trace.IsBadParameter(err))
 		})
 	}
+}
+
+func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	authServer, err := NewMockAuthServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
+			ClusterName: "test-cluster",
+			Dir:         t.TempDir(),
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+				},
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			},
+		},
+	},
+		nil,
+	)
+	require.NoError(t, err)
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+	})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
+		Identity: tlsca.Identity{
+			Username: user.GetName(),
+		},
+	})
+
+	// Register a Webauthn device for the user.
+	_, err = authtest.RegisterTestDevice(
+		ctx,
+		authServer.Auth(),
+		"webauthn-device",
+		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		nil,
+	)
+	require.NoError(t, err)
+
+	challengeResp, err := service.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge())
+
+	validateResp, err := service.ValidateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: &mfav1.AuthenticateResponse{
+				Response: &mfav1.AuthenticateResponse_Webauthn{
+					Webauthn: &webauthnpb.CredentialAssertionResponse{
+						Type: "invalid",
+					},
+				},
+			},
+		},
+	)
+	require.Error(t, err)
+	require.Nil(t, validateResp)
+
+	// Verify emitted event.
+	event := emitter.LastEvent()
+	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
+	require.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
+	require.Equal(t, "test-cluster", event.GetClusterName())
+	e, ok := event.(*apievents.ValidateMFAAuthResponse)
+	require.True(t, ok)
+	require.Equal(t, user.GetName(), e.GetUser())
+	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
+	require.False(t, e.Success)
 }
