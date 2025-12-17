@@ -482,10 +482,6 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
-	if err := s.startDynamicMatchersWatcher(s.ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	databaseFetchers, err := s.databaseFetchersFromMatchers(cfg.Matchers, noDiscoveryConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -519,6 +515,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	if err := s.initTAGAzureWatchers(s.ctx, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.startDynamicMatchersWatcher(s.ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
