@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/account"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -67,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/utils"
+	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -133,6 +135,8 @@ type Config struct {
 	GetEC2Client server.EC2ClientGetter
 	// GetAWSRegionsLister gets a client that is capable of listing AWS regions.
 	GetAWSRegionsLister server.RegionsListerGetter
+	// GetAWSOrganizationsClient gets a client that is capable of listing AWS organizations.
+	GetAWSOrganizationsClient server.AWSOrganizationsGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
 	GetSSMClient func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
@@ -291,6 +295,16 @@ kubernetes matchers are present.`)
 				return nil, trace.Wrap(err)
 			}
 			return account.NewFromConfig(cfg), nil
+		}
+	}
+	if c.GetAWSOrganizationsClient == nil {
+		c.GetAWSOrganizationsClient = func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+			const noRegion = "" // Organizations API is global, no region needed.
+			cfg, err := c.getAWSConfig(ctx, noRegion, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return organizations.NewFromConfig(cfg), nil
 		}
 	}
 	if c.AWSFetchersClients == nil {
@@ -565,6 +579,7 @@ func (s *Server) startDynamicMatchersWatcher(ctx context.Context) error {
 // This is only used if the matcher does not specify a ProxyAddress.
 // Example: proxy.example.com:3080 or proxy.example.com
 func (s *Server) publicProxyAddress(ctx context.Context) (string, error) {
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	proxies, err := s.AccessPoint.GetProxies()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -586,11 +601,13 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	staticFetchers, err := server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
-		Matchers:              ec2Matchers,
-		EC2ClientGetter:       s.GetEC2Client,
-		RegionsListerGetter:   s.GetAWSRegionsLister,
-		PublicProxyAddrGetter: s.publicProxyAddress,
+	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
+		Matchers:               ec2Matchers,
+		EC2ClientGetter:        s.GetEC2Client,
+		RegionsListerGetter:    s.GetAWSRegionsLister,
+		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
+		PublicProxyAddrGetter:  s.publicProxyAddress,
+		Logger:                 s.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -710,11 +727,13 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 	})
 
 	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
-		Matchers:              serverMatchers,
-		EC2ClientGetter:       s.GetEC2Client,
-		RegionsListerGetter:   s.GetAWSRegionsLister,
-		DiscoveryConfigName:   discoveryConfigName,
-		PublicProxyAddrGetter: s.publicProxyAddress,
+		Matchers:               serverMatchers,
+		EC2ClientGetter:        s.GetEC2Client,
+		RegionsListerGetter:    s.GetAWSRegionsLister,
+		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
+		DiscoveryConfigName:    discoveryConfigName,
+		PublicProxyAddrGetter:  s.publicProxyAddress,
+		Logger:                 s.Log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

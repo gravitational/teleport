@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -144,17 +145,17 @@ func TestCertAuthorityResource(t *testing.T) {
 	ctx := context.Background()
 	tt := setupServicesContext(ctx, t)
 
-	userCA := NewTestCA(types.UserCA, "example.com")
-	hostCA := NewTestCA(types.HostCA, "example.com")
+	userCA, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
+	hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
+	require.NoError(t, err)
 
 	// Check basic dynamic item creation
-	err := CreateResources(ctx, tt.bk, userCA, hostCA)
-	require.NoError(t, err)
+	require.NoError(t, CreateResources(ctx, tt.bk, userCA, hostCA))
 
 	// Check that dynamically created item is compatible with service
 	s := NewCAService(tt.bk)
-	err = s.CompareAndSwapCertAuthority(userCA, userCA)
-	require.NoError(t, err)
+	require.NoError(t, s.CompareAndSwapCertAuthority(userCA, userCA))
 }
 
 func TestTrustedClusterResource(t *testing.T) {

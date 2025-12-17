@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -95,6 +96,7 @@ func GetClusterDetails(ctx context.Context, cluster reversetunnelclient.Cluster,
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	proxies, err := clt.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,7 +106,12 @@ func GetClusterDetails(ctx context.Context, cluster reversetunnelclient.Cluster,
 		return nil, trace.Wrap(err)
 	}
 
-	authServers, err := clt.GetAuthServers()
+	authServers, err := clientutils.CollectWithFallback(
+		ctx,
+		clt.ListAuthServers,
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		func(context.Context) ([]types.Server, error) { return clt.GetAuthServers() },
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
