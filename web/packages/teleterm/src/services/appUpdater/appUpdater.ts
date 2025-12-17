@@ -39,6 +39,7 @@ import { AbortError } from 'shared/utils/error';
 import { compare } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
+import { NsisCustomUpdater } from 'teleterm/services/appUpdater/nsisCustomUpdater';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
@@ -68,6 +69,7 @@ export class AppUpdater {
     private readonly storage: AppUpdaterStorage,
     private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
     readonly getDownloadBaseUrl: () => Promise<string>,
+    private readonly installWindowsUpdate: (path: string) => Promise<void>,
     private readonly emit: (event: AppUpdateEvent) => void,
     private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
@@ -83,6 +85,12 @@ export class AppUpdater {
         };
       }
     };
+
+    if (process.platform === 'win32') {
+      this.nativeUpdater = new NsisCustomUpdater({
+        installUpdate: this.installWindowsUpdate,
+      });
+    }
 
     this.nativeUpdater.setFeedURL({
       provider: 'custom',
@@ -135,7 +143,7 @@ export class AppUpdater {
   supportsUpdates(): boolean {
     return (
       this.nativeUpdater instanceof MacUpdater ||
-      this.nativeUpdater instanceof NsisUpdater ||
+      this.nativeUpdater instanceof NsisCustomUpdater ||
       this.nativeUpdater instanceof DebUpdater ||
       this.nativeUpdater instanceof RpmUpdater
     );

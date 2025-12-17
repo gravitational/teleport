@@ -28,6 +28,8 @@ service AutoUpdateService {
   // Can be overridden with TELEPORT_CDN_BASE_URL env var.
   // OSS builds require this env var to be set, otherwise an error is returned.
   rpc GetDownloadBaseUrl(GetDownloadBaseUrlRequest) returns (GetDownloadBaseUrlResponse);
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResponse);
 }
 
 // Request for GetClusterVersions.
@@ -66,3 +68,12 @@ message GetDownloadBaseUrlRequest {}
 message GetDownloadBaseUrlResponse {
   string base_url = 1;
 }
+
+// Request for RunUpdateRequest.
+message RunUpdateRequest {
+  string path = 1;
+  string proxy_host = 2;
+}
+
+// Response for RunUpdateRequest.
+message RunUpdateResponse {}

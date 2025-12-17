@@ -22,6 +22,14 @@
             "tsh.exe vnet-install-service failed with exit code $0. Output: $1"
         Quit
     ${Endif}
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" windows-install-update-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe windows-install-update-service failed with exit code $0. Output: $1"
+        Quit
+    ${Endif}
 !macroend
 
 !macro customUnInstall

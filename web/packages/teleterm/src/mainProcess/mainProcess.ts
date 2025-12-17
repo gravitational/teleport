@@ -205,10 +205,15 @@ export default class MainProcess {
       } = await autoUpdateService.getDownloadBaseUrl({});
       return baseUrl;
     };
+    const installUpdate = async (path: string) => {
+      const { autoUpdateService } = await this.tshdClients;
+      await autoUpdateService.runUpdate({ path, proxyHost: '' });
+    };
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
       getClusterVersions,
       getDownloadBaseUrl,
+      installUpdate,
       event => {
         if (event.kind === 'error') {
           event.error = serializeError(event.error);

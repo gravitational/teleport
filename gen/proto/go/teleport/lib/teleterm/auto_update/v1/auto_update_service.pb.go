@@ -337,6 +337,96 @@ func (x *GetDownloadBaseUrlResponse) GetBaseUrl() string {
 	return ""
 }
 
+// Request for RunUpdateRequest.
+type RunUpdateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	ProxyHost     string                 `protobuf:"bytes,2,opt,name=proxy_host,json=proxyHost,proto3" json:"proxy_host,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunUpdateRequest) Reset() {
+	*x = RunUpdateRequest{}
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunUpdateRequest) ProtoMessage() {}
+
+func (x *RunUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunUpdateRequest.ProtoReflect.Descriptor instead.
+func (*RunUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RunUpdateRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *RunUpdateRequest) GetProxyHost() string {
+	if x != nil {
+		return x.ProxyHost
+	}
+	return ""
+}
+
+// Response for RunUpdateRequest.
+type RunUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunUpdateResponse) Reset() {
+	*x = RunUpdateResponse{}
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunUpdateResponse) ProtoMessage() {}
+
+func (x *RunUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunUpdateResponse.ProtoReflect.Descriptor instead.
+func (*RunUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{7}
+}
+
 var File_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc = "" +
@@ -358,10 +448,16 @@ const file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDes
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\"\x1b\n" +
 	"\x19GetDownloadBaseUrlRequest\"7\n" +
 	"\x1aGetDownloadBaseUrlResponse\x12\x19\n" +
-	"\bbase_url\x18\x01 \x01(\tR\abaseUrl2\xc7\x02\n" +
+	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\"E\n" +
+	"\x10RunUpdateRequest\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1d\n" +
+	"\n" +
+	"proxy_host\x18\x02 \x01(\tR\tproxyHost\"\x13\n" +
+	"\x11RunUpdateResponse2\xc5\x03\n" +
 	"\x11AutoUpdateService\x12\x97\x01\n" +
 	"\x12GetClusterVersions\x12?.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse\x12\x97\x01\n" +
-	"\x12GetDownloadBaseUrl\x12?.teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponseBcZagithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1;auto_updatev1b\x06proto3"
+	"\x12GetDownloadBaseUrl\x12?.teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse\x12|\n" +
+	"\tRunUpdate\x126.teleport.lib.teleterm.auto_update.v1.RunUpdateRequest\x1a7.teleport.lib.teleterm.auto_update.v1.RunUpdateResponseBcZagithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1;auto_updatev1b\x06proto3"
 
 var (
 	file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescOnce sync.Once
@@ -375,7 +471,7 @@ func file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc
 	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_goTypes = []any{
 	(*GetClusterVersionsRequest)(nil),  // 0: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
 	(*GetClusterVersionsResponse)(nil), // 1: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
@@ -383,16 +479,20 @@ var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_goTypes 
 	(*UnreachableCluster)(nil),         // 3: teleport.lib.teleterm.auto_update.v1.UnreachableCluster
 	(*GetDownloadBaseUrlRequest)(nil),  // 4: teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest
 	(*GetDownloadBaseUrlResponse)(nil), // 5: teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
+	(*RunUpdateRequest)(nil),           // 6: teleport.lib.teleterm.auto_update.v1.RunUpdateRequest
+	(*RunUpdateResponse)(nil),          // 7: teleport.lib.teleterm.auto_update.v1.RunUpdateResponse
 }
 var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_depIdxs = []int32{
 	2, // 0: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse.reachable_clusters:type_name -> teleport.lib.teleterm.auto_update.v1.ClusterVersionInfo
 	3, // 1: teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse.unreachable_clusters:type_name -> teleport.lib.teleterm.auto_update.v1.UnreachableCluster
 	0, // 2: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:input_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
 	4, // 3: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetDownloadBaseUrl:input_type -> teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest
-	1, // 4: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:output_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
-	5, // 5: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetDownloadBaseUrl:output_type -> teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
+	6, // 4: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.RunUpdate:input_type -> teleport.lib.teleterm.auto_update.v1.RunUpdateRequest
+	1, // 5: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetClusterVersions:output_type -> teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse
+	5, // 6: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.GetDownloadBaseUrl:output_type -> teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
+	7, // 7: teleport.lib.teleterm.auto_update.v1.AutoUpdateService.RunUpdate:output_type -> teleport.lib.teleterm.auto_update.v1.RunUpdateResponse
+	5, // [5:8] is the sub-list for method output_type
+	2, // [2:5] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
 	2, // [2:2] is the sub-list for extension extendee
 	0, // [0:2] is the sub-list for field type_name
@@ -409,7 +509,7 @@ func file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_init() 
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc), len(file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

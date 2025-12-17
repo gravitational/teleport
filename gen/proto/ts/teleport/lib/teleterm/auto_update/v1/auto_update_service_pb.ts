@@ -120,6 +120,28 @@ export interface GetDownloadBaseUrlResponse {
      */
     baseUrl: string;
 }
+/**
+ * Request for RunUpdateRequest.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.RunUpdateRequest
+ */
+export interface RunUpdateRequest {
+    /**
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+    /**
+     * @generated from protobuf field: string proxy_host = 2;
+     */
+    proxyHost: string;
+}
+/**
+ * Response for RunUpdateRequest.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.RunUpdateResponse
+ */
+export interface RunUpdateResponse {
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
     constructor() {
@@ -398,10 +420,91 @@ class GetDownloadBaseUrlResponse$Type extends MessageType<GetDownloadBaseUrlResp
  * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
  */
 export const GetDownloadBaseUrlResponse = new GetDownloadBaseUrlResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RunUpdateRequest$Type extends MessageType<RunUpdateRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.RunUpdateRequest", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "proxy_host", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RunUpdateRequest>): RunUpdateRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.proxyHost = "";
+        if (value !== undefined)
+            reflectionMergePartial<RunUpdateRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunUpdateRequest): RunUpdateRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* string proxy_host */ 2:
+                    message.proxyHost = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RunUpdateRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* string proxy_host = 2; */
+        if (message.proxyHost !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.proxyHost);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.RunUpdateRequest
+ */
+export const RunUpdateRequest = new RunUpdateRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RunUpdateResponse$Type extends MessageType<RunUpdateResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.RunUpdateResponse", []);
+    }
+    create(value?: PartialMessage<RunUpdateResponse>): RunUpdateResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<RunUpdateResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RunUpdateResponse): RunUpdateResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: RunUpdateResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.RunUpdateResponse
+ */
+export const RunUpdateResponse = new RunUpdateResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService
  */
 export const AutoUpdateService = new ServiceType("teleport.lib.teleterm.auto_update.v1.AutoUpdateService", [
     { name: "GetClusterVersions", options: {}, I: GetClusterVersionsRequest, O: GetClusterVersionsResponse },
-    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse }
+    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse },
+    { name: "RunUpdate", options: {}, I: RunUpdateRequest, O: RunUpdateResponse }
 ]);

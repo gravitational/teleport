@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/autoupdate/windows_service"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
@@ -157,4 +158,16 @@ func resolveBaseURL() (string, error) {
 	}
 
 	return autoupdate.DefaultBaseURL, nil
+}
+
+func (s *Service) RunUpdate(ctx context.Context, request *api.RunUpdateRequest) (*api.RunUpdateResponse, error) {
+	err := windows_service.RunService(ctx, &windows_service.Config{
+		UserSID:   "",
+		Path:      request.GetPath(),
+		ProxyHost: "",
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &api.RunUpdateResponse{}, nil
 }
