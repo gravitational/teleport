@@ -39,7 +39,12 @@ export function Summary() {
   // 'current' tenant.
   const nilId = '00000000-0000-0000-0000-000000000000';
   const ctx = useTeleport();
-  const [aggregate, setAggregate] = useState(true);
+
+  // Note: self-hosted clusters can't see aggregated usage because we
+  // cannot deduplicate MAUs for them.
+  const aggregateViewAvailable = ctx.isCloud;
+
+  const [aggregate, setAggregate] = useState(aggregateViewAvailable);
   const [customer, setCustomer] = useState<GetUsageResponse>();
 
   const {
@@ -89,21 +94,22 @@ export function Summary() {
                 >
                   <FeatureHeaderTitle>Usage Reporting</FeatureHeaderTitle>
                   <Flex alignItems="center" gap={3}>
-                    {usageResponse.aggregateCount > 1 && (
-                      <ButtonSelect
-                        fullWidth
-                        disabled={isRefetching}
-                        options={[
-                          {
-                            value: 'all',
-                            label: `All Clusters (${usageResponse?.aggregateCount})`,
-                          },
-                          { value: 'current', label: 'Current Cluster' },
-                        ]}
-                        activeValue={aggregate ? 'all' : 'current'}
-                        onChange={() => setAggregate(!aggregate)}
-                      />
-                    )}
+                    {usageResponse.aggregateCount > 1 &&
+                      aggregateViewAvailable && (
+                        <ButtonSelect
+                          fullWidth
+                          disabled={isRefetching}
+                          options={[
+                            {
+                              value: 'all',
+                              label: `All Clusters (${usageResponse?.aggregateCount})`,
+                            },
+                            { value: 'current', label: 'Current Cluster' },
+                          ]}
+                          activeValue={aggregate ? 'all' : 'current'}
+                          onChange={() => setAggregate(!aggregate)}
+                        />
+                      )}
                     <InfoGuideButton config={{ guide: <Guide /> }} />
                   </Flex>
                 </FeatureHeader>
