@@ -20,13 +20,14 @@ import (
 	"database/sql"
 	"errors"
 	"net"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/netaddr"
 )
 
 // defaultWtmpdbPath is the default location of the wtmpdb db file.
@@ -40,12 +41,20 @@ type WtmpdbBackend struct {
 	db *sql.DB
 }
 
+func fileExists(fp string) bool {
+	_, err := os.Stat(fp)
+	if err != nil && os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 // NewWtmpdbBackend creates a new wtmpdb backend.
 func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
 	if dbPath == "" {
 		dbPath = defaultWtmpdbPath
 	}
-	if !utils.FileExists(dbPath) {
+	if !fileExists(dbPath) {
 		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
 	}
 	db, err := sql.Open("sqlite", dbPath)
@@ -63,7 +72,7 @@ func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time
 		return 0, trace.Wrap(err)
 	}
 	defer stmt.Close()
-	addr := utils.FromAddr(remote)
+	addr := netaddr.FromAddr(remote)
 	result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, addr.Host())
 	if err != nil {
 		var e *sqlite.Error
