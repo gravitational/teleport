@@ -167,6 +167,14 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.BadParameter("user %q has no registered MFA devices", username)
 	}
 
+	s.logger.DebugContext(
+		ctx,
+		"Fetched devices for MFA challenge",
+		"username", username,
+		"webauthn_devices", len(webauthnDevices),
+		"sso_device", ssoDevice != nil,
+	)
+
 	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{}}
 
 	// If WebAuthn is enabled and there are registered devices, create a WebAuthn challenge.
@@ -230,6 +238,14 @@ func (s *Service) CreateSessionChallenge(
 		s.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
 
+	s.logger.DebugContext(
+		ctx,
+		"Created MFA challenge",
+		"username", username,
+		"webauthn_challenge", challenge.MfaChallenge.WebauthnChallenge != nil,
+		"sso_challenge", challenge.MfaChallenge.SsoChallenge != nil,
+	)
+
 	return challenge, nil
 }
 
@@ -291,6 +307,14 @@ func (s *Service) ValidateSessionChallenge(
 	}); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit ValidateMFAAuthResponse event", "error", err)
 	}
+
+	s.logger.DebugContext(
+		ctx,
+		"Validated MFA challenge",
+		"username", username,
+		"device", device.GetName(),
+		"device_type", device.MFAType(),
+	)
 
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
