@@ -382,7 +382,7 @@ func (c *ScopedAccessChecker) EnhancedRecordingSet() map[string]bool {
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
-func (c *ScopedAccessChecker) HostUsers(srv types.Server) (*decisionpb.HostUsersInfo, error) {
+func (c *ScopedAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, error) {
 	// scoped roles do not currently support host users, but we don't currently foresee
 	// issues with mirroring the classic role interface here since host users are not
 	// certificate-bound and are not calculated pre-access-check. depeding on wether or not
