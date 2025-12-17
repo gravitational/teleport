@@ -150,7 +150,7 @@ func (p *Process) start(ctx context.Context) error {
 			buf := make([]byte, RequestBufferSize)
 			n, err := p.conn.Read(buf)
 			if err != nil {
-				if isOKNetworkError(err) {
+				if IsOKNetworkError(err) {
 					return
 				}
 				slog.WarnContext(ctx, "Failed to read error from networking process.", "error", err)
@@ -192,13 +192,13 @@ func isFailedToSendCloseNotifyError(err error) bool {
 	return strings.Contains(err.Error(), "tls: failed to send closeNotify alert (but connection was closed anyway)")
 }
 
-func isOKNetworkError(err error) bool {
+func IsOKNetworkError(err error) bool {
 	// trace.Aggregate contains at least one error and all the errors are
 	// non-nil
 	var a trace.Aggregate
 	if errors.As(trace.Unwrap(err), &a) {
 		for _, err := range a.Errors() {
-			if !isOKNetworkError(err) {
+			if !IsOKNetworkError(err) {
 				return false
 			}
 		}
