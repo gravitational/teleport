@@ -601,7 +601,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		return matcherType == types.AWSMatcherEC2
 	})
 
-	s.staticServerAWSFetchers, err = server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
+	staticFetchers, err := server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
 		Matchers:               ec2Matchers,
 		EC2ClientGetter:        s.GetEC2Client,
 		RegionsListerGetter:    s.GetAWSRegionsLister,

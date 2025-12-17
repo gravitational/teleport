@@ -587,21 +587,18 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 		}, nil
 	}
 
-	fetchersFn := func() []Fetcher {
-		fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
-			Matchers: matchers,
-			PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
-				return "proxy.example.com:3080", nil
-			},
-			EC2ClientGetter:        ec2ClientGetter,
-			AWSOrganizationsGetter: organizationsGetter,
-		})
-		require.NoError(t, err)
-
-		return fetchers
-	}
-	watcher, err := NewEC2Watcher(t.Context(), fetchersFn, make(<-chan []types.Server))
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter:        ec2ClientGetter,
+		AWSOrganizationsGetter: organizationsGetter,
+	})
 	require.NoError(t, err)
+
+	watcher := NewWatcher[*EC2Instances](t.Context())
+	watcher.SetFetchers("", fetchers)
 
 	go watcher.Run()
 
@@ -623,8 +620,8 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	for _, instances := range expectedInstances {
 		select {
 		case result := <-watcher.InstancesC:
-			require.NotNil(t, result.EC2)
-			require.Equal(t, instances, *result.EC2)
+			require.NotNil(t, result)
+			require.Equal(t, instances, *result)
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}
