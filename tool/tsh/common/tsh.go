@@ -1489,6 +1489,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
 	autoUpdateCommand := app.Command("windows-install-update-service", "Install the update Windows service.").Hidden()
+	updateServiceCommand := app.Command("update-service", "Install the update Windows service.").Hidden()
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
@@ -1932,6 +1933,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetInstallServiceCommand.run(&cf)
 	case autoUpdateCommand.FullCommand():
 		err = windows_service.InstallService(ctx)
+	case updateServiceCommand.FullCommand():
+		err = windows_service.ServiceMain()
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
