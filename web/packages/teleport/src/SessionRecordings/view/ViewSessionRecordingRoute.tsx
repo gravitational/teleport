@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import { Danger } from 'design/Alert';
@@ -28,26 +28,30 @@ import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/Err
 import { useLocation, useParams } from 'teleport/components/Router';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
-import { RecordingType } from 'teleport/services/recordings';
+import {
+  RecordingType,
+  type SessionRecordingMetadata,
+} from 'teleport/services/recordings';
 import { useSuspenseGetRecordingDuration } from 'teleport/services/recordings/hooks';
 import {
   RECORDING_TYPES_WITH_METADATA,
   VALID_RECORDING_TYPES,
 } from 'teleport/services/recordings/recordings';
+import { SessionRecordingDetails } from 'teleport/SessionRecordings/view/SessionRecordingDetails';
 
 import { RecordingPlayer } from './RecordingPlayer';
 import {
   RecordingWithMetadata,
-  type SummarySlot,
+  type SidebarSlot,
 } from './RecordingWithMetadata';
 import { RecordingWithSummary } from './RecordingWithSummary';
 
 interface ViewSessionRecordingRouteProps {
-  summarySlot?: SummarySlot;
+  sidebarSlot?: SidebarSlot;
 }
 
 export function ViewSessionRecordingRoute({
-  summarySlot,
+  sidebarSlot,
 }: ViewSessionRecordingRouteProps) {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
@@ -75,6 +79,21 @@ export function ViewSessionRecordingRoute({
       recordingType={recordingType}
     />
   );
+
+  const defaultSidebarSlot: SidebarSlot = useMemo(() => {
+    return (
+      sessionId: string,
+      recordingType: RecordingType,
+      metadata: SessionRecordingMetadata | null
+    ) => {
+      return (
+        <SessionRecordingDetails
+          recordingType={recordingType}
+          metadata={metadata}
+        />
+      );
+    };
+  }, []);
 
   if (shouldFetchSessionDuration) {
     player = (
@@ -104,21 +123,21 @@ export function ViewSessionRecordingRoute({
           <RecordingWithMetadata
             clusterId={clusterId}
             sessionId={sid}
-            summarySlot={summarySlot}
+            sidebarSlot={sidebarSlot ?? defaultSidebarSlot}
           />
         </ErrorBoundary>
       </Suspense>
     );
   }
 
-  if (summarySlot) {
+  if (sidebarSlot) {
     return (
       <RecordingWithSummary
         clusterId={clusterId}
         sessionId={sid}
         durationMs={durationMs}
         recordingType={recordingType}
-        summarySlot={summarySlot}
+        sidebarSlot={sidebarSlot}
       />
     );
   }
