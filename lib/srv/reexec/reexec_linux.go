@@ -18,7 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package srv
+package reexec
 
 import (
 	"os"
@@ -63,6 +63,10 @@ func init() {
 // reexecPath specifies a path to execute on reexec, overriding Path in the cmd
 // passed to reexecCommandOSTweaks, if not empty.
 var reexecPath string
+
+func CommandOSTweaks(cmd *exec.Cmd) {
+	reexecCommandOSTweaks(cmd)
+}
 
 func reexecCommandOSTweaks(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {

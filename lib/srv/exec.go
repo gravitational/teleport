@@ -19,7 +19,6 @@
 package srv
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -41,16 +40,13 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/srv/reexec"
 )
 
 const (
-	defaultPath          = "/bin:/usr/bin:/usr/local/bin:/sbin"
-	defaultEnvPath       = "PATH=" + defaultPath
-	defaultRootPath      = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	defaultEnvRootPath   = "PATH=" + defaultRootPath
-	defaultTerm          = "xterm"
-	defaultLoginDefsPath = "/etc/login.defs"
+	defaultPath    = "/bin:/usr/bin:/usr/local/bin:/sbin"
+	defaultEnvPath = "PATH=" + defaultPath
+	defaultTerm    = "xterm"
 )
 
 // ExecResult is used internally to send the result of a command execution from
@@ -493,60 +489,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 // new logins (prior to shell) based on login.defs. Returns a string which
 // looks like "PATH=/usr/bin:/bin"
 func getDefaultEnvPath(uid string, loginDefsPath string) string {
-	envPath := defaultEnvPath
-	envRootPath := defaultEnvRootPath
-
-	// open file, if it doesn't exist return a default path and move on
-	f, err := utils.OpenFileAllowingUnsafeLinks(loginDefsPath)
-	if err != nil {
-		if uid == "0" {
-			slog.DebugContext(context.Background(), "Unable to open login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
-			return defaultEnvRootPath
-		}
-		slog.DebugContext(context.Background(), "Unable to open login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
-		return defaultEnvPath
-	}
-	defer f.Close()
-
-	// read path from login.defs file (/etc/login.defs) line by line:
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// skip comments and empty lines:
-		if line == "" || line[0] == '#' {
-			continue
-		}
-
-		// look for a line that starts with ENV_PATH or ENV_SUPATH
-		fields := strings.Fields(line)
-		if len(fields) > 1 {
-			if fields[0] == "ENV_PATH" {
-				envPath = fields[1]
-			}
-			if fields[0] == "ENV_SUPATH" {
-				envRootPath = fields[1]
-			}
-		}
-	}
-
-	// if any error occurs while reading the file, return the default value
-	err = scanner.Err()
-	if err != nil {
-		if uid == "0" {
-			slog.WarnContext(context.Background(), "Unable to read login.defs, returning default su path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvRootPath)
-			return defaultEnvRootPath
-		}
-		slog.WarnContext(context.Background(), "Unable to read login.defs, returning default path", "login_defs_path", loginDefsPath, "error", err, "default_path", defaultEnvPath)
-		return defaultEnvPath
-	}
-
-	// if requesting path for uid 0 and no ENV_SUPATH is given, fallback to
-	// ENV_PATH first, then the default path.
-	if uid == "0" {
-		return envRootPath
-	}
-	return envPath
+	return reexec.GetDefaultEnvPath(uid, loginDefsPath)
 }
 
 // parseSecureCopy will parse a command and return if it's secure copy or not.
