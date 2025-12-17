@@ -362,16 +362,16 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 
 	mfaResp := req.GetMfaResponse()
 	if mfaResp == nil {
-		return trace.BadParameter("missing ValidateSessionChallengeRequest response")
+		return trace.BadParameter("nil ValidateSessionChallengeRequest.mfa_response")
 	}
 
 	resp := mfaResp.GetResponse()
 	if resp == nil {
-		return trace.BadParameter("missing MFAResponse response")
+		return trace.BadParameter("nil ValidateSessionChallengeRequest.mfa_response.response")
 	}
 
 	if mfaResp.GetWebauthn() == nil && mfaResp.GetSso() == nil {
-		return trace.BadParameter("at least one of WebauthnResponse or SSOResponse must be provided")
+		return trace.BadParameter("one of WebauthnResponse or SSOResponse must be provided")
 	}
 
 	return nil
