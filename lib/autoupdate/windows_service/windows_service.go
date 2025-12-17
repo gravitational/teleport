@@ -22,7 +22,8 @@ import (
 
 const serviceName = "TeleportUpdateService"
 const ServiceCommand = "update-service"
-const terminateTimeout = 5 * time.Second
+const serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS
+const terminateTimeout = 30 * time.Second
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "update-service")
 var logger = slog.Default()
