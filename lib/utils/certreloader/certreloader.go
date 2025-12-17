@@ -148,7 +148,9 @@ func (c *CertReloader) loadCertificates(ctx context.Context) error {
 	}
 
 	for _, cb := range callbacks {
-		c.certCallback(cb.path, cb.cert)
+		if c.certCallback != nil {
+			c.certCallback(cb.path, cb.cert)
+		}
 	}
 
 	c.mu.Lock()
