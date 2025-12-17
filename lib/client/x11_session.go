@@ -32,6 +32,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/sshutils/x11/x11forward"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -62,7 +63,7 @@ func (ns *NodeSession) handleX11Forwarding(ctx context.Context, sess *tracessh.S
 		return trace.Wrap(err)
 	}
 
-	if err := x11.RequestForwarding(ctx, sess, ns.spoofedXAuthEntry); err != nil {
+	if err := x11forward.RequestForwarding(ctx, sess, ns.spoofedXAuthEntry); err != nil {
 		// Notify the user that x11 forwarding request failed regardless of debug level
 		fmt.Fprintln(os.Stderr, "X11 forwarding request failed")
 		slog.DebugContext(ctx, "X11 forwarding request error", "err", err)
@@ -154,7 +155,7 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 
 // serveX11Channels serves incoming X11 channels by starting X11 forwarding with the session.
 func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Session) error {
-	err := x11.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, func(ctx context.Context, nch ssh.NewChannel) {
+	err := x11forward.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, func(ctx context.Context, nch ssh.NewChannel) {
 		if !ns.x11RefuseTime.IsZero() && time.Now().After(ns.x11RefuseTime) {
 			nch.Reject(ssh.Prohibited, "rejected X11 channel request after ForwardX11Timeout")
 			slog.WarnContext(ctx, "rejected X11 forwarding attempt after the ForwardX11Timeout")
@@ -223,7 +224,7 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 
 // rejectX11Channels rejects any incomign X11 channels for this node session.
 func (ns *NodeSession) rejectX11Channels(ctx context.Context) error {
-	err := x11.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, func(_ context.Context, nch ssh.NewChannel) {
+	err := x11forward.ServeChannelRequests(ctx, ns.nodeClient.Client.Client, func(_ context.Context, nch ssh.NewChannel) {
 		// According to RFC 4254, client "implementations MUST reject any X11 channel
 		// open requests if they have not requested X11 forwarding". Following openssh's
 		// example, we treat such a request as a break in attempt and warn the user.
