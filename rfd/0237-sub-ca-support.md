@@ -345,6 +345,8 @@ message CertificateOverride {
   //
   // If present Teleport may supply the chain along with the certificate in
   // appropriate situations.
+  //
+  // The chain is limited to a generous (but sensible) server-defined length.
   repeated string chain = 3;
 
   // TBD.
