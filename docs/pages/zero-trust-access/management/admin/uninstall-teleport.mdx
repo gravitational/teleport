@@ -89,7 +89,13 @@ Follow the steps for your operating system to remove Teleport binaries.
 
 ### Linux
 
-Follow the instructions for your Linux distribution:
+First, uninstall the Teleport automatic updater (`teleport-update`):
+
+  ```code
+  teleport-update uninstall
+  ```
+
+Then, follow the instructions for your Linux distribution:
 
 <Tabs>
   <TabItem label="Debian/Ubuntu Linux (DEB)">
@@ -172,7 +178,7 @@ Follow the instructions for your Linux distribution:
   You can use `dirname $(which teleport)` to look this up automatically.
   </Admonition>
 
-  Remove the Teleport binaries from the machine:
+  Then, remove the Teleport binaries from the machine:
 
   (!docs/pages/includes/uninstall-teleport-binaries.mdx!)
 
