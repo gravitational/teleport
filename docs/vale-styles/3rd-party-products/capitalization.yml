@@ -1,0 +1,11 @@
+extends: substitution
+scope:
+  - heading
+  - table
+  - list
+  - paragraph
+message: "Use '%s' instead of '%s' to ensure third-party product names are capitalized correctly."
+level: error
+swap:
+ - Github: GitHub
+ - kubernetes: Kubernetes
