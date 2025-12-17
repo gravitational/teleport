@@ -186,8 +186,8 @@ github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.0 h1:ggjjmfNX+nlv+nWHXOLr1pl
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.27.0/go.mod h1:pfuDC5zBwunXdE44WT1PRbtzuXWGohKFcFLtv+ezI6k=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.3 h1:vWClqL1dTCuPtWkaGDW7Y6P9ocqHtfFrjlkWYARm1qI=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.46.3/go.mod h1:51rUy2+lDiOQVlekScV044he709HMMhCdUDHqSBojgg=
-github.com/aws/aws-sdk-go-v2/service/organizations v1.38.3 h1:rAUHsUFmux71j/4wQ5nUHsXyJxSMRgMlDnmFfahDhSk=
-github.com/aws/aws-sdk-go-v2/service/organizations v1.38.3/go.mod h1:iYC/SPpI4WveHr4ZzPFWTmXRODyJub5Aif75W7Ll+yM=
+github.com/aws/aws-sdk-go-v2/service/organizations v1.45.0 h1:pokghrmP5zmoAOwXuQT29pCCQ+obzpqxD1M+QOxNJu8=
+github.com/aws/aws-sdk-go-v2/service/organizations v1.45.0/go.mod h1:ot0vk4sn+d7lY8g6oI91XE41Vz74ZNnTH+7UrsIsJVg=
 github.com/aws/aws-sdk-go-v2/service/rds v1.95.0 h1:7KmQEDuz6XWafMaeIahplfGSEakzX4RMSrNHyvhkEq8=
 github.com/aws/aws-sdk-go-v2/service/rds v1.95.0/go.mod h1:CXiHj5rVyQ5Q3zNSoYzwaJfWm8IGDweyyCGfO8ei5fQ=
 github.com/aws/aws-sdk-go-v2/service/redshift v1.54.3 h1:LNOKEsPjtoBrV2WYUb2zPLOOtD5sKt907LZ/h0cYHSk=
