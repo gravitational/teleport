@@ -134,7 +134,7 @@ func (s *Service) CreateSessionChallenge(
 	}
 
 	// Determine which second factors are allowed.
-	enableWebAuthn, enableSSO := pref.IsSecondFactorWebauthnAllowed(), pref.IsSecondFactorSSOAllowed()
+	enableWebauthn, enableSSO := pref.IsSecondFactorWebauthnAllowed(), pref.IsSecondFactorSSOAllowed()
 
 	// Get the user's U2F preference. If it doesn't exist, continue since U2F may not be enabled.
 	u2fPref, err := pref.GetU2F()
@@ -142,7 +142,7 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the user's WebAuthn preference. If it doesn't exist, continue since WebAuthn may not be enabled.
+	// Get the user's Webauthn preference. If it doesn't exist, continue since Webauthn may not be enabled.
 	webConfig, err := pref.GetWebauthn()
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -173,8 +173,8 @@ func (s *Service) CreateSessionChallenge(
 
 	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{}}
 
-	// If WebAuthn is enabled and there are registered devices, create a WebAuthn challenge.
-	if enableWebAuthn && len(webauthnDevices) > 0 {
+	// If Webauthn is enabled and there are registered devices, create a Webauthn challenge.
+	if enableWebauthn && len(webauthnDevices) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
@@ -264,7 +264,7 @@ func (s *Service) ValidateSessionChallenge(
 	// Validate the challenge response.
 	switch resp := req.MfaResponse.GetResponse().(type) {
 	case *mfav1.AuthenticateResponse_Webauthn:
-		device, err = s.validateWebAuthnResponse(ctx, username, resp)
+		device, err = s.validateWebauthnResponse(ctx, username, resp)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -384,7 +384,7 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 	return nil
 }
 
-func (s *Service) validateWebAuthnResponse(
+func (s *Service) validateWebauthnResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Webauthn,
@@ -400,7 +400,7 @@ func (s *Service) validateWebAuthnResponse(
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the user's WebAuthn preference. If it doesn't exist, continue since WebAuthn may not be enabled.
+	// Get the user's Webauthn preference. If it doesn't exist, continue since Webauthn may not be enabled.
 	webConfig, err := pref.GetWebauthn()
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -419,7 +419,7 @@ func (s *Service) validateWebAuthnResponse(
 		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 	)
 	if err != nil {
-		return nil, trace.AccessDenied("failed to validate WebAuthn response: %v", err)
+		return nil, trace.AccessDenied("failed to validate Webauthn response: %v", err)
 	}
 
 	return loginData.Device, nil

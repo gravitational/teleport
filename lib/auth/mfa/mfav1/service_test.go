@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func TestCreateSessionChallenge_WebAuthn(t *testing.T) {
+func TestCreateSessionChallenge_Webauthn(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
@@ -95,7 +95,7 @@ func TestCreateSessionChallenge_WebAuthn(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Verify a WebAuthn challenge was returned.
+	// Verify a Webauthn challenge was returned.
 	require.NotNil(t, resp)
 	require.NotNil(t, resp.MfaChallenge)
 	require.NotNil(t, resp.MfaChallenge.WebauthnChallenge)
@@ -315,8 +315,8 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 	require.ErrorContains(t, err, "has no registered MFA devices")
 }
 
-// TestValidateSessionChallenge tests the ValidateSessionChallenge method for WebAuthn challenges.
-func TestValidateSessionChallenge_WebAuthn(t *testing.T) {
+// TestValidateSessionChallenge tests the ValidateSessionChallenge method for Webauthn challenges.
+func TestValidateSessionChallenge_Webauthn(t *testing.T) {
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
@@ -356,7 +356,7 @@ func TestValidateSessionChallenge_WebAuthn(t *testing.T) {
 		},
 	})
 
-	// Register a WebAuthn device for the user.
+	// Register a Webauthn device for the user.
 	device, err := authtest.RegisterTestDevice(
 		ctx,
 		authServer.Auth(),
@@ -383,7 +383,7 @@ func TestValidateSessionChallenge_WebAuthn(t *testing.T) {
 		WebauthnChallenge: challengeResp.MfaChallenge.WebauthnChallenge,
 	}
 
-	// Simulate solving the WebAuthn challenge so it is stored in the backend and can be retrieved for validation.
+	// Simulate solving the Webauthn challenge so it is stored in the backend and can be retrieved for validation.
 	mfaResp, err := device.SolveAuthn(challenge)
 	require.NoError(t, err)
 
