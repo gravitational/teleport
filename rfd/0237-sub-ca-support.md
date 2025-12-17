@@ -653,8 +653,7 @@ user on startup. Whether this is an acceptable or desirable mitigation is TBD.
 
 ## Audit Events
 
-New audit events are added to track the cert_authority_override life cycle. Only
-successful interactions are written to audit.
+New audit events are added to track the cert_authority_override life cycle.
 
 ```proto
 package events; // api/proto/teleport/legacy/types/events
@@ -662,7 +661,8 @@ package events; // api/proto/teleport/legacy/types/events
 message CertAuthorityOverrideEvent {
   Metadata metadata = 1;
   UserMetadata user = 2;
-  ResourceMetadata resource = 3; // Note: name=ca_type
+  ResourceMetadata resource = 3; // name=ca_type
+  Status status = 4;             // Distinguishes successes and failures.
   CertAuthorityOverrideMetadata cert_authority_override = 4;
 }
 
