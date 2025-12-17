@@ -782,6 +782,7 @@ cert_authority_override resource), or a "light" rotation could be attempted via
 [CertAuthority.SetRotation](
 https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b63c761cb/api/types/authority.go#L72-L73).
 
+<a id="pkcs11"></a>
 ### PKCS#11 interface
 
 A PKCS#11 interface, paired with configuration, could be used to implement
@@ -794,6 +795,12 @@ interacting with a local script to issue new certificates.
 
 PKCS#11, while convenient, is not desirable when interacting with offline CAs,
 and is therefore considered out of scope.
+
+### ACME Sub CA rotation
+
+The ACME protocol could be used for automatic Sub CA rotation, allowing for a
+simpler and less error-prone process. It is considered out of scope of the
+current design for reasons similar to [PKCS#11](#pkcs11).
 
 ### Linked workload overrides
 
