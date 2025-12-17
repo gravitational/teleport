@@ -41,10 +41,6 @@ type Config struct {
 	KeyPairsReloadInterval time.Duration
 }
 
-type expirySetter interface {
-	Set(float64)
-}
-
 // CertReloader periodically reloads a list of cert key-pair paths.
 // This allows new certificates to be used without a full reload of Teleport.
 type CertReloader struct {
@@ -57,16 +53,16 @@ type CertReloader struct {
 	// mu protects the list of certificates.
 	mu sync.RWMutex
 
-	// certCallback is called on each certificate after successful load
-	certCallback func(path string, cert *x509.Certificate)
+	// onLoad is called on each certificate after successful load
+	onLoad func(path string, cert *x509.Certificate)
 }
 
 // New initializes a new certificate reloader.
-func New(cfg Config, name, component string, callback func(path string, cert *x509.Certificate)) *CertReloader {
+func New(cfg Config, name, component string, onLoad func(path string, cert *x509.Certificate)) *CertReloader {
 	return &CertReloader{
-		logger:       slog.With(teleport.ComponentKey, teleport.Component(component, "certreloader"), "name", name),
-		cfg:          cfg,
-		certCallback: callback,
+		logger: slog.With(teleport.ComponentKey, teleport.Component(component, "certreloader"), "name", name),
+		cfg:    cfg,
+		onLoad: onLoad,
 	}
 }
 
@@ -148,8 +144,8 @@ func (c *CertReloader) loadCertificates(ctx context.Context) error {
 	}
 
 	for _, cb := range callbacks {
-		if c.certCallback != nil {
-			c.certCallback(cb.path, cb.cert)
+		if c.onLoad != nil {
+			c.onLoad(cb.path, cb.cert)
 		}
 	}
 
