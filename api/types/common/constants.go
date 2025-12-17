@@ -42,6 +42,10 @@ const (
 	// committed as dynamic configuration.
 	OriginDynamic = "dynamic"
 
+	// OriginTerraform is an origin value indicating that the resource was
+	// created from Terraform.
+	OriginTerraform = "terraform"
+
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
 	OriginCloud = "cloud"
@@ -93,4 +97,5 @@ var OriginValues = []string{
 	OriginEntraID,
 	OriginAWSIdentityCenter,
 	OriginIntegrationAWSRolesAnywhere,
+	OriginTerraform,
 }

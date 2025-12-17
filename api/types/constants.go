@@ -791,6 +791,10 @@ const (
 	// committed as dynamic configuration.
 	OriginDynamic = common.OriginDynamic
 
+	// OriginTerraform is an origin value indicating that the resource was
+	// created from Terraform.
+	OriginTerraform = common.OriginTerraform
+
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
 	OriginCloud = common.OriginCloud
