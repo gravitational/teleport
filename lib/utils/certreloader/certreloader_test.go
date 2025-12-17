@@ -161,23 +161,15 @@ func TestCertReloader(t *testing.T) {
 			// Create empty certs and ensure they get cleaned up.
 			certs := newCerts(t)
 
-			var certsWithMetric []KeyPairWithMetric
-			for _, cert := range certs {
-				certsWithMetric = append(certsWithMetric, KeyPairWithMetric{
-					KeyPairPath: cert,
-					Expiry:      nil,
-				})
-			}
-
 			// Start cert reloader.
 			// Set the reload interval to 0 so that the reloading goroutine is not spawned.
 			// This gives us more flexibility in the tests, so that we can call loadCertificates
 			// when we want.
 			cfg := Config{
-				KeyPairsWithMetric:     certsWithMetric,
+				KeyPairs:               certs,
 				KeyPairsReloadInterval: 0,
 			}
-			certReloader := New(cfg, "test", teleport.ComponentProxy)
+			certReloader := New(cfg, "test", teleport.ComponentProxy, nil)
 			err := certReloader.Run(ctx)
 
 			// Check that certificates load correctly in the synchronous (first) attempt.

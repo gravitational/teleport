@@ -20,11 +20,12 @@ package pgcommon
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto/x509"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
@@ -33,28 +34,49 @@ import (
 )
 
 // CreateClientCertReloader creates a client reloader for postgres compatible connections. The
-// connString is expected to be in a url format.
-func CreateClientCertReloader(ctx context.Context, name, connString string, reloadInterval time.Duration, expiry prometheus.Gauge) (func(*tls.CertificateRequestInfo) (*tls.Certificate, error), error) {
+// connString is expected to be in a url format. This updates the connConfig to use the created reloader
+func CreateClientCertReloader(ctx context.Context, name, connString string, connConfig *pgx.ConnConfig, reloadInterval time.Duration, expiry prometheus.Gauge) error {
 	u, err := url.Parse(connString)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "conn_string must be in url format when reload interval is set")
+		return trace.WrapWithMessage(err, "conn_string must be in url format when reload interval is set")
 	}
 	vals := u.Query()
 
+	var callback func(string, *x509.Certificate)
+	if expiry != nil {
+		callback = func(path string, cert *x509.Certificate) {
+			expiry.Set(float64(cert.NotAfter.Unix()))
+		}
+	}
+
 	reloader := certreloader.New(certreloader.Config{
-		KeyPairsWithMetric: []certreloader.KeyPairWithMetric{
+		KeyPairs: []servicecfg.KeyPairPath{
 			{
-				KeyPairPath: servicecfg.KeyPairPath{
-					PrivateKey:  vals.Get("sslkey"),
-					Certificate: vals.Get("sslcert"),
-				},
-				Expiry: expiry,
+				PrivateKey:  vals.Get("sslkey"),
+				Certificate: vals.Get("sslcert"),
 			},
 		},
 		KeyPairsReloadInterval: reloadInterval,
-	}, name, teleport.ComponentAuth)
+	},
+		name, teleport.ComponentAuth, callback)
 	if err := reloader.Run(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return reloader.GetClientCertificate, nil
+
+	// When reload is enabled we need to check all the fallbacks as well as the main config because
+	// of how sslmode is handled where the main config could be plaintext and falls back to a TLS
+	// connection
+	if connConfig.TLSConfig != nil {
+		connConfig.TLSConfig.Certificates = nil
+		connConfig.TLSConfig.GetClientCertificate = reloader.GetClientCertificate
+	}
+
+	for i, fallback := range connConfig.Fallbacks {
+		if fallback.TLSConfig != nil {
+			connConfig.Fallbacks[i].TLSConfig.Certificates = nil
+			connConfig.Fallbacks[i].TLSConfig.GetClientCertificate = reloader.GetClientCertificate
+		}
+	}
+
+	return nil
 }
