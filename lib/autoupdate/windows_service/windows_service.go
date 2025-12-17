@@ -187,8 +187,8 @@ func startService(ctx context.Context, cfg *Config) (*mgr.Service, error) {
 		Handle: serviceHandle,
 	}
 	if err := service.Start(ServiceCommand,
-		"--Path", cfg.Path,
-		"--ProxyHost", cfg.ProxyHost,
+		"--path", cfg.Path,
+		"--proxyHost", cfg.ProxyHost,
 		"--user-sid", cfg.UserSID,
 	); err != nil {
 		return nil, trace.Wrap(err, "starting Windows service %s", serviceName)
