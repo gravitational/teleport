@@ -2,7 +2,6 @@
 title: Authentication With Okta as an SSO Provider
 sidebar_label: Okta
 description: How to configure Teleport access using Okta for SSO
-videoBanner: SM4Am-i8cj4
 tags:
  - sso
  - how-to
@@ -23,18 +22,16 @@ Teleport administrators to define policies like:
 <details>
 <summary>Automated SSO connection with Okta integration</summary>
 
-In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can
-automatically configure an SSO connector for you when as part of [enrolling the
-hosted Okta integration](../../../identity-governance/integrations/okta/okta.mdx).
+In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can automatically
+configure an SSO connector as part of [enrolling Okta
+integration](../../identity-governance/integrations/okta/okta.mdx).
 
-You can enroll the Okta integration from the Teleport Web UI.
+To start Okta integration enrollment, visit the Teleport Web UI, click **Add New** in the left sidebar and click **Integration**:
 
-Visit the Teleport Web UI, click **Add New** in the left sidebar and click **Integration**:
+![Enroll an Access Request plugin](../../../img/sso/okta/okta-tile.png)
 
-![Enroll an Access Request plugin](../../../../img/enterprise/plugins/enroll.png)
+Then follow the instructions for the [guided Okta single sign-on integration](../../identity-governance/integrations/okta/guided-sso.mdx).
 
-On the "Select Integration Type" menu, click the Okta tile. Teleport will then
-guide you through configuring the Okta integration.
 
 </details>
 
@@ -65,112 +62,54 @@ Teleport, you can skip to the [next step](#step-13-configure-okta).
 
 ### Create Groups
 
-Create two groups: "okta-dev" and "okta-admin". In the Okta dashboard go to the
-navigation bar and click **Directory** -> **Groups**, then **Add group**:
+Create two groups: "okta-dev" and "okta-admin".
 
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.1@2x.png)
+1. In Okta Console go to the go to **Directory** -> **Groups**, then click **Add group**.
+2. Add groups "okta-dev" and "okta-admin" with optional description.
 
-Repeat for the admin group:
 
-![Create Group Devs](../../../../img/sso/okta/okta-saml-2.2.png)
+### Create and configure an Okta app
 
-In this section we will create an application in the Okta dashboard to allow our
-Teleport cluster to access Okta as an IdP provider. We'll also locate the
-address that Okta uses to provides their IdP metadata to Teleport.
+Add Teleport app to Okta:
 
-### Create Okta SAML 2.0 App
+1. In Okta Console, go to **Applications**.
 
-From the main navigation menu, select **Applications** -> **Applications**, and click
-**Create App Integration**. Select SAML 2.0, then click **Next**.
+2. Click **Browse App Catalog**.
 
-![Create APP](../../../../img/sso/okta/okta-saml-1.png)
+3. Search for and select **Teleport**, and then click **Add Integration**.
 
-On the next screen (**General Settings**), provide a name and optional logo for
-your new app, then click **Next**. This will bring you to the **Configure SAML** section.
+4. Complete the fields on the settings page and click **Done**.
 
-### Configure the App
+5. Go to the **General** tab and click **Edit** on the top-right corner of the tab.
 
-Provide the following values to their respective fields:
+6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
 
-#### General
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Set groups attribute](../../../img/sso/okta/group-regex.png)
 
-Replace <Var name="example.teleport.sh:443" /> with your Teleport Proxy Service
-or Enterprise Cloud account domain and port (`443` by default). If you have a
-self-hosted cluster with multiple public addresses for the Teleport Proxy
-Service (the value of `proxy_service.public_addr` in the Teleport configuration
-file), ensure that this address points to the first one listed.
+7. Scroll down and click **Save**.
 
-- Single sign on URL:
+### Assign user groups
 
-  ```
-  https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
-  ```
+1. In the same Okta Teleport app, go to the **Assignments** tab and click the **Assign** dropdown.
 
-- Audience URI (SP Entity ID):
+2. Select "Assign to Groups" and search for the "okta-dev" and "okta-admin" Okta groups created in the previous step.
 
-  ```
-  https://<Var name="example.teleport.sh:443" />/v1/webapi/saml/acs/okta
-  ```
+3. Click **Assign** next to each selected groups and click **Done**.
 
-- Name ID format `EmailAddress`
-
-- Application username `Okta username`
-
-#### Attribute Statements
-
-- Name: `username`  | Name format: `Unspecified` | Value: `user.login`
-
-#### Group Attribute Statements
-
-We will map our Okta groups to SAML attribute statements (special signed metadata
-exposed via a SAML XML response), so that Teleport can discover a user's group
-membership and assign matching roles.
-
-- Name: `groups` | Name format: `Unspecified`
-- Filter: `Matches regex` |  `.*`
-
-The configuration page should now look like this:
-
-![Configure APP](../../../../img/sso/okta/setup-redirection.png)
-
-The "Matches regex" filter requires the literal string `.*` in order to match all
-content from the group attribute statement.
-
-Notice that we have set "NameID" to the email format and mapped the groups with
-a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-and SSO URLs to the same value. This is so Teleport can read and use Okta users'
-email addresses to create their usernames in Teleport, instead of relying on additional
-name fields.
-
-Once you've filled the required fields, click **Next**, then finish the app creation wizard.
-
-### Group assignment
-
-From the **Assignments** tab of the new application page, click **Assign**.  Assign the user groups
-which can access to the app. Users being members of those groups will have the SSO access to
-Teleport once the Auth Connector is configured.
-
-![Configure APP](../../../../img/sso/okta/okta-saml-3.1.png)
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Assign user groups](../../../img/sso/okta/assign-groups.png)
 
 ### Save IdP metadata path
 
-Okta provides an IdP metadata block, used by clients to identify and verify it
-as a trusted source of user identity.
+1. Go to the **Sign On** tab and scroll down to "Metadata URL".
 
-Since Okta serves this content over HTTPS we can configure Teleport to use this
-path instead of a local copy, which can go stale.
+2. Copy the Metadata URL using the **Copy** button below it.
 
-From the app's **Sign On** tab, scroll down to **SAML Signing Certificates**.
-Click **Actions** for the SHA-2 entry, then "View IdP metadata":
+   {/* NOTE: This is a shared image. When making changes check other guides using this image. */}
+   ![Copy metadata URL](../../../img/sso/okta/copy-metadata-url.png)
 
-![View Okta IdP Metadata](../../../../img/sso/okta/okta-copy-metadata.png)
-
-Copy the URL to the metadata file for use in our Teleport configuration.
-
-<Admonition type="tip">
-You can also right click on the "View IdP metadata" link and select
-"Copy Link" or "Copy Link Address".
-</Admonition>
+3. Store the URL to the metadata file for later use.
 
 ## Step 2/3. Connect Okta to Teleport
 
