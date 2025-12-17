@@ -247,7 +247,7 @@ $ sudo teleport db configure create \
 This command will generate a Teleport Database Service configuration file and
 save it to `/etc/teleport.yaml`.
 
-<Admonition title="Choose how Teleport connects to AlloyDB">
+<Admonition type="tip" title="Choose how Teleport connects to AlloyDB">
 By default, Teleport uses [_private_](https://cloud.google.com/alloydb/docs/about-private-services-access) AlloyDB endpoint. To change this to either [public](https://cloud.google.com/alloydb/docs/connect-public-ip) or [PSC](https://cloud.google.com/alloydb/docs/about-private-service-connect) endpoints, update the `endpoint_type` field:
 
 ```yaml
