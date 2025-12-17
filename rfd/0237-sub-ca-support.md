@@ -300,7 +300,8 @@ resource.
 Certificates supplied to an override are validated to make sure they can
 function as CA certificates and fulfill Teleport's requirements. This includes
 [Subject requirements][#subject-customization] and that the certificate's
-expiration is not after than the corresponding self-signed CA certificate.
+expiration is not after than the corresponding self-signed CA certificate
+(typically valid for 10y).
 
 Creating an override automatically generates the corresponding empty CRL.
 
