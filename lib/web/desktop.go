@@ -90,7 +90,7 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
-// Implements tdp.MessageReadWriter and TDP read writer
+// Implements tdp.MessageReadWriter
 type wsAdapter struct {
 	Conn *websocket.Conn
 	// Determines how ReadMessage will interpret incoming datagrams
@@ -105,7 +105,7 @@ func (w *wsAdapter) ReadMessage() (tdp.Message, error) {
 func (w *wsAdapter) WriteMessage(msg tdp.Message) error {
 	data, err := msg.Encode()
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	return w.Conn.WriteMessage(websocket.BinaryMessage, data)
 }
@@ -212,11 +212,11 @@ func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboard
 	for _, msg := range messages {
 		data, err := msg.Encode()
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		_, err = w.Write(data)
 		if err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 	return nil
@@ -226,6 +226,9 @@ func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboard
 func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 	// Do we need to construct the hello from legacy messages?
 	if h.hello == nil {
+		if h.screenSpec == nil {
+			return trace.Errorf("Received neither a client hello nor client screenspec messages. Cannot forward TDPB handshake data")
+		}
 		h.hello = &tdpbv1.ClientHello{
 			ScreenSpec: &tdpbv1.ClientScreenSpec{
 				Width:  h.screenSpec.Width,
@@ -238,14 +241,11 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 			h.hello.KeyboardLayout = h.keyboardLayout.KeyboardLayout
 		}
 	}
-	err := tdp.NewTDPBMessage(h.hello).EncodeTo(w)
-	if err != nil {
-		trace.Wrap(err)
-	}
-	return err
+
+	return trace.Wrap(tdp.NewTDPBMessage(h.hello).EncodeTo(w))
 }
 
-func SendTDPError(w tdp.MessageReadWriter, err error) error {
+func sendTDPError(w tdp.MessageReadWriter, err error) error {
 	if err == nil {
 		slog.Warn("SendTDPError called with empty message")
 		err = trace.Errorf("undefined error")
@@ -258,7 +258,7 @@ func SendTDPError(w tdp.MessageReadWriter, err error) error {
 	return trace.Wrap(err)
 }
 
-func SendTDPBError(w tdp.MessageReadWriter, err error) error {
+func sendTDPBError(w tdp.MessageReadWriter, err error) error {
 	if err == nil {
 		slog.Warn("SendTDPBError called with empty message")
 		err = errors.New("")
@@ -268,7 +268,7 @@ func SendTDPBError(w tdp.MessageReadWriter, err error) error {
 		Message:  err.Error(),
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
 	}))
-	return err
+	return trace.Wrap(err)
 }
 
 type mfaPromptBuilder func(string) mfa.PromptFunc
@@ -300,11 +300,12 @@ func (h *Handler) createDesktopConnection(
 	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter
 	// - If 'tdpb' query param is present, then we'll need to send an upgrade message to the client,
 	//   then listen for a "CLIENT_HELLO" message (while discarding any TDP messages received).
+	//   Note: We *always* upgrade the client connection to TDPB if possible.
 	// - Otherwise fall back to the "legacy" behavior
 	//
 	// After either receiving a CLIENT_HELLO or our initial TDP messages, we can dial the server which
 	// ALSO might speak TDP or TDPB. Unlike the client, the agent only speaks on or the other, so we'll
-	// translate on its behalf.
+	// translate on its behalf if needed.
 	clientProtocol, err := readClientProtocol(r)
 	if err != nil {
 		log.ErrorContext(ctx, "Error reading client desktop protocol", "error", err)
@@ -326,7 +327,7 @@ func (h *Handler) createDesktopConnection(
 				case err != nil:
 					return nil, trace.Wrap(err)
 				case len(data) < 1:
-					return nil, errors.New("received empty message")
+					return nil, trace.Errorf("received empty message")
 				case data[0] != 0:
 					// "Legacy" TDP messages begin with non-zero first byte
 					// discard any legacy TDP messages received
@@ -338,7 +339,7 @@ func (h *Handler) createDesktopConnection(
 			}
 		}}
 
-		sendError = SendTDPBError
+		sendError = sendTDPBError
 		init = handshakeInitializer{
 			clientHandshakeHandler: handleTDPUpgrade,
 			promptBuilder:          mfaPromptBuilder(tdp.NewTDPBMFAPrompt(&adapter, &withheld)),
@@ -354,20 +355,20 @@ func (h *Handler) createDesktopConnection(
 			return msg, trace.Wrap(err)
 		}}
 
-		sendError = SendTDPError
+		sendError = sendTDPError
 		init = handshakeInitializer{
 			clientHandshakeHandler: readTDPInitialMessages,
 			promptBuilder:          tdp.NewTDPMFAPrompt(&adapter, &withheld),
 		}
 	}
-	// Handles either TDP upgrade or listens for TDPB client hello
+	// Read the initial set of TDP messages, or handle TDP upgrade and subsequent
+	// Client Hello message.
 	handshakeData, err := init.clientHandshakeHandler(ctx, &adapter, log)
 
 	username, err := readUsername(r)
 	if err != nil {
 		return sendError(&adapter, err)
 	}
-	log = log.With("username", username)
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
@@ -758,17 +759,16 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 	}
 
 	// Create a single pair of tdp.Conn instances. tdp.Conn protects the underlying
-	// streams with a mutex.
+	// streams with a mutex to allow for concurrent writes.
 	serverConn := tdp.MessageReadWriteCloser(newConn(wds, serverProtocol))
 	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
 
-	pingChan := make(chan []byte)
 	pinger := desktopPinger{
 		// The pinger handles translation internally.
 		server:           serverConn,
 		client:           clientConn,
 		latencySupported: latencySupported,
-		ch:               pingChan,
+		ch:               make(chan []byte),
 	}
 
 	// The ping interceptor is installed on the server connection
