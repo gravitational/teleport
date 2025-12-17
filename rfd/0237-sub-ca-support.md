@@ -227,7 +227,7 @@ tctl auth create-override \
 > Created override for db_client, public key '2B:CD:EF:...'
 
 # Time passes until downstream trust is configured for both OLD and NEW
-# (overriden) certificates.
+# (overridden) certificates.
 
 # 5. Enable the override.
 tctl auth update-override
@@ -236,7 +236,7 @@ tctl auth update-override
   --set-disabled=false
 
 # 6. Advance rotation.
-# NEW, overriden certificate is now used to sign client certificates.
+# NEW, overridden certificate is now used to sign client certificates.
 tctl auth rotate --type=db_client --phase=update_clients
 ```
 
