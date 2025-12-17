@@ -17,7 +17,6 @@
 package mfav1
 
 import (
-	"cmp"
 	"context"
 	"log/slog"
 
@@ -81,7 +80,6 @@ type Identity interface {
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct {
-	Logger     *slog.Logger
 	AuthServer AuthServer
 	Cache      Cache
 	Emitter    Emitter
@@ -113,7 +111,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cmp.Or(cfg.Logger, slog.Default().With(teleport.ComponentKey, "mfa.service")),
+		logger:     slog.Default().With(teleport.ComponentKey, "mfa.service"),
 		authServer: cfg.AuthServer,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
@@ -121,7 +119,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
-// CreateSessionChallenge creates an MFA challenge that is tied to a user session.
+// CreateSessionChallenge implements the mfav1.MFAServiceServer.CreateSessionChallenge method.
 func (s *Service) CreateSessionChallenge(
 	ctx context.Context,
 	req *mfav1.CreateSessionChallengeRequest,
@@ -247,8 +245,7 @@ func (s *Service) CreateSessionChallenge(
 	return challenge, nil
 }
 
-// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
-// in the backend.
+// ValidateSessionChallenge implements the mfav1.MFAServiceServer.ValidateSessionChallenge method.
 func (s *Service) ValidateSessionChallenge(
 	ctx context.Context,
 	req *mfav1.ValidateSessionChallengeRequest,
@@ -319,7 +316,7 @@ func (s *Service) ValidateSessionChallenge(
 
 func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
 	if req == nil {
-		return trace.BadParameter("CreateSessionChallengeRequest is nil")
+		return trace.BadParameter("param CreateSessionChallengeRequest is nil")
 	}
 
 	payload := req.GetPayload()
@@ -367,7 +364,7 @@ func groupByDeviceType(devices []*types.MFADevice) ([]*types.MFADevice, *types.M
 
 func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallengeRequest) error {
 	if req == nil {
-		return trace.BadParameter("ValidateSessionChallengeRequest is nil")
+		return trace.BadParameter("param ValidateSessionChallengeRequest is nil")
 	}
 
 	mfaResp := req.GetMfaResponse()
@@ -422,7 +419,7 @@ func (s *Service) validateWebAuthnResponse(
 		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 	)
 	if err != nil {
-		return nil, trace.AccessDenied("WebAuthn response validation failed: %v", err)
+		return nil, trace.AccessDenied("failed to validate WebAuthn response: %v", err)
 	}
 
 	return loginData.Device, nil
@@ -441,7 +438,7 @@ func (s *Service) validateSSOResponse(
 		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 	)
 	if err != nil {
-		return nil, trace.AccessDenied("SSO response validation failed: %v", err)
+		return nil, trace.AccessDenied("failed to validate SSO response: %v", err)
 	}
 
 	return data.Device, nil
