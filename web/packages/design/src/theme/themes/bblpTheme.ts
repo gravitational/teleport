@@ -501,6 +501,12 @@ const colors: ThemeColors = {
         progress: '#FFA028',
       },
     },
+    riskLevels: {
+      low: '#00A223',
+      medium: '#FA5A28',
+      high: '#FD2D4A',
+      critical: '#E51E3C',
+    },
   },
 
   sessionRecordingTimeline: {
