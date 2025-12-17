@@ -389,7 +389,7 @@ type Server struct {
 	// ec2Installer is used to start the installation process on discovered EC2 nodes
 	ec2Installer ssmInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
-	azureWatcher *server.Watcher[server.AzureInstances]
+	azureWatcher *server.Watcher[*server.AzureInstances]
 	// azureInstaller is used to start the installation process on discovered Azure
 	// virtual machines.
 	azureInstaller azureInstaller
@@ -724,7 +724,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 }
 
 // azureServerFetchersFromMatchers converts Matchers into a set of Azure Servers Fetchers.
-func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, discoveryConfigName string) []server.Fetcher[server.AzureInstances] {
+func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, discoveryConfigName string) []server.Fetcher[*server.AzureInstances] {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.AzureMatcherVM
 	})
@@ -854,16 +854,16 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 	})
 
 	// VM watcher.
-	s.azureWatcher = server.NewWatcher[server.AzureInstances](
+	s.azureWatcher = server.NewWatcher[*server.AzureInstances](
 		s.ctx,
-		server.WithPreFetchHookFn[server.AzureInstances](func(fetchers []server.Fetcher[server.AzureInstances]) {
+		server.WithPreFetchHookFn[*server.AzureInstances](func(fetchers []server.Fetcher[*server.AzureInstances]) {
 			if len(fetchers) > 0 {
 				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
 			}
 		}),
-		server.WithPollInterval[server.AzureInstances](s.PollInterval),
-		server.WithTriggerFetchC[server.AzureInstances](s.newDiscoveryConfigChangedSub()),
-		server.WithClock[server.AzureInstances](s.clock),
+		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
+		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
+		server.WithClock[*server.AzureInstances](s.clock),
 	)
 
 	staticFetchers := server.MatchersToAzureInstanceFetchers(s.Log, vmMatchers, s.getAzureClients, discoveryConfigName)
@@ -1446,7 +1446,7 @@ func (s *Server) handleAzureDiscovery() {
 		select {
 		case instances := <-s.azureWatcher.InstancesC:
 			s.Log.DebugContext(s.ctx, "Azure instances discovered, starting installation", "subscription_id", instances.SubscriptionID, "instances", genAzureInstancesLogStr(instances.Instances))
-			if err := s.handleAzureInstances(&instances); err != nil {
+			if err := s.handleAzureInstances(instances); err != nil {
 				if errors.Is(err, errNoInstances) {
 					s.Log.DebugContext(s.ctx, "All discovered Azure VMs are already part of the cluster")
 				} else {

@@ -72,8 +72,8 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
 
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[AzureInstances] {
-	ret := make([]Fetcher[AzureInstances], 0)
+func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[*AzureInstances] {
+	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
@@ -127,7 +127,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	}
 }
 
-func (*azureInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]AzureInstances, error) {
+func (*azureInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]*AzureInstances, error) {
 	return nil, trace.NotImplemented("not implemented for azure fetchers")
 }
 
@@ -147,7 +147,7 @@ type resourceGroupLocation struct {
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]AzureInstances, error) {
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
 	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -208,9 +208,9 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Azur
 		instancesByRegionAndResourceGroup[batchGroup] = append(instancesByRegionAndResourceGroup[batchGroup], vm)
 	}
 
-	var instances []AzureInstances
+	var instances []*AzureInstances
 	for batchGroup, vms := range instancesByRegionAndResourceGroup {
-		instances = append(instances, AzureInstances{
+		instances = append(instances, &AzureInstances{
 			SubscriptionID:  f.Subscription,
 			Region:          batchGroup.location,
 			ResourceGroup:   batchGroup.resourceGroup,
