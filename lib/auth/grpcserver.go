@@ -6390,7 +6390,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		workloadidentityv1pb.RegisterSigstorePolicyResourceServiceServer(server, workloadidentityv1.NewSigstorePolicyResourceService())
 
 		summarizerv1pb.RegisterSummarizerServiceServer(server, summarizerv1.NewService())
+	}
 
+	// start a cloud cluster service that returns errors for all RPCs when not running on Teleport Cloud
+	if !modules.GetModules().Features().Cloud {
 		cloudClusterServiceServer, err := cloudclusterv1.NewService()
 		if err != nil {
 			return nil, trace.Wrap(err)
