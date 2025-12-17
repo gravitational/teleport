@@ -209,7 +209,7 @@ func setupServiceLogger() (func() error, error) {
 		}
 	}
 
-	handler, close, err := logutils.NewSlogEventLogHandler("updateservice", level)
+	handler, close, err := logutils.NewSlogEventLogHandler("vnet", level)
 	if err != nil {
 		return nil, trace.Wrap(err, "initializing log handler")
 	}
