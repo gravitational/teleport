@@ -101,7 +101,8 @@ function Install-Rust {
         Invoke-WebRequest -Uri https://static.rust-lang.org/rustup/dist/x86_64-pc-windows-gnu/rustup-init.exe -OutFile $RustupFile
         $Env:RUSTUP_HOME = "$ToolchainDir/rustup"
         $Env:CARGO_HOME = "$ToolchainDir/cargo"
-        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-toolchain "$RustVersion-x86_64-pc-windows-gnu"
+        & "$ToolchainDir\rustup-init.exe" --profile minimal -y --default-host x86_64-pc-windows-gnu --default-toolchain none
+        rustup show active-toolchain --verbose
         Enable-Rust -ToolchainDir $ToolchainDir
         Write-Host "::endgroup::"
     }
@@ -169,7 +170,7 @@ function Install-WasmDeps {
     .SYNOPSIS
         Builds and installs wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain.
     #>
-    
+
     Write-Host "::group::Installing wasm-bindgen-cli, wasm-opt, and wasm32-unknown-unknown toolchain"
     make -C "$TeleportSourceDirectory" ensure-wasm-deps
     Write-Host "::endgroup::"
