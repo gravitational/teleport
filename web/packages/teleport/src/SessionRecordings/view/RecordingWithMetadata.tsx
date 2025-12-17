@@ -16,25 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { format } from 'date-fns';
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';
-import { ChevronLeft } from 'design/Icon';
-import { H3 } from 'design/Text';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { useFullscreen } from 'teleport/components/hooks/useFullscreen';
-import cfg from 'teleport/config';
-import { type RecordingType } from 'teleport/services/recordings';
+import {
+  type RecordingType,
+  type SessionRecordingMetadata,
+} from 'teleport/services/recordings';
 import { useSuspenseGetRecordingMetadata } from 'teleport/services/recordings/hooks';
 import { KeysEnum } from 'teleport/services/storageService';
-import {
-  formatSessionRecordingDuration,
-  getRecordingTypeInfo,
-} from 'teleport/SessionRecordings/list/RecordingItem';
 import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer';
 import type { PlayerHandle } from 'teleport/SessionRecordings/view/SshPlayer';
 import {
@@ -42,18 +36,23 @@ import {
   type RecordingTimelineHandle,
 } from 'teleport/SessionRecordings/view/Timeline/RecordingTimeline';
 
-export type SummarySlot = (sessionId: string, type: RecordingType) => ReactNode;
+export type SidebarSlot = (
+  sessionId: string,
+  recordingType: RecordingType,
+  metadata: SessionRecordingMetadata | null,
+  onPlay: (timestamp: number) => void
+) => ReactNode;
 
 interface RecordingWithMetadataProps {
   clusterId: string;
   sessionId: string;
-  summarySlot?: SummarySlot;
+  sidebarSlot: SidebarSlot;
 }
 
 export function RecordingWithMetadata({
   clusterId,
   sessionId,
-  summarySlot,
+  sidebarSlot,
 }: RecordingWithMetadataProps) {
   const { data } = useSuspenseGetRecordingMetadata({
     clusterId,
@@ -114,15 +113,16 @@ export function RecordingWithMetadata({
     }
   }, [fullscreen]);
 
-  const summary = useMemo(
-    () => summarySlot?.(sessionId, data.metadata.type),
-    [summarySlot, sessionId, data.metadata.type]
+  const sidebar = useMemo(
+    () =>
+      sidebarSlot(
+        sessionId,
+        data.metadata.type,
+        data.metadata,
+        handleTimelineTimeChange
+      ),
+    [sidebarSlot, sessionId, data.metadata, handleTimelineTimeChange]
   );
-
-  const startTime = new Date(data.metadata.startTime * 1000);
-  const endTime = new Date(data.metadata.endTime * 1000);
-
-  const { icon: Icon, label } = getRecordingTypeInfo(data.metadata.type);
 
   useEffect(() => {
     if (!timelineRef.current || timelineHidden) {
@@ -161,48 +161,7 @@ export function RecordingWithMetadata({
             minHeight={0}
             height="100%"
           >
-            <Flex pl={3} pr={2} justifyContent="space-between">
-              <BackLink to={cfg.getRecordingsRoute(clusterId)}>
-                <ChevronLeft size="small" />
-                Back to Session Recordings
-              </BackLink>
-            </Flex>
-
-            <Flex alignItems="center" gap={3} px={3}>
-              <Icon size="small" />
-
-              <H3>{label}</H3>
-            </Flex>
-
-            <InfoGrid>
-              <InfoGridLabel>User</InfoGridLabel>
-
-              <div>{data.metadata.user}</div>
-
-              <InfoGridLabel>Resource</InfoGridLabel>
-
-              <div>{data.metadata.resourceName}</div>
-
-              <InfoGridLabel>Duration</InfoGridLabel>
-
-              <div>
-                {formatSessionRecordingDuration(data.metadata.duration)}
-              </div>
-
-              <InfoGridLabel>Cluster</InfoGridLabel>
-
-              <div>{data.metadata.clusterName}</div>
-
-              <InfoGridLabel>Start Time</InfoGridLabel>
-
-              <div>{format(startTime, 'MMM dd, yyyy HH:mm')}</div>
-
-              <InfoGridLabel>End Time</InfoGridLabel>
-
-              <div>{format(endTime, 'MMM dd, yyyy HH:mm')}</div>
-            </InfoGrid>
-
-            {summary && <Summary>{summary}</Summary>}
+            {sidebar}
           </Flex>
         </Sidebar>
       )}
@@ -238,14 +197,6 @@ const Grid = styled.div<{ sidebarHidden: boolean }>`
   bottom: 0;
 `;
 
-const InfoGrid = styled.div`
-  display: grid;
-  column-gap: ${p => p.theme.space[3]}px;
-  row-gap: ${p => p.theme.space[2]}px;
-  grid-template-columns: 80px 1fr;
-  padding: 0 ${p => p.theme.space[3]}px;
-`;
-
 const Player = styled.div`
   grid-area: recording;
   display: flex;
@@ -260,29 +211,6 @@ const Sidebar = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
-`;
-
-const Summary = styled.div`
-  border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  overflow-y: auto;
-  height: 100%;
-  flex: 1;
-  min-height: 0;
-  padding: ${p => p.theme.space[3]}px ${p => p.theme.space[3]}px 0;
-`;
-
-const InfoGridLabel = styled.div`
-  font-weight: bold;
-  color: ${p => p.theme.colors.text.slightlyMuted};
-`;
-
-const BackLink = styled(Link)`
-  color: ${p => p.theme.colors.text.slightlyMuted};
-  text-decoration: none;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: ${p => p.theme.space[2]}px;
 `;
 
 const TimelineContainer = styled.div`
