@@ -199,7 +199,6 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 		return trace.Wrap(err)
 	}
 	session.Stdout = ns.terminal.Stdout()
-	session.Stderr = ns.terminal.Stderr()
 	session.Stdin = ns.terminal.Stdin()
 	return trace.Wrap(sessionCallback(session))
 }
