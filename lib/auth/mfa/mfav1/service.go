@@ -405,7 +405,7 @@ func (s *Service) validateWebauthnResponse(
 		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 	)
 	if err != nil {
-		return nil, trace.AccessDenied("failed to validate Webauthn response: %v", err)
+		return nil, trace.AccessDenied("validate Webauthn response: %v", err)
 	}
 
 	return loginData.Device, nil
@@ -424,7 +424,7 @@ func (s *Service) validateSSOResponse(
 		&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 	)
 	if err != nil {
-		return nil, trace.AccessDenied("failed to validate SSO response: %v", err)
+		return nil, trace.AccessDenied("validate SSO response: %v", err)
 	}
 
 	return data.Device, nil
