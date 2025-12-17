@@ -58,9 +58,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/service/servicecfg/pamconfig"
+	"github.com/gravitational/teleport/lib/utils/log/packagelogger"
 )
 
 func init() {
@@ -101,7 +100,7 @@ func init() {
 	runtime.LockOSThread()
 }
 
-var logger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentPAM)
+var logger = packagelogger.NewPackageLogger("trace.component", "pam")
 
 const (
 	// maxMessageSize is the maximum size of a message to accept from PAM. In
@@ -286,7 +285,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *servicecfg.PAMConfig) (*PAM, error) {
+func Open(config *pamconfig.PAMConfig) (*PAM, error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
