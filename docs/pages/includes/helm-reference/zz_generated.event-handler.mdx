@@ -99,13 +99,34 @@ The window size should be specified as a duration string, parsed by Go's time.Pa
 
 | Type | Default |
 |------|---------|
-| `bool` | `[]` |
+| `bool` | `false` |
 
 `eventHandler.debug` enables debug logging.
-eventHandler.types(list) -- is the list of event types to forward.
+
+### `eventHandler.types`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`eventHandler.types` is the list of event types to forward.
 When unset, the event handler forwards all events.
-eventHandler.skipEventTypes(list) -- is the list of audit event types to skip.
-eventHandler.skipSessionTypes(list) -- is the list of session recording event types to skip.
+
+### `eventHandler.skipEventTypes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`eventHandler.skipEventTypes` is the list of audit event types to skip.
+
+### `eventHandler.skipSessionTypes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`eventHandler.skipSessionTypes` is the list of session recording event types to skip.
 When unset, the event handler skips noisy and binary events.
 
 See the [Teleport-event-handler README](https://github.com/gravitational/teleport/blob/1d2bd5eb8fc3500deb7d7108f6835efde98b7b24/integrations/event-handler/README.md)
