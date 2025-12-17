@@ -294,22 +294,17 @@ steps:
     proxy: example.teleport.sh:443
     token: example-bot
 
-- name: Open a database tunnel
-  uses: teleport-actions/start@v1
+- name: Open a database and an app tunnel
+  uses: teleport-actions/start-service@v1
   with:
-    kind: database-tunnel
-    config: |
-      listen: tcp://127.0.0.1:25432
-      service: postgres
-      database: postgres
-
-- name: Open a application tunnel
-  uses: teleport-actions/start@v1
-  with:
-    kind: application-tunnel
-    config: |
-      listen: tcp://127.0.0.1:1234
-      app: dumper
+    services: |
+      - type: database-tunnel
+        listen: tcp://127.0.0.1:25432
+        service: postgres
+        database: postgres
+      - type: application-tunnel
+        listen: tcp://127.0.0.1:1234
+        app: dumper
 
 - name: Start an app tunnel dynamically
   run: |
