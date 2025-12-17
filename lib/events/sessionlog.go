@@ -19,12 +19,14 @@
 package events
 
 import (
-	"compress/gzip"
 	"io"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/gzip"
 )
+
+// TODO(espadolini): move grpc gzip to klauspost/compress/gzip
 
 // gzipWriter wraps file, on close close both gzip writer and file
 type gzipWriter struct {
