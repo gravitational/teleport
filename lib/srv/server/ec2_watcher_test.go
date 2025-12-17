@@ -336,25 +336,25 @@ func TestEC2Watcher(t *testing.T) {
 		}, nil
 	}
 
-	fetchersFn := func() []Fetcher {
-		fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
-			Matchers: matchers,
-			PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
-				return "proxy.example.com:3080", nil
-			},
-			EC2ClientGetter:     ec2ClientGetter,
-			RegionsListerGetter: regionsListerGetter,
-		})
-		require.NoError(t, err)
+	const noDiscoveryConfig = ""
 
-		return fetchers
-	}
-	watcher, err := NewEC2Watcher(t.Context(), fetchersFn, make(<-chan []types.Server))
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter:     ec2ClientGetter,
+		RegionsListerGetter: regionsListerGetter,
+		DiscoveryConfigName: noDiscoveryConfig,
+	})
 	require.NoError(t, err)
+
+	watcher := NewWatcher[*EC2Instances](t.Context())
+	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
 
-	expectedInstances := []EC2Instances{
+	expectedInstances := []*EC2Instances{
 		{
 			Region:     "us-west-2",
 			Instances:  []EC2Instance{toEC2Instance(present)},
@@ -394,8 +394,7 @@ func TestEC2Watcher(t *testing.T) {
 	for _, instances := range expectedInstances {
 		select {
 		case result := <-watcher.InstancesC:
-			require.NotNil(t, result.EC2)
-			require.Equal(t, instances, *result.EC2)
+			require.Equal(t, instances, result)
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}
