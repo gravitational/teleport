@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=19.0.0-dev
+VERSION=19.0.1-dev.espadolini.windowsauth.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -1936,6 +1936,7 @@ rustup-toolchain-warning:
 	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
 		echo -en "\033[31m";\
 		echo  "$$rust_toolchain_warning";\
+		rustup show active-toolchain --verbose;\
 		echo  -en "\033[0m";\
 	fi
 
