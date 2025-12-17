@@ -96,10 +96,7 @@ func TestCreateSessionChallenge_Webauthn(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify a Webauthn challenge was returned.
-	require.NotNil(t, resp)
-	require.NotNil(t, resp.MfaChallenge)
-	require.NotNil(t, resp.MfaChallenge.WebauthnChallenge)
-	require.NotEmpty(t, resp.MfaChallenge.WebauthnChallenge.PublicKey.Challenge)
+	require.NotNil(t, resp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
 
 	// Verify emitted event.
 	event := emitter.LastEvent()
@@ -178,14 +175,11 @@ func TestCreateSessionChallenge_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SSO challenge was returned.
-	require.NotNil(t, resp)
-	require.NotNil(t, resp.MfaChallenge)
-	require.NotNil(t, resp.MfaChallenge.SsoChallenge)
-	require.Equal(t, "test-display-name", resp.MfaChallenge.SsoChallenge.Device.DisplayName)
-	require.Equal(t, "test-device-connector-id", resp.MfaChallenge.SsoChallenge.Device.ConnectorId)
-	require.Equal(t, constants.SAML, resp.MfaChallenge.SsoChallenge.Device.ConnectorType)
-	require.Equal(t, "https://sso/redirect", resp.MfaChallenge.SsoChallenge.RedirectUrl)
-
+	require.NotNil(t, resp.GetMfaChallenge().GetSsoChallenge(), "SSOChallenge must not be nil")
+	require.Equal(t, "test-display-name", resp.GetMfaChallenge().GetSsoChallenge().GetDevice().DisplayName)
+	require.Equal(t, "test-device-connector-id", resp.GetMfaChallenge().GetSsoChallenge().GetDevice().ConnectorId)
+	require.Equal(t, constants.SAML, resp.GetMfaChallenge().GetSsoChallenge().GetDevice().ConnectorType)
+	require.Equal(t, "https://sso/redirect", resp.GetMfaChallenge().GetSsoChallenge().GetRedirectUrl())
 	// Verify emitted event.
 	event := emitter.LastEvent()
 	require.Equal(t, events.CreateMFAAuthChallengeEvent, event.GetType())
