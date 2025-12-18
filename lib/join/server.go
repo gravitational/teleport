@@ -91,7 +91,7 @@ type AuthService interface {
 	CheckLockInForce(constants.LockingMode, []types.LockTarget) error
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
-	GetAWSOrganizationsDescribeAccountClientGetter() iamjoin.DescribeAccountClientGetter
+	GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter
 	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client

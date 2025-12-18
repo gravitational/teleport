@@ -25,7 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
-	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
+	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -42,10 +42,10 @@ func TestAWSOrganizationsClientUsingAmbientCredentials(t *testing.T) {
 			},
 		})
 
-		getClientFn, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), clockwork.NewFakeClock(), nil)
+		clientGetter, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), clockwork.NewFakeClock(), nil)
 		require.NoError(t, err)
 
-		_, err = getClientFn(t.Context())
+		_, err = clientGetter.Get(t.Context())
 		require.Error(t, err)
 	})
 
@@ -57,45 +57,49 @@ func TestAWSOrganizationsClientUsingAmbientCredentials(t *testing.T) {
 		})
 
 		fakeClock := clockwork.NewFakeClock()
+		mockOrganizationsAPI := &mockOrganizationsAPI{}
 
-		numberOfRemoteAPICalls := 0
-		describeAccountRemoteAPIFn := func(c aws.Config) iamjoin.DescribeAccountAPIClient {
-			return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-				numberOfRemoteAPICalls++
-				return &organizations.DescribeAccountOutput{
-					Account: &types.Account{Id: aws.String("123456789012")},
-				}, nil
-			}
-		}
-
-		getClientFn, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), fakeClock, describeAccountRemoteAPIFn)
+		clientGetter, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+			return mockOrganizationsAPI
+		})
 		require.NoError(t, err)
 
-		describeAccountAPI, err := getClientFn(t.Context())
+		organizationsAPI, err := clientGetter.Get(t.Context())
 		require.NoError(t, err)
 
-		describeAccountAPIOutput, err := describeAccountAPI(t.Context(), &organizations.DescribeAccountInput{
+		describeAccountAPIOutput, err := organizationsAPI.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
 			AccountId: aws.String("123456789012"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, aws.String("123456789012"), describeAccountAPIOutput.Account.Id)
-		require.Equal(t, 1, numberOfRemoteAPICalls, "expected one remote API call")
+		require.Equal(t, 1, mockOrganizationsAPI.numberOfRemoteAPICalls, "expected one remote API call")
 
 		// Call again to verify caching works.
-		describeAccountAPIOutput, err = describeAccountAPI(t.Context(), &organizations.DescribeAccountInput{
+		describeAccountAPIOutput, err = organizationsAPI.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
 			AccountId: aws.String("123456789012"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, aws.String("123456789012"), describeAccountAPIOutput.Account.Id)
-		require.Equal(t, 1, numberOfRemoteAPICalls, "expected no additional remote API calls due to caching")
+		require.Equal(t, 1, mockOrganizationsAPI.numberOfRemoteAPICalls, "expected no additional remote API calls due to caching")
 
 		// However, after the cache expiration time, a new call should be made.
 		fakeClock.Advance(5 * time.Minute)
-		describeAccountAPIOutput, err = describeAccountAPI(t.Context(), &organizations.DescribeAccountInput{
+		describeAccountAPIOutput, err = organizationsAPI.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
 			AccountId: aws.String("123456789012"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, aws.String("123456789012"), describeAccountAPIOutput.Account.Id)
-		require.Equal(t, 2, numberOfRemoteAPICalls, "expected a new remote API call after cache expiration")
+		require.Equal(t, 2, mockOrganizationsAPI.numberOfRemoteAPICalls, "expected a new remote API call after cache expiration")
 	})
+}
+
+type mockOrganizationsAPI struct {
+	numberOfRemoteAPICalls int
+}
+
+func (m *mockOrganizationsAPI) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+	m.numberOfRemoteAPICalls++
+	return &organizations.DescribeAccountOutput{
+		Account: &organizationstypes.Account{Id: aws.String("123456789012")},
+	}, nil
 }

@@ -44,15 +44,15 @@ func (a *Server) GetHTTPClientForAWSSTS() utils.HTTPDoClient {
 	return a.httpClientForAWSSTS
 }
 
-// SetAWSOrganizationsDescribeAccountClientGetter sets a client getter that will be used for describing accounts in AWS Organizations.
+// SetAWSOrganizationsClientGetter sets a client getter that will be used for describing accounts in AWS Organizations.
 // client-signed sts:GetCallerIdentity requests to AWS, for tests.
-func (a *Server) SetAWSOrganizationsDescribeAccountClientGetter(describeAccountClientGetter iamjoin.DescribeAccountClientGetter) {
-	a.awsOrganizationsDescribeAccountClientGetter = describeAccountClientGetter
+func (a *Server) SetAWSOrganizationsClientGetter(organizationsAPIGetter iamjoin.OrganizationsAPIGetter) {
+	a.awsOrganizationsClientGetter = organizationsAPIGetter
 }
 
-// SetAWSOrganizationsDescribeAccountClientGetter returns client getter which is capable of describing accounts in AWS Organizations.
-func (a *Server) GetAWSOrganizationsDescribeAccountClientGetter() iamjoin.DescribeAccountClientGetter {
-	return a.awsOrganizationsDescribeAccountClientGetter
+// GetAWSOrganizationsClientGetter returns client getter which is capable of describing accounts in AWS Organizations.
+func (a *Server) GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter {
+	return a.awsOrganizationsClientGetter
 }
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
@@ -106,12 +106,12 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
-		Challenge:                   challenge,
-		ProvisionToken:              provisionToken,
-		STSIdentityRequest:          req.StsIdentityRequest,
-		HTTPClient:                  a.GetHTTPClientForAWSSTS(),
-		FIPS:                        a.fips,
-		DescribeAccountClientGetter: a.GetAWSOrganizationsDescribeAccountClientGetter(),
+		Challenge:              challenge,
+		ProvisionToken:         provisionToken,
+		STSIdentityRequest:     req.StsIdentityRequest,
+		HTTPClient:             a.GetHTTPClientForAWSSTS(),
+		FIPS:                   a.fips,
+		OrganizationsAPIGetter: a.GetAWSOrganizationsClientGetter(),
 	})
 	if verifiedIdentity != nil {
 		joinFailureMetadata = verifiedIdentity

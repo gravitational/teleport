@@ -119,16 +119,16 @@ func withChallenge(challenge string) challengeResponseOption {
 }
 
 type iamJoinTestCase struct {
-	desc                        string
-	authServer                  *authtest.Server
-	tokenName                   string
-	requestTokenName            string
-	tokenSpec                   types.ProvisionTokenSpecV2
-	stsClient                   utils.HTTPDoClient
-	describeAccountClientGetter iamjoin.DescribeAccountClientGetter
-	challengeResponseOptions    []challengeResponseOption
-	challengeResponseErr        error
-	assertError                 require.ErrorAssertionFunc
+	desc                     string
+	authServer               *authtest.Server
+	tokenName                string
+	requestTokenName         string
+	tokenSpec                types.ProvisionTokenSpecV2
+	stsClient                utils.HTTPDoClient
+	organizationsAPI         iamjoin.OrganizationsAPI
+	challengeResponseOptions []challengeResponseOption
+	challengeResponseErr     error
+	assertError              require.ErrorAssertionFunc
 }
 
 func TestJoinIAM(t *testing.T) {
@@ -205,14 +205,12 @@ func TestJoinIAM(t *testing.T) {
 					Arn:     "arn:aws::1234",
 				}),
 			},
-			describeAccountClientGetter: func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
-				return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-					return &organizations.DescribeAccountOutput{
-						Account: &organizationstypes.Account{
-							Arn: aws.String("arn:aws:organizations::123456789012:account/o-allowedorg/1234"),
-						},
-					}, nil
-				}, nil
+			organizationsAPI: &mockAWSOrganizationsClient{
+				getAccountOutput: &organizations.DescribeAccountOutput{
+					Account: &organizationstypes.Account{
+						Arn: aws.String("arn:aws:organizations::123456789012:account/o-allowedorg/1234"),
+					},
+				},
 			},
 			assertError: require.NoError,
 		},
@@ -237,14 +235,12 @@ func TestJoinIAM(t *testing.T) {
 					Arn:     "arn:aws::1234",
 				}),
 			},
-			describeAccountClientGetter: func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
-				return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-					return &organizations.DescribeAccountOutput{
-						Account: &organizationstypes.Account{
-							Arn: aws.String("arn:aws:organizations::123456789012:account/o-not-allowed/1234"),
-						},
-					}, nil
-				}, nil
+			organizationsAPI: &mockAWSOrganizationsClient{
+				getAccountOutput: &organizations.DescribeAccountOutput{
+					Account: &organizationstypes.Account{
+						Arn: aws.String("arn:aws:organizations::123456789012:account/o-not-allowed/1234"),
+					},
+				},
 			},
 			assertError: require.Error,
 		},
@@ -705,11 +701,30 @@ func TestJoinIAM(t *testing.T) {
 	}
 }
 
+type mockAWSOrganizationsClient struct {
+	getAccountOutput *organizations.DescribeAccountOutput
+	getAccountError  error
+}
+
+func (m *mockAWSOrganizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+	return m.getAccountOutput, m.getAccountError
+}
+
+type mockAWSOrganizationsClientGetter struct {
+	OrganizationsAPI iamjoin.OrganizationsAPI
+}
+
+func (m *mockAWSOrganizationsClientGetter) Get(ctx context.Context) (iamjoin.OrganizationsAPI, error) {
+	return m.OrganizationsAPI, nil
+}
+
 func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	ctx := t.Context()
 	// Set mock client.
 	tc.authServer.Auth().SetHTTPClientForAWSSTS(tc.stsClient)
-	tc.authServer.Auth().SetAWSOrganizationsDescribeAccountClientGetter(tc.describeAccountClientGetter)
+	tc.authServer.Auth().SetAWSOrganizationsClientGetter(&mockAWSOrganizationsClientGetter{
+		OrganizationsAPI: tc.organizationsAPI,
+	})
 
 	// Add token to auth server.
 	token, err := types.NewProvisionTokenFromSpec(

@@ -576,8 +576,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
-	if cfg.AWSOrganizationsDescribeAccountClientGetter == nil {
-		cfg.AWSOrganizationsDescribeAccountClientGetter, err = awsOrganizationsClientUsingAmbientCredentials(closeCtx, cfg.Clock, describeAccountRemoteAPI)
+	if cfg.AWSOrganizationsClientGetter == nil {
+		organizationsClientFromSDK := func(c aws.Config) iamjoin.OrganizationsAPI {
+			return organizations.NewFromConfig(c)
+		}
+
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientUsingAmbientCredentials(closeCtx, cfg.Clock, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -699,31 +703,31 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	as = &Server{
-		bk:                        cfg.Backend,
-		clock:                     cfg.Clock,
-		limiter:                   limiter,
-		Authority:                 cfg.Authority,
-		AuthServiceName:           cfg.AuthServiceName,
-		ServerID:                  cfg.HostUUID,
-		cancelFunc:                cancelFunc,
-		closeCtx:                  closeCtx,
-		emitter:                   cfg.Emitter,
-		Streamer:                  cfg.Streamer,
-		Unstable:                  local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:                  services,
-		Cache:                     services,
-		scopedAccessBackend:       cfg.ScopedAccess,
-		ScopedAccessCache:         scopedAccessCache,
-		keyStore:                  cfg.KeyStore,
-		traceClient:               cfg.TraceClient,
-		fips:                      cfg.FIPS,
-		loadAllCAs:                cfg.LoadAllCAs,
-		httpClientForAWSSTS:       cfg.HTTPClientForAWSSTS,
-		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
-		logger:                    cfg.Logger,
-		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
-		recordingMetadataProvider: cfg.RecordingMetadataProvider,
-		awsOrganizationsDescribeAccountClientGetter: cfg.AWSOrganizationsDescribeAccountClientGetter,
+		bk:                           cfg.Backend,
+		clock:                        cfg.Clock,
+		limiter:                      limiter,
+		Authority:                    cfg.Authority,
+		AuthServiceName:              cfg.AuthServiceName,
+		ServerID:                     cfg.HostUUID,
+		cancelFunc:                   cancelFunc,
+		closeCtx:                     closeCtx,
+		emitter:                      cfg.Emitter,
+		Streamer:                     cfg.Streamer,
+		Unstable:                     local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:                     services,
+		Cache:                        services,
+		scopedAccessBackend:          cfg.ScopedAccess,
+		ScopedAccessCache:            scopedAccessCache,
+		keyStore:                     cfg.KeyStore,
+		traceClient:                  cfg.TraceClient,
+		fips:                         cfg.FIPS,
+		loadAllCAs:                   cfg.LoadAllCAs,
+		httpClientForAWSSTS:          cfg.HTTPClientForAWSSTS,
+		accessMonitoringEnabled:      cfg.AccessMonitoringEnabled,
+		logger:                       cfg.Logger,
+		sessionSummarizerProvider:    cfg.SessionSummarizerProvider,
+		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
+		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -904,7 +908,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 
 // awsOrganizationsClientUsingAmbientCredentials returns an AWS Organizations client getter
 // that uses ambient credentials to create the client.
-func awsOrganizationsClientUsingAmbientCredentials(ctx context.Context, clock clockwork.Clock, describeAccountRemoteAPI func(aws.Config) iamjoin.DescribeAccountAPIClient) (iamjoin.DescribeAccountClientGetter, error) {
+func awsOrganizationsClientUsingAmbientCredentials(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (iamjoin.OrganizationsAPIGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -920,45 +924,55 @@ func awsOrganizationsClientUsingAmbientCredentials(ctx context.Context, clock cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return func(ctx context.Context) (iamjoin.DescribeAccountAPIClient, error) {
-		// For IAM Join flow, the join token might allow instances under an Organization to join the cluster.
-		// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
-		// This requires AWS credentials to be accessible to the Auth Service.
-		//
-		// Currently, only ambient credentials are supported, which are not available when running within Teleport Cloud.
-		// In that scenario a NotImplemented error is returned.
-		if modules.GetModules().Features().Cloud {
-			return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not currently supported in Teleport Cloud")
-		}
-
-		// AWS Organizations API has a global API, so no region is required to be passed.
-		const noRegion = ""
-		awsCfg, err := awsConfigProvider.GetConfig(ctx, noRegion, awsconfig.WithAmbientCredentials())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return wrapDescribeAccountAPIClientWithCache(
-			describeAccountRemoteAPI(awsCfg),
-			describeAccountAPICache,
-		)
+	return &organizationsClientGetter{
+		describeAccountAPICache:       describeAccountAPICache,
+		awsConfig:                     awsConfigProvider,
+		organizationsClientFromConfig: organizationsClientFromConfig,
 	}, nil
 }
 
-func describeAccountRemoteAPI(awsCfg aws.Config) iamjoin.DescribeAccountAPIClient {
-	return organizations.NewFromConfig(awsCfg).DescribeAccount
+type organizationsClientGetter struct {
+	describeAccountAPICache       *utils.FnCache
+	awsConfig                     awsconfig.Provider
+	organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI
 }
 
-func wrapDescribeAccountAPIClientWithCache(remoteAPI iamjoin.DescribeAccountAPIClient, describeAccountAPICache *utils.FnCache) (iamjoin.DescribeAccountAPIClient, error) {
-	return func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-		describeAccountOutput, err := utils.FnCacheGet(ctx, describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
-			remoteDescribeAccountOutput, err := remoteAPI(ctx, params, optFns...)
-			return remoteDescribeAccountOutput, trace.Wrap(err)
-		})
+func (o *organizationsClientGetter) Get(ctx context.Context) (iamjoin.OrganizationsAPI, error) {
+	// For IAM Join flow, the join token might allow instances under an Organization to join the cluster.
+	// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
+	// This requires AWS credentials to be accessible to the Auth Service.
+	//
+	// Currently, only ambient credentials are supported, which are not available when running within Teleport Cloud.
+	// In that scenario a NotImplemented error is returned.
+	if modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not currently supported in Teleport Cloud")
+	}
 
-		return describeAccountOutput, trace.Wrap(err)
+	// Organizations API is global, so we use an empty string for region.
+	const noRegion = ""
+	awsConfig, err := o.awsConfig.GetConfig(ctx, noRegion, awsconfig.WithAmbientCredentials())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &organizationsClient{
+		describeAccountAPICache: o.describeAccountAPICache,
+		remoteAPI:               o.organizationsClientFromConfig(awsConfig),
 	}, nil
+}
+
+type organizationsClient struct {
+	describeAccountAPICache *utils.FnCache
+	remoteAPI               iamjoin.OrganizationsAPI
+}
+
+func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
+	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
+		return remoteDescribeAccountOutput, trace.Wrap(err)
+	})
+
+	return describeAccountOutput, trace.Wrap(err)
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1409,9 +1423,9 @@ type Server struct {
 	// Used for testing.
 	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 
-	// awsOrganizationsDescribeAccountClientGetter provides an AWS client that can call organizations:DescribeAccount.
+	// awsOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
 	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
-	awsOrganizationsDescribeAccountClientGetter iamjoin.DescribeAccountClientGetter
+	awsOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.

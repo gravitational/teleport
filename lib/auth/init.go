@@ -314,9 +314,9 @@ type InitConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
-	// AWSOrganizationsDescribeAccountClientGetter provides an AWS client that can call organizations:DescribeAccount.
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
 	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
-	AWSOrganizationsDescribeAccountClientGetter iamjoin.DescribeAccountClientGetter
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer

@@ -240,7 +240,7 @@ func arnMatches(pattern, arn string) (bool, error) {
 
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
-func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule, organizationIDFetcher func() (string, error)) error {
+func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, allowRules []*types.TokenRule, organizationIDFetcher *organizationsIDFetcher) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
 		if rule.AWSAccount != "" {
@@ -262,7 +262,7 @@ func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule, or
 		}
 
 		if rule.AWSOrganizationID != "" {
-			organizationID, err := organizationIDFetcher()
+			organizationID, err := organizationIDFetcher.fetch(ctx, identity.Account)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -279,11 +279,15 @@ func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule, or
 	return trace.AccessDenied("instance %v did not match any allow rules", identity.Arn)
 }
 
-// DescribeAccountAPIClient is a function that calls the AWS Organizations DescribeAccount API.
-type DescribeAccountAPIClient func(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error)
+// OrganizationsAPI defines the subset of the AWS Organizations APIs used for IAM join.
+type OrganizationsAPI interface {
+	DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error)
+}
 
-// DescribeAccountClientGetter is a function that returns a DescribeAccountAPIClient.
-type DescribeAccountClientGetter func(context.Context) (DescribeAccountAPIClient, error)
+// OrganizationsAPIGetter defines an interface for getting an OrganizationsAPI.
+type OrganizationsAPIGetter interface {
+	Get(ctx context.Context) (OrganizationsAPI, error)
+}
 
 // CheckIAMRequestParams holds parameters for checking an IAM-method join request.
 type CheckIAMRequestParams struct {
@@ -297,9 +301,8 @@ type CheckIAMRequestParams struct {
 	// HTTPClient is an optional HTTP client to use for sending
 	// STSIdentityRequest to AWS, if nil a default client will be used.
 	HTTPClient utils.HTTPDoClient
-	// DescribeAccountClientGetter returns an AWS Client which describes an Account in the context of an organization.
-	// It is used for validating that the identity belongs to an Organization ID.
-	DescribeAccountClientGetter DescribeAccountClientGetter
+	// OrganizationsAPIGetter returns an AWS Organizations client with a subset of the APIs required for validating whether an identity belongs to an Organization.
+	OrganizationsAPIGetter OrganizationsAPIGetter
 	// FIPS must be true if the server is in FIPS mode.
 	FIPS bool
 }
@@ -335,26 +338,20 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 		return nil, trace.Wrap(err, "executing STS request")
 	}
 
-	// Defer the fetching of the Organization ID until it's needed.
-	organizationIDFetcher := func() (string, error) {
-		// Return cached result to ensure we only fetch it once.
-		if identity.OrganizationID == "" {
-			var err error
-			identity.OrganizationID, err = fetchOrganizationIDForAccount(ctx, identity.Account, params.DescribeAccountClientGetter)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-		}
-
-		return identity.OrganizationID, nil
+	organizationsIDFetcher := &organizationsIDFetcher{
+		organizationsAPIGetter: params.OrganizationsAPIGetter,
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, params.ProvisionToken.GetAllowRules(), organizationIDFetcher); err != nil {
+	if err := checkIAMAllowRules(ctx, identity, params.ProvisionToken.GetAllowRules(), organizationsIDFetcher); err != nil {
 		// We return the identity since it's "validated" but does not match the
 		// rules. This allows us to include it in a failed join audit event
 		// as additional context to help the user understand why the join failed.
 		return identity, trace.Wrap(err, "checking allow rules")
+	}
+
+	if organizationsIDFetcher.fetchedOrganizationID != "" {
+		identity.OrganizationID = organizationsIDFetcher.fetchedOrganizationID
 	}
 
 	return identity, nil
@@ -366,13 +363,22 @@ func GenerateIAMChallenge() (string, error) {
 	return challenge, trace.Wrap(err)
 }
 
-func fetchOrganizationIDForAccount(ctx context.Context, accountID string, getDescribeAccountAPI DescribeAccountClientGetter) (string, error) {
-	describeAccountAPI, err := getDescribeAccountAPI(ctx)
+type organizationsIDFetcher struct {
+	organizationsAPIGetter OrganizationsAPIGetter
+	fetchedOrganizationID  string
+}
+
+func (f *organizationsIDFetcher) fetch(ctx context.Context, accountID string) (string, error) {
+	if f.fetchedOrganizationID != "" {
+		return f.fetchedOrganizationID, nil
+	}
+
+	organizationsClient, err := f.organizationsAPIGetter.Get(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	accountDetail, err := describeAccountAPI(ctx, &organizations.DescribeAccountInput{
+	accountDetail, err := organizationsClient.DescribeAccount(ctx, &organizations.DescribeAccountInput{
 		AccountId: awssdk.String(accountID),
 	})
 	if err != nil {
