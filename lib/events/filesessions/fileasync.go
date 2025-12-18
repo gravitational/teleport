@@ -581,6 +581,17 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		reader:       nil,
 	}
 
+	defer func() {
+		// If we get an error, that signals that the upload goroutine (encrypted or nonencrypted)
+		// failed to start, so we must manually close the upload as the defers in the goroutine will
+		// never be called.
+		if err != nil {
+			if err := upload.Close(); err != nil {
+				log.WarnContext(ctx, "Failed to close upload.", "error", err)
+			}
+		}
+	}()
+
 	if err := u.uploadEncrypted(ctx, upload); err != nil {
 		if !errors.Is(err, errSkipEncryptedUpload) {
 			u.emitEvent(events.UploadEvent{
@@ -604,9 +615,6 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		if err := upload.Close(); err != nil {
-			log.WarnContext(ctx, "Failed to close upload.", "error", err)
-		}
 		return trace.ConvertSystemError(err)
 	}
 
@@ -637,6 +645,10 @@ func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 	log := u.log.With(fieldSessionID, up.sessionID)
 	header, err := events.ParsePartHeader(up.file)
 	if err != nil {
+		// Empty upload files are not treated as a session error.
+		if errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
 		return trace.Wrap(sessionError{err})
 	}
 
@@ -772,6 +784,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	for {
 		event, err := up.reader.Read(ctx)
 		if err != nil {
+			// Note that empty upload files are not treated as a session error.
 			if errors.Is(err, io.EOF) {
 				break
 			}
