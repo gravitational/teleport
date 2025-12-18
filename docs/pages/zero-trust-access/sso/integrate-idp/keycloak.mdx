@@ -50,14 +50,14 @@ Before you get started, you’ll need:
 
 1. Click **Create client** 
 
-   ![Create client](../../../img/sso/keycloak/create_client.png)
+   ![Create client](../../../../img/sso/keycloak/create_client.png)
 
 1. Set Client type to **SAML** and Set a Client ID to the URL for your Teleport Proxy Service URL
 
    ```code
    https://<Var name="mytenant.teleport.sh" />/v1/webapi/saml/acs/keycloak
    ```
-   ![SAML](../../../img/sso/keycloak/saml.png)
+   ![SAML](../../../../img/sso/keycloak/saml.png)
 
 1. Set the **Valid Redirect URIs** field  to the URL for your Teleport Proxy
    Service host. If you have a self-hosted cluster with multiple public
@@ -68,7 +68,7 @@ Before you get started, you’ll need:
    ```code
    https://<Var name="mytenant.teleport.sh" />/v1/webapi/saml/acs/keycloak
    ```
-   ![Redirect URI](../../../img/sso/keycloak/redirect.png)
+   ![Redirect URI](../../../../img/sso/keycloak/redirect.png)
 
    Click **Save** before proceeding to the next step.
 
@@ -80,27 +80,27 @@ Before you get started, you’ll need:
 
 1. On the Client Scopes Tabs , click on the Teleport client scope
 
-   ![Edit client scope](../../../img/sso/keycloak/client_scope.png)
+   ![Edit client scope](../../../../img/sso/keycloak/client_scope.png)
 
 1. On the Mappers tab, Click **Configure a new mapper**.
    
-   ![Configure mapper](../../../img/sso/keycloak/configure_mapper.png)
+   ![Configure mapper](../../../../img/sso/keycloak/configure_mapper.png)
 
 1. Select **Groups list** from the list of attribute mappings
 
-   ![Groups list](../../../img/sso/keycloak/groups_list.png)
+   ![Groups list](../../../../img/sso/keycloak/groups_list.png)
 
 1. Fill out the values as shown in the image below and **Save**
 
-   ![Group mapper](../../../img/sso/keycloak/group_mapping.png)
+   ![Group mapper](../../../../img/sso/keycloak/group_mapping.png)
 
 1. Repeat steps 1 - 6 to add the **User Attribute** mapper.
 
-   ![user attribute](../../../img/sso/keycloak/user_attribute.png)
+   ![user attribute](../../../../img/sso/keycloak/user_attribute.png)
 
 1. Fill out the values as shown in the image below and **Save.**
 
-   ![Edit client scope](../../../img/sso/keycloak/attribute_mapping.png)
+   ![Edit client scope](../../../../img/sso/keycloak/attribute_mapping.png)
 
    This enables using the username inside Teleport roles as the <nobr>`{{external.username}}`</nobr> property.
 
@@ -165,7 +165,7 @@ temporarily disable the **Client signature required** option
 by navigating to the **Keys** tab of the SAML client. 
 This will be enabled at a later step as you proceed through the guide. 
 
-![Edit client scope](../../../img/sso/keycloak/disable_signature.png)
+![Edit client scope](../../../../img/sso/keycloak/disable_signature.png)
 
 ### Test the connector
 
@@ -322,11 +322,11 @@ Update the connector by saving and closing the file in your editor.
 
 - Navigate to the **Keys** tab, and enable "Client Signature Required"
 
-  ![Enable client signature](../../../img/sso/keycloak/client_signature.png)
+  ![Enable client signature](../../../../img/sso/keycloak/client_signature.png)
 
 - Import the converted cert.pkcs12 certificate
 
-  ![Import Signature](../../../img/sso/keycloak/Import_signature.png)
+  ![Import Signature](../../../../img/sso/keycloak/Import_signature.png)
 
   Be sure to enter the correct **name** and **password** defined when converting
   the certificate as the **Key Alias** and **Store Password.**
@@ -348,7 +348,7 @@ If the SSO login with this connector is successful, the client signature validat
 When "Client signature required" is enabled with the appropriate signing keys, 
 it results in an invalid requester error as shown in the image below.
 
-![Import certificate](../../../img/sso/keycloak/invalid_requester.png)
+![Import certificate](../../../../img/sso/keycloak/invalid_requester.png)
 
 The Keycloak server logs include the error below:
 `error=invalid_signature` and `request validation failed: org.keycloak.common.VerificationException: SigAlg was null`.
