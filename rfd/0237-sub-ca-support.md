@@ -514,13 +514,11 @@ own, and instead is backed by the "tls-user" CA. It appears, sometimes with
 special treatment, in endpoints like `/webapi/auth/export?type=windows` and
 commands like `tctl auth export --type=windows`.
 
-The "windows" CA is to be lifted to a proper CA, separate from "tls-user". The
-details of the split are considered out of scope for this RFD and are tracked
-outside of it.
+The "windows" CA is to be lifted to a proper CA, separate from "tls-user".
+Details are tracked in its own RFD, see
+https://github.com/gravitational/teleport/pull/62362.
 
 The CA split is a prerequisite for the Sub CA support feature.
-
-TODO(codingllama): Link to PR and/or RFD for the Windows CA split.
 
 ### CA rotation
 
