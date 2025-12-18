@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -6570,7 +6571,41 @@ type grpcContext struct {
 func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
+
+	// If authorization fails (e.g., IP pinning mismatch), we capture the rejection
+	// at the connection layer to ensure security visibility in the Audit Log/UI.
 	if err != nil {
+		p, _ := peer.FromContext(ctx)
+		identity, _ := authz.UserFromContext(ctx)
+
+		if p != nil && identity != nil {
+			event := &apievents.AuthAttempt{
+				Metadata: apievents.Metadata{
+					Type: events.AuthAttemptEvent,
+					Code: events.AuthAttemptFailureCode,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: identity.GetIdentity().Username,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: p.Addr.String(),
+					Protocol:   events.EventProtocol,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerVersion:   teleport.Version,
+					ServerID:        g.AuthServer.ServerID,
+					ServerNamespace: apidefaults.Namespace,
+				},
+				Status: apievents.Status{
+					Success:     false,
+					Error:       err.Error(),
+					UserMessage: trace.UserMessage(err),
+				},
+			}
+			if emitErr := g.AuthServer.EmitAuditEvent(ctx, event); emitErr != nil {
+				g.logger.WarnContext(ctx, "Failed to emit auth attempt", "error", emitErr)
+			}
+		}
 		return nil, trace.Wrap(err)
 	}
 	return &grpcContext{
