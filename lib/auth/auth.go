@@ -929,7 +929,7 @@ func awsOrganizationsClientUsingAmbientCredentials(ctx context.Context, clock cl
 		// Currently, only ambient credentials are supported, which are not available when running within Teleport Cloud.
 		// In that scenario a NotImplemented error is returned.
 		if modules.GetModules().Features().Cloud {
-			return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not supported in Teleport Cloud")
+			return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not currently supported in Teleport Cloud")
 		}
 
 		// AWS Organizations API has a global API, so no region is required to be passed.

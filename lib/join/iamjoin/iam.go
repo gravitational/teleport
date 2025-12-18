@@ -27,10 +27,8 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 
 	awssdk "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/gravitational/trace"
 
@@ -43,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
+	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 )
 
 const (
@@ -244,14 +243,14 @@ func arnMatches(pattern, arn string) (bool, error) {
 func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule, organizationIDFetcher func() (string, error)) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
-		if len(rule.AWSAccount) > 0 {
+		if rule.AWSAccount != "" {
 			if rule.AWSAccount != identity.Account {
 				// account doesn't match, continue to check the next rule
 				continue
 			}
 		}
 		// if this rule specifies an AWS ARN, the identity must match
-		if len(rule.AWSARN) > 0 {
+		if rule.AWSARN != "" {
 			matches, err := arnMatches(rule.AWSARN, identity.Arn)
 			if err != nil {
 				return trace.Wrap(err)
@@ -262,7 +261,7 @@ func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule, or
 			}
 		}
 
-		if len(rule.AWSOrganizationID) > 0 {
+		if rule.AWSOrganizationID != "" {
 			organizationID, err := organizationIDFetcher()
 			if err != nil {
 				return trace.Wrap(err)
@@ -385,26 +384,10 @@ func fetchOrganizationIDForAccount(ctx context.Context, accountID string, getDes
 		return "", trace.Wrap(convertedError)
 	}
 
-	organizationID, err := organizationIDFromOrganizationARN(accountDetail.Account.Arn)
+	organizationID, err := liborganizations.OrganizationIDFromAccountARN(awssdk.ToString(accountDetail.Account.Arn))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	return organizationID, nil
-}
-
-// organizationIDFromOrganizationARN extracts the organization ID from an organization ARN.
-// Example ARN: arn:aws:organizations::111111111111:account/o-exampleorgid/555555555555
-func organizationIDFromOrganizationARN(orgARN *string) (string, error) {
-	arnParsed, err := arn.Parse(awssdk.ToString(orgARN))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	resourceParts := strings.Split(arnParsed.Resource, "/")
-	if len(resourceParts) != 3 {
-		return "", trace.BadParameter("unexpected resource received in ARN from organizations API call: %s", awssdk.ToString(orgARN))
-	}
-	organizationID := resourceParts[1]
 
 	return organizationID, nil
 }
