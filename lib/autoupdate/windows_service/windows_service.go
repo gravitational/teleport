@@ -3,7 +3,9 @@ package windows_service
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -19,6 +21,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
@@ -345,7 +348,18 @@ func (s *windowsService) runInstall(ctx context.Context, args []string, logger *
 }
 
 func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error {
-	cmd := exec.Command(cfg.Path, "--updated", "/S", "--force-run")
+	path, err := secureCopy(cfg.Path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ver, err := verifyFile(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	logger.Info("Found", "subject", ver.Subject, "version", ver.FileVersion, "status", ver.Status)
+	cmd := exec.Command(path, "--updated", "/S", "--force-run")
 	// SysProcAttr holds Windows-specific attributes
 	//cmd.SysProcAttr = &windows.SysProcAttr{
 	//	// DETACHED_PROCESS: The new process does not inherit the parent's console.
@@ -357,7 +371,7 @@ func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error
 
 	// Use Start() instead of Run().
 	// Start() returns immediately after the process is launched.
-	err := cmd.Start()
+	err = cmd.Start()
 	if err != nil {
 		return err
 	}
@@ -372,4 +386,75 @@ func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error
 	os.Exit(0)
 
 	return trace.Wrap(err, "running admin process")
+}
+
+func secureCopy(userPath string) (string, error) {
+	// 1. Define source (Insecure User Space)
+	// e.g. C:\Users\Alice\AppData\Local\Temp\update.exe
+
+	// 2. Define destination (Secure SYSTEM Space)
+	ex, err := os.Executable()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	secureDir := filepath.Join(ex, "Updates")
+	err = os.MkdirAll(secureDir, 0755) // ensure dir exists
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	securePath := filepath.Join(secureDir, "update_secure.exe")
+
+	// 3. Perform the Copy
+	// Note: Use io.Copy logic here to create a NEW file owned by SYSTEM
+	err = utils.CopyFile(userPath, securePath, os.FileMode(0644))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return securePath, nil
+}
+
+type FileInfo struct {
+	Status      string `json:"Status"`      // Valid, NotSigned, etc.
+	Subject     string `json:"Subject"`     // "CN=My Company, O=..."
+	FileVersion string `json:"FileVersion"` // "1.2.3.4"
+}
+
+func verifyFile(path string) (*FileInfo, error) {
+	// PowerShell Script to run
+	// 1. Get Signature
+	// 2. Get Version Info
+	// 3. Output as compressed JSON
+	psScript := fmt.Sprintf(`
+		$path = "%s"
+		$sig = Get-AuthenticodeSignature -FilePath $path
+		$ver = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+		
+		$obj = @{
+			Status = $sig.Status.ToString()
+			Subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { "" }
+			FileVersion = $ver.FileVersion
+		}
+		
+		$obj | ConvertTo-Json -Compress
+	`, path)
+
+	// Wrap in a command
+	// -NoProfile: Speeds up load time
+	// -NonInteractive: Prevents prompts
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("powershell error: %v, output: %s", err, string(output))
+	}
+
+	// Parse JSON
+	var info FileInfo
+	if err := json.Unmarshal(output, &info); err != nil {
+		return nil, fmt.Errorf("failed to parse json: %v | raw: %s", err, string(output))
+	}
+
+	return &info, nil
 }
