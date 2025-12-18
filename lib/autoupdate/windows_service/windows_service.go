@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
 
 const serviceName = "TeleportUpdateService"
@@ -28,6 +30,24 @@ const terminateTimeout = 30 * time.Second
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "update-service")
 var logger = slog.Default()
+
+const eventSource = "updater-service"
+
+func installEventSource() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Assume that the message file is shipped next to tsh.exe.
+	msgFilePath := filepath.Join(filepath.Dir(exe), "msgfile.dll")
+
+	// This should create a registry entry under
+	// SYSTEM\CurrentControlSet\Services\EventLog\Teleport\vnet with an absolute path to msgfile.dll.
+	// If the user moves Teleport Connect to some other directory, logs will still be captured, but
+	// they might display a message about missing event ID until the user reinstalls the app.
+	err = eventlogutils.Install(eventlogutils.LogName, eventSource, msgFilePath, false /* useExpandKey */)
+	return trace.Wrap(err)
+}
 
 func InstallService(ctx context.Context) (err error) {
 	tshPath, err := os.Executable()
@@ -65,6 +85,9 @@ func InstallService(ctx context.Context) (err error) {
 	}
 	if err := grantServiceRights(); err != nil {
 		return trace.Wrap(err, "granting authenticated users permission to control the VNet Windows service")
+	}
+	if err := installEventSource(); err != nil {
+		return trace.Wrap(err, "creating event source for logging")
 	}
 	return nil
 }
@@ -209,7 +232,7 @@ func setupServiceLogger() (func() error, error) {
 		}
 	}
 
-	handler, close, err := logutils.NewSlogEventLogHandler("vnet", level)
+	handler, close, err := logutils.NewSlogEventLogHandler(eventSource, level)
 	if err != nil {
 		return nil, trace.Wrap(err, "initializing log handler")
 	}
