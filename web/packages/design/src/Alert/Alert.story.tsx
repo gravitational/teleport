@@ -37,6 +37,9 @@ export const Simple = () => (
     <Alert kind="neutral" icon={Restore}>
       Alert with a custom icon
     </Alert>
+    <Alert kind="cta" primaryAction={{ content: 'Go Here!' }}>
+      You should do something!
+    </Alert>
   </Box>
 );
 
