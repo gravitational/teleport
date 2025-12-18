@@ -27,7 +27,7 @@ type convertChallenge func(*proto.MFAAuthenticateChallenge) (Message, error)
 type isMFAResponse func(Message) (*proto.MFAAuthenticateResponse, error)
 
 // newMfaPrompt constructs a function that reads, encodes, and sends an MFA challenge to the client,
-// and waits for the corresponding MFA response message. It caches any non-MFA messages received so
+// then waits for the corresponding MFA response message. It caches any non-MFA messages received so
 // that they may be forwarded to the server later on.
 func newMfaPrompt(rw MessageReadWriter, isResponse isMFAResponse, toMessage convertChallenge, withheld *[]Message) mfa.PromptFunc {
 	return func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -113,20 +113,17 @@ func NewTDPBMFAPrompt(rw MessageReadWriter, withheld *[]Message) func(string) mf
 				return nil, errors.New("empty MFA challenge")
 			}
 
-			slog.Warn("MFA challenge", "challenge", challenge)
 			mfaMsg := &tdpbv1.MFA{
 				ChannelId: channelID,
 			}
 
 			if challenge.WebauthnChallenge != nil {
-				slog.Warn("webauthn challenge != nil")
 				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
 					WebauthnChallenge: challenge.WebauthnChallenge,
 				}
 			}
 
 			if challenge.SSOChallenge != nil {
-				slog.Warn("SSO challenge != nil")
 				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
 					SsoChallenge: &mfav1.SSOChallenge{
 						RequestId:   challenge.SSOChallenge.RequestId,
@@ -136,15 +133,10 @@ func NewTDPBMFAPrompt(rw MessageReadWriter, withheld *[]Message) func(string) mf
 				}
 			}
 
-			if challenge.TOTP != nil {
-				slog.Warn("TOTP challenge!")
-			}
-
 			if challenge.WebauthnChallenge == nil && challenge.SSOChallenge == nil && challenge.TOTP == nil {
 				return nil, trace.Wrap(authclient.ErrNoMFADevices)
 			}
 
-			slog.Warn("sending TDPB MFA message", "message", mfaMsg)
 			return NewTDPBMessage(mfaMsg), nil
 		}
 

@@ -9,10 +9,14 @@ import (
 	"net"
 	"testing"
 
+	apiProto "github.com/gravitational/teleport/api/client/proto"
 	tdpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -205,4 +209,86 @@ func TestSendRecv(t *testing.T) {
 
 	// Should not have received a write error
 	require.NoError(t, writeError)
+}
+
+func TestTDPBMFAFlow(t *testing.T) {
+	client, server := net.Pipe()
+	clientConn := NewConn(client, WithTDPBDecoder())
+	serverConn := NewConn(server, WithTDPBDecoder())
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	witheld := []Message{}
+	promptFn := NewTDPBMFAPrompt(serverConn, &witheld)("channel_id")
+	requestMsg := &apiProto.MFAAuthenticateChallenge{
+		WebauthnChallenge: &webauthnpb.CredentialAssertion{
+			PublicKey: &webauthnpb.PublicKeyCredentialRequestOptions{
+				Challenge: []byte("Some challenge"),
+				TimeoutMs: 1000,
+				RpId:      "teleport",
+				AllowCredentials: []*webauthnpb.CredentialDescriptor{
+					{Type: "some device", Id: []byte("1234")},
+				},
+			},
+		},
+	}
+
+	type result struct {
+		response *apiProto.MFAAuthenticateResponse
+		err      error
+	}
+
+	done := make(chan result)
+	go func() {
+		response, err := promptFn(t.Context(), requestMsg)
+		done <- result{response, err}
+	}()
+
+	// Simulate the client
+	mfaMessage := expectTDPBMessage[*tdpbv1.MFA](t, clientConn)
+	// Validate the received MFA challenge matches wahat was sent
+	assert.Equal(t, requestMsg.WebauthnChallenge, mfaMessage.Challenge.WebauthnChallenge)
+	assert.Equal(t, "channel_id", mfaMessage.ChannelId)
+
+	// Send a random, non-MFA TDPB message
+	require.NoError(t, clientConn.WriteMessage(NewTDPBMessage(&tdpbv1.Alert{Message: "random message!"})))
+
+	response := &mfav1.AuthenticateResponse{
+		Response: &mfav1.AuthenticateResponse_Webauthn{
+			Webauthn: &webauthnpb.CredentialAssertionResponse{
+				Type:  "sometype",
+				RawId: []byte("rawid"),
+				Response: &webauthnpb.AuthenticatorAssertionResponse{
+					ClientDataJson: []byte(`{"data": "value"}`),
+					Signature:      []byte("john hancock"),
+				},
+			},
+		},
+	}
+	// Send response
+	err := clientConn.WriteMessage(
+		NewTDPBMessage(&tdpbv1.MFA{
+			AuthenticationResponse: response,
+		}),
+	)
+	require.NoError(t, err)
+	// Wait for MFA flow to complete and return the response
+	res := <-done
+	require.NoError(t, res.err)
+	// Response should match what was sent
+	assert.Equal(t, response.GetWebauthn(), res.response.GetWebauthn())
+	// Should still have that alert message in our withheld message slice
+	assert.Len(t, witheld, 1)
+}
+
+func expectTDPBMessage[T any](t *testing.T, c *Conn) T {
+	var zero T
+	msg, err := c.ReadMessage()
+	require.NoError(t, err)
+
+	proto, err := ToTDPBProto(msg)
+	require.NoError(t, err)
+
+	require.IsType(t, proto, zero)
+	return proto.(T)
 }
