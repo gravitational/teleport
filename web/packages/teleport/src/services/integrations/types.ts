@@ -335,10 +335,10 @@ type PluginOAuthCredentials = {
 };
 
 /**
- * PluginNameToSpec defines a mapping of plugin names to their respective
+ * PluginKindToSpec defines a mapping of plugin kind to their respective
  * spec types.
  */
-export type PluginNameToSpec = {
+export type PluginKindToSpec = {
   okta: PluginOktaSpec;
   slack: PluginSlackSpec;
   mattermost: PluginMattermostSpec;
@@ -346,15 +346,17 @@ export type PluginNameToSpec = {
   datadog: PluginDatadogSpec;
   email: PluginEmailSpec;
   msteams: PluginMsTeamsSpec;
+  'entra-id': PluginEntraIdSpec;
   [key: string]: any;
 };
 
 /**
- * PluginNameToDetails defines a mapping of plugin names to their respective
+ * PluginKindToStatusDetails defines a mapping of plugin kind to their respective
  * status details types.
  */
-export type PluginNameToDetails = {
+export type PluginKindToStatusDetails = {
   okta: PluginStatusOkta;
+  'entra-id': PluginEntraIDStatusDetails;
   [key: string]: any;
 };
 
