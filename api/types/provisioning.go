@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -189,6 +190,10 @@ type ProvisionToken interface {
 	// GetSecret returns the token's secret value and a bool representing whether
 	// or not the token had a secret..
 	GetSecret() (string, bool)
+
+	// GetImmutableLabels returns labels that should be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
 
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
@@ -683,6 +688,12 @@ func (p *ProvisionTokenV2) GetAssignedScope() string {
 // dedicated secret value. The name itself is the secret for the "token" join method.
 func (p *ProvisionTokenV2) GetSecret() (string, bool) {
 	return "", false
+}
+
+// GetImmutableLabels always returns a nil  map because a [ProvisionTokenV2] can not assign
+// immutable labels
+func (p *ProvisionTokenV2) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return nil
 }
 
 // String returns the human readable representation of a provisioning token.

@@ -555,6 +555,9 @@ const (
 	// CertExtensionGitHubUsername indicates the GitHub username identified by
 	// the GitHub connector.
 	CertExtensionGitHubUsername = "github-login@goteleport.com"
+	// CertExtensionImmutableLabels are labels made immutable and verifiable by
+	// virtue of being encoded into the certificate.
+	CertExtensionImmutableLabels = "immutable-labels@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag

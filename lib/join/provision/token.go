@@ -19,6 +19,7 @@ package provision
 import (
 	"time"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -54,4 +55,7 @@ type Token interface {
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
 	// Currently, this is only used to validate the AWS Organization.
 	GetIntegration() string
+	// GetImmutableLabels returns labels that should be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
 }

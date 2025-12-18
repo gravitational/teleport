@@ -17,6 +17,7 @@
 package joining
 
 import (
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -114,7 +115,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		}
 	}
 
-	if err := validateImmutableLabels(spec.GetImmutableLabels()); err != nil {
+	if err := validateImmutableLabels(spec); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -300,13 +301,20 @@ func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
 // for a single scoped token can occupy.
 const maxImmutableLabelsSize = 2 * 1024 // 2KB
 
-func validateImmutableLabels(labels *joiningv1.ImmutableLabels) error {
-	if labels == nil {
+func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
+	if spec == nil {
 		return nil
 	}
 
+	sshLabels := spec.GetImmutableLabels().GetSsh()
+	if len(sshLabels) > 0 {
+		if !slices.Contains(spec.GetRoles(), string(types.RoleNode)) {
+			return trace.BadParameter("immutable ssh labels are only supported for tokens that allow the node role")
+		}
+	}
+
 	var size int
-	for k, v := range labels.GetSsh() {
+	for k, v := range sshLabels {
 		if !types.IsValidLabelKey(k) {
 			return trace.BadParameter("invalid immutable label key %q", k)
 		}
