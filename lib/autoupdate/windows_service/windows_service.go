@@ -345,6 +345,26 @@ func (s *windowsService) runInstall(ctx context.Context, args []string) error {
 
 func performInstall(ctx context.Context, cfg *Config) error {
 	cmd := exec.Command(cfg.Path, "--updated", "/S", "--force-run")
-	err := cmd.Run()
+	// SysProcAttr holds Windows-specific attributes
+	cmd.SysProcAttr = &windows.SysProcAttr{
+		// DETACHED_PROCESS: The new process does not inherit the parent's console.
+		// CREATE_NEW_PROCESS_GROUP: Ensures the child doesn't receive Ctrl+C signals sent to the parent.
+		CreationFlags:    windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+		NoInheritHandles: true,
+	}
+
+	// Use Start() instead of Run().
+	// Start() returns immediately after the process is launched.
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	// Important: Release the handle to the process so the parent
+	// doesn't keep a reference to the child in its process table.
+	if cmd.Process != nil {
+		return cmd.Process.Release()
+	}
+
 	return trace.Wrap(err, "running admin process")
 }
