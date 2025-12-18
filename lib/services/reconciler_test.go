@@ -417,3 +417,11 @@ func (r testResource) GetName() string {
 func (r testResource) GetKind() string {
 	return "testResource"
 }
+
+func (r testResource) GetSubKind() string {
+	return ""
+}
+
+func (r testResource) GetVersion() string {
+	return "1"
+}
