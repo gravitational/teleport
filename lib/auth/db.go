@@ -370,7 +370,10 @@ func (a *Server) GenerateSnowflakeJWT(ctx context.Context, req *proto.SnowflakeJ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), a.clock)
+	privateKey, err := jwt.New(&jwt.Config{
+		Clock:      a.clock,
+		PrivateKey: signer,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

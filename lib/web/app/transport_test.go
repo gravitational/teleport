@@ -389,9 +389,8 @@ func Test_transport_rewriteRequest(t *testing.T) {
 
 				// Sign a azure JWT for the request using the test case key.
 				jwtKey, err := jwt.New(&jwt.Config{
-					Clock:       tr.c.clock,
-					PrivateKey:  tt.jwtPrivateKey,
-					ClusterName: types.TeleportAzureMSIEndpoint,
+					Clock:      tr.c.clock,
+					PrivateKey: tt.jwtPrivateKey,
 				})
 				require.NoError(t, err)
 
@@ -409,9 +408,8 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				require.NoError(t, err)
 
 				wsJWTKey, err := jwt.New(&jwt.Config{
-					Clock:       tr.c.clock,
-					PrivateKey:  wsPrivateKey,
-					ClusterName: types.TeleportAzureMSIEndpoint,
+					Clock:      tr.c.clock,
+					PrivateKey: wsPrivateKey,
 				})
 				require.NoError(t, err)
 

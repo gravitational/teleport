@@ -727,15 +727,19 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), a.clock)
+	privateKey, err := jwt.New(&jwt.Config{
+		Clock:      a.clock,
+		PrivateKey: signer,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	token, err := privateKey.Sign(jwt.SignParams{
+		Issuer:   ca.GetClusterName(),
 		Username: username,
 		Roles:    roles,
 		Traits:   filteredTraits,
-		URI:      uri,
+		Audience: uri,
 		Expires:  expires,
 	})
 	if err != nil {

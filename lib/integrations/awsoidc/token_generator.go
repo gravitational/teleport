@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
@@ -157,7 +156,10 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 		return "", trace.Wrap(err)
 	}
 
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), req.Clock)
+	privateKey, err := jwt.New(&jwt.Config{
+		Clock:      req.Clock,
+		PrivateKey: signer,
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

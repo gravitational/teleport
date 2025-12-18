@@ -46,18 +46,18 @@ func TestSignAndVerify(t *testing.T) {
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
-				Clock:       clock,
-				PrivateKey:  privateKey,
-				ClusterName: "example.com",
+				Clock:      clock,
+				PrivateKey: privateKey,
 			})
 			require.NoError(t, err)
 
 			// Sign a token with the new key.
 			token, err := key.Sign(SignParams{
+				Issuer:   "example.com",
 				Username: "foo@example.com",
 				Roles:    []string{"foo", "bar"},
 				Expires:  clock.Now().Add(1 * time.Minute),
-				URI:      "http://127.0.0.1:8080",
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.NoError(t, err)
 
@@ -69,10 +69,10 @@ func TestSignAndVerify(t *testing.T) {
 			require.NotEmpty(t, decodedToken.Headers[0].KeyID)
 
 			// Verify that the token can be validated and values match expected values.
-			claims, err := key.Verify(VerifyParams{
-				Username: "foo@example.com",
-				RawToken: token,
-				URI:      "http://127.0.0.1:8080",
+			claims, err := key.Verify(token, VerifyParams{
+				Issuer:   "example.com",
+				Subject:  "foo@example.com",
+				Audience: []string{"http://127.0.0.1:8080"},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "foo@example.com", claims.Username)
@@ -93,8 +93,7 @@ func TestPublicOnlyVerifyAzure(t *testing.T) {
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
-				PrivateKey:  privateKey,
-				ClusterName: "example.com",
+				PrivateKey: privateKey,
 			})
 			require.NoError(t, err)
 
@@ -108,8 +107,7 @@ func TestPublicOnlyVerifyAzure(t *testing.T) {
 			// Create a new key that can only verify tokens and make sure the token
 			// values match the expected values.
 			key, err = New(&Config{
-				PublicKey:   publicKey,
-				ClusterName: "example.com",
+				PublicKey: publicKey,
 			})
 			require.NoError(t, err)
 			claims, err := key.VerifyAzureToken(token)
@@ -140,34 +138,33 @@ func TestPublicOnlyVerify(t *testing.T) {
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
-				PrivateKey:  privateKey,
-				ClusterName: "example.com",
+				PrivateKey: privateKey,
 			})
 			require.NoError(t, err)
 
 			// Sign a token with the new key.
 			token, err := key.Sign(SignParams{
+				Issuer:   "example.com",
 				Username: "foo@example.com",
 				Roles:    []string{"foo", "bar"},
 				Traits: wrappers.Traits{
 					"trait1": []string{"value-1", "value-2"},
 				},
-				Expires: clock.Now().Add(1 * time.Minute),
-				URI:     "http://127.0.0.1:8080",
+				Expires:  clock.Now().Add(1 * time.Minute),
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.NoError(t, err)
 
 			// Create a new key that can only verify tokens and make sure the token
 			// values match the expected values.
 			key, err = New(&Config{
-				PublicKey:   publicKey,
-				ClusterName: "example.com",
+				PublicKey: publicKey,
 			})
 			require.NoError(t, err)
-			claims, err := key.Verify(VerifyParams{
-				Username: "foo@example.com",
-				URI:      "http://127.0.0.1:8080",
-				RawToken: token,
+			claims, err := key.Verify(token, VerifyParams{
+				Issuer:   "example.com",
+				Subject:  "foo@example.com",
+				Audience: []string{"http://127.0.0.1:8080"},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "foo@example.com", claims.Username)
@@ -178,7 +175,7 @@ func TestPublicOnlyVerify(t *testing.T) {
 				Username: "foo@example.com",
 				Roles:    []string{"foo", "bar"},
 				Expires:  clock.Now().Add(1 * time.Minute),
-				URI:      "http://127.0.0.1:8080",
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.Error(t, err)
 		})
@@ -197,9 +194,8 @@ func TestKey_SignAndVerifyPROXY(t *testing.T) {
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
-				PrivateKey:  privateKey,
-				ClusterName: clusterName,
-				Clock:       clock,
+				PrivateKey: privateKey,
+				Clock:      clock,
 			})
 			require.NoError(t, err)
 			source := "1.2.3.4:555"
@@ -270,13 +266,11 @@ func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClockAt(time.Now())
-			const clusterName = "teleport-test"
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
-				PrivateKey:  privateKey,
-				ClusterName: clusterName,
-				Clock:       clock,
+				PrivateKey: privateKey,
+				Clock:      clock,
 			})
 			require.NoError(t, err)
 
@@ -285,7 +279,6 @@ func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
 			token, err := key.SignAWSOIDC(SignParams{
 				Username: "user",
 				Issuer:   "https://localhost/",
-				URI:      "https://localhost/",
 				Subject:  "system:proxy",
 				Audience: "discover.teleport",
 				Expires:  clock.Now().Add(expiresIn),
@@ -339,29 +332,29 @@ func TestExpiry(t *testing.T) {
 
 			// Create a new key that can be used to sign and verify tokens.
 			key, err := New(&Config{
-				Clock:       clock,
-				PrivateKey:  privateKey,
-				ClusterName: "example.com",
+				Clock:      clock,
+				PrivateKey: privateKey,
 			})
 			require.NoError(t, err)
 
 			// Sign a token with a 1 minute expiration.
 			token, err := key.Sign(SignParams{
+				Issuer:   "example.com",
 				Username: "foo@example.com",
 				Roles:    []string{"foo", "bar"},
 				Traits: wrappers.Traits{
 					"trait1": []string{"value-1", "value-2"},
 				},
-				Expires: clock.Now().Add(1 * time.Minute),
-				URI:     "http://127.0.0.1:8080",
+				Expires:  clock.Now().Add(1 * time.Minute),
+				Audience: "http://127.0.0.1:8080",
 			})
 			require.NoError(t, err)
 
 			// Verify that the token is still valid.
-			claims, err := key.Verify(VerifyParams{
-				Username: "foo@example.com",
-				URI:      "http://127.0.0.1:8080",
-				RawToken: token,
+			claims, err := key.Verify(token, VerifyParams{
+				Issuer:   "example.com",
+				Subject:  "foo@example.com",
+				Audience: []string{"http://127.0.0.1:8080"},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "foo@example.com", claims.Username)
@@ -370,10 +363,10 @@ func TestExpiry(t *testing.T) {
 
 			// Advance time by two minutes and verify the token is no longer valid.
 			clock.Advance(2 * time.Minute)
-			_, err = key.Verify(VerifyParams{
-				Username: "foo@example.com",
-				URI:      "http://127.0.0.1:8080",
-				RawToken: token,
+			_, err = key.Verify(token, VerifyParams{
+				Issuer:   "example.com",
+				Subject:  "foo@example.com",
+				Audience: []string{"http://127.0.0.1:8080"},
 			})
 			require.Error(t, err)
 		})
@@ -388,13 +381,11 @@ func TestKey_SignAndVerifyPluginToken(t *testing.T) {
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClockAt(time.Now())
-			const clusterName = "teleport-test"
 
 			// Create a new key that can sign and verify tokens.
 			key, err := New(&Config{
-				PrivateKey:  privateKey,
-				ClusterName: clusterName,
-				Clock:       clock,
+				PrivateKey: privateKey,
+				Clock:      clock,
 			})
 			require.NoError(t, err)
 

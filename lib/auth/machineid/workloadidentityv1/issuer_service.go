@@ -752,9 +752,10 @@ func (s *IssuanceService) getJWTIssuerKey(
 		return nil, "", trace.Wrap(err, "getting JWT signer")
 	}
 
-	jwtKey, err := services.GetJWTSigner(
-		jwtSigner, s.clusterName, s.clock,
-	)
+	jwtKey, err := jwt.New(&jwt.Config{
+		Clock:      s.clock,
+		PrivateKey: jwtSigner,
+	})
 	if err != nil {
 		return nil, "", trace.Wrap(err, "creating JWT signer")
 	}

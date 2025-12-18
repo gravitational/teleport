@@ -207,9 +207,6 @@ func (m *AzureTokenMiddleware) toJWT(claims jwt.AzureTokenClaims) (string, error
 	key, err := jwt.New(&jwt.Config{
 		Clock:      m.Clock,
 		PrivateKey: privateKey,
-		// TODO(gabrielcorado): use the cluster name. This value must match the
-		// one used by the proxy.
-		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

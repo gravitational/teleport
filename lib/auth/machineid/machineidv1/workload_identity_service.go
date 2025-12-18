@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -513,9 +512,10 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 	if err != nil {
 		return nil, trace.Wrap(err, "getting JWT signer")
 	}
-	jwtKey, err := services.GetJWTSigner(
-		jwtSigner, clusterName.GetClusterName(), wis.clock,
-	)
+	jwtKey, err := jwt.New(&jwt.Config{
+		Clock:      wis.clock,
+		PrivateKey: jwtSigner,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "getting JWT key")
 	}

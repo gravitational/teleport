@@ -1300,9 +1300,8 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	require.NoError(t, err)
 	clock := clockwork.NewFakeClockAt(time.Now())
 	jwtSigner, err := jwt.New(&jwt.Config{
-		Clock:       clock,
-		ClusterName: clusterName,
-		PrivateKey:  proxyPriv,
+		Clock:      clock,
+		PrivateKey: proxyPriv,
 	})
 	require.NoError(t, err)
 
