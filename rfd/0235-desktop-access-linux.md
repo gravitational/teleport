@@ -172,7 +172,7 @@ New `teleport.yaml` section for `linux_desktop_service`:
 linux_desktop_service:
   enabled: yes # default false
   listen_addr: 0.0.0.0:3029
-  public_addr: linux.desktop.example.com:3080
+  public_addr: linux.desktop.example.com:3029
   # optional, xsessions will provide regexes for filtering available sessions to present in UI
   xsessions:
     included: "^Xfce.*" # defaults to ^.*$
