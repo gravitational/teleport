@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	cloudclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -198,6 +199,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
+		types.KindCloudCluster:                       rc.createCloudCluster,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -228,6 +230,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferencePolicy:                    rc.updateInferencePolicy,
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
+		types.KindCloudCluster:                       rc.updateCloudCluster,
 	}
 	rc.config = config
 
@@ -1090,6 +1093,28 @@ func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authcl
 	return nil
 }
 
+func (rc *ResourceCommand) createCloudCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	cloudCluster, err := services.UnmarshalCloudCluster(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.CloudClusterServiceClient()
+	if rc.force {
+		if _, err := c.UpsertCloudCluster(ctx, cloudCluster); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cloud cluster %q has been updated\n", cloudCluster.GetMetadata().GetName())
+	} else {
+		if _, err := c.CreateCloudCluster(ctx, cloudCluster); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cloud cluster %q has been created\n", cloudCluster.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
 func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1368,6 +1393,18 @@ func (rc *ResourceCommand) updateSigstorePolicy(ctx context.Context, client *aut
 		types.KindSigstorePolicy+" %q has been updated\n",
 		r.GetMetadata().GetName(),
 	)
+	return nil
+}
+
+func (rc *ResourceCommand) updateCloudCluster(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
+	in, err := services.UnmarshalCloudCluster(resource.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := client.CloudClusterServiceClient().UpdateCloudCluster(ctx, in); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cloud cluster %q has been updated\n", in.GetMetadata().GetName())
 	return nil
 }
 
@@ -2053,6 +2090,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	case types.KindCloudCluster:
+		if err := client.CloudClusterServiceClient().DeleteCloudCluster(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cloud_cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindCrownJewel:
 		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2901,6 +2943,27 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
 		}
 		return &kubeClusterCollection{clusters: clusters}, nil
+	case types.KindCloudCluster:
+		if rc.ref.Name != "" {
+			cloudCluster, err := client.CloudClusterServiceClient().GetCloudCluster(ctx, rc.ref.Name)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					return nil, trace.NotFound("cloud cluster %q not found", rc.ref.Name)
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			return &cloudClusterCollection{items: []*cloudclusterv1.CloudCluster{cloudCluster}}, nil
+		}
+
+		cloudClusters, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*cloudclusterv1.CloudCluster, string, error) {
+			return client.CloudClusterServiceClient().ListCloudClusters(ctx, limit, startKey)
+		}))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &cloudClusterCollection{items: cloudClusters}, nil
 	case types.KindCrownJewel:
 		jewels, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*crownjewelv1.CrownJewel, string, error) {
 			return client.CrownJewelsClient().ListCrownJewels(ctx, int64(limit), startKey)
