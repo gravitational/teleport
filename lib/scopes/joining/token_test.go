@@ -18,6 +18,7 @@ package joining_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -376,7 +377,7 @@ func TestValidateScopedToken(t *testing.T) {
 				},
 				Spec: &joiningv1.ScopedTokenSpec{
 					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String(), types.RoleInstance.String()},
+					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
 				},
@@ -407,6 +408,63 @@ func TestValidateScopedToken(t *testing.T) {
 		// TODO (eriktate): add a test case for a missing secret with non-token join method once scoped
 		// tokens support other join methods
 		{
+			name: "immutable labels over 2kb",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+					ImmutableLabels: &joiningv1.ImmutableLabels{
+						Ssh: map[string]string{
+							// key length is also considered, so if we have
+							// two labels with values set to 1024 bytes each
+							// then we should still expect an error
+							"one": strings.Repeat("1", 1024),
+							"two": strings.Repeat("2", 1024),
+						},
+					},
+				},
+				Status: &joiningv1.ScopedTokenStatus{
+					Secret: "secret",
+				},
+			},
+			expectedStrongErr: "immutable labels for a single token must be smaller than 2kb",
+		},
+		{
+			name: "invalid labels key",
+			token: &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Scope:   "/aa/bb",
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: "testtoken",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/aa/bb",
+					Roles:         []string{types.RoleNode.String()},
+					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+					ImmutableLabels: &joiningv1.ImmutableLabels{
+						Ssh: map[string]string{
+							"one":  "1",
+							"two;": "2",
+						},
+					},
+				},
+				Status: &joiningv1.ScopedTokenStatus{
+					Secret: "secret",
+				},
+			},
+			expectedStrongErr: "invalid immutable label key \"two;\"",
+		},
+		{
 			name: "valid scoped token",
 			token: &joiningv1.ScopedToken{
 				Kind:    types.KindScopedToken,
@@ -420,6 +478,13 @@ func TestValidateScopedToken(t *testing.T) {
 					AssignedScope: "/aa/bb",
 					JoinMethod:    string(types.JoinMethodToken),
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
+					ImmutableLabels: &joiningv1.ImmutableLabels{
+						Ssh: map[string]string{
+							"one":   "1",
+							"two":   "2",
+							"three": "3",
+						},
+					},
 				},
 				Status: &joiningv1.ScopedTokenStatus{
 					Secret: "secret",
