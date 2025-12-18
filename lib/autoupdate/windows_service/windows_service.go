@@ -29,7 +29,6 @@ const serviceAccessFlags = windows.SERVICE_START | windows.SERVICE_STOP | window
 const terminateTimeout = 30 * time.Second
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "update-service")
-var logger = slog.Default()
 
 const eventSource = "updater-service"
 
@@ -270,7 +269,7 @@ type windowsService struct{}
 // "no error". You can also indicate if exit code, if any, is service specific
 // or not by using svcSpecificEC parameter.
 func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
-	//logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
+	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
 	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
@@ -300,15 +299,15 @@ loop:
 				status <- svc.Status{State: svc.StopPending}
 			}
 		case <-terminateTimedOut:
-			//logger.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
-			//	slog.Duration("timeout", terminateTimeout))
+			logger.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+				slog.Duration("timeout", terminateTimeout))
 			exitCode = 1
 			break loop
 		case err := <-errCh:
 			if err == nil || errors.Is(err, context.Canceled) {
-				//logger.InfoContext(ctx, "Service terminated")
+				logger.InfoContext(ctx, "Service terminated")
 			} else {
-				//logger.ErrorContext(ctx, "Service terminated", "error", err)
+				logger.ErrorContext(ctx, "Service terminated", "error", err)
 				exitCode = 1
 			}
 			break loop
