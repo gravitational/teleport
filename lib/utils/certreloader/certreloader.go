@@ -53,14 +53,17 @@ type CertReloader struct {
 	// mu protects the list of certificates.
 	mu sync.RWMutex
 
-	// onLoad is called on each certificate after successful load
+	// onLoad, if not nil, is called on each certificate after successful load
 	onLoad func(path string, cert *x509.Certificate)
 }
 
 // New initializes a new certificate reloader.
-func New(cfg Config, name, component string, onLoad func(path string, cert *x509.Certificate)) *CertReloader {
+func New(cfg Config, log *slog.Logger, onLoad func(path string, cert *x509.Certificate)) *CertReloader {
+	if log == nil {
+		log = slog.With(teleport.ComponentKey, "certreloader")
+	}
 	return &CertReloader{
-		logger: slog.With(teleport.ComponentKey, teleport.Component(component, "certreloader"), "name", name),
+		logger: log,
 		cfg:    cfg,
 		onLoad: onLoad,
 	}
@@ -101,18 +104,12 @@ func (c *CertReloader) Run(ctx context.Context) error {
 	return nil
 }
 
-type callback struct {
-	path string
-	cert *x509.Certificate
-}
-
 // loadCertificates loads certificate keys pairs.
 // It returns an error if any of the certificate key pairs fails to load.
 // If any of the key pairs fails to load, none of the certificates are updated.
 func (c *CertReloader) loadCertificates(ctx context.Context) error {
 	certs := make([]tls.Certificate, 0, len(c.cfg.KeyPairs))
 
-	var callbacks []callback
 	for _, pair := range c.cfg.KeyPairs {
 		c.logger.DebugContext(ctx, "Loading TLS certificate",
 			"public_key", pair.Certificate,
@@ -136,16 +133,11 @@ func (c *CertReloader) loadCertificates(ctx context.Context) error {
 		certificate.Leaf = leaf
 
 		certs = append(certs, certificate)
-
-		callbacks = append(callbacks, callback{
-			path: pair.Certificate,
-			cert: certificate.Leaf,
-		})
 	}
 
-	for _, cb := range callbacks {
+	for i := range c.cfg.KeyPairs {
 		if c.onLoad != nil {
-			c.onLoad(cb.path, cb.cert)
+			c.onLoad(c.cfg.KeyPairs[i].Certificate, certs[i].Leaf)
 		}
 	}
 

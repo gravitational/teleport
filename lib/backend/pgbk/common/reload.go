@@ -21,6 +21,7 @@ package pgcommon
 import (
 	"context"
 	"crypto/x509"
+	"log/slog"
 	"net/url"
 	"time"
 
@@ -38,7 +39,7 @@ import (
 func CreateClientCertReloader(ctx context.Context, name, connString string, connConfig *pgx.ConnConfig, reloadInterval time.Duration, expiry prometheus.Gauge) error {
 	u, err := url.Parse(connString)
 	if err != nil {
-		return trace.WrapWithMessage(err, "conn_string must be in url format when reload interval is set")
+		return trace.Wrap(err, "the connection string must be in url format when a reload interval is set")
 	}
 	vals := u.Query()
 
@@ -49,16 +50,21 @@ func CreateClientCertReloader(ctx context.Context, name, connString string, conn
 		}
 	}
 
+	privateKey := vals.Get("sslkey")
+	certificate := vals.Get("sslcert")
+	if privateKey == "" || certificate == "" {
+		return trace.Errorf("certificate reloading enabled but sslcert or sslkey not present in connection string")
+	}
 	reloader := certreloader.New(certreloader.Config{
 		KeyPairs: []servicecfg.KeyPairPath{
 			{
-				PrivateKey:  vals.Get("sslkey"),
-				Certificate: vals.Get("sslcert"),
+				PrivateKey:  privateKey,
+				Certificate: certificate,
 			},
 		},
 		KeyPairsReloadInterval: reloadInterval,
 	},
-		name, teleport.ComponentAuth, callback)
+		slog.With(teleport.ComponentKey, teleport.Component(teleport.Component(teleport.ComponentAuth, "certreloader"), "name", name)), callback)
 	if err := reloader.Run(ctx); err != nil {
 		return trace.Wrap(err)
 	}
