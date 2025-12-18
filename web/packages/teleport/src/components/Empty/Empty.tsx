@@ -20,8 +20,8 @@ import { Link } from 'react-router-dom';
 
 import {
   Box,
-  ButtonBorder,
   ButtonPrimary,
+  ButtonPrimaryBorder,
   Flex,
   H1,
   ResourceIcon,
@@ -33,7 +33,7 @@ import cfg from 'teleport/config';
 export default function Empty(props: Props) {
   const { canCreate, clusterId, emptyStateInfo } = props;
 
-  const { byline, docsURL, readOnly, title } = emptyStateInfo;
+  const { byline, readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
@@ -69,41 +69,45 @@ export default function Empty(props: Props) {
       justifyContent="center"
     >
       <Box maxWidth={600}>
-        <Box mb={4} textAlign="center">
+        <Box mb={3} textAlign="center">
           <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
-          <H1 mb={2}>{title}</H1>
+          <H1>{title}</H1>
           <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
             {byline}
           </Text>
         </Box>
         <Box textAlign="center">
-          <Link
+          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
+            Automatically discover your Cloud Infrastructure resources
+          </Text>
+        </Box>
+        <Box mb={3} textAlign="center">
+          <ButtonPrimary
+            as={Link}
+            to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
+            width="224px"
+          >
+            Connect a Cloud Account
+          </ButtonPrimary>
+        </Box>
+        <Box textAlign="center">
+          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
+            Or add individual resources
+          </Text>
+        </Box>
+        <Box textAlign="center">
+          <ButtonPrimaryBorder
+            as={Link}
             to={{
-              pathname: `${cfg.routes.root}/discover`,
+              pathname: `${cfg.routes.discover}`,
               state: {
                 entity: 'unified_resource',
               },
             }}
-            style={{ textDecoration: 'none' }}
+            width="224px"
           >
-            <ButtonPrimary width="224px" textTransform="none">
-              Add Resource
-            </ButtonPrimary>
-          </Link>
-          {docsURL && (
-            <ButtonBorder
-              textTransform="none"
-              size="medium"
-              as="a"
-              href={docsURL}
-              target="_blank"
-              width="224px"
-              ml={4}
-              rel="noreferrer"
-            >
-              View Documentation
-            </ButtonBorder>
-          )}
+            Add a Resource
+          </ButtonPrimaryBorder>
         </Box>
       </Box>
     </Box>
@@ -112,7 +116,6 @@ export default function Empty(props: Props) {
 
 export type EmptyStateInfo = {
   byline: string;
-  docsURL?: string;
   readOnly: {
     title: string;
     resource: string;
