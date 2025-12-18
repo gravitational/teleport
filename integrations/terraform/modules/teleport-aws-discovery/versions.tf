@@ -4,11 +4,11 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 5.0"
     }
     http = {
       source  = "hashicorp/http"
-      version = "~> 3.5"
+      version = ">= 3.0"
     }
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
@@ -16,7 +16,7 @@ terraform {
     }
     tls = {
       source  = "hashicorp/tls"
-      version = "~> 4.0"
+      version = ">= 4.0"
     }
   }
 }
