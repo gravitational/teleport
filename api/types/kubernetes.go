@@ -784,6 +784,7 @@ func (m *KubernetesResource) GetNamespace() string            { return m.Namespa
 func (m *RequestKubernetesResource) SetNamespace(ns string)   {}
 func (m *KubernetesResource) SetNamespace(ns string)          { m.Namespace = ns }
 
+// IsEqual determines if two KubernetesClusterStatus are equivalent.
 func (c *KubernetesClusterStatus) IsEqual(other *KubernetesClusterStatus) bool {
 	return deriveTeleportEqualKubernetesClusterStatus(c, other)
 }
