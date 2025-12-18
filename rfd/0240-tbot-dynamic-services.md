@@ -204,7 +204,7 @@ toolset is not purpose built for machine use and users will need to manually
 solve a number of tasks `tbot` would normally do for them:
 - Fetch certificates for each app
 - Start the service or tunnel in the background appropriately
-- Report and/or ensuring service readiness
+- Report and/or ensure service readiness
 - Renew all certificates before expiry
 - Restart tunnels when necessary (new certs or if otherwise interrupted)
 
@@ -372,7 +372,7 @@ nonzero, and the job will terminate.
 
 Minimal protobuf specification:
 
-```proto3
+```protobuf
 syntax = "proto3";
 
 import "google/protobuf/duration.proto";
