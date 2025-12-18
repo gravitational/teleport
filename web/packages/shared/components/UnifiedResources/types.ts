@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentProps } from 'react';
 
 import { Icon } from 'design/Icon';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
@@ -228,6 +229,17 @@ export type IncludedResourceMode =
   | 'requestable'
   | 'accessible';
 
+/**
+ * If this field is not provided, the default config will be:
+ * - No icon, just text label
+ * - Label kind is "secondary"
+ * - No hover states
+ */
+export type ResourceLabelConfig = Omit<
+  ComponentProps<typeof LabelButtonWithIcon>,
+  'children'
+>;
+
 export type ResourceItemProps = {
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
@@ -248,6 +260,13 @@ export type ResourceItemProps = {
    * When specified, only fields with `true` value are shown.
    */
   visibleInputFields?: VisibleResourceItemFields;
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
 };
 
 // Props that are needed for the Card view.
@@ -296,6 +315,13 @@ export type ResourceViewProps = {
    * When specified, only fields with `true` value are shown.
    */
   visibleInputFields?: VisibleResourceItemFields;
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
 };
 
 /**

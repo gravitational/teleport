@@ -88,7 +88,7 @@ type Config struct {
 	// SSEKMSKey specifies the optional custom CMK used for KMS SSE.
 	SSEKMSKey string
 
-	// UseFIPSEndpoint uses AWS FedRAMP/FIPS 140-2 mode endpoints.
+	// UseFIPSEndpoint uses AWS FedRAMP/FIPS mode endpoints.
 	// to determine its behavior:
 	// Unset - allows environment variables or AWS config to set the value
 	// Enabled - explicitly enabled

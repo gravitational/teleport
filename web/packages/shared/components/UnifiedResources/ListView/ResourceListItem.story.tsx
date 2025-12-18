@@ -19,6 +19,8 @@
 import { Meta } from '@storybook/react-vite';
 
 import { ButtonBorder, Flex } from 'design';
+import { Plus } from 'design/Icon';
+import { LabelKind } from 'design/Label';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { apps } from 'teleport/Apps/fixtures';
@@ -83,6 +85,9 @@ const additionalResources = [
 type StoryProps = {
   withCheckbox: boolean;
   withPin: boolean;
+  withLabelIcon: boolean;
+  labelIconPlacement: 'left' | 'right';
+  labelKind: LabelKind;
 };
 
 const meta: Meta<StoryProps> = {
@@ -94,11 +99,23 @@ const meta: Meta<StoryProps> = {
     withPin: {
       control: { type: 'boolean' },
     },
+    withLabelIcon: {
+      control: { type: 'boolean' },
+    },
+    labelIconPlacement: {
+      control: { type: 'select' },
+      options: ['left', 'right'],
+    },
+    labelKind: {
+      control: { type: 'select' },
+      options: ['secondary', 'outline-primary', 'outline-warning', ''],
+    },
   },
   // default
   args: {
     withCheckbox: true,
     withPin: true,
+    withLabelIcon: false,
   },
 };
 export default meta;
@@ -145,6 +162,20 @@ export function ListItems(props: StoryProps) {
             checkbox: props.withCheckbox,
             pin: props.withPin,
           }}
+          {...((props.withLabelIcon || props.labelKind) && {
+            resourceLabelConfig: {
+              IconLeft:
+                props.labelIconPlacement === 'left' && props.withLabelIcon
+                  ? Plus
+                  : undefined,
+              IconRight:
+                props.labelIconPlacement === 'right' && props.withLabelIcon
+                  ? Plus
+                  : undefined,
+              kind: props.labelKind,
+              withHoverState: props.withLabelIcon,
+            },
+          })}
         />
       ))}
     </Flex>

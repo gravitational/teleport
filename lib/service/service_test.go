@@ -294,8 +294,11 @@ func TestMonitor(t *testing.T) {
 	require.NoError(t, err)
 
 	// this simulates events that happened to be broadcast before the
-	// readyz.monitor started listening for events
+	// process was started
+	process.ExpectService("dummy")
+	process.ExpectService(teleport.ComponentAuth)
 	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
+	process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: "dummy"})
 
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
@@ -388,6 +391,8 @@ func TestServiceCheckPrincipals(t *testing.T) {
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	tlsServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 	defer tlsServer.Close()
@@ -918,10 +923,12 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = makeTempDir(t)
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
+			supervisor, err := NewSupervisor("process-id", cfg.Logger, cfg.Clock)
+			require.NoError(t, err)
 			process := TeleportProcess{
 				Config: cfg,
 				// Setting Supervisor so that `ExitContext` can be called.
-				Supervisor: NewSupervisor("process-id", cfg.Logger),
+				Supervisor: supervisor,
 			}
 			tls, err := process.setupProxyTLSConfig(
 				&Connector{},
@@ -998,6 +1005,8 @@ func TestInstanceSelfRepair(t *testing.T) {
 		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	tlsServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
 	defer tlsServer.Close()
@@ -1286,8 +1295,10 @@ func TestProxyGRPCServers(t *testing.T) {
 
 	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
 	// enabled.
+	supervisor, err := NewSupervisor(hostID, logtest.NewLogger(), clock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
-		Supervisor: NewSupervisor(hostID, logtest.NewLogger()),
+		Supervisor: supervisor,
 		Config: &servicecfg.Config{
 			Proxy: servicecfg.ProxyConfig{
 				Kube: servicecfg.KubeProxyConfig{
@@ -1629,19 +1640,18 @@ func TestDebugService(t *testing.T) {
 	// In this test we don't want to spin a whole process and have to wait for
 	// every service to report ready (there's an integration test for this).
 	// So we craft a minimal process with only the debug service in it.
+	supervisor, err := NewSupervisor("supervisor-test", log, fakeClock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
 		metricsRegistry: localRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
-		Supervisor:      NewSupervisor("supervisor-test", log),
+		Supervisor:      supervisor,
 	}
 
-	fakeState, err := newProcessState(process)
-	require.NoError(t, err)
-	fakeState.update(Event{TeleportOKEvent, "dummy"})
-	process.state = fakeState
+	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
@@ -2125,19 +2135,18 @@ func TestDiagnosticsService(t *testing.T) {
 	// In this test we don't want to spin a whole process and have to wait for
 	// every service to report ready (there's an integration test for this).
 	// So we craft a minimal process with only the debug service in it.
+	supervisor, err := NewSupervisor("supervisor-test", log, fakeClock)
+	require.NoError(t, err)
 	process := &TeleportProcess{
 		Config:          cfg,
 		Clock:           fakeClock,
 		logger:          log,
 		metricsRegistry: localRegistry,
 		SyncGatherers:   metrics.NewSyncGatherers(localRegistry, prometheus.DefaultGatherer),
-		Supervisor:      NewSupervisor("supervisor-test", log),
+		Supervisor:      supervisor,
 	}
 
-	fakeState, err := newProcessState(process)
-	require.NoError(t, err)
-	fakeState.update(Event{TeleportOKEvent, "dummy"})
-	process.state = fakeState
+	process.BroadcastEvent(Event{TeleportOKEvent, "dummy"})
 
 	require.NoError(t, process.initDiagnosticService())
 	require.NoError(t, process.Start())

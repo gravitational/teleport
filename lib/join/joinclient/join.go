@@ -203,27 +203,9 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken,
-		types.JoinMethodAzure,
-		types.JoinMethodAzureDevops,
-		types.JoinMethodBitbucket,
-		types.JoinMethodBoundKeypair,
-		types.JoinMethodCircleCI,
-		types.JoinMethodEC2,
-		types.JoinMethodEnv0,
-		types.JoinMethodGCP,
-		types.JoinMethodGitHub,
-		types.JoinMethodGitLab,
-		types.JoinMethodIAM,
-		types.JoinMethodKubernetes,
-		types.JoinMethodOracle,
-		types.JoinMethodSpacelift,
-		types.JoinMethodTPM,
-		types.JoinMethodTerraformCloud:
+	default:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
-	default:
-		return nil, trace.NotImplemented("new join service is not implemented for method %v", params.JoinMethod)
 	}
 
 	// Initiate the join request, using a cancelable context to make sure the
@@ -305,8 +287,6 @@ func joinWithMethod(
 	var err error
 
 	switch types.JoinMethod(method) {
-	case types.JoinMethodToken:
-		return tokenJoin(stream, clientParams)
 	case types.JoinMethodAzure:
 		return azureJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodAzureDevops:
@@ -358,7 +338,6 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
-
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodGitHub:
 		if joinParams.IDToken == "" {
@@ -377,7 +356,6 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
-
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodKubernetes:
 		if joinParams.IDToken == "" {
@@ -386,7 +364,6 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
-
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodSpacelift:
 		if joinParams.IDToken == "" {
@@ -395,8 +372,9 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
-
 		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodToken:
+		return tokenJoin(stream, clientParams)
 	case types.JoinMethodTPM:
 		return tpmJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodTerraformCloud:
@@ -406,10 +384,8 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
-
 		return oidcJoin(stream, joinParams, clientParams)
 	default:
-		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{
 			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
 			Msg:    "join method " + method + " is not supported by this client",
