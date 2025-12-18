@@ -73,6 +73,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -5271,7 +5272,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string, immutableLabels *joiningv1.ImmutableLabels) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5402,10 +5403,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		Identity: sshca.Identity{
-			ClusterName: clusterName.GetClusterName(),
-			SystemRole:  req.Role,
-			Principals:  req.AdditionalPrincipals,
-			AgentScope:  scope,
+			ClusterName:     clusterName.GetClusterName(),
+			SystemRole:      req.Role,
+			Principals:      req.AdditionalPrincipals,
+			AgentScope:      scope,
+			ImmutableLabels: immutableLabels,
 		},
 	})
 	if err != nil {
@@ -5428,6 +5430,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
 		AgentScope:      scope,
+		ImmutableLabels: immutableLabels,
 	}
 	subject, err := identity.Subject()
 	if err != nil {

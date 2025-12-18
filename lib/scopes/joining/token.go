@@ -17,6 +17,9 @@
 package joining
 
 import (
+	"cmp"
+	"crypto/sha256"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -112,6 +115,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		if !rolesSupportingScopes.Include(role) {
 			return trace.BadParameter("role %q does not support scoping", role)
 		}
+	}
+
+	if err := validateImmutableLabels(spec); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -290,4 +297,63 @@ func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
 	}
 
 	return wrapper.scoped, true
+}
+
+// GetImmutableLabels returns labels that should be applied to resources
+// provisioned with this token.
+func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return t.scoped.GetSpec().GetImmutableLabels()
+}
+
+func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
+	if spec == nil {
+		return nil
+	}
+
+	sshLabels := spec.GetImmutableLabels().GetSsh()
+	if len(sshLabels) > 0 {
+		if !slices.Contains(spec.GetRoles(), string(types.RoleNode)) {
+			return trace.BadParameter("immutable ssh labels are only supported for tokens that allow the node role")
+		}
+	}
+
+	for k := range sshLabels {
+		if !types.IsValidLabelKey(k) {
+			return trace.BadParameter("invalid immutable label key %q", k)
+		}
+	}
+
+	return nil
+}
+
+// HashImmutableLabels returns a deterministic hash of the given [*joiningv1.ImmutableLabels].
+func HashImmutableLabels(labels *joiningv1.ImmutableLabels) []byte {
+	if labels == nil {
+		return nil
+	}
+
+	hash := sha256.New()
+	if sshLabels := labels.GetSsh(); sshLabels != nil {
+		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
+		for k, v := range sshLabels {
+			sorted = append(sorted, struct{ key, value string }{k, v})
+		}
+		slices.SortFunc(sorted, func(a, b struct{ key, value string }) int {
+			return cmp.Compare(a.key, b.key)
+		})
+
+		for _, v := range sorted {
+			_, _ = hash.Write([]byte(v.key))
+			_, _ = hash.Write([]byte(v.value))
+		}
+	}
+
+	return hash.Sum(nil)
+}
+
+// VerifyImmutableLabelsHash returns whether or not the given [*joiningv1.ImmutableLabels]
+// matches the given hash.
+func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash []byte) bool {
+	newHash := HashImmutableLabels(labels)
+	return slices.Equal(newHash, hash)
 }

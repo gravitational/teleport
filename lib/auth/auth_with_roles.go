@@ -662,7 +662,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
 	identity := a.context.Identity.GetIdentity()
-	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope)
+	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope, identity.ImmutableLabels)
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.

@@ -519,7 +519,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr:           params.RemoteAddr,
 			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
-		}, token.GetAssignedScope())
+		}, token.GetAssignedScope(), token.GetImmutableLabels())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

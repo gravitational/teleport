@@ -454,7 +454,7 @@ type localReRegister struct {
 
 // GenerateHostCerts allows for generating host certs without providing a scope.
 func (l localReRegister) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	return l.Server.GenerateHostCerts(ctx, req, "")
+	return l.Server.GenerateHostCerts(ctx, req, "", nil)
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
