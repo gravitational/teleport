@@ -21,6 +21,7 @@ package servicecfg
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -719,6 +720,21 @@ func applyDefaults(cfg *Config) {
 	}
 }
 
+func warnIfUsingCloudOnWrongPort(log *slog.Logger, addr utils.NetAddr, defaultPort int) {
+	ctx := context.Background()
+	isCloud := strings.HasSuffix(addr.Host(), "."+defaults.CloudDomainSuffix)
+
+	if port := addr.Port(defaultPort); isCloud && port != defaults.CloudProxyListenPort {
+		//nolint:sloglint // We want to craft user-friendly and actionable messages here.
+		log.WarnContext(ctx,
+			fmt.Sprintf("Teleport Cloud Proxy Service runs on port 443, but the process is connecting to port %d. This is likely a misconfiguration and will prevent successfully joining the cluster.", port),
+			"port", port,
+			"address", addr.String())
+		//nolint:sloglint // We want to craft user-friendly and actionable messages here.
+		log.WarnContext(ctx, fmt.Sprintf("If you are experiencing connectivity issues, try using the following address: \"%s:%d\".", addr.Host(), defaults.CloudProxyListenPort))
+	}
+}
+
 func validateAuthOrProxyServices(cfg *Config) error {
 	haveAuthServers := len(cfg.authServers) > 0
 	haveProxyServer := !cfg.ProxyServer.IsEmpty()
@@ -747,6 +763,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 			if port == defaults.AuthListenPort {
 				cfg.Logger.WarnContext(context.Background(), "config: proxy_server is pointing to port 3025, is this the auth server address?")
 			}
+			warnIfUsingCloudOnWrongPort(cfg.Logger, cfg.ProxyServer, defaults.HTTPListenPort)
 		}
 
 		if haveAuthServers {
@@ -769,6 +786,8 @@ func validateAuthOrProxyServices(cfg *Config) error {
 	if !haveAuthServers {
 		return trace.BadParameter("config: auth_servers is required")
 	}
+
+	warnIfUsingCloudOnWrongPort(cfg.Logger, cfg.authServers[0], defaults.AuthListenPort)
 
 	return nil
 }
