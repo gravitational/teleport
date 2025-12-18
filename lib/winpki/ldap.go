@@ -364,6 +364,12 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		return nil, trace.NotFound("no LDAP servers found for domain %q", c.Domain)
 	}
 
+	password := os.Getenv("TELEPORT_INSECURE_LDAP_PASSWORD")
+	if password != "" {
+		// Don't do mTLS.
+		ldapTLSConfig.Certificates = nil
+	}
+
 	var lastErr error
 	for _, server := range servers {
 		conn, err := ldap.DialURL(
@@ -375,6 +381,15 @@ func (c *LDAPConfig) createConnection(ctx context.Context, ldapTLSConfig *tls.Co
 		if err == nil {
 			c.Logger.DebugContext(ctx, "Connected to LDAP server", "server", server)
 			conn.SetTimeout(ldapRequestTimeout)
+
+			if password != "" {
+				c.Logger.InfoContext(ctx, "Performing LDAP bind with password", "server", server)
+				if err := conn.Bind(c.Username, password); err != nil {
+					conn.Close()
+					return nil, trace.Wrap(err, "LDAP bind with password failed")
+				}
+			}
+
 			return conn, nil
 		}
 		lastErr = err
