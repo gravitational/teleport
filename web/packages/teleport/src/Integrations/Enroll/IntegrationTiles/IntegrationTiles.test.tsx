@@ -32,15 +32,16 @@ test('render', async () => {
   );
 
   expect(screen.getByText(/AWS OIDC Identity Provider/i)).toBeInTheDocument();
+  expect(screen.getByText(/Amazon Web Services \(AWS\)/i)).toBeInTheDocument();
   expect(screen.queryByText(/no permission/i)).not.toBeInTheDocument();
-  expect(screen.getAllByTestId('res-icon-aws')).toHaveLength(1);
+  expect(screen.getAllByTestId('res-icon-aws')).toHaveLength(2);
   expect(
     screen.getAllByTestId('res-icon-awsidentityandaccessmanagementiam')
   ).toHaveLength(1);
   expect(
     screen.getAllByTestId('res-icon-awssimplestorageservices3')
   ).toHaveLength(1);
-  expect(screen.getAllByRole('link')).toHaveLength(3);
+  expect(screen.getAllByRole('link')).toHaveLength(4);
 
   const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).toBeEnabled();

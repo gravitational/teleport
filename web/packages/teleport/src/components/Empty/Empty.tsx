@@ -20,10 +20,12 @@ import { Link } from 'react-router-dom';
 
 import {
   Box,
-  ButtonBorder,
   ButtonPrimary,
+  ButtonPrimaryBorder,
+  Card,
   Flex,
   H1,
+  H2,
   ResourceIcon,
   Text,
 } from 'design';
@@ -33,7 +35,7 @@ import cfg from 'teleport/config';
 export default function Empty(props: Props) {
   const { canCreate, clusterId, emptyStateInfo } = props;
 
-  const { byline, docsURL, readOnly, title } = emptyStateInfo;
+  const { readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
@@ -58,6 +60,8 @@ export default function Empty(props: Props) {
     );
   }
 
+  const dividerHeight = '54px';
+
   return (
     <Box
       p={8}
@@ -68,51 +72,65 @@ export default function Empty(props: Props) {
       alignItems="center"
       justifyContent="center"
     >
-      <Box maxWidth={600}>
+      <Card p={4} width="780px">
         <Box mb={4} textAlign="center">
-          <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
-          <H1 mb={2}>{title}</H1>
-          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
-            {byline}
-          </Text>
+          <ResourceIcon name="server" mx="auto" mb={4} height="150px" />
+          <H1>{title}</H1>
         </Box>
-        <Box textAlign="center">
-          <Link
-            to={{
-              pathname: `${cfg.routes.root}/discover`,
-              state: {
-                entity: 'unified_resource',
-              },
-            }}
-            style={{ textDecoration: 'none' }}
-          >
-            <ButtonPrimary width="224px" textTransform="none">
-              Add Resource
-            </ButtonPrimary>
-          </Link>
-          {docsURL && (
-            <ButtonBorder
-              textTransform="none"
-              size="medium"
-              as="a"
-              href={docsURL}
-              target="_blank"
-              width="224px"
-              ml={4}
-              rel="noreferrer"
+        <Flex>
+          <Box p={4} flex="1" textAlign="left">
+            <H2>Automatically Discover</H2>
+            <Text mb={2}>
+              Connect your AWS, Azure, or GCP accounts to automatically scan and
+              import all resources.
+            </Text>
+            <ButtonPrimary
+              as={Link}
+              to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
+              width="100%"
             >
-              View Documentation
-            </ButtonBorder>
-          )}
-        </Box>
-      </Box>
+              Connect Cloud Account
+            </ButtonPrimary>
+          </Box>
+
+          <Flex
+            width="48px"
+            flexDirection="column"
+            alignItems="center"
+            justifyContent="center"
+            flexShrink={0}
+          >
+            <Box width="1px" height={dividerHeight} bg="text.muted" />
+            <Text my={2} color="text.muted">
+              or
+            </Text>
+            <Box width="1px" height={dividerHeight} bg="text.muted" />
+          </Flex>
+
+          <Box p={4} flex="1" textAlign="left">
+            <H2>Manually Enter</H2>
+            <Text mb={2}>
+              Browse and add individual servers, databases, or apps one at a
+              time.
+            </Text>
+            <ButtonPrimaryBorder
+              as={Link}
+              to={{
+                pathname: cfg.routes.discover,
+                state: { entity: 'unified_resource' },
+              }}
+              width="100%"
+            >
+              Add New Resource
+            </ButtonPrimaryBorder>
+          </Box>
+        </Flex>
+      </Card>
     </Box>
   );
 }
 
 export type EmptyStateInfo = {
-  byline: string;
-  docsURL?: string;
   readOnly: {
     title: string;
     resource: string;
