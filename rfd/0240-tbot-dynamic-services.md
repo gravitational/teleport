@@ -14,7 +14,7 @@ state: draft
 
 This RFD discusses new features in the `tbot` client that would allow users to
 ask an already-running bot to start additional services on demand. This involves
-a new bot API service to accept API requests and various changes in the `tbot`
+a new bot API service to accept API requests, plus various changes in the `tbot`
 client to facilitate spawning new services at runtime.
 
 ## Why
@@ -33,19 +33,19 @@ In short, dynamic services would enable:
 
 ### What's wrong with tbot's CLI today?
 
-`tbot`'s CLI today has a UX cliff:
-- Simple use cases, like running one service, are relatively simple. These can
-  be done entirely through the CLI, like `tbot start identity ...`, or config
-  files can be automatically generated, like `tbot configure app-tunnel ...`.
+`tbot`'s CLI today has a UX cliff. Simple use cases, like running one service,
+are relatively simple. These can be done entirely through the CLI, like
+`tbot start identity ...`, or config files can be automatically generated, like
+`tbot configure app-tunnel ...`.
 
-- If multiple services are required, this breaks. The CLI cannot feasibly
-  support running multiple services, so users will need to use a YAML config
-  file instead.
+However, when multiple services are required, this breaks. The CLI cannot
+feasibly support running multiple services in a single invocation, so users will
+need to use a YAML config file instead.
 
-- In non-systemd environments, like CI/CD providers, things are further
-  complicated: the UX for spawning services in the background can be arcane, so
-  users need to solve proper background execution and coordination for each
-  Teleport resource they want to access.
+In CI/CD environments, things are further complicated: the UX for spawning
+services in the background can be arcane, so users need to solve proper
+background execution and coordination for each Teleport resource they want to
+access.
 
 ### Why improve the CLI?
 
@@ -234,25 +234,7 @@ will change the following:
 [wait]: https://github.com/gravitational/teleport/issues/62117
 
 This will allow users to run individual tunnels for apps and databases in the
-background reliably. For example:
-
-```yaml
-steps:
-- name: Start a tunnel for app 'foo'
-  id: tunnel-foo
-  uses: teleport-actions/application-tunnel@v1
-  with:
-    proxy: example.teleport.sh:443
-    token: example-bot
-    app: foo
-- name: Start a tunnel for app 'bar'
-  id: tunnel-bar
-  uses: teleport-actions/application-tunnel@v1
-  with:
-    proxy: example.teleport.sh:443
-    token: example-bot
-    app: bar
-```
+background reliably, with a similar UX to our current oneshot actions.
 
 This change will not particularly simplify running multiple `tbot` services
 (tunnels, etc), which will still require starting and authenticating new bots
@@ -273,10 +255,11 @@ steps:
 ### Dynamic services
 
 Dynamic services complement and build on these background improvements, adding
-the ability to ask an existing bot to start a new service on demand.
+the ability to ask an existing bot to start one or more new services on demand.
 
-This features involves running an API server on a local Unix socket. Clients can
-request a new service via a "spawn" endpoint and provide service configuration.
+This feature involves running an API server on a local Unix socket. Clients can
+request new services via a "spawn" endpoint and provide service configuration in
+our existing YAML format.
 
 Importantly, this endpoint takes advantage of an enhanced version of the same
 "wait" ability discussed above, and waits for the service to become ready.
@@ -288,7 +271,6 @@ outright before reporting its status.
 ```yaml
 steps:
 - name: Start a bot API in the background
-  id: bot-api
   uses: teleport-actions/bot-api@v1
   with:
     proxy: example.teleport.sh:443
@@ -334,7 +316,61 @@ concept. If desired, you can build the `tbot` client from the linked PR to try
 out the CLI flow described here. A [recorded demo][demo] is also available
 internally.
 
-#### The bot API
+#### The bot API service
+
+The primary new feature is a new bot API service that exposes a machine-friendly
+API for interacting with a running `tbot` process. Users will start this new
+bot API service using `tbot start bot-api ...` or by running `tbot` with a YAML
+config file that starts it similar to any of our existing service types.
+
+The API itself will expose just two RPCs or endpoints for this MVP: `spawn` and
+`config`. It will be exposed over an arbitrary listening socket; we'll strongly
+recommend a Unix socket, but will allow use of TCP sockets. The API will be
+otherwise unauthenticated, and it is up to the user to enforce the security of
+the socket, as with `tbot`'s existing credential outputs today.
+
+These V1 bot API endpoints will accept and return configuration in YAML format.
+This allows use of our existing config parsing library without additional
+refactoring, and makes it feasible for end users to use the API without
+problematic amounts of boilerplate.
+
+If we decide to further develop the local bot API, we should consider revisiting
+this and switching to a protobuf source of truth for bot configuration. Future
+API iterations could additionally accept fully structured input when we are
+prepared to accept it.
+
+##### The `SpawnService` RPC
+
+The MVP makes relatively few guarantees about the state of a running bot after
+spawning services except when it returns without error. Consumers, especially in
+CI/CD environments, should consider the system to be in a failed state if the
+API returns any error. In CI/CD environments, this should fail the run with an
+error.
+
+The endpoint only returns without error when all requested services have spawned
+and reported that they are healthy, or returned outright without error. It
+returns an error immediately without spawning a service if and only if the YAML
+fails to parse and deserialize. Otherwise, it will attempt to spawn all
+requested services.
+
+Multiple services may be spawned at once. This is partially in service of our
+existing config unmarshaling, but is useful to allow spawning multiple services
+without unnecessary sequential waits. When waiting is enabled (the default), it
+only returns when all services have either reported a readiness status (either
+healthy or unhealthy; not initializing), or failed outright. If at least one
+service has failed or reported an error, or if the optional timeout has elapsed,
+the endpoint returns all aggregated errors.
+
+Services should be expected to continue running (or trying to run) once started,
+even if the spawn RPC returns an error. The `/readyz` endpoint can be used to
+verify the state of services (and which were spawned, if any) after spawning.
+This does mean the state of a bot will be uncertain if a failure occurs, but in
+a CI/CD job, a failure is expected to end the job outright: the CLI will return
+nonzero, and the job will terminate.
+
+##### gRPC API
+
+Minimal protobuf specification:
 
 ```proto3
 syntax = "proto3";
@@ -342,17 +378,27 @@ syntax = "proto3";
 import "google/protobuf/duration.proto";
 
 service BotAPIService {
-  // Spawns a new service.
+  // Spawns a new service and optionally waits for it to become ready with a
+  // configurable timeout.
   rpc SpawnService(SpawnServiceRequest) returns (SpawnServiceResponse);
   // Returns the current effective bot configuration.
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  // Stretch goal: An additional endpoint to stop a service
+  // rpc StopService(StopServiceRequest) returns (StopServiceResponse);
+  // Stretch goal: Expose readyz and waiting functionality over this interface
+  // alongside existing diag HTTP.
+  // rpc GetServiceStatus(GetServiceStatusRequest) returns (GetServiceStatusResponse);
 }
 
+// Requests
 message SpawnServiceRequest {
-  //
+  // A YAML document containing a list of services to spawn.
   string configuration = 1;
   // If set, don't wait for the service to become healthy.
   bool skip_wait = 2;
+  // If set, return with an error if the service has not become ready before the
+  // specified duration has elapsed. The service will continue trying to run.
+  google.protobuf.Duration timeout = 3;
 }
 
 // Response when a service has successfully spawned
@@ -361,29 +407,12 @@ message SpawnServiceResponse {}
 // Requests the current bot configuration
 message GetConfigRequest {}
 
+// Response containing current bot configuration
 message GetConfigResponse {
   // The effective bot configuration in YAML format.
   string configuration = 1;
 }
 ```
-
-We have two obvious implementation paths for the API:
-1. gRPC: Used broadly throughout Teleport, but challenging to use in other
-   applications. This challenge can be mitigated with a high-quality CLI.
-2. Plain HTTP: Unusual in Teleport, but substantially simpler for others to use
-   within their own apps. Arguably harder to maintain.
-
-The initial API will have just two RPCs or endpoints: `spawn` and `config`. It
-will be exposed over an arbitrary listening socket; we'll strongly recommend
-a Unix socket, but will allow use of TCP sockets.
-
-Regardless of protocol, the v1 bot API endpoints will accept and return
-configuration in YAML format. This allows use of our existing config parsing
-library without additional refactoring. If we decide to further develop the
-local bot API, we should consider revisiting this and switching to a protobuf
-source of truth for bot configuration.
-
-##### Option: gRPC API (Preferred)
 
 gRPC does meaningfully increase the cost of integrating with the bot API, and is
 less beneficial in this context (local, explicitly intended for end user
@@ -391,24 +420,17 @@ integration, etc) than in other Teleport components. However, it should ease the
 maintenance burden over time and will simplify the process of adding new
 functionality should we develop the bot API further.
 
-The integration burden will be at least somewhat mitigated by providing a CLI
-entrypoint with effectively 100% API coverage, which shouldn't be too difficult
-given the minimal
+The integration burden will be mitigated by providing a CLI entrypoint with
+effectively 100% API coverage for the two RPCs.
 
 Additionally, we can consider adopting a library like
 [`connectrpc`](https://github.com/connectrpc/connect-go) to make the API
 available to HTTP clients, which is used in Teleport already to allow API access
 from the web UI.
 
-##### Option: HTTP API (Alternative)
-
-**`POST /spawn`**: Accepts an array of service definitions in YAML format. This
-exercises our existing YAML config parser. Waits for the service to either
-report its first status or exit before returning.
-
-**`GET /config`**: Returns the current bot configuration in YAML format.
-
-The [proof of concept implementation][poc] used an HTTP API.
+The [proof of concept implementation][poc] used a plain HTTP API, however a
+gRPC API with `connectrpc` should provide a good balance of maintainability,
+extensibility, and ease of integration requiring a native client.
 
 #### The CLI
 
@@ -416,7 +438,7 @@ We will introduce a new family of CLI commands: `tbot api`:
 
 * `tbot api spawn`: Spawns a service. Fully reuses our existing CLI and inherits
   all flags and service subcommands, exactly like `tbot start` and
-  `tbot configure`
+  `tbot configure`.
 * `tbot api config`: Fetches configuration from a currently running bot to
   provide `tbot configure`-like functionality when building services
   sequentially.
@@ -432,6 +454,24 @@ We will introduce a new family of CLI commands: `tbot api`:
   # ...later, after stopping the first tbot process...
   $ tbot start -c tbot.yaml # resumes with the previous config
   ```
+
+The `tbot api spawn ...` command will expose flags to disable waiting, and
+optionally enforce a timeout.
+
+An exit code of zero means all spawned services have been started and have
+reported healthy. Failure to meet this condition within the specified timeout
+period (if any) returns an unspecified nonzero exit code, and no guarantees are
+made about which services (if any) may still be running or trying to run.
+
+We could consider exiting with different status codes depending on failure
+type (failed outright and no service was started, service started and is
+failing, timeout reached), but for most use cases simply returning zero or
+nonzero is sufficient. It should not be a breaking change if we later decide to
+increase the specificity of the error code to indicate different failure types.
+
+If waiting is disabled, an exit code of zero just means the service was accepted
+and the configuration was parsed. Clients will need to use the existing
+`/readyz` or `/wait` endpoints to properly coordinate.
 
 ##### Edge case: path locality
 
@@ -449,19 +489,75 @@ CLI should report errors as expected if the path is not writable. We may at
 least normalize paths at the CLI to mitigate relative path issues, and only
 communicate absolute paths to the API via the client CLI.
 
-#### Required changes in `tbot`
+#### Additional required changes in `tbot`
 
-TODO
+The core changes are straightforward:
+- Adding a new `bot-api` service
+- Adding a new `tbot api` subcommand
+
+However, actually spawning services dynamically is less straightforward than
+simply spawning a goroutine. The following sections discuss a few dependencies
+discovered in [the PoC][poc] that should be resolved.
+
+##### Improve service management
+
+`tbot` will need to be capable of spawning services dynamically. Today they're
+all started immediately in an `errgroup`, which while simple, does not allow
+additional tasks to be spawned at runtime.
+
+We should refactor `tbot` to move away from a simple `errgroup` to a custom
+mechanism that can spawn additional tasks over time. Ideally, this should
+integrate with our `readyz` service to allow querying for service health.
+We should evaluate cleanly stopping specific services and exposing an additional
+RPC for this if possible.
+
+##### Simplify service dependencies
+
+Services in `tbot` require quite a few dependencies, both at the `lib/tbot`
+level (when converting from the YAML into the runtime representation) and at the
+`lib/tbot/bot` level just before the service actually begins execution.
+
+It _might_ be good to flatten this hierarchy and keep all dependencies in one
+place, but that might be too large of a refactor. Some sort of dependency
+framework might be helpful but a wholesale refactor is out of scope for this
+MVP.
+
+##### Maintain configuration at runtime
+
+Bots currently discard the YAML-compatible config representation after parsing
+and converting to a runtime service struct. This means it isn't possible to
+reverse the process, which the `/config` / `GetConfig` RPCs require to be able
+to output the current bot config.
+
+We should either preserve the YAML config representation alongside the service
+handle, or build a facility to recreate it from a runtime service struct.
+
+##### Enhance waiting on specific services
+
+It needs to be possible to wait for specific service readiness, to allow the
+spawn RPC to return only once the spawned service is ready for use.
+
+This is already being built in [#62191], but may need minor enhancement to
+cover early-exiting services as discovered in [the PoC][poc].
+
+[#62191]: https://github.com/gravitational/teleport/pull/62191
+
+##### Config parsing utility
+
+Parsing service config was a bit problematic in [the PoC][poc] as it was very
+easy to cause an import cycle given the current layout. A relatively simple
+workaround to break the cycle was found (keeping config for the `bot-api`
+service in a separate package) but we should evaluate cleaner alternatives.
 
 #### GitHub Actions changes
 
 We'll introduce 2 new GitHub Actions in the [`teleport-actions`] organization:
 
-- `teleport-actions/bot-api`: starts a bot running only the `bot-api` service,
-  joining Teleport through the usual process. It will redirect logs to a file,
-  detach, and wait for general bot readiness before continuing. It will
-  additionally configure an exit hook to dump logs to the GHA run at the end of
-  the job.
+- `teleport-actions/bot-api`: starts a bot that initially runs only the
+  `bot-api` service, joining Teleport through the usual process. It will
+  redirect logs to a file, detach, and wait for general bot readiness before
+  continuing. It will additionally configure an exit hook to dump logs to the
+  GHA run at the end of the job.
 
   Example:
   ```yaml
@@ -503,6 +599,8 @@ established pattern.
 
 ### Future work
 
+These are out of scope at this time, but may be worth exploring in the future.
+
 #### Additional API endpoints
 
 The bot API service would allow for a lot of future expansion through new
@@ -522,11 +620,18 @@ endpoints or RPCs. For example:
   generate an Ansible inventory. We could also evaluate an inventory plugin to
   do this automatically.
 
+Generally speaking, this allows us to provide a minimal Teleport API proxy for
+certain machine use cases. There's a threshold at which it will always make more
+sense to import the full API client and use `embeddedtbot`, but a few carefully
+curated local-only APIs that are very easy to integrate into another app might
+prove useful.
+
 #### Agent use
 
 We could feasibly allow agents to interact with the `tbot` client and request
-access to new services on demand, however an API needs to exist first to be
-called.
+access to new services on demand. We would want to establish some real use cases
+before pursuing this properly, but some variety of machine-usable API is a
+necessary prerequisite.
 
 [poc]: https://github.com/gravitational/teleport/pull/62020
 [demo]: https://goteleport.zoom.us/clips/share/b6Qniz7qSjmeXviwZPSFYg
