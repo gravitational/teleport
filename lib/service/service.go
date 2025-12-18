@@ -2855,9 +2855,9 @@ func (process *TeleportProcess) initAuthService() error {
 			return &srv, nil
 		},
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		AnnouncePeriod:  apidefaults.AuthAnnounceTTL()/2 + utils.RandomDuration(apidefaults.AuthAnnounceTTL()/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		ServerTTL:       apidefaults.AuthAnnounceTTL(),
 		OnHeartbeat:     process.OnHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
