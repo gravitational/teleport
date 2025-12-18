@@ -413,7 +413,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
