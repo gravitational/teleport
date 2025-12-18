@@ -32,11 +32,7 @@ The admin can create an access list using the preset `long-term`.
 
 Preset `long-term` represents an access list that grants members long lived access to Teleport resources. Owners can review access requests. This access list is pretty similar to how access list works now (non-integrated types).
 
-All admin needs to do for this preset is to define the metadata, owners, and members of the access list and define the access to resources (e.g. node_labels and node logins) and Teleport will create the following type of roles and create/modify the access list accordingly:
-
-- `access`: Role(s) related to allowing access to resources. The access specs are determined by admin input. These roles are directly assigned to members of this access list (as member grants).
-- `requester`: A role that allows requesting for the resources defined in the `access` roles. This role is not automatically assigned to any user and is a role an admin can optionally assign to any user not assigned as a member to this access list.
-- `reviewer`: A role that allows reviewing access requests to resources defined in the "access" roles. This role is directly assigned to owners of this access list (as owner grants).
+All admin needs to do for this preset is to define the metadata, owners, and members of the access list and define the access to resources (e.g. node_labels and node logins) and Teleport will create the necessary roles and assign them to appropriate member/owner grants in a access list.
 
 ### User story: As an admin, I want to require a select group of users (local or Okta imported) to request for short-term access to resources
 
@@ -44,11 +40,7 @@ The admin can create an access list using the preset `short-term`.
 
 Preset `short-term` represents an access list that utilizes JIT. Owners of the access list are reviewers. Members of the access list are requesters that are required to request access to resources and then upon approval are granted short-term access to requested Teleport resources.
 
-All admin needs to do for this preset is to define the metadata, owners, and members of the access list and define the access to resources (e.g. labels) and then Teleport will create the following type of roles and create/modify the access list accordingly:
-
-- `access`: Role(s) related to allowing access to resources. The access specs are determined by admin input. These roles are NOT directly assigned to anyone but instead are indirectly assigned to other roles created below.
-- `requester`: A role that allows requesting for the resources defined in the `access` roles. This role is directly assigned to members of this access list (as member grants).
-- `reviewer`: A role that allows reviewing access requests to resources defined in the `access` roles. This role is directly assigned to owners of this access list (as owner grants).
+All admin needs to do for this preset is to define the metadata, owners, and members of the access list and define the access to resources (e.g. node_labels and node logins) and Teleport will create the necessary roles and assign them to appropriate member/owner grants in a access list.
 
 ### Web UI/UX
 
@@ -80,7 +72,7 @@ The guide will provide dynamic feedback as the admin is defining/tweaking access
 - Listing the resources given some admin input. E.g. if an admin was defining access for applications, and the admin specifies label `env: staging`, the feedback is to list only applications with matching label.
 - If the cluster has `Identity Security` feature enabled, the admin will also be able to use access graph to see a graph of accessible resources.
 
-The dynamic feedback allows admin to essentially double check and preview what members of this access list will see in their own account.
+The dynamic feedback allows admin to essentially preview what members of this access list will see in their own account.
 
 #### Terraform Support
 
@@ -92,34 +84,45 @@ The Terraform script will also be available later when viewing the access list c
 
 ### Security
 
-To prevent users (admins) from overstepping the boundaries set by their assigned roles, the following restrictions are placed when user wants to perform create, delete, or update operations on an access list created with a preset:
+We expect `admins` to have full permissions but there can be edge cases where their role may limit some access. To prevent users (admins) from overstepping the boundaries set by their assigned roles, the following restrictions are placed when user wants to perform create, delete, or update operations on an access list created with a preset:
 
-- The user is required to have access to perform all CRUD operations on a role. The user may not be directly performing actions on a role, but Teleport will on behalf of the user.
-- The [same existing rules](https://github.com/gravitational/teleport.e/blob/e49a5ad654408ce0779622c38c7acda0417bfef0/lib/accesslist/service.go#L1648) are applied when creating/deleting/updating an access list. E.g. for updating an access list the user will have to either be a owner or have access to `access_list` resource rules.
-- When defining or modifying access to resources for an access list, the user is limited to what their own roles allow them. For example, lets say a few application resources exists in a Teleport cluster:
-  - If the users currently assigned role does not define access to applications (missing `app_labels`) and therefore unable to list applications, the user will not be able to define any access to application.
-  - If the users currently assigned role defines a `app_label` giving access to just `some` of the applications, the user will be only able to define access to the resources they can see.
-  - If an access list with preset was created, and later a user with lesser permission than the original creator comes in to edit the access to resources, the access definition for resources that produced no results will be removed on save. This prevents defining random labels.
+#### Backend
+
+- The user is required to have access to perform all CRUD operations on a role otherwise upsertion request with preset will fail. The user may not be directly performing actions on a role, but Teleport will on behalf of the user.
+- The [same existing rules](https://github.com/gravitational/teleport.e/blob/e49a5ad654408ce0779622c38c7acda0417bfef0/lib/accesslist/service.go#L1648) are applied when creating/deleting/updating an access list. E.g. for updating an access list the user will have to either be a owner of the list or have access to `access_list` resource rules.
+
+#### Web UI
+
+In the web UI, frontend validations will be performed that prevent the user from going forward with the guide if validations fail. When defining or modifying access to resources in the web UI, the user is limited to what their own roles allow them. For example, lets say a few application resources exists in a Teleport cluster:
+
+- If the users currently assigned role does not define access to applications (missing `app_labels`) and therefore unable to list applications, the user will not be able to define any access to application
+- If the user defines a label and it produces no resource query results, the user will be prompted to remove the label or try a different label (user will not be able to proceed to the next step in the guide)
+  - Similarly if an access list with preset was created, and later a user with lesser permission than the original creator comes in to edit the access to resources, if with those existing access definitions produces no resource query result, the user will be prompted to remove or try other selections (user will not be able to proceed)
 - When modifying access to resources for an access list, the same guide will be provided, unless the web app detected unsupported modifications made on a role meant for an access list. If unsupported modifications (or unsupported role versions) were detected, the web UI will point the user to use the standard role editor instead (how normal access list essentially works). This is because the guide does not support parsing all fields of a role.
+- If the users currently assigned role defines a `app_label` giving access to just `some` of the applications, the user will be allowed to define access to the resources they can see (this does not prevent them from defining access to resources they can't see, more below)
+
+These frontend validations does not `prevent` a user from granting a resource that they can't `see`. For example, users will be allowed to set `wildcards` that allow all resources. The user's own role may not allow them to see all resources available but use of `wildcards` or even unknowingly selecting a label that is shared between a resource they see and a resource they can't see, all results in granting more access then the user may have intended. To help with surprises like these, the web UI will render a warning that lets users know that the access they define may grant more resources then they intended:
+
+```
+Previewing Resources
+
+When defining access for a resource, we will attempt to list a preview of what resources the member may see in their own account. Note that this preview is dependent on what your own roles allow you to see. Access to more resources than what are seen here may be granted.
+```
 
 ### API
 
-A new endpoint will be created to support this feature.
+A new endpoint will be created to support creating and updating an access list with automatic role upsertions, `UpsertAccessListWithPreset`.
 
-#### Preset type
+#### Preset Type
 
-The new endpoint will expect the type of preset.
-
-Access lists created through this api will be `labeled` with the type of preset requested in the format: `teleport.internal/access-list-preset: <long-term | short-term>`
-
-The label helps the web UI detect access lists created with a preset and which preset was used.
+The requested preset will determine what kind of actions Teleport will perform on behalf of the user.
 
 ```proto
 // PresetType describes what type of preset was requested.
 enum PresetType {
   // PRESET_TYPE_UNSPECIFIED is the zero value.
   PRESET_TYPE_UNSPECIFIED = 0;
-  // PRESET_TYPE_LONG_TERM describes a preset where members are granted roles
+  // PRESET_TYPE_LONG_TERM describes a preset where Teleport will members are granted roles
   // that grants long term access to resources.
   PRESET_TYPE_LONG_TERM = 1;
   // PRESET_TYPE_SHORT_TERM describes a preset where members are granted
@@ -129,9 +132,31 @@ enum PresetType {
 }
 ```
 
+##### PRESET_TYPE_SHORT_TERM
+
+Teleport will create the following type of roles and create/modify the access list accordingly:
+
+- `access`: Role(s) related to allowing access to resources. The access specs are determined by admin input. These roles are directly assigned to members of this access list (as member grants).
+- `requester`: A role that allows requesting for the resources defined in the `access` roles. This role is not automatically assigned to any user and is a role an admin can optionally assign to any user not assigned as a member to this access list.
+- `reviewer`: A role that allows reviewing access requests to resources defined in the "access" roles. This role is directly assigned to owners of this access list (as owner grants).
+
+##### PRESET_TYPE_LONG_TERM
+
+Teleport will create the following type of roles and create/modify the access list accordingly:
+
+- `access`: Role(s) related to allowing access to resources. The access specs are determined by admin input. These roles are NOT directly assigned to anyone but instead are indirectly assigned to other roles created below.
+- `requester`: A role that allows requesting for the resources defined in the `access` roles. This role is directly assigned to members of this access list (as member grants).
+- `reviewer`: A role that allows reviewing access requests to resources defined in the `access` roles. This role is directly assigned to owners of this access list (as owner grants).
+
+##### Labeling access list with preset type used
+
+Access lists created with a preset will be `labeled` with the type of preset requested in the format: `teleport.internal/access-list-preset: <long-term | short-term>`
+
+The label helps the web UI detect access lists created with a preset and which preset was used.
+
 #### List of role specs defining the access to resources
 
-The new endpoint will accept a list of role specs to upsert.
+The roles that Teleport will create for an access list will depend on the role specs defined by an admin.
 
 ```proto
 // Role describes a role to be upserted by Teleport for an access list.
@@ -140,24 +165,33 @@ message Role {
   // control part of the role name so clients like the web UI can make some
   // assumptions based on this prefix e.g. what purpose the access role was
   // created for. For the final role name however, Teleport will add a suffix
-  // to this name_prefix before upserting the role. The suffix serves to:
-  //  - ensure uniqueness by including the access list UID which also
-  //    ties this role to that access list making it easier to query.
-  //  - add a infix like "acl-preset" that easily identifies that this role
-  //    belongs to an access list that was created using a preset.
-  //
-  // The format of the final role name is:
-  //
-  // <name_prefix>-acl-preset-<access-list-id>
-  //
-  // Example:
-  // If the acces list ID is "ABCDEF" and name_prefix is "access-primary",
-  // then final role name is: `access-primary-acl-preset-ABCDEF`
+  // to this name_prefix before upserting the role.
   string name_prefix = 1;
   // spec defines the access to resources.
   types.RoleSpecV6 spec = 2;
 }
 ```
+
+##### Role naming format
+
+In order to ensure uniqueness and help identity what roles belong to an access list created with a preset, the naming convention takes the following format:
+
+`<purpose>-acl-preset-<access list metadata name (UID)>`
+
+| Parts                             |                             Explanation                             |                     Example Values |
+| :-------------------------------- | :-----------------------------------------------------------------: | ---------------------------------: |
+| \<purpose\>                       | short word that describes the purpose of role, controlled by client | requester, reviewer, access, awsic |
+| acl-preset                        |                   stands for "access list preset"                   |                                n/a |
+| <access list metadata name (UID)> |        helps identify which access list this role belongs to        |                                n/a |
+
+For example, if an access list has metadata.name `18903baf-xXXx-xxXX-xxxx-92f81a5432ca` then the role name examples are:
+
+- A role that allows requesting access: `requester-acl-preset-18903baf-xXXx-xxXX-xxxx-92f81a5432ca`
+- A role that allows reviewing access: `reviewer-acl-preset-18903baf-xXXx-xxXX-xxxx-92f81a5432ca`
+- A role that defines access to resources: `access-acl-preset-18903baf-xXXx-xxXX-xxxx-92f81a5432ca`
+- A role that defines access specific to AWS IC apps: `awsic-acl-preset-18903baf-xXXx-xxXX-xxxx-92f81a5432ca`
+
+##### Defining multiple role specs
 
 Creating multiple roles is supported to allow flexibility in defining access to resources.
 
@@ -202,11 +236,7 @@ message UpsertAccessListWithPresetRequest {
   // what set of actions Teleport will perform.
   PresetType preset_type = 1;
   // access_roles is a list of role specs that defines the "access" to
-  // resources. Teleport will perform role create/update/delete (CUD) per
-  // spec.
-  //
-  // Teleport will delete roles that are NOT in this request. Typically
-  // applies when "updating" an access list.
+  // resources. Teleport will perform role create/update per spec.
   repeated Role access_roles = 2;
   // access_list is the access list to upsert.
   AccessList access_list = 3;
@@ -225,6 +255,12 @@ message UpsertAccessListWithPresetResponse {
   repeated types.RoleV6 roles = 3;
 }
 ```
+
+#### Deleting access lists created with a preset
+
+The same [existing endpoint](https://github.com/gravitational/teleport/blob/e26f1f01a0a2433ae104f01ada73a1bf9b935963/api/proto/teleport/accesslist/v1/accesslist_service.proto#L43) will be used to delete an access list with a preset.
+
+In the web UI after an access list has successfully deleted, a popup dialogue will render letting users know that they can optionally delete the roles related to the deleted access list. A row of related roles will be rendered, with a delete button for each row.
 
 ### Optimization Consideration
 
