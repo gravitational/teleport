@@ -774,8 +774,6 @@ type Config struct {
 	Plugin             services.Plugins
 	// RecordingEncryption manages state surrounding session recording encryption
 	RecordingEncryption services.RecordingEncryption
-	// Plugins is the plugin service used to retrieve plugin information.
-	Plugin services.Plugins
 	// CloudCluster is a cloud cluster service
 	CloudClusterService services.CloudClusterService
 }
