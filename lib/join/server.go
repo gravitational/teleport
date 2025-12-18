@@ -201,7 +201,6 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 // token expires).
 //
 // Only secret tokens are currently supported.
-// TODO(nklaassen): support all join methods.
 func (s *Server) Join(stream messages.ServerStream) (err error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -326,15 +325,14 @@ func (s *Server) handleJoinMethod(
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodSpacelift:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
-	case types.JoinMethodTPM:
-		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTerraformCloud:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodTPM:
+		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	default:
-		// TODO(nklaassen): implement checks for all join methods.
-		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
+		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
 	}
 }
 

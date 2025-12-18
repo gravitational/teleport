@@ -272,7 +272,7 @@
     },
     {
       "source": "/reference/agent-services/kubernetes-application-discovery/",
-      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-application-discovery/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
       "permanent": true
     },
     {
@@ -897,7 +897,7 @@
     },
     {
       "source": "/reference/architecture/proxy-peering/",
-      "destination": "/zero-trust-access/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
       "permanent": true
     },
     {
@@ -1347,12 +1347,12 @@
     },
     {
       "source": "/admin-guides/management/admin/",
-      "destination": "/zero-trust-access/management/admin/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/daemon/",
-      "destination": "/zero-trust-access/management/admin/daemon/",
+      "destination": "/zero-trust-access/management/daemon/",
       "permanent": true
     },
     {
@@ -1362,32 +1362,27 @@
     },
     {
       "source": "/admin-guides/management/admin/self-signed-certs/",
-      "destination": "/zero-trust-access/management/admin/self-signed-certs/",
+      "destination": "/zero-trust-access/deploy-a-cluster/self-signed-certs/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/troubleshooting/",
-      "destination": "/zero-trust-access/management/admin/troubleshooting/",
-      "permanent": true
-    },
-    {
-      "source": "/admin-guides/management/admin/trusted-cluster-address-lookup/",
-      "destination": "/zero-trust-access/management/admin/trusted-cluster-address-lookup/",
+      "destination": "/zero-trust-access/management/diagnostics/troubleshooting/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/trustedclusters/",
-      "destination": "/zero-trust-access/management/admin/trustedclusters/",
+      "destination": "/zero-trust-access/deploy-a-cluster/trustedclusters/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/uninstall-teleport/",
-      "destination": "/zero-trust-access/management/admin/uninstall-teleport/",
+      "destination": "/installation/uninstall-teleport/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/admin/users/",
-      "destination": "/zero-trust-access/management/admin/users/",
+      "destination": "/zero-trust-access/rbac-get-started/users/",
       "permanent": true
     },
     {
@@ -1482,17 +1477,17 @@
     },
     {
       "source": "/admin-guides/management/guides/awsoidc-integration-rds/",
-      "destination": "/zero-trust-access/management/guides/awsoidc-integration-rds/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration-rds/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/awsoidc-integration/",
-      "destination": "/zero-trust-access/management/guides/awsoidc-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/datadog/",
-      "destination": "/zero-trust-access/management/guides/datadog/",
+      "destination": "/zero-trust-access/management/diagnostics/datadog/",
       "permanent": true
     },
     {
@@ -1507,12 +1502,12 @@
     },
     {
       "source": "/admin-guides/management/guides/github-integration/",
-      "destination": "/zero-trust-access/management/guides/github-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/github-integration/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/guides/",
-      "destination": "/zero-trust-access/management/guides/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
@@ -1537,37 +1532,42 @@
     },
     {
       "source": "/admin-guides/management/operations/backup-restore/",
-      "destination": "/zero-trust-access/management/operations/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/breakglass-access/",
+      "destination": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/ca-rotation/",
-      "destination": "/zero-trust-access/management/operations/ca-rotation/",
+      "destination": "/zero-trust-access/management/security/ca-rotation/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/db-ca-migrations/",
-      "destination": "/zero-trust-access/management/operations/db-ca-migrations/",
+      "destination": "/zero-trust-access/management/security/db-ca-migrations/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/",
-      "destination": "/zero-trust-access/management/operations/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/proxy-peering/",
-      "destination": "/zero-trust-access/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/scaling/",
-      "destination": "/zero-trust-access/management/operations/scaling/",
+      "destination": "/reference/deployment/scaling/",
       "permanent": true
     },
     {
       "source": "/admin-guides/management/operations/tls-routing/",
-      "destination": "/zero-trust-access/management/operations/tls-routing/",
+      "destination": "/zero-trust-access/deploy-a-cluster/tls-routing/",
       "permanent": true
     },
     {
@@ -2667,27 +2667,27 @@
     },
     {
       "source": "/enroll-resources/database-access/enroll-aws-databases/rds-oracle/",
-      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/rds-oracle/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds/rds-oracle/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-mysql/",
-      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-mysql/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-mysql/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres/",
-      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-postgres/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-postgres/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver/",
-      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-sqlserver/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-sqlserver/",
       "permanent": true
     },
     {
       "source": "/enroll-resources/database-access/enroll-aws-databases/sql-server-ad/",
-      "destination": "/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds/sql-server-ad/",
       "permanent": true
     },
     {
@@ -2762,7 +2762,7 @@
     },
     {
       "source": "/reference/agent-services/auto-discovery-reference/kubernetes-application-discovery/",
-      "destination": "/enroll-resources/auto-discovery/reference/kubernetes-application-discovery/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
       "permanent": true
     },
     {
@@ -3013,6 +3013,386 @@
     {
       "source": "/zero-trust-access/deploy-a-cluster/helm-deployments/argocd-helm/",
       "destination": "/enroll-resources/agents/argocd-helm/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-cassandra-keyspaces/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/aws-cassandra-keyspaces/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-cross-account/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/aws-cross-account/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-docdb/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/aws-docdb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-dynamodb/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/aws-dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-memorydb/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/aws-memorydb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/aws-opensearch/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/aws-opensearch/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/elasticache-serverless/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/elasticache-serverless/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/postgres-redshift/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/postgres-redshift/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-mysql/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-postgres/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-postgres/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/rds-proxy-sqlserver/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-sqlserver/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds-proxy/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds-proxy/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds/rds-oracle/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds/rds-oracle/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/rds/sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/rds/sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/redis-aws/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/redis-aws/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-aws-databases/redshift-serverless/",
+      "destination": "/enroll-resources/database-access/enrollment/aws/redshift-serverless/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql/",
+      "destination": "/enroll-resources/database-access/enrollment/azure/azure-postgres-mysql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-azure-databases/azure-redis/",
+      "destination": "/enroll-resources/database-access/enrollment/azure/azure-redis/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-azure-databases/azure-sql-server-ad/",
+      "destination": "/enroll-resources/database-access/enrollment/azure/azure-sql-server-ad/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-azure-databases/",
+      "destination": "/enroll-resources/database-access/enrollment/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-google-cloud-databases/alloydb/",
+      "destination": "/enroll-resources/database-access/enrollment/google-cloud/alloydb/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-google-cloud-databases/",
+      "destination": "/enroll-resources/database-access/enrollment/google-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-google-cloud-databases/mysql-cloudsql/",
+      "destination": "/enroll-resources/database-access/enrollment/google-cloud/mysql-cloudsql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-google-cloud-databases/postgres-cloudsql/",
+      "destination": "/enroll-resources/database-access/enrollment/google-cloud/postgres-cloudsql/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-google-cloud-databases/spanner/",
+      "destination": "/enroll-resources/database-access/enrollment/google-cloud/spanner/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-managed-databases/",
+      "destination": "/enroll-resources/database-access/enrollment/managed/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-managed-databases/mongodb-atlas/",
+      "destination": "/enroll-resources/database-access/enrollment/managed/mongodb-atlas/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-managed-databases/oracle-exadata/",
+      "destination": "/enroll-resources/database-access/enrollment/managed/oracle-exadata/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
+      "destination": "/enroll-resources/database-access/enrollment/managed/snowflake/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/cassandra-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/cassandra-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/clickhouse-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/clickhouse-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/cockroachdb-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/cockroachdb-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/elastic/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/elastic/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/mongodb-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/mongodb-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/mysql-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/oracle-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/oracle-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/postgres-self-hosted/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/redis-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/redis/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/redis/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/sql-server-ad-pkinit/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/sql-server-ad-pkinit/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/database-access/enroll-self-hosted-databases/vitess/",
+      "destination": "/enroll-resources/database-access/enrollment/self-hosted/vitess/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/auto-discovery/reference/kubernetes-application-discovery/",
+      "destination": "/enroll-resources/auto-discovery/kubernetes-applications/reference/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/introduction/",
+      "destination": "/enroll-resources/server-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/dynamic-registration/",
+      "destination": "/enroll-resources/application-access/configuration/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/",
+      "destination": "/enroll-resources/application-access/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/ha/",
+      "destination": "/enroll-resources/application-access/configuration/ha/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/guides/vnet/",
+      "destination": "/enroll-resources/application-access/vnet/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/controls/",
+      "destination": "/enroll-resources/application-access/configuration/controls/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/dynamic-registration/",
+      "destination": "/enroll-resources/application-access/configuration/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/ha/",
+      "destination": "/enroll-resources/application-access/configuration/ha/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/server-access/guides/ansible/",
+      "destination": "/connect-your-client/third-party/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/datadog/",
+      "destination": "/zero-trust-access/management/diagnostics/datadog/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/awsoidc-integration-console/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration-console/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/awsoidc-integration-rds/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration-rds/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/awsoidc-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/awsoidc-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/github-integration/",
+      "destination": "/enroll-resources/application-access/cloud-apis/github-integration/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/ca-rotation/",
+      "destination": "/zero-trust-access/management/security/ca-rotation/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/db-ca-migrations/",
+      "destination": "/zero-trust-access/management/security/db-ca-migrations/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/users/",
+      "destination": "/zero-trust-access/rbac-get-started/users/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/uninstall-teleport/",
+      "destination": "/installation/uninstall-teleport/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/self-signed-certs/",
+      "destination": "/zero-trust-access/deploy-a-cluster/self-signed-certs/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/trustedclusters/",
+      "destination": "/zero-trust-access/deploy-a-cluster/trustedclusters/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/tls-routing/",
+      "destination": "/zero-trust-access/deploy-a-cluster/tls-routing/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/",
+      "destination": "/zero-trust-access/management/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/troubleshooting/",
+      "destination": "/zero-trust-access/management/diagnostics/troubleshooting/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/",
+      "destination": "/zero-trust-access/management/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/operations/scaling/",
+      "destination": "/reference/deployment/scaling/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/daemon/",
+      "destination": "/zero-trust-access/management/daemon/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/admin/trusted-cluster-address-lookup/",
+      "destination": "/zero-trust-access/deploy-a-cluster/trustedclusters/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/management/guides/",
+      "destination": "/zero-trust-access/management/",
       "permanent": true
     }
   ]

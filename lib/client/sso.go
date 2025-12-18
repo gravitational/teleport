@@ -95,6 +95,7 @@ func (tc *TeleportClient) loginInitFn(ctx context.Context, keyRing *KeyRing, cli
 		KubernetesCluster: sshLogin.KubernetesCluster,
 		PKCEVerifier:      codeVerifier,
 		ClientVersion:     teleport.Version,
+		Scope:             tc.Scope,
 	}
 
 	clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)

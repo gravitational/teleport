@@ -1278,32 +1278,24 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		closeC := make(chan struct{})
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			select {
-			case <-stream.Done():
-				party.InformClose(trace.BadParameter("websocket connection closed"))
-			case <-closeC:
-				return
+
+		defer func() {
+			if _, err := session.leave(party.ID); err != nil {
+				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+					"participant_id", party.ID,
+					"session_id", session.id,
+					"error", err,
+				)
 			}
 		}()
 
-		err = <-party.closeC
-		close(closeC)
-
-		if _, err := session.leave(party.ID); err != nil {
-			f.log.DebugContext(req.Context(), "Participant was unable to leave session",
-				"participant_id", party.ID,
-				"session_id", session.id,
-				"error", err,
-			)
+		select {
+		case <-stream.Done():
+			party.InformClose(trace.BadParameter("websocket connection closed"))
+			return nil
+		case err := <-party.closeC:
+			return trace.Wrap(err)
 		}
-		wg.Wait()
-
-		return trace.Wrap(err)
 	}(); err != nil {
 		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {
