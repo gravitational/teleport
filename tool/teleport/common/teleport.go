@@ -168,7 +168,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("insecure",
 		"Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	start.Flag("fips",
-		"Start Teleport in FedRAMP/FIPS 140-2 mode.").
+		"Start Teleport in FedRAMP/FIPS 140 mode.").
 		Default("false").
 		BoolVar(&ccf.FIPS)
 	start.Flag("skip-version-check",
@@ -223,7 +223,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	appStartCmd.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	appStartCmd.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web.").StringVar(&ccf.Labels)
-	appStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
+	appStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140 mode.").Default("false").BoolVar(&ccf.FIPS)
 	appStartCmd.Flag("name", "Name of the application to start.").StringVar(&ccf.AppName)
 	appStartCmd.Flag("uri", "Internal address of the application to proxy.").StringVar(&ccf.AppURI)
 	appStartCmd.Flag("cloud", fmt.Sprintf("Set to one of %v if application should proxy particular cloud API", []string{types.CloudAWS, types.CloudAzure, types.CloudGCP})).StringVar(&ccf.AppCloud)
@@ -246,7 +246,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	dbStartCmd.Flag("config-string", "Base64 encoded configuration string.").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	dbStartCmd.Flag("labels", "Comma-separated list of labels for this node, for example env=dev,app=web.").StringVar(&ccf.Labels)
-	dbStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140-2 mode.").Default("false").BoolVar(&ccf.FIPS)
+	dbStartCmd.Flag("fips", "Start Teleport in FedRAMP/FIPS 140 mode.").Default("false").BoolVar(&ccf.FIPS)
 	dbStartCmd.Flag("name", "Name of the proxied database.").StringVar(&ccf.DatabaseName)
 	dbStartCmd.Flag("description", "Description of the proxied database.").StringVar(&ccf.DatabaseDescription)
 	dbStartCmd.Flag("protocol", fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).StringVar(&ccf.DatabaseProtocol)
@@ -512,7 +512,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEC2SSMCmd := integrationConfigureCmd.Command("ec2-ssm-iam", "Adds required IAM permissions and SSM Document to enable EC2 Auto Discover using SSM.")
 	integrationConfEC2SSMCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.RoleName)
 	integrationConfEC2SSMCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.Region)
-	integrationConfEC2SSMCmd.Flag("ssm-document-name", "The AWS SSM Document name to create that will be used to install teleport.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.SSMDocumentName)
+	integrationConfEC2SSMCmd.Flag("ssm-document-name", "The AWS SSM Document name to create that will be used to install teleport.").StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.SSMDocumentName)
 	integrationConfEC2SSMCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").StringVar(&ccf.
 		IntegrationConfEC2SSMIAMArguments.ProxyPublicURL)
 	integrationConfEC2SSMCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.ClusterName)
@@ -539,6 +539,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfAccessGraphAWSSyncCmd.Flag("sqs-queue-url", "SQS Queue URL used to receive notifications from CloudTrail.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.SQSQueueURL)
 	integrationConfAccessGraphAWSSyncCmd.Flag("cloud-trail-bucket", "ARN of the S3 bucket where CloudTrail writes events to.").StringVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.CloudTrailBucketARN)
 	integrationConfAccessGraphAWSSyncCmd.Flag("kms-key", "List of KMS Keys used to decrypt SQS and S3 bucket data.").StringsVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.KMSKeyARNs)
+	integrationConfAccessGraphAWSSyncCmd.Flag("eks-audit-logs", "Enable collection of EKS audit logs").BoolVar(&ccf.IntegrationConfAccessGraphAWSSyncArguments.EnableEKSAuditLogs)
 
 	integrationConfAccessGraphAzureSyncCmd := integrationConfAccessGraphCmd.Command("azure", "Adds required Azure permissions for syncing Azure resources into Access Graph service.")
 	integrationConfAccessGraphAzureSyncCmd.Flag("managed-identity", "The ID of the managed identity to run the Discovery service.").Required().StringVar(&ccf.IntegrationConfAccessGraphAzureSyncArguments.ManagedIdentity)
@@ -1140,7 +1141,7 @@ func onSCP(scpFlags *scp.Flags) error {
 	if scpFlags.Verbose {
 		verbosity = teleport.DebugLevel
 	}
-	_, _, err := logutils.Initialize(logutils.Config{
+	_, _, _, err := logutils.Initialize(logutils.Config{
 		Output:   logutils.LogOutputSyslog,
 		Severity: verbosity,
 	})

@@ -73,10 +73,17 @@ const (
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
 var errNoAccessGraphFetchers = errors.New("no Access Graph fetchers")
 
-func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *aws_sync.Resources, stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient, features aws_sync.Features) error {
+func (s *Server) reconcileAccessGraph(
+	ctx context.Context,
+	currentTAGResources *aws_sync.Resources,
+	stream accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
+	features aws_sync.Features,
+	eksAuditLogWatcher *eksAuditLogWatcher,
+) error {
 	type fetcherResult struct {
-		result *aws_sync.Resources
-		err    error
+		fetcher *aws_sync.Fetcher
+		result  *aws_sync.Resources
+		err     error
 	}
 
 	allFetchers := s.getAllAWSSyncFetchers()
@@ -88,6 +95,8 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		if err := push(stream, upsert, toDel); err != nil {
 			s.Log.ErrorContext(ctx, "Error pushing empty resources to TAGs", "error", err)
 		}
+		// No clusters to fetch eks audit logs for.
+		eksAuditLogWatcher.Reconcile(ctx, nil)
 		return trace.Wrap(errNoAccessGraphFetchers)
 	}
 
@@ -110,21 +119,39 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 				<-tokens
 			}()
 			result, err := fetcher.Poll(ctx, features)
-			resultsC <- fetcherResult{result, trace.Wrap(err)}
+			resultsC <- fetcherResult{fetcher, result, trace.Wrap(err)}
 		}()
 	}
 
 	results := make([]*aws_sync.Resources, 0, len(allFetchers))
+	auditLogClusters := make([]eksAuditLogCluster, 0, len(allFetchers))
 	errs := make([]error, 0, len(allFetchers))
 	// Collect the results from all fetchers.
 	// Each fetcher can return an error and a result.
 	for range allFetchers {
 		fetcherResult := <-resultsC
-		if fetcherResult.err != nil {
-			errs = append(errs, fetcherResult.err)
+		fetcher, result, err := fetcherResult.fetcher, fetcherResult.result, fetcherResult.err
+		if err != nil {
+			errs = append(errs, err)
 		}
-		if fetcherResult.result != nil {
-			results = append(results, fetcherResult.result)
+		if result == nil {
+			continue
+		}
+		results = append(results, result)
+		// If the fetcher is configured for EKS audit logs, see if any
+		// EKS clusters match the configured tags.
+		if fetcher.EKSAuditLogs == nil {
+			continue
+		}
+		for _, cluster := range result.EKSClusters {
+			clusterTags := make(map[string]string, len(cluster.Tags))
+			for _, tag := range cluster.Tags {
+				clusterTags[tag.GetKey()] = tag.GetValue().GetValue()
+			}
+			match, _, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
+			if match {
+				auditLogClusters = append(auditLogClusters, eksAuditLogCluster{fetcher, cluster})
+			}
 		}
 	}
 	// Aggregate all errors into a single error.
@@ -136,6 +163,10 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Merge all results into a single result
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
 	pushErr := push(stream, upsert, toDel)
+
+	// Send the updated list of clusters requiring audit logs to the fetcher.
+	// The fetcher reconciles this list against the last set sent.
+	eksAuditLogWatcher.Reconcile(ctx, auditLogClusters)
 
 	for _, fetcher := range allFetchers {
 		s.tagSyncStatus.syncFinished(fetcher, pushErr, s.clock.Now())
@@ -425,11 +456,16 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	}
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
 
+	// Start the EKS audit log watcher that keeps track of the EKS audit log
+	// fetchers and updates them when Reconcile is called.
+	eksAuditLogWatcher := newEKSAuditLogWatcher(client, s.Log)
+	go eksAuditLogWatcher.Run(ctx)
+
 	currentTAGResources := &aws_sync.Resources{}
 	timer := time.NewTimer(tickerInterval)
 	defer timer.Stop()
 	for {
-		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features)
+		err := s.reconcileAccessGraph(ctx, currentTAGResources, stream, features, eksAuditLogWatcher)
 		if errors.Is(err, errNoAccessGraphFetchers) {
 			// no fetchers, no need to continue.
 			// we will wait for the config to change and re-evaluate the fetchers
@@ -508,7 +544,8 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 					continue
 				}
 				// reset the currentTAGResources to force a full sync
-				if err := s.initializeAndWatchAccessGraph(ctx, reloadCh); errors.Is(err, errTAGFeatureNotEnabled) {
+				err := s.initializeAndWatchAccessGraph(ctx, reloadCh)
+				if errors.Is(err, errTAGFeatureNotEnabled) {
 					s.Log.WarnContext(ctx, "Access Graph specified in config, but the license does not include Teleport Identity Security. Access graph sync will not be enabled.")
 					break
 				} else if err != nil {
@@ -576,6 +613,10 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 				ExternalID: awsFetcher.AssumeRole.ExternalID,
 			}
 		}
+		var eksAuditLogs *aws_sync.EKSAuditLogs
+		if awsFetcher.EksAuditLogs != nil {
+			eksAuditLogs = &aws_sync.EKSAuditLogs{Tags: awsFetcher.EksAuditLogs.Tags}
+		}
 		fetcher, err := aws_sync.NewFetcher(
 			ctx,
 			aws_sync.Config{
@@ -587,6 +628,7 @@ func (s *Server) accessGraphAWSFetchersFromMatchers(ctx context.Context, matcher
 				Integration:         awsFetcher.Integration,
 				DiscoveryConfigName: discoveryConfigName,
 				Log:                 s.Log,
+				EKSAuditLogs:        eksAuditLogs,
 			},
 		)
 		if err != nil {
@@ -848,7 +890,7 @@ func (s *Server) receiveTAGResumeFromStream(ctx context.Context, stream accessgr
 	return nil
 }
 
-func consumeTillErr(stream accessgraphv1alpha.AccessGraphService_AWSCloudTrailStreamClient) error {
+func consumeTillErr[Req any, Res any](stream grpc.BidiStreamingClient[Req, Res]) error {
 	for {
 		_, err := stream.Recv()
 		if err != nil {

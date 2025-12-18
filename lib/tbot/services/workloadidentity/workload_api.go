@@ -46,6 +46,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -64,7 +65,7 @@ func WorkloadAPIServiceBuilder(
 	crlCache CRLGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -76,11 +77,12 @@ func WorkloadAPIServiceBuilder(
 			trustBundleCache:          trustBundleCache,
 			crlCache:                  crlCache,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return bot.NewServicePair(svc, sidecar), nil
 	}
+	return bot.NewServiceBuilder(WorkloadAPIServiceType, cfg.Name, buildFn)
 }
 
 // WorkloadAPIService implements a gRPC server that fulfills the SPIFFE
@@ -167,7 +169,7 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	defer s.client.Close()
 	s.log.DebugContext(ctx, "Completed pre-run initialization")
 
-	srvMetrics := metrics.CreateGRPCServerMetrics(
+	srvMetrics := grpcmetrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{
 			teleport.TagServer: "tbot-workload-identity-api",
 		},

@@ -54,7 +54,7 @@ export interface RecordingPlayerProps<
   TEndEventType extends TEventType = TEventType,
 > {
   duration: number;
-  onTimeChange: (time: number) => void;
+  onTimeChange?: (time: number) => void;
   onToggleSidebar?: () => void;
   onToggleTimeline?: () => void;
   onToggleFullscreen?: () => void;
@@ -85,6 +85,7 @@ export function RecordingPlayer<
   ws,
 }: RecordingPlayerProps<TEvent>) {
   const [playerState, setPlayerState] = useState(PlayerState.Loading);
+  const [speed, setSpeed] = useState(1);
 
   const [showPlayButton, setShowPlayButton] = useState(true);
 
@@ -103,13 +104,13 @@ export function RecordingPlayer<
     });
 
     stream.on('time', time => {
-      if (!controlsRef.current || !eventInfoRef.current) {
-        return;
+      if (controlsRef.current) {
+        controlsRef.current.setTime(time);
       }
-
-      controlsRef.current.setTime(time);
-      onTimeChange(time);
-      eventInfoRef.current.setTime(time);
+      onTimeChange?.(time);
+      if (eventInfoRef.current) {
+        eventInfoRef.current.setTime(time);
+      }
     });
 
     stream.loadInitial();
@@ -118,6 +119,10 @@ export function RecordingPlayer<
       stream.destroy();
     };
   }, [stream, onTimeChange]);
+
+  useEffect(() => {
+    stream.setSpeed(speed);
+  }, [speed, stream]);
 
   useEffect(() => {
     if (!playerRef.current) {
@@ -172,11 +177,13 @@ export function RecordingPlayer<
         overflow="hidden"
         position="relative"
       >
-        <CurrentEventInfo
-          events={events}
-          onSeek={handleSeek}
-          ref={eventInfoRef}
-        />
+        {events && (
+          <CurrentEventInfo
+            events={events}
+            onSeek={handleSeek}
+            ref={eventInfoRef}
+          />
+        )}
 
         {showPlayButton && (
           <PlayButton onClick={handlePlay}>
@@ -201,6 +208,8 @@ export function RecordingPlayer<
           onPlay={handlePlay}
           onPause={handlePause}
           onSeek={handleSeek}
+          onSpeedChange={setSpeed}
+          speed={speed}
           state={playerState}
           ref={controlsRef}
         />

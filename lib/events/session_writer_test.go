@@ -352,7 +352,9 @@ func withBackoff(timeout, dur time.Duration) sessionWriterOption {
 
 func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessionWriterOption) *sessionWriterTest {
 	eventsCh := make(chan events.UploadEvent, 1)
-	uploader := eventstest.NewMemoryUploader(eventsCh)
+	uploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
+		EventsC: eventsCh,
+	})
 	protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
 	})

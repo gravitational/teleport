@@ -99,9 +99,20 @@ type BotConfig struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
 
+	// DiagSocketForUpdater specifies the path to the diagnostics http service socket that
+	// should be exposed to the updater.
+	DiagSocketForUpdater string `yaml:"-"`
+
+	// PIDFile is the path to the PID file that should be created by the bot.
+	PIDFile string `yaml:"-"`
+
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
+
+	// Testing is set in unit tests to attach a faux service which exposes the
+	// bot's underlying identity and client so we can make assertions on it.
+	Testing bool `yaml:"-"`
 
 	// Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification.
 	// Do not use in production.

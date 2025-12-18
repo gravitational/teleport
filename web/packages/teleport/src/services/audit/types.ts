@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SortDir } from '../agents';
+
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
 // event types when listing event filters and provide modified description of event.
@@ -356,6 +358,12 @@ export const eventCodes = {
   SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
   SCIM_RESOURCE_LIST: 'TSCIM005I',
   SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
+  CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
+  APPAUTHCONFIG_CREATE: 'TAAC001I',
+  APPAUTHCONFIG_UPDATE: 'TAAC002I',
+  APPAUTHCONFIG_DELETE: 'TAAC003I',
+  APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
+  APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
 } as const;
 
 /**
@@ -2099,6 +2107,39 @@ export type RawEvents = {
   [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
     typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
   >;
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
+    typeof eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE,
+    {
+      client_ip_restrictions: string[];
+      success: boolean;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_CREATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_DELETE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS,
+    {
+      app_auth_config: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_FAILURE,
+    {
+      app_auth_config: string;
+      error: string;
+    }
+  >;
 };
 
 /**
@@ -2369,6 +2410,8 @@ export type EventQuery = {
   limit?: number;
   startKey?: string;
   filterBy?: string;
+  search?: string;
+  order: SortDir;
 };
 
 export type EventResponse = {

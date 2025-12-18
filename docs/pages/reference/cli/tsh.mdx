@@ -316,7 +316,7 @@ $ tsh login [<flags>] [<cluster>]
 
 ### Arguments
 
-- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../zero-trust-access/management/admin/trustedclusters.mdx) for more information.
+- `<cluster>` - the name of the cluster,  see [Trusted Cluster](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx) for more information.
 
 ### Flags
 
@@ -917,7 +917,7 @@ $ tsh puttyconfig --port 22 ubuntu@openssh
 $ tsh puttyconfig --leaf example.teleport.sh ec2-user@leaf-node
 ```
 
-See [full docs on `tsh puttyconfig` here](../../connect-your-client/putty-winscp.mdx).
+See [full docs on `tsh puttyconfig` here](../../connect-your-client/third-party/putty-winscp.mdx).
 
 ## tsh recordings ls
 
@@ -1078,7 +1078,7 @@ $ tsh request review [<flags>] <request-id>
 
 ## tsh request search
 
-Search for resources to request access to
+Search for resources to request access to, or list requestable roles.
 
 ```code
 $ tsh request search [<flags>]
@@ -1088,7 +1088,8 @@ $ tsh request search [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--kind` | none | `node`, `kube_cluster`, `kube_resource`, `db`, `app`, `windows_desktop` | Resource kind to search for (required) |
+| `--roles` | false | boolean | List requestable roles instead of searching for resources. Mutually exclusive with --kind. |
+| `--kind` | none | `node`, `kube_cluster`, `kube_resource`, `db`, `app`, `windows_desktop` | Resource kind to search for. Mutually exclusive with --roles. |
 | `--kube-kind` | none | string | Plural name of the kube resource (required when --kind is `kube_resource`) |
 | `--kube-api-group` | none | string | API group of the kube resource (required when --kind is `kube_resource` depending on the resource) |
 | `--search` | none | Comma-separated strings | List of comma-separated search keywords or phrases enclosed in single quotes |

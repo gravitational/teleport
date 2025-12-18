@@ -1198,6 +1198,9 @@ func (m mapLabelGetter) GetAllLabels() map[string]string {
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
 // nothing, wildcard matches everything.
+//
+// Keep in sync with front-end implementation;
+//   - web/packages/teleport/src/Bots/Add/Shared/kubernetes.ts:34
 func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
@@ -2648,6 +2651,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindSAMLIdPServiceProvider:
+		additionalDeniedMessage = "Confirm app_labels."
 	}
 
 	// Check deny rules.

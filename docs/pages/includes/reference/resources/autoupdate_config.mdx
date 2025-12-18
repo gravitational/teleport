@@ -35,7 +35,8 @@ spec:
     schedules:
       regular:
 
-        # name of each group, configured locally via "teleport-update enable --group"
+        # name of each group, configured locally via "teleport-update enable --group".
+        # Agents presenting a missing or empty group are placed in the last group in the list.
         - name: staging
 
           # start_hour of the update, in UTC
@@ -54,6 +55,12 @@ spec:
           # after the previous group. Only valid for the halt-on-error schedule.
           # Default: 0
           wait_hours: 24
+
+          # canary_count specifies the number of agents to update and verify before the rest
+          # of the group. Only valid for the halt-on-error schedule.
+          # Possible values: 0-5
+          # Default: 0
+          canary_count: 5
 
   tools:
     # mode allows users to enable or disable client tool updates at the

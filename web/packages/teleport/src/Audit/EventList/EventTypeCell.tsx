@@ -337,6 +337,12 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SCIM_RESOURCE_GET_FAILURE]: Icons.Warning,
   [eventCodes.SCIM_RESOURCE_LIST]: Icons.Info,
   [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: Icons.Warning,
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_CREATE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_UPDATE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_DELETE]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: Icons.Info,
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {

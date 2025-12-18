@@ -1,7 +1,6 @@
 ---
 title: Enhanced Session Recording for SSH with BPF
 description: How to record your SSH session commands using BPF.
-h1: Enhanced Session Recording with BPF
 videoBanner: 8uO5H-iYw5A
 tags:
  - session-recording
@@ -51,7 +50,7 @@ session). Also, a local user with both monitored and unmonitored console
 sessions or ptrace privileges may not be fully captured in recordings.
 
 Commands executed via daemons (systemd, crond, atd, etc.) could be outside of
-the recorded session scope. Proper network-based restrictions for ingress
+the recorded session scope. Proper network-based restrictions for egress
 traffic must also be implemented to prevent possible unauthorized data transfer.
 
 Additionally, certain forensic information such as full binary paths

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -98,6 +99,9 @@ type Config struct {
 	// GraphEndpoint specifies root domain of the Graph API.
 	GraphEndpoint string
 	Logger        *slog.Logger
+	// MetricsRegistry configures where metrics should be registered.
+	// When nil, metrics are created but not registered.
+	MetricsRegistry *metrics.Registry
 }
 
 // SetDefaults sets the default values for optional fields.
@@ -119,6 +123,9 @@ func (cfg *Config) SetDefaults() {
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, "msgraph")
+	}
+	if cfg.MetricsRegistry == nil {
+		cfg.MetricsRegistry = metrics.NoopRegistry()
 	}
 }
 
@@ -144,6 +151,7 @@ type Client struct {
 	baseURL       *url.URL
 	pageSize      int
 	logger        *slog.Logger
+	metrics       *clientMetrics
 }
 
 // NewClient returns a new client for the given config.
@@ -156,6 +164,13 @@ func NewClient(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	m := newMetrics(cfg.MetricsRegistry)
+	// gracefully handle not being given a metric registry
+	if err := m.register(cfg.MetricsRegistry); err != nil {
+		cfg.Logger.ErrorContext(context.Background(), "Failed to register metrics.", "error", err)
+	}
+
 	return &Client{
 		httpClient:    cfg.HTTPClient,
 		tokenProvider: cfg.TokenProvider,
@@ -164,6 +179,7 @@ func NewClient(cfg Config) (*Client, error) {
 		baseURL:       base.JoinPath(graphVersion),
 		pageSize:      cfg.PageSize,
 		logger:        cfg.Logger,
+		metrics:       m,
 	}, nil
 }
 
@@ -201,6 +217,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 	}
 
 	var lastErr error
+	var start time.Time
 	for range maxRetries {
 		if retryAfter > 0 {
 			select {
@@ -231,10 +248,13 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		// https://learn.microsoft.com/en-us/graph/best-practices-concept#reliability-and-support
 		req.Header.Set("client-request-id", requestID)
 
+		start = c.clock.Now()
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return nil, trace.Wrap(err) // hard I/O error, bail
 		}
+		c.metrics.requestDuration.WithLabelValues(method).Observe(c.clock.Since(start).Seconds())
+		c.metrics.requestTotal.WithLabelValues(method, strconv.Itoa(resp.StatusCode))
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 			return resp, nil

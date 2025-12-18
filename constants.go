@@ -464,9 +464,14 @@ const (
 )
 
 const (
-	// CertExtensionScopePin is used to pin a certificate to a specific scope and
-	// set of scoped roles.
+	// CertExtensionScopePin is used to pin a user certificate to a specific scope and
+	// set of scoped roles. This constrains a user's access to resources based on both
+	// the scoping rules and scoped roles defined.
 	CertExtensionScopePin = "scope-pin@goteleport.com"
+	// CertExtensionAgentScope is used to pin an agent/host certificate to a specific scope.
+	// This constrains other identities' access to the agent itself as well as the agent's
+	// access to other resources based on scoping rules.
+	CertExtensionAgentScope = "agent-scope@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -775,9 +780,18 @@ const (
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 const (
-	// PresetDefaultHealthCheckConfigName is the name of a preset
-	// default health_check_config that enables health checks for all resources.
-	PresetDefaultHealthCheckConfigName = "default"
+	// VirtualDefaultHealthCheckConfigDBName is the name of a virtual
+	// health_check_config that enables health checks for all database
+	// resources. For historical reasons, it's value is "default" even
+	// though it applies to databases only.
+	VirtualDefaultHealthCheckConfigDBName = "default"
+	// VirtualDefaultHealthCheckConfigKubeName is the name of a virtual
+	// health_check_config that enables health checks for all Kubernetes
+	// resources.
+	VirtualDefaultHealthCheckConfigKubeName = "default-kube"
+	// VirtualDefaultHealthCheckConfigCount is the number of virtual
+	// health_check_config resources.
+	VirtualDefaultHealthCheckConfigCount = 2
 )
 
 const (
@@ -817,8 +831,21 @@ const (
 	CurrentSessionIDRequest = "current-session-id@goteleport.com"
 
 	// SessionIDQueryRequest is sent by clients to ask servers if they
-	// will generate their own session ID when a new session is created.
+	// will generate and share their own session ID when a new session
+	// is started (session and exec/shell channels accepted).
+	//
+	// TODO(Joerger): DELETE IN v20.0.0
+	// All v17+ servers set the session ID. v19+ clients stop checking.
 	SessionIDQueryRequest = "session-id-query@goteleport.com"
+
+	// SessionIDQueryRequestV2 is sent by clients to ask servers if they
+	// will generate and share their own session ID when a new session
+	// channel is accepted, rather than when the shell/exec channel is.
+	//
+	// TODO(Joerger): DELETE IN v21.0.0
+	// all v19+ servers set the session ID directly after accepting the session channel.
+	// clients should stop checking in v21, and servers should stop responding to the query in v22.
+	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"

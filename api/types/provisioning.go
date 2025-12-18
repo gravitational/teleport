@@ -87,6 +87,8 @@ const (
 	// JoinMethodBoundKeypair indicates the node will join using the Bound
 	// Keypair join method. See lib/boundkeypair for more.
 	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
+	// JoinMethodEnv0 indicates the node will join using the env0 join method.
+	JoinMethodEnv0 JoinMethod = "env0"
 )
 
 var JoinMethods = []JoinMethod{
@@ -106,6 +108,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
 	JoinMethodBoundKeypair,
+	JoinMethodEnv0,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -147,6 +150,8 @@ type ProvisionToken interface {
 	GetGCPRules() *ProvisionTokenSpecV2GCP
 	// GetGithubRules will return the GitHub rules within this token.
 	GetGithubRules() *ProvisionTokenSpecV2GitHub
+	// GetGitlabRules will return the GitLab rules within this token.
+	GetGitlabRules() *ProvisionTokenSpecV2GitLab
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -173,6 +178,11 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
+
+	// GetAssignedScope always returns an empty string because a [ProvisionToken] is always
+	// unscoped
+	GetAssignedScope() string
+
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
 }
@@ -450,6 +460,14 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
+	case JoinMethodEnv0:
+		if p.Spec.Env0 == nil {
+			p.Spec.Env0 = &ProvisionTokenSpecV2Env0{}
+		}
+
+		if err := p.Spec.Env0.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.env0: failed validation")
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -497,6 +515,11 @@ func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 // GetGithubRules will return the GitHub rules within this token.
 func (p *ProvisionTokenV2) GetGithubRules() *ProvisionTokenSpecV2GitHub {
 	return p.Spec.GitHub
+}
+
+// GetGitlabRules will return the GitLab rules within this token.
+func (p *ProvisionTokenV2) GetGitlabRules() *ProvisionTokenSpecV2GitLab {
+	return p.Spec.GitLab
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
@@ -632,6 +655,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 	name = name[hiddenBefore:]
 	name = strings.Repeat("*", hiddenBefore) + name
 	return name
+}
+
+// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
+// unscoped
+func (p *ProvisionTokenV2) GetAssignedScope() string {
+	return ""
 }
 
 // String returns the human readable representation of a provisioning token.
@@ -1021,6 +1050,9 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 				i,
 			)
 		}
+		if len(rule.Instances) > 100 {
+			return trace.BadParameter("allow[%d]: maximum 100 instances may be set (found %d)", i, len(rule.Instances))
+		}
 	}
 	return nil
 }
@@ -1070,6 +1102,24 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 
 	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
 	// ("") is mapped to RecoveryModeStandard.
+
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodEnv0)
+	}
+
+	for i, allowRule := range a.Allow {
+		if allowRule.OrganizationID == "" {
+			return trace.BadParameter("allow[%d]: organization_id must be set", i)
+		}
+
+		if allowRule.ProjectID == "" && allowRule.ProjectName == "" {
+			return trace.BadParameter("allow[%d]: at least one of ['project_id', 'project_name'] must be set", i)
+		}
+	}
 
 	return nil
 }

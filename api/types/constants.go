@@ -286,6 +286,9 @@ const (
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
+	// KindScopedToken is a provisioning token resource
+	KindScopedToken = "scoped_token"
+
 	// KindCertAuthority is a certificate authority resource
 	KindCertAuthority = "cert_authority"
 
@@ -683,6 +686,9 @@ const (
 
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
+
+	// KindAppAuthConfig is the resource kind for app auth configs.
+	KindAppAuthConfig = "app_auth_config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"

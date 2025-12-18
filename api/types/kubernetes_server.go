@@ -58,6 +58,12 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the kube server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the kube server is
+	// connected to.
+	GetRelayIDs() []string
 	// GetTargetHealth gets health details for a target Kubernetes cluster.
 	GetTargetHealth() *TargetHealth
 	// SetTargetHealth sets health details for a target Kubernetes cluster.
@@ -66,6 +72,8 @@ type KubeServer interface {
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
 	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
@@ -249,6 +257,22 @@ func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [KubeServer].
+func (s *KubernetesServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [KubeServer].
+func (s *KubernetesServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
 func (s *KubernetesServerV3) GetLabel(key string) (value string, ok bool) {
@@ -356,6 +380,11 @@ func (s *KubernetesServerV3) GetStatus() *KubernetesServerStatusV3 {
 		return nil
 	}
 	return s.Status
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *KubernetesServerV3) GetScope() string {
+	return s.Scope
 }
 
 // GetTargetHealth gets the health of a Kubernetes cluster.

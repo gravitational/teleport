@@ -286,7 +286,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			t.Parallel()
 
 			// Start Teleport.
-			clock := clockwork.NewFakeClockAt(time.Now())
+			clock := clockwork.NewFakeClock()
 			sa := newStandaloneTeleport(t, clock)
 			username := sa.Username
 			password := sa.Password
@@ -623,10 +623,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	authAddr, err := authProcess.AuthAddr()
 	require.NoError(t, err)
 
-	// Use the same clock on AuthServer, it doesn't appear to cascade from
-	// configs.
 	authServer := authProcess.GetAuthServer()
-	authServer.SetClock(clock)
 
 	// Initialize user's password and MFA.
 	ctx := context.Background()

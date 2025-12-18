@@ -20,16 +20,24 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -65,6 +73,11 @@ func (c *sessionAuditorConfig) checkAndSetDefaults() error {
 // sessionAuditor handles audit events for a session.
 type sessionAuditor struct {
 	sessionAuditorConfig
+
+	// pendingSessionStartEvent is used to delay sending the session start event
+	// until more metadata is received.
+	pendingSessionStartEvent *apievents.MCPSessionStart
+	mu                       sync.Mutex
 }
 
 func newSessionAuditor(cfg sessionAuditorConfig) (*sessionAuditor, error) {
@@ -76,22 +89,57 @@ func newSessionAuditor(cfg sessionAuditorConfig) (*sessionAuditor, error) {
 	}, nil
 }
 
-func (a *sessionAuditor) shouldEmitEvent(method mcp.MCPMethod) bool {
+type eventOptions struct {
+	err    error
+	header http.Header
+}
+
+type eventOptionFunc func(*eventOptions)
+
+func newEventOptions(options ...eventOptionFunc) (opt eventOptions) {
+	for _, fn := range options {
+		if fn != nil {
+			fn(&opt)
+		}
+	}
+	return
+}
+
+func eventWithError(err error) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.err = err
+	}
+}
+
+func eventWithHTTPResponseError(resp *http.Response, err error) eventOptionFunc {
+	return eventWithError(convertHTTPResponseErrorForAudit(resp, err))
+}
+
+func eventWithHeader(header http.Header) eventOptionFunc {
+	return func(o *eventOptions) {
+		o.header = headersForAudit(header)
+	}
+}
+
+func (a *sessionAuditor) shouldEmitEvent(method string) bool {
 	// Do not record discovery, ping calls.
 	switch method {
-	case mcp.MethodPing,
-		mcp.MethodResourcesList,
-		mcp.MethodResourcesTemplatesList,
-		mcp.MethodPromptsList,
-		mcp.MethodToolsList:
+	case mcputils.MethodPing,
+		mcputils.MethodResourcesList,
+		mcputils.MethodResourcesTemplatesList,
+		mcputils.MethodPromptsList,
+		mcputils.MethodToolsList:
 		return false
 	default:
 		return true
 	}
 }
 
-func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
-	a.emitEvent(ctx, &apievents.MCPSessionStart{
+func (a *sessionAuditor) appendStartEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
+	// Prepare it to have the correct index.
+	preparedEvent, err := a.preparer.PrepareSessionEvent(&apievents.MCPSessionStart{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionStartEvent,
 			events.MCPSessionStartCode,
@@ -101,11 +149,25 @@ func (a *sessionAuditor) emitStartEvent(ctx context.Context) {
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
-		McpSessionId:       a.sessionCtx.mcpSessionID.String(),
+		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.App.GetRewrite()),
 	})
+	if err != nil {
+		a.logger.ErrorContext(ctx, "failed to prepare session start event", "error", err)
+		return
+	}
+	event, ok := preparedEvent.GetAuditEvent().(*apievents.MCPSessionStart)
+	if !ok {
+		a.logger.ErrorContext(ctx, "failed to get session start event from prepared event")
+		return
+	}
+	a.mu.Lock()
+	a.pendingSessionStartEvent = event
+	a.mu.Unlock()
 }
 
-func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
+func (a *sessionAuditor) emitEndEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+
 	event := &apievents.MCPSessionEnd{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionEndEvent,
@@ -119,17 +181,20 @@ func (a *sessionAuditor) emitEndEvent(ctx context.Context, err error) {
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionEndFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
-	a.emitEvent(ctx, event)
+	a.flushAndEmitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputils.JSONRPCNotification, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionNotification{
@@ -142,23 +207,25 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		AppMetadata:     a.makeAppMetadata(),
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			Params:  msg.Params.GetEventParams(),
 		},
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionNotificationFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
-	a.emitEvent(ctx, event)
+	a.flushAndEmitEvent(ctx, event)
 }
 
-func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, err error) {
-	if err == nil && !a.shouldEmitEvent(msg.Method) {
+func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSONRPCRequest, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
+	if opts.err == nil && !a.shouldEmitEvent(msg.Method) {
 		return
 	}
 	event := &apievents.MCPSessionRequest{
@@ -174,21 +241,32 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 		},
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
-			Method:  string(msg.Method),
+			Method:  msg.Method,
 			ID:      msg.ID.String(),
 			Params:  msg.Params.GetEventParams(),
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
 
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionRequestFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
-	a.emitEvent(ctx, event)
+
+	// Initialize should be the first request. Let's not flush session start
+	// event yet but wait for the initialize result. Flush if request is
+	// anything else to avoid delaying.
+	if msg.Method == mcputils.MethodInitialize {
+		a.updatePendingSessionStartEventWithInitializeRequest(msg)
+		a.emitEvent(ctx, event)
+	} else {
+		a.flushAndEmitEvent(ctx, event)
+	}
 }
 
-func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error) {
+func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, options ...eventOptionFunc) {
+	opts := newEventOptions(options...)
 	event := &apievents.MCPSessionListenSSEStream{
 		Metadata: a.makeEventMetadata(
 			events.MCPSessionListenSSEStream,
@@ -200,13 +278,14 @@ func (a *sessionAuditor) emitListenSSEStreamEvent(ctx context.Context, err error
 		Status: apievents.Status{
 			Success: true,
 		},
+		Headers: wrappers.Traits(opts.header),
 	}
-	if err != nil {
+	if opts.err != nil {
 		event.Metadata.Code = events.MCPSessionListenSSEStreamFailureCode
 		event.Status.Success = false
-		event.Status.Error = err.Error()
+		event.Status.Error = opts.err.Error()
 	}
-	a.emitEvent(ctx, event)
+	a.flushAndEmitEvent(ctx, event)
 }
 
 func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Request) {
@@ -223,7 +302,24 @@ func (a *sessionAuditor) emitInvalidHTTPRequest(ctx context.Context, r *http.Req
 		Method:          r.Method,
 		Body:            body,
 		RawQuery:        r.URL.RawQuery,
+		Headers:         wrappers.Traits(r.Header),
 	}
+	a.flushAndEmitEvent(ctx, event)
+}
+
+func (a *sessionAuditor) flush(ctx context.Context) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pendingSessionStartEvent != nil {
+		if err := a.emitter.EmitAuditEvent(ctx, a.pendingSessionStartEvent); err != nil {
+			a.logger.ErrorContext(ctx, "failed to emit session start event", "error", err)
+		}
+		a.pendingSessionStartEvent = nil
+	}
+}
+
+func (a *sessionAuditor) flushAndEmitEvent(ctx context.Context, event apievents.AuditEvent) {
+	a.flush(ctx)
 	a.emitEvent(ctx, event)
 }
 
@@ -285,4 +381,108 @@ func (a *sessionAuditor) makeSessionMetadata() apievents.SessionMetadata {
 
 func (a *sessionAuditor) makeUserMetadata() apievents.UserMetadata {
 	return a.sessionCtx.Identity.GetUserMetadata()
+}
+
+func (a *sessionAuditor) updatePendingSessionStartEvent(fn func(*apievents.MCPSessionStart)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pendingSessionStartEvent != nil {
+		fn(a.pendingSessionStartEvent)
+	}
+}
+
+func (a *sessionAuditor) updatePendingSessionStartEventWithInitializeRequest(msg *mcputils.JSONRPCRequest) {
+	// TODO(greedy52) avoid the Marshal when migrating to official SDK.
+	paramsData, err := json.Marshal(msg.Params)
+	if err != nil {
+		return
+	}
+	var params mcp.InitializeParams
+	if err := json.Unmarshal(paramsData, &params); err != nil {
+		return
+	}
+	a.updatePendingSessionStartEvent(func(sessionStartEvent *apievents.MCPSessionStart) {
+		sessionStartEvent.ProtocolVersion = params.ProtocolVersion
+		sessionStartEvent.ClientInfo = fmt.Sprintf("%s/%s", params.ClientInfo.Name, params.ClientInfo.Version)
+	})
+}
+
+func (a *sessionAuditor) updatePendingSessionStartEventWithInitializeResult(ctx context.Context, resp *mcputils.JSONRPCResponse) {
+	if initResult, err := resp.GetInitializeResult(); err == nil && initResult != nil {
+		a.updatePendingSessionStartEvent(func(sessionStartEvent *apievents.MCPSessionStart) {
+			sessionStartEvent.ServerInfo = fmt.Sprintf("%s/%s", initResult.ServerInfo.Name, initResult.ServerInfo.Version)
+		})
+	}
+
+	// We can flush now as we receive the result.
+	a.flush(ctx)
+}
+
+func (a *sessionAuditor) updatePendingSessionStartEventWithExternalSessionID(sessionID string) {
+	a.updatePendingSessionStartEvent(func(event *apievents.MCPSessionStart) {
+		event.McpSessionId = sessionID
+	})
+}
+
+var headersWithSecret = []string{
+	"Authorization",
+	"X-API-Key",
+}
+
+func headersForAudit(h http.Header) http.Header {
+	if h == nil {
+		return nil
+	}
+	ret := h.Clone()
+	for _, key := range appcommon.ReservedHeaders {
+		ret.Del(key)
+	}
+	for _, key := range headersWithSecret {
+		if len(ret.Values(key)) > 0 {
+			ret.Set(key, "<REDACTED>")
+		}
+	}
+	return ret
+}
+
+// guessEgressAuthType makes an educated guess on what kind of auth is used to
+// for the remote MCP server.
+func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
+	if rewrite != nil {
+		testJWTTraits := map[string][]string{
+			"jwt": {"test", "jwt"},
+		}
+
+		var rewriteAuth bool
+		for _, rewrite := range rewrite.Headers {
+			if strings.EqualFold(rewrite.Name, "Authorization") {
+				rewriteAuth = true
+			}
+
+			// Check if any header value includes "{{internal.jwt}}".
+			if strings.Contains(rewrite.Value, "internal.jwt") {
+				// Apply fake traits just to be sure. The fake traits will
+				// result two values if applied successfully.
+				if interpolated, _ := services.ApplyValueTraits(rewrite.Value, testJWTTraits); len(interpolated) > 1 {
+					return "app-jwt"
+				}
+			}
+		}
+
+		// Auth header has be defined in the app definition but not using
+		// "{{internal.jwt}}".
+		if rewriteAuth {
+			return "app-defined"
+		}
+	}
+
+	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is
+	// defined by the user.
+	if headerWithoutRewrite.Get("Authorization") != "" {
+		return "user-defined"
+	}
+
+	// No auth required for the remote MCP server or something we don't
+	// understand yet.
+	return "unknown"
 }

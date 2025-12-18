@@ -52,9 +52,6 @@ test('download button is available when autoDownload is false', async () => {
           },
         }
       )}
-      clusterGetter={{
-        findCluster: () => undefined,
-      }}
       platform="darwin"
       onDownload={() => {}}
       onMore={() => {}}
@@ -95,9 +92,6 @@ test('error is displayed when cluster specify incompatible versions', async () =
           unreachableClusters: [],
         },
       })}
-      clusterGetter={{
-        findCluster: () => undefined,
-      }}
       platform="darwin"
       onDownload={() => {}}
       onMore={() => {}}

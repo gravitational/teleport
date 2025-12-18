@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/git"
@@ -201,8 +202,7 @@ type Config struct {
 	// Logger specifies the logger
 	Logger *slog.Logger
 
-	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
-	// configuration.
+	// FIPS means Teleport was started in FedRAMP/FIPS mode.
 	FIPS bool
 
 	// Emitter is event emitter
@@ -936,10 +936,14 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		// effectively limit ourselves to only supporting local users by only checking the cert against local CAs.
 		clusterName = s.ClusterName
 
-		if len(ident.Roles) == 0 {
-			return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
+		if ident.ScopePin != nil {
+			certRole = "scoped-identity@" + ident.ScopePin.GetScope()
+		} else {
+			if len(ident.Roles) == 0 {
+				return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
+			}
+			certRole = ident.Roles[0]
 		}
-		certRole = ident.Roles[0]
 		certType = utils.ExtIntCertTypeUser
 		caType = types.UserCA
 	default:
@@ -955,6 +959,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
+			extScope:             ident.AgentScope,
 		},
 	}, nil
 }
@@ -1010,7 +1015,14 @@ func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connTyp
 		return nil, nil, trace.BadParameter("host id not found")
 	}
 
-	rconn, err := s.localCluster.addConn(nodeID, connType, conn, sconn)
+	scope := sconn.Permissions.Extensions[extScope]
+	if scope != "" {
+		if err := scopes.WeakValidate(scope); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	rconn, err := s.localCluster.addConn(nodeID, scope, connType, conn, sconn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1348,9 +1360,9 @@ func getLeafClusterAuthVersion(ctx context.Context, sconn ssh.Conn) (string, err
 }
 
 const (
-	extHost      = "host@teleport"
-	extAuthority = "auth@teleport"
-	extCertRole  = "role"
-
+	extHost        = "host@teleport"
+	extAuthority   = "auth@teleport"
+	extCertRole    = "role"
+	extScope       = "scope@goteleport.com"
 	versionRequest = "x-teleport-version"
 )

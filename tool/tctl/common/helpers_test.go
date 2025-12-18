@@ -120,6 +120,16 @@ func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runScopedCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &ScopedCommand{
+		Stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"scoped"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func runUserCommand(t *testing.T, client *authclient.Client, args []string) error {
 	command := &UserCommand{}
 	args = append([]string{"users"}, args...)
@@ -148,6 +158,16 @@ func runNotificationsCommand(t require.TestingT, client *authclient.Client, args
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runAlertCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &AlertCommand{
+		stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"alerts"}, args...)
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)
@@ -160,6 +180,29 @@ func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
 	var resource services.UnknownResource
 	require.NoError(t, decoder.Decode(&resource))
 	return resource.Raw
+}
+
+// mustTranscodeYAMLDocsToJSON safely transcodes YAML docs for unknown resources.
+func mustTranscodeYAMLDocsToJSON(t *testing.T, r io.Reader) []byte {
+	decoder := kyaml.NewYAMLToJSONDecoder(r)
+	var jsonRaw []json.RawMessage
+
+	for {
+		var resource services.UnknownResource
+		if err := decoder.Decode(&resource); err != nil {
+			// Break when there are no more documents to decode
+			if !errors.Is(err, io.EOF) {
+				require.FailNow(t, "error transcoding YAML docs to JSON: %v", err)
+			}
+			break
+		}
+		jsonRaw = append(jsonRaw, resource.Raw)
+	}
+
+	jsonDocs, err := json.Marshal(jsonRaw)
+	require.NoError(t, err)
+
+	return jsonDocs
 }
 
 func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
@@ -217,6 +260,7 @@ type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
+	enableCache     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -239,6 +283,12 @@ func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	}
 }
 
+func withEnableCache(enableCache bool) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.enableCache = enableCache
+	}
+}
+
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -254,11 +304,12 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 		require.NoError(t, err)
 	}
 
-	cfg.CachePolicy.Enabled = false
+	cfg.CachePolicy.Enabled = options.enableCache
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
+		cfg.Auth.Clock = options.fakeClock
 	}
 	auth, err = service.NewTeleport(cfg)
 

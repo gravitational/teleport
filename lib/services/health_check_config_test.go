@@ -38,6 +38,12 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 			require.ErrorContains(t, err, substr)
 		}
 	}
+	var noErr = func() require.ErrorAssertionFunc {
+		return func(t require.TestingT, err error, _ ...any) {
+			t.(*testing.T).Helper()
+			require.NoError(t, err)
+		}
+	}
 
 	testCases := []struct {
 		name       string
@@ -386,6 +392,16 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 				},
 			},
 			requireErr: errContains("spec.unhealthy_threshold (11) must not be greater than 10"),
+		},
+		{
+			name:       "database virtual default ok",
+			in:         VirtualDefaultHealthCheckConfigDB(),
+			requireErr: noErr(),
+		},
+		{
+			name:       "kube virtual default ok",
+			in:         VirtualDefaultHealthCheckConfigKube(),
+			requireErr: noErr(),
 		},
 	}
 

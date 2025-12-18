@@ -404,3 +404,224 @@ func TestAccessListClone(t *testing.T) {
 	require.Empty(t, cmp.Diff(item, cpy))
 	require.NotSame(t, item, cpy)
 }
+
+func TestEqualIgnoreEphemeralFields(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Now()
+	createAccessList := func(name string) *AccessList {
+		al, err := NewAccessList(
+			header.Metadata{
+				Name:     name,
+				Revision: "rev1",
+			},
+			Spec{
+				Title:       "Test Access List",
+				Description: "Test description",
+				Owners: []Owner{
+					{
+						Name:             "owner1",
+						Description:      "First owner",
+						IneligibleStatus: "ineligible-reason",
+						MembershipKind:   MembershipKindUser,
+					},
+					{
+						Name:             "owner2",
+						Description:      "Second owner",
+						IneligibleStatus: "another-reason",
+						MembershipKind:   MembershipKindUser,
+					},
+				},
+				Audit: Audit{
+					NextAuditDate: baseTime,
+					Recurrence: Recurrence{
+						Frequency:  SixMonths,
+						DayOfMonth: FirstDayOfMonth,
+					},
+					Notifications: Notifications{
+						Start: 14 * 24 * time.Hour,
+					},
+				},
+				MembershipRequires: Requires{
+					Roles:  []string{"role1"},
+					Traits: map[string][]string{"trait1": {"value1"}},
+				},
+				OwnershipRequires: Requires{
+					Roles:  []string{"owner-role"},
+					Traits: map[string][]string{"owner-trait": {"owner-value"}},
+				},
+				Grants: Grants{
+					Roles:  []string{"granted-role"},
+					Traits: map[string][]string{"granted-trait": {"granted-value"}},
+				},
+				OwnerGrants: Grants{
+					Roles:  []string{"owner-granted-role"},
+					Traits: map[string][]string{"owner-granted-trait": {"owner-granted-value"}},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		al.Status = Status{
+			OwnerOf:  []string{"list1", "list2"},
+			MemberOf: []string{"list3", "list4"},
+		}
+
+		return al
+	}
+
+	t.Run("identical access lists are equal", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.True(t, result)
+	})
+
+	t.Run("default behavior does not mutate originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		originalRevision := al1.Metadata.Revision
+		originalStatus := al1.Status
+		originalIneligibleStatus := al1.Spec.Owners[0].IneligibleStatus
+
+		EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+
+		// Verify original values are preserved
+		require.Equal(t, originalRevision, al1.Metadata.Revision)
+		require.Equal(t, originalStatus, al1.Status)
+		require.Equal(t, originalIneligibleStatus, al1.Spec.Owners[0].IneligibleStatus)
+	})
+
+	t.Run("WithSkipClone mutates originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		originalRevision := al1.Metadata.Revision
+		originalIneligibleStatus := al1.Spec.Owners[0].IneligibleStatus
+
+		EqualAccessLists(al1, al2, WithSkipClone(), WithIgnoreEphemeralFields())
+
+		// Verify values were mutated
+		require.Empty(t, al1.Metadata.Revision)
+		require.NotEqual(t, originalRevision, al1.Metadata.Revision)
+		require.Empty(t, al1.Spec.Owners[0].IneligibleStatus)
+		require.NotEqual(t, originalIneligibleStatus, al1.Spec.Owners[0].IneligibleStatus)
+	})
+
+	t.Run("different revisions are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Metadata.Revision = "different-revision"
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.True(t, result)
+	})
+
+	t.Run("different status is ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Status.OwnerOf = []string{"different", "lists"}
+		al2.Status.MemberOf = []string{"other", "lists"}
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.True(t, result)
+	})
+
+	t.Run("different owner ineligible status is ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Owners[0].IneligibleStatus = "completely-different-reason"
+		al2.Spec.Owners[1].IneligibleStatus = ""
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.True(t, result)
+	})
+
+	t.Run("all ignored fields different at once", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		// Change all ignored fields
+		al2.Metadata.Revision = "rev999"
+		al2.Status.OwnerOf = []string{"completely", "different", "lists"}
+		al2.Spec.Owners[0].IneligibleStatus = "new-reason-1"
+		al2.Spec.Owners[1].IneligibleStatus = "new-reason-2"
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.True(t, result)
+	})
+
+	t.Run("different name causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test2")
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.False(t, result)
+	})
+
+	t.Run("different title causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Title = "Different Title"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("different description causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Description = "Different description"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("different owner name causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Owners[0].Name = "different-owner"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("different owner description causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Owners[0].Description = "Different owner description"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("different audit settings cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Audit.Recurrence.Frequency = OneMonth
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("different grants cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Grants.Roles = []string{"different-role"}
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("different membership requires cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.MembershipRequires.Roles = []string{"different-role"}
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+	})
+
+	t.Run("one nil access list", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		var al2 *AccessList
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
+		require.False(t, EqualAccessLists(al2, al1, WithIgnoreEphemeralFields()))
+	})
+}

@@ -208,6 +208,8 @@ message DatabaseServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "status"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // DatabaseServerSpecV3 is the database server spec.
@@ -242,6 +244,11 @@ message DatabaseServerSpecV3 {
   DatabaseV3 Database = 12 [(gogoproto.jsontag) = "database,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 13 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 14;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 15;
 }
 
 // DatabaseServerStatusV3 is the database server status.
@@ -918,6 +925,8 @@ message ServerV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // ServerSpecV2 is a specification for V2 Server
@@ -1025,6 +1034,8 @@ message AppServerV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 6;
 }
 
 // AppServerSpecV3 is the app access server spec.
@@ -1044,6 +1055,11 @@ message AppServerSpecV3 {
   AppV3 App = 5 [(gogoproto.jsontag) = "app"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 7;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 8;
 }
 
 // AppV3List represents a list of app resources.
@@ -1474,6 +1490,9 @@ message TokenRule {
   // AWSARN is used for the IAM join method, the AWS identity of joining nodes
   // must match this ARN. Supports wildcards "*" and "?".
   string AWSARN = 4 [(gogoproto.jsontag) = "aws_arn,omitempty"];
+  // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
+  // must belong to this organization.
+  string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -1545,6 +1564,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2BoundKeypair BoundKeypair = 19 [(gogoproto.jsontag) = "bound_keypair,omitempty"];
   // AzureDevops allows the configuration of options specific to the "azure_devops" join method.
   ProvisionTokenSpecV2AzureDevops AzureDevops = 20 [(gogoproto.jsontag) = "azure_devops,omitempty"];
+  // Env0 allows the configuration of options specific to the "env0" join method.
+  ProvisionTokenSpecV2Env0 Env0 = 21 [(gogoproto.jsontag) = "env0,omitempty"];
 }
 
 // ProvisionTokenSpecV2AzureDevops contains the Azure Devops-specific
@@ -2028,8 +2049,57 @@ message ProvisionTokenSpecV2Oracle {
     // full region names ("us-phoenix-1") and abbreviations ("phx") are allowed.
     // If empty, any region is allowed.
     repeated string Regions = 3 [(gogoproto.jsontag) = "regions,omitempty"];
+    // Instances is a list of the OCIDs of specific instances that are allowed
+    // to join. If empty, any instance matching the other fields in the rule is allowed.
+    // Limited to 100 instance OCIDs per rule.
+    repeated string Instances = 4 [(gogoproto.jsontag) = "instances,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2Env0 contains env0-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Env0 {
+  // Rule is a set of properties the env0 environment might have to be allowed
+  // to use this provision token.
+  message Rule {
+    // OrganizationID is the unique organization identifier, corresponding to
+    // `organizationId` in an Env0 OIDC token.
+    string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+    // ProjectID is a unique project identifier, corresponding to `projectId` in
+    // an Env0 OIDC token.
+    string ProjectID = 2 [(gogoproto.jsontag) = "project_id,omitempty"];
+    // ProjectName is the name of the project under which the job was run
+    // corresponding to `projectName` in an Env0 OIDC token.
+    string ProjectName = 3 [(gogoproto.jsontag) = "project_name,omitempty"];
+    // TemplateID is the unique identifier of the Env0 template, corresponding
+    // to `templateId` in an Env0 OIDC token.
+    string TemplateID = 4 [(gogoproto.jsontag) = "template_id,omitempty"];
+    // TemplateName is the name of the Env0 template, corresponding to
+    // `templateName` in an Env0 OIDC token.
+    string TemplateName = 5 [(gogoproto.jsontag) = "template_name,omitempty"];
+    // EnvironmentID is the unique identifier of the Env0 environment,
+    // corresponding to `environmentId` in an Env0 OIDC token.
+    string EnvironmentID = 6 [(gogoproto.jsontag) = "environment_id,omitempty"];
+    // EnvironmentName is the name of the Env0 environment, corresponding to
+    // `environmentName` in an Env0 OIDC token.
+    string EnvironmentName = 7 [(gogoproto.jsontag) = "environment_name,omitempty"];
+    // WorkspaceName is the name of the Env0 workspace, corresponding to
+    // `workspaceName` in an Env0 OIDC token.
+    string WorkspaceName = 8 [(gogoproto.jsontag) = "workspace_name,omitempty"];
+    // DeploymentType is the env0 deployment type, such as "deploy", "destroy",
+    // etc. Corresponds to `deploymentType` in an Env0 OIDC token.
+    string DeploymentType = 9 [(gogoproto.jsontag) = "deployment_type,omitempty"];
+    // DeployerEmail is the email of the person that triggered the deployment,
+    // corresponding to `deployerEmail` in an Env0 OIDC token.
+    string DeployerEmail = 10 [(gogoproto.jsontag) = "deployer_email,omitempty"];
+    // Env0Tag is a custom tag value corresponding to `env0Tag` when
+    // `ENV0_OIDC_TAG` is set.
+    string Env0Tag = 11 [(gogoproto.jsontag) = "env0_tag,omitempty"];
+  }
+  // Allow is a list of Rules, jobs using this token must match at least one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
@@ -3453,7 +3523,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -4193,6 +4263,9 @@ message AccessRequestConditionsReason {
     (gogoproto.jsontag) = "mode,omitempty",
     (gogoproto.casttype) = "RequestReasonMode"
   ];
+  // Prompt is a custom message prompted to the user for the requested roles or resources searchable
+  // as other roles. This is only applied to the requested roles and resources specifying the prompt.
+  string Prompt = 2 [(gogoproto.jsontag) = "prompt,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
@@ -5176,6 +5249,8 @@ message KubernetesServerV3 {
   ];
   // Status is the Kubernetes server status.
   KubernetesServerStatusV3 status = 6;
+  // The advertized scope of the server which can not change once assigned.
+  string scope = 7;
 }
 
 // KubernetesServerSpecV3 is the Kubernetes server spec.
@@ -5195,6 +5270,11 @@ message KubernetesServerSpecV3 {
   KubernetesClusterV3 Cluster = 5 [(gogoproto.jsontag) = "cluster"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 6 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 7;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 8;
 }
 
 // KubernetesServerStatusV3 is the Kubernetes cluster status.
@@ -5565,6 +5645,13 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+  // LoginHint is an optional username/email provided by the client that will be passed
+  // to the IdP via the 'login_hint' query parameter.
+  string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26;
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -5661,6 +5748,10 @@ message SAMLConnectorSpecV2 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // IncludeSubject is a flag that indicates whether the Subject element is included in the SAML
+  // authentication request. Defaults to false.
+  // Note: Some IdPs will reject requests that contain a Subject.
+  bool IncludeSubject = 21 [(gogoproto.jsontag) = "include_subject,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5774,6 +5865,13 @@ message SAMLAuthRequest {
   bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
   // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
   string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
+  // SubjectIdentifier is an optional username/email provided by the client that will be
+  // passed to prepopulate the IdP's login form
+  string SubjectIdentifier = 25 [(gogoproto.jsontag) = "subject_identifier,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 26;
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -5919,6 +6017,10 @@ message GithubAuthRequest {
   // OAuth flow is used to retrieve GitHub identity info which will be added to
   // the existing user.
   string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
+  // Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+  // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+  // authentication and some differences in locking behavior.
+  string scope = 24;
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -6268,6 +6370,15 @@ message LockTarget {
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
 }
 
+// LockFilter encodes optional filters to apply when listing Lock resources
+message LockFilter {
+  // Targets is a list of targets. Every returned lock must match at least
+  // one of the targets.
+  repeated LockTarget targets = 1;
+  // InForceOnly specifies whether to return active locks only.
+  bool in_force_only = 2;
+}
+
 // AddressCondition represents a set of addresses. Presently the addresses are specified
 // exclusively in terms of IPv4/IPv6 ranges.
 message AddressCondition {
@@ -6337,6 +6448,11 @@ message WindowsDesktopServiceSpecV3 {
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 4 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+
+  // the name of the Relay group that the server is connected to
+  string relay_group = 5;
+  // the list of Relay host IDs that the server is connected to
+  repeated string relay_ids = 6;
 }
 
 // WindowsDesktopFilter are filters to apply when searching for windows desktops.
@@ -8597,7 +8713,7 @@ message AWSOIDCIntegrationSpecV1 {
   // This bucket/prefix/* files must be publicly accessible and contain the following:
   // > .well-known/openid-configuration
   // > .well-known/jwks
-  // Format: s3://<bucket>/<prefix>
+  // Format: `s3://<bucket>/<prefix>`
   // Optional. The proxy's endpoint is used if it is not specified.
   //
   // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
@@ -8609,9 +8725,9 @@ message AWSOIDCIntegrationSpecV1 {
     deprecated = true
   ];
 
-  // Audience is used to record a name of a plugin or a discover service in Teleport
-  // that depends on this integration.
-  // Audience value can be empty or configured with supported preset audience type.
+  // Audience is used to record a name of a plugin or a discover service in
+  // Teleport that depends on this integration.
+  // Audience value can either be empty or "aws-identity-center".
   // Preset audience may impose specific behavior on the integration CRUD API,
   // such as preventing integration from update or deletion. Empty audience value
   // should be treated as a default and backward-compatible behavior of the integration.
@@ -8948,10 +9064,38 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
-  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for.
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
-  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  // If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
+  // Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.
+  AWSOrganizationMatcher Organization = 10 [(gogoproto.jsontag) = "organization,omitempty"];
+}
+
+// AWSOrganizationMatcher specifies an Organization and rules for discovering accounts under that organization.
+message AWSOrganizationMatcher {
+  // OrganizationID is the AWS Organization ID to match against.
+  // Required.
+  string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+  // OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.
+  AWSOrganizationUnitsMatcher OrganizationalUnits = 2 [(gogoproto.jsontag) = "organizational_units,omitempty"];
+}
+
+// AWSOrganizationUnitsMatcher contains rules for matching accounts under an Organization.
+// Accounts that belong to an excluded Organizational Unit, and its children, will be excluded even if they were included.
+message AWSOrganizationUnitsMatcher {
+  // Include is a list of AWS Organizational Unit IDs and children OUs to include.
+  // Accounts that belong to these OUs, and their children, will be included.
+  // Only exact matches or wildcard (*) are supported.
+  // Required.
+  repeated string Include = 1 [(gogoproto.jsontag) = "include,omitempty"];
+
+  // Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+  // Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+  // Only exact matches are supported.
+  // Optional. If empty, no OUs are excluded.
+  repeated string Exclude = 2 [(gogoproto.jsontag) = "exclude,omitempty"];
 }
 
 // AssumeRole provides a role ARN and ExternalID to assume an AWS role
@@ -8961,6 +9105,9 @@ message AssumeRole {
   string RoleARN = 1 [(gogoproto.jsontag) = "role_arn"];
   // ExternalID is the external ID used to assume a role in another account.
   string ExternalID = 2 [(gogoproto.jsontag) = "external_id"];
+  // RoleName is the AWS IAM Role name to assume.
+  // This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.
+  string RoleName = 3 [(gogoproto.jsontag) = "role_name"];
 }
 
 // InstallParams sets join method to use on discovered nodes
@@ -9005,6 +9152,22 @@ message InstallerParams {
   // Note: only supported for Amazon EC2.
   // Group name can only contain alphanumeric characters and hyphens.
   string UpdateGroup = 10 [(gogoproto.jsontag) = "update_group,omitempty"];
+  // HTTPProxySettings defines HTTP proxy settings for making HTTP requests.
+  // When set, this will set the HTTP_PROXY, HTTPS_PROXY, and NO_PROXY environment variables before running the installation.
+  HTTPProxySettings HTTPProxySettings = 11 [(gogoproto.jsontag) = "http_proxy_settings,omitempty"];
+}
+
+// HTTPProxySettings defines HTTP proxy settings for making HTTP and HTTPS requests.
+message HTTPProxySettings {
+  // HTTPProxy is the URL for the HTTP proxy to use when making requests.
+  // When applied, this will set the HTTP_PROXY environment variable.
+  string HTTPProxy = 1 [(gogoproto.jsontag) = "http_proxy,omitempty"];
+  // HTTPSProxy is the URL for the HTTPS Proxy to use when making requests.
+  // When applied, this will set the HTTPS_PROXY environment variable.
+  string HTTPSProxy = 2 [(gogoproto.jsontag) = "https_proxy,omitempty"];
+  // NoProxy is a comma separated list of URLs that will be excluded from proxying.
+  // When applied, this will set the NO_PROXY environment variable.
+  string NoProxy = 3 [(gogoproto.jsontag) = "no_proxy,omitempty"];
 }
 
 // InstallParamEnrollMode is the mode used to enroll the node into the cluster.
@@ -9054,6 +9217,9 @@ message AzureMatcher {
   // Params sets the join method when installing on
   // discovered Azure nodes.
   InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with Azure APIs.
+  // Environment credentials will not be used when this value is set.
+  string Integration = 7 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // GCPMatcher matches GCP resources.

@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
+	"fmt"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -28,13 +29,25 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 )
 
+type FIPSError struct {
+	message string
+}
+
+func (f *FIPSError) Error() string {
+	return f.message
+}
+
+func newFIPSError(message string, args ...any) error {
+	return &FIPSError{fmt.Sprintf("FIPS: "+message, args...)}
+}
+
 // CertChecker is a drop-in replacement for ssh.CertChecker. In FIPS mode,
 // checks if the certificate (or key) were generated with a supported algorithm.
 type CertChecker struct {
 	ssh.CertChecker
 
 	// FIPS means in addition to checking the validity of the key or
-	// certificate, also check that FIPS 140-2 algorithms were used.
+	// certificate, also check that FIPS algorithms were used.
 	FIPS bool
 
 	// OnCheckCert is called when validating host certificate.
@@ -123,12 +136,12 @@ func (c *CertChecker) validateFIPS(key ssh.PublicKey) error {
 func validateFIPSAlgorithm(key ssh.PublicKey) error {
 	cryptoKey, ok := key.(ssh.CryptoPublicKey)
 	if !ok {
-		return trace.BadParameter("unable to determine underlying public key")
+		return trace.Wrap(newFIPSError("unable to determine underlying public key"))
 	}
 	switch k := cryptoKey.CryptoPublicKey().(type) {
 	case *rsa.PublicKey:
 		if k.N.BitLen() != constants.RSAKeySize {
-			return trace.BadParameter("found %v-bit RSA key, only %v-bit supported", k.N.BitLen(), constants.RSAKeySize)
+			return trace.Wrap(newFIPSError("found %v-bit RSA key, only %v-bit supported", k.N.BitLen(), constants.RSAKeySize))
 		}
 	case *ecdsa.PublicKey:
 		if k.Curve != elliptic.P256() && k.Curve != elliptic.P384() {
@@ -136,10 +149,10 @@ func validateFIPSAlgorithm(key ssh.PublicKey) error {
 			if params == nil {
 				return trace.BadParameter("unable to determine curve of ECDSA public key")
 			}
-			return trace.BadParameter("found ECDSA key with curve %s, only P-256 and P-384 are supported", params.Name)
+			return trace.Wrap(newFIPSError("found ECDSA key with curve %s, only P-256 and P-384 are supported", params.Name))
 		}
 	default:
-		return trace.BadParameter("only RSA and ECDSA keys supported")
+		return trace.Wrap(newFIPSError("only RSA and ECDSA keys supported"))
 	}
 	return nil
 }

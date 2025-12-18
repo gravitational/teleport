@@ -103,8 +103,8 @@ export function ActionPicker(props: { input: ReactElement }) {
     (resourceUri: uri.ClusterOrResourceUri) => {
       const clusterUri = uri.routing.ensureClusterUri(resourceUri);
       const cluster = clustersService.findCluster(clusterUri);
-
-      return cluster ? cluster.name : uri.routing.parseClusterName(resourceUri);
+      // Name is empty if the user hasn't logged into that cluster yet.
+      return cluster?.name || uri.routing.parseClusterName(resourceUri);
     },
     [clustersService]
   );

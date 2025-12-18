@@ -2,10 +2,6 @@
 title: Reference for the teleport_server Terraform resource
 sidebar_label: server
 description: This page describes the supported values of the teleport_server resource of the Teleport Terraform provider.
-tags:
- - infrastructure-as-code
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -79,6 +75,7 @@ resource "teleport_server" "ssh_agentless_eice" {
 ### Optional
 
 - `metadata` (Attributes) Metadata is resource metadata (see [below for nested schema](#nested-schema-for-metadata))
+- `scope` (String) The advertized scope of the server which can not change once assigned.
 - `spec` (Attributes) Spec is a server spec (see [below for nested schema](#nested-schema-for-spec))
 
 ### Nested Schema for `metadata`

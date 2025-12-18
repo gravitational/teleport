@@ -1,120 +1,96 @@
 ---
 title: Teleport Upcoming Releases
 description: A timeline of upcoming Teleport releases.
-h1: Upcoming Teleport Releases
 tags:
  - reference
  - platform-wide
 ---
 
-The Teleport team delivers a new major release roughly every 3 months.
+Teleport releases a new major version once per year, and provides
+security-critical support for the current and previous major version. We
+support each major version for 24 months.
+
+The most recent major version of Teleport, referred to as the **current version**,
+is the only major version of Teleport that will receive new features. The
+previous major version, referred to as the **stable Version**, will only receive
+bug fixes and security patches.
 
 ## Teleport
 
-### Teleport 12.3.0
+### Supported releases
 
-####  Automatic user creation for desktop access
+We continue to support the following major versions of Teleport:
 
-Teleport's passwordless access for local users will provide the ability to
-create Windows users on demand, similar to how host-user creation works for SSH
-servers.
+| Version | Release | Release Date      | EOL              | Minimum `tsh` version |
+|---------|---------|-------------------|------------------|-----------------------|
+| Current | v18.x   | July 3, 2025      | August 2027      | v17.0.0               |
+| Stable  | v17.x   | November 16, 2024 | August 2026      | v16.0.0               |
 
-#### SFTP UX enhancements
+### Upcoming releases
 
-Will include fixes for wildcard patterns, excessive audit logging and PyCharm
-compatibility. [#22748](https://github.com/gravitational/teleport/issues/22748)
-[#21518](https://github.com/gravitational/teleport/issues/21518)
-[#22982](https://github.com/gravitational/teleport/issues/22982)
-[#22263](https://github.com/gravitational/teleport/issues/22263)
-[#20863](https://github.com/gravitational/teleport/issues/20863)
-[#23593](https://github.com/gravitational/teleport/issues/23593)
+We plan to release the following versions in the coming months:
 
-| Version | Date          |
-|---------|---------------|
-| 12.3.0  | May 1st, 2023 |
+| Version | Date                       |
+|---------|----------------------------|
+| 18.3.0  | Week of October 27, 2025   |
+| 18.4.0  | Week of November 10, 2025  |
+| 19.0.0  | August 2026                |
 
-### Teleport 13.0.0
+### 18.3.0
 
-| Version        | Date             |
-|----------------|------------------|
-| 13.0.0-alpha.1 | April 17th, 2023 |
-| 13.0.0         | May 8th, 2023    |
+#### Web UI Workload ID
 
-####  Automatic updates
+Teleport's web UI will list all workload identity resources registered in the cluster.
 
-Users will be able to configure Teleport Agents to upgrade automatically.
+#### Relay Service
 
-####  TLS routing through ALB for server access and Kubernetes access
+Teleport will ship with a new Relay Service that acts as a lightweight Proxy Service,
+receiving connections from both SSH clients and agents.
 
-Teleport will support server access and Kubernetes access through load
-balancers in TLS routing mode.
+The Relay Service can be used to avoid routing SSH connections through the broader Teleport
+control plane, providing the ability to optimize network flows in large or complex deployments.
 
-####  Ability to import applications and groups from Okta
+#### Multi-cluster Discovery
 
-Teleport will be able to imports Okta apps and groups and users will be able to
-use Access Requests with Okta apps and groups.
+Teleport EC2 auto-discovery will support a use-case in which multiple Teleport clusters
+discover the same EC2 instances without interfering with each other.
 
-####  AWS OpenSearch support for database access
+#### Kubernetes Health Checks
 
-Database access will add support for connecting to AWS OpenSearch.
+The Kubernetes service will perform regular health checks for registered Kubernetes clusters.
+Health status will be reported in the Teleport web UI and reflected in kube_server resources.
+Teleport will prioritizes healthy services when routing user connections to Kubernetes clusters.
 
-#### Cross-Cluster Search for Teleport Connect
+#### ElastiCache Serverless
 
-Teleport Connect will include a new search experience, allowing you to search
-for and connect to resources across all logged-in clusters.
+Teleport will support connecting to ElastiCache Serverless databases.
 
-#### Kubernetes access performance improvements
+### 18.4.0
 
-Users will experience better performance when interacting with Kubernetes clusters.
+#### Streamable-HTTP and SSE support for MCP Zero-Trust Access
 
-#### Universal binaries (including Apple Silicon) for macOS
+MCP Zero-Trust Access users will be able to secure and audit connections to MCP
+servers that use HTTP-based transport protocols in addition to stdio.
 
-Teleport will run natively on ARM Macs, without the need for Rosetta emulation.
+#### Improved Bot Instances Dashboard
 
-#### Simplified RDS onboarding flow in Access Management UI
+The Bot Instances dashboard will now provide a more intuitive interface
+for managing a fleet of Machine & Workload Identity bot instances. This will
+include improved filtering, sorting and searching capabilities, and a high-level
+overview of the versions of all bot instances in the cluster.
 
-Teleport Access Management UI will provide ability to connect to AWS account
-and select RDS databases for onboarding.
+#### Kubernetes support for Relay Service
 
-#### Light theme for Web UI
-
-Teleport's web UI will ship with an optional light theme.
-
-#### Other
-
-In addition, the following improvements
-
-- Improved SQL Server PKINIT Auth support
-- Session recording video export support for Teleport-protected desktops
-- Add support for locking to Web UI
-- Device listing in Web UI
-
-### 13.1.0
-
-####  GCP Auto-Discovery for server access
-
-Teleport will be able to automatically enroll GCP VM for server access.
-
-####  OpsGenie Access Request Plugin
-
-Teleport will include OpsGenie access plugin.
-
-*Delayed from Teleport 13.0.0.*
-
-| Version | Date           |
-|---------|----------------|
-| 12.3.0  | June 1st, 2023 |
+The relay service will be extended to facilitate Kubernetes connections.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                          |
-|------------------|------------------------------------------------------|
-| April 10th, 2023 | Teleport 12.2 begins to roll out for Cloud customers |
-| May 8th, 2023    | Add support for hosted Access Request plugins        |
-| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers |
-| June 5th, 2023   | Advanced Audit Log rollout begins                    |
+| Week of            | Description                                                  |
+|--------------------|--------------------------------------------------------------|
+| October 20, 2025   | Teleport 18.3 will begin rollout on Cloud.                   |
+| October 20, 2025   | Teleport 18.3 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
@@ -155,18 +131,6 @@ minor release, such as (=teleport.major_version=).1.0.
 Patch releases contain small bug fixes and can typically be deployed directly
 to production.
 
-## Preview Policy
+## Version compatibility
 
-A product or feature may be marked as "Preview" if any of the following is
-true.
-
-- The product or feature is missing key functionality. For example, Microsoft
-  SQL Server support for database access initially shipped without audit
-  logging support.
-- The product or feature has NOT been adopted by at least 2 existing customers.
-- The product or feature has NOT been through a security audit.
-- The documentation for the product or feature is incomplete.
-- Assets (e.g. binaries) associated with the feature are not published to our
-  official downloads page.
-
-Use preview features in production if the above issues are not a concern.
+(!docs/pages/includes/compatibility.mdx!)

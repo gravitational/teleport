@@ -49,23 +49,24 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
-	"github.com/gravitational/teleport/lib/srv/db/endpoints"
+	"github.com/gravitational/teleport/lib/srv/db/healthchecks"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 )
 
-func registerTestEndpointResolver(t *testing.T, builder endpoints.ResolverBuilder, names ...string) {
+func registerTestEndpointResolver(t *testing.T, builder healthchecks.HealthCheckerBuilder, names ...string) {
 	// prevent parallel tests from running with the modified endpoint resolver.
 	t.Setenv("registerTestEndpointResolver", "NO PARALLEL ALLOWED")
-	origBuilders, err := endpoints.GetResolverBuilders(names...)
+	origBuilders, err := healthchecks.GetHealthCheckBuilders(names...)
 	require.NoError(t, err, "trying to override a resolver that isn't registered")
-	endpoints.RegisterResolver(builder, names...)
+	healthchecks.RegisterHealthChecker(builder, names...)
 	t.Cleanup(func() {
 		for name, origBuilder := range origBuilders {
-			endpoints.RegisterResolver(origBuilder, name)
+			healthchecks.RegisterHealthChecker(origBuilder, name)
 		}
 	})
 }
@@ -704,11 +705,7 @@ func TestHealthCheck(t *testing.T) {
 		withSnowflake("snowflake")(t, ctx, testCtx),
 	}
 	for _, db := range databases {
-		if db.GetProtocol() == defaults.ProtocolMySQL {
-			require.False(t, endpoints.IsRegistered(db), "health checks for MySQL protocol should be disabled")
-			continue
-		}
-		require.True(t, endpoints.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
+		require.True(t, healthchecks.IsRegistered(db), "database %v does not have a registered endpoint resolver", db.GetName())
 	}
 	dynamoListenAddr := net.JoinHostPort("localhost", testCtx.dynamodb["dynamodb"].db.Port())
 	dynamoResolver := &fakeEndpointResolver{
@@ -727,8 +724,8 @@ func TestHealthCheck(t *testing.T) {
 			testCtx.snowflake["snowflake"].resource.GetURI(): snowflakeListenAddr,
 		},
 	}
-	registerTestEndpointResolver(t, dynamoResolver.build, defaults.ProtocolDynamoDB)
-	registerTestEndpointResolver(t, snowflakeResolver.build, defaults.ProtocolSnowflake)
+	registerTestEndpointResolver(t, dynamoResolver.newHealthChecker, defaults.ProtocolDynamoDB)
+	registerTestEndpointResolver(t, snowflakeResolver.newHealthChecker, defaults.ProtocolSnowflake)
 
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: databases,
@@ -750,12 +747,6 @@ func TestHealthCheck(t *testing.T) {
 			t.Parallel()
 			dbServer, err := testCtx.server.getServerInfo(ctx, db)
 			require.NoError(t, err)
-			if db.GetProtocol() == defaults.ProtocolMySQL {
-				require.Equal(t, "unknown", dbServer.GetTargetHealth().Status)
-				require.Equal(t, "disabled", dbServer.GetTargetHealth().TransitionReason)
-				require.Equal(t, `endpoint health checks for database protocol "mysql" are not supported`, dbServer.GetTargetHealth().Message)
-				return
-			}
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				require.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
 			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
@@ -786,19 +777,19 @@ func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.Health
 type fakeEndpointResolver struct {
 	t *testing.T
 	// builder is the builder that this fake resolver wraps.
-	builder endpoints.ResolverBuilder
+	builder func(ctx context.Context, db types.Database) (healthcheck.Resolver, error)
 	// rewrite is a map of host:port addresses to rewrite.
 	// The resolver asserts an error if an address is not found in this map.
 	rewrite map[string]string
 }
 
-func (f *fakeEndpointResolver) build(ctx context.Context, db types.Database, cfg endpoints.ResolverBuilderConfig) (endpoints.Resolver, error) {
+func (f *fakeEndpointResolver) newHealthChecker(ctx context.Context, cfg healthchecks.HealthCheckerConfig) (healthcheck.HealthChecker, error) {
 	f.t.Helper()
-	resolver, err := f.builder(ctx, db, cfg)
+	resolver, err := f.builder(ctx, cfg.Database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return endpoints.ResolverFn(func(ctx context.Context) ([]string, error) {
+	return healthcheck.NewTargetDialer(func(ctx context.Context) ([]string, error) {
 		f.t.Helper()
 		addrs, err := resolver.Resolve(ctx)
 		if err != nil {

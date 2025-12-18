@@ -14,6 +14,7 @@ The predicate language uses a slightly different syntax depending on whether it 
 - [Role resources](#scoping-allowdeny-rules-in-role-resources)
 - [Resource filtering](#resource-filtering)
 - [Label expressions](#label-expressions)
+- [Access Monitoring Rules](#access-monitoring-rules)
 
 ## Scoping allow/deny rules in role resources
 
@@ -93,17 +94,27 @@ available:
 | `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (server, application, etc.) being accessed. |
 | `user.spec.traits` | `map[string][]string`   | All traits of the user accessing the resource (referred to as `external` or `internal` in role template expressions). |
 
-The language supports the following functions:
+The language supports the following operators:
+
+| Operator | Meaning                             | Example |
+|----------|-------------------------------------|---------|
+| ==       | equal to                            | `labels["env"] == "staging"` |
+| !=       | not equal to                        | `labels["env"] != "production"` |
+| \|\|     | or (any one condition should match) | `labels["env"] == "staging" \|\| labels["env"] == "test"` |
+| &&       | and (all conditions must match)     | `labels["env"] == "staging" && labels["team"] == "dev"` |
+| !        | not (logical negation)              | `!regexp.match(user.spec.traits["teams"], "contractor")` |
+
+The language also supports the following functions:
 
 | Syntax | Return type | Description | Example |
 |--------|-------------|-------------|---------|
 | `contains(list, item)` | Boolean | Returns true if `list` contains an exact match for `item` | `contains(user.spec.traits[teams], labels["team"])` |
 | `regexp.match(list, re)` | Boolean | Returns true if `list` contains a match for `re` | `regexp.match(labels["team"], "dev-team-\d+$")` |
-| `regexp.replace(list,` `re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"],` `"^env-(.*)$", "$1"), labels["env"])`
-| `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]),` `labels["owner"])`
-| `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]),` `labels["owner"])`
-| `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]),` `labels["owner"])`
-| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression | `contains(labels_matching("^project-(team\|label)$"),` `"security")`
+| `regexp.replace(list,` `re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"],` `"^env-(.*)$", "$1"), labels["env"])` |
+| `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]),` `labels["owner"])` |
+| `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]),` `labels["owner"])` |
+| `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]),` `labels["owner"])` |
+| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression | `contains(labels_matching("^project-(team\|label)$"),` `"security")` |
 | `contains_any(list, items)` | Boolean | Returns true if `list` contains an exact match for any element of `items` | `contains_any(user.spec.traits["projects"],` `labels_matching("project-*"))` |
 | `contains_all(list, items)` | Boolean | Returns true if `list` contains an exact match for all elements of `items` | `contains_all(user.spec.traits["projects"],` `labels_matching("project-*"))` |
 
@@ -111,12 +122,43 @@ Above, any argument named `list` can accept a list of values (like the list of
 values for a specific user trait) or a single value (like the value of a
 resource label or a string literal).
 
-The language also supports the following operators:
+## Access Monitoring Rules
 
-| Operator | Meaning                             | Example |
-|----------|-------------------------------------|---------|
-| ==       | equal to                            | `labels["env"] == "staging"` |
-| !=       | not equal to                        | `labels["env"] != "production"` |
-| \|\|      | or (any one condition should match) | `labels["env"] == "staging" \|\| labels["env"] == "test"` |
-| &&       | and (all conditions must match)     | `labels["env"] == "staging" && labels["team"] == "dev"` |
-| !        | not (logical negation)              | `!regexp.match(user.spec.traits["teams"], "contractor")` |
+Access Monitoring Rules use the predicate language to define conditions for
+applying notification routing rules or automatic review rules to Access Requests.
+
+Access Monitoring Rules support a predicate language with the following fields
+available:
+
+| Field                                            | Description                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------- |
+| access_request.spec.roles                        | The set of roles requested.                                         |
+| access_request.spec.suggested_reviewers          | The set of reviewers specified in the request.                      |
+| access_request.spec.system_annotations           | A map of system annotations on the request.                         |
+| access_request.spec.user                         | The requesting user.                                                |
+| access_request.spec.request_reason               | The request reason.                                                 |
+| access_request.spec.creation_time                | The creation time of the request.                                   |
+| access_request.spec.expiry                       | The expiry time of the request.                                     |
+| access_request.spec.resource_labels_intersection | A map containing the intersection of all requested resource labels. |
+| access_request.spec.resource_labels_union        | A map containing the union of all requested resource labels.        |
+| user.traits                                      | A map of traits of the requesting user.                             |
+
+The language supports the following operators:
+
+| Operator | Meaning                              | Example                                                |
+|----------|--------------------------------------|--------------------------------------------------------|
+| ==       | equal to                             | `access_request.spec.user == "example_user"`           |
+| !=       | not equal to                         | `access_request.spec.user != "example_user"`           |
+| &&       | and (all conditions must match)      | `regexp.match(user.traits["level"], "^L1$") && regexp.match(user.traits["team"], "^Cloud$")` |
+| \|\|     | or  (any one condition should match) | `regexp.match(user.traits["level"], "^L1$") \|\| regexp.match(user.traits["team"], "^Cloud$")` |
+| !        | not (used with functions)            | `!regexp.match(set(access_request.spec.request_reason), "*important*")` |
+
+The language also supports the following functions:
+
+| Functions | Description | Example |
+|-----------|-------------|---------|
+| `contains_any(set, items)` | Returns true if `set` contains an exact match for any element of `items` | `contains_any(user.traits["team"], set("dev", "stage"))` |
+| `contains_all(set, items)` | Returns true if `set` contains an exact match for all elements of `items` | `contains_all(set("dev"), access_request.spec.roles)` |
+| `set.contains(item)` | Returns true if `set` contains an exact match for `item` | `access_request.spec.roles.contains("example_role")` |
+| `regexp.match(set, re)` | Returns true if `set` contains a match for `re` | `regexp.match(set(access_request.spec.request_reason), "*on-call*")` |
+| `is_empty(set)`| Returns true if `set` contains no elements | `is_empty(access_request.spec.roles)` |

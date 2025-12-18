@@ -1,6 +1,8 @@
 ---
 title: Machine and Workload Identity Getting Started Guide
 description: Getting started with Teleport Machine and Workload Identity
+sidebar_label: Getting Started
+sidebar_position: 2
 videoBanner: YzVK2tr6u-U
 tags:
  - get-started
@@ -11,8 +13,8 @@ tags:
 {/* lint disable page-structure remark-lint */}
 
 Teleport Machine and Workload Identity (MWI) provides secure access for Non-Human Identities across multiple platforms
-and resource types, supporting everything from [Infrastructure-as-Code](../machine-workload-identity/iac-mwi.mdx)
-workflows to [AI agent](../machine-workload-identity/ai-agents-mwi.mdx) operations. This guide focuses on a popular
+and resource types, supporting everything from [Infrastructure-as-Code](./use-cases/iac-mwi.mdx)
+workflows to [AI agent](./use-cases/ai-agents-mwi.mdx) operations. This guide focuses on a popular
 implementation: executing commands on deployment targets through CI/CD pipelines. Even if your specific use case differs,
 this guide covers the fundamental MWI setup process, after which you can reference the dedicated use case pages for tool-specific guidance.
 
@@ -26,7 +28,7 @@ Here's an overview of what you will do:
 
 This guide covers configuring MWI for development and learning purposes.
 For a production-ready configuration of MWI, visit the [Deploying Machine
-ID](../machine-workload-identity/machine-id/deployment/deployment.mdx) guides.
+ID](../machine-workload-identity/deployment/deployment.mdx) guides.
 
 ## Prerequisites
 
@@ -266,7 +268,7 @@ $ tctl create -f join_token.yaml
 
 ## Step 5/5 Access a resource from GitHub Actions
 
-We have several published [Actions](../reference/machine-workload-identity/machine-id/github-actions.mdx#github-actions-helpers)
+We have several published [Actions](../reference/deployment/join-methods.mdx#github-actions-helpers)
 for convenience, but for this guide we will look at things explicitly to aid understanding.
 
 Within your GitHub repository, you'll create two different files:
@@ -292,7 +294,7 @@ onboarding:
 certificate_ttl: 5m
 storage:
   type: memory
-outputs:
+services:
   - type: identity
     destination:
       type: directory
@@ -377,7 +379,7 @@ onboarding:
 certificate_ttl: 5m
 storage:
   type: memory
-outputs:
+services:
   - type: kubernetes/v2
     selectors:
       - name: my-kubernetes-cluster
@@ -466,11 +468,11 @@ without distributing long-lived credentials, making the process more secure and 
 
 ## Next Steps
 
-- Check out the [deployment guides](./machine-id/deployment/deployment.mdx) to learn about
+- Check out the [deployment guides](./deployment/deployment.mdx) to learn about
   configuring `tbot` in a production-ready way for your platform.
-- Check out the [access guides](./machine-id/access-guides/access-guides.mdx) to learn about configuring
+- Check out the [access guides](./access-guides/access-guides.mdx) to learn about configuring
   `tbot` for other use cases than SSH and Kubernetes.
-- Read the [configuration reference](../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
 - Learn how [Workload Identities](../machine-workload-identity/workload-identity/introduction.mdx) enable the same capabilities
   for resources like cloud APIs that can't be protected with the Teleport proxy.

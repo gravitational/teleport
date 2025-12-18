@@ -134,6 +134,86 @@ func TestAccessListMembers(t *testing.T) {
 	}
 }
 
+func TestAccessListMembers_suffixed_lists_members_bug(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+
+	al1, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "test-1", clock))
+	require.NoError(t, err)
+	al1Suffix, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, al1.GetName()+"-suffix", clock))
+	require.NoError(t, err)
+
+	al1SuffixM1, err := p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al1Suffix.GetName(), "member-1"))
+	require.NoError(t, err)
+
+	// Eventually, this should be reflected in the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		al1SuffixMembers, _, err := p.cache.ListAccessListMembers(ctx, al1Suffix.GetName(), 0, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, al1SuffixMembers)
+	}, time.Second*2, time.Millisecond*250)
+
+	al1Members, _, err := p.cache.ListAccessListMembers(ctx, al1.GetName(), 0, "")
+	require.NoError(t, err)
+	al1SuffixMembers, _, err := p.cache.ListAccessListMembers(ctx, al1Suffix.GetName(), 0, "")
+	require.NoError(t, err)
+
+	require.Empty(t, al1Members)
+	require.Len(t, al1SuffixMembers, 1)
+	require.Equal(t, al1SuffixMembers[0].GetName(), al1SuffixM1.GetName())
+}
+
+func TestAccessListMembers_pageToken_compatibility(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	clock := clockwork.NewFakeClock()
+
+	al1, err := p.accessLists.UpsertAccessList(ctx, newAccessList(t, "test-1", clock))
+	require.NoError(t, err)
+
+	const membersCnt = 50
+
+	for i := range membersCnt {
+		_, err := p.accessLists.UpsertAccessListMember(ctx, newAccessListMember(t, al1.GetName(), "member-"+strconv.Itoa(i)))
+		require.NoError(t, err)
+	}
+
+	// Eventually, this should be reflected in the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		al1Members, _, err := p.cache.ListAccessListMembers(ctx, al1.GetName(), 0, "")
+		require.NoError(t, err)
+		require.Len(t, al1Members, membersCnt)
+	}, time.Second*2, time.Millisecond*250)
+
+	const pageSize = 2
+	calls := 0
+	var localNextToken, cacheNextToken string
+	for range membersCnt * 2 {
+		calls++
+
+		_, localNextToken, err = p.accessLists.ListAccessListMembers(ctx, al1.GetName(), pageSize, localNextToken)
+		require.NoError(t, err)
+		_, cacheNextToken, err = p.cache.ListAccessListMembers(ctx, al1.GetName(), pageSize, cacheNextToken)
+		require.NoError(t, err)
+
+		require.Equal(t, localNextToken, cacheNextToken)
+
+		if localNextToken == "" {
+			break
+		}
+	}
+	require.Equal(t, membersCnt/pageSize, calls)
+}
+
 // TestAccessListReviews tests that CRUD operations on access list review resources are
 // replicated from the backend to the cache.
 func TestAccessListReviews(t *testing.T) {

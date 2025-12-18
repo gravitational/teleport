@@ -104,6 +104,9 @@ message DeleteBotInstanceRequest {
 message SubmitHeartbeatRequest {
   // The heartbeat data to submit.
   BotInstanceStatusHeartbeat heartbeat = 1;
+
+  // The health of the services/output `tbot` is running.
+  repeated BotInstanceServiceHealth service_health = 2;
 }
 
 // The response for SubmitHeartbeat.

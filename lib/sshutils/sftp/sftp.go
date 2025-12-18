@@ -135,7 +135,7 @@ func (req *FileTransferRequest) checkAndSetDefaults() error {
 	)
 	if req.ProgressWriter != nil && req.ProgressStream == nil {
 		req.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return NewProgressBar(fileInfo.Size(), fileInfo.Name(), req.ProgressWriter)
+			return newProgressBar(fileInfo.Size(), fileInfo.Name(), req.ProgressWriter)
 		}
 	}
 	return nil
@@ -607,7 +607,7 @@ func transferFile(ctx context.Context, req *FileTransferRequest, dstPath, srcPat
 			err,
 		)
 	}
-	if n != srcFileInfo.Size() {
+	if n < srcFileInfo.Size() {
 		return trace.Errorf("error copying %s file %q to %s file %q: short write: wrote %d bytes, expected to write %d bytes",
 			req.srcFS.Type(),
 			srcPath,
@@ -694,11 +694,35 @@ func getAtime(fi os.FileInfo) time.Time {
 	return scp.GetAtime(fi)
 }
 
-// NewProgressBar returns a new progress bar that writes to writer.
-func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.ProgressBar {
+// unboundedProgressBar is a wrapper for a progress bar that increases its max
+// value when its internal count gets too big, instead of failing.
+type unboundedProgressBar struct {
+	pb *progressbar.ProgressBar
+}
+
+func (u *unboundedProgressBar) checkMax(n int) {
+	state := u.pb.State()
+	newNum := state.CurrentNum + int64(n)
+	if newNum > state.Max {
+		u.pb.ChangeMax64(newNum)
+	}
+}
+
+func (u *unboundedProgressBar) Read(p []byte) (int, error) {
+	u.checkMax(len(p))
+	return u.pb.Read(p)
+}
+
+func (u *unboundedProgressBar) Write(p []byte) (int, error) {
+	u.checkMax(len(p))
+	return u.pb.Write(p)
+}
+
+// newProgressBar returns a new progress bar that writes to writer.
+func newProgressBar(size int64, desc string, writer io.Writer) *unboundedProgressBar {
 	// this is necessary because progressbar.DefaultBytes doesn't allow
 	// the caller to specify a writer
-	return progressbar.NewOptions64(
+	return &unboundedProgressBar{pb: progressbar.NewOptions64(
 		size,
 		progressbar.OptionSetDescription(desc),
 		progressbar.OptionSetWriter(writer),
@@ -712,7 +736,7 @@ func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.Prog
 		progressbar.OptionSpinnerType(14),
 		progressbar.OptionFullWidth(),
 		progressbar.OptionSetRenderBlankState(true),
-	)
+	)}
 }
 
 // NonRecursiveDirectoryTransferError is returned when an attempt is made

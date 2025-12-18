@@ -567,6 +567,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent:
 		e = &events.SCIMResourceEvent{}
 
+	case ClientIPRestrictionsUpdateEvent:
+		e = &events.ClientIPRestrictionsUpdate{}
+
+	case AppAuthConfigCreateEvent:
+		e = &events.AppAuthConfigCreate{}
+	case AppAuthConfigUpdateEvent:
+		e = &events.AppAuthConfigUpdate{}
+	case AppAuthConfigDeleteEvent:
+		e = &events.AppAuthConfigDelete{}
+	case AppAuthConfigVerifySuccessCode:
+		e = &events.AppAuthConfigVerify{}
+	case AppAuthConfigVerifyFailureEvent:
+		e = &events.AppAuthConfigVerify{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

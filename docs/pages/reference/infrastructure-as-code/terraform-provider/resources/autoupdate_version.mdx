@@ -2,10 +2,6 @@
 title: Reference for the teleport_autoupdate_version Terraform resource
 sidebar_label: autoupdate_version
 description: This page describes the supported values of the teleport_autoupdate_version resource of the Teleport Terraform provider.
-tags:
- - infrastructure-as-code
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -65,8 +61,8 @@ Optional:
 
 - `mode` (String) autoupdate_mode to use for the rollout
 - `schedule` (String) schedule to use for the rollout
-- `start_version` (String) start_version is the version to update from.
-- `target_version` (String) target_version is the version to update to.
+- `start_version` (String) start_version is the version used for newly installed agents before their update window.
+- `target_version` (String) target_version is the version that all agents will update to during their update window.
 
 
 ### Nested Schema for `spec.tools`

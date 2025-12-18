@@ -159,6 +159,8 @@ read [Exporting Teleport Audit Events](../../../zero-trust-access/export-audit-e
 | mcp.session.end | An MCP server session has ended. |
 | mcp.session.notification | A notification has been sent from the MCP client. |
 | mcp.session.request | A request has been sent from the MCP client. |
+| mcp.session.listen_sse_stream | Streamable HTTP client has started to listening server notifications via an SSE stream. |
+| mcp.session.invalid_http_request | The client has sent an HTTP request that Teleport could not process. |
 
 ## Recorded sessions
 
@@ -241,4 +243,49 @@ spec:
   options:
     record_session:
       ssh: strict
+```
+
+### Enable Recording Proxy Mode
+
+Edit the Auth Service configuration file as follows:
+ 
+```yaml
+# snippet from /etc/teleport.yaml
+auth_service:
+   # Session Recording must be set to Proxy to work with OpenSSH
+   session_recording: "proxy"  # can also be "off" and "node" (default)
+```
+
+<Admonition type="warning" >
+ 
+The use of Proxy Recording Mode across your cluster is no longer necessary to support
+[OpenSSH servers](../../../enroll-resources/server-access/openssh/openssh-agentless.mdx).
+Proxy Recording Mode is automatically used for OpenSSH servers without the need for SSH
+agent forwarding, which is the primary security concern for this mode.
+ 
+Recording Proxy Mode will continue to be supported for legacy OpenSSH support and other
+use cases, but many existing and new features will not be supported in this mode due
+to several technical limitations it introduces.
+ 
+</Admonition>
+
+#### Optional insecure step: Disable strict host checking
+ 
+When in Recording Proxy Mode, Teleport will check that the host certificate of any
+Node a user connects to is signed by a Teleport CA. By default, this is a strict
+check. If the Node presents just a key or a certificate signed by a different
+CA, Teleport will reject this connection with the error message:
+ 
+```text
+ssh: handshake failed: remote host presented a public key, expected a host
+certificate
+```
+ 
+You can disable strict host checks as shown below. However, this opens the
+possibility for Person-in-the-Middle attacks and is not recommended.
+ 
+```yaml
+# snippet from /etc/teleport.yaml
+auth_service:
+  proxy_checks_host_keys: false
 ```

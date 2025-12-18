@@ -308,7 +308,7 @@ func toOpType(rec streamtypes.Record) (types.OpType, error) {
 	case streamtypes.OperationTypeRemove:
 		return types.OpDelete, nil
 	default:
-		return -1, trace.BadParameter("unsupported DynamodDB operation: %v", rec.EventName)
+		return -1, trace.BadParameter("unsupported DynamoDB operation: %v", rec.EventName)
 	}
 }
 

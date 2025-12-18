@@ -17,6 +17,7 @@ limitations under the License.
 package events
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -24,8 +25,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
+// TestTrimToMaxSize tests TrimToMaxSize implementation of several events.
+// It also tests trimEventToMaxSize used by these events.
 func TestTrimToMaxSize(t *testing.T) {
 	type messageSizeTrimmer interface {
 		TrimToMaxSize(int) AuditEvent
@@ -125,6 +130,35 @@ func TestTrimToMaxSize(t *testing.T) {
 				cmpopts.IgnoreFields(UserLogin{}, "IdentityAttributes"),
 			},
 		},
+		{
+			name:    "MCPSessionInvalidHTTPRequest trimmed",
+			maxSize: 200,
+			in: &MCPSessionInvalidHTTPRequest{
+				// Metadata not being trimmed.
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: strings.Repeat("/path", 10),
+				Body: bytes.Repeat([]byte("body"), 10),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 20)},
+					"B": {strings.Repeat("b", 20)},
+				},
+			},
+			want: &MCPSessionInvalidHTTPRequest{
+				Metadata: Metadata{
+					Code: "TMCP006E",
+					Type: "mcp.session.invalid_http_request",
+				},
+				Path: "/path/path/path/",
+				Body: []byte("bodybodybodybody"),
+				Headers: wrappers.Traits{
+					"A": {strings.Repeat("a", 16)},
+					"B": {strings.Repeat("b", 16)},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -221,13 +255,13 @@ func TestTrimMCPJSONRPCMessage(t *testing.T) {
 
 	orgSize := m.Size()
 	t.Run("not trimmed", func(t *testing.T) {
-		notTrimmed := m.trimToMaxSize(10000)
+		notTrimmed := m.trimToMaxFieldSize(10000)
 		require.Equal(t, orgSize, m.Size())
 		require.Equal(t, notTrimmed, m)
 	})
 
 	t.Run("trimmed", func(t *testing.T) {
-		trimmed := m.trimToMaxSize(50)
+		trimmed := m.trimToMaxFieldSize(maxSizePerField(50, m.nonEmptyStrs()))
 		require.Equal(t, orgSize, m.Size())
 		require.Less(t, trimmed.Size(), 50)
 		require.Equal(t, MCPJSONRPCMessage{

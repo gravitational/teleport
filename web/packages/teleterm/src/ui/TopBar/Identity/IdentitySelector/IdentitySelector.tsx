@@ -25,9 +25,10 @@ import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
+import { routing } from 'teleterm/ui/uri';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
-import { getClusterLetter } from '../IdentityList/IdentityListItem';
+import { getProfileNameLetter } from '../IdentityList/IdentityListItem';
 import { UserIcon } from './UserIcon';
 
 export const IdentitySelector = forwardRef<
@@ -44,7 +45,7 @@ export const IdentitySelector = forwardRef<
   const selectorText =
     props.activeCluster &&
     getUserWithClusterName({
-      clusterName: props.activeCluster.name,
+      clusterName: routing.parseClusterName(props.activeCluster.uri),
       userName: props.activeCluster.loggedInUser?.name,
     });
   const title = props.makeTitle(selectorText);
@@ -63,7 +64,7 @@ export const IdentitySelector = forwardRef<
         <Box>
           <UserIcon
             color={props.activeColor}
-            letter={getClusterLetter(props.activeCluster)}
+            letter={getProfileNameLetter(props.activeCluster)}
           />
           {props.deviceTrustStatus === 'requires-enrollment' && (
             <ConnectionStatusIndicator

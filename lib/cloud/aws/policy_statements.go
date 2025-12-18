@@ -141,6 +141,7 @@ func StatementForEC2SSMAutoDiscover() *Statement {
 	return &Statement{
 		Effect: EffectAllow,
 		Actions: []string{
+			"account:ListRegions",
 			"ec2:DescribeInstances",
 			"ssm:DescribeInstanceInformation",
 			"ssm:GetCommandInvocation",
@@ -504,6 +505,18 @@ func StatementKMSDecrypt(kmsKeysARNs []string) *Statement {
 			"kms:GenerateDataKeyWithoutPlaintext",
 		},
 		Resources: kmsKeysARNs,
+	}
+}
+
+// StatementEnableEKSAuditLogs returns the statement that allows fetching EKS
+// API server audit logs from CloudWatch Logs.
+func StatementAccessGraphAWSSyncEKSAuditLogs() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"logs:FilterLogEvents",
+		},
+		Resources: []string{"arn:aws:logs:*:*:log-group:/aws/eks/*"},
 	}
 }
 

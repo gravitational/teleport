@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -119,7 +120,10 @@ func ResolveCallbackURL(ctx context.Context, logger *slog.Logger, clt *authclien
 	var callbackURL string
 
 	logger.InfoContext(ctx, "resolving callback url automatically", "field_name", fieldName)
-	proxies, err := clt.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clt.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return clt.GetProxies()
+	})
 	if err != nil {
 		logger.ErrorContext(ctx, "unable to get proxy list", "error", err)
 	}

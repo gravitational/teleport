@@ -423,27 +423,6 @@ func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error
 	return trace.Wrap(err)
 }
 
-// GetAuthServers returns the list of auth servers registered in the cluster.
-func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
-}
-
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
 func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
@@ -456,27 +435,6 @@ func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	}
 	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
-}
-
-// GetProxies returns the list of auth servers registered in the cluster.
-func (c *HTTPClient) GetProxies() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindProxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
 }
 
 // DeleteAllProxies deletes all proxies

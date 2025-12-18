@@ -39,7 +39,6 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { AutoUpdatesManagement } from './AutoUpdatesManagement';
 import {
-  ClusterGetter,
   formatMB,
   iconMac,
   iconWinLinux,
@@ -55,7 +54,6 @@ import {
  */
 export function DetailsView({
   changeManagingCluster,
-  clusterGetter,
   updateEvent,
   platform,
   onCheckForUpdates,
@@ -65,7 +63,6 @@ export function DetailsView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
-  clusterGetter: ClusterGetter;
   onCheckForUpdates(): void;
   onInstall(): void;
   onDownload(): void;
@@ -76,7 +73,6 @@ export function DetailsView({
     <Stack gap={3} width="100%">
       {updateEvent.autoUpdatesStatus && (
         <AutoUpdatesManagement
-          clusterGetter={clusterGetter}
           status={updateEvent.autoUpdatesStatus}
           updateEventKind={updateEvent.kind}
           onCheckForUpdates={onCheckForUpdates}

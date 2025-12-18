@@ -1,11 +1,6 @@
 ---
 title: TeleportRoleV7
 description: Provides a comprehensive list of fields in the TeleportRoleV7 resource available through the Teleport Kubernetes operator
-tocDepth: 3
-tags:
- - infrastructure-as-code
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -173,6 +168,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |mode|string|Mode can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.|
+|prompt|string|Prompt is a custom message prompted to the user for the requested roles or resources searchable as other roles. This is only applied to the requested roles and resources specifying the prompt.|
 
 ### spec.allow.request.thresholds items
 
@@ -363,6 +359,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |mode|string|Mode can be either "required" or "optional". Empty string is treated as "optional". If a role has the request reason mode set to "required", then reason is required for all Access Requests requesting roles or resources allowed by this role. It applies only to users who have this role assigned.|
+|prompt|string|Prompt is a custom message prompted to the user for the requested roles or resources searchable as other roles. This is only applied to the requested roles and resources specifying the prompt.|
 
 ### spec.deny.request.thresholds items
 

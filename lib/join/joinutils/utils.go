@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/trace"
 
@@ -39,6 +40,20 @@ func GlobMatch(pattern, str string) (bool, error) {
 	pattern = "^" + pattern + "$"
 	matched, err := regexp.MatchString(pattern, str)
 	return matched, trace.Wrap(err)
+}
+
+// GlobMatchAllowEmptyPattern is used when comparing some rule fields from a
+// ProvisionToken  against a claim from a token. It allows simple pattern
+// matching:
+// - an empty pattern ("") matches all inputs
+// - '*' matches zero or more characters.
+// - '?' matches any single character.
+// It returns true if a match is detected.
+func GlobMatchAllowEmptyPattern(pattern, str string) (bool, error) {
+	if pattern == "" {
+		return true, nil
+	}
+	return GlobMatch(pattern, str)
 }
 
 // GenerateChallenge generates a crypto-random challenge with length random
@@ -69,4 +84,49 @@ func RawJoinAttrsToStruct(in any) (*apievents.Struct, error) {
 		return nil, trace.Wrap(err, "unmarshaling join attributes")
 	}
 	return out, nil
+}
+
+// SanitizeUntrustedString sanitizes an untrusted string from a joining client
+// for inclusion in a log message or audit event.
+func SanitizeUntrustedString(in string) string {
+	var out strings.Builder
+	const maxLen = 512
+	wasSpace := false
+	for _, r := range in {
+		// Break once the output reaches the max length.
+		if out.Len() >= maxLen {
+			break
+		}
+
+		// Coalesce runs of spaces to a single space.
+		if unicode.IsSpace(r) {
+			if !wasSpace {
+				out.WriteRune(' ')
+			}
+			wasSpace = true
+			continue
+		}
+		wasSpace = false
+
+		// Strip all non-print characters.
+		if !unicode.IsPrint(r) {
+			out.WriteRune('_')
+			continue
+		}
+
+		// Allow all letters and numbers.
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			out.WriteRune(r)
+			continue
+		}
+
+		// Whitelist allowed symbols. Avoid allowing links or quotes.
+		switch r {
+		case '.', ',', ':', ';', '-', '+', '@':
+			out.WriteRune(r)
+		default:
+			out.WriteRune('_')
+		}
+	}
+	return out.String()
 }

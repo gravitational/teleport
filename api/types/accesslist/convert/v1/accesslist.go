@@ -219,6 +219,7 @@ func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListSta
 		OwnerOf:                status.OwnerOf,
 		MemberOf:               status.MemberOf,
 		CurrentUserAssignments: toCurrentUserAssignmentsProto(status.CurrentUserAssignments),
+		UserAssignments:        toUserAssignmentsProto(status.UserAssignments),
 	}
 }
 
@@ -234,6 +235,7 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 		OwnerOf:                protoStatus.GetOwnerOf(),
 		MemberOf:               protoStatus.GetMemberOf(),
 		CurrentUserAssignments: fromCurrentUserAssignmentsProto(protoStatus.GetCurrentUserAssignments()),
+		UserAssignments:        fromUserAssignmentsProto(protoStatus.GetUserAssignments()),
 	}
 }
 
@@ -255,11 +257,31 @@ func toCurrentUserAssignmentsProto(assignments *accesslist.CurrentUserAssignment
 	}
 }
 
+func toUserAssignmentsProto(assignments *accesslist.UserAssignments) *accesslistv1.UserAssignments {
+	if assignments == nil {
+		return nil
+	}
+	return &accesslistv1.UserAssignments{
+		OwnershipType:  assignments.OwnershipType,
+		MembershipType: assignments.MembershipType,
+	}
+}
+
 func fromCurrentUserAssignmentsProto(assignments *accesslistv1.CurrentUserAssignments) *accesslist.CurrentUserAssignments {
 	if assignments == nil {
 		return nil
 	}
 	return &accesslist.CurrentUserAssignments{
+		OwnershipType:  assignments.GetOwnershipType(),
+		MembershipType: assignments.GetMembershipType(),
+	}
+}
+
+func fromUserAssignmentsProto(assignments *accesslistv1.UserAssignments) *accesslist.UserAssignments {
+	if assignments == nil {
+		return nil
+	}
+	return &accesslist.UserAssignments{
 		OwnershipType:  assignments.GetOwnershipType(),
 		MembershipType: assignments.GetMembershipType(),
 	}

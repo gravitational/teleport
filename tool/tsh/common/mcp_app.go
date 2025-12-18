@@ -53,6 +53,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 
 	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
 	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).Default("true").BoolVar(&cmd.autoReconnect)
+	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
 	return cmd
 }
 
@@ -83,6 +84,7 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
+	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
 	return cmd
 }
 
@@ -299,6 +301,7 @@ type mcpConfigCommand struct {
 	cf                     *CLIConf
 	autoReconnect          bool
 	autoReconnectSetByUser bool
+	httpHeaders            []string
 
 	mcpServerApps []types.Application
 
@@ -381,6 +384,14 @@ func (c *mcpConfigCommand) addMCPServersToConfig(config mcpConfig) error {
 		localName := mcpServerAppConfigPrefix + app.GetName()
 		args := []string{"mcp", "connect", app.GetName()}
 		args = c.maybeAddAutoReconnect(args)
+		if types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP {
+			if _, err := parseHTTPHeaders(c.httpHeaders); err != nil {
+				return trace.Wrap(err)
+			}
+			for _, header := range c.httpHeaders {
+				args = append(args, "-H", header)
+			}
+		}
 		err := config.PutMCPServer(localName, makeLocalMCPServer(c.cf, args))
 		if err != nil {
 			return trace.Wrap(err)
@@ -457,6 +468,7 @@ type mcpConnectCommand struct {
 	*kingpin.CmdClause
 	cf            *CLIConf
 	autoReconnect bool
+	httpHeaders   []string
 }
 
 func (c *mcpConnectCommand) run() error {
@@ -471,26 +483,38 @@ func (c *mcpConnectCommand) run() error {
 	}
 	tc.NonInteractive = true
 
-	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
-	if c.autoReconnect {
-		return clientmcp.ProxyStdioConnWithAutoReconnect(
-			c.cf.Context,
-			clientmcp.ProxyStdioConnWithAutoReconnectConfig{
-				ClientStdio: utils.CombinedStdio{},
-				DialServer: func(ctx context.Context) (io.ReadWriteCloser, error) {
-					conn, err := dialer.DialALPN(ctx)
-					return conn, trace.Wrap(err)
-				},
-				MakeReconnectUserMessage: makeMCPReconnectUserMessage,
-			},
-		)
-	}
-
-	serverConn, err := dialer.DialALPN(c.cf.Context)
+	httpHeaders, err := parseHTTPHeaders(c.httpHeaders)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(utils.ProxyConn(c.cf.Context, utils.CombinedStdio{}, serverConn))
+
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
+	return clientmcp.ProxyStdioConn(
+		c.cf.Context,
+		clientmcp.ProxyStdioConnConfig{
+			ClientStdio:              utils.CombinedStdio{},
+			GetApp:                   dialer.GetApp,
+			DialServer:               dialer.DialALPN,
+			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
+			AutoReconnect:            c.autoReconnect,
+			HTTPHeaders:              httpHeaders,
+		},
+	)
+}
+
+func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
+	if len(headerArgs) == 0 {
+		return nil, nil
+	}
+	httpHeaders := make(map[string]string)
+	for _, header := range headerArgs {
+		key, value, ok := strings.Cut(header, ":")
+		if !ok {
+			return nil, trace.BadParameter("malformed header %q", header)
+		}
+		httpHeaders[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+	return httpHeaders, nil
 }
 
 func makeMCPReconnectUserMessage(err error) string {

@@ -1,5 +1,6 @@
 ---
-title: OAuth2 and OIDC authentication
+title: OAuth2 and OIDC Authentication
+sidebar_label: OAuth2 and OIDC
 description: How to configure Teleport access with OAuth2 or OpenID connect (OIDC)
 tags:
  - sso
@@ -31,7 +32,7 @@ policies like:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Identity Providers
+## Step 1/3. Configure your OIDC provider
 
 Register Teleport with the external identity provider you will be using and
 obtain your `client_id` and `client_secret`. This information should be
@@ -52,7 +53,7 @@ example commands below:
 Client ID: <Var name="CLIENT-ID" description="The Client ID for your Teleport
 application, provided by your IdP"/>
 
-## OIDC Redirect URL
+### Select an OIDC redirect URL
 
 OIDC relies on HTTP redirects to return control back to Teleport after
 authentication is complete. The redirect URL must be selected by a Teleport
@@ -67,11 +68,21 @@ addresses for the Teleport Proxy Service (the value of
 `proxy_service.public_addr` in the Teleport configuration file), ensure that
 this address points to the first one listed.
 
-## OIDC connector configuration
+## Step 2/3. Connect your OIDC provider to Teleport
+
+In this section, you will create an authentication connector that provides
+Teleport with the information it needs to exchange OIDC messages with your IdP
+and issue certificates to users.
+
+### Assign a role mapping
+
+(!docs/pages/includes/sso/role-mapping.mdx fieldType="claim"!)
+
+### Configure an OIDC connector
 
 The next step is to add an OIDC connector to Teleport. The connectors are
 created, tested, and added or removed using `tctl` [resource
-commands](../../reference/infrastructure-as-code/resources.mdx) or the Teleport Web UI.
+commands](../../reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx) or the Teleport Web UI.
 
 On your workstation, create a file called `client-secret.txt` consisting only of
 your client secret.
@@ -84,8 +95,8 @@ $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   --issuer-url <PATH-TO-PROVIDER> \
   --id <Var name="CLIENT-ID" /> \
   --secret $(cat client-secret.txt) \
-  --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,access \
-  --claims-to-roles <CLAIM-KEY>,<CLAIM-VALUE>,editor > oidc-connector.yaml
+  --claims-to-roles <Var name="mapping_1" /> \
+  --claims-to-roles <Var name="mapping_2" /> > oidc-connector.yaml
 ```
 
 - `--name`: Usually the name of the IdP, this is how the connector will be
@@ -98,17 +109,12 @@ $ tctl sso configure oidc --name <CONNECTOR-NAME> \
   provider this may be something you can define (for example, `teleport`), or may be an
   assigned string.
 - `--secret`: The client token/secret provided by the IdP to authorize this client.
-- `--claims-to-roles`: A mapping of OIDC claims/values to be associated with
-  Teleport roles.
 
 For more information on these and all available flags, see the [tctl sso configure
 oidc](../../reference/cli/tctl.mdx) section of the Teleport CLI
 Reference page.
 
-The file created should look like the example below. This connector requests
-the scope `<CLAIM-KEY>` from the identity provider, then maps the value to
-either the `access` or the `editor` role depending on the value returned for
-that key within the claims:
+The file created should look like the example below:
 
 ```yaml
 (!examples/resources/oidc-connector.yaml!)
@@ -145,29 +151,6 @@ version: v3
 ```
 
 </details>
-
-Before applying the connector to your cluster, you can test that it's configured
-correctly:
-
-```code
-$ cat oidc-connector.yaml | tctl sso test
-```
-
-This should open up your web browser and attempt to log you in to the Teleport
-cluster through your IdP. If it fails, review the output of this command for
-troubleshooting details.
-
-<Admonition type="tip">
-The "[OIDC] Claims" section of the CLI output provides all the details of your
-user provided by the IdP. This is a good starting point while troubleshooting
-errors like `Failed to calculate user attributes.`
-</Admonition>
-
-After your tests are successful, create the connector:
-
-```code
-$ tctl create -f oidc-connector.yaml
-```
 
 ### Optional: ACR Values
 
@@ -285,20 +268,7 @@ spec:
 
 ### Optional: Specify a claim to use as the username
 
-By default, Teleport will use the user's email as their Teleport username.
-
-You can define a `username_claim` to specify the claim that should be used as
-the username instead:
-
-```yaml
-kind: oidc
-version: v2
-metadata:
-  name: connector
-spec:
-  # Use the `preferred_username` claim as the user's Teleport username.
-  username_claim: preferred_username
-```
+(!docs/pages/includes/sso/username-claim.mdx!)
 
 ### Optional: Request object mode
 
@@ -352,9 +322,40 @@ spec:
 
 Note: Support for request objects is available in Teleport Enterprise versions `17.7.2` or later and `18.1.6` or later.
 
-## Enable default OIDC authentication
+### Test the connector
 
-(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
+Before applying the connector to your cluster, you can test that it's configured
+correctly:
+
+```code
+$ cat oidc-connector.yaml | tctl sso test
+```
+
+This should open up your web browser and attempt to log you in to the Teleport
+cluster through your IdP. If it fails, review the output of this command for
+troubleshooting details.
+
+<Admonition type="tip">
+The "[OIDC] Claims" section of the CLI output provides all the details of your
+user provided by the IdP. This is a good starting point while troubleshooting
+errors like `Failed to calculate user attributes.`
+</Admonition>
+
+### Create the connector
+
+After your tests are successful, create the connector:
+
+```code
+$ tctl create -f oidc-connector.yaml
+```
+
+## Step 3/3. Enable default OIDC authentication
+
+(!docs/pages/includes/sso/cap.mdx type="oidc"!)
+
+## Next steps
+
+(!docs/pages/includes/sso/next-step-traits.mdx!)
 
 ## Troubleshooting
 

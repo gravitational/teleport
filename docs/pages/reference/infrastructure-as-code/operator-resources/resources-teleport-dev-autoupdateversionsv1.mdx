@@ -1,11 +1,6 @@
 ---
 title: TeleportAutoupdateVersionV1
 description: Provides a comprehensive list of fields in the TeleportAutoupdateVersionV1 resource available through the Teleport Kubernetes operator
-tocDepth: 3
-tags:
- - infrastructure-as-code
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -43,8 +38,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |mode|string|autoupdate_mode to use for the rollout|
 |schedule|string|schedule to use for the rollout|
-|start_version|string|start_version is the version to update from.|
-|target_version|string|target_version is the version to update to.|
+|start_version|string|start_version is the version used for newly installed agents before their update window.|
+|target_version|string|target_version is the version that all agents will update to during their update window.|
 
 ### spec.tools
 

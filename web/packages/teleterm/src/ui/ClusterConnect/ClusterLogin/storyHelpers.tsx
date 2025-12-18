@@ -83,9 +83,6 @@ export function makeProps(
     changeAppUpdatesManagingCluster: async () => {},
     checkForAppUpdates: async () => {},
     downloadAppUpdate: async () => {},
-    clusterGetter: {
-      findCluster: () => undefined,
-    },
     quitAndInstallAppUpdate: async () => {},
     cancelAppUpdateDownload: async () => {},
     appUpdateEvent: {

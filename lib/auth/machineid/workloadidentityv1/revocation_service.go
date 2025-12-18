@@ -607,7 +607,7 @@ func (s *RevocationService) signCRL(
 		tracing.EndSpan(span, err)
 	}()
 
-	s.logger.InfoContext(ctx, "Starting to generate new CRL")
+	s.logger.DebugContext(ctx, "Starting to generate new CRL")
 	ca, err := s.certAuthorityGetter.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SPIFFECA,
 		DomainName: s.clusterName,
@@ -659,7 +659,7 @@ func (s *RevocationService) signCRL(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.logger.InfoContext(ctx, "Finished generating new CRL", "revocations", len(revocations))
+	s.logger.DebugContext(ctx, "Finished generating new CRL", "revocations", len(revocations))
 	return signedCRL, nil
 }
 

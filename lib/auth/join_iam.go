@@ -28,6 +28,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -66,6 +67,10 @@ func (a *Server) RegisterUsingIAMMethod(
 			)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	challenge, err := iamjoin.GenerateIAMChallenge()
 	if err != nil {

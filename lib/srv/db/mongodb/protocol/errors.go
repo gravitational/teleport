@@ -28,16 +28,7 @@ import (
 
 // ReplyError sends error wire message to the client.
 func ReplyError(clientConn net.Conn, replyTo Message, clientErr error) (err error) {
-	if msgCompressed, ok := replyTo.(*MessageOpCompressed); ok {
-		replyTo = msgCompressed.GetOriginal()
-	}
-	var errMessage Message
-	switch replyTo.(type) {
-	case *MessageOpMsg: // When client request is OP_MSG, reply should be OP_MSG as well.
-		errMessage, err = makeOpMsgError(clientErr)
-	default: // Send OP_REPLY otherwise.
-		errMessage, err = makeOpReplyError(clientErr)
-	}
+	errMessage, err := MakeErrorMessage(replyTo, clientErr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -52,6 +43,20 @@ func ReplyError(clientConn net.Conn, replyTo Message, clientErr error) (err erro
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// MakeErrorMessage builds an error message as either an OP_REPLY or OP_MSG
+// depending on the message being replied to.
+func MakeErrorMessage(replyTo Message, clientErr error) (Message, error) {
+	if msgCompressed, ok := replyTo.(*MessageOpCompressed); ok {
+		replyTo = msgCompressed.GetOriginal()
+	}
+	switch replyTo.(type) {
+	case *MessageOpMsg: // When client request is OP_MSG, reply should be OP_MSG as well.
+		return makeOpMsgError(clientErr)
+	default: // Send OP_REPLY otherwise.
+		return makeOpReplyError(clientErr)
+	}
 }
 
 // makeOpReplyError builds a OP_REPLY error wire message.

@@ -2401,6 +2401,49 @@ export const formatters: Formatters = {
     format: ({ integration, resource_type, teleport_id, external_id }) =>
       `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
+    type: 'cir.update',
+    desc: 'Client IP Restrictions update',
+    format: ({ user, client_ip_restrictions, success }) =>
+      success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
+        : `User [${user}] has failed to update  Client IP Restrictions.`,
+  },
+  [eventCodes.APPAUTHCONFIG_CREATE]: {
+    type: 'app_auth_config.create',
+    desc: 'App Auth Config created',
+    format: ({ user, name }) => {
+      return `User [${user}] created the app auth config [${name}]`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_UPDATE]: {
+    type: 'app_auth_config.update',
+    desc: 'App Auth Config updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated the app auth config [${name}]`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_DELETE]: {
+    type: 'app_auth_config.delete',
+    desc: 'App Auth Config deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted the app auth config [${name}]`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
+    type: 'app_auth_config.verify.success',
+    desc: 'App authentication succeeded',
+    format: ({ user, app_name, app_auth_config }) => {
+      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
+    },
+  },
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
+    type: 'app_auth_config.verify.failure',
+    desc: 'App authentication failed',
+    format: ({ error, app_auth_config }) => {
+      return `App authentication using [${app_auth_config}] failed: ${error}`;
+    },
+  },
 };
 
 const unknownFormatter = {

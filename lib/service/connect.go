@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
@@ -73,9 +74,9 @@ const updateClientsJoinWarning = "This agent joined the cluster during the updat
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  retryutils.HalfJitter(process.Config.MaxRetryPeriod / 10),
-		Step:   process.Config.MaxRetryPeriod / 5,
-		Max:    process.Config.MaxRetryPeriod,
+		First:  retryutils.HalfJitter(process.Config.AuthConnectionConfig.InitialConnectionDelay),
+		Step:   process.Config.AuthConnectionConfig.BackoffStepDuration,
+		Max:    process.Config.AuthConnectionConfig.UpperLimitBetweenRetries,
 		Clock:  process.Clock,
 		Jitter: retryutils.HalfJitter,
 	})
@@ -250,7 +251,8 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		if role == types.RoleAdmin || role == types.RoleAuth {
 			return newConnector(identity, identity)
 		}
-		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.", "cluster", identity.ClusterName)
+		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.",
+			"cluster", identity.ClusterName, "role", role.String())
 		connector, err := process.getConnector(identity, identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to
@@ -391,6 +393,12 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 	if lostRoles := currentSystemRoles.Clone().Subtract(newSystemRoles); len(lostRoles) > 0 {
 		return nil, trace.Errorf("new Instance identity is missing the following system roles from the current identity (this is a bug): %v", lostRoles.Elements())
 	}
+	// Sanity check the host ID didn't change.
+	if currentIdentity.ID.HostID() != newIdentity.ID.HostID() {
+		return nil, trace.Errorf("new Instance host ID %s does not match current host ID %s (this is a bug)",
+			newIdentity.ID.HostID(),
+			currentIdentity.ID.HostID())
+	}
 
 	gainedSystemRoles := newSystemRoles.Clone().Subtract(currentSystemRoles)
 	if len(gainedSystemRoles) == 0 {
@@ -438,6 +446,17 @@ func (process *TeleportProcess) getCertAuthority(conn *Connector, id types.CertA
 	return conn.Client.GetCertAuthority(ctx, id, loadPrivateKeys)
 }
 
+// localReRegister wraps an [*auth.Server] and removes the scope parameter from the signature of
+// [auth.Server.GenerateHostCerts]
+type localReRegister struct {
+	*auth.Server
+}
+
+// GenerateHostCerts allows for generating host certs without providing a scope.
+func (l localReRegister) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+	return l.Server.GenerateHostCerts(ctx, req, "")
+}
+
 // reRegister receives new identity credentials for proxy, node and auth.
 // In case if auth servers, the role is 'TeleportAdmin' and instead of using
 // TLS client this method uses the local auth server.
@@ -453,7 +472,7 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	var clt auth.ReRegisterClient = conn.Client
 	var remoteAddr string
 	if srv := process.getLocalAuth(); srv != nil {
-		clt = srv
+		clt = localReRegister{srv}
 		// auth server typically extracts remote addr from conn. since we're using the local auth
 		// directly we must supply a reasonable remote addr value. preferably the advertise IP, but
 		// otherwise localhost. this behavior must be kept consistent with the equivalent behavior
@@ -1343,7 +1362,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 	}
 	tlsConfig.ServerName = apiutils.EncodeClusterName(connector.ClusterName())
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(connector.ClientGetPool)
+	tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, connector.ClientGetPool)
 
 	sshClientConfig, err := connector.clientSSHClientConfig(process.Config.FIPS)
 	if err != nil {
@@ -1489,7 +1508,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 
 	var dialOpts []grpc.DialOption
 	if role == types.RoleProxy {
-		grpcMetrics := metrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
+		grpcMetrics := grpcmetrics.CreateGRPCClientMetrics(process.Config.Metrics.GRPCClientLatency, prometheus.Labels{teleport.TagClient: "teleport-proxy"})
 		if err := metrics.RegisterPrometheusCollectors(grpcMetrics); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

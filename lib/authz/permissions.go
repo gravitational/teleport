@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -403,12 +404,6 @@ func (c *Context) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time
 	return identity.Expires
 }
 
-// ErrScopedIdentity is returned by Authorize when it receives a scoped identity. Methods that implement
-// scoping support may check for this error and fallback to scoped authorization as appropriate.
-var ErrScopedIdentity = &trace.AccessDeniedError{
-	Message: "scoped certificates not supported",
-}
-
 // Authorize authorizes user based on identity supplied via context
 func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error) {
 	defer func() {
@@ -426,7 +421,7 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
-		return nil, ErrScopedIdentity
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
 	authContext, err := a.fromUser(ctx, userI)
@@ -626,7 +621,7 @@ func (a *authorizer) convertAuthorizerError(err error) error {
 	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch) || errors.Is(err, ErrIPPinningNotAllowed):
 		a.logger.WarnContext(context.Background(), "ip pinning requirements not satisfied", "error", err)
 		return trace.Wrap(err)
-	case errors.Is(err, ErrScopedIdentity):
+	case errors.Is(err, services.ErrScopedIdentity):
 		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
 		a.logger.WarnContext(context.Background(), "access denied", "error", err)
@@ -1039,6 +1034,11 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 						types.NewRule(types.KindStaticHostUser, services.RO()),
 						types.NewRule(types.KindStableUNIXUser, []string{types.VerbCreate, types.VerbRead}),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of nodes only being able to read scoped roles that may affect
+						// access decisions for the given node specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			})
@@ -1402,19 +1402,37 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 
 // ContextForLocalUser returns a context with the local user info embedded.
 func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceRoleMode bool) (*Context, error) {
-	// User has to be fetched to check if it's a blocked username
-	user, err := accessPoint.GetUser(ctx, u.Username, false)
+	user, accessInfo, err := resolveLocalUser(ctx, u, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	return &Context{
+		User:                  user,
+		Checker:               accessChecker,
+		Identity:              u,
+		UnmappedIdentity:      u,
+		disableDeviceRoleMode: disableDeviceRoleMode,
+	}, nil
+}
+
+func resolveLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint) (types.User, *services.AccessInfo, error) {
+	// User has to be fetched to check if it's a blocked username
+	user, err := accessPoint.GetUser(ctx, u.Username, false)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(u.Identity)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	// Override roles and traits from the local user based on the identity roles
 	// and traits, this is done to prevent potential conflict. Imagine a scenario
 	// when SSO user has left the company, but local user entry remained with old
@@ -1425,13 +1443,7 @@ func ContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Authorize
 	user.SetRoles(accessInfo.Roles)
 	user.SetTraits(accessInfo.Traits)
 
-	return &Context{
-		User:                  user,
-		Checker:               accessChecker,
-		Identity:              u,
-		UnmappedIdentity:      u,
-		disableDeviceRoleMode: disableDeviceRoleMode,
-	}, nil
+	return user, accessInfo, nil
 }
 
 type contextKey string

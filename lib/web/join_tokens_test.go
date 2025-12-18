@@ -624,7 +624,7 @@ func TestCreateTokenExpiry(t *testing.T) {
 
 			var expectedExpiry time.Time
 			switch method {
-			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub, types.JoinMethodGitLab:
 				expectedExpiry = time.Time{}
 			default:
 				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
@@ -759,6 +759,15 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 			},
 			Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
 				Mode: boundkeypair.RecoveryModeInsecure,
+			},
+		}
+	case types.JoinMethodEnv0:
+		spec.Env0 = &types.ProvisionTokenSpecV2Env0{
+			Allow: []*types.ProvisionTokenSpecV2Env0_Rule{
+				{
+					OrganizationID: "example-organization-id",
+					ProjectName:    "example-project-name",
+				},
 			},
 		}
 	}

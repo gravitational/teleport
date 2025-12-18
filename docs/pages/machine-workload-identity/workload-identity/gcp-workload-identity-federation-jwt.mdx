@@ -1,5 +1,6 @@
 ---
 title: Configuring Workload Identity and GCP Workload Identity Federation with JWTs
+sidebar_label: GCP Workload Identity Federation with JWTs
 description: Configuring GCP to accept Workload Identity JWTs as authentication using Workload Identity Federation
 tags:
  - how-to
@@ -31,8 +32,9 @@ GCP APIs in a few ways:
   recorded in Teleport's audit log.
 - Workload Identity works with any GCP client, including the command-line tool
   but also their SDKs.
-- Using the Teleport Application Service to access GCP does not work with Machine ID
-  and therefore cannot be used when a machine needs to authenticate with AWS.
+- Using the Teleport Application Service to access GCP does not work with
+  Machine & Workload Identity and therefore cannot be used when a machine needs
+  to authenticate with AWS.
 
 ## Prerequisites
 
@@ -41,7 +43,7 @@ GCP APIs in a few ways:
 - (!docs/pages/includes/tctl.mdx!)
 - `tbot` must already be installed and configured on the host where the
 workloads which need to access Teleport Workload Identity will run. For more
-information, see the [deployment guides](../machine-id/deployment/deployment.mdx).
+information, see the [deployment guides](../deployment/deployment.mdx).
 
 <Admonition type="warning">
 Issuing JWT SVIDs with Teleport Workload Identity requires at minimum version
@@ -320,7 +322,7 @@ Take your already deployed `tbot` service and configure it to issue SPIFFE SVIDs
 by adding the following to the `tbot` configuration file:
 
 ```yaml
-outputs:
+services:
   - type: workload-identity-jwt
     destination:
       type: directory
@@ -417,5 +419,5 @@ Workload Identity.
 Teleport Workload Identity.
 - [Best Practices](./best-practices.mdx): Best practices for using Workload
 Identity in Production.
-- Read the [configuration reference](../../reference/machine-workload-identity/machine-id/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
 all the available configuration options.

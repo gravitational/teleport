@@ -287,10 +287,8 @@ type RunCommandRequest struct {
 	ResourceGroup string
 	// VMName is the name of the VM.
 	VMName string
-	// Script is the URI of the script for the virtual machine to execute.
+	// Script is the shell script to be executed in the virtual machine.
 	Script string
-	// Parameters is a list of parameters for the script.
-	Parameters []string
 }
 
 // RunCommandClient is a client for Azure Run Commands.
@@ -316,17 +314,10 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 
 // Run runs a command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error {
-	var params []*armcompute.RunCommandInputParameter
-	for _, value := range req.Parameters {
-		params = append(params, &armcompute.RunCommandInputParameter{
-			Value: to.Ptr(value),
-		})
-	}
 	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, "RunShellScript", armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
 			AsyncExecution: to.Ptr(false),
-			Parameters:     params,
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
@@ -335,6 +326,7 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	_, err = poller.PollUntilDone(ctx, nil /* options */)
 	return trace.Wrap(err)
 }

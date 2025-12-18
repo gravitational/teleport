@@ -206,6 +206,7 @@ const cfg = {
     loginErrorLegacy: '/web/msg/error/login_failed',
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
+    loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
     samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
@@ -258,7 +259,9 @@ const cfg = {
     clustersPath: '/v1/webapi/sites',
     clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
+    // TODO (avatus): Delete in v21.0.0
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
+    clusterEventsPathV2: `/v2/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?&search=:search?&order=:order?`,
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
@@ -329,7 +332,10 @@ const cfg = {
       get: '/v1/webapi/roles/:name',
       delete: '/v1/webapi/roles/:name',
       update: '/v1/webapi/roles/:name',
+      // TODO(kimlisa): DELETE IN 20.0 along with its backend endpoint in `apiserver.go`
       list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+      listV2:
+        '/v2/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?&includeSystemRoles=:includeSystemRoles?&includeObject=:includeObject?',
       listWithoutQueryParam: '/v1/webapi/roles',
     },
 
@@ -499,12 +505,14 @@ const cfg = {
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
       delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      genWizardCiCd: '/v1/webapi/sites/:clusterId/machine-id/wizards/ci-cd',
     },
 
     botInstance: {
       read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
       list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
       listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
+      metrics: '/v1/webapi/sites/:clusterId/machine-id/bot-instance/metrics',
     },
 
     workloadIdentity: {
@@ -583,7 +591,7 @@ const cfg = {
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
-    return generatePath(cfg.api.clusterEventsPath, {
+    return generatePath(cfg.api.clusterEventsPathV2, {
       clusterId,
       ...params,
     });
@@ -683,8 +691,18 @@ const cfg = {
     return searchString ? `${path}?${searchString}` : path;
   },
 
-  getSsoUrl(providerUrl, providerName, redirect) {
-    return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
+  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+    loginHint = loginHint === '' ? undefined : loginHint;
+    let basePath =
+      cfg.baseUrl +
+      generatePath(providerUrl, { redirect, providerName, loginHint });
+
+    if (!loginHint) {
+      const url = new URL(basePath);
+      url.searchParams.delete('login_hint', '');
+      basePath = url.toString();
+    }
+    return basePath;
   },
 
   getAuditRoute(clusterId: string) {
@@ -845,8 +863,36 @@ const cfg = {
     return generatePath(cfg.routes.bot, { botName });
   },
 
-  getBotInstancesRoute() {
-    return generatePath(cfg.routes.botInstances);
+  getBotInstancesRoute(
+    options?: Partial<{
+      query: string;
+      isAdvancedQuery: boolean;
+      sortField: string;
+      sortDir: 'ASC' | 'DESC';
+      selectedItemId: string;
+      activeTab: 'info' | 'health' | 'yaml';
+    }>
+  ) {
+    const search = new URLSearchParams(location.search);
+    if (options?.query) {
+      search.set('query', options.query);
+    }
+    if (options?.isAdvancedQuery) {
+      search.set('is_advanced', '1');
+    }
+    if (options?.sortField) {
+      search.set('sort_field', options.sortField);
+    }
+    if (options?.sortDir) {
+      search.set('sort_dir', options.sortDir);
+    }
+    if (options?.selectedItemId) {
+      search.set('selected', options.selectedItemId);
+    }
+    if (options?.activeTab) {
+      search.set('tab', options.activeTab);
+    }
+    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
   getWorkloadIdentitiesRoute() {
@@ -1252,7 +1298,7 @@ const cfg = {
           action: 'get' | 'delete' | 'update';
           name: string;
         }
-      | { action: 'list'; params?: UrlListRolesParams }
+      | { action: 'list' | 'listv2'; params?: UrlListRolesParams }
   ) {
     const action = req.action;
     switch (action) {
@@ -1262,13 +1308,24 @@ const cfg = {
         return generatePath(cfg.api.role.delete, { name: req.name });
       case 'update':
         return generatePath(cfg.api.role.update, { name: req.name });
-      case 'list':
+      case 'list': {
         const params = req.params;
         return generatePath(cfg.api.role.list, {
           search: params?.search || undefined,
           startKey: params?.startKey || undefined,
           limit: params?.limit || undefined,
         });
+      }
+      case 'listv2': {
+        const params = req.params;
+        return generatePath(cfg.api.role.listV2, {
+          search: params?.search || undefined,
+          startKey: params?.startKey || undefined,
+          limit: params?.limit || undefined,
+          includeSystemRoles: params?.includeSystemRoles || undefined,
+          includeObject: params?.includeObject || undefined,
+        });
+      }
       default:
         action satisfies never;
     }
@@ -1659,7 +1716,7 @@ const cfg = {
 
   getBotUrl(
     req: (
-      | { action: 'list' | 'create' }
+      | { action: 'list' | 'create' | 'gen-wizard-cicd' }
       | {
           action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
           botName: string;
@@ -1701,6 +1758,10 @@ const cfg = {
           clusterId,
           botName: req.botName,
         });
+      case 'gen-wizard-cicd':
+        return generatePath(cfg.api.bot.genWizardCiCd, {
+          clusterId,
+        });
       default:
         req satisfies never;
         return '';
@@ -1720,6 +1781,9 @@ const cfg = {
           botName: string;
           instanceId: string;
         }
+      | {
+          action: 'metrics';
+        }
     ) & { clusterId?: string }
   ) {
     const { clusterId = cfg.proxyCluster } = req;
@@ -1737,6 +1801,10 @@ const cfg = {
           clusterId,
           botName: req.botName,
           instanceId: req.instanceId,
+        });
+      case 'metrics':
+        return generatePath(cfg.api.botInstance.metrics, {
+          clusterId,
         });
       default:
         req satisfies never;
@@ -1855,6 +1923,8 @@ export interface UrlClusterEventsParams {
   limit?: number;
   include?: string;
   startKey?: string;
+  search?: string;
+  order?: string;
 }
 
 export interface UrlLauncherParams {
@@ -1885,6 +1955,18 @@ export interface UrlListRolesParams {
   search?: string;
   limit?: number;
   startKey?: string;
+  /**
+   * default is without system roles.
+   * Only supported with v2 endpoint.
+   */
+  includeSystemRoles?: 'yes' | '';
+  /**
+   * default is without the object.
+   * (only a string content of the resource for yaml purposes)
+   *
+   * Only supported with v2 endpoint and role resource.
+   */
+  includeObject?: 'yes' | '';
 }
 
 export interface UrlListUsersParams {

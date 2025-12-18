@@ -29,6 +29,10 @@ export function validateListJoinTokensResponse(
     return false;
   }
 
+  if (!data.items) {
+    return true;
+  }
+
   if (!Array.isArray(data.items)) {
     return false;
   }
