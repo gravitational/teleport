@@ -783,3 +783,7 @@ func (m *RequestKubernetesResource) GetNamespace() string     { return "" }
 func (m *KubernetesResource) GetNamespace() string            { return m.Namespace }
 func (m *RequestKubernetesResource) SetNamespace(ns string)   {}
 func (m *KubernetesResource) SetNamespace(ns string)          { m.Namespace = ns }
+
+func (c *KubernetesClusterStatus) IsEqual(other *KubernetesClusterStatus) bool {
+	return deriveTeleportEqualKubernetesClusterStatus(c, other)
+}

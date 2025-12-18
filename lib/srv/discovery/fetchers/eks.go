@@ -837,7 +837,7 @@ func (c *DeleteKubernetesDanglingResourcesConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "fetcher:cleanup")
+		return trace.BadParameter("missing Logger field")
 	}
 
 	return nil

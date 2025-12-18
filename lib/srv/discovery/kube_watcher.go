@@ -61,6 +61,20 @@ func (s *Server) startKubeWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
+			CompareResources: func(kc1, kc2 types.KubeCluster) int {
+				if res := services.CompareResources(kc1, kc2); res != services.Equal {
+					return res
+				}
+				// Additionally compare Status field using its IsEqual method.
+				// This is needed because CompareResources ignores Status field of KubeCluster and for most
+				// usages of KubeCluster that is acceptable. However, in this context we want to consider Status changes
+				// as significant changes that require reconciliation so we can update resources discovered before this
+				// feature was implemented.
+				if kc1.GetStatus().IsEqual(kc2.GetStatus()) {
+					return services.Equal
+				}
+				return services.Different
+			},
 			Logger:   s.Log.With("kind", types.KindKubernetesCluster),
 			OnCreate: s.onKubeCreate,
 			OnUpdate: s.onKubeUpdate,
