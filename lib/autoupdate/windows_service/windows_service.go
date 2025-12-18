@@ -393,12 +393,8 @@ func secureCopy(userPath string) (string, error) {
 	// e.g. C:\Users\Alice\AppData\Local\Temp\update.exe
 
 	// 2. Define destination (Secure SYSTEM Space)
-	ex, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	secureDir := filepath.Join(ex, "Updates")
-	err = os.MkdirAll(secureDir, 0755) // ensure dir exists
+	secureDir := `C:\Program Files\Teleport Connect\Updates`
+	err := os.MkdirAll(secureDir, 0755) // ensure dir exists
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
