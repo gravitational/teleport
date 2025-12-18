@@ -61,10 +61,13 @@ override, in case a Teleport downgrade is ever required.
 1. Alice configures the databases to trust the parent CA, if not already
    trusted.
 
-1. Finally, Alice writes the certificates back to Teleport. The new certificates
-   take effect immediately.
+1. Alice writes the certificates back to Teleport. The new certificates take
+   effect immediately.
 
     `tctl auth create-override --type=db_client cert.pem [chain.pem...]`
+
+1. Alice is now free to remove trust from the old self-signed certificate from
+   the databases.
 
 ### Alice configures "windows" as a sub CA
 
