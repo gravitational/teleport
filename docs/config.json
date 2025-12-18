@@ -756,6 +756,16 @@
       "permanent": true
     },
     {
+      "source": "/machine-workload-identity/workload-identity/",
+      "destination": "/machine-workload-identity/spiffe/spiffe-workload-id/",
+      "permanent": true
+    },
+   {
+      "source": "/machine-workload-identity/spiffe/spiffe",
+      "destination": "/machine-workload-identity/spiffe/spiffe-intro/",
+      "permanent": true
+    },
+    {
       "source": "/enroll-resources/workload-identity/",
       "destination": "/machine-workload-identity/workload-identity/",
       "permanent": true
