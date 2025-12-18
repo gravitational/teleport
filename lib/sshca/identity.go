@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -146,6 +147,9 @@ type Identity struct {
 	GitHubUsername string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
+	// ImmutableLabels are labels that should be applied and enforced at the
+	// certificate level.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -191,6 +195,14 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 
 	if i.AgentScope != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAgentScope] = i.AgentScope
+	}
+
+	if i.ImmutableLabels != nil {
+		labels, err := protojson.Marshal(i.ImmutableLabels)
+		if err != nil {
+			return nil, trace.Errorf("failed to marshal immutable labels for ssh cert encoding: %w", err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionImmutableLabels] = string(labels)
 	}
 
 	// --- user extensions ---
@@ -496,6 +508,14 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as active requests: %v", v, teleport.CertExtensionTeleportActiveRequests, err)
 		}
 		ident.ActiveRequests = reqs.AccessRequests
+	}
+
+	if v, ok := takeExtension(teleport.CertExtensionImmutableLabels); ok {
+		var labels joiningv1.ImmutableLabels
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(v), &labels); err != nil {
+			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as immutable labels: %v", v, teleport.CertExtensionImmutableLabels, err)
+		}
+		ident.ImmutableLabels = &labels
 	}
 
 	// aggregate all remaining extensions into the CertificateExtensions field
