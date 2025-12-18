@@ -345,6 +345,6 @@ func (s *windowsService) runInstall(ctx context.Context, args []string) error {
 
 func performInstall(ctx context.Context, cfg *Config) error {
 	cmd := exec.Command(cfg.Path, "--updated", "/S", "--force-run")
-	err := cmd.Start()
+	err := cmd.Run()
 	return trace.Wrap(err, "running admin process")
 }
