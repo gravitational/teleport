@@ -194,6 +194,33 @@ delete may be forced with the `--force-immediate-delete` flag.
     Once a private key is removed from a CA, Teleport will also remove its
     corresponding overrides.
 
+#### Exemplified key/certificate life cycle during rotation
+
+* K*n* = private keys
+* C*n* = self-signed certificates
+* O*n* = overridden certificates
+
+Before rotation and before override:
+* K1, C1 -> (K1,C1) used to mint certificates
+
+Before rotation, override created:
+* K1, C1, O1 -> (K1,O1) used to mint certificates
+
+Rotation phase=init:
+* K1, C1, O1 -> (K1,O1) used to mint certificates
+* New K2, C2 -> exists in [AdditionalTrustedKeys][], not used to mint certs
+
+Rotation phase=init, override created:
+* K1, C1, O1 -> (K1,O1) used to mint certificates
+* New K2, C2 -> exists in [AdditionalTrustedKeys][], not used to mint certs
+
+Rotation phase=update_clients:
+* K1, C1, O1 -> moved to AdditionalTrustedKeys, now unused
+* K2, C2, O2 -> moved to [ActiveKeys][], (K2,O2) used to mint certificates
+
+[AdditionalTrustedKeys]: https://github.com/gravitational/teleport/blob/840b60d05896bd34ab7cc57f9527d36b32f909a5/api/proto/teleport/legacy/types/types.proto#L1395-L1398
+[ActiveKeys]: https://github.com/gravitational/teleport/blob/840b60d05896bd34ab7cc57f9527d36b32f909a5/api/proto/teleport/legacy/types/types.proto#L1390-L1391
+
 ### Alice creates a disabled override, then enables it
 
 Creating a disabled override is useful for long migration processes, where the
