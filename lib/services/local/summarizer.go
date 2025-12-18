@@ -25,7 +25,6 @@ import (
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/summarizer"
-	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -247,7 +246,7 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		if !cfg.EnableBedrockWithoutRestrictions &&
 			m.GetSpec().GetBedrock() != nil &&
 			m.GetSpec().GetBedrock().GetIntegration() == "" &&
-			m.GetMetadata().GetName() != apisummarizer.CloudDefaultInferenceModelName {
+			m.GetMetadata().GetName() != summarizer.CloudDefaultInferenceModelName {
 			return trace.BadParameter("only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud")
 		}
 		return nil
