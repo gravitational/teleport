@@ -27,6 +27,7 @@ export type BaseIntegration = (
 export const integrationTagOptions = [
   { value: 'bot', label: 'Bot' },
   { value: 'cicd', label: 'CI/CD' },
+  { value: 'cloud', label: 'Cloud' },
   { value: 'devicetrust', label: 'Device Trust' },
   { value: 'idp', label: 'IdP' },
   { value: 'notifications', label: 'Notifications' },
