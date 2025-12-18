@@ -155,6 +155,8 @@ CA rotation.
 - [ ] New cluster creates a distinct Windows CA
 - [ ] Existing cluster splits the User CA
   - [ ] CAs are identical on split
+  - [ ] windows_desktop_service works after Teleport downgrade (before CA split)
+  - [ ] NEW windows_desktop_service works with OLD Auth (before CA split)
   - [ ] CAs are distinct after rotation
 - [ ] Desktop Access works as expected
 - [ ] tctl commands work as expected
