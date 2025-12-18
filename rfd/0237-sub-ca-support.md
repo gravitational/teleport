@@ -529,9 +529,20 @@ The following cluster alerts are created automatically, based on the remaining
 validity of the CA certificate. Works for both overrides (preferred if present)
 and self-signed certificates.
 
-* 365d = low priority alert
-* 180d = medium priority alert
-* 90d  = high priority alert
+* min(365d, 1/2 remaining lifetime) = low priority alert
+* min(180d, 1/4 remaining lifetime) = medium priority alert
+* min(90d, 1/8 remaining lifetime)  = high priority alert
+
+For example:
+
+| Total validity | Remaining lifetime | Alert level |
+| -              | -                  | -           |
+| 10y            | 365d               | low         |
+| 10y            | 180d               | medium      |
+| 10y            |  90d               | high        |
+|  1y            | 183d               | low         |
+|  1y            |  92d               | medium      |
+|  1y            |  46d               | high        |
 
 ### Auth service changes
 
