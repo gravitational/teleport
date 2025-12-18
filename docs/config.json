@@ -897,7 +897,7 @@
     },
     {
       "source": "/reference/architecture/proxy-peering/",
-      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     },
     {
@@ -1327,7 +1327,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/hsm/",
-      "destination": "/zero-trust-access/deploy-a-cluster/hsm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/hsm/",
       "permanent": true
     },
     {
@@ -1532,12 +1532,12 @@
     },
     {
       "source": "/admin-guides/management/operations/backup-restore/",
-      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/backup-restore/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/management/operations/breakglass-access/",
-      "destination": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/breakglass-access/",
       "permanent": true
     },
     {
@@ -1557,7 +1557,7 @@
     },
     {
       "source": "/admin-guides/management/operations/proxy-peering/",
-      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     },
     {
@@ -3419,7 +3419,7 @@
     },
     {
       "source": "/zero-trust-access/management/operations/backup-restore/",
-      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/backup-restore/",
       "permanent": true
     },
     {
@@ -3429,7 +3429,7 @@
     },
     {
       "source": "/zero-trust-access/management/operations/proxy-peering/",
-      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     },
     {
@@ -3450,6 +3450,26 @@
     {
       "source": "/zero-trust-access/management/guides/",
       "destination": "/zero-trust-access/management/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/hsm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/hsm/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/breakglass-access/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     }
   ]
