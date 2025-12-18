@@ -183,7 +183,7 @@ describe('BotIntancesList', () => {
       screen.getByRole('menuitem', { name: 'Bot name' })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitem', { name: 'Recent' })
+      screen.getByRole('menuitem', { name: 'Activity' })
     ).toBeInTheDocument();
     expect(
       screen.getByRole('menuitem', { name: 'Hostname' })
@@ -191,10 +191,13 @@ describe('BotIntancesList', () => {
     const versionOption = screen.getByRole('menuitem', { name: 'Version' });
     await user.click(versionOption);
 
-    expect(onSortChanged).toHaveBeenLastCalledWith('version_latest', 'DESC');
+    expect(onSortChanged).toHaveBeenLastCalledWith('version_latest', 'ASC');
 
-    const dirAction = screen.getByRole('button', { name: 'Sort direction' });
-    await user.click(dirAction);
+    await user.click(fieldAction);
+    const oldestAction = screen.getByRole('menuitem', {
+      name: 'Oldest',
+    });
+    await user.click(oldestAction);
 
     // The component under test does not keep sort state so the sort field will
     // be 'active_at_latest' on the next change.

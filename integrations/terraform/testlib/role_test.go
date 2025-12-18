@@ -338,7 +338,7 @@ func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 		},
 	}
 
-	customv6KubeResources := []types.KubernetesResource{
+	customV6KubeResources := []types.KubernetesResource{
 		{
 			Kind:      types.KindKubePod,
 			Namespace: "myns",
@@ -347,7 +347,7 @@ func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 		},
 	}
 
-	customv7KubeResources := []types.KubernetesResource{
+	customV7KubeResources := []types.KubernetesResource{
 		{
 			Kind:      types.KindKubeDeployment,
 			Namespace: "myns",
@@ -434,7 +434,7 @@ func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "pod"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.name", "*"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.namespace", "myns"),
-					checkRoleResource(types.V6, customv6KubeResources),
+					checkRoleResource(types.V6, customV6KubeResources),
 				),
 			},
 			{
@@ -464,7 +464,7 @@ func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.name", "*"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.namespace", "myns"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.verbs.0", "get"),
-					checkRoleResource(types.V7, customv7KubeResources),
+					checkRoleResource(types.V7, customV7KubeResources),
 				),
 			},
 			{
