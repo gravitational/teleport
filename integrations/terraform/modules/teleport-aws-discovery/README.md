@@ -29,10 +29,10 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
-| <a name="requirement_http"></a> [http](#requirement\_http) | ~> 3.5 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0 |
+| <a name="requirement_http"></a> [http](#requirement\_http) | >= 3.0 |
 | <a name="requirement_teleport"></a> [teleport](#requirement\_teleport) | >= 18.5.1 |
-| <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.0 |
+| <a name="requirement_tls"></a> [tls](#requirement\_tls) | >= 4.0 |
 
 ## Providers
 
@@ -59,11 +59,9 @@ No modules.
 | teleport_integration.aws_oidc | resource |
 | teleport_provision_token.aws_iam | resource |
 | [aws_caller_identity.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
-| [aws_iam_openid_connect_provider.teleport](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_openid_connect_provider) | data source |
-| [aws_iam_policy.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy) | data source |
 | [aws_iam_policy_document.teleport_discovery_service_iam_role_trust](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.teleport_discovery_service_single_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
-| [aws_iam_role.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_role) | data source |
+| [aws_partition.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 | [http_http.teleport_ping](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 | [tls_certificate.teleport_proxy](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/data-sources/certificate) | data source |
 
@@ -73,22 +71,24 @@ No modules.
 |------|-------------|------|---------|:--------:|
 | <a name="input_apply_aws_tags"></a> [apply\_aws\_tags](#input\_apply\_aws\_tags) | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
 | <a name="input_apply_teleport_resource_labels"></a> [apply\_teleport\_resource\_labels](#input\_apply\_teleport\_resource\_labels) | Additional Teleport resource labels to apply to all created Teleport. | `map(string)` | `{}` | no |
-| <a name="input_aws_iam_policy_name"></a> [aws\_iam\_policy\_name](#input\_aws\_iam\_policy\_name) | Optional name override for the AWS IAM policy for discovery. | `string` | `""` | no |
-| <a name="input_aws_iam_role_name"></a> [aws\_iam\_role\_name](#input\_aws\_iam\_role\_name) | Optional name override for the AWS IAM role for discovery. | `string` | `""` | no |
+| <a name="input_aws_iam_policy_document"></a> [aws\_iam\_policy\_document](#input\_aws\_iam\_policy\_document) | Override the AWS IAM policy document attached to the AWS IAM role for resource discovery. | `string` | `""` | no |
+| <a name="input_aws_iam_policy_name"></a> [aws\_iam\_policy\_name](#input\_aws\_iam\_policy\_name) | Name for the AWS IAM policy for discovery. | `string` | `"teleport-discovery"` | no |
+| <a name="input_aws_iam_policy_use_name_prefix"></a> [aws\_iam\_policy\_use\_name\_prefix](#input\_aws\_iam\_policy\_use\_name\_prefix) | Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix. | `bool` | `true` | no |
+| <a name="input_aws_iam_role_name"></a> [aws\_iam\_role\_name](#input\_aws\_iam\_role\_name) | Name for the AWS IAM role for discovery. | `string` | `"teleport-discovery"` | no |
+| <a name="input_aws_iam_role_use_name_prefix"></a> [aws\_iam\_role\_use\_name\_prefix](#input\_aws\_iam\_role\_use\_name\_prefix) | Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix. | `bool` | `true` | no |
 | <a name="input_create"></a> [create](#input\_create) | Toggle creation of all resources. | `bool` | `true` | no |
 | <a name="input_create_aws_iam_openid_connect_provider"></a> [create\_aws\_iam\_openid\_connect\_provider](#input\_create\_aws\_iam\_openid\_connect\_provider) | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
-| <a name="input_create_aws_iam_policy"></a> [create\_aws\_iam\_policy](#input\_create\_aws\_iam\_policy) | Toggle AWS IAM policy creation. If false, then the IAM policy for discovery must already exist. | `bool` | `true` | no |
-| <a name="input_create_aws_iam_policy_attachment"></a> [create\_aws\_iam\_policy\_attachment](#input\_create\_aws\_iam\_policy\_attachment) | Toggle AWS IAM policy attachment to the Discovery Service AWS IAM role. If false, then the AWS IAM policy must already be attached. | `bool` | `true` | no |
-| <a name="input_create_aws_iam_role"></a> [create\_aws\_iam\_role](#input\_create\_aws\_iam\_role) | Toggle creation of the AWS IAM role for Teleport Discovery Service. If false, then the IAM role must already exist. | `bool` | `true` | no |
 | <a name="input_discovery_service_iam_credential_source"></a> [discovery\_service\_iam\_credential\_source](#input\_discovery\_service\_iam\_credential\_source) | Configure the intended credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | <pre>object({<br/>    use_oidc_integration = optional(bool, true) # the default<br/>    trust_role = optional(object({<br/>      role_arn    = string<br/>      external_id = optional(string, "")<br/>    }))<br/>  })</pre> | `{}` | no |
 | <a name="input_match_aws_regions"></a> [match\_aws\_regions](#input\_match\_aws\_regions) | AWS regions to discover. The default matches all AWS regions. | `list(string)` | <pre>[<br/>  "*"<br/>]</pre> | no |
 | <a name="input_match_aws_resource_types"></a> [match\_aws\_resource\_types](#input\_match\_aws\_resource\_types) | AWS resource types to match when discovering resources with Teleport. | `list(string)` | n/a | yes |
 | <a name="input_match_aws_tags"></a> [match\_aws\_tags](#input\_match\_aws\_tags) | AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | <pre>{<br/>  "*": [<br/>    "*"<br/>  ]<br/>}</pre> | no |
-| <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to include in resource names. This prefix is also added to any resource name overrides. | `string` | `""` | no |
-| <a name="input_teleport_discovery_config_name"></a> [teleport\_discovery\_config\_name](#input\_teleport\_discovery\_config\_name) | Optional name override for the `teleport_discovery_config` resource. | `string` | `""` | no |
+| <a name="input_teleport_discovery_config_name"></a> [teleport\_discovery\_config\_name](#input\_teleport\_discovery\_config\_name) | Name for the `teleport_discovery_config` resource. The default is a generated unique name | `string` | `"discovery"` | no |
+| <a name="input_teleport_discovery_config_use_name_prefix"></a> [teleport\_discovery\_config\_use\_name\_prefix](#input\_teleport\_discovery\_config\_use\_name\_prefix) | Determines whether the name of the Teleport discovery config (`teleport_discovery_config_name`) is used as a prefix. | `bool` | `true` | no |
 | <a name="input_teleport_discovery_group_name"></a> [teleport\_discovery\_group\_name](#input\_teleport\_discovery\_group\_name) | Teleport discovery group to use. For discovery configuration to apply, this name must match at least one Teleport Discovery Service instance's configured `discovery_group`. For Teleport Cloud clusters, use "cloud-discovery-group". | `string` | n/a | yes |
-| <a name="input_teleport_integration_name"></a> [teleport\_integration\_name](#input\_teleport\_integration\_name) | Optional name override for the `teleport_integration` resource. | `string` | `""` | no |
-| <a name="input_teleport_provision_token_name"></a> [teleport\_provision\_token\_name](#input\_teleport\_provision\_token\_name) | Optional name override for the `teleport_provision_token` resource. | `string` | `""` | no |
+| <a name="input_teleport_integration_name"></a> [teleport\_integration\_name](#input\_teleport\_integration\_name) | Name for the `teleport_integration` resource. The default is a generated unique name. | `string` | `"discovery"` | no |
+| <a name="input_teleport_integration_use_name_prefix"></a> [teleport\_integration\_use\_name\_prefix](#input\_teleport\_integration\_use\_name\_prefix) | Determines whether the name of the Teleport integration (`teleport_integration_name`) is used as a prefix. | `bool` | `true` | no |
+| <a name="input_teleport_provision_token_name"></a> [teleport\_provision\_token\_name](#input\_teleport\_provision\_token\_name) | Name for the `teleport_provision_token` resource. The default is a generated unique name | `string` | `"discovery"` | no |
+| <a name="input_teleport_provision_token_use_name_prefix"></a> [teleport\_provision\_token\_use\_name\_prefix](#input\_teleport\_provision\_token\_use\_name\_prefix) | Determines whether the name of the Teleport provision token (`teleport_provision_token_name`) is used as a prefix. | `bool` | `true` | no |
 | <a name="input_teleport_proxy_public_addr"></a> [teleport\_proxy\_public\_addr](#input\_teleport\_proxy\_public\_addr) | Teleport cluster proxy public address. | `string` | n/a | yes |
 
 ## Outputs

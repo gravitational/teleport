@@ -7,10 +7,11 @@ locals {
   match_aws_regions                = var.match_aws_regions
   match_aws_tags                   = var.match_aws_tags
   match_aws_types                  = var.match_aws_resource_types
-  teleport_discovery_config_name = "${local.name_prefix}${coalesce(
-    var.teleport_discovery_config_name,
-    local.default_teleport_resource_name,
-  )}"
+  teleport_discovery_config_name = (
+    var.teleport_discovery_config_use_name_prefix
+    ? "${var.teleport_discovery_config_name}-${local.teleport_resource_name_suffix}"
+    : var.teleport_discovery_config_name
+  )
   teleport_discovery_group_name = var.teleport_discovery_group_name
   trust_role = try({
     role_arn    = var.discovery_service_iam_credential_source.trust_role.role_arn,

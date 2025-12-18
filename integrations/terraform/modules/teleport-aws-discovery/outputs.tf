@@ -5,12 +5,12 @@ output "aws_oidc_provider_arn" {
 
 output "teleport_discovery_service_iam_policy_arn" {
   description = "AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for Teleport to discover resources in AWS."
-  value       = local.discovery_aws_iam_policy_arn
+  value       = one(aws_iam_policy.teleport_discovery_service[*].arn)
 }
 
 output "teleport_discovery_service_iam_role_arn" {
   description = "AWS resource name (ARN) of the AWS IAM role that Teleport Discovery Service will assume."
-  value       = local.discovery_aws_iam_role_arn
+  value       = one(aws_iam_role.teleport_discovery_service[*].arn)
 }
 
 output "teleport_discovery_config_name" {

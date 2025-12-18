@@ -3,16 +3,17 @@
 ################################################################################
 
 locals {
-  aws_iam_oidc_provider_arn = try(
-    aws_iam_openid_connect_provider.teleport[0].arn,
-    data.aws_iam_openid_connect_provider.teleport[0].arn,
-    "",
+  aws_iam_role_name_prefix = (
+    var.aws_iam_role_use_name_prefix
+    ? "${var.aws_iam_role_name}-"
+    : null
   )
-  aws_iam_role_name = "${local.name_prefix}${coalesce(
-    var.aws_iam_role_name,
-    local.default_aws_resource_name,
-  )}"
-  create_aws_iam_role   = local.create && var.create_aws_iam_role
+  aws_iam_role_name = (
+    var.aws_iam_role_use_name_prefix
+    ? null
+    : var.aws_iam_role_name
+  )
+  create_aws_iam_role   = local.create
   teleport_cluster_name = try(local.teleport_ping.cluster_name, "")
   trust_roles = try({
     local.trust_role.role_arn = local.trust_role
@@ -72,11 +73,6 @@ resource "aws_iam_role" "teleport_discovery_service" {
   description          = "AWS IAM role that Teleport Discovery Service will assume."
   max_session_duration = 3600
   name                 = local.aws_iam_role_name
+  name_prefix          = local.aws_iam_role_name_prefix
   tags                 = local.apply_aws_tags
-}
-
-data "aws_iam_role" "teleport_discovery_service" {
-  count = local.create && !local.create_aws_iam_role ? 1 : 0
-
-  name = local.aws_iam_role_name
 }

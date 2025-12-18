@@ -93,42 +93,13 @@ variable "create_aws_iam_openid_connect_provider" {
   type        = bool
   default     = true
   nullable    = false
-
-  validation {
-    condition     = !(var.create && var.create_aws_iam_openid_connect_provider && !var.create_aws_iam_role)
-    error_message = "If the AWS IAM OIDC provider will be created, then the AWS IAM role for discovery must also be created so that the OIDC provider is included in the role's trust policy."
-  }
 }
 
-variable "create_aws_iam_policy_attachment" {
-  description = "Toggle AWS IAM policy attachment to the Discovery Service AWS IAM role. If false, then the AWS IAM policy must already be attached."
-  type        = bool
-  default     = true
+variable "aws_iam_policy_document" {
+  description = "Override the AWS IAM policy document attached to the AWS IAM role for resource discovery."
+  type        = string
+  default     = ""
   nullable    = false
-}
-
-variable "create_aws_iam_policy" {
-  description = "Toggle AWS IAM policy creation. If false, then the IAM policy for discovery must already exist."
-  type        = bool
-  default     = true
-  nullable    = false
-
-  validation {
-    condition     = !(var.create && var.create_aws_iam_policy && !var.create_aws_iam_policy_attachment)
-    error_message = "If the AWS IAM policy for discovery will be created, then it must also be attached to the AWS IAM role for discovery."
-  }
-}
-
-variable "create_aws_iam_role" {
-  description = "Toggle creation of the AWS IAM role for Teleport Discovery Service. If false, then the IAM role must already exist."
-  type        = bool
-  default     = true
-  nullable    = false
-
-  validation {
-    condition     = !(var.create && var.create_aws_iam_role && !var.create_aws_iam_policy_attachment)
-    error_message = "If the AWS IAM role for discovery will be created, then the AWS IAM policy for discovery must also be attached to it."
-  }
 }
 
 variable "match_aws_regions" {
@@ -145,45 +116,73 @@ variable "match_aws_tags" {
   nullable    = false
 }
 
-variable "name_prefix" {
-  description = "Prefix to include in resource names. This prefix is also added to any resource name overrides."
+variable "aws_iam_policy_name" {
+  description = "Name for the AWS IAM policy for discovery."
   type        = string
-  default     = ""
+  default     = "teleport-discovery"
   nullable    = false
 }
 
-variable "aws_iam_policy_name" {
-  description = "Optional name override for the AWS IAM policy for discovery."
-  type        = string
-  default     = ""
+variable "aws_iam_policy_use_name_prefix" {
+  description = "Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix."
+  type        = bool
+  default     = true
   nullable    = false
 }
 
 variable "aws_iam_role_name" {
-  description = "Optional name override for the AWS IAM role for discovery."
+  description = "Name for the AWS IAM role for discovery."
   type        = string
-  default     = ""
+  default     = "teleport-discovery"
+  nullable    = false
+}
+
+variable "aws_iam_role_use_name_prefix" {
+  description = "Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix."
+  type        = bool
+  default     = true
   nullable    = false
 }
 
 variable "teleport_discovery_config_name" {
-  description = "Optional name override for the `teleport_discovery_config` resource."
+  description = "Name for the `teleport_discovery_config` resource. The default is a generated unique name"
   type        = string
-  default     = ""
+  default     = "discovery"
+  nullable    = false
+}
+
+variable "teleport_discovery_config_use_name_prefix" {
+  description = "Determines whether the name of the Teleport discovery config (`teleport_discovery_config_name`) is used as a prefix."
+  type        = bool
+  default     = true
   nullable    = false
 }
 
 variable "teleport_integration_name" {
-  description = "Optional name override for the `teleport_integration` resource."
+  description = "Name for the `teleport_integration` resource. The default is a generated unique name."
   type        = string
-  default     = ""
+  default     = "discovery"
+  nullable    = false
+}
+
+variable "teleport_integration_use_name_prefix" {
+  description = "Determines whether the name of the Teleport integration (`teleport_integration_name`) is used as a prefix."
+  type        = bool
+  default     = true
   nullable    = false
 }
 
 variable "teleport_provision_token_name" {
-  description = "Optional name override for the `teleport_provision_token` resource."
+  description = "Name for the `teleport_provision_token` resource. The default is a generated unique name"
   type        = string
-  default     = ""
+  default     = "discovery"
+  nullable    = false
+}
+
+variable "teleport_provision_token_use_name_prefix" {
+  description = "Determines whether the name of the Teleport provision token (`teleport_provision_token_name`) is used as a prefix."
+  type        = bool
+  default     = true
   nullable    = false
 }
 
