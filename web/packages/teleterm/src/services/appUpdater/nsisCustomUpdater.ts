@@ -12,6 +12,12 @@ export class NsisCustomUpdater extends NsisUpdater {
     if (!options.isAdminRightsRequired) {
       return super.doInstall(options);
     }
-    void this.opts.installUpdate(super.installerPath);
+    void this.spawnLog('sc', [
+      'start',
+      'TeleportUpdateService',
+      'update-service',
+      `--path=${super.installerPath}`,
+    ]);
+    return true;
   }
 }
