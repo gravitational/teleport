@@ -326,7 +326,7 @@ type Config struct {
 func (s *windowsService) runInstall(ctx context.Context, args []string) error {
 	var cfg Config
 	app := kingpin.New(serviceName, "Teleport Updater Windows Service")
-	serviceCmd := app.Command("run-update", "Start the VNet service.")
+	serviceCmd := app.Command("update-service", "Start the VNet service.")
 	//serviceCmd.Flag("user-sid", "SID of the user running the client application").Required().StringVar(&cfg.UserSID)
 	serviceCmd.Flag("path", "SID of the user running the client application").Required().StringVar(&cfg.Path)
 	//serviceCmd.Flag("proxyHost", "SID of the user running the client application").Required().StringVar(&cfg.ProxyHost)
@@ -335,7 +335,7 @@ func (s *windowsService) runInstall(ctx context.Context, args []string) error {
 		return trace.Wrap(err, "parsing runtime arguments to Windows service")
 	}
 	if cmd != serviceCmd.FullCommand() {
-		return trace.BadParameter("Windows service runtime arguments did not match \"run-update\", args: %v", args[1:])
+		return trace.BadParameter("Windows service runtime arguments did not match \"update-service\", args: %v", args[1:])
 	}
 	if err := performInstall(ctx, &cfg); err != nil {
 		return trace.Wrap(err, "running admin process")
