@@ -29,7 +29,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -169,7 +168,7 @@ func TestCertReloader(t *testing.T) {
 				KeyPairs:               certs,
 				KeyPairsReloadInterval: 0,
 			}
-			certReloader := New(cfg, "test", teleport.ComponentProxy, nil)
+			certReloader := New(cfg, nil, nil)
 			err := certReloader.Run(ctx)
 
 			// Check that certificates load correctly in the synchronous (first) attempt.
