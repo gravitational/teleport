@@ -113,6 +113,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		}
 	}
 
+	if err := validateImmutableLabels(spec.GetImmutableLabels()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -277,4 +281,29 @@ func (t *Token) GetSecret() (string, bool) {
 // GetScoped returns the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetScoped() *joiningv1.ScopedToken {
 	return t.scoped
+}
+
+// maxImmutableLabelsSize is the max size in bytes that all immutable labels
+// for a single scoped token can occupy.
+const maxImmutableLabelsSize = 2 * 1024 // 2KB
+
+func validateImmutableLabels(labels *joiningv1.ImmutableLabels) error {
+	if labels == nil {
+		return nil
+	}
+
+	var size int
+	for k, v := range labels.GetSsh() {
+		if !types.IsValidLabelKey(k) {
+			return trace.BadParameter("invalid immutable label key %q", k)
+		}
+		size += len([]byte(k))
+		size += len([]byte(v))
+	}
+
+	if size > maxImmutableLabelsSize {
+		return trace.BadParameter("immutable labels for a single token must be smaller than %dkb", maxImmutableLabelsSize/1024)
+	}
+
+	return nil
 }
