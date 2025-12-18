@@ -120,7 +120,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 disabled={state.isBranchDisabled}
                 label="Branch"
-                placeholder="main"
+                placeholder="refs/heads/main"
                 value={state.branch}
                 onChange={e => {
                   dispatch({
@@ -210,7 +210,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                   <FieldInput
                     flex={1}
                     label={'Git Ref'}
-                    placeholder="ref/heads/main"
+                    placeholder="refs/heads/main"
                     value={state.ref}
                     onChange={e => {
                       dispatch({
