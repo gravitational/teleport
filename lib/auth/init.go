@@ -56,7 +56,6 @@ import (
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -639,11 +638,6 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 
 	// Override user passed in cluster name with what is in the backend.
 	cfg.ClusterName = cn
-
-	// Apply any outstanding migrations.
-	if err := migration.Apply(ctx, asrv.logger, cfg.Backend); err != nil {
-		return trace.Wrap(err, "applying migrations")
-	}
 
 	// generate certificate authorities if they don't exist
 	if err := initializeAuthorities(ctx, asrv, &cfg); err != nil {
