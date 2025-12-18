@@ -270,13 +270,14 @@ type windowsService struct{}
 // or not by using svcSpecificEC parameter.
 func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
 	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
+	logger.Info("Started applying update")
 	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	errCh := make(chan error)
-	go func() { errCh <- s.runInstall(ctx, args) }()
+	go func() { errCh <- s.runInstall(ctx, args, logger) }()
 
 	var terminateTimedOut <-chan time.Time
 loop:
@@ -323,7 +324,7 @@ type Config struct {
 	ProxyHost string
 }
 
-func (s *windowsService) runInstall(ctx context.Context, args []string) error {
+func (s *windowsService) runInstall(ctx context.Context, args []string, logger *slog.Logger) error {
 	var cfg Config
 	app := kingpin.New(serviceName, "Teleport Updater Windows Service")
 	serviceCmd := app.Command("update-service", "Start the VNet service.")
@@ -337,21 +338,22 @@ func (s *windowsService) runInstall(ctx context.Context, args []string) error {
 	if cmd != serviceCmd.FullCommand() {
 		return trace.BadParameter("Windows service runtime arguments did not match \"update-service\", args: %v", args[1:])
 	}
-	if err := performInstall(ctx, &cfg); err != nil {
+	if err := performInstall(ctx, &cfg, logger); err != nil {
 		return trace.Wrap(err, "running admin process")
 	}
 	return nil
 }
 
-func performInstall(ctx context.Context, cfg *Config) error {
+func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error {
 	cmd := exec.Command(cfg.Path, "--updated", "/S", "--force-run")
 	// SysProcAttr holds Windows-specific attributes
-	cmd.SysProcAttr = &windows.SysProcAttr{
-		// DETACHED_PROCESS: The new process does not inherit the parent's console.
-		// CREATE_NEW_PROCESS_GROUP: Ensures the child doesn't receive Ctrl+C signals sent to the parent.
-		CreationFlags:    windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
-		NoInheritHandles: true,
-	}
+	//cmd.SysProcAttr = &windows.SysProcAttr{
+	//	// DETACHED_PROCESS: The new process does not inherit the parent's console.
+	//	// CREATE_NEW_PROCESS_GROUP: Ensures the child doesn't receive Ctrl+C signals sent to the parent.
+	//	CreationFlags:    windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+	//	NoInheritHandles: true,
+	//}
+	logger.Info("Running command", "command", cmd.String())
 
 	// Use Start() instead of Run().
 	// Start() returns immediately after the process is launched.
@@ -363,8 +365,11 @@ func performInstall(ctx context.Context, cfg *Config) error {
 	// Important: Release the handle to the process so the parent
 	// doesn't keep a reference to the child in its process table.
 	if cmd.Process != nil {
-		return cmd.Process.Release()
+		logger.Info("Releasing resources")
+		err = cmd.Process.Release()
 	}
+
+	os.Exit(0)
 
 	return trace.Wrap(err, "running admin process")
 }
