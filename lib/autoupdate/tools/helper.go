@@ -70,6 +70,9 @@ func newUpdater(toolsDir string) (*Updater, error) {
 // If they differ, the requested version is downloaded and extracted into the client tools directory,
 // the installation is recorded in the configuration file, and the tool is re-executed with the updated version.
 func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecArgs []string) error {
+	// disable auto updates entirely for this dev build of tctl
+	return nil
+
 	// If client tools updates are explicitly disabled, we want to catch this as soon as possible
 	// so we don't try to read te user home directory, fail, and log warnings.
 	if os.Getenv(teleportToolsVersionEnv) == teleportToolsVersionEnvDisabled {
