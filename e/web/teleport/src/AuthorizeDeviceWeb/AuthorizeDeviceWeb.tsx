@@ -20,7 +20,7 @@ import { useEffect } from 'react';
 import { useLocation, useParams } from 'react-router';
 import styled from 'styled-components';
 
-import { Box, ButtonLink, ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Link, Stack, Text } from 'design';
 import { getPlatform } from 'design/platform';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import { processRedirectUri } from 'shared/redirects';
@@ -31,6 +31,7 @@ import {
   getConnectDownloadLinks,
 } from 'teleport/components/DownloadConnect/DownloadConnect';
 import cfg from 'teleport/config';
+import { useNoMinWidth } from 'teleport/Main';
 import history from 'teleport/services/history/history';
 import useTeleport from 'teleport/useTeleport';
 
@@ -94,80 +95,64 @@ export const DeviceTrustConnectPassthrough = ({
   redirectUri?: string;
   downloadLinks: Array<DownloadLink>;
 }) => {
+  // Gets rid of the horizontal scrollbar on smaller screens.
+  useNoMinWidth();
+
   return (
     <Wrapper>
-      <Flex flexDirection="column">
-        <Text fontWeight={300} fontSize={7} mb={7}>
-          Click <BoldText>Open Teleport Connect</BoldText> on the dialog shown
-          by your browser
+      <Text fontSize={7} mb={5}>
+        Click <BoldText>Open Teleport Connect</BoldText> on the dialog shown by
+        your browser.
+      </Text>
+
+      <Text fontSize={7} mb={4}>
+        If you don't see a dialog, click{' '}
+        <BoldText>Launch Teleport Connect</BoldText> below.
+      </Text>
+
+      <Box mb={10}>
+        <ButtonPrimary
+          size="extra-large"
+          textTransform="none"
+          as="a"
+          href={authorizeWebDeviceDeepLink}
+        >
+          Launch Teleport Connect
+        </ButtonPrimary>
+      </Box>
+
+      <Stack alignItems="center">
+        <Text fontSize={3}>Don't have Teleport Connect?</Text>
+        <DownloadConnect downloadLinks={downloadLinks} />
+      </Stack>
+
+      <SkipAuthNotice>
+        <Text>
+          You can{' '}
+          <Link href={processRedirectUri(redirectUri)}>
+            continue without Device Trust
+          </Link>{' '}
+          but you will not be able to connect to resources that require
+          Device&nbsp;Trust.
         </Text>
-        <Text fontSize={7} mb={10} fontWeight={300}>
-          If you don't see a dialog, click{' '}
-          <BoldText>Launch Teleport Connect</BoldText> below
-        </Text>
-        <Flex justifyContent="center" mb={9}>
-          <ButtonPrimary
-            textTransform="none"
-            width="280px"
-            as="a"
-            href={authorizeWebDeviceDeepLink}
-          >
-            Launch Teleport Connect
-          </ButtonPrimary>
-        </Flex>
-        <Box>
-          <Text fontSize={3}>
-            Don't have Teleport Connect?{' '}
-            {downloadLinks.length === 1 ? (
-              <DownloadButton as="a" href={downloadLinks[0].url}>
-                Download it now
-              </DownloadButton>
-            ) : (
-              <DownloadConnect downloadLinks={downloadLinks} />
-            )}
-          </Text>
-        </Box>
-        <SkipAuthNotice>
-          <Text>
-            You can{' '}
-            <a
-              css={`
-                text-decoration: none;
-              `}
-              href={processRedirectUri(redirectUri)}
-            >
-              continue without Device Trust{' '}
-            </a>
-            but you will not be able to connect to resources that require Device
-            Trust.
-          </Text>
-        </SkipAuthNotice>
-      </Flex>
+      </SkipAuthNotice>
     </Wrapper>
   );
 };
 
-const SkipAuthNotice = styled(Box)`
-  text-align: center;
-  width: 100%;
-  @media (min-height: 500px) {
-    position: absolute;
-    bottom: 24px;
-  }
-`;
+const SkipAuthNotice = styled(Box).attrs({
+  textAlign: 'center',
+  marginTop: 'auto',
+})``;
 
-const DownloadButton = styled(ButtonLink)`
-  text-decoration: none;
-  font-size: 16px;
-  color: ${props => props.theme.colors.brand};
-`;
+const BoldText = styled(Text).attrs({ as: 'span', bold: true })``;
 
-const BoldText = styled.span`
-  font-weight: 700;
-`;
-
-const Wrapper = styled(Box)`
-  text-align: center;
-  line-height: 32px;
-  padding-top: 5vh;
-`;
+const Wrapper = styled(Stack).attrs({
+  fullWidth: true,
+  height: '100%',
+  textAlign: 'center',
+  lineHeight: '32px',
+  pt: '5vh',
+  px: 3,
+  pb: 3,
+})``;

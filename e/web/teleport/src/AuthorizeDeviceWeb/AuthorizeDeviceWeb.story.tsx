@@ -16,27 +16,48 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta } from '@storybook/react-vite';
 import { MemoryRouter } from 'react-router';
 
-import { getPlatform } from 'design/platform';
+import { Platform } from 'design/platform';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { getConnectDownloadLinks } from 'teleport/components/DownloadConnect/DownloadConnect';
+import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { DeviceTrustConnectPassthrough } from './AuthorizeDeviceWeb';
 
-export default {
-  title: 'TeleportE/AuthorizeDeviceWeb',
+type StoryProps = {
+  platform: Platform;
 };
 
-export function AuthorizeDeviceWeb() {
-  const platform = getPlatform();
-  const downloadLinks = getConnectDownloadLinks(platform, '15.2.2');
+const meta: Meta<StoryProps> = {
+  title: 'TeleportE/AuthorizeDeviceWeb',
+  component: AuthorizeDeviceWeb,
+  argTypes: {
+    platform: {
+      control: { type: 'select' },
+      options: Object.values(Platform),
+    },
+  },
+  args: {
+    platform: Platform.macOS,
+  },
+};
+export default meta;
+
+export function AuthorizeDeviceWeb(props: StoryProps) {
+  const downloadLinks = getConnectDownloadLinks(props.platform, '15.2.2');
   return (
     <MemoryRouter>
-      <DeviceTrustConnectPassthrough
-        authorizeWebDeviceDeepLink={'blank'}
-        downloadLinks={downloadLinks}
-      />
+      <InfoGuidePanelProvider>
+        <ContentMinWidth>
+          <DeviceTrustConnectPassthrough
+            authorizeWebDeviceDeepLink={'blank'}
+            downloadLinks={downloadLinks}
+          />
+        </ContentMinWidth>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 }
