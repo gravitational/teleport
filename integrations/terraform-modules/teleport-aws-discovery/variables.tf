@@ -187,15 +187,18 @@ variable "teleport_provision_token_use_name_prefix" {
 }
 
 variable "discovery_service_iam_credential_source" {
-  description = "Configure the intended credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration."
+  description = "Configure the intended credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. Alternatively"
   type = object({
-    use_oidc_integration = optional(bool, true) # the default
+    use_oidc_integration = optional(bool)
     trust_role = optional(object({
       role_arn    = string
       external_id = optional(string, "")
     }))
   })
-  default  = {}
+  default = {
+    use_oidc_integration = true
+    trust_role           = null
+  }
   nullable = false
 
   validation {
