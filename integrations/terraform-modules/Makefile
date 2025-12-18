@@ -1,8 +1,8 @@
 .PHONY: all
 all: ;
 
-SUBDIRS := $(sort $(dir $(wildcard */*.tf)))
-README_FILES := $(addsuffix README.md,$(SUBDIRS))
+SUBDIRS := $(shell find * -type f -name '*.tf' -exec dirname {} \; 2>/dev/null | sort -u)
+README_FILES := $(addsuffix /README.md,$(SUBDIRS))
 
 .PHONY: docs
 docs: $(README_FILES) ;
