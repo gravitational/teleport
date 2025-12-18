@@ -293,11 +293,19 @@ func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }
 
-func crlContainerDN(domain string, caType types.CertAuthType) string {
-	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), DomainDN(domain))
+func crlContainerDN(domain string, caType types.CertAuthType) (string, error) {
+	ckn, err := crlKeyName(caType)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return fmt.Sprintf(
+		"CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s",
+		ckn, DomainDN(domain),
+	), nil
 }
 
-// CRNCN computes the common name for a Teleport CRL in Windows environments.
+// CRLCN computes the common name for a Teleport CRL in Windows environments.
 // The issuer SKID is optional, but should generally be set for compatibility
 // with clusters having more than one issuer (like those using HSMs).
 func CRLCN(issuerCN string, issuerSKID []byte) string {
@@ -314,29 +322,41 @@ func CRLCN(issuerCN string, issuerSKID []byte) string {
 // CRLDN computes the distinguished name for a Teleport CRL in Windows environments.
 // The issuer SKID is optional, but should generally be set for compatibility
 // with clusters having more than one issuer (like those using HSMs).
-func CRLDN(issuerCN string, issuerSKID []byte, activeDirectoryDomain string, caType types.CertAuthType) string {
-	return "CN=" + CRLCN(issuerCN, issuerSKID) + "," + crlContainerDN(activeDirectoryDomain, caType)
+func CRLDN(issuerCN string, issuerSKID []byte, activeDirectoryDomain string, caType types.CertAuthType) (string, error) {
+	containerDN, err := crlContainerDN(activeDirectoryDomain, caType)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("CN=%s,%s", CRLCN(issuerCN, issuerSKID), containerDN), nil
 }
 
 // CRLDistributionPoint computes the CRL distribution point for certs issued.
-func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority, includeSKID bool) string {
+func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthType, issuer *tlsca.CertAuthority, includeSKID bool) (string, error) {
 	var issuerSKID []byte
 	if includeSKID {
 		issuerSKID = issuer.Cert.SubjectKeyId
 	}
-	crlDN := CRLDN(issuer.Cert.Subject.CommonName, issuerSKID, activeDirectoryDomain, caType)
-	return fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN)
+	crlDN, err := CRLDN(issuer.Cert.Subject.CommonName, issuerSKID, activeDirectoryDomain, caType)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return fmt.Sprintf(
+		"ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN,
+	), nil
 }
 
 // crlKeyName returns the appropriate LDAP key given the CA type.
 //
-// Note: UserCA must use "Teleport" to keep backwards compatibility.
-func crlKeyName(caType types.CertAuthType) string {
+// UserCA must use "Teleport" to keep backwards compatibility.
+func crlKeyName(caType types.CertAuthType) (string, error) {
 	switch caType {
-	case types.DatabaseClientCA, types.DatabaseCA:
-		return "TeleportDB"
+	case types.UserCA:
+		return "Teleport", nil
+	case types.DatabaseCA, types.DatabaseClientCA:
+		return "TeleportDB", nil
 	default:
-		return "Teleport"
+		return "", trace.BadParameter("cannot create CRL name for unexpected CA type: %q", caType)
 	}
 }
 

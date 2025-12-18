@@ -98,7 +98,10 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// by the client because the CDP is based on the identity of the issuer, which is
 	// necessary in order to support clusters with multiple issuing certs (HSMs).
 	if req.CRLDomain != "" {
-		cdp := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
+		cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		certReq.CRLDistributionPoints = []string{cdp}
 	} else if req.CRLEndpoint != "" {
 		// Legacy clients will specify CRL endpoint instead of CRL domain.
