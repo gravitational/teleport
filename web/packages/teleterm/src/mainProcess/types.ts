@@ -215,6 +215,7 @@ export type MainProcessClient = {
     clusterUri: RootClusterUri | undefined
   ): Promise<void>;
   supportsAppUpdates(): boolean;
+  toggleAllowedToManage(clusterUri: RootClusterUri): Promise<void>;
   checkForAppUpdates(): Promise<void>;
   downloadAppUpdate(): Promise<void>;
   cancelAppUpdateDownload(): Promise<void>;
@@ -370,6 +371,7 @@ export enum MainProcessIpc {
   DownloadAppUpdate = 'main-process-download-app-update',
   CancelAppUpdateDownload = 'main-process-cancel-app-update-download',
   QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
+  ToggleAllowedToManage = 'main-process-toggle-allowed-to-manage',
   ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
   SupportsAppUpdates = 'main-process-supports-app-updates',
   InitClusterStoreSubscription = 'main-process-init-cluster-store-subscription',

@@ -35,9 +35,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutoUpdateService_GetClusterVersions_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetClusterVersions"
-	AutoUpdateService_GetDownloadBaseUrl_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetDownloadBaseUrl"
-	AutoUpdateService_RunUpdate_FullMethodName          = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/RunUpdate"
+	AutoUpdateService_GetClusterVersions_FullMethodName        = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetClusterVersions"
+	AutoUpdateService_GetDownloadBaseUrl_FullMethodName        = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetDownloadBaseUrl"
+	AutoUpdateService_FindAllowedUpdateClusters_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/FindAllowedUpdateClusters"
+	AutoUpdateService_ToggleAllowedUpdateOrigin_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/ToggleAllowedUpdateOrigin"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -53,7 +54,9 @@ type AutoUpdateServiceClient interface {
 	// OSS builds require this env var to be set, otherwise an error is returned.
 	GetDownloadBaseUrl(ctx context.Context, in *GetDownloadBaseUrlRequest, opts ...grpc.CallOption) (*GetDownloadBaseUrlResponse, error)
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
-	RunUpdate(ctx context.Context, in *RunUpdateRequest, opts ...grpc.CallOption) (*RunUpdateResponse, error)
+	FindAllowedUpdateClusters(ctx context.Context, in *FindAllowedUpdateClustersRequest, opts ...grpc.CallOption) (*FindAllowedUpdateClustersResponse, error)
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	ToggleAllowedUpdateOrigin(ctx context.Context, in *ToggleAllowedUpdateOriginRequest, opts ...grpc.CallOption) (*ToggleAllowedUpdateOriginResponse, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -84,10 +87,20 @@ func (c *autoUpdateServiceClient) GetDownloadBaseUrl(ctx context.Context, in *Ge
 	return out, nil
 }
 
-func (c *autoUpdateServiceClient) RunUpdate(ctx context.Context, in *RunUpdateRequest, opts ...grpc.CallOption) (*RunUpdateResponse, error) {
+func (c *autoUpdateServiceClient) FindAllowedUpdateClusters(ctx context.Context, in *FindAllowedUpdateClustersRequest, opts ...grpc.CallOption) (*FindAllowedUpdateClustersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RunUpdateResponse)
-	err := c.cc.Invoke(ctx, AutoUpdateService_RunUpdate_FullMethodName, in, out, cOpts...)
+	out := new(FindAllowedUpdateClustersResponse)
+	err := c.cc.Invoke(ctx, AutoUpdateService_FindAllowedUpdateClusters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *autoUpdateServiceClient) ToggleAllowedUpdateOrigin(ctx context.Context, in *ToggleAllowedUpdateOriginRequest, opts ...grpc.CallOption) (*ToggleAllowedUpdateOriginResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ToggleAllowedUpdateOriginResponse)
+	err := c.cc.Invoke(ctx, AutoUpdateService_ToggleAllowedUpdateOrigin_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +120,9 @@ type AutoUpdateServiceServer interface {
 	// OSS builds require this env var to be set, otherwise an error is returned.
 	GetDownloadBaseUrl(context.Context, *GetDownloadBaseUrlRequest) (*GetDownloadBaseUrlResponse, error)
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
-	RunUpdate(context.Context, *RunUpdateRequest) (*RunUpdateResponse, error)
+	FindAllowedUpdateClusters(context.Context, *FindAllowedUpdateClustersRequest) (*FindAllowedUpdateClustersResponse, error)
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	ToggleAllowedUpdateOrigin(context.Context, *ToggleAllowedUpdateOriginRequest) (*ToggleAllowedUpdateOriginResponse, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -124,8 +139,11 @@ func (UnimplementedAutoUpdateServiceServer) GetClusterVersions(context.Context, 
 func (UnimplementedAutoUpdateServiceServer) GetDownloadBaseUrl(context.Context, *GetDownloadBaseUrlRequest) (*GetDownloadBaseUrlResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDownloadBaseUrl not implemented")
 }
-func (UnimplementedAutoUpdateServiceServer) RunUpdate(context.Context, *RunUpdateRequest) (*RunUpdateResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RunUpdate not implemented")
+func (UnimplementedAutoUpdateServiceServer) FindAllowedUpdateClusters(context.Context, *FindAllowedUpdateClustersRequest) (*FindAllowedUpdateClustersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FindAllowedUpdateClusters not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) ToggleAllowedUpdateOrigin(context.Context, *ToggleAllowedUpdateOriginRequest) (*ToggleAllowedUpdateOriginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ToggleAllowedUpdateOrigin not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -184,20 +202,38 @@ func _AutoUpdateService_GetDownloadBaseUrl_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoUpdateService_RunUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RunUpdateRequest)
+func _AutoUpdateService_FindAllowedUpdateClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindAllowedUpdateClustersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoUpdateServiceServer).RunUpdate(ctx, in)
+		return srv.(AutoUpdateServiceServer).FindAllowedUpdateClusters(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoUpdateService_RunUpdate_FullMethodName,
+		FullMethod: AutoUpdateService_FindAllowedUpdateClusters_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoUpdateServiceServer).RunUpdate(ctx, req.(*RunUpdateRequest))
+		return srv.(AutoUpdateServiceServer).FindAllowedUpdateClusters(ctx, req.(*FindAllowedUpdateClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AutoUpdateService_ToggleAllowedUpdateOrigin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ToggleAllowedUpdateOriginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).ToggleAllowedUpdateOrigin(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_ToggleAllowedUpdateOrigin_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).ToggleAllowedUpdateOrigin(ctx, req.(*ToggleAllowedUpdateOriginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -218,8 +254,12 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AutoUpdateService_GetDownloadBaseUrl_Handler,
 		},
 		{
-			MethodName: "RunUpdate",
-			Handler:    _AutoUpdateService_RunUpdate_Handler,
+			MethodName: "FindAllowedUpdateClusters",
+			Handler:    _AutoUpdateService_FindAllowedUpdateClusters_Handler,
+		},
+		{
+			MethodName: "ToggleAllowedUpdateOrigin",
+			Handler:    _AutoUpdateService_ToggleAllowedUpdateOrigin_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -68,8 +68,11 @@ export class AppUpdater {
   constructor(
     private readonly storage: AppUpdaterStorage,
     private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
+    private readonly getAllowedClusters: () => Promise<string[]>,
+    private readonly toggleAllowedToManageFn: (
+      clusterUri: RootClusterUri
+    ) => Promise<void>,
     readonly getDownloadBaseUrl: () => Promise<string>,
-    private readonly installWindowsUpdate: (path: string) => Promise<void>,
     private readonly emit: (event: AppUpdateEvent) => void,
     private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
@@ -88,7 +91,7 @@ export class AppUpdater {
 
     if (process.platform === 'win32') {
       this.nativeUpdater = new NsisCustomUpdater({
-        installUpdate: this.installWindowsUpdate,
+        installUpdate: () => {},
       });
     }
 
@@ -339,6 +342,7 @@ export class AppUpdater {
       versionEnvVar: this.versionEnvVar,
       managingClusterUri,
       getClusterVersions: this.getClusterVersions,
+      getAllowedClusters: this.getAllowedClusters,
     });
     this.logger.info('Resolved auto updates status', this.autoUpdatesStatus);
   }
@@ -383,6 +387,11 @@ export class AppUpdater {
         this.logger.error(error);
       }
     }
+  }
+
+  async toggleAllowedToManage(clusterUri: RootClusterUri) {
+    await this.toggleAllowedToManageFn(clusterUri);
+    await this.checkForUpdates();
   }
 }
 

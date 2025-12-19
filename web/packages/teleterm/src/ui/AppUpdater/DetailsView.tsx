@@ -60,6 +60,7 @@ export function DetailsView({
   onDownload,
   onCancelDownload,
   onInstall,
+  toggleAllowedToManage,
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
@@ -68,6 +69,7 @@ export function DetailsView({
   onDownload(): void;
   onCancelDownload(): void;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
+  toggleAllowedToManage(clusterUri: RootClusterUri): Promise<void>;
 }) {
   return (
     <Stack gap={3} width="100%">
@@ -77,6 +79,7 @@ export function DetailsView({
           updateEventKind={updateEvent.kind}
           onCheckForUpdates={onCheckForUpdates}
           changeManagingCluster={changeManagingCluster}
+          toggleAllowedToManage={toggleAllowedToManage}
         />
       )}
       <UpdaterState

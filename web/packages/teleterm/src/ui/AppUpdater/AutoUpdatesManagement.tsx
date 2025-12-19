@@ -19,10 +19,8 @@
 import { ReactNode, useState } from 'react';
 
 import { Alert } from 'design/Alert';
-import Box from 'design/Box';
-import { ButtonSecondary } from 'design/Button';
 import Flex, { Stack } from 'design/Flex';
-import { Check, Checks, Cog, ShieldWarning, Warning } from 'design/Icon';
+import { Check, Cog, Cross } from 'design/Icon';
 import Link from 'design/Link';
 import { RadioGroup } from 'design/RadioGroup';
 import { H3, P3 } from 'design/Text';
@@ -46,6 +44,7 @@ export function AutoUpdatesManagement(props: {
   updateEventKind: AppUpdateEvent['kind'];
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
   onCheckForUpdates(): void;
+  toggleAllowedToManage(clusterUri: RootClusterUri): Promise<void>;
 }) {
   const { status } = props;
 
@@ -76,6 +75,7 @@ export function AutoUpdatesManagement(props: {
       <ManagingClusterSelector
         autoUpdatesStatus={status}
         changeManagingCluster={props.changeManagingCluster}
+        toggleAllowedToManage={props.toggleAllowedToManage}
         isCheckingForUpdates={props.updateEventKind === 'checking-for-update'}
         onRetry={props.onCheckForUpdates}
         // Resets localIsAutoManaged checkbox.
@@ -90,11 +90,13 @@ function ManagingClusterSelector({
   isCheckingForUpdates,
   changeManagingCluster,
   onRetry,
+  toggleAllowedToManage,
 }: {
   autoUpdatesStatus: AutoUpdatesStatus;
   isCheckingForUpdates: boolean;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
   onRetry(): void;
+  toggleAllowedToManage(clusterUri: RootClusterUri): Promise<void>;
 }) {
   // Allows optimistic UI updates without waiting for autoUpdatesStatus.
   const [optimisticManagingCluster, setOptimisticManagingCluster] = useState<
@@ -107,6 +109,7 @@ function ManagingClusterSelector({
     highestCompatibleVersion:
       autoUpdatesStatus.options.highestCompatibleVersion,
     onRetry,
+    toggleAllowedToManage,
   });
 
   return (
@@ -148,12 +151,14 @@ function makeOptions({
   status,
   highestCompatibleVersion,
   disabled,
+  toggleAllowedToManage,
   onRetry,
 }: {
   status: AutoUpdatesStatus;
   disabled: boolean;
   highestCompatibleVersion: string;
   onRetry(): void;
+  toggleAllowedToManage(cluster: RootClusterUri): Promise<void>;
 }) {
   const highestCompatible = {
     label: 'Use the highest compatible version from your clusters',
@@ -189,8 +194,23 @@ function makeOptions({
                 .join(' · ')}
             </div>
             <Flex gap={1}>
-              <Check color="success.main" size="small" />
-              Allowed to provide system-wide updates. <Link>Change...</Link>
+              {c.allowedToManage ? (
+                <>
+                  <Check color="success.main" size="small" />
+                  Allowed to provide system-wide updates.{' '}
+                  <Link onClick={() => toggleAllowedToManage(c.clusterUri)}>
+                    Change...
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Cross color="error.main" size="small" />
+                  Not allowed to provide system-wide updates.{' '}
+                  <Link onClick={() => toggleAllowedToManage(c.clusterUri)}>
+                    Change...
+                  </Link>
+                </>
+              )}
             </Flex>
           </Stack>
         ),

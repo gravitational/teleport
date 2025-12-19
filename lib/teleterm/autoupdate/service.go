@@ -160,14 +160,28 @@ func resolveBaseURL() (string, error) {
 	return autoupdate.DefaultBaseURL, nil
 }
 
-func (s *Service) RunUpdate(ctx context.Context, request *api.RunUpdateRequest) (*api.RunUpdateResponse, error) {
-	err := windows_service.RunService(ctx, &windows_service.Config{
-		UserSID:   "",
-		Path:      request.GetPath(),
-		ProxyHost: "",
-	})
+func (s *Service) FindAllowedUpdateClusters(ctx context.Context, request *api.FindAllowedUpdateClustersRequest) (*api.FindAllowedUpdateClustersResponse, error) {
+	clusters, err := windows_service.GetAllowedOrigins()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &api.RunUpdateResponse{}, nil
+	return &api.FindAllowedUpdateClustersResponse{Clusters: clusters}, nil
+}
+
+func (s *Service) ToggleAllowedUpdateOrigin(ctx context.Context, request *api.ToggleAllowedUpdateOriginRequest) (*api.ToggleAllowedUpdateOriginResponse, error) {
+	clusters, err := windows_service.GetAllowedOrigins()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	found := false
+	for _, cluster := range clusters {
+		if cluster == request.Cluster {
+			found = true
+		}
+	}
+	err = windows_service.UpdateOrigin(request.Cluster, !found)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &api.ToggleAllowedUpdateOriginResponse{}, nil
 }
