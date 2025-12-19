@@ -30,7 +30,7 @@ Provider](../../../zero-trust-access/sso/integrate-idp/okta.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - An Okta organization with admin access.
 
-## Step 1/5. Create new or choose an existing authentication connector
+## Step 1/4. Create new or choose an existing authentication connector
 
 1. Visit the Teleport Web UI and from the left sidebar, navigate to **Add New** -> **Integration**.
 
@@ -60,7 +60,7 @@ If you are using already configured Okta connector, you can skip Okta app config
 ## Step 2/4. Create and configure an Okta app
 
 <Tabs>
-  <TabItem label="Okta Integration Network">
+<TabItem label="Okta Integration Network">
 
   Add Teleport app to Okta if it hasn't been added previously:
 
@@ -81,57 +81,59 @@ If you are using already configured Okta connector, you can skip Okta app config
 
   7. Scroll down and click **Save**.
 
-  </TabItem>
-
-  <TabItem label="Custom SAML 2.0 app (legacy)">
+</TabItem>
+<TabItem label="Custom SAML 2.0 app (legacy)">
 
   Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
 
   1. In Okta Console, go to **Applications**.
+
   2. Click **Create App Integration**.
+
   3. Select "SAML 2.0" and click **Next**.
+
   4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
+
   5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
 
-    - Single sign on URL:
+     - Single sign on URL:
 
-      ```
-      https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-      ```
+       ```
+       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+       ```
 
-    - Audience URI (SP Entity ID):
+     - Audience URI (SP Entity ID):
 
-      ```
-      https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-      ```
+       ```
+       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+       ```
 
-    - Name ID format `EmailAddress`
+     - Name ID format `EmailAddress`
 
-    - Application username `Okta username` 
+     - Application username `Okta username` 
 
-    {/* NOTE: This image is shared in multiple guides. */}
-    ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
-
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
   6. In the same "Configure SAML" setup screen, scroll down to the **Group Attribute Statements (optional)** section and setup it like so:
 
-    - Name: `groups` | Name format: `Unspecified`
-    - Filter: `Matches regex` |  `.*`
+     - Name: `groups` | Name format: `Unspecified`
+     - Filter: `Matches regex` |  `.*`
 
-    {/* NOTE: This image is shared in multiple guides. */}
-    ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
 
   7. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
 
-  </TabItem>
+</TabItem>
 </Tabs>
 
 ## Step 3/4. Assign user groups
 
 1. In the same Okta Teleport app, go to the **Assignments** tab and click the **Assign** dropdown.
-
+ 
 2. Select "Assign to Groups" and search for the Okta groups which members will have access to Teleport.
-
+ 
 3. Click **Assign** next to each selected groups and click **Done**.
 
    {/* NOTE: This image is shared in multiple guides. */}
