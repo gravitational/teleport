@@ -179,7 +179,7 @@ func (s *Service) ToggleAllowedUpdateOrigin(ctx context.Context, request *api.To
 			found = true
 		}
 	}
-	err = windows_service.UpdateOrigin(request.Cluster, !found)
+	err = windows_service.RelaunchAsAdmin(request.Cluster, !found)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

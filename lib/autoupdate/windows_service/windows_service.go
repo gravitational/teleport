@@ -384,6 +384,38 @@ func AmIAdmin() bool {
 	return true
 }
 
+func RelaunchAsAdmin(origin string, allowed bool) error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	// Construct arguments for the new process.
+	// We use hidden internal flags to pass the data.
+	allowStr := "false"
+	if allowed {
+		allowStr = "true"
+	}
+
+	// Command: myapp.exe --internal-update-origin "example.com" --internal-allowed=true
+	args := fmt.Sprintf(`modify-reg --internal-allowed=%s --enabled=%s`, origin, allowStr)
+
+	verbPtr, _ := syscall.UTF16PtrFromString("runas") // "runas" triggers UAC
+	exePtr, _ := syscall.UTF16PtrFromString(exe)
+	argsPtr, _ := syscall.UTF16PtrFromString(args)
+	cwdPtr, _ := syscall.UTF16PtrFromString(".")
+
+	// ShellExecute is fire-and-forget regarding the child process exit code.
+	// It returns nil if the user clicked "Yes" on the UAC prompt.
+	err = windows.ShellExecute(0, verbPtr, exePtr, argsPtr, cwdPtr, 1) // 1 = SW_NORMAL
+	if err != nil {
+		// User clicked "No" or OS error
+		return fmt.Errorf("user denied elevation or shell error: %w", err)
+	}
+
+	return nil
+}
+
 func UpdateOrigin(origin string, allowed bool) error {
 	keyPath := `SOFTWARE\Policies\Teleport\TeleportConnect`
 	valName := "AllowedUpdateOrigins"
