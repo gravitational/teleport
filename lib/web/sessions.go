@@ -1027,7 +1027,12 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 	}
 
 	// Enforce IP Pinning if it is present in the user's certificate.
-	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1167,7 +1172,12 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authz.CheckIPPinning(ctx, *identity, false, s.log); err != nil {
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
