@@ -53,8 +53,8 @@ type AppAuthConfig interface {
 // AppAuthConfigSessions is a service that manages sessions using app auth
 // config.
 type AppAuthConfigSessions interface {
-	// CreateAppSessionWithJwt creates an app session using JWT token.
-	CreateAppSessionWithJwt(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJwtRequest) (types.WebSession, error)
+	// CreateAppSessionWithJWT creates an app session using JWT token.
+	CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (types.WebSession, error)
 }
 
 // ValidateAppAuthConfig validates the given app auth config.

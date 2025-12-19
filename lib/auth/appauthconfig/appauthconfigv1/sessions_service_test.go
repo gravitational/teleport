@@ -433,8 +433,8 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 			token:  "",
 			authorizer: func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
-					Identity: authz.BuiltinRole{Role: types.RoleAuth},
-					Checker:  &fakeAccessChecker{role: types.RoleAuth},
+					Identity: authz.BuiltinRole{Role: types.RoleProxy},
+					Checker:  &fakeAccessChecker{role: types.RoleProxy},
 				}, nil
 			},
 			assertError:      require.Error,
@@ -445,8 +445,8 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 			token:     jwtToken,
 			authorizer: func(ctx context.Context) (*authz.Context, error) {
 				return &authz.Context{
-					Identity: authz.BuiltinRole{Role: types.RoleAuth},
-					Checker:  &fakeAccessChecker{role: types.RoleAuth},
+					Identity: authz.BuiltinRole{Role: types.RoleProxy},
+					Checker:  &fakeAccessChecker{role: types.RoleProxy},
 				}, nil
 			},
 			assertError:      require.Error,
@@ -454,7 +454,8 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			emitter := eventstest.NewChannelEmitter(10)
+			// emitter := eventstest.NewChannelEmitter(10)
+			emitter := &eventstest.MockRecorderEmitter{}
 			svc, err := NewSessionsService(SessionsServiceConfig{
 				Emitter: emitter,
 				Reader: &mockAppAuthConfigReader{
@@ -470,18 +471,12 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, err = svc.CreateAppSessionWithJwt(t.Context(), &appauthconfigv1.CreateAppSessionWithJwtRequest{
+			_, err = svc.CreateAppSessionWithJWT(t.Context(), &appauthconfigv1.CreateAppSessionWithJWTRequest{
 				Jwt: tc.token,
 				App: &appauthconfigv1.App{},
 			})
 			tc.assertError(t, err)
-
-			select {
-			case event := <-emitter.C():
-				tc.assertAuditEvent(t, event)
-			default:
-				require.Fail(t, "expected audit event but got nothing")
-			}
+			tc.assertAuditEvent(t, emitter.LastEvent())
 		})
 	}
 }

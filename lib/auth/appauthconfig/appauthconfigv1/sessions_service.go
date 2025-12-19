@@ -71,7 +71,7 @@ type SessionsService struct {
 type SessionsServiceConfig struct {
 	// Authorizer used by the service.
 	Authorizer authz.Authorizer
-	// Reader is the cache used to store health check config resources.
+	// Reader is the cache used to store app auth config resources.
 	Reader services.AppAuthConfigReader
 	// Emitter is an audit event emitter.
 	Emitter apievents.Emitter
@@ -87,24 +87,23 @@ type SessionsServiceConfig struct {
 
 // NewService creates a new instance of [SessionsService].
 func NewSessionsService(cfg SessionsServiceConfig) (*SessionsService, error) {
-	if cfg.Authorizer == nil {
+	switch {
+	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required for app auth config sessions service")
-	}
-	if cfg.Reader == nil {
+	case cfg.Reader == nil:
 		return nil, trace.BadParameter("cache is required for app auth config sessions service")
-	}
-	if cfg.Emitter == nil {
+	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required for app auth config sessions service")
-	}
-	if cfg.HTTPClient == nil {
+	case cfg.HTTPClient == nil:
 		transport, err := defaults.Transport()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		cfg.HTTPClient = &http.Client{Transport: otelhttp.NewTransport(transport)}
-	}
-	if cfg.UserGetter == nil {
+		cfg.HTTPClient = &http.Client{
+			Transport: otelhttp.NewTransport(transport),
+			Timeout:   defaults.HTTPRequestTimeout,
+		}
+	case cfg.UserGetter == nil:
 		return nil, trace.BadParameter("user getter is required for app auth config sessions service")
 	}
 
@@ -120,12 +119,16 @@ func NewSessionsService(cfg SessionsServiceConfig) (*SessionsService, error) {
 }
 
 // CreateAppSessionWithJwt implements appauthconfigv1.AppAuthConfigSessionsServiceServer.
-func (s *SessionsService) CreateAppSessionWithJwt(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJwtRequest) (_ *appauthconfigv1.CreateAppSessionWithJwtResponse, err error) {
+func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (_ *appauthconfigv1.CreateAppSessionWithJWTResponse, err error) {
 	defer func() {
 		if emitErr := s.emitter.EmitAuditEvent(ctx, newVerifyJWTAuditEvent(ctx, req, err)); emitErr != nil {
 			s.logger.ErrorContext(ctx, "failed to emit jwt verification audit event", "error", emitErr)
 		}
 	}()
+
+	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -167,7 +170,7 @@ func (s *SessionsService) CreateAppSessionWithJwt(ctx context.Context, req *appa
 		AppName:            req.App.AppName,
 		AppURI:             req.App.Uri,
 		AppPublicAddr:      req.App.PublicAddr,
-		LoginIP:            req.ClientAddr,
+		LoginIP:            req.RemoteAddr,
 		Roles:              user.GetRoles(),
 		Traits:             user.GetTraits(),
 		TTL:                time.Until(tokenTTL),
@@ -178,7 +181,7 @@ func (s *SessionsService) CreateAppSessionWithJwt(ctx context.Context, req *appa
 		return nil, trace.Wrap(err)
 	}
 
-	return &appauthconfigv1.CreateAppSessionWithJwtResponse{Session: ws.(*types.WebSessionV2)}, nil
+	return &appauthconfigv1.CreateAppSessionWithJWTResponse{Session: ws.(*types.WebSessionV2)}, nil
 }
 
 // retrieveJWKSAppAuthConfig retrieves JWKS contents given a app auth JWT
@@ -264,8 +267,29 @@ func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jos
 	usernameClaimName := cmp.Or(jwtConfig.UsernameClaim, defaultUsernameClaim)
 	usernameClaim, ok := remainingClaims[usernameClaimName]
 	if !ok {
-		return "", time.Time{}, trace.BadParameter("token must have %q claim", usernameClaim)
+		return "", time.Time{}, trace.BadParameter("token must have %q claim", usernameClaimName)
 	}
 
 	return usernameClaim.(string), claims.Expiry.Time(), nil
+}
+
+func validateCreateAppSessionWithJWTRequest(req *appauthconfigv1.CreateAppSessionWithJWTRequest) error {
+	switch {
+	case req.ConfigName == "":
+		return trace.BadParameter("create app session request requires an app auth config name")
+	case req.App == nil:
+		return trace.BadParameter("create app session request requires app information")
+	case req.App.AppName == "":
+		return trace.BadParameter("create app session request requires app name")
+	case req.App.ClusterName == "":
+		return trace.BadParameter("create app session request requires app cluster name")
+	case req.App.PublicAddr == "":
+		return trace.BadParameter("create app session request requires app public address")
+	case req.App.Uri == "":
+		return trace.BadParameter("create app session request requires app uri")
+	case req.SessionId == "":
+		return trace.BadParameter("create app session request requires a session ID")
+	}
+
+	return nil
 }

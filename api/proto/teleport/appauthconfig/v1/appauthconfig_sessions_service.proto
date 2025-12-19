@@ -20,11 +20,11 @@ import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1";
 
-// AppAuthConfigService provides functions for managing sessions with app auth
-// configs.
+// AppAuthConfigSessionsService provides functions for managing sessions with
+// app auth configs.
 service AppAuthConfigSessionsService {
   // CreateAppSessionWithJwt creates an app session using JWT token.
-  rpc CreateAppSessionWithJwt(CreateAppSessionWithJwtRequest) returns (CreateAppSessionWithJwtResponse);
+  rpc CreateAppSessionWithJWT(CreateAppSessionWithJWTRequest) returns (CreateAppSessionWithJWTResponse);
 }
 
 // App contains information about the application the new session will access.
@@ -39,8 +39,8 @@ message App {
   string public_addr = 4;
 }
 
-// Request for CreateAppSessionWithJwt.
-message CreateAppSessionWithJwtRequest {
+// Request for CreateAppSessionWithJWT.
+message CreateAppSessionWithJWTRequest {
   // ConfigName is the app auth config name used to create the app session.
   string config_name = 1;
   // SessionId is ID the new app session will use.
@@ -49,12 +49,12 @@ message CreateAppSessionWithJwtRequest {
   App app = 3;
   // Jwt is the JWT token used to create the app session.
   string jwt = 4;
-  // ClientAddr is a client (user's) address.
-  string client_addr = 5;
+  // RemoteAddr is a client (user's) address.
+  string remote_addr = 5;
 }
 
-// Response for CreateAppSessionWithJwt.
-message CreateAppSessionWithJwtResponse {
+// Response for CreateAppSessionWithJWT.
+message CreateAppSessionWithJWTResponse {
   // Session is the app session.
   types.WebSessionV2 session = 1;
 }

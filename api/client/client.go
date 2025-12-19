@@ -6019,10 +6019,10 @@ func (c *Client) AppAuthConfigSessionsClient() appauthconfigv1.AppAuthConfigSess
 	return appauthconfigv1.NewAppAuthConfigSessionsServiceClient(c.conn)
 }
 
-// CreateAppSessionWithJwt creates an app session using JWT token.
-func (c *Client) CreateAppSessionWithJwt(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJwtRequest) (types.WebSession, error) {
+// CreateAppSessionWithJWT creates an app session using JWT token.
+func (c *Client) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (types.WebSession, error) {
 	clt := c.AppAuthConfigSessionsClient()
-	res, err := clt.CreateAppSessionWithJwt(ctx, req)
+	res, err := clt.CreateAppSessionWithJWT(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

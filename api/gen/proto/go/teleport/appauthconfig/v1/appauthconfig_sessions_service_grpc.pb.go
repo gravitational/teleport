@@ -33,18 +33,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AppAuthConfigSessionsService_CreateAppSessionWithJwt_FullMethodName = "/teleport.appauthconfig.v1.AppAuthConfigSessionsService/CreateAppSessionWithJwt"
+	AppAuthConfigSessionsService_CreateAppSessionWithJWT_FullMethodName = "/teleport.appauthconfig.v1.AppAuthConfigSessionsService/CreateAppSessionWithJWT"
 )
 
 // AppAuthConfigSessionsServiceClient is the client API for AppAuthConfigSessionsService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AppAuthConfigService provides functions for managing sessions with app auth
-// configs.
+// AppAuthConfigSessionsService provides functions for managing sessions with
+// app auth configs.
 type AppAuthConfigSessionsServiceClient interface {
 	// CreateAppSessionWithJwt creates an app session using JWT token.
-	CreateAppSessionWithJwt(ctx context.Context, in *CreateAppSessionWithJwtRequest, opts ...grpc.CallOption) (*CreateAppSessionWithJwtResponse, error)
+	CreateAppSessionWithJWT(ctx context.Context, in *CreateAppSessionWithJWTRequest, opts ...grpc.CallOption) (*CreateAppSessionWithJWTResponse, error)
 }
 
 type appAuthConfigSessionsServiceClient struct {
@@ -55,10 +55,10 @@ func NewAppAuthConfigSessionsServiceClient(cc grpc.ClientConnInterface) AppAuthC
 	return &appAuthConfigSessionsServiceClient{cc}
 }
 
-func (c *appAuthConfigSessionsServiceClient) CreateAppSessionWithJwt(ctx context.Context, in *CreateAppSessionWithJwtRequest, opts ...grpc.CallOption) (*CreateAppSessionWithJwtResponse, error) {
+func (c *appAuthConfigSessionsServiceClient) CreateAppSessionWithJWT(ctx context.Context, in *CreateAppSessionWithJWTRequest, opts ...grpc.CallOption) (*CreateAppSessionWithJWTResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateAppSessionWithJwtResponse)
-	err := c.cc.Invoke(ctx, AppAuthConfigSessionsService_CreateAppSessionWithJwt_FullMethodName, in, out, cOpts...)
+	out := new(CreateAppSessionWithJWTResponse)
+	err := c.cc.Invoke(ctx, AppAuthConfigSessionsService_CreateAppSessionWithJWT_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +69,11 @@ func (c *appAuthConfigSessionsServiceClient) CreateAppSessionWithJwt(ctx context
 // All implementations must embed UnimplementedAppAuthConfigSessionsServiceServer
 // for forward compatibility.
 //
-// AppAuthConfigService provides functions for managing sessions with app auth
-// configs.
+// AppAuthConfigSessionsService provides functions for managing sessions with
+// app auth configs.
 type AppAuthConfigSessionsServiceServer interface {
 	// CreateAppSessionWithJwt creates an app session using JWT token.
-	CreateAppSessionWithJwt(context.Context, *CreateAppSessionWithJwtRequest) (*CreateAppSessionWithJwtResponse, error)
+	CreateAppSessionWithJWT(context.Context, *CreateAppSessionWithJWTRequest) (*CreateAppSessionWithJWTResponse, error)
 	mustEmbedUnimplementedAppAuthConfigSessionsServiceServer()
 }
 
@@ -84,8 +84,8 @@ type AppAuthConfigSessionsServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAppAuthConfigSessionsServiceServer struct{}
 
-func (UnimplementedAppAuthConfigSessionsServiceServer) CreateAppSessionWithJwt(context.Context, *CreateAppSessionWithJwtRequest) (*CreateAppSessionWithJwtResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateAppSessionWithJwt not implemented")
+func (UnimplementedAppAuthConfigSessionsServiceServer) CreateAppSessionWithJWT(context.Context, *CreateAppSessionWithJWTRequest) (*CreateAppSessionWithJWTResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAppSessionWithJWT not implemented")
 }
 func (UnimplementedAppAuthConfigSessionsServiceServer) mustEmbedUnimplementedAppAuthConfigSessionsServiceServer() {
 }
@@ -109,20 +109,20 @@ func RegisterAppAuthConfigSessionsServiceServer(s grpc.ServiceRegistrar, srv App
 	s.RegisterService(&AppAuthConfigSessionsService_ServiceDesc, srv)
 }
 
-func _AppAuthConfigSessionsService_CreateAppSessionWithJwt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateAppSessionWithJwtRequest)
+func _AppAuthConfigSessionsService_CreateAppSessionWithJWT_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAppSessionWithJWTRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AppAuthConfigSessionsServiceServer).CreateAppSessionWithJwt(ctx, in)
+		return srv.(AppAuthConfigSessionsServiceServer).CreateAppSessionWithJWT(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AppAuthConfigSessionsService_CreateAppSessionWithJwt_FullMethodName,
+		FullMethod: AppAuthConfigSessionsService_CreateAppSessionWithJWT_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AppAuthConfigSessionsServiceServer).CreateAppSessionWithJwt(ctx, req.(*CreateAppSessionWithJwtRequest))
+		return srv.(AppAuthConfigSessionsServiceServer).CreateAppSessionWithJWT(ctx, req.(*CreateAppSessionWithJWTRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -135,8 +135,8 @@ var AppAuthConfigSessionsService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AppAuthConfigSessionsServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateAppSessionWithJwt",
-			Handler:    _AppAuthConfigSessionsService_CreateAppSessionWithJwt_Handler,
+			MethodName: "CreateAppSessionWithJWT",
+			Handler:    _AppAuthConfigSessionsService_CreateAppSessionWithJWT_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

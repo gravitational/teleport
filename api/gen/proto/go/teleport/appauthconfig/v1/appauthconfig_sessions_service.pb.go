@@ -109,8 +109,8 @@ func (x *App) GetPublicAddr() string {
 	return ""
 }
 
-// Request for CreateAppSessionWithJwt.
-type CreateAppSessionWithJwtRequest struct {
+// Request for CreateAppSessionWithJWT.
+type CreateAppSessionWithJWTRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ConfigName is the app auth config name used to create the app session.
 	ConfigName string `protobuf:"bytes,1,opt,name=config_name,json=configName,proto3" json:"config_name,omitempty"`
@@ -120,26 +120,26 @@ type CreateAppSessionWithJwtRequest struct {
 	App *App `protobuf:"bytes,3,opt,name=app,proto3" json:"app,omitempty"`
 	// Jwt is the JWT token used to create the app session.
 	Jwt string `protobuf:"bytes,4,opt,name=jwt,proto3" json:"jwt,omitempty"`
-	// ClientAddr is a client (user's) address.
-	ClientAddr    string `protobuf:"bytes,5,opt,name=client_addr,json=clientAddr,proto3" json:"client_addr,omitempty"`
+	// RemoteAddr is a client (user's) address.
+	RemoteAddr    string `protobuf:"bytes,5,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateAppSessionWithJwtRequest) Reset() {
-	*x = CreateAppSessionWithJwtRequest{}
+func (x *CreateAppSessionWithJWTRequest) Reset() {
+	*x = CreateAppSessionWithJWTRequest{}
 	mi := &file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateAppSessionWithJwtRequest) String() string {
+func (x *CreateAppSessionWithJWTRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateAppSessionWithJwtRequest) ProtoMessage() {}
+func (*CreateAppSessionWithJWTRequest) ProtoMessage() {}
 
-func (x *CreateAppSessionWithJwtRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateAppSessionWithJWTRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -151,48 +151,48 @@ func (x *CreateAppSessionWithJwtRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAppSessionWithJwtRequest.ProtoReflect.Descriptor instead.
-func (*CreateAppSessionWithJwtRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateAppSessionWithJWTRequest.ProtoReflect.Descriptor instead.
+func (*CreateAppSessionWithJWTRequest) Descriptor() ([]byte, []int) {
 	return file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *CreateAppSessionWithJwtRequest) GetConfigName() string {
+func (x *CreateAppSessionWithJWTRequest) GetConfigName() string {
 	if x != nil {
 		return x.ConfigName
 	}
 	return ""
 }
 
-func (x *CreateAppSessionWithJwtRequest) GetSessionId() string {
+func (x *CreateAppSessionWithJWTRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
 	}
 	return ""
 }
 
-func (x *CreateAppSessionWithJwtRequest) GetApp() *App {
+func (x *CreateAppSessionWithJWTRequest) GetApp() *App {
 	if x != nil {
 		return x.App
 	}
 	return nil
 }
 
-func (x *CreateAppSessionWithJwtRequest) GetJwt() string {
+func (x *CreateAppSessionWithJWTRequest) GetJwt() string {
 	if x != nil {
 		return x.Jwt
 	}
 	return ""
 }
 
-func (x *CreateAppSessionWithJwtRequest) GetClientAddr() string {
+func (x *CreateAppSessionWithJWTRequest) GetRemoteAddr() string {
 	if x != nil {
-		return x.ClientAddr
+		return x.RemoteAddr
 	}
 	return ""
 }
 
-// Response for CreateAppSessionWithJwt.
-type CreateAppSessionWithJwtResponse struct {
+// Response for CreateAppSessionWithJWT.
+type CreateAppSessionWithJWTResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Session is the app session.
 	Session       *types.WebSessionV2 `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
@@ -200,20 +200,20 @@ type CreateAppSessionWithJwtResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CreateAppSessionWithJwtResponse) Reset() {
-	*x = CreateAppSessionWithJwtResponse{}
+func (x *CreateAppSessionWithJWTResponse) Reset() {
+	*x = CreateAppSessionWithJWTResponse{}
 	mi := &file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateAppSessionWithJwtResponse) String() string {
+func (x *CreateAppSessionWithJWTResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateAppSessionWithJwtResponse) ProtoMessage() {}
+func (*CreateAppSessionWithJWTResponse) ProtoMessage() {}
 
-func (x *CreateAppSessionWithJwtResponse) ProtoReflect() protoreflect.Message {
+func (x *CreateAppSessionWithJWTResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -225,12 +225,12 @@ func (x *CreateAppSessionWithJwtResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAppSessionWithJwtResponse.ProtoReflect.Descriptor instead.
-func (*CreateAppSessionWithJwtResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateAppSessionWithJWTResponse.ProtoReflect.Descriptor instead.
+func (*CreateAppSessionWithJWTResponse) Descriptor() ([]byte, []int) {
 	return file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *CreateAppSessionWithJwtResponse) GetSession() *types.WebSessionV2 {
+func (x *CreateAppSessionWithJWTResponse) GetSession() *types.WebSessionV2 {
 	if x != nil {
 		return x.Session
 	}
@@ -248,19 +248,19 @@ const file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDes
 	"\x03uri\x18\x03 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vpublic_addr\x18\x04 \x01(\tR\n" +
 	"publicAddr\"\xc5\x01\n" +
-	"\x1eCreateAppSessionWithJwtRequest\x12\x1f\n" +
+	"\x1eCreateAppSessionWithJWTRequest\x12\x1f\n" +
 	"\vconfig_name\x18\x01 \x01(\tR\n" +
 	"configName\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x02 \x01(\tR\tsessionId\x120\n" +
 	"\x03app\x18\x03 \x01(\v2\x1e.teleport.appauthconfig.v1.AppR\x03app\x12\x10\n" +
 	"\x03jwt\x18\x04 \x01(\tR\x03jwt\x12\x1f\n" +
-	"\vclient_addr\x18\x05 \x01(\tR\n" +
-	"clientAddr\"P\n" +
-	"\x1fCreateAppSessionWithJwtResponse\x12-\n" +
+	"\vremote_addr\x18\x05 \x01(\tR\n" +
+	"remoteAddr\"P\n" +
+	"\x1fCreateAppSessionWithJWTResponse\x12-\n" +
 	"\asession\x18\x01 \x01(\v2\x13.types.WebSessionV2R\asession2\xb1\x01\n" +
 	"\x1cAppAuthConfigSessionsService\x12\x90\x01\n" +
-	"\x17CreateAppSessionWithJwt\x129.teleport.appauthconfig.v1.CreateAppSessionWithJwtRequest\x1a:.teleport.appauthconfig.v1.CreateAppSessionWithJwtResponseB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
+	"\x17CreateAppSessionWithJWT\x129.teleport.appauthconfig.v1.CreateAppSessionWithJWTRequest\x1a:.teleport.appauthconfig.v1.CreateAppSessionWithJWTResponseB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
 
 var (
 	file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescOnce sync.Once
@@ -277,15 +277,15 @@ func file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDesc
 var file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_goTypes = []any{
 	(*App)(nil),                             // 0: teleport.appauthconfig.v1.App
-	(*CreateAppSessionWithJwtRequest)(nil),  // 1: teleport.appauthconfig.v1.CreateAppSessionWithJwtRequest
-	(*CreateAppSessionWithJwtResponse)(nil), // 2: teleport.appauthconfig.v1.CreateAppSessionWithJwtResponse
+	(*CreateAppSessionWithJWTRequest)(nil),  // 1: teleport.appauthconfig.v1.CreateAppSessionWithJWTRequest
+	(*CreateAppSessionWithJWTResponse)(nil), // 2: teleport.appauthconfig.v1.CreateAppSessionWithJWTResponse
 	(*types.WebSessionV2)(nil),              // 3: types.WebSessionV2
 }
 var file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_depIdxs = []int32{
-	0, // 0: teleport.appauthconfig.v1.CreateAppSessionWithJwtRequest.app:type_name -> teleport.appauthconfig.v1.App
-	3, // 1: teleport.appauthconfig.v1.CreateAppSessionWithJwtResponse.session:type_name -> types.WebSessionV2
-	1, // 2: teleport.appauthconfig.v1.AppAuthConfigSessionsService.CreateAppSessionWithJwt:input_type -> teleport.appauthconfig.v1.CreateAppSessionWithJwtRequest
-	2, // 3: teleport.appauthconfig.v1.AppAuthConfigSessionsService.CreateAppSessionWithJwt:output_type -> teleport.appauthconfig.v1.CreateAppSessionWithJwtResponse
+	0, // 0: teleport.appauthconfig.v1.CreateAppSessionWithJWTRequest.app:type_name -> teleport.appauthconfig.v1.App
+	3, // 1: teleport.appauthconfig.v1.CreateAppSessionWithJWTResponse.session:type_name -> types.WebSessionV2
+	1, // 2: teleport.appauthconfig.v1.AppAuthConfigSessionsService.CreateAppSessionWithJWT:input_type -> teleport.appauthconfig.v1.CreateAppSessionWithJWTRequest
+	2, // 3: teleport.appauthconfig.v1.AppAuthConfigSessionsService.CreateAppSessionWithJWT:output_type -> teleport.appauthconfig.v1.CreateAppSessionWithJWTResponse
 	3, // [3:4] is the sub-list for method output_type
 	2, // [2:3] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
