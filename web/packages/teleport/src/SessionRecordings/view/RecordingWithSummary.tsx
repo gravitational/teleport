@@ -16,18 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useRef } from 'react';
-import styled from 'styled-components';
+import { type RefObject } from 'react';
 
-import Flex from 'design/Flex';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
-import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { type RecordingType } from 'teleport/services/recordings';
 import { VALID_RECORDING_TYPES } from 'teleport/services/recordings/recordings';
-import { KeysEnum } from 'teleport/services/storageService';
 import { RecordingPlayer } from 'teleport/SessionRecordings/view/RecordingPlayer';
-import type { SidebarSlot } from 'teleport/SessionRecordings/view/RecordingWithMetadata';
 import type { PlayerHandle } from 'teleport/SessionRecordings/view/SshPlayer';
 import {
   RecordingPlayerError,
@@ -35,46 +30,30 @@ import {
   RecordingPlayerWithLoadDuration,
 } from 'teleport/SessionRecordings/view/ViewSessionRecordingRoute';
 
-interface RecordingWithSummaryProps {
+export interface RecordingWithSummaryProps {
   clusterId: string;
   durationMs: number;
   sessionId: string;
   recordingType: RecordingType;
-  sidebarSlot: SidebarSlot;
 }
 
-export function RecordingWithSummary({
+interface RecordingWithSummaryPlayerProps {
+  clusterId: string;
+  durationMs: number;
+  sessionId: string;
+  recordingType: RecordingType;
+  toggleSidebar: () => void;
+  playerRef: RefObject<PlayerHandle>;
+}
+
+export function RecordingWithSummaryPlayer({
   clusterId,
   durationMs,
-  recordingType,
   sessionId,
-  sidebarSlot,
-}: RecordingWithSummaryProps) {
-  const [sidebarHidden, setSidebarHidden] = useLocalStorage(
-    KeysEnum.SESSION_RECORDING_SIDEBAR_HIDDEN,
-    false
-  );
-
-  const playerRef = useRef<PlayerHandle>(null);
-
-  const handleTimeChange = useCallback((time: number) => {
-    if (!playerRef.current) {
-      return;
-    }
-
-    playerRef.current.moveToTime(time);
-  }, []);
-
-  const sidebar = useMemo(
-    () => sidebarSlot(sessionId, recordingType, null, handleTimeChange),
-    [sidebarSlot, sessionId, recordingType, handleTimeChange]
-  );
-
-  const toggleSidebar = useCallback(() => {
-    // setSidebarHidden(prev => !prev) does not work with useLocalStorage, it stops working after the first toggle
-    setSidebarHidden(!sidebarHidden);
-  }, [sidebarHidden, setSidebarHidden]);
-
+  recordingType,
+  toggleSidebar,
+  playerRef,
+}: RecordingWithSummaryPlayerProps) {
   const validRecordingType = VALID_RECORDING_TYPES.includes(recordingType);
   const validDuration = Number.isInteger(durationMs) && durationMs > 0;
 
@@ -92,7 +71,7 @@ export function RecordingWithSummary({
   );
 
   if (shouldFetchSessionDuration) {
-    player = (
+    return (
       <ErrorSuspenseWrapper
         errorComponent={RecordingPlayerError}
         loadingComponent={RecordingPlayerLoading}
@@ -106,57 +85,5 @@ export function RecordingWithSummary({
     );
   }
 
-  if (!sidebar) {
-    return player;
-  }
-
-  return (
-    <Grid sidebarHidden={sidebarHidden}>
-      <Player>{player}</Player>
-
-      {!sidebarHidden && (
-        <Sidebar>
-          <Flex
-            flexDirection="column"
-            gap={4}
-            pt={3}
-            minHeight={0}
-            height="100%"
-          >
-            {sidebar}
-          </Flex>
-        </Sidebar>
-      )}
-    </Grid>
-  );
+  return player;
 }
-
-const Grid = styled.div<{ sidebarHidden: boolean }>`
-  background: ${p => p.theme.colors.levels.sunken};
-  display: grid;
-  grid-template-areas: ${p =>
-    p.sidebarHidden ? `'recording recording'` : `'sidebar recording'`};
-  grid-template-columns: 1fr 4fr;
-  grid-template-rows: 1fr auto;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-`;
-
-const Player = styled.div`
-  grid-area: recording;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-`;
-
-const Sidebar = styled.div`
-  grid-area: sidebar;
-  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-`;

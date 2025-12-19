@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import Flex from 'design/Flex';
 import { ChevronLeft } from 'design/Icon';
 import { H3 } from 'design/Text';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import cfg from 'teleport/config';
 import type {
@@ -21,12 +22,14 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 interface SessionRecordingDetailsProps {
   metadata: SessionRecordingMetadata | null;
   recordingType: RecordingType;
+  sessionId: string;
 }
 
 export function SessionRecordingDetails({
   children,
   metadata,
   recordingType,
+  sessionId,
 }: PropsWithChildren<SessionRecordingDetailsProps>) {
   const { clusterId } = useStickyClusterId();
 
@@ -34,7 +37,7 @@ export function SessionRecordingDetails({
 
   return (
     <>
-      <Flex pl={3} pr={2} justifyContent="space-between">
+      <Flex mt={3} pl={3} pr={2} justifyContent="space-between">
         <BackLink to={cfg.getRecordingsRoute(clusterId)}>
           <ChevronLeft size="small" />
           Back to Session Recordings
@@ -72,9 +75,25 @@ export function SessionRecordingDetails({
           </>
         )}
       </InfoGrid>
+
+      <Flex alignItems="center" px={3} mt={-2}>
+        <InfoGridLabel>ID</InfoGridLabel>
+
+        <SessionId>{sessionId}</SessionId>
+
+        <CopyButton value={sessionId} ml={2} />
+      </Flex>
     </>
   );
 }
+
+const SessionId = styled.div`
+  font-family: ${p => p.theme.fonts.mono};
+  color: ${p => p.theme.colors.text.slightlyMuted};
+  font-size: ${p => p.theme.fontSizes[1]}px;
+  padding-top: 1px;
+  margin-left: ${p => p.theme.space[2]}px;
+`;
 
 interface RecordingTimesProps {
   metadata: SessionRecordingMetadata;

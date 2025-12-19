@@ -21,8 +21,8 @@ import type { DefaultTheme } from 'styled-components';
 import {
   SessionRecordingEventType,
   type SessionRecordingEvent,
-  type SessionRecordingMetadata,
 } from 'teleport/services/recordings';
+import { RiskLevel as RiskLevelValue } from 'teleport/services/recordings/types';
 import { formatSessionRecordingDuration } from 'teleport/SessionRecordings/list/RecordingItem';
 
 import {
@@ -37,8 +37,6 @@ import {
   type TimelineRenderContext,
 } from './TimelineCanvasRenderer';
 
-export type EventRow = TimelineEventMeasured[];
-
 export type EventRowWithPositions = TimelineEventPositioned[];
 
 type TimelineEventMeasured = SessionRecordingEvent & {
@@ -51,14 +49,39 @@ type TimelineEventPositioned = TimelineEventMeasured & {
   startPosition: number;
 };
 
-function getEventStyles(theme: DefaultTheme, type: SessionRecordingEventType) {
-  switch (type) {
+function getEventStyles(theme: DefaultTheme, event: SessionRecordingEvent) {
+  switch (event.type) {
     case SessionRecordingEventType.Inactivity:
       return theme.colors.sessionRecordingTimeline.events.inactivity;
     case SessionRecordingEventType.Resize:
       return theme.colors.sessionRecordingTimeline.events.resize;
     case SessionRecordingEventType.Join:
       return theme.colors.sessionRecordingTimeline.events.join;
+    case SessionRecordingEventType.Risk:
+      switch (event.riskLevel) {
+        case RiskLevelValue.Low:
+          return {
+            background: theme.colors.sessionRecording.riskLevels.low,
+            text: 'rgba(0,0,0,0.7)',
+          };
+        case RiskLevelValue.Medium:
+          return {
+            background: theme.colors.sessionRecording.riskLevels.medium,
+            text: 'rgba(0,0,0,0.7)',
+          };
+        case RiskLevelValue.High:
+          return {
+            background: theme.colors.sessionRecording.riskLevels.high,
+            text: 'rgba(0,0,0,0.7)',
+          };
+        case RiskLevelValue.Critical:
+          return {
+            background: theme.colors.sessionRecording.riskLevels.critical,
+            text: 'rgba(0,0,0,0.7)',
+          };
+        default:
+          return theme.colors.sessionRecordingTimeline.events.default;
+      }
     default:
       return theme.colors.sessionRecordingTimeline.events.default;
   }
@@ -70,6 +93,8 @@ function getEventTitle(event: SessionRecordingEvent) {
       return `Inactivity for ${formatSessionRecordingDuration(event.endTime - event.startTime)}`;
     case SessionRecordingEventType.Join:
       return `${event.user} joined`;
+    case SessionRecordingEventType.Risk:
+      return event.description;
     default:
       return 'Event';
   }
@@ -88,21 +113,21 @@ const EVENT_HEIGHT = 24;
  */
 export class EventsRenderer extends TimelineCanvasRenderer {
   private height = 0;
-  // rows are computed on creation, containing information such as text width to avoid
-  // measuring text during render.
-  private rows: EventRow[] = [];
+  // measuredEvents contains all events with their text metrics, sorted by start time
+  private measuredEvents: TimelineEventMeasured[] = [];
   // rowsWithPositions are computed after calculate() is called, containing the position
-  // of each event in the timeline, along with text metrics to avoid measuring text during render
+  // of each event in the timeline, arranged into rows that account for text width
   private rowsWithPositions: EventRowWithPositions[] = [];
 
   constructor(
     ctx: CanvasRenderingContext2D,
     theme: DefaultTheme,
-    metadata: SessionRecordingMetadata
+    duration: number,
+    events: SessionRecordingEvent[]
   ) {
-    super(ctx, theme, metadata.duration);
+    super(ctx, theme, duration);
 
-    this.createEventRows(metadata.events);
+    this.measureEvents(events);
   }
 
   _render({ containerWidth, offset }: TimelineRenderContext) {
@@ -119,13 +144,10 @@ export class EventsRenderer extends TimelineCanvasRenderer {
         const y =
           EVENT_SECTION_PADDING + index * EVENT_ROW_HEIGHT + RULER_HEIGHT;
 
-        // calculate the minimum width of the event box from the text width + padding
-        const textWidth = event.textMetrics.width;
-        const minWidth = textWidth + 2 * TEXT_PADDING;
+        // Width is already calculated in calculate() to include minimum text width
+        const width = endX - startX;
 
-        const width = Math.max(endX - startX, minWidth);
-
-        const styles = getEventStyles(this.theme, event.type);
+        const styles = getEventStyles(this.theme, event);
 
         this.ctx.fillStyle = styles.background;
         this.ctx.beginPath();
@@ -138,6 +160,7 @@ export class EventsRenderer extends TimelineCanvasRenderer {
         this.ctx.font = `bold 12px ${CANVAS_FONT}`;
 
         // Calculate text position and constrain it within the event box.
+        const textWidth = event.textMetrics.width;
         const textHeight =
           event.textMetrics.actualBoundingBoxAscent +
           event.textMetrics.actualBoundingBoxDescent;
@@ -172,32 +195,49 @@ export class EventsRenderer extends TimelineCanvasRenderer {
     }
   }
 
-  // calculate calculates the positions of each event in the timeline, along with the
-  // text metrics for each event title (to avoid measuring text during render).
   calculate() {
-    const eventRowsWithPositions: EventRowWithPositions[] = [];
+    const rows: EventRowWithPositions[] = [];
 
-    for (let i = 0; i < this.rows.length; i++) {
-      const row = this.rows[i];
-      const positionedRow: EventRowWithPositions = [];
+    for (const event of this.measuredEvents) {
+      const startPosition =
+        LEFT_PADDING + (event.startTime / this.duration) * this.timelineWidth;
+      const timeBasedEndPosition =
+        LEFT_PADDING + (event.endTime / this.duration) * this.timelineWidth;
 
-      for (const event of row) {
-        const startPosition =
-          LEFT_PADDING + (event.startTime / this.duration) * this.timelineWidth;
-        const endPosition =
-          LEFT_PADDING + (event.endTime / this.duration) * this.timelineWidth;
+      // Calculate the minimum width needed to display the text
+      const minWidth = event.textMetrics.width + 2 * TEXT_PADDING;
+      const endPosition = Math.max(
+        timeBasedEndPosition,
+        startPosition + minWidth
+      );
 
-        positionedRow.push({
-          ...event,
-          endPosition,
-          startPosition,
-        });
+      const positionedEvent: TimelineEventPositioned = {
+        ...event,
+        endPosition,
+        startPosition,
+      };
+
+      // Try to place the event in an existing row
+      let placed = false;
+      for (const row of rows) {
+        const lastEventInRow = row[row.length - 1];
+
+        // Check if there's space after the last event in this row
+        if (lastEventInRow.endPosition <= startPosition) {
+          row.push(positionedEvent);
+          placed = true;
+          break;
+        }
       }
 
-      eventRowsWithPositions.push(positionedRow);
+      // If no existing row has space, create a new row
+      if (!placed) {
+        rows.push([positionedEvent]);
+      }
     }
 
-    this.rowsWithPositions = eventRowsWithPositions;
+    this.rowsWithPositions = rows;
+    this.height = rows.length * EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING;
   }
 
   getHeight() {
@@ -208,41 +248,27 @@ export class EventsRenderer extends TimelineCanvasRenderer {
     return this.rowsWithPositions;
   }
 
-  private createEventRows(events: SessionRecordingEvent[]) {
-    const sortedEvents = [...events].sort((a, b) => a.startTime - b.startTime);
-    const rows: EventRow[] = [];
+  private measureEvents(events: SessionRecordingEvent[]) {
+    // Set font before measuring text
+    this.ctx.font = `bold 12px ${CANVAS_FONT}`;
 
-    for (const event of sortedEvents) {
+    const measuredEvents: TimelineEventMeasured[] = [];
+
+    for (const event of events) {
       if (event.type === SessionRecordingEventType.Resize) {
         continue;
       }
 
-      let placed = false;
-
       const title = getEventTitle(event);
+      const textMetrics = this.ctx.measureText(title);
 
-      for (const row of rows) {
-        const lastEventInRow = row[row.length - 1];
-
-        if (lastEventInRow.endTime <= event.startTime) {
-          const textMetrics = this.ctx.measureText(title);
-
-          row.push({ ...event, textMetrics, title });
-
-          placed = true;
-          break;
-        }
-      }
-
-      if (!placed) {
-        const textMetrics = this.ctx.measureText(title);
-
-        rows.push([{ ...event, textMetrics, title }]);
-      }
+      measuredEvents.push({ ...event, textMetrics, title });
     }
 
-    this.rows = rows;
-    this.height = this.rows.length * EVENT_ROW_HEIGHT + EVENT_SECTION_PADDING;
+    // Sort by start time for row placement algorithm
+    this.measuredEvents = measuredEvents.sort(
+      (a, b) => a.startTime - b.startTime
+    );
   }
 
   private getVisibleEvents(
