@@ -1,5 +1,5 @@
 resource "teleport_role" "test" {
-  version = "v7"
+  version = "v8"
   metadata = {
     name    = "test"
     expires = "2032-12-12T00:00:00Z"
