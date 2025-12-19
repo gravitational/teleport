@@ -842,6 +842,7 @@ type proxyingPermit struct {
 	DisconnectExpiredCert time.Time
 	MappedRoles           []string
 	SessionRecordingMode  constants.SessionRecordingMode
+	PinSourceIP           bool
 }
 
 func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error) {
@@ -888,6 +889,7 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
 		MappedRoles:           accessInfo.Roles,
 		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),
+		PinSourceIP:           accessChecker.PinSourceIP(),
 	}, nil
 }
 
