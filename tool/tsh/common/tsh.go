@@ -1494,11 +1494,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	v := vattss{}
-	autoUpdateCommand := app.Command("windows-install-update-service", "Install the update Windows service.").Hidden()
+	autoUpdateCommand1 := app.Command("windows-install-update-service", "Install the update Windows service.").Hidden()
 	updateServiceCommand := app.Command("update-service", "Install the update Windows service.").Hidden()
-	updateServiceCommand1 := app.Command("modify-reg", "Install the update Windows service.").Hidden()
-	updateServiceCommand1.Flag("cluster", "d").StringVar(&v.cluster)
-	updateServiceCommand1.Flag("enabled", "d").BoolVar(&v.enabled)
+	modifyReg := app.Command("modify-reg", "Install the update Windows service.").Hidden()
+	modifyReg.Flag("cluster", "d").StringVar(&v.cluster)
+	modifyReg.Flag("enabled", "d").BoolVar(&v.enabled)
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
@@ -1940,11 +1940,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
-	case autoUpdateCommand.FullCommand():
+	case autoUpdateCommand1.FullCommand():
 		err = windows_service.InstallService(ctx)
 	case updateServiceCommand.FullCommand():
 		err = windows_service.ServiceMain()
-	case updateServiceCommand1.FullCommand():
+	case modifyReg.FullCommand():
 		if err := windows_service.UpdateOrigin(v.cluster, v.enabled); err != nil {
 			// 1. Print the error clearly
 			fmt.Printf("\n\n!!! ERROR UPDATING REGISTRY !!!\n%v\n\n", err)
