@@ -47,7 +47,7 @@ locals {
 }
 
 variable "match_aws_resource_types" {
-  description = "AWS resource types to match when discovering resources with Teleport."
+  description = "AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`."
   type        = list(string)
   nullable    = false
 

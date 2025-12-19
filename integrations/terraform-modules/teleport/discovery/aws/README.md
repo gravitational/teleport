@@ -38,10 +38,10 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
-| <a name="provider_http"></a> [http](#provider\_http) | 3.5.0 |
-| <a name="provider_teleport"></a> [teleport](#provider\_teleport) | 19.0.0-dev |
-| <a name="provider_tls"></a> [tls](#provider\_tls) | 4.1.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.0 |
+| <a name="provider_http"></a> [http](#provider\_http) | >= 3.0 |
+| <a name="provider_teleport"></a> [teleport](#provider\_teleport) | >= 18.5.1 |
+| <a name="provider_tls"></a> [tls](#provider\_tls) | >= 4.0 |
 
 ## Modules
 
@@ -80,7 +80,7 @@ No modules.
 | <a name="input_create_aws_iam_openid_connect_provider"></a> [create\_aws\_iam\_openid\_connect\_provider](#input\_create\_aws\_iam\_openid\_connect\_provider) | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
 | <a name="input_discovery_service_iam_credential_source"></a> [discovery\_service\_iam\_credential\_source](#input\_discovery\_service\_iam\_credential\_source) | Configure the intended credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. Alternatively | <pre>object({<br/>    use_oidc_integration = optional(bool)<br/>    trust_role = optional(object({<br/>      role_arn    = string<br/>      external_id = optional(string, "")<br/>    }))<br/>  })</pre> | <pre>{<br/>  "trust_role": null,<br/>  "use_oidc_integration": true<br/>}</pre> | no |
 | <a name="input_match_aws_regions"></a> [match\_aws\_regions](#input\_match\_aws\_regions) | AWS regions to discover. The default matches all AWS regions. | `list(string)` | <pre>[<br/>  "*"<br/>]</pre> | no |
-| <a name="input_match_aws_resource_types"></a> [match\_aws\_resource\_types](#input\_match\_aws\_resource\_types) | AWS resource types to match when discovering resources with Teleport. | `list(string)` | n/a | yes |
+| <a name="input_match_aws_resource_types"></a> [match\_aws\_resource\_types](#input\_match\_aws\_resource\_types) | AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`. | `list(string)` | n/a | yes |
 | <a name="input_match_aws_tags"></a> [match\_aws\_tags](#input\_match\_aws\_tags) | AWS resource tags to match when discovering resources with Teleport. The default matches all discovered AWS resources. | `map(list(string))` | <pre>{<br/>  "*": [<br/>    "*"<br/>  ]<br/>}</pre> | no |
 | <a name="input_teleport_discovery_config_name"></a> [teleport\_discovery\_config\_name](#input\_teleport\_discovery\_config\_name) | Name for the `teleport_discovery_config` resource. The default is a generated unique name | `string` | `"discovery"` | no |
 | <a name="input_teleport_discovery_config_use_name_prefix"></a> [teleport\_discovery\_config\_use\_name\_prefix](#input\_teleport\_discovery\_config\_use\_name\_prefix) | Determines whether the name of the Teleport discovery config (`teleport_discovery_config_name`) is used as a prefix. | `bool` | `true` | no |
