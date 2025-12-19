@@ -327,7 +327,7 @@ loop:
 type Config struct {
 	UserSID   string
 	Path      string
-	ProxyHost string
+	ProxyHost []string
 }
 
 func (s *windowsService) runInstall(ctx context.Context, args []string, logger *slog.Logger) error {
@@ -336,7 +336,7 @@ func (s *windowsService) runInstall(ctx context.Context, args []string, logger *
 	serviceCmd := app.Command("update-service", "Start the VNet service.")
 	//serviceCmd.Flag("user-sid", "SID of the user running the client application").Required().StringVar(&cfg.UserSID)
 	serviceCmd.Flag("path", "SID of the user running the client application").Required().StringVar(&cfg.Path)
-	serviceCmd.Flag("proxy-host", "SID of the user running the client application").Required().StringVar(&cfg.ProxyHost)
+	serviceCmd.Flag("proxy-hosts", "SID of the user running the client application").Required().StringsVar(&cfg.ProxyHost)
 	cmd, err := app.Parse(args[1:])
 	if err != nil {
 		return trace.Wrap(err, "parsing runtime arguments to Windows service")
@@ -475,24 +475,40 @@ func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error
 	}
 	found := false
 	for _, origin := range allowedOrigins {
-		if origin == cfg.ProxyHost {
-			found = true
-			break
+		for _, pp := range cfg.ProxyHost {
+			if origin == pp {
+				found = true
+				break
+			}
 		}
 	}
 	if !found {
 		return trace.BadParameter("allowed origin not found in %s", cfg.ProxyHost)
 	}
 
-	resp, err := webclient.Ping(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: cfg.ProxyHost,
-	})
+	var versions []string
+	for _, ao := range allowedOrigins {
+		resp, err := webclient.Ping(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: ao,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		versions = append(versions, resp.AutoUpdate.ToolsVersion)
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if resp.AutoUpdate.ToolsVersion != ver.FileVersion {
+	foundVer := false
+	for _, ver1 := range versions {
+		if ver1 == ver.FileVersion {
+			foundVer = true
+		}
+	}
+
+	if !foundVer {
 		return trace.BadParameter("Updating to this version of Teleport is not allowed")
 	}
 

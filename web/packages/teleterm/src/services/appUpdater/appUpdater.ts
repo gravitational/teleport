@@ -40,7 +40,7 @@ import { compare } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
 import { NsisCustomUpdater } from 'teleterm/services/appUpdater/nsisCustomUpdater';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
   AutoUpdatesEnabled,
@@ -91,7 +91,17 @@ export class AppUpdater {
 
     if (process.platform === 'win32') {
       this.nativeUpdater = new NsisCustomUpdater({
-        installUpdate: () => {},
+        getProxyHosts: () => {
+          if (this.autoUpdatesStatus.enabled) {
+            const ver = this.autoUpdatesStatus.version;
+            return this.autoUpdatesStatus.options.clusters
+              .filter(c => {
+                return c.toolsVersion === ver;
+              })
+              .map(c => routing.parseClusterName(c.clusterUri));
+          }
+          return [];
+        },
       });
     }
 

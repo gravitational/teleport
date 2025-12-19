@@ -2,9 +2,7 @@ import { NsisUpdater } from 'electron-updater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
 
 export class NsisCustomUpdater extends NsisUpdater {
-  constructor(
-    private opts: { installUpdate: (path: string) => Promise<void> }
-  ) {
+  constructor(private opts: { getProxyHosts(): string[] }) {
     super();
   }
 
@@ -17,6 +15,7 @@ export class NsisCustomUpdater extends NsisUpdater {
       'TeleportUpdateService',
       'update-service',
       `--path=${super.installerPath}`,
+      `--proxy-hosts=${this.opts.getProxyHosts()}`,
     ]);
     return true;
   }
