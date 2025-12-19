@@ -24,14 +24,13 @@ Teleport administrators to define policies like:
 
 In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can automatically
 configure an SSO connector as part of [enrolling Okta
-integration](../../identity-governance/integrations/okta/okta.mdx).
+integration](../../../identity-governance/integrations/okta/okta.mdx).
 
 To start Okta integration enrollment, visit the Teleport Web UI, click **Add New** in the left sidebar and click **Integration**:
 
-![Enroll an Access Request plugin](../../../img/sso/okta/okta-tile.png)
+![Enroll an Access Request plugin](../../../../img/sso/okta/okta-tile.png)
 
-Then follow the instructions for the [guided Okta single sign-on integration](../../identity-governance/integrations/okta/guided-sso.mdx).
-
+Then follow the instructions for the [guided Okta single sign-on integration](../../../identity-governance/integrations/okta/guided-sso.mdx).
 
 </details>
 
@@ -70,24 +69,71 @@ Create two groups: "okta-dev" and "okta-admin".
 
 ### Create and configure an Okta app
 
-Add Teleport app to Okta:
+<Tabs>
+  <TabItem label="Okta Integration Network">
 
-1. In Okta Console, go to **Applications**.
+    Add Teleport app to Okta:
 
-2. Click **Browse App Catalog**.
+    1. In Okta Console, go to **Applications**.
+    2. Click **Browse App Catalog**.
+    3. Search for and select **Teleport**, and then click **Add Integration**.
+    4. Complete the fields on the settings page and click **Done**.
+    5. Go to the **General** tab and click **Edit** on the top-right corner of the tab.
+    6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
 
-3. Search for and select **Teleport**, and then click **Add Integration**.
+      {/* NOTE: This image is shared in multiple guides. */}
+      ![Set groups attribute](../../../../img/sso/okta/group-regex.png)
 
-4. Complete the fields on the settings page and click **Done**.
+    7. Scroll down and click **Save**.
 
-5. Go to the **General** tab and click **Edit** on the top-right corner of the tab.
+  </TabItem>
 
-6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
+  <TabItem label="Custom SAML 2.0 app (legacy)">
 
-   {/* NOTE: This image is shared in multiple guides. */}
-   ![Set groups attribute](../../../img/sso/okta/group-regex.png)
+    Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
 
-7. Scroll down and click **Save**.
+    1. In Okta Console, go to **Applications**.
+    2. Click **Create App Integration**.
+    3. Select "SAML 2.0" and click **Next**.
+    4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
+    5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
+
+      - Single sign on URL:
+
+        ```
+        https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+        ```
+
+      - Audience URI (SP Entity ID):
+
+        ```
+        https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+        ```
+
+      - Name ID format `EmailAddress`
+
+      - Application username `Okta username` 
+
+      ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
+
+
+    6. In the same "Configure SAML" setup screen, scroll down to the **Group Attribute Statements (optional)** section and setup it like so:
+
+      - Name: `groups` | Name format: `Unspecified`
+      - Filter: `Matches regex` |  `.*`
+
+      ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
+
+    7. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
+
+    Notice that we have set "NameID" to the email format and mapped the groups with
+    a wildcard regex in the Group Attribute statements. We have also set the "Audience"
+    and SSO URLs to the same value. This is so Teleport can read and use Okta users'
+    email addresses to create their usernames in Teleport, instead of relying on additional
+    name fields.
+
+  </TabItem>
+</Tabs>
 
 ### Assign user groups
 
@@ -98,7 +144,7 @@ Add Teleport app to Okta:
 3. Click **Assign** next to each selected groups and click **Done**.
 
    {/* NOTE: This image is shared in multiple guides. */}
-   ![Assign user groups](../../../img/sso/okta/assign-groups.png)
+   ![Assign user groups](../../../../img/sso/okta/assign-groups.png)
 
 ### Save IdP metadata path
 
@@ -107,7 +153,7 @@ Add Teleport app to Okta:
 2. Copy the Metadata URL using the **Copy** button below it.
 
    {/* NOTE: This is a shared image. When making changes check other guides using this image. */}
-   ![Copy metadata URL](../../../img/sso/okta/copy-metadata-url.png)
+   ![Copy metadata URL](../../../../img/sso/okta/copy-metadata-url.png)
 
 3. Store the URL to the metadata file for later use.
 
