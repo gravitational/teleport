@@ -9736,7 +9736,7 @@ type RoleV6 struct {
 	// SubKind is an optional resource sub kind, used in some resources
 	SubKind string `protobuf:"bytes,2,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
 	// Version is the resource version. It must be specified.
-	// Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
+	// Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
 	Version string `protobuf:"bytes,3,opt,name=Version,proto3" json:"version"`
 	// Metadata is resource metadata
 	Metadata Metadata `protobuf:"bytes,4,opt,name=Metadata,proto3" json:"metadata"`
