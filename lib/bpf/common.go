@@ -26,6 +26,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -81,6 +82,10 @@ type SessionContext struct {
 
 	// Emitter is used to record events for a particular session
 	Emitter apievents.Emitter
+
+	//  Recorder is a SessionRecorder which is used to record session
+	// events.
+	Recorder events.SessionPreparerRecorder
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
