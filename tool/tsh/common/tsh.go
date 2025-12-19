@@ -1488,8 +1488,17 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	type vattss struct {
+		cluster string
+		enabled bool
+	}
+
+	v := vattss{}
 	autoUpdateCommand := app.Command("windows-install-update-service", "Install the update Windows service.").Hidden()
 	updateServiceCommand := app.Command("update-service", "Install the update Windows service.").Hidden()
+	updateServiceCommand1 := app.Command("modify-reg", "Install the update Windows service.").Hidden()
+	updateServiceCommand1.Flag("cluster", "d").StringVar(&v.cluster)
+	updateServiceCommand1.Flag("enabled", "d").BoolVar(&v.enabled)
 
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
@@ -1935,6 +1944,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = windows_service.InstallService(ctx)
 	case updateServiceCommand.FullCommand():
 		err = windows_service.ServiceMain()
+	case updateServiceCommand1.FullCommand():
+		err = windows_service.UpdateOrigin(v.cluster, v.enabled)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
