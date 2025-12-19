@@ -1206,9 +1206,23 @@ func (s *session) emitSessionJoinEvent(p *party) {
 			RemoteAddr: s.params.ByName("podName"),
 		},
 	}
+	s.prepareAndEmitEvent(sessionJoinEvent)
+}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
-		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit event", "error", err)
+func (s *session) prepareAndEmitEvent(evt apievents.AuditEvent) {
+	preparedEvent, err := s.recorder.PrepareSessionEvent(evt)
+	if err == nil {
+		evt = preparedEvent.GetAuditEvent()
+		if err := s.recorder.RecordEvent(s.forwarder.ctx, preparedEvent); err != nil {
+			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to record event", "error", err, "event_type", evt.GetType())
+		}
+	} else {
+		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to prepare event - event will not be recorded into session recording.", "error", err, "event_type", evt.GetType())
+	}
+
+	// Alqyays emit the event to the audit log, even if preparing
+	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, evt); err != nil {
+		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit event to Audit Log.", "error", err, "event_type", evt.GetType())
 	}
 }
 
@@ -1256,9 +1270,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		},
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionLeaveEvent); err != nil {
-		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit event", "error", err)
-	}
+	s.prepareAndEmitEvent(sessionLeaveEvent)
 
 	s.log.DebugContext(s.forwarder.ctx, "No longer tracking participant", "participant_id", party.ID)
 	err := s.tracker.RemoveParticipant(s.forwarder.ctx, party.ID.String())
