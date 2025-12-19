@@ -51,8 +51,6 @@ const props: Props = {
   canCreate: true,
   emptyStateInfo: {
     title: 'Add your first Linux server to Teleport',
-    byline:
-      'Teleport Server Access consolidates SSH access across all environments.',
     readOnly: {
       title: 'No Servers Found',
       resource: 'servers',
