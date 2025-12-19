@@ -137,7 +137,8 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   const canAddResources =
     acl.tokens.create && defaultResources.some(r => r.hasAccess);
 
-  const canAddIntegrations = acl.integrations.create;
+  const canConnectCloud =
+    acl.integrations.create && acl.tokens.create && acl.discoverConfigs.create;
 
   const [showApp, setShowApp] = useState(false);
 
@@ -263,7 +264,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
           />
         </Box>
       </Flex>
-      {canAddIntegrations && (
+      {canConnectCloud && (
         <Alert
           kind="cta"
           dismissible={true}
