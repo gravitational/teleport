@@ -198,7 +198,13 @@ function makeOptions({
                 <>
                   <Check color="success.main" size="small" />
                   Allowed to provide system-wide updates.{' '}
-                  <Link onClick={() => toggleAllowedToManage(c.clusterUri)}>
+                  <Link
+                    onClick={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      toggleAllowedToManage(c.clusterUri);
+                    }}
+                  >
                     Change...
                   </Link>
                 </>
@@ -206,7 +212,13 @@ function makeOptions({
                 <>
                   <Cross color="error.main" size="small" />
                   Not allowed to provide system-wide updates.{' '}
-                  <Link onClick={() => toggleAllowedToManage(c.clusterUri)}>
+                  <Link
+                    onClick={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      toggleAllowedToManage(c.clusterUri);
+                    }}
+                  >
                     Change...
                   </Link>
                 </>
