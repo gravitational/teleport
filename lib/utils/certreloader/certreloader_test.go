@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package service
+package certreloader
 
 import (
 	"context"
@@ -136,7 +136,7 @@ func TestCertReloader(t *testing.T) {
 			desc: "c0 and c1 certs do not change if one of them is corrupted",
 			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// Corrupt c0 cert key.
-				f, err := os.OpenFile(certs[0].PrivateKey, os.O_WRONLY, 0600)
+				f, err := os.OpenFile(certs[0].PrivateKey, os.O_WRONLY, 0o600)
 				require.NoError(t, err)
 				_, err = f.WriteAt([]byte{1, 2, 3, 4, 5, 6, 7, 8}, 0)
 				require.NoError(t, err)
@@ -164,11 +164,11 @@ func TestCertReloader(t *testing.T) {
 			// Set the reload interval to 0 so that the reloading goroutine is not spawned.
 			// This gives us more flexibility in the tests, so that we can call loadCertificates
 			// when we want.
-			cfg := CertReloaderConfig{
+			cfg := Config{
 				KeyPairs:               certs,
 				KeyPairsReloadInterval: 0,
 			}
-			certReloader := NewCertReloader(cfg)
+			certReloader := New(cfg, nil, nil)
 			err := certReloader.Run(ctx)
 
 			// Check that certificates load correctly in the synchronous (first) attempt.
@@ -232,6 +232,6 @@ func newCertKeyPair(t *testing.T) ([]byte, []byte) {
 
 // write rewrites the file with a new `content`.
 func write(t *testing.T, filename string, content []byte) {
-	err := os.WriteFile(filename, content, 0600)
+	err := os.WriteFile(filename, content, 0o600)
 	require.NoError(t, err)
 }
