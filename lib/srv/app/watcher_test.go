@@ -19,16 +19,16 @@
 package app
 
 import (
-	"cmp"
 	"maps"
-	"slices"
 	"testing"
 	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -42,10 +42,6 @@ func TestWatcher(t *testing.T) {
 	app0, err := makeStaticApp("app0", nil)
 	require.NoError(t, err)
 
-	// This channel will receive new set of apps the server proxies
-	// after each reconciliation.
-	reconcileCh := make(chan types.Apps)
-
 	// Setup app server that proxies one static app and
 	// watches for apps with label group=a.
 	s := SetUpSuiteWithConfig(t, suiteConfig{
@@ -54,9 +50,6 @@ func TestWatcher(t *testing.T) {
 			{Labels: types.Labels{
 				"group": []string{"a"},
 			}},
-		},
-		OnReconcile: func(a types.Apps) {
-			reconcileCh <- a
 		},
 	})
 
@@ -75,19 +68,30 @@ func TestWatcher(t *testing.T) {
 	}))
 
 	// Only app0 should be registered initially.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(ctx, defaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		require.Empty(t, gocmp.Diff(app0, apps[0].GetApp()))
+	}, 20*time.Second, 100*time.Millisecond)
+
+	// Create a watcher to observe events from the backend in response
+	// to the resource monitor creating application servers.
+	watcher, err := s.authServer.AuthServer.NewWatcher(ctx, types.Watch{
+		Name:            "lib/srv/app.TestWatcher",
+		MetricComponent: "lib/srv/app.TestWatcher",
+		Kinds:           []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+
 	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type)
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for OpInit event")
 	}
 
-	// Create app with label group=a.
+	// Create an app with label group=a.
 	app1, err := makeDynamicApp("app1", map[string]string{"group": "a"})
 	require.NoError(t, err)
 	err = s.authServer.AuthServer.CreateApp(ctx, app1)
@@ -98,39 +102,22 @@ func TestWatcher(t *testing.T) {
 	// below to pass this needs to be set on app1.
 	app1.SetPublicAddr("app1.test.example.com")
 
-	// It should be registered.
+	// The app should match and be registered.
 	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		require.Empty(t, gocmp.Diff(app1, event.Resource.(types.AppServer).GetApp(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for app1 OpPut event")
 	}
 
-	// Try to update app0 which is registered statically.
+	// Updating app0 should not override the statically registered app.
 	app0Updated, err := makeDynamicApp("app0", map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
 	require.NoError(t, err)
 	err = s.authServer.AuthServer.CreateApp(ctx, app0Updated)
 	require.NoError(t, err)
 
-	// It should not be registered, old app0 should remain.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
-
-	// Create app with label group=b.
+	// Create a second app with label group=b, which should not match.
 	app2, err := makeDynamicApp("app2", map[string]string{"group": "b"})
 	require.NoError(t, err)
 
@@ -141,35 +128,17 @@ func TestWatcher(t *testing.T) {
 	err = s.authServer.AuthServer.CreateApp(ctx, app2)
 	require.NoError(t, err)
 
-	// It shouldn't be registered.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
-
-	// Update app2 labels so it matches.
+	// Update app2 labels so it matches and gets registered.
 	app2.SetStaticLabels(map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
 	err = s.authServer.AuthServer.UpdateApp(ctx, app2)
 	require.NoError(t, err)
 
-	// Both should be registered now.
 	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		require.Empty(t, gocmp.Diff(app2, event.Resource.(types.AppServer).GetApp(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for app2 OpPut event")
 	}
 
 	// Update app2 URI so it gets re-registered.
@@ -177,18 +146,31 @@ func TestWatcher(t *testing.T) {
 	err = s.authServer.AuthServer.UpdateApp(ctx, app2)
 	require.NoError(t, err)
 
-	// app2 should get updated.
+	// app2 should get deleted and then recreated.
 	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpDelete, event.Type)
+		require.Equal(t, app2.GetName(), event.Resource.GetName())
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for app2 OpDelete event")
 	}
+
+	select {
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpPut, event.Type)
+		require.Empty(t, gocmp.Diff(app2, event.Resource.(types.AppServer).GetApp(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for app2 OpPut event")
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(ctx, defaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, apps, 3)
+		require.Empty(t, gocmp.Diff(app0, apps[0].GetApp()))
+		require.Empty(t, gocmp.Diff(app1, apps[1].GetApp(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		require.Empty(t, gocmp.Diff(app2, apps[2].GetApp(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, 10*time.Second, 100*time.Millisecond)
 
 	// Update app1 labels so it doesn't match.
 	app1.SetStaticLabels(map[string]string{"group": "c", types.OriginLabel: types.OriginDynamic})
@@ -197,30 +179,40 @@ func TestWatcher(t *testing.T) {
 
 	// Only app0 and app2 should remain registered.
 	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpDelete, event.Type)
+		require.Empty(t, gocmp.Diff(app1.GetName(), event.Resource.GetName()))
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for app1 OpDelete event")
 	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(ctx, defaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, apps, 2)
+		require.Empty(t, gocmp.Diff(app0, apps[0].GetApp()))
+		require.Empty(t, gocmp.Diff(app2, apps[1].GetApp(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}, 20*time.Second, 100*time.Millisecond)
 
 	// Remove app2.
 	err = s.authServer.AuthServer.DeleteApp(ctx, app2.GetName())
 	require.NoError(t, err)
 
-	// Only static app should remain.
 	select {
-	case a := <-reconcileCh:
-		require.Empty(t, gocmp.Diff(types.Apps{app0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpDelete, event.Type)
+		require.Empty(t, gocmp.Diff(app2.GetName(), event.Resource.GetName(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	case <-time.After(20 * time.Second):
+		t.Fatal("Timed out waiting for app2 OpDelete event")
 	}
+
+	// Only the static app should remain.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		apps, err := s.authServer.AuthServer.GetApplicationServers(ctx, defaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, apps, 1)
+		require.Empty(t, gocmp.Diff(app0, apps[0].GetApp()))
+	}, 20*time.Second, 100*time.Millisecond)
 }
 
 func makeStaticApp(name string, labels map[string]string) (*types.AppV3, error) {
