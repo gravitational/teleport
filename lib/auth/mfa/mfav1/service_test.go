@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestCreateSessionChallenge_Webauthn(t *testing.T) {
@@ -59,6 +58,7 @@ func TestCreateSessionChallenge_Webauthn(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
@@ -66,14 +66,13 @@ func TestCreateSessionChallenge_Webauthn(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-		}},
-	)
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	_, err = authtest.RegisterTestDevice(
 		ctx,
@@ -144,6 +143,7 @@ func TestCreateSessionChallenge_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
@@ -151,14 +151,13 @@ func TestCreateSessionChallenge_SSO(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-		}},
-	)
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	resp, err := service.CreateSessionChallenge(
 		ctx,
@@ -192,6 +191,42 @@ func TestCreateSessionChallenge_SSO(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 }
 
+func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer.Auth(),
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	// Use a context with a system user.
+	ctx = authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I)
+
+	_, err = service.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+		},
+	)
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorContains(t, err, "only local or remote users can create MFA session challenges")
+}
+
 func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -201,12 +236,21 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer.Auth(),
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
 		Identity:   authServer.Auth().Identity,
 	})
 	require.NoError(t, err)
+
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	for _, testCase := range []struct {
 		name string
@@ -258,7 +302,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			resp, err := service.CreateSessionChallenge(t.Context(), testCase.req)
+			resp, err := service.CreateSessionChallenge(ctx, testCase.req)
 			require.True(t, trace.IsBadParameter(err))
 			require.Nil(t, resp)
 		})
@@ -278,6 +322,7 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
@@ -285,14 +330,13 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-		}},
-	)
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	_, err = service.CreateSessionChallenge(
 		ctx,
@@ -332,6 +376,7 @@ func TestValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
@@ -339,14 +384,13 @@ func TestValidateSessionChallenge_Webauthn(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-		},
-	})
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	// Register a Webauthn device for the user.
 	device, err := authtest.RegisterTestDevice(
@@ -442,6 +486,7 @@ func TestValidateSessionChallenge_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
@@ -449,14 +494,13 @@ func TestValidateSessionChallenge_SSO(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-		},
-	})
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	resp, err := service.ValidateSessionChallenge(
 		ctx,
@@ -485,6 +529,42 @@ func TestValidateSessionChallenge_SSO(t *testing.T) {
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 }
 
+func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer.Auth(),
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	// Use a context with a non-local user (e.g., a builtin role).
+	ctx = authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I)
+
+	_, err = service.ValidateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: &mfav1.AuthenticateResponse{
+				Response: &mfav1.AuthenticateResponse_Webauthn{
+					Webauthn: nil, // minimal, not relevant for this test
+				},
+			},
+		},
+	)
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorContains(t, err, "only local or remote users can create MFA session challenges")
+}
+
 func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
@@ -494,12 +574,21 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer.Auth(),
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
 		Identity:   authServer.Auth().Identity,
 	})
 	require.NoError(t, err)
+
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	for _, testCase := range []struct {
 		name string
@@ -521,7 +610,7 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			resp, err := service.ValidateSessionChallenge(t.Context(), testCase.req)
+			resp, err := service.ValidateSessionChallenge(ctx, testCase.req)
 			require.Nil(t, resp)
 			require.True(t, trace.IsBadParameter(err))
 		})
@@ -552,6 +641,7 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
 		AuthServer: authServer,
 		Cache:      authServer.Auth().Cache,
 		Emitter:    authServer.Auth(),
@@ -559,14 +649,13 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user")
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	ctx := authz.ContextWithUser(t.Context(), authz.LocalUser{
-		Identity: tlsca.Identity{
-			Username: user.GetName(),
-		},
-	})
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	// Register a Webauthn device for the user.
 	_, err = authtest.RegisterTestDevice(

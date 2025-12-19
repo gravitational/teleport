@@ -80,6 +80,7 @@ type Identity interface {
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct {
+	Authorizer authz.Authorizer
 	AuthServer AuthServer
 	Cache      Cache
 	Emitter    Emitter
@@ -91,6 +92,7 @@ type Service struct {
 	mfav1.UnimplementedMFAServiceServer
 
 	logger     *slog.Logger
+	authorizer authz.Authorizer
 	authServer AuthServer
 	cache      Cache
 	emitter    Emitter
@@ -100,6 +102,8 @@ type Service struct {
 // NewService creates a new [Service] instance.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	switch {
+	case cfg.Authorizer == nil:
+		return nil, trace.BadParameter("param Authorizer is required for MFA service")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("param AuthServer is required for MFA service")
 	case cfg.Cache == nil:
@@ -112,6 +116,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 	return &Service{
 		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
+		authorizer: cfg.Authorizer,
 		authServer: cfg.AuthServer,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
@@ -124,6 +129,15 @@ func (s *Service) CreateSessionChallenge(
 	ctx context.Context,
 	req *mfav1.CreateSessionChallengeRequest,
 ) (*mfav1.CreateSessionChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can create MFA session challenges")
+	}
+
 	if err := validateCreateSessionChallengeRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,6 +257,15 @@ func (s *Service) ValidateSessionChallenge(
 	ctx context.Context,
 	req *mfav1.ValidateSessionChallengeRequest,
 ) (*mfav1.ValidateSessionChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can create MFA session challenges")
+	}
+
 	if err := validateValidateSessionChallengeRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
