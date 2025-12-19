@@ -716,7 +716,7 @@ export default class MainProcess {
       this.appUpdater.quitAndInstall()
     );
 
-    ipcHandle(MainProcessIpc.ToggleAllowedToManage, opts =>
+    ipcHandle(MainProcessIpc.ToggleAllowedToManage, (event, opts) =>
       this.appUpdater.toggleAllowedToManage(opts.clusterUri)
     );
 
