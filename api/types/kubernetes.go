@@ -264,7 +264,7 @@ func (k *KubernetesClusterV3) SetDynamicLabels(dl map[string]CommandLabel) {
 
 // GetAllLabels returns the combined static and dynamic labels.
 func (k *KubernetesClusterV3) GetAllLabels() map[string]string {
-	return CombineLabels(k.Metadata.Labels, k.Spec.DynamicLabels)
+	return CombineLabels(nil, k.Metadata.Labels, k.Spec.DynamicLabels)
 }
 
 // GetDescription returns the description.

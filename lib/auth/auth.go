@@ -5483,7 +5483,7 @@ func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, a
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) error {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, cfg inventory.UpstreamHandleConfig) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
 	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
@@ -5506,7 +5506,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
 		return trace.Wrap(err)
 	}
-	a.inventory.RegisterControlStream(ics, hello)
+	a.inventory.RegisterControlStream(ics, cfg)
 	return nil
 }
 
@@ -5522,7 +5522,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
 				return
 			}
-			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
+			if err := a.RegisterInventoryControlStream(upstream, inventory.UpstreamHandleConfig{Hello: hello}); err != nil {
 				upstream.CloseWithError(err)
 				return
 			}

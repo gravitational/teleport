@@ -276,7 +276,7 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
-	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
+	return CombineLabels(nil, d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.

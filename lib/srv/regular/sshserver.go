@@ -260,6 +260,9 @@ type Server struct {
 
 	// childLogConfig is the log config for child processes.
 	childLogConfig *srv.ChildLogConfig
+
+	// immutableLabels are the immutable labels assigned to the server's host certificate
+	immutableLabels map[string]string
 }
 
 // EventMetadata returns metadata about the server.
@@ -803,6 +806,14 @@ func SetScope(scope string) ServerOption {
 	}
 }
 
+// SetImmutableLabels sets the server's immutable labels.
+func SetImmutableLabels(labels map[string]string) ServerOption {
+	return func(s *Server) error {
+		s.immutableLabels = labels
+		return nil
+	}
+}
+
 // SetChildLogConfig sets the config that will be used to handle logs
 // from child processes.
 func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
@@ -1182,14 +1193,15 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			Labels:    s.getStaticLabels(),
 		},
 		Spec: types.ServerSpecV2{
-			CmdLabels:  s.getDynamicLabels(),
-			Addr:       addr,
-			Hostname:   s.hostname,
-			UseTunnel:  s.useTunnel,
-			Version:    teleport.Version,
-			ProxyIDs:   s.connectedProxyGetter.GetProxyIDs(),
-			RelayGroup: relayGroup,
-			RelayIds:   relayIDs,
+			CmdLabels:       s.getDynamicLabels(),
+			Addr:            addr,
+			Hostname:        s.hostname,
+			UseTunnel:       s.useTunnel,
+			Version:         teleport.Version,
+			ProxyIDs:        s.connectedProxyGetter.GetProxyIDs(),
+			RelayGroup:      relayGroup,
+			RelayIds:        relayIDs,
+			ImmutableLabels: s.immutableLabels,
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))

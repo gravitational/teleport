@@ -297,6 +297,12 @@ func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
 	return wrapper.scoped, true
 }
 
+// GetImmutableLabels returns labels that should be applied to resources
+// provisioned with this token.
+func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return t.scoped.GetSpec().GetImmutableLabels()
+}
+
 // maxImmutableLabelsSize is the max size in bytes that all immutable labels
 // for a single scoped token can occupy.
 const maxImmutableLabelsSize = 2 * 1024 // 2KB

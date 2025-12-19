@@ -304,7 +304,7 @@ func (s *KubernetesServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.Cluster.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the kube server static labels.

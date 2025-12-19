@@ -65,6 +65,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -803,7 +804,10 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	}
 	hello.Scope = agentScope
 
-	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
+	return hello, a.authServer.RegisterInventoryControlStream(ics, inventory.UpstreamHandleConfig{
+		Hello:           hello,
+		ImmutableLabels: a.context.Identity.GetIdentity().ImmutableLabels,
+	})
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {

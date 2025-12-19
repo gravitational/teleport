@@ -120,6 +120,8 @@ type Server interface {
 	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
 	// SetComponentFeatures sets the supported features for the server.
 	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
+	// GetImmutableLabels returns the immutable labels for the server.
+	GetImmutableLabels() map[string]string
 }
 
 // NewServer creates an instance of Server.
@@ -429,22 +431,22 @@ func (s *ServerV2) GetRelayIDs() []string {
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
 	// server labels (static and dynamic)
-	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+	labels := CombineLabels(s.Spec.ImmutableLabels, s.Metadata.Labels, s.Spec.CmdLabels)
 	return labels
 }
 
 // CombineLabels combines the passed in static and dynamic labels.
-func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
-	if len(dynamic) == 0 {
-		return static
-	}
-
-	lmap := make(map[string]string, len(static)+len(dynamic))
+func CombineLabels(immutable, static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
+	lmap := make(map[string]string, len(static)+len(dynamic)+len(immutable))
 	for key, value := range static {
 		lmap[key] = value
 	}
 	for key, cmd := range dynamic {
 		lmap[key] = cmd.Result
+	}
+	// immutable labels must always override static and dynamic labels
+	for key, value := range immutable {
+		lmap[key] = value
 	}
 	return lmap
 }
@@ -770,6 +772,11 @@ func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 // GetScope returns the scope this server belongs to.
 func (s *ServerV2) GetScope() string {
 	return s.Scope
+}
+
+// GetImmutableLabels returns the immutable labels for the server.
+func (s *ServerV2) GetImmutableLabels() map[string]string {
+	return s.Spec.ImmutableLabels
 }
 
 // CommandLabel is a label that has a value as a result of the
