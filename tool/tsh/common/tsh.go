@@ -1945,7 +1945,17 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case updateServiceCommand.FullCommand():
 		err = windows_service.ServiceMain()
 	case updateServiceCommand1.FullCommand():
-		err = windows_service.UpdateOrigin(v.cluster, v.enabled)
+		if err := windows_service.UpdateOrigin(v.cluster, v.enabled); err != nil {
+			// 1. Print the error clearly
+			fmt.Printf("\n\n!!! ERROR UPDATING REGISTRY !!!\n%v\n\n", err)
+
+			// 2. PAUSE so you can read it
+			fmt.Println("Press ENTER to close this window...")
+			var input string
+			fmt.Scanln(&input)
+
+			os.Exit(1)
+		}
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
