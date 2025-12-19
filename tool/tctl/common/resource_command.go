@@ -948,7 +948,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
-
+	case types.KindOktaAssignment:
+		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
