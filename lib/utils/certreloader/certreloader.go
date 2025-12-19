@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package service
+package certreloader
 
 import (
 	"context"
@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-// CertReloaderConfig contains the configuration of the certificate reloader.
-type CertReloaderConfig struct {
-	// KeyPairs are the key and certificate pairs that the proxy will load.
+// Config contains the configuration of the certificate reloader.
+type Config struct {
+	// KeyPairs are the key and certificate pairs that the reloader will load.
 	KeyPairs []servicecfg.KeyPairPath
 	// KeyPairsReloadInterval is the interval between attempts to reload
 	// x509 key pairs. If set to 0, then periodic reloading is disabled.
@@ -46,21 +46,28 @@ type CertReloaderConfig struct {
 type CertReloader struct {
 	*log.Entry
 	// cfg is the certificate reloader configuration.
-	cfg CertReloaderConfig
+	cfg Config
 
 	// certificates is the list of certificates loaded.
 	certificates []tls.Certificate
 	// mu protects the list of certificates.
 	mu sync.RWMutex
+
+	// onLoad, if not nil, is called on each certificate after successful load
+	onLoad func(path string, cert *x509.Certificate)
 }
 
-// NewCertReloader initializes a new certificate reloader.
-func NewCertReloader(cfg CertReloaderConfig) *CertReloader {
+// New initializes a new certificate reloader.
+func New(cfg Config, entry *log.Entry, onLoad func(path string, cert *x509.Certificate)) *CertReloader {
+	if entry == nil {
+		entry = log.WithFields(log.Fields{
+			teleport.ComponentKey: "certreloader",
+		})
+	}
 	return &CertReloader{
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.ComponentProxy, "certreloader"),
-		}),
-		cfg: cfg,
+		Entry:  entry,
+		cfg:    cfg,
+		onLoad: onLoad,
 	}
 }
 
@@ -104,6 +111,7 @@ func (c *CertReloader) Run(ctx context.Context) error {
 // If any of the key pairs fails to load, none of the certificates are updated.
 func (c *CertReloader) loadCertificates() error {
 	certs := make([]tls.Certificate, 0, len(c.cfg.KeyPairs))
+
 	for _, pair := range c.cfg.KeyPairs {
 		c.Debugf("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)
 
@@ -124,6 +132,12 @@ func (c *CertReloader) loadCertificates() error {
 		certificate.Leaf = leaf
 
 		certs = append(certs, certificate)
+	}
+
+	for i := range c.cfg.KeyPairs {
+		if c.onLoad != nil {
+			c.onLoad(c.cfg.KeyPairs[i].Certificate, certs[i].Leaf)
+		}
 	}
 
 	c.mu.Lock()
@@ -158,4 +172,23 @@ func (c *CertReloader) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Ce
 	}
 	// If nothing matches, return the first certificate.
 	return &c.certificates[0], nil
+}
+
+// GetClientCertificate is compatible with tls.Config.GetClientCertificate, allowing
+// the CertReloader to be a source of certificates for mTLS connections.
+// certificate selection log is the same as the GetClientCertificate in crypto/tls
+// https://github.com/golang/go/blob/f64c2a2ce5dc859315047184e310879dcf747d53/src/crypto/tls/handshake_client.go#L977
+func (c *CertReloader) GetClientCertificate(requestInfo *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	for _, cert := range c.certificates {
+		if err := requestInfo.SupportsCertificate(&cert); err != nil {
+			continue
+		}
+		return &cert, nil
+	}
+
+	// No acceptable certificate found. Don't send a certificate.
+	return new(tls.Certificate), nil
 }
