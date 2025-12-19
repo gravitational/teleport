@@ -26,10 +26,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -88,6 +90,8 @@ type Identity struct {
 	SystemRoles []string
 	// AgentScope is the scope an identity is constrained to.
 	AgentScope string
+	// ImmutableLabels is the set of immutable labels assigned to the identity.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // HasSystemRole checks if this identity encompasses the supplied system role.
@@ -334,13 +338,22 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 	}
 
 	agentScope := cert.Permissions.Extensions[teleport.CertExtensionAgentScope]
+	var labels joiningv1.ImmutableLabels
+	rawLabels := cert.Permissions.Extensions[teleport.CertExtensionImmutableLabels]
+	if rawLabels != "" {
+		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawLabels), &labels); err != nil {
+			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as immutable labels: %v", rawLabels, teleport.CertExtensionImmutableLabels, err)
+		}
+	}
+
 	return &Identity{
-		ID:          IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
-		ClusterName: clusterName,
-		KeyBytes:    keyBytes,
-		CertBytes:   certBytes,
-		KeySigner:   certSigner,
-		Cert:        cert,
-		AgentScope:  agentScope,
+		ID:              IdentityID{HostUUID: cert.ValidPrincipals[0], Role: role},
+		ClusterName:     clusterName,
+		KeyBytes:        keyBytes,
+		CertBytes:       certBytes,
+		KeySigner:       certSigner,
+		Cert:            cert,
+		AgentScope:      agentScope,
+		ImmutableLabels: &labels,
 	}, nil
 }

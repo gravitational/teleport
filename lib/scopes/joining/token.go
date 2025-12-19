@@ -279,7 +279,13 @@ func (t *Token) GetSecret() (string, bool) {
 	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
 }
 
-// GetScoped returns the wrapped [joiningv1.ScopedToken].
+// GetImmutableLabels returns labels that should be applied to resources
+// provisioned with this token.
+func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
+	return t.scoped.GetSpec().GetImmutableLabels()
+}
+
+// GetScoped returns the wrapped [*joiningv1.ScopedToken]
 func (t *Token) GetScoped() *joiningv1.ScopedToken {
 	return t.scoped
 }

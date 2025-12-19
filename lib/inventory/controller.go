@@ -22,6 +22,7 @@ import (
 	"context"
 	"iter"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"os"
 	"strings"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
@@ -363,9 +365,15 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	}
 }
 
+// UpstreamHandleConfig contains fields required for creating a new upstreamHandle.
+type UpstreamHandleConfig struct {
+	Hello           *proto.UpstreamInventoryHello
+	ImmutableLabels *joiningv1.ImmutableLabels
+}
+
 // RegisterControlStream registers a new control stream with the controller.
-func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) {
-	handle := newUpstreamHandle(stream, hello, c.clock.Now())
+func (c *Controller) RegisterControlStream(stream client.UpstreamInventoryControlStream, cfg UpstreamHandleConfig) {
+	handle := newUpstreamHandle(stream, cfg, c.clock.Now())
 	c.store.Insert(handle)
 
 	// Increment the concurrent connection counter that we use to calculate the
@@ -921,6 +929,10 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
 	if sshServer.Scope != handle.Hello().GetScope() {
 		return trace.AccessDenied("incorrect ssh server scope (expected %q, got %q)", handle.Hello().GetScope(), sshServer.Scope)
+	}
+
+	if !maps.Equal(sshServer.GetImmutableLabels(), handle.ImmutableLabels().GetSsh()) {
+		return trace.AccessDenied("immutable labels changed after registration")
 	}
 
 	// if a peer address is available in the context, use it to override zero-value addresses from
