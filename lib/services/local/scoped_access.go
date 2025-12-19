@@ -886,6 +886,27 @@ func (s *ScopedAccessService) GetScopedAccessList(ctx context.Context, req *scop
 	}, nil
 }
 
+// ListScopedAccessLists returns a paginated list of scoped access lists.
+// NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
+func (s *ScopedAccessService) ListScopedAccessLists(ctx context.Context, req *scopedaccessv1.ListScopedAccessListsRequest) (*scopedaccessv1.ListScopedAccessListsResponse, error) {
+	if req.GetPageToken() != "" {
+		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped access list reads")
+	}
+
+	var out []*scopedaccessv1.ScopedAccessList
+	for list, err := range s.StreamScopedAccessLists(ctx) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, list)
+	}
+
+	return &scopedaccessv1.ListScopedAccessListsResponse{
+		Lists: out,
+	}, nil
+}
+
 // StreamScopedAccessLists returns a stream of all scoped access lists in the
 // backend. Malformed access lists are skipped. Returned access lists have had
 // weak validation applied.
@@ -1019,7 +1040,7 @@ func (s *ScopedAccessService) CreateScopedAccessListMember(ctx context.Context, 
 	}
 
 	condacts = append(condacts, backend.ConditionalAction{
-		Key:       scopedAccessListMemberKey(member.GetMetadata().GetName()),
+		Key:       scopedAccessListMemberKey(list.GetMetadata().GetName(), member.GetMetadata().GetName()),
 		Condition: backend.NotExists(),
 		Action:    backend.Put(item),
 	})
@@ -1035,14 +1056,17 @@ func (s *ScopedAccessService) CreateScopedAccessListMember(ctx context.Context, 
 }
 
 func (s *ScopedAccessService) GetScopedAccessListMember(ctx context.Context, req *scopedaccessv1.GetScopedAccessListMemberRequest) (*scopedaccessv1.GetScopedAccessListMemberResponse, error) {
-	if req.GetName() == "" {
+	if req.GetScopedAccessList() == "" {
+		return nil, trace.BadParameter("missing scoped access list name in member get request")
+	}
+	if req.GetMemberName() == "" {
 		return nil, trace.BadParameter("missing scoped access list member name in get request")
 	}
 
-	item, err := s.bk.Get(ctx, scopedAccessListMemberKey(req.GetName()))
+	item, err := s.bk.Get(ctx, scopedAccessListMemberKey(req.GetScopedAccessList(), req.GetMemberName()))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("scoped access list member %q not found", req.GetName())
+			return nil, trace.NotFound("scoped access list member %q not found", req.GetMemberName())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1061,12 +1085,33 @@ func (s *ScopedAccessService) GetScopedAccessListMember(ctx context.Context, req
 	}, nil
 }
 
+// ListScopedAccessListMembers returns a paginated list of scoped access list members.
+// NOTE: this method is only used by local auth caches, and doesn't implement sorting, filtering, or pagination.
+func (s *ScopedAccessService) ListScopedAccessListMembers(ctx context.Context, req *scopedaccessv1.ListScopedAccessListMembersRequest) (*scopedaccessv1.ListScopedAccessListMembersResponse, error) {
+	if req.GetPageToken() != "" {
+		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped access list reads")
+	}
+
+	var out []*scopedaccessv1.ScopedAccessListMember
+	for member, err := range s.StreamScopedAccessListMembers(ctx) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, member)
+	}
+
+	return &scopedaccessv1.ListScopedAccessListMembersResponse{
+		Members: out,
+	}, nil
+}
+
 // StreamScopedAccessListMembers returns a stream of all scoped access list
 // members in the backend. Malformed access list members are skipped. Returned
 // access list members have had weak validation applied.
 func (s *ScopedAccessService) StreamScopedAccessListMembers(ctx context.Context) stream.Stream[*scopedaccessv1.ScopedAccessListMember] {
 	return func(yield func(*scopedaccessv1.ScopedAccessListMember, error) bool) {
-		startKey := scopedAccessListMemberKey("")
+		startKey := backend.NewKey(scopedAccessListMemberPrefix)
 		params := backend.ItemsParams{
 			StartKey: startKey,
 			EndKey:   backend.RangeEnd(startKey),
@@ -1099,6 +1144,33 @@ func (s *ScopedAccessService) StreamScopedAccessListMembers(ctx context.Context)
 	}
 }
 
+func (s *ScopedAccessService) DeleteScopedAccessListMember(ctx context.Context, req *scopedaccessv1.DeleteScopedAccessListMemberRequest) (*scopedaccessv1.DeleteScopedAccessListMemberResponse, error) {
+	if req.GetScopedAccessList() == "" {
+		return nil, trace.BadParameter("missing scoped access list name in member get request")
+	}
+	if req.GetMemberName() == "" {
+		return nil, trace.BadParameter("missing scoped access list member name in get request")
+	}
+
+	condact := backend.ConditionalAction{
+		Key:       scopedAccessListMemberKey(req.GetScopedAccessList(), req.GetMemberName()),
+		Condition: backend.Whatever(),
+		Action:    backend.Delete(),
+	}
+	if rev := req.GetRevision(); rev != "" {
+		condact.Condition = backend.Revision(rev)
+	}
+
+	_, err := s.bk.AtomicWrite(ctx, []backend.ConditionalAction{condact})
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.CompareFailed("scoped access list member has been concurrently modified or deleted")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return &scopedaccessv1.DeleteScopedAccessListMemberResponse{}, nil
+}
+
 func scopedRoleKey(roleName string) backend.Key {
 	return backend.NewKey(scopedRolePrefix, scopedRoleRoleComponent, roleName)
 }
@@ -1127,8 +1199,16 @@ func scopedAccessListKey(name string) backend.Key {
 	return backend.NewKey(scopedAccessListPrefix, name)
 }
 
-func scopedAccessListMemberKey(name string) backend.Key {
-	return backend.NewKey(scopedAccessListMemberPrefix, name)
+func scopedAccessListWatchPrefix() backend.Key {
+	return backend.ExactKey(scopedAccessListPrefix)
+}
+
+func scopedAccessListMemberKey(listName, memberName string) backend.Key {
+	return backend.NewKey(scopedAccessListMemberPrefix, listName, memberName)
+}
+
+func scopedAccessListMemberWatchPrefix() backend.Key {
+	return backend.ExactKey(scopedAccessListMemberPrefix)
 }
 
 // newUserAssignmentLockVal generates a new user assignment lock value for the specified username. A random
@@ -1282,7 +1362,7 @@ func scopedAccessListMemberToItem(member *scopedaccessv1.ScopedAccessListMember)
 	}
 
 	return backend.Item{
-		Key:      scopedAccessListMemberKey(member.GetMetadata().GetName()),
+		Key:      scopedAccessListMemberKey(member.GetSpec().GetAccessList(), member.GetMetadata().GetName()),
 		Value:    data,
 		Revision: member.GetMetadata().GetRevision(),
 	}, nil

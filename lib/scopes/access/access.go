@@ -48,7 +48,7 @@ const (
 	KindScopedAccessList = "scoped_access_list"
 
 	// KindScopedAccessListMember is the kind of a scoped access list member.
-	KindScopedAccessListMember = "scoped_access_list"
+	KindScopedAccessListMember = "scoped_access_list_member"
 
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than

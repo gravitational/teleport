@@ -42,6 +42,8 @@ type ScopedAccess interface {
 type ScopedAccessReader interface {
 	ScopedRoleReader
 	ScopedRoleAssignmentReader
+	ScopedAccessListReader
+	ScopedAccessListMemberReader
 }
 
 // CachedScopedAccessReader extends ScopedAccessReader with cache-specific methods.
@@ -104,8 +106,18 @@ type ScopedRoleAssignmentWriter interface {
 	DeleteScopedRoleAssignment(context.Context, *scopedaccessv1.DeleteScopedRoleAssignmentRequest) (*scopedaccessv1.DeleteScopedRoleAssignmentResponse, error)
 }
 
+type ScopedAccessListReader interface {
+	GetScopedAccessList(context.Context, *scopedaccessv1.GetScopedAccessListRequest) (*scopedaccessv1.GetScopedAccessListResponse, error)
+	ListScopedAccessLists(context.Context, *scopedaccessv1.ListScopedAccessListsRequest) (*scopedaccessv1.ListScopedAccessListsResponse, error)
+}
+
 type ScopedAccessListWriter interface {
 	CreateScopedAccessList(context.Context, *scopedaccessv1.CreateScopedAccessListRequest) (*scopedaccessv1.CreateScopedAccessListResponse, error)
 	UpdateScopedAccessList(context.Context, *scopedaccessv1.UpdateScopedAccessListRequest) (*scopedaccessv1.UpdateScopedAccessListResponse, error)
 	DeleteScopedAccessList(context.Context, *scopedaccessv1.DeleteScopedAccessListRequest) (*scopedaccessv1.DeleteScopedAccessListResponse, error)
+}
+
+type ScopedAccessListMemberReader interface {
+	GetScopedAccessListMember(context.Context, *scopedaccessv1.GetScopedAccessListMemberRequest) (*scopedaccessv1.GetScopedAccessListMemberResponse, error)
+	ListScopedAccessListMembers(context.Context, *scopedaccessv1.ListScopedAccessListMembersRequest) (*scopedaccessv1.ListScopedAccessListMembersResponse, error)
 }

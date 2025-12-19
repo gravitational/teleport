@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -86,6 +87,34 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
 	}
 
+	// populate access lists prior to starting the cache so that we can cover
+	// loading of initial state.
+	var expectedAccessListNames []string
+	for i := range 10 {
+		name := fmt.Sprintf("list-%d", i)
+		list := newScopedAccessList(name)
+		_, err := service.CreateScopedAccessList(ctx, &scopedaccessv1.CreateScopedAccessListRequest{
+			List: list,
+		})
+		require.NoError(t, err)
+
+		expectedAccessListNames = append(expectedAccessListNames, name)
+	}
+
+	// populate access list members prior to starting the cache so that we can cover
+	// loading of initial state.
+	var expectedAccessListMemberNames []string
+	for i := range 10 {
+		name := fmt.Sprintf("member-%d", i)
+		member := newScopedAccessListMember(expectedAccessListNames[i], name)
+		_, err := service.CreateScopedAccessListMember(ctx, &scopedaccessv1.CreateScopedAccessListMemberRequest{
+			Member: member,
+		})
+		require.NoError(t, err)
+
+		expectedAccessListMemberNames = append(expectedAccessListMemberNames, name)
+	}
+
 	// start the cache with the service and events.
 	cache, err := NewCache(CacheConfig{
 		Events:            events,
@@ -116,6 +145,26 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 
 	require.ElementsMatch(t, expectedAssignmentNames, gotAssignmentNames)
 
+	// verify that initial access list states states are immediately available
+	var gotAccessListNames []string
+	for list, err := range scopedutils.RangeScopedAccessLists(ctx, cache, &scopedaccessv1.ListScopedAccessListsRequest{}) {
+		require.NoError(t, err)
+
+		gotAccessListNames = append(gotAccessListNames, list.GetMetadata().GetName())
+	}
+
+	require.ElementsMatch(t, expectedAccessListNames, gotAccessListNames)
+
+	// verify that initial access list member states states are immediately available
+	var gotAccessListMemberNames []string
+	for member, err := range scopedutils.RangeScopedAccessListMembers(ctx, cache, &scopedaccessv1.ListScopedAccessListMembersRequest{}) {
+		require.NoError(t, err)
+
+		gotAccessListMemberNames = append(gotAccessListMemberNames, member.GetMetadata().GetName())
+	}
+
+	require.ElementsMatch(t, expectedAccessListMemberNames, gotAccessListMemberNames)
+
 	// perform additional role writes to cover event replication
 	for i := 10; i < 20; i++ {
 		name := fmt.Sprintf("role-%d", i)
@@ -140,6 +189,30 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedAssignmentNames = append(expectedAssignmentNames, assignment.GetMetadata().GetName())
+	}
+
+	// perform additional access list writes to cover event replication
+	for i := 10; i < 20; i++ {
+		name := fmt.Sprintf("list-%d", i)
+		list := newScopedAccessList(name)
+		_, err := service.CreateScopedAccessList(ctx, &scopedaccessv1.CreateScopedAccessListRequest{
+			List: list,
+		})
+		require.NoError(t, err)
+
+		expectedAccessListNames = append(expectedAccessListNames, name)
+	}
+
+	// perform additional access list member writes to cover event replication
+	for i := 10; i < 20; i++ {
+		name := fmt.Sprintf("member-%d", i)
+		member := newScopedAccessListMember(expectedAccessListNames[i], name)
+		_, err := service.CreateScopedAccessListMember(ctx, &scopedaccessv1.CreateScopedAccessListMemberRequest{
+			Member: member,
+		})
+		require.NoError(t, err)
+
+		expectedAccessListMemberNames = append(expectedAccessListMemberNames, name)
 	}
 
 	// wait for the cache to replicate the new roles
@@ -167,6 +240,32 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		gotAssignmentNames = append(gotAssignmentNames, assignment.GetMetadata().GetName())
 	}
 	require.ElementsMatch(t, expectedAssignmentNames, gotAssignmentNames)
+
+	// wait for the cache to replicate the new access lists
+	waitForAccessListCondition(t, cache, func(lists []*scopedaccessv1.ScopedAccessList) bool {
+		t.Helper()
+		return len(lists) >= len(expectedAccessListNames)
+	})
+
+	gotAccessListNames = nil
+	for list, err := range scopedutils.RangeScopedAccessLists(ctx, cache, &scopedaccessv1.ListScopedAccessListsRequest{}) {
+		require.NoError(t, err)
+		gotAccessListNames = append(gotAccessListNames, list.GetMetadata().GetName())
+	}
+	require.ElementsMatch(t, expectedAccessListNames, gotAccessListNames)
+
+	// wait for the cache to replicate the new access list members
+	waitForAccessListMemberCondition(t, cache, func(members []*scopedaccessv1.ScopedAccessListMember) bool {
+		t.Helper()
+		return len(members) >= len(expectedAccessListMemberNames)
+	})
+
+	gotAccessListMemberNames = nil
+	for member, err := range scopedutils.RangeScopedAccessListMembers(ctx, cache, &scopedaccessv1.ListScopedAccessListMembersRequest{}) {
+		require.NoError(t, err)
+		gotAccessListMemberNames = append(gotAccessListMemberNames, member.GetMetadata().GetName())
+	}
+	require.ElementsMatch(t, expectedAccessListMemberNames, gotAccessListMemberNames)
 
 	// test that cache can handle updates to existing roles (NOTE: no corellary for assignments)
 	for role, err := range scopedutils.RangeScopedRoles(ctx, cache, &scopedaccessv1.ListScopedRolesRequest{}) {
@@ -393,6 +492,268 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 	require.ElementsMatch(t, expectedAssignmentNames, gotAssignmentNames)
 }
 
+func TestAccessListMaterialization(t *testing.T) {
+	t.Parallel()
+
+	backend, err := memory.New(memory.Config{
+		Context: t.Context(),
+	})
+	require.NoError(t, err)
+
+	defer backend.Close()
+
+	service := local.NewScopedAccessService(backend)
+
+	events := local.NewEventsService(backend)
+
+	cache, err := NewCache(CacheConfig{
+		Events: events,
+		Reader: service,
+	})
+	require.NoError(t, err)
+	defer cache.Close()
+
+	for roleName, roleSpec := range map[string]*scopedaccessv1.ScopedRoleSpec{
+		"staging-east-access": {
+			AssignableScopes: []string{"/staging/east"},
+		},
+		"staging-east-admin": {
+			AssignableScopes: []string{"/staging/east"},
+		},
+		"staging-access": {
+			AssignableScopes: []string{"/staging"},
+		},
+		"staging-admin": {
+			AssignableScopes: []string{"/staging"},
+		},
+	} {
+		role := newScopedRole(roleName)
+		role.Spec = roleSpec
+		_, err := service.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+			Role: role,
+		})
+		require.NoError(t, err)
+	}
+
+	for listName, grants := range map[string]*scopedaccessv1.ScopedAccessListGrants{
+		"staging-east-users": {ScopedRoles: []*scopedaccessv1.ScopedRoleGrant{
+			{
+				Role:  "staging-east-access",
+				Scope: "/staging/east",
+			},
+		}},
+		"staging-east-admins": {ScopedRoles: []*scopedaccessv1.ScopedRoleGrant{
+			{
+				Role:  "staging-east-admin",
+				Scope: "/staging/east",
+			},
+		}},
+		"staging-users": {ScopedRoles: []*scopedaccessv1.ScopedRoleGrant{
+			{
+				Role:  "staging-access",
+				Scope: "/staging",
+			},
+		}},
+		"staging-admins": {ScopedRoles: []*scopedaccessv1.ScopedRoleGrant{
+			{
+				Role:  "staging-admin",
+				Scope: "/staging",
+			},
+		}},
+	} {
+		list := newScopedAccessList(listName)
+		list.Spec.Grants = grants
+		_, err := service.CreateScopedAccessList(t.Context(), &scopedaccessv1.CreateScopedAccessListRequest{
+			List: list,
+		})
+		require.NoError(t, err)
+	}
+
+	for _, memberSpec := range []*scopedaccessv1.ScopedAccessListMemberSpec{
+		{
+			// List staging-east-admins is a member of staging-east-users. This
+			// should grant all members of staging-east-admins the roles
+			// granted by staging-east-users.
+			AccessList:     "staging-east-users",
+			Name:           "staging-east-admins",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_LIST,
+		},
+		{
+			// List staging-admins is a member of staging-users. This should
+			// grant all members of staging-admins the roles granted by
+			// staging-users.
+			AccessList:     "staging-users",
+			Name:           "staging-admins",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_LIST,
+		},
+		{
+			// List staging-admins is a member of staging-east-admins. This
+			// should grant all members of staging-admins the roles granted by
+			// staging-east-admins.
+			AccessList:     "staging-east-admins",
+			Name:           "staging-admins",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_LIST,
+		},
+		{
+			// List staging-users is a member of staging-east-users. This
+			// should grant all members of staging-users the roles granted by
+			// staging-east-users.
+			AccessList:     "staging-east-users",
+			Name:           "staging-users",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_LIST,
+		},
+		{
+			AccessList:     "staging-east-users",
+			Name:           "staging-east-agent",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_USER,
+		},
+		{
+			AccessList:     "staging-east-admins",
+			Name:           "staging-east-owner",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_USER,
+		},
+		{
+			AccessList:     "staging-users",
+			Name:           "staging-agent",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_USER,
+		},
+		{
+			AccessList:     "staging-admins",
+			Name:           "staging-owner",
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_USER,
+		},
+	} {
+		member := newScopedAccessListMember(memberSpec.AccessList, memberSpec.Name)
+		member.Spec = memberSpec
+		_, err := service.CreateScopedAccessListMember(t.Context(), &scopedaccessv1.CreateScopedAccessListMemberRequest{
+			Member: member,
+		})
+		require.NoError(t, err)
+	}
+
+	type grant struct {
+		role, scope string
+	}
+	type roleAssignment struct {
+		scope  string
+		user   string
+		grants []grant
+	}
+	expectedAssignments := []roleAssignment{
+		{
+			user:  "staging-east-owner",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-east-admin",
+					scope: "/staging/east",
+				},
+			},
+		},
+		{
+			user:  "staging-east-owner",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-east-access",
+					scope: "/staging/east",
+				},
+			},
+		},
+		{
+			user:  "staging-east-agent",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-east-access",
+					scope: "/staging/east",
+				},
+			},
+		},
+		{
+			user:  "staging-owner",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-east-admin",
+					scope: "/staging/east",
+				},
+			},
+		},
+		{
+			user:  "staging-owner",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-east-access",
+					scope: "/staging/east",
+				},
+			},
+		},
+		{
+			user:  "staging-owner",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-admin",
+					scope: "/staging",
+				},
+			},
+		},
+		{
+			user:  "staging-owner",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-access",
+					scope: "/staging",
+				},
+			},
+		},
+		{
+			user:  "staging-agent",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-access",
+					scope: "/staging",
+				},
+			},
+		},
+		{
+			user:  "staging-agent",
+			scope: "/",
+			grants: []grant{
+				{
+					role:  "staging-east-access",
+					scope: "/staging/east",
+				},
+			},
+		},
+	}
+
+	waitForAssignmentCondition(t, cache, func(assignments []*scopedaccessv1.ScopedRoleAssignment) bool {
+		return len(assignments) >= len(expectedAssignments)
+	})
+	var gotAssignments []roleAssignment
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(t.Context(), cache, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+		require.NoError(t, err)
+		gotAssignment := roleAssignment{
+			user:  assignment.GetSpec().GetUser(),
+			scope: assignment.GetScope(),
+		}
+		for _, assign := range assignment.GetSpec().GetAssignments() {
+			gotAssignment.grants = append(gotAssignment.grants, grant{
+				role:  assign.GetRole(),
+				scope: assign.GetScope(),
+			})
+		}
+		gotAssignments = append(gotAssignments, gotAssignment)
+	}
+
+	assert.ElementsMatch(t, expectedAssignments, gotAssignments)
+}
+
 func newScopedRole(name string) *scopedaccessv1.ScopedRole {
 	return &scopedaccessv1.ScopedRole{
 		Kind: scopedaccess.KindScopedRole,
@@ -427,6 +788,36 @@ func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignme
 	}
 }
 
+func newScopedAccessList(name string) *scopedaccessv1.ScopedAccessList {
+	return &scopedaccessv1.ScopedAccessList{
+		Kind: scopedaccess.KindScopedAccessList,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedAccessListSpec{
+			Title: name,
+		},
+		Version: types.V1,
+	}
+}
+
+func newScopedAccessListMember(listName, memberName string) *scopedaccessv1.ScopedAccessListMember {
+	return &scopedaccessv1.ScopedAccessListMember{
+		Kind: scopedaccess.KindScopedAccessListMember,
+		Metadata: &headerv1.Metadata{
+			Name: memberName,
+		},
+		Scope: "/",
+		Spec: &scopedaccessv1.ScopedAccessListMemberSpec{
+			AccessList:     listName,
+			Name:           memberName,
+			MembershipKind: scopedaccessv1.MembershipKind_MEMBERSHIP_KIND_USER,
+		},
+		Version: types.V1,
+	}
+}
+
 func waitForRoleCondition(t *testing.T, reader services.ScopedRoleReader, condition func([]*scopedaccessv1.ScopedRole) bool) {
 	t.Helper()
 	timeout := time.After(30 * time.Second)
@@ -451,7 +842,7 @@ func waitForRoleCondition(t *testing.T, reader services.ScopedRoleReader, condit
 
 func waitForAssignmentCondition(t *testing.T, reader services.ScopedRoleAssignmentReader, condition func([]*scopedaccessv1.ScopedRoleAssignment) bool) {
 	t.Helper()
-	timeout := time.After(30 * time.Second)
+	timeout := time.After(2 * time.Second)
 	for {
 		var assignments []*scopedaccessv1.ScopedRoleAssignment
 		for assignment, err := range scopedutils.RangeScopedRoleAssignments(t.Context(), reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
@@ -467,6 +858,50 @@ func waitForAssignmentCondition(t *testing.T, reader services.ScopedRoleAssignme
 		case <-time.After(time.Millisecond * 200):
 		case <-timeout:
 			require.FailNow(t, "timeout waiting for assignment condition")
+		}
+	}
+}
+
+func waitForAccessListCondition(t *testing.T, reader services.ScopedAccessListReader, condition func([]*scopedaccessv1.ScopedAccessList) bool) {
+	t.Helper()
+	timeout := time.After(30 * time.Second)
+	for {
+		var lists []*scopedaccessv1.ScopedAccessList
+		for list, err := range scopedutils.RangeScopedAccessLists(t.Context(), reader, &scopedaccessv1.ListScopedAccessListsRequest{}) {
+			require.NoError(t, err)
+			lists = append(lists, list)
+		}
+
+		if condition(lists) {
+			return
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 120):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access list condition")
+		}
+	}
+}
+
+func waitForAccessListMemberCondition(t *testing.T, reader services.ScopedAccessListMemberReader, condition func([]*scopedaccessv1.ScopedAccessListMember) bool) {
+	t.Helper()
+	timeout := time.After(30 * time.Second)
+	for {
+		var members []*scopedaccessv1.ScopedAccessListMember
+		for member, err := range scopedutils.RangeScopedAccessListMembers(t.Context(), reader, &scopedaccessv1.ListScopedAccessListMembersRequest{}) {
+			require.NoError(t, err)
+			members = append(members, member)
+		}
+
+		if condition(members) {
+			return
+		}
+
+		select {
+		case <-time.After(time.Millisecond * 120):
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access list condition")
 		}
 	}
 }

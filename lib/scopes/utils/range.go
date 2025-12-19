@@ -54,3 +54,31 @@ func RangeScopedRoleAssignments(ctx context.Context, reader services.ScopedRoleA
 		return rsp.GetAssignments(), rsp.GetNextPageToken(), nil
 	})
 }
+
+// RangeScopedAccessLists is a helper function that streams scoped access lists from the provided reader.
+// NOTE: this function mutates the request's PageToken field during iteration.
+func RangeScopedAccessLists(ctx context.Context, reader services.ScopedAccessListReader, req *scopedaccessv1.ListScopedAccessListsRequest) stream.Stream[*scopedaccessv1.ScopedAccessList] {
+	return clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*scopedaccessv1.ScopedAccessList, string, error) {
+		req.PageSize = int32(pageSize)
+		req.PageToken = pageToken
+		rsp, err := reader.ListScopedAccessLists(ctx, req)
+		if err != nil {
+			return nil, "", err
+		}
+		return rsp.GetLists(), rsp.GetNextPageToken(), nil
+	})
+}
+
+// RangeScopedAccessListMembers is a helper function that streams scoped access list members from the provided reader.
+// NOTE: this function mutates the request's PageToken field during iteration.
+func RangeScopedAccessListMembers(ctx context.Context, reader services.ScopedAccessListMemberReader, req *scopedaccessv1.ListScopedAccessListMembersRequest) stream.Stream[*scopedaccessv1.ScopedAccessListMember] {
+	return clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*scopedaccessv1.ScopedAccessListMember, string, error) {
+		req.PageSize = int32(pageSize)
+		req.PageToken = pageToken
+		rsp, err := reader.ListScopedAccessListMembers(ctx, req)
+		if err != nil {
+			return nil, "", err
+		}
+		return rsp.GetMembers(), rsp.GetNextPageToken(), nil
+	})
+}

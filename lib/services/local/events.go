@@ -117,6 +117,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newScopedRoleParser()
 		case scopedaccess.KindScopedRoleAssignment:
 			parser = newScopedRoleAssignmentParser()
+		case scopedaccess.KindScopedAccessList:
+			parser = newScopedAccessListParser()
+		case scopedaccess.KindScopedAccessListMember:
+			parser = newScopedAccessListMemberParser()
 		case types.KindUser:
 			parser = newUserParser()
 		case types.KindNode:
@@ -1123,6 +1127,80 @@ func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource,
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(assignment), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newScopedAccessListParser() *scopedAccessListParser {
+	return &scopedAccessListParser{
+		baseParser: newBaseParser(scopedAccessListWatchPrefix()),
+	}
+}
+
+type scopedAccessListParser struct {
+	baseParser
+}
+
+func (p *scopedAccessListParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedAccessListWatchPrefix()).String(), backend.SeparatorString)
+		if name == "" || strings.Contains(name, "/") {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind: scopedaccess.KindScopedAccessList,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		list, err := scopedAccessListFromItem(&event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(list), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newScopedAccessListMemberParser() *scopedAccessListMemberParser {
+	return &scopedAccessListMemberParser{
+		baseParser: newBaseParser(scopedAccessListMemberWatchPrefix()),
+	}
+}
+
+type scopedAccessListMemberParser struct {
+	baseParser
+}
+
+func (p *scopedAccessListMemberParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		key := event.Item.Key.TrimPrefix(backend.NewKey(scopedAccessListMemberPrefix))
+		if len(key.Components()) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		scopedAccessList := key.Components()[0]
+
+		return &types.ResourceHeader{
+			Kind:    scopedaccess.KindScopedAccessListMember,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Namespace: apidefaults.Namespace,
+				// Use the member name as the name and put the access list name in the description.
+				Name:        strings.TrimPrefix(key.TrimPrefix(backend.NewKey(scopedAccessList)).String(), backend.SeparatorString),
+				Description: scopedAccessList,
+			},
+		}, nil
+	case types.OpPut:
+		member, err := scopedAccessListMemberFromItem(&event.Item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(member), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
