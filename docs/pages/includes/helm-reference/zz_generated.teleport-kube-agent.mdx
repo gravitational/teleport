@@ -90,6 +90,76 @@ The token used must at least grant the required system roles. For example, if
 the chart [`roles`](#roles) is `kube,app`, the token should allow the system
 roles `App` and `Kube`.
 
+## `updater`
+
+`updater` controls whether the Kube Updater should be deployed alongside.
+The updater fetches the target version, validates the image signature, and updates the teleport deployment.
+
+The updater can fetch the update information using two protocols:
+- the webapi update protocol (in this case the Teleport Proxy Service is the one driving the version rollout)
+- the version server protocol (this is an HTTP server serving static files specifying the version and if the update is critical).
+
+The webapi protocol takes precedence over the version server one if the Teleport Proxy Service supports it.
+The version server protocol failover can be disabled by unsetting `updater.versionServer`.
+The webapi protocol can be disabled by setting `updater.proxyAddr` to `""`.
+For backward compatibility reasons, the webapi protocol is not enabled if a custom `updater.versionServer` is set.
+
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+... default to the agent values. However, they can be overridden from the
+`updater` object. For example:
+
+```yaml
+# the agent pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+resources:
+  requests:
+    cpu: "1"
+    memory: "2Gi"
+  limits:
+    memory: "2Gi"
+
+# the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+updater:
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "512Mi"
+    limits: ~
+```
+
+Other updater-specific values that can be defined in `updater` are described
+below.
+
+## `enabled`
+
+`enabled` Enables the Kube Updater and deploys it alongside the Teleport Agent.
+You can enable this when:
+
+- using Teleport Cloud and your tenant is enrolled into automatic updates.
+  (You can check this through the web UI, choose `Add Kubernetes` and
+  `Enroll New Resource of type Kubernetes`, and check if the value is turned
+  on.)
+- using self-hosted Teleport and you maintain your own version server.
+
+You must not enable this when:
+
+- you are a Teleport Cloud customer not enrolled in automatic updates.
+- you are a self-hosted Teleport user and have not set up your Teleport cluster to
+  support automatic updates.
+
+## `containerName`
+
+`containerName` sets the name of the main container in the teleport pod.
+This value is used to identify the container in Kubernetes and is typically set to "teleport"
+for the teleport-kube-agent chart.
+
+## `appImage`
+
+`appImage` sets the container image used for tbot pods created by this
+chart.
+
+You can override this to use your own tbot image rather than a
+Teleport-published image.
+
 ## `joinParams`
 
 `joinParams` controls how the Teleport Agent joins the Teleport cluster.
@@ -993,16 +1063,6 @@ dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `false`.
 When running an enterprise version, you must use
 [`enterpriseImage`](#enterpriseImage) instead.
-
-## `containerName`
-
-| Type | Default |
-|------|---------|
-| `string` | `"teleport"` |
-
-`containerName` sets the name of the main container in the Teleport Kubernetes Agent pod.
-This value is used to identify the container in Kubernetes and is typically set to "teleport"
-for the Teleport Kubernetes Agent.
 
 ## `enterpriseImage`
 

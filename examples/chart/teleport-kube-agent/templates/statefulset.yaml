@@ -158,11 +158,11 @@ spec:
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
         env:
-          {{- $gomemlimit := include "teleport-kube-agent.gomemlimit" . }}
-          {{- if $gomemlimit }}
+        {{- $gomemlimit := include "teleport-kube-agent.gomemlimit" . }}
+        {{- if $gomemlimit }}
           - name: GOMEMLIMIT
             value: {{ $gomemlimit | quote }}
-          {{- end }}
+        {{- end }}
           # This variable is set for telemetry purposes.
           # Telemetry is opt-in and controlled at the auth level.
           - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
@@ -199,6 +199,10 @@ spec:
           {{- if .Values.teleportClusterName }}
           - name: KUBERNETES_TOKEN_PATH
             value: /var/run/secrets/tokens/join-sa-token
+          {{- end }}
+          {{- if .Values.updater.enabled }}
+          - name: "TELEPORT_UPDATE_CONFIG_FILE"
+            value: "/etc/updater-config/update.yaml"
           {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -264,6 +268,11 @@ spec:
           name: "jamf-api-credentials"
           readOnly: true
 {{- end }}
+{{- if .Values.updater.enabled }}
+        - mountPath: /etc/updater-config
+          name: "updater-config"
+          readOnly: true
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -304,6 +313,11 @@ spec:
         secret:
           secretName: {{ .Values.jamfCredentialsSecret.name }}
 {{- end }}
+  {{- if .Values.updater.enabled }}
+      - name: "updater-config"
+        configMap:
+          name: {{ .Release.Name }}-updater
+  {{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}

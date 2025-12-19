@@ -1,6 +1,6 @@
 suite: Updater RoleBinding
 templates:
-  - updater/rolebinding.yaml
+  - rolebinding.yaml
 tests:
   #
   # Basic tests
@@ -40,10 +40,10 @@ tests:
           value:
             apiGroup: rbac.authorization.k8s.io
             kind: Role
-            name: RELEASE-NAME-updater
+            name: RELEASE-NAME-role
       - equal:
           path: subjects
           value:
             - kind: ServiceAccount
-              name: RELEASE-NAME-updater
+              name: RELEASE-NAME-role
               namespace: NAMESPACE

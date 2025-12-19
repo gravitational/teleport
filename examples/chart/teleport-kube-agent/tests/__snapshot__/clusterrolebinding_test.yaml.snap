@@ -9,9 +9,9 @@ creates a ClusterRoleBinding:
       kind: ClusterRole
       name: RELEASE-NAME
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME
+        namespace: NAMESPACE
 sets ClusterRoleBinding labels when specified:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -26,6 +26,6 @@ sets ClusterRoleBinding labels when specified:
       kind: ClusterRole
       name: RELEASE-NAME
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME
+        namespace: NAMESPACE

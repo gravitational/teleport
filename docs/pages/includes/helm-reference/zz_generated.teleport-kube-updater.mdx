@@ -93,6 +93,15 @@ pods run when `enabled` is true.
 You can override this to use your own Teleport Kube Agent Updater image rather
 than a Teleport-published image.
 
+## `appImage`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`appImage` sets the container image used for updating pods monitored by this
+chart.
+
 ## `containerName`
 
 | Type | Default |

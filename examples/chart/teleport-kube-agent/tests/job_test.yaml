@@ -7,9 +7,10 @@ release:
 tests:
   - it: should create ServiceAccount, Role, RoleBinding and Job for post-delete hook by default
     template: delete_hook.yaml
+    documentIndex: 3
     values:
       - ../.lint/backwards-compatibility.yaml
-    assets:
+    asserts:
       - containsDocument:
           kind: ServiceAccount
           apiVersion: v1
