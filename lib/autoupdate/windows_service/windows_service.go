@@ -390,15 +390,14 @@ func RelaunchAsAdmin(origin string, allowed bool) error {
 		return err
 	}
 
+	// Command: myapp.exe --internal-update-origin "example.com" --internal-allowed=true
+	args := fmt.Sprintf(`modify-reg --cluster=%s`, origin)
+
 	// Construct arguments for the new process.
 	// We use hidden internal flags to pass the data.
-	allowStr := "false"
 	if allowed {
-		allowStr = "true"
+		args = fmt.Sprintf(`%s --enabled`, args)
 	}
-
-	// Command: myapp.exe --internal-update-origin "example.com" --internal-allowed=true
-	args := fmt.Sprintf(`modify-reg --cluster=%s --enabled=%s`, origin, allowStr)
 
 	verbPtr, _ := syscall.UTF16PtrFromString("runas") // "runas" triggers UAC
 	exePtr, _ := syscall.UTF16PtrFromString(exe)
