@@ -398,7 +398,7 @@ func RelaunchAsAdmin(origin string, allowed bool) error {
 	}
 
 	// Command: myapp.exe --internal-update-origin "example.com" --internal-allowed=true
-	args := fmt.Sprintf(`modify-reg --internal-allowed=%s --enabled=%s`, origin, allowStr)
+	args := fmt.Sprintf(`modify-reg --cluster=%s --enabled=%s`, origin, allowStr)
 
 	verbPtr, _ := syscall.UTF16PtrFromString("runas") // "runas" triggers UAC
 	exePtr, _ := syscall.UTF16PtrFromString(exe)
