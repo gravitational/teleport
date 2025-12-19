@@ -73,6 +73,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -368,10 +369,11 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 		serverState = s
 	}
 	c := &Connector{
-		clusterName: clientIdentity.ClusterName,
-		hostID:      clientIdentity.ID.HostUUID,
-		scope:       clientIdentity.AgentScope,
-		role:        clientIdentity.ID.Role,
+		clusterName:     clientIdentity.ClusterName,
+		hostID:          clientIdentity.ID.HostUUID,
+		scope:           clientIdentity.AgentScope,
+		immutableLabels: clientIdentity.ImmutableLabels,
+		role:            clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
 	c.serverState.Store(serverState)
@@ -436,10 +438,11 @@ type connectorState struct {
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
-	clusterName string
-	hostID      string
-	scope       string
-	role        types.SystemRole
+	clusterName     string
+	hostID          string
+	scope           string
+	role            types.SystemRole
+	immutableLabels *joiningv1.ImmutableLabels
 
 	// clientState contains the current connector state for outbound connections
 	// to the cluster.
@@ -479,6 +482,11 @@ func (c *Connector) Scope() string {
 
 func (c *Connector) Role() types.SystemRole {
 	return c.role
+}
+
+// ImmutableLabels returns the host's immutable labels.
+func (c *Connector) ImmutableLabels() *joiningv1.ImmutableLabels {
+	return c.immutableLabels
 }
 
 // ClientGetCertificate returns the current credentials for outgoing TLS
@@ -3533,6 +3541,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetChildLogConfig(cfg),
 			regular.SetUUID(conn.HostUUID()),
 			regular.SetScope(conn.Scope()),
+			regular.SetImmutableLabels(conn.ImmutableLabels().GetSsh()),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),

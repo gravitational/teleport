@@ -73,7 +73,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -5272,7 +5271,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string, immutableLabels *joiningv1.ImmutableLabels) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string, labelHash []byte) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5403,11 +5402,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		Identity: sshca.Identity{
-			ClusterName:     clusterName.GetClusterName(),
-			SystemRole:      req.Role,
-			Principals:      req.AdditionalPrincipals,
-			AgentScope:      scope,
-			ImmutableLabels: immutableLabels,
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         req.Role,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         scope,
+			ImmutableLabelHash: labelHash,
 		},
 	})
 	if err != nil {
@@ -5425,12 +5424,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:          []string{req.Role.String()},
-		TeleportCluster: clusterName.GetClusterName(),
-		SystemRoles:     systemRoles,
-		AgentScope:      scope,
-		ImmutableLabels: immutableLabels,
+		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Groups:             []string{req.Role.String()},
+		TeleportCluster:    clusterName.GetClusterName(),
+		SystemRoles:        systemRoles,
+		AgentScope:         scope,
+		ImmutableLabelHash: labelHash,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
