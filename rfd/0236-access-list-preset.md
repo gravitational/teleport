@@ -111,7 +111,50 @@ When defining access for a resource, we will attempt to list a preview of what r
 
 ### API
 
-A new endpoint will be created to support creating and updating an access list with automatic role upsertions, `UpsertAccessListWithPreset`.
+New web API endpoints are created for access list preset operations:
+
+- `POST /enterprise/accesslistpreset` - Create an access list with a preset
+- `PUT /enterprise/accesslistpreset/:accessListId` - Update an access list with a preset
+
+#### Request Structure
+
+The POST and PUT endpoints accept an `AccessListWithPresetRequest`:
+
+```go
+type UIAccessListWithPresetRequest struct {
+	// PresetType specifies the preset configuration ("long-term" or "short-term")
+	PresetType string `json:"presetType,omitempty"`
+	// AccessList contains the access list configuration (metadata, owners, audit settings)
+	AccessList *accesslist.AccessList `json:"accessList,omitempty"`
+	// Members is the list of members to add to the access list
+	Members []*accesslist.AccessListMember `json:"members,omitempty"`
+	// AccessRoles defines the role specifications for resource access
+	AccessRoles []types.Role `json:"accessRoles,omitempty"`
+}
+```
+
+#### Response Structure
+
+The endpoints return an `AccessListWithPresetResponse`:
+
+```go
+type UIAccessListWithPresetResponse struct {
+	// AccessList is the created/updated access list with grants configured
+	AccessList *AccessList `json:"accessList,omitempty"`
+	// AccessRoles contains the roles defining resource access permissions
+	AccessRoles []types.Role `json:"accessRoles,omitempty"`
+	// RequesterRole is the role allowing members to request access
+	RequesterRole types.Role `json:"requesterRole,omitempty"`
+	// ReviewerRole is the role allowing owners to review access requests
+	ReviewerRole types.Role `json:"reviewerRole,omitempty"`
+	// Members are the access list members
+	Members []*accesslist.AccessListMember `json:"members,omitempty"`
+}
+```
+
+#### Roles Created and Limits
+
+In most use cases, the proxy will create three types of roles: one requester role, one reviewer role, and one access role. Multiple access roles are supported for flexibility when defining access to resources with incompatible label requirements (see "Defining multiple role specs" section below for details). However, for typical scenarios, the number of access roles should not exceed 10 to maintain manageability and avoid excessive role proliferation. The flow will enforce limits on the total number of roles created per access list preset operation.
 
 #### Preset Type
 
@@ -156,19 +199,13 @@ The label helps the web UI detect access lists created with a preset and which p
 
 #### List of role specs defining the access to resources
 
-The roles that Teleport will create for an access list will depend on the role specs defined by an admin.
+The roles that Teleport will create for an access list will depend on the role specs defined by an admin and forwarded to from FE to Proxy in the `UIAccessListWithPresetRequest` request:
 
-```proto
-// Role describes a role to be upserted by Teleport for an access list.
-message Role {
-  // name_prefix is the prefix of the role name and allows the client to
-  // control part of the role name so clients like the web UI can make some
-  // assumptions based on this prefix e.g. what purpose the access role was
-  // created for. For the final role name however, Teleport will add a suffix
-  // to this name_prefix before upserting the role.
-  string name_prefix = 1;
-  // spec defines the access to resources.
-  types.RoleSpecV6 spec = 2;
+```go
+type UIAccessListWithPresetRequest struct {
+  ...
+  // AccessRoles defines the role specifications for resource access
+  AccessRoles []types.Role `json:"accessRoles,omitempty"`
 }
 ```
 
@@ -221,40 +258,14 @@ spec:
         permission_set: arn:aws:sso:::permissionSet/ssoins-XXXX
 ```
 
-#### Request and response bodies
+#### Request Backend Handling Flow
 
-Similar to existing [UpsertAccessListWithMembers](https://github.com/gravitational/teleport.e/blob/e49a5ad654408ce0779622c38c7acda0417bfef0/lib/accesslist/service.go#L1542) where same logics are used when upserting an access list but with automatic role handling.
+The frontend sends the preset type, access list configuration, and role specifications to the web endpoints (`POST /enterprise/accesslistpreset` for creation or `PUT /enterprise/accesslistpreset/:accessListId` for updates). The proxy implements these endpoints as simple wrappers that orchestrate two sequential gRPC calls to the auth server: first calling `AtomicWriteRoles/ModifyRolesForAccessList` to create or update the requester, reviewer, and access roles atomically with strong consistency guarantees that prevent concurrent role updates, then creating or updating the access list grants referencing the created roles.
 
-```proto
-// UpsertAccessListWithPresetRequest is the request for upserting an access
-// list with a preset. Using this API will not allow certain access list fields
-// to be set or updated:
-//  - Member and owner grants: Teleport will always overwrite these fields
-//    with the roles Teleport upserted.
-message UpsertAccessListWithPresetRequest {
-  // preset_type describes what preset type was requested and determines
-  // what set of actions Teleport will perform.
-  PresetType preset_type = 1;
-  // access_roles is a list of role specs that defines the "access" to
-  // resources. Teleport will perform role create/update per spec.
-  repeated Role access_roles = 2;
-  // access_list is the access list to upsert.
-  AccessList access_list = 3;
-  // members is the list of access list members to upsert.
-  repeated Member members = 4;
-}
+The flow is kept in the proxy rather than adding a dedicated access list gRPC endpoint because this feature is a simple UX wrapper designed exclusively for the frontend flow. The orchestration logic is straightforward and does not require server-side implementation in the auth layer. By implementing it as a proxy wrapper, the design remains lightweight and avoids adding complexity to the core access list gRPC API for a feature that is solely used by FE
 
-// UpsertAccessListWithPresetResponse is the response for upserting
-// an access list with with a preset.
-message UpsertAccessListWithPresetResponse {
-  // access_list is the access list that was upserted.
-  AccessList access_list = 1;
-  // members is the list of access list members that were upserted.
-  repeated Member members = 2;
-  // roles is a list of all the roles that Teleport upserted.
-  repeated types.RoleV6 roles = 3;
-}
-```
+This two-phase approach keeps role orchestration in the proxy layer while ensuring atomicity. The Access List preset feature is a strict UX/UI flow not supported by CLI or Terraform, as it can be abstracted via a Terraform module with automatic role creation. Terraform manages partial state and allows destroy/retry operations on failure, whereas the frontend flow must be atomic to avoid partial backend state and complex rollback mechanisms.
+
 
 #### Deleting access lists created with a preset
 
