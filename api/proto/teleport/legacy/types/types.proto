@@ -950,6 +950,8 @@ message ServerSpecV2 {
   // component_features represents features supported by this server
   teleport.componentfeatures.v1.ComponentFeatures component_features = 18;
 
+  // The immutable labels encoded on the server's host certificate.
+  map<string, string> immutable_labels = 19;
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
