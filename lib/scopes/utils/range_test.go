@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package access
+package utils
 
 import (
 	"context"
@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/cache/roles"
 )
 
-func TestStreamRoles(t *testing.T) {
+func TestRangeScopedRoles(t *testing.T) {
 	const roleCount = 503
 
 	t.Parallel()
@@ -65,7 +65,7 @@ func TestStreamRoles(t *testing.T) {
 
 	gotRoleNames := make([]string, 0, roleCount)
 
-	for role, err := range StreamRoles(ctx, upstream) {
+	for role, err := range RangeScopedRoles(ctx, upstream, &scopedaccessv1.ListScopedRolesRequest{}) {
 		require.NoError(t, err)
 		require.NotNil(t, role)
 
@@ -75,7 +75,7 @@ func TestStreamRoles(t *testing.T) {
 	require.ElementsMatch(t, expectedRoleNames, gotRoleNames)
 }
 
-func TestStreamAssignments(t *testing.T) {
+func TestRangeScopedRoleAssignments(t *testing.T) {
 	const assignmentCount = 503
 
 	t.Parallel()
@@ -112,7 +112,7 @@ func TestStreamAssignments(t *testing.T) {
 
 	gotAssignmentNames := make([]string, 0, assignmentCount)
 
-	for assignment, err := range StreamAssignments(ctx, upstream) {
+	for assignment, err := range RangeScopedRoleAssignments(ctx, upstream, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		require.NoError(t, err)
 		require.NotNil(t, assignment)
 
