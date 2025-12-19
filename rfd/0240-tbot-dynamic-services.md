@@ -261,6 +261,11 @@ This feature involves running an API server on a local Unix socket. Clients can
 request new services via a "spawn" endpoint and provide service configuration in
 our existing YAML format.
 
+This API server will be local to a particular `tbot` process, and will be
+disabled unless explicitly requested. It will be designed with easy integration
+in mind for third party apps and scripts, and will have full CLI coverage, plus
+explicit support in our GitHub Actions.
+
 Importantly, this endpoint takes advantage of an enhanced version of the same
 "wait" ability discussed above, and waits for the service to become ready.
 However, it additionally responds with a full error trace if the service fails
@@ -601,7 +606,7 @@ established pattern.
 
 These are out of scope at this time, but may be worth exploring in the future.
 
-#### Additional API endpoints
+#### Additional API functionality
 
 The bot API service would allow for a lot of future expansion through new
 endpoints or RPCs. For example:
@@ -626,9 +631,9 @@ sense to import the full API client and use `embeddedtbot`, but a few carefully
 curated local-only APIs that are very easy to integrate into another app might
 prove useful.
 
-#### Agent use
+#### AI Agent use
 
-We could feasibly allow agents to interact with the `tbot` client and request
+We could feasibly allow AI agents to interact with the `tbot` client and request
 access to new services on demand. We would want to establish some real use cases
 before pursuing this properly, but some variety of machine-usable API is a
 necessary prerequisite.
