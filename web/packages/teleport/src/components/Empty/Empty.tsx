@@ -24,6 +24,7 @@ import {
   ButtonPrimaryBorder,
   Flex,
   H1,
+  H2,
   ResourceIcon,
   Text,
 } from 'design';
@@ -33,7 +34,7 @@ import cfg from 'teleport/config';
 export default function Empty(props: Props) {
   const { canCreate, clusterId, emptyStateInfo } = props;
 
-  const { byline, readOnly, title } = emptyStateInfo;
+  const { readOnly, title } = emptyStateInfo;
 
   // always show the welcome for enterprise users who have access to create an app
   if (!canCreate) {
@@ -69,30 +70,30 @@ export default function Empty(props: Props) {
       justifyContent="center"
     >
       <Box maxWidth={600}>
-        <Box mb={3} textAlign="center">
+        <Box mb={4} textAlign="center">
           <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
           <H1>{title}</H1>
-          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
-            {byline}
+        </Box>
+        <Box mb={1} textAlign="center">
+          <H2>Automatic Discovery</H2>
+          <Text>
+            Connect your AWS, Azure, or GCP account to automatically scan and
+            import all resources.
           </Text>
         </Box>
-        <Box textAlign="center">
-          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
-            Automatically discover your Cloud Infrastructure resources
-          </Text>
-        </Box>
-        <Box mb={3} textAlign="center">
+        <Box mb={4} textAlign="center">
           <ButtonPrimary
             as={Link}
             to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
             width="224px"
           >
-            Connect a Cloud Account
+            Connect Cloud Account
           </ButtonPrimary>
         </Box>
-        <Box textAlign="center">
-          <Text fontWeight={400} fontSize={14} style={{ opacity: '0.6' }}>
-            Or add individual resources
+        <Box mb={1} textAlign="center">
+          <H2>Manual Entry</H2>
+          <Text>
+            Browse and add individual servers, databases, or apps one at a time.
           </Text>
         </Box>
         <Box textAlign="center">
@@ -106,7 +107,7 @@ export default function Empty(props: Props) {
             }}
             width="224px"
           >
-            Add a Resource
+            Add New Resource
           </ButtonPrimaryBorder>
         </Box>
       </Box>
@@ -115,7 +116,6 @@ export default function Empty(props: Props) {
 }
 
 export type EmptyStateInfo = {
-  byline: string;
   readOnly: {
     title: string;
     resource: string;
