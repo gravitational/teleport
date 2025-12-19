@@ -7954,7 +7954,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user, challengeExtensions, nil)
+		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{User: user, ChallengeExtensions: challengeExtensions})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

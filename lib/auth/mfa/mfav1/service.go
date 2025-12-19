@@ -190,9 +190,11 @@ func (s *Service) CreateSessionChallenge(
 
 		assertion, err := webLogin.Begin(
 			ctx,
-			username,
-			&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
-			req.Payload,
+			wanlib.BeginParams{
+				User:                      username,
+				ChallengeExtensions:       &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
+				SessionIdentifyingPayload: req.Payload,
+			},
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
