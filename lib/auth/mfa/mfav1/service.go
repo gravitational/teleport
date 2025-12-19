@@ -165,8 +165,8 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	webauthnDevices, ssoDevice := groupByDeviceType(devices)
-	if len(webauthnDevices) == 0 && ssoDevice == nil {
+	supportedMFADevices := groupAndFilterSupportedMFADevices(devices)
+	if len(supportedMFADevices.Webauthn) == 0 && supportedMFADevices.SSO == nil {
 		return nil, trace.BadParameter("user %q has no registered MFA devices", username)
 	}
 
@@ -174,18 +174,18 @@ func (s *Service) CreateSessionChallenge(
 		ctx,
 		"Fetched devices for MFA challenge",
 		"user", username,
-		"num_webauthn_devices", len(webauthnDevices),
-		"has_sso_device", ssoDevice != nil,
+		"num_webauthn_devices", len(supportedMFADevices.Webauthn),
+		"has_sso_device", supportedMFADevices.SSO != nil,
 	)
 
 	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{}}
 
 	// If Webauthn is enabled and there are registered devices, create a Webauthn challenge.
-	if enableWebauthn && len(webauthnDevices) > 0 {
+	if enableWebauthn && len(supportedMFADevices.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
-			Identity: wanlib.WithDevices(s.identity, webauthnDevices),
+			Identity: wanlib.WithDevices(s.identity, supportedMFADevices.Webauthn),
 		}
 
 		assertion, err := webLogin.Begin(
@@ -203,11 +203,11 @@ func (s *Service) CreateSessionChallenge(
 
 	// If SSO is enabled, the user has an SSO device and the client provided a redirect URL and proxy address, create an
 	// SSO challenge.
-	if enableSSO && ssoDevice != nil && req.SsoClientRedirectUrl != "" && req.ProxyAddressForSso != "" {
+	if enableSSO && supportedMFADevices.SSO != nil && req.SsoClientRedirectUrl != "" && req.ProxyAddressForSso != "" {
 		ssoChallenge, err := s.authServer.BeginSSOMFAChallenge(
 			ctx,
 			username,
-			ssoDevice.GetSso(),
+			supportedMFADevices.SSO.GetSso(),
 			req.SsoClientRedirectUrl,
 			req.ProxyAddressForSso,
 			&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
@@ -218,7 +218,7 @@ func (s *Service) CreateSessionChallenge(
 		}
 
 		challenge.MfaChallenge.SsoChallenge = &mfav1.SSOChallenge{
-			Device:      ssoDevice.GetSso(),
+			Device:      supportedMFADevices.SSO.GetSso(),
 			RequestId:   ssoChallenge.RequestId,
 			RedirectUrl: ssoChallenge.RedirectUrl,
 		}
@@ -263,7 +263,7 @@ func (s *Service) ValidateSessionChallenge(
 	}
 
 	if !authz.IsLocalOrRemoteUser(*authCtx) {
-		return nil, trace.AccessDenied("only local or remote users can create MFA session challenges")
+		return nil, trace.AccessDenied("only local or remote users can validate MFA session challenges")
 	}
 
 	if err := validateValidateSessionChallengeRequest(req); err != nil {
@@ -367,14 +367,19 @@ func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequ
 	return nil
 }
 
-func groupByDeviceType(devices []*types.MFADevice) ([]*types.MFADevice, *types.MFADevice) {
+type devicesByType struct {
+	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
+}
+
+func groupAndFilterSupportedMFADevices(devices []*types.MFADevice) devicesByType {
 	var (
 		webauthnDevices []*types.MFADevice
 		ssoDevice       *types.MFADevice
 	)
 
-	// Skip unsupported device types. For example, TOTP devices are not supported for session-based MFA challenges and
-	// should be ignored.
+	// Only include supported device types for session-based MFA challenges. For example, TOTP devices are not supported
+	// for session-based MFA and are therefore excluded.
 	for _, dev := range devices {
 		switch dev.Device.(type) {
 		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
@@ -384,7 +389,10 @@ func groupByDeviceType(devices []*types.MFADevice) ([]*types.MFADevice, *types.M
 		}
 	}
 
-	return webauthnDevices, ssoDevice
+	return devicesByType{
+		Webauthn: webauthnDevices,
+		SSO:      ssoDevice,
+	}
 }
 
 func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallengeRequest) error {

@@ -18,8 +18,9 @@ package mfav1_test
 
 import (
 	"context"
-	"fmt"
 	"slices"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,8 +37,8 @@ import (
 type mockAuthServer struct {
 	*authtest.Server
 
-	// requestID is a fixed request ID to return for SSO MFA challenges.
-	requestID string
+	// requestIDs stores valid request IDs.
+	requestIDs sync.Map
 }
 
 // NewMockAuthServer creates a new instance of mockAuthServer.
@@ -69,10 +70,11 @@ func (m *mockAuthServer) BeginSSOMFAChallenge(
 	_ *mfav1.ChallengeExtensions,
 	_ *mfav1.SessionIdentifyingPayload,
 ) (*proto.SSOChallenge, error) {
-	m.requestID = fmt.Sprintf("%d", time.Now().UnixNano())
+	requestID := strconv.Itoa(int(time.Now().UnixNano()))
+	m.requestIDs.Store(requestID, struct{}{})
 
 	return &proto.SSOChallenge{
-		RequestId:   m.requestID,
+		RequestId:   requestID,
 		Device:      sso,
 		RedirectUrl: ssoClientRedirectURL,
 	}, nil
@@ -86,9 +88,8 @@ func (m *mockAuthServer) VerifySSOMFASession(
 	token string,
 	_ *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
-	// In this mock, as long as the request ID matches the one generated during challenge initiation, we consider it
-	// valid.
-	if m.requestID != requestID {
+	_, ok := m.requestIDs.Load(requestID)
+	if !ok {
 		return nil, trace.AccessDenied("invalid SSO MFA challenge request ID %q", requestID)
 	}
 

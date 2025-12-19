@@ -448,7 +448,7 @@ func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 		},
 	)
 	require.True(t, trace.IsAccessDenied(err))
-	require.ErrorContains(t, err, "only local or remote users can create MFA session challenges")
+	require.ErrorContains(t, err, "only local or remote users can validate MFA session challenges")
 }
 
 func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
