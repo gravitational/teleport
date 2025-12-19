@@ -23,8 +23,10 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { AutoUpdateService } from "./auto_update_service_pb";
-import type { RunUpdateResponse } from "./auto_update_service_pb";
-import type { RunUpdateRequest } from "./auto_update_service_pb";
+import type { ToggleAllowedUpdateOriginResponse } from "./auto_update_service_pb";
+import type { ToggleAllowedUpdateOriginRequest } from "./auto_update_service_pb";
+import type { FindAllowedUpdateClustersResponse } from "./auto_update_service_pb";
+import type { FindAllowedUpdateClustersRequest } from "./auto_update_service_pb";
 import type { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import type { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -55,9 +57,15 @@ export interface IAutoUpdateServiceClient {
     /**
      * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
      *
-     * @generated from protobuf rpc: RunUpdate(teleport.lib.teleterm.auto_update.v1.RunUpdateRequest) returns (teleport.lib.teleterm.auto_update.v1.RunUpdateResponse);
+     * @generated from protobuf rpc: FindAllowedUpdateClusters(teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersRequest) returns (teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersResponse);
      */
-    runUpdate(input: RunUpdateRequest, options?: RpcOptions): UnaryCall<RunUpdateRequest, RunUpdateResponse>;
+    findAllowedUpdateClusters(input: FindAllowedUpdateClustersRequest, options?: RpcOptions): UnaryCall<FindAllowedUpdateClustersRequest, FindAllowedUpdateClustersResponse>;
+    /**
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     *
+     * @generated from protobuf rpc: ToggleAllowedUpdateOrigin(teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginRequest) returns (teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginResponse);
+     */
+    toggleAllowedUpdateOrigin(input: ToggleAllowedUpdateOriginRequest, options?: RpcOptions): UnaryCall<ToggleAllowedUpdateOriginRequest, ToggleAllowedUpdateOriginResponse>;
 }
 /**
  * AutoUpdateService provides access to information about client tools updates.
@@ -93,10 +101,19 @@ export class AutoUpdateServiceClient implements IAutoUpdateServiceClient, Servic
     /**
      * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
      *
-     * @generated from protobuf rpc: RunUpdate(teleport.lib.teleterm.auto_update.v1.RunUpdateRequest) returns (teleport.lib.teleterm.auto_update.v1.RunUpdateResponse);
+     * @generated from protobuf rpc: FindAllowedUpdateClusters(teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersRequest) returns (teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersResponse);
      */
-    runUpdate(input: RunUpdateRequest, options?: RpcOptions): UnaryCall<RunUpdateRequest, RunUpdateResponse> {
+    findAllowedUpdateClusters(input: FindAllowedUpdateClustersRequest, options?: RpcOptions): UnaryCall<FindAllowedUpdateClustersRequest, FindAllowedUpdateClustersResponse> {
         const method = this.methods[2], opt = this._transport.mergeOptions(options);
-        return stackIntercept<RunUpdateRequest, RunUpdateResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<FindAllowedUpdateClustersRequest, FindAllowedUpdateClustersResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     *
+     * @generated from protobuf rpc: ToggleAllowedUpdateOrigin(teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginRequest) returns (teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginResponse);
+     */
+    toggleAllowedUpdateOrigin(input: ToggleAllowedUpdateOriginRequest, options?: RpcOptions): UnaryCall<ToggleAllowedUpdateOriginRequest, ToggleAllowedUpdateOriginResponse> {
+        const method = this.methods[3], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ToggleAllowedUpdateOriginRequest, ToggleAllowedUpdateOriginResponse>("unary", this._transport, method, opt, input);
     }
 }

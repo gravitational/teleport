@@ -20,8 +20,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { RunUpdateResponse } from "./auto_update_service_pb";
-import { RunUpdateRequest } from "./auto_update_service_pb";
+import { ToggleAllowedUpdateOriginResponse } from "./auto_update_service_pb";
+import { ToggleAllowedUpdateOriginRequest } from "./auto_update_service_pb";
+import { FindAllowedUpdateClustersResponse } from "./auto_update_service_pb";
+import { FindAllowedUpdateClustersRequest } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { GetClusterVersionsResponse } from "./auto_update_service_pb";
@@ -50,9 +52,15 @@ export interface IAutoUpdateService extends grpc.UntypedServiceImplementation {
     /**
      * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
      *
-     * @generated from protobuf rpc: RunUpdate(teleport.lib.teleterm.auto_update.v1.RunUpdateRequest) returns (teleport.lib.teleterm.auto_update.v1.RunUpdateResponse);
+     * @generated from protobuf rpc: FindAllowedUpdateClusters(teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersRequest) returns (teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersResponse);
      */
-    runUpdate: grpc.handleUnaryCall<RunUpdateRequest, RunUpdateResponse>;
+    findAllowedUpdateClusters: grpc.handleUnaryCall<FindAllowedUpdateClustersRequest, FindAllowedUpdateClustersResponse>;
+    /**
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     *
+     * @generated from protobuf rpc: ToggleAllowedUpdateOrigin(teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginRequest) returns (teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginResponse);
+     */
+    toggleAllowedUpdateOrigin: grpc.handleUnaryCall<ToggleAllowedUpdateOriginRequest, ToggleAllowedUpdateOriginResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService.
@@ -86,14 +94,24 @@ export const autoUpdateServiceDefinition: grpc.ServiceDefinition<IAutoUpdateServ
         responseSerialize: value => Buffer.from(GetDownloadBaseUrlResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetDownloadBaseUrlRequest.toBinary(value))
     },
-    runUpdate: {
-        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/RunUpdate",
-        originalName: "RunUpdate",
+    findAllowedUpdateClusters: {
+        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/FindAllowedUpdateClusters",
+        originalName: "FindAllowedUpdateClusters",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => RunUpdateResponse.fromBinary(bytes),
-        requestDeserialize: bytes => RunUpdateRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(RunUpdateResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(RunUpdateRequest.toBinary(value))
+        responseDeserialize: bytes => FindAllowedUpdateClustersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => FindAllowedUpdateClustersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(FindAllowedUpdateClustersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(FindAllowedUpdateClustersRequest.toBinary(value))
+    },
+    toggleAllowedUpdateOrigin: {
+        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/ToggleAllowedUpdateOrigin",
+        originalName: "ToggleAllowedUpdateOrigin",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ToggleAllowedUpdateOriginResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ToggleAllowedUpdateOriginRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ToggleAllowedUpdateOriginResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ToggleAllowedUpdateOriginRequest.toBinary(value))
     }
 };

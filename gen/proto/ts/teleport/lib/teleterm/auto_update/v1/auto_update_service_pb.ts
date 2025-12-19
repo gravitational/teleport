@@ -33,6 +33,42 @@ import { MessageType } from "@protobuf-ts/runtime";
 /**
  * Request for GetClusterVersions.
  *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersRequest
+ */
+export interface FindAllowedUpdateClustersRequest {
+}
+/**
+ * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersResponse
+ */
+export interface FindAllowedUpdateClustersResponse {
+    /**
+     * @generated from protobuf field: repeated string clusters = 1;
+     */
+    clusters: string[];
+}
+/**
+ * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginRequest
+ */
+export interface ToggleAllowedUpdateOriginRequest {
+    /**
+     * @generated from protobuf field: string cluster = 1;
+     */
+    cluster: string;
+}
+/**
+ * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginResponse
+ */
+export interface ToggleAllowedUpdateOriginResponse {
+}
+/**
+ * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+ *
  * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest
  */
 export interface GetClusterVersionsRequest {
@@ -142,6 +178,150 @@ export interface RunUpdateRequest {
  */
 export interface RunUpdateResponse {
 }
+// @generated message type with reflection information, may provide speed optimized methods
+class FindAllowedUpdateClustersRequest$Type extends MessageType<FindAllowedUpdateClustersRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersRequest", []);
+    }
+    create(value?: PartialMessage<FindAllowedUpdateClustersRequest>): FindAllowedUpdateClustersRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<FindAllowedUpdateClustersRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: FindAllowedUpdateClustersRequest): FindAllowedUpdateClustersRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: FindAllowedUpdateClustersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersRequest
+ */
+export const FindAllowedUpdateClustersRequest = new FindAllowedUpdateClustersRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class FindAllowedUpdateClustersResponse$Type extends MessageType<FindAllowedUpdateClustersResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersResponse", [
+            { no: 1, name: "clusters", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<FindAllowedUpdateClustersResponse>): FindAllowedUpdateClustersResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusters = [];
+        if (value !== undefined)
+            reflectionMergePartial<FindAllowedUpdateClustersResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: FindAllowedUpdateClustersResponse): FindAllowedUpdateClustersResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated string clusters */ 1:
+                    message.clusters.push(reader.string());
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: FindAllowedUpdateClustersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string clusters = 1; */
+        for (let i = 0; i < message.clusters.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.clusters[i]);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.FindAllowedUpdateClustersResponse
+ */
+export const FindAllowedUpdateClustersResponse = new FindAllowedUpdateClustersResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ToggleAllowedUpdateOriginRequest$Type extends MessageType<ToggleAllowedUpdateOriginRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginRequest", [
+            { no: 1, name: "cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ToggleAllowedUpdateOriginRequest>): ToggleAllowedUpdateOriginRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cluster = "";
+        if (value !== undefined)
+            reflectionMergePartial<ToggleAllowedUpdateOriginRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ToggleAllowedUpdateOriginRequest): ToggleAllowedUpdateOriginRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster */ 1:
+                    message.cluster = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ToggleAllowedUpdateOriginRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster = 1; */
+        if (message.cluster !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.cluster);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginRequest
+ */
+export const ToggleAllowedUpdateOriginRequest = new ToggleAllowedUpdateOriginRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ToggleAllowedUpdateOriginResponse$Type extends MessageType<ToggleAllowedUpdateOriginResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginResponse", []);
+    }
+    create(value?: PartialMessage<ToggleAllowedUpdateOriginResponse>): ToggleAllowedUpdateOriginResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<ToggleAllowedUpdateOriginResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ToggleAllowedUpdateOriginResponse): ToggleAllowedUpdateOriginResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: ToggleAllowedUpdateOriginResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.ToggleAllowedUpdateOriginResponse
+ */
+export const ToggleAllowedUpdateOriginResponse = new ToggleAllowedUpdateOriginResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
     constructor() {
@@ -506,5 +686,6 @@ export const RunUpdateResponse = new RunUpdateResponse$Type();
 export const AutoUpdateService = new ServiceType("teleport.lib.teleterm.auto_update.v1.AutoUpdateService", [
     { name: "GetClusterVersions", options: {}, I: GetClusterVersionsRequest, O: GetClusterVersionsResponse },
     { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse },
-    { name: "RunUpdate", options: {}, I: RunUpdateRequest, O: RunUpdateResponse }
+    { name: "FindAllowedUpdateClusters", options: {}, I: FindAllowedUpdateClustersRequest, O: FindAllowedUpdateClustersResponse },
+    { name: "ToggleAllowedUpdateOrigin", options: {}, I: ToggleAllowedUpdateOriginRequest, O: ToggleAllowedUpdateOriginResponse }
 ]);

@@ -29,10 +29,28 @@ service AutoUpdateService {
   // OSS builds require this env var to be set, otherwise an error is returned.
   rpc GetDownloadBaseUrl(GetDownloadBaseUrlRequest) returns (GetDownloadBaseUrlResponse);
   // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
-  rpc RunUpdate(RunUpdateRequest) returns (RunUpdateResponse);
+  rpc FindAllowedUpdateClusters(FindAllowedUpdateClustersRequest) returns (FindAllowedUpdateClustersResponse);
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  rpc ToggleAllowedUpdateOrigin(ToggleAllowedUpdateOriginRequest) returns (ToggleAllowedUpdateOriginResponse);
 }
 
 // Request for GetClusterVersions.
+message FindAllowedUpdateClustersRequest {}
+
+// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+message FindAllowedUpdateClustersResponse {
+  repeated string clusters = 1;
+}
+
+// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+message ToggleAllowedUpdateOriginRequest {
+  string cluster = 1;
+}
+
+// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+message ToggleAllowedUpdateOriginResponse {}
+
+// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 message GetClusterVersionsRequest {}
 
 // Response for GetClusterVersions.

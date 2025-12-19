@@ -24,7 +24,7 @@ import type {
 import { compare, major } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const logger = new Logger('resolveAutoUpdatesStatus');
 
@@ -41,6 +41,7 @@ export async function resolveAutoUpdatesStatus(sources: {
   versionEnvVar: string;
   managingClusterUri: string | undefined;
   getClusterVersions(): Promise<GetClusterVersionsResponse>;
+  getAllowedClusters(): Promise<string[]>;
 }): Promise<AutoUpdatesStatus> {
   if (sources.versionEnvVar === 'off') {
     return {
@@ -69,9 +70,11 @@ export async function resolveAutoUpdatesStatus(sources: {
   }
 
   const clusterVersions = await sources.getClusterVersions();
+  const allowedClusters = await sources.getAllowedClusters();
   const options = createAutoUpdateOptions({
     managingClusterUri: sources.managingClusterUri,
     clusterVersions,
+    allowedClusters,
   });
   return findVersionFromClusters(options);
 }
@@ -79,9 +82,10 @@ export async function resolveAutoUpdatesStatus(sources: {
 function createAutoUpdateOptions(sources: {
   managingClusterUri: string | undefined;
   clusterVersions: GetClusterVersionsResponse;
+  allowedClusters: string[];
 }): AutoUpdatesOptions {
   const { reachableClusters, unreachableClusters } = sources.clusterVersions;
-  const clusters = makeClusters(reachableClusters);
+  const clusters = makeClusters(reachableClusters, sources.allowedClusters);
   const highestCompatibleVersion = findMostCompatibleToolsVersion(clusters);
   // If the managing cluster URI doesn't exist within connected clusters, ignore it completely.
   // The client version cannot be determined in this case.
@@ -184,7 +188,10 @@ export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
 }
 
 /** Assigns each cluster a compatibility with client tools from other clusters. */
-function makeClusters(versions: ClusterVersionInfo[]): Cluster[] {
+function makeClusters(
+  versions: ClusterVersionInfo[],
+  allowedClusters: string[]
+): Cluster[] {
   return versions.map(version => {
     const majorToolsVersion = major(version.toolsVersion);
 
@@ -205,6 +212,9 @@ function makeClusters(versions: ClusterVersionInfo[]): Cluster[] {
 
     return {
       ...version,
+      allowedToManage: allowedClusters.includes(
+        routing.parseClusterName(version.clusterUri)
+      ),
       otherCompatibleClusters,
     };
   });
@@ -299,4 +309,5 @@ export interface Cluster {
   minToolsVersion: string;
   /** URIs of clusters whose client tools are compatible with this cluster's client tools. */
   otherCompatibleClusters: RootClusterUri[];
+  allowedToManage: boolean;
 }

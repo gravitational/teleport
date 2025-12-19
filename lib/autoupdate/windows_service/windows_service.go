@@ -11,16 +11,19 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
@@ -333,7 +336,7 @@ func (s *windowsService) runInstall(ctx context.Context, args []string, logger *
 	serviceCmd := app.Command("update-service", "Start the VNet service.")
 	//serviceCmd.Flag("user-sid", "SID of the user running the client application").Required().StringVar(&cfg.UserSID)
 	serviceCmd.Flag("path", "SID of the user running the client application").Required().StringVar(&cfg.Path)
-	//serviceCmd.Flag("proxyHost", "SID of the user running the client application").Required().StringVar(&cfg.ProxyHost)
+	serviceCmd.Flag("proxy-host", "SID of the user running the client application").Required().StringVar(&cfg.ProxyHost)
 	cmd, err := app.Parse(args[1:])
 	if err != nil {
 		return trace.Wrap(err, "parsing runtime arguments to Windows service")
@@ -347,6 +350,113 @@ func (s *windowsService) runInstall(ctx context.Context, args []string, logger *
 	return nil
 }
 
+// RunMeElevated attempts to re-launch the current executable as Administrator.
+// It returns true if the elevation was triggered (parent should exit),
+// or false if it failed.
+func runMeElevated() (bool, error) {
+	verb := "runas"
+	exe, _ := os.Executable()
+	cwd, _ := os.Getwd()
+	args := strings.Join(os.Args[1:], " ")
+
+	verbPtr, _ := syscall.UTF16PtrFromString(verb)
+	exePtr, _ := syscall.UTF16PtrFromString(exe)
+	cwdPtr, _ := syscall.UTF16PtrFromString(cwd)
+	argsPtr, _ := syscall.UTF16PtrFromString(args)
+
+	var showCmd int32 = 1 // SW_NORMAL
+
+	err := windows.ShellExecute(0, verbPtr, exePtr, argsPtr, cwdPtr, showCmd)
+	if err != nil {
+		// If the user clicks "No" on the UAC dialog, this error will trigger.
+		return false, err
+	}
+
+	return true, nil
+}
+
+// AmIAdmin checks if the current process has Admin privileges.
+func AmIAdmin() bool {
+	_, err := os.Open("\\\\.\\PHYSICALDRIVE0")
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+func UpdateOrigin(origin string, allowed bool) error {
+	keyPath := `SOFTWARE\Policies\Teleport\TeleportConnect`
+	valName := "AllowedUpdateOrigins"
+
+	// 1. Open the Key with WRITE permissions.
+	// We use CreateKey:
+	// - If adding: it ensures the key exists.
+	// - If removing: it opens the existing key.
+	// Note: This requires Administrator/SYSTEM privileges.
+	k, _, err := registry.CreateKey(registry.LOCAL_MACHINE, keyPath, registry.QUERY_VALUE|registry.SET_VALUE)
+	if err != nil {
+		return fmt.Errorf("access denied or failed to open key: %w", err)
+	}
+	defer k.Close()
+
+	// 2. Read the existing Multi-String Value
+	// If the value doesn't exist, GetStringsValue returns registry.ErrNotExist.
+	// We treat that as an empty list.
+	origins, _, err := k.GetStringsValue(valName)
+	if err != nil && err != registry.ErrNotExist {
+		return fmt.Errorf("failed to read value: %w", err)
+	}
+
+	// 3. Modify the list (Add or Remove)
+	newOrigins := make([]string, 0, len(origins)+1)
+	exists := false
+
+	for _, o := range origins {
+		if o == origin {
+			exists = true
+			if !allowed {
+				// Case: Remove. We found the item, so we SKIP adding it to the new list.
+				continue
+			}
+		}
+		// Keep existing items
+		newOrigins = append(newOrigins, o)
+	}
+
+	// Case: Add. If it wasn't found in the loop, append it now.
+	if allowed && !exists {
+		newOrigins = append(newOrigins, origin)
+	}
+
+	// 4. Write back to Registry
+	if err := k.SetStringsValue(valName, newOrigins); err != nil {
+		return fmt.Errorf("failed to write value: %w", err)
+	}
+
+	return nil
+}
+
+func GetAllowedOrigins() ([]string, error) {
+	// 1. Open the Policy Key (Read-Only)
+	keyPath := `SOFTWARE\Policies\Teleport\TeleportConnect`
+
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, keyPath, registry.QUERY_VALUE)
+	if err != nil {
+		// If the key doesn't exist, it means no policy is set.
+		// You should fallback to your default hardcoded origin.
+		return nil, trace.NotFound("policy key not found: %w", err)
+	}
+	defer k.Close()
+
+	// 2. Read the Multi-String Value
+	origins, _, err := k.GetStringsValue("AllowedUpdateOrigins")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read value: %w", err)
+	}
+
+	return origins, nil
+}
+
 func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error {
 	path, err := secureCopy(cfg.Path)
 	if err != nil {
@@ -357,8 +467,35 @@ func performInstall(ctx context.Context, cfg *Config, logger *slog.Logger) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	logger.Info("Found", "subject", ver.Subject, "version", ver.FileVersion, "status", ver.Status)
+
+	allowedOrigins, err := GetAllowedOrigins()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	found := false
+	for _, origin := range allowedOrigins {
+		if origin == cfg.ProxyHost {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return trace.BadParameter("allowed origin not found in %s", cfg.ProxyHost)
+	}
+
+	resp, err := webclient.Ping(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: cfg.ProxyHost,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if resp.AutoUpdate.ToolsVersion != ver.FileVersion {
+		return trace.BadParameter("Updating to this version of Teleport is not allowed")
+	}
+
 	cmd := exec.Command(path, "--updated", "/S", "--force-run")
 	// SysProcAttr holds Windows-specific attributes
 	//cmd.SysProcAttr = &windows.SysProcAttr{

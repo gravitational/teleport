@@ -201,6 +201,9 @@ export default function createMainProcessClient(): MainProcessClient {
     quitAndInstallAppUpdate() {
       return ipcInvoke(MainProcessIpc.QuiteAndInstallAppUpdate);
     },
+    toggleAllowedToManage(clusterUri: RootClusterUri): Promise<void> {
+      return ipcInvoke(MainProcessIpc.ToggleAllowedToManage, { clusterUri });
+    },
     changeAppUpdatesManagingCluster(clusterUri) {
       return ipcInvoke(MainProcessIpc.ChangeAppUpdatesManagingCluster, {
         clusterUri,

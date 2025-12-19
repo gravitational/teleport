@@ -73,7 +73,7 @@ import {
 import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { staticConfig } from 'teleterm/staticConfig';
 import { FileStorage, RuntimeSettings } from 'teleterm/types';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import {
   ConfigService,
@@ -205,15 +205,26 @@ export default class MainProcess {
       } = await autoUpdateService.getDownloadBaseUrl({});
       return baseUrl;
     };
-    const installUpdate = async (path: string) => {
+    const getAllowedClusters = async () => {
       const { autoUpdateService } = await this.tshdClients;
-      await autoUpdateService.runUpdate({ path, proxyHost: '' });
+      const {
+        response: { clusters },
+      } = await autoUpdateService.findAllowedUpdateClusters({});
+      return clusters;
     };
+    const toggleAllowedToManage = async (cluster: RootClusterUri) => {
+      const { autoUpdateService } = await this.tshdClients;
+      await autoUpdateService.toggleAllowedUpdateOrigin({
+        cluster: routing.parseClusterName(cluster),
+      });
+    };
+
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
       getClusterVersions,
+      getAllowedClusters,
+      toggleAllowedToManage,
       getDownloadBaseUrl,
-      installUpdate,
       event => {
         if (event.kind === 'error') {
           event.error = serializeError(event.error);
@@ -703,6 +714,10 @@ export default class MainProcess {
 
     ipcHandle(MainProcessIpc.QuiteAndInstallAppUpdate, () =>
       this.appUpdater.quitAndInstall()
+    );
+
+    ipcHandle(MainProcessIpc.ToggleAllowedToManage, opts =>
+      this.appUpdater.toggleAllowedToManage(opts.clusterUri)
     );
 
     ipcHandle(MainProcessIpc.AddCluster, (ev, proxyAddress) =>

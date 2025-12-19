@@ -38,6 +38,7 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
     cancelAppUpdateDownload,
     quitAndInstallAppUpdate,
     changeAppUpdatesManagingCluster,
+    toggleAllowedToManage,
   } = appContext.mainProcessClient;
 
   useEffect(() => {
@@ -80,6 +81,7 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
           changeManagingCluster={clusterUri =>
             void changeAppUpdatesManagingCluster(clusterUri)
           }
+          toggleAllowedToManage={toggleAllowedToManage}
         />
       </DialogContent>
     </DialogConfirmation>
