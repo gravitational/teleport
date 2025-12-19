@@ -232,7 +232,7 @@ type Config struct {
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -858,6 +858,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
+
+	h.GET("/webapi/sites/:site/instances", h.WithClusterAuth(h.clusterUnifiedInstancesGet))
 
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
@@ -2384,6 +2386,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		RouteToCluster:          req.RouteToCluster,
 		KubernetesCluster:       req.KubernetesCluster,
 		ClientLoginIP:           remoteAddr,
+		Scope:                   req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)
@@ -2577,7 +2580,7 @@ type AuthParams struct {
 	HostSigners []types.CertAuthority
 	// ClientRedirectURL is a URL to redirect client to
 	ClientRedirectURL string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 	// MFAToken is an SSO MFA token.

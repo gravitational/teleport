@@ -445,6 +445,8 @@ plan_modifiers:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
     RoleV6.Spec.Options:
       - "DefaultRoleOptions()"
+    RoleV6.Spec.Allow.KubernetesResources:
+      - "DefaultKubernetesResources()"
 
 validators:
   # Expires must be in the future
@@ -473,7 +475,7 @@ validators:
   ProvisionTokenV2.Version:
     - UseVersionBetween(2,2)
   RoleV6.Version:
-    - UseVersionBetween(3,7)
+    - UseVersionBetween(3,8)
   SAMLConnectorV2.Version:
     - UseVersionBetween(2,2)
   SAMLConnectorV2.Spec:

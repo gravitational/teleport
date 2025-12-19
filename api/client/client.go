@@ -83,6 +83,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -917,6 +918,11 @@ func (c *Client) SigstorePolicyResourceServiceClient() workloadidentityv1pb.Sigs
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
+}
+
+// InventoryServiceClient returns an unadorned client for the inventory service.
+func (c *Client) InventoryServiceClient() inventoryv1.InventoryServiceClient {
+	return inventoryv1.NewInventoryServiceClient(c.conn)
 }
 
 // NotificationServiceClient returns a notification service client that can be used to fetch notifications.
@@ -3692,6 +3698,38 @@ func (c *Client) DeleteApp(ctx context.Context, name string) error {
 func (c *Client) DeleteAllApps(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllApps(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
+}
+
+// ListAuthServers returns a paginated list of auth servers registered in the cluster.
+func (c *Client) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	resp, err := c.PresenceServiceClient().ListAuthServers(ctx, &presencepb.ListAuthServersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	servers := make([]types.Server, 0, len(resp.Servers))
+	for _, server := range resp.Servers {
+		servers = append(servers, server)
+	}
+	return servers, resp.NextPageToken, nil
+}
+
+// ListProxyServers returns a paginated list of proxy servers registered in the cluster.
+func (c *Client) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	resp, err := c.PresenceServiceClient().ListProxyServers(ctx, &presencepb.ListProxyServersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	servers := make([]types.Server, 0, len(resp.Servers))
+	for _, server := range resp.Servers {
+		servers = append(servers, server)
+	}
+	return servers, resp.NextPageToken, nil
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.

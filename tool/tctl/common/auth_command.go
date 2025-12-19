@@ -42,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -341,6 +342,10 @@ type certificateSigner interface {
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 	TrustClient() trustpb.TrustServiceClient
@@ -408,7 +413,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -474,7 +478,12 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certi
 
 // ListAuthServers prints a list of connected auth servers
 func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authCommandClient) error {
-	servers, err := clusterAPI.GetAuthServers()
+	servers, err := clientutils.CollectWithFallback(
+		ctx,
+		clusterAPI.ListAuthServers,
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		func(context.Context) ([]types.Server, error) { return clusterAPI.GetAuthServers() },
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1233,7 +1242,10 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI certificate
 		return trace.WrapWithMessage(err, "couldn't load cluster network configuration, try setting --proxy manually")
 	}
 	// Fetch proxies known to auth server and try to find a public address.
-	proxies, err := clusterAPI.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clusterAPI.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return clusterAPI.GetProxies()
+	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "couldn't load registered proxies, try setting --proxy manually")
 	}

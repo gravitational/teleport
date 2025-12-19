@@ -73,7 +73,7 @@ across distributed infrastructures.
 | [Hardware Private Key Support](zero-trust-access/authentication/hardware-key-support.mdx) (e.g., via YubiKey) | ✔ (External-connected HSM/KMS coming soon) | ✔ | ✖ |
 | [Per-Session MFA](zero-trust-access/authentication/per-session-mfa.mdx)| ✔ | ✔ | ✔ |
 |**Resource identity.** Assign a cryptographic identity to every Teleport Protected Resource:||||
-| Protecting: [MCP Servers](./enroll-resources/mcp-access/mcp-access.mdx), [Applications](./enroll-resources/application-access/getting-started.mdx), [Databases](./enroll-resources/database-access/getting-started.mdx), [Kubernetes Clusters](./enroll-resources/kubernetes-access/getting-started.mdx), [Linux Servers](./enroll-resources/server-access/getting-started.mdx), [Windows Servers](./enroll-resources/desktop-access/introduction.mdx), [Windows Desktops](./enroll-resources/desktop-access/introduction.mdx), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](zero-trust-access/management/guides/github-integration.mdx) | ✔ | ✔ | ✔ (does not include Oracle support) |
+| Protecting: [MCP Servers](./enroll-resources/mcp-access/mcp-access.mdx), [Applications](./enroll-resources/application-access/getting-started.mdx), [Databases](./enroll-resources/database-access/getting-started.mdx), [Kubernetes Clusters](./enroll-resources/kubernetes-access/getting-started.mdx), [Linux Servers](./enroll-resources/server-access/getting-started.mdx), [Windows Servers](./enroll-resources/desktop-access/introduction.mdx), [Windows Desktops](./enroll-resources/desktop-access/introduction.mdx), Cloud Consoles & Resources (AWS, Azure, GCP), [GitHub](enroll-resources/application-access/cloud-apis/github-integration.mdx) | ✔ | ✔ | ✔ (does not include Oracle support) |
 |**Secure remote access.** Zero-trust, auditable access to your infrastructure:||||
 | Dynamic, self-updating inventory | ✔ | ✔ | ✔ |
 | Supports MCP servers, SSH, RDP, Kubernetes, Databases, AWS, Azure, GCP API and CLI, Web applications and services, TCP endpoints for Linux, Windows and MacOS. | ✔ | ✔ | ✔ |
@@ -134,7 +134,7 @@ and non-human identities.
 | User & Group Provisioning & Deprovisioning (SCIM & Custom Protocols), including Okta, Microsoft Entra ID, and SailPoint | ✔ | ✔ | ✖ |
 | [Access Monitoring & Response](identity-governance/access-monitoring.mdx): Detect overly broad privileges and inspect sessions that are not using strong protection, such as multi-factor authentication or device trust. Alert on access violations and purge unused permissions with automated access rules. | ✔ | ✔ | ✖ |
 | [Okta integration](identity-governance/integrations/okta/okta.mdx): Configure Teleport to import and grant access to Okta applications and user groups. | ✔ | ✔ | ✖ |
-| Microsoft Entra ID directory synchronization and SSO [integration](zero-trust-access/sso/entra-id.mdx) | ✔ | ✔ | ✖ |
+| Microsoft Entra ID directory synchronization and SSO [integration](zero-trust-access/sso/integrate-idp/entra-id.mdx) | ✔ | ✔ | ✖ |
 
 ## Teleport Identity Security
 

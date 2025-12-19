@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -211,6 +212,14 @@ func (a *Server) ClusterName() string {
 	return a.TLS.ClusterName()
 }
 
+// Close stops this server immediately.
+func (a *Server) Close() error {
+	return trace.NewAggregate(
+		a.TLS.Close(),
+		a.AuthServer.Close(),
+	)
+}
+
 // Shutdown stops this server instance gracefully
 func (a *Server) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(
@@ -247,7 +256,8 @@ type AuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
-// NewAuthServer returns new instances of Auth server
+// NewAuthServer returns a new test auth server.
+// The caller should close the server when it is no longer needed.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
@@ -591,6 +601,19 @@ func InitAuthCache(p AuthCacheParams) error {
 		return trace.Wrap(err)
 	}
 	p.AuthServer.Cache = c
+
+	// Create and set the inventory cache
+	invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+		PrimaryCache:       c,
+		Events:             p.AuthServer.Services,
+		Inventory:          p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.AuthServer.SetInventoryCache(invCache)
+
 	return nil
 }
 

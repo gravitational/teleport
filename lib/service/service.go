@@ -110,6 +110,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	myrepl "github.com/gravitational/teleport/lib/client/db/mysql/repl"
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
@@ -181,6 +182,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/certreloader"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -2460,6 +2462,19 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 			as.Cache = cache
 			recordingEncryptionManager.SetCache(cache)
+
+			// Create the inventory cache. This will wait for the primary cache to be ready before starting.
+			invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+				PrimaryCache:       cache,
+				Events:             as.Services,
+				Inventory:          as.Services,
+				BotInstanceBackend: as.Services,
+				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating inventory cache")
+			}
+			as.SetInventoryCache(invCache)
 
 			return nil
 		})
@@ -6230,10 +6245,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
-		certReloader := NewCertReloader(CertReloaderConfig{
+		certReloader := certreloader.New(certreloader.Config{
 			KeyPairs:               process.Config.Proxy.KeyPairs,
 			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
-		})
+		}, slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy), "name", "proxytls"), nil)
 		if err := certReloader.Run(process.ExitContext()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6575,7 +6590,7 @@ func (process *TeleportProcess) initApps() {
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(accessPoint, app)
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7114,7 +7129,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7123,7 +7138,7 @@ func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) 
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
 			if err == nil {
 				return publicAddr, nil
 			}

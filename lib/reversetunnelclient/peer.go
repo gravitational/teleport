@@ -43,6 +43,7 @@ func NewPeerDialer(clusterGetter ClusterGetter) PeerDialerFunc {
 
 		dialParams := DialParams{
 			ServerID:      request.ServerID,
+			TargetScope:   request.TargetScope,
 			ConnType:      request.ConnType,
 			From:          request.From,
 			To:            request.To,

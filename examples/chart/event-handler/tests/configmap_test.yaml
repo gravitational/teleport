@@ -4,6 +4,13 @@ templates:
 tests:
   - it: should match the snapshot
     set:
+      eventHandler:
+        debug: true
+        startTime: "2025-01-01T00:00:00.000Z"
+        dryRun: true
+        concurrency: 2
+        lock:
+          enabled: true
       teleport:
         address: teleport.example.com:1234
       fluentd:
@@ -16,12 +23,10 @@ tests:
           keyPath: myclient.key
     asserts:
       - matchSnapshot: {}
-
   - it: should not contain annotations when not defined
     asserts:
       - isNull:
           path: metadata.annotations
-
   - it: should contain annotations when defined
     set:
       annotations:
@@ -34,3 +39,13 @@ tests:
           value:
             keyA: valA
             keyB: valB
+  - it: sets extraLabels when set in values
+    set:
+      extraLabels:
+        config:
+          test-key: test-label-config
+    asserts:
+      - isSubset:
+          path: metadata.labels
+          content:
+            test-key: test-label-config

@@ -58,11 +58,12 @@ export function FieldSelectCreatable<
     Group,
     typeof props
   >(props, {});
-  const { formatCreateLabel, ...styles } = others;
+  const { formatCreateLabel, filterOption, ...styles } = others;
   return (
     <FieldSelectWrapper {...wrapper} {...styles}>
       <SelectCreatable<Opt, IsMulti, Group>
         {...base}
+        filterOption={filterOption}
         formatCreateLabel={formatCreateLabel}
       />
     </FieldSelectWrapper>

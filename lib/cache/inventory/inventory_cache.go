@@ -76,6 +76,7 @@ func instanceTypeToKind(instanceType inventoryv1.InstanceType) (string, error) {
 	}
 }
 
+// bytestring contains binary data (encoded keys) and is not intended to be printable.
 type bytestring = string
 
 type inventoryIndex string
@@ -435,6 +436,7 @@ func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
+	ic.cfg.Logger.InfoContext(ctx, "Inventory cache init succeeded")
 
 	// This runs infinitely until the context is canceled.
 	ic.processEvents(ctx, watcher)

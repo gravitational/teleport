@@ -66,6 +66,7 @@ import (
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -109,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
 	"github.com/gravitational/teleport/lib/auth/healthcheckconfig/healthcheckconfigv1"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -3638,6 +3640,60 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 	return &emptypb.Empty{}, nil
 }
 
+// ListAuthServers returns a paginated list of auth servers.
+func (g *GRPCServer) ListAuthServers(ctx context.Context, req *presencev1pb.ListAuthServersRequest) (*presencev1pb.ListAuthServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, next, err := auth.ListAuthServers(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		srv, ok := server.(*types.ServerV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected server type: %T", server)
+		}
+		serverV2s = append(serverV2s, srv)
+	}
+
+	return &presencev1pb.ListAuthServersResponse{
+		Servers:       serverV2s,
+		NextPageToken: next,
+	}, nil
+}
+
+// ListProxyServers returns a paginated list of proxy servers.
+func (g *GRPCServer) ListProxyServers(ctx context.Context, req *presencev1pb.ListProxyServersRequest) (*presencev1pb.ListProxyServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, next, err := auth.ListProxyServers(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		srv, ok := server.(*types.ServerV2)
+		if !ok {
+			return nil, trace.Errorf("encountered unexpected server type: %T", server)
+		}
+		serverV2s = append(serverV2s, srv)
+	}
+
+	return &presencev1pb.ListProxyServersResponse{
+		Servers:       serverV2s,
+		NextPageToken: next,
+	}, nil
+}
+
 // GetNode retrieves a node by name and namespace.
 func (g *GRPCServer) GetNode(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.ServerV2, error) {
 	if req.Namespace == "" {
@@ -5981,6 +6037,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	presencev1pb.RegisterPresenceServiceServer(server, presenceService)
+
+	inventoryService, err := inventoryv1.NewService(inventoryv1.ServiceConfig{
+		Authorizer:     cfg.Authorizer,
+		InventoryCache: cfg.AuthServer.GetInventoryCache(),
+		Logger:         cfg.AuthServer.logger.With(teleport.ComponentKey, "inventory.service"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating inventory service")
+	}
+	inventorypb.RegisterInventoryServiceServer(server, inventoryService)
 
 	botService, err := machineidv1.NewBotService(machineidv1.BotServiceConfig{
 		Authorizer: cfg.Authorizer,

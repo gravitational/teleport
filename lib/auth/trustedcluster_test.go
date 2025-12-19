@@ -216,6 +216,8 @@ func TestValidateTrustedCluster(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+
 	a := testAuth.AuthServer
 
 	tks, err := types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -479,6 +481,8 @@ func TestUpsertTrustedCluster(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+
 	a := testAuth.AuthServer
 
 	const validToken = "validtoken"
@@ -618,6 +622,7 @@ func TestUpdateTrustedCluster(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 	a := testAuth.AuthServer
 
 	const validToken = "validtoken"
