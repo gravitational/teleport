@@ -59,6 +59,8 @@ export default function Empty(props: Props) {
     );
   }
 
+  const buttonWidth = `200px`;
+
   return (
     <Box
       p={8}
@@ -85,7 +87,7 @@ export default function Empty(props: Props) {
           <ButtonPrimary
             as={Link}
             to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
-            width="224px"
+            width={buttonWidth}
           >
             Connect Cloud Account
           </ButtonPrimary>
@@ -105,7 +107,7 @@ export default function Empty(props: Props) {
                 entity: 'unified_resource',
               },
             }}
-            width="224px"
+            width={buttonWidth}
           >
             Add New Resource
           </ButtonPrimaryBorder>

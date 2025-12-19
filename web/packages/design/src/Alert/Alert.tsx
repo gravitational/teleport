@@ -117,7 +117,7 @@ const backgroundColor = (
       };
     case 'cta':
       return {
-        background: 'none',
+        background: 'inherit',
       };
   }
 };
