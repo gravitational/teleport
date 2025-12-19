@@ -9,6 +9,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	entraidui "github.com/gravitational/teleport/e/lib/web/ui/entraid"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 )
 
 // PluginSpec identifies a type as a plugin Spec
@@ -143,6 +145,9 @@ type PluginDetails struct {
 
 	// NetIQ is the status of the NetIQ plugin
 	NetIQ *types.PluginNetIQStatusV1 `json:"netiq,omitempty"`
+
+	// EntraID is the status of the Microsoft Entra ID plugin.
+	EntraID *types.PluginEntraIDStatusV1 `json:"entra,omitempty"`
 }
 
 // PluginGitlabDetails holds information about the Gitlab plugin
@@ -225,6 +230,10 @@ func NewPlugin(p *types.PluginV1) (*Plugin, error) {
 	case status.GetNetIq() != nil:
 		uiP.Status.Details = &PluginDetails{
 			NetIQ: status.GetNetIq(),
+		}
+	case status.GetEntraId() != nil:
+		uiP.Status.Details = &PluginDetails{
+			EntraID: status.GetEntraId(),
 		}
 	}
 
@@ -353,6 +362,16 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			ApiEndpoint:         settings.NetIq.ApiEndpoint,
 			OauthIssuerEndpoint: settings.NetIq.OauthIssuerEndpoint,
 			InsecureSkipVerify:  settings.NetIq.InsecureSkipVerify,
+		}
+	case *types.PluginSpecV1_EntraId:
+		return &entraidui.EntraPluginSpec{
+			DefaultOwners:      settings.EntraId.SyncSettings.DefaultOwners,
+			SSOConnectorID:     settings.EntraId.SyncSettings.SsoConnectorId,
+			TenantID:           settings.EntraId.SyncSettings.TenantId,
+			EntraAppID:         settings.EntraId.SyncSettings.EntraAppId,
+			CredentialsSource:  settings.EntraId.SyncSettings.CredentialsSource.String(),
+			GroupFilters:       filter.ToInputs(settings.EntraId.SyncSettings.GroupFilters),
+			AccessGraphEnabled: entraidui.AccessGraphSyncEnabled(settings.EntraId.AccessGraphSettings),
 		}
 	default:
 		return nil
