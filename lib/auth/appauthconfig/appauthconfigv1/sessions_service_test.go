@@ -339,7 +339,7 @@ func TestVerifyJWTToken(t *testing.T) {
 	})
 }
 
-func TestCreateAppSessionWithJwt(t *testing.T) {
+func TestCreateAppSessionWithJWT(t *testing.T) {
 	issuer := "https://external-idp/"
 	header := "Authorization"
 	audience := "teleport"
@@ -454,7 +454,6 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			// emitter := eventstest.NewChannelEmitter(10)
 			emitter := &eventstest.MockRecorderEmitter{}
 			svc, err := NewSessionsService(SessionsServiceConfig{
 				Emitter: emitter,
@@ -472,8 +471,15 @@ func TestCreateAppSessionWithJwt(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = svc.CreateAppSessionWithJWT(t.Context(), &appauthconfigv1.CreateAppSessionWithJWTRequest{
-				Jwt: tc.token,
-				App: &appauthconfigv1.App{},
+				ConfigName: "app-config-example",
+				SessionId:  "requested-session-id",
+				Jwt:        tc.token,
+				App: &appauthconfigv1.App{
+					AppName:     "mcp-app",
+					PublicAddr:  "https://proxy/mcp-app",
+					Uri:         "mcp+https://localhost/mcp",
+					ClusterName: "example",
+				},
 			})
 			tc.assertError(t, err)
 			tc.assertAuditEvent(t, emitter.LastEvent())

@@ -270,7 +270,12 @@ func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jos
 		return "", time.Time{}, trace.BadParameter("token must have %q claim", usernameClaimName)
 	}
 
-	return usernameClaim.(string), claims.Expiry.Time(), nil
+	usernameClaimStr, ok := usernameClaim.(string)
+	if !ok {
+		return "", time.Time{}, trace.BadParameter("token username claim %q must be of string type", usernameClaimName)
+	}
+
+	return usernameClaimStr, claims.Expiry.Time(), nil
 }
 
 func validateCreateAppSessionWithJWTRequest(req *appauthconfigv1.CreateAppSessionWithJWTRequest) error {
