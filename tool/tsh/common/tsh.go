@@ -674,6 +674,8 @@ type CLIConf struct {
 
 	// checkManagedUpdates initiates check of managed update after client connects to cluster.
 	checkManagedUpdates bool
+
+	BierFiets bool
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -805,12 +807,13 @@ const (
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
 
-	clusterHelp = "Specify the Teleport cluster to connect."
-	browserHelp = "Set to 'none' to suppress browser opening on login."
-	searchHelp  = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase").`
-	queryHelp   = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"').`
-	labelHelp   = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)."
-	quietHelp   = "Quiet mode."
+	clusterHelp       = "Specify the Teleport cluster to connect."
+	browserHelp       = "Set to 'none' to suppress browser opening on login."
+	searchHelp        = `List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase").`
+	queryHelp         = `Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and || (e.g. --query='labels["key1"] == "value1" && labels["key2"] != "value2"').`
+	labelHelp         = "List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)."
+	quietHelp         = "Quiet mode."
+	listenInsecueHelp = "Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted."
 	// proxyDefaultResolutionTimeout is how long to wait for an unknown proxy
 	// port to be resolved.
 	//
@@ -1078,7 +1081,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for.").StringVar(&cf.DatabaseService)
-	proxyDB.Flag("insecure-listen-anywhere", "Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.").BoolVar(&cf.InsecureListenAnywhere)
+	proxyDB.Flag("insecure-listen-anywhere", listenInsecueHelp).BoolVar(&cf.InsecureListenAnywhere)
 	proxyDB.Flag("listen", "Specifies the source address used by proxy db listener. Mutually exclusive with --port.").StringVar(&cf.LocalProxyAddr)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate.").BoolVar(&cf.LocalProxyTunnel)
@@ -1095,6 +1098,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyApp.Flag("bierfiets", "Haha sick bro").Short('y').BoolVar(&cf.BierFiets)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
