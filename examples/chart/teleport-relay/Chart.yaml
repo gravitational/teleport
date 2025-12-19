@@ -1,4 +1,4 @@
-.version: &version "18.5.1"
+.version: &version "18.5.1-dev.dustin.cloudclusters.1"
 
 name: teleport-relay
 apiVersion: v2
