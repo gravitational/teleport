@@ -291,7 +291,7 @@ const infoGuideReferenceLinks = {
     href: 'https://goteleport.com/docs/identity-governance/access-request-plugins/notification-routing-rules/',
   },
   AutomaticReviewRules: {
-    title: 'Teleport Automatic Reivew Rules',
+    title: 'Teleport Automatic Review Rules',
     href: 'https://goteleport.com/docs/identity-governance/access-requests/automatic-reviews/',
   },
 };
