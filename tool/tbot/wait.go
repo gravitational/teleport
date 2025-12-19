@@ -20,6 +20,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -29,12 +32,18 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/cli"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 )
 
-func waitFetch(ctx context.Context, client *http.Client, endpoint *url.URL) error {
+var errServiceNotHealthy = errors.New("service is not yet healthy")
+
+// waitFetch fetches a status report from the given endpoint using the provided
+// client. It only returns without an error if the endpoint returns a valid
+// and healthy status report.
+func waitFetch(ctx context.Context, l *slog.Logger, client *http.Client, endpoint *url.URL) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return trace.Wrap(err, "could not build wait request")
@@ -51,16 +60,19 @@ func waitFetch(ctx context.Context, client *http.Client, endpoint *url.URL) erro
 		return trace.Wrap(err)
 	}
 
-	err = trace.ReadError(resp.StatusCode, bytes)
-	if err != nil {
-		return trace.Wrap(err, "wait api response")
+	// If the status doesn't appear to be OK, log some additional info if
+	// possible. 404 is ignored because the JSON structure is different.
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		var status readyz.ServiceStatus
+		if err := json.Unmarshal(bytes, &status); err == nil {
+			l.WarnContext(ctx, "service is not yet ready", "status", status.Status, "reason", status.Reason)
+		}
 	}
 
-	// TODO: parse the status and ensure it is actually healthy
-
-	return nil
+	return trace.Wrap(trace.ReadError(resp.StatusCode, bytes), "response from wait API")
 }
 
+// onWaitCommand handles `tbot wait ...`
 func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 	l := log.With("diag_addr", cmd.DiagAddr, "service", cmd.Service)
 
@@ -101,8 +113,9 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 	}
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(20 * time.Millisecond),
+		Driver: retryutils.NewExponentialDriver(100 * time.Millisecond),
 		Jitter: retryutils.HalfJitter,
+		First:  250 * time.Millisecond,
 		Max:    2 * time.Second,
 		Clock:  clock,
 	})
@@ -125,11 +138,14 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 
 	now := clock.Now()
 
-LOOP:
+	i := 0
 	for {
-		err = waitFetch(ctx, client, endpoint)
+		i += 1
+		l := l.With("attempt", i)
+
+		err = waitFetch(ctx, l, client, endpoint)
 		if err == nil {
-			break LOOP
+			break
 		} else {
 			l.DebugContext(ctx, "wait failed, retrying", "error", err)
 		}
