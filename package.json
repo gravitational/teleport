@@ -38,8 +38,8 @@
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@ianvs/prettier-plugin-sort-imports": "^4.4.1",
-    "@storybook/react-vite": "^9.0.17",
     "@storybook/addon-vitest": "^9.0.15",
+    "@storybook/react-vite": "^9.0.17",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -62,7 +62,7 @@
     "playwright": "^1.55.1",
     "prettier": "^3.7.3",
     "react-select-event": "^5.5.1",
-    "storybook": "^9.0.17",
+    "storybook": "^9.1.17",
     "svgo": "^4.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
@@ -98,8 +98,8 @@
     "react-transition-group": "^4.4.5",
     "styled-components": "^6.1.17",
     "tslib": "^2.8.1",
-    "usehooks-ts": "^3.1.1",
     "use-immer": "^0.11.0",
+    "usehooks-ts": "^3.1.1",
     "whatwg-fetch": "^3.6.20"
   },
   "msw": {
