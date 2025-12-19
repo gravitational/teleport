@@ -35,6 +35,8 @@ import (
 )
 
 // BeginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
+// TODO(cthach): Refactor to accept a params struct since there are many parameters. Must be done after SSO MFA device
+// support is added to lib/auth/authtest (https://github.com/gravitational/teleport/issues/62271).
 func (a *Server) BeginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload) (*proto.SSOChallenge, error) {
 	chal := &proto.SSOChallenge{
 		Device: sso,
@@ -83,6 +85,8 @@ func (a *Server) BeginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 // VerifySSOMFASession verifies that the given sso mfa token matches an existing MFA session
 // for the user and session ID. It also checks the required extensions, and finishes by deleting
 // the MFA session if reuse is not allowed.
+// TODO(cthach): Refactor to accept a params struct since there are many parameters. Must be done after SSO MFA device
+// support is added to lib/auth/authtest (https://github.com/gravitational/teleport/issues/62271).
 func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, token string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
 	if requiredExtensions == nil {
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
