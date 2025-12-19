@@ -5642,6 +5642,9 @@ message OIDCAuthRequest {
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
   // pkce_verifier is used to verified a generated code challenge.
   string pkce_verifier = 24 [(gogoproto.jsontag) = "pkce_verifier"];
+  // LoginHint is an optional username/email provided by the client that will be passed
+  // to the IdP via the 'login_hint' query parameter.
+  string login_hint = 25 [(gogoproto.jsontag) = "login_hint,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -5738,6 +5741,10 @@ message SAMLConnectorSpecV2 {
   // UserMatchers is a set of glob patterns to narrow down which username(s) this auth connector should
   // match for identifier-first login.
   repeated string UserMatchers = 20 [(gogoproto.jsontag) = "user_matchers,omitempty"];
+  // IncludeSubject is a flag that indicates whether the Subject element is included in the SAML
+  // authentication request. Defaults to false.
+  // Note: Some IdPs will reject requests that contain a Subject.
+  bool IncludeSubject = 21 [(gogoproto.jsontag) = "include_subject,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -5851,6 +5858,9 @@ message SAMLAuthRequest {
   bytes PostForm = 23 [(gogoproto.jsontag) = "post_form,omitempty"];
   // ClientVersion is the version of tsh or Proxy that is sending the SAMLAuthRequest request.
   string ClientVersion = 24 [(gogoproto.jsontag) = "client_version,omitempty"];
+  // SubjectIdentifier is an optional username/email provided by the client that will be
+  // passed to prepopulate the IdP's login form
+  string SubjectIdentifier = 25 [(gogoproto.jsontag) = "subject_identifier,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -8688,7 +8698,7 @@ message AWSOIDCIntegrationSpecV1 {
   // This bucket/prefix/* files must be publicly accessible and contain the following:
   // > .well-known/openid-configuration
   // > .well-known/jwks
-  // Format: s3://<bucket>/<prefix>
+  // Format: `s3://<bucket>/<prefix>`
   // Optional. The proxy's endpoint is used if it is not specified.
   //
   // DEPRECATED: Thumbprint validation requires the issuer to update the IdP in AWS everytime the issuer changes the certificate.
@@ -8700,9 +8710,9 @@ message AWSOIDCIntegrationSpecV1 {
     deprecated = true
   ];
 
-  // Audience is used to record a name of a plugin or a discover service in Teleport
-  // that depends on this integration.
-  // Audience value can be empty or configured with supported preset audience type.
+  // Audience is used to record a name of a plugin or a discover service in
+  // Teleport that depends on this integration.
+  // Audience value can either be empty or "aws-identity-center".
   // Preset audience may impose specific behavior on the integration CRUD API,
   // such as preventing integration from update or deletion. Empty audience value
   // should be treated as a default and backward-compatible behavior of the integration.
@@ -9039,9 +9049,9 @@ message AWSMatcher {
   // KubeAppDiscovery controls whether Kubernetes App Discovery will be enabled for agents running on
   // discovered clusters, currently only affects AWS EKS discovery in integration mode.
   bool KubeAppDiscovery = 8 [(gogoproto.jsontag) = "kube_app_discovery,omitempty"];
-  // SetupAccessForARN is the role that the discovery service should create EKS Access Entries for.
+  // SetupAccessForARN is the role that the Discovery Service should create EKS Access Entries for.
   // This value should match the IAM identity that Teleport Kubernetes Service uses.
-  // If this value is empty, the discovery service will attempt to set up access for its own identity (self).
+  // If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).
   string SetupAccessForARN = 9 [(gogoproto.jsontag) = "setup_access_for_arn,omitempty"];
   // Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.
   AWSOrganizationMatcher Organization = 10 [(gogoproto.jsontag) = "organization,omitempty"];

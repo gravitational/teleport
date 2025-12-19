@@ -1570,6 +1570,7 @@ func TestServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Proxy service.
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -1578,6 +1579,7 @@ func TestServersCRUD(t *testing.T) {
 	proxy.Spec.Hostname = "proxy.llama"
 	require.NoError(t, clt.UpsertProxy(ctx, proxy))
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -1586,11 +1588,13 @@ func TestServersCRUD(t *testing.T) {
 	err = clt.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	// Auth service.
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -1599,6 +1603,7 @@ func TestServersCRUD(t *testing.T) {
 	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, clt.UpsertAuthServer(ctx, auth))
 
+	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -4562,6 +4567,7 @@ func TestEvents(t *testing.T) {
 				err := testSrv.Auth().UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
+				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 				out, err := testSrv.Auth().GetProxies()
 				require.NoError(t, err)
 

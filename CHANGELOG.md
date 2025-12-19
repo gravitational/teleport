@@ -1,5 +1,34 @@
 # Changelog
 
+## 18.5.1 (12/12/25)
+
+* Fixed Teleport instances running the Auth Service sometimes not becoming ready during initialization. [#62194](https://github.com/gravitational/teleport/pull/62194)
+* Fixed an Auth Service bug causing the event handler to miss up to 1 event every 5 minutes when storing audit events in S3. [#62150](https://github.com/gravitational/teleport/pull/62150)
+* Fixed bug where event handler dies on malformed session events. [#62141](https://github.com/gravitational/teleport/pull/62141)
+* Updated event handler to ingest missing session recordings at twice the `concurrency` instead of only 10 sessions at a time. [#62141](https://github.com/gravitational/teleport/pull/62141)
+* Changed "tsh --mfa-mode=cross-platform" to favor security keys on current Windows versions. [#62134](https://github.com/gravitational/teleport/pull/62134)
+* Fixed "the client connection is closing" error happening under certain conditions in Teleport Connect when connecting to resources with per-session MFA enabled. [#62127](https://github.com/gravitational/teleport/pull/62127)
+* Improved detail of error messages for `identity` service in `tbot`. [#62120](https://github.com/gravitational/teleport/pull/62120)
+* Teleport Connect now supports expanding `~/` home-directory paths in the configuration file. [#62104](https://github.com/gravitational/teleport/pull/62104)
+* Added support for --format flag for `tsh request search`. [#62099](https://github.com/gravitational/teleport/pull/62099)
+* Fixed bug where event handler `types` filter is ignored for Teleport clients using Athena storage backend. [#62082](https://github.com/gravitational/teleport/pull/62082)
+* Fixed intermittent issues with VNet on Windows when other NRPT rules from GPOs are present under `HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\DnsPolicyConfig`. [#62052](https://github.com/gravitational/teleport/pull/62052)
+* Added Terraform provider support for teleport_integration resources. [#62040](https://github.com/gravitational/teleport/pull/62040)
+* DiscoveryConfig resources can now be managed via the Teleport Terraform Provider. [#62034](https://github.com/gravitational/teleport/pull/62034)
+* Reduced memory consumption of the Application service. [#62014](https://github.com/gravitational/teleport/pull/62014)
+* Added support for listing application session recordings in `tsh recording ls` and the Web UI. [#62010](https://github.com/gravitational/teleport/pull/62010)
+* Fixed a Web UI issue where the copy button for the session ID did not work for non-interactive session recordings. [#62010](https://github.com/gravitational/teleport/pull/62010)
+* Prevented stuck `teleport-cluster` Helm chart rollouts in small Kubernetes clusters. Removed resource requests from configuration check hooks. [#62003](https://github.com/gravitational/teleport/pull/62003)
+* Fixed static keypair creation in `tbot keypair create` when the `--static-key-path` flag is used. [#61947](https://github.com/gravitational/teleport/pull/61947)
+* Re-enabled MySQL database health checks. MySQL health checks will now authenticate to the database as a user, rather than TCP dialing and closing the connection, to prevent MySQL from automatically blocking the Teleport database service instance host. The health check user name default is "teleport-healthchecker". [#61942](https://github.com/gravitational/teleport/pull/61942)
+* Added support for templating `secret_labels`, and the `{{.Labels}}` template variable, to tbot's `kubernetes/argo-cd` output. [#61876](https://github.com/gravitational/teleport/pull/61876)
+
+Enterprise:
+* Updated AWS Identity Center integration sign-in start URL format to support AWS GovCloud accounts.
+* Fix a potential race where Okta assignments may never be cleaned up if the Okta integration is down while the assignment expires.
+* Created a dedicated Access Automations feature page within the Web UI.
+* Entra ID directory reconciler now overwrites user accounts created by the referenced SAML Auth Connector.
+
 ## 18.5.0 (12/04/25)
 
 ### Kubernetes support for Relay Service
@@ -1060,4 +1089,5 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
+
 

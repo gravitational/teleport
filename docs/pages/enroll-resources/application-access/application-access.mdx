@@ -57,6 +57,10 @@ import questionSvg from "@site/src/components/Icon/svg/question2.svg";
 Teleport provides secure access to applications and cloud provider APIs with RBAC, audit logging, and just-in-time access. 
 
 The Teleport Application Service enables secure connections to private networks, supports Teleport JWTs for authentication, and provides guidance on app enrollment and access control configuration.
+
+Note that it is also possible to secure applications with Teleport Identity
+Governance by setting up Teleport as an IdP. See [Using the Teleport SAML
+IdP](../../identity-governance/idps/usage/usage.mdx).
 </DocHero>
 
 <UseCasesList
@@ -95,12 +99,12 @@ The Teleport Application Service enables secure connections to private networks,
     {
       title: "Dynamic app registration",
       description: "Admin can register new apps without updating static configuration files.",
-      href: "./guides/dynamic-registration/",
+      href: "./configuration/dynamic-registration/",
     },
     {
       title: "High availability app access",
       description: "Configure the Teleport Application Service for high availability.",
-      href: "./guides/ha/",
+      href: "./configuration/ha/",
     },
     {
       title: "JWT authentication",

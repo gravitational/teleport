@@ -731,9 +731,6 @@ type TeleportProcess struct {
 	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
 	*metrics.SyncGatherers
 
-	// state is the process state machine tracking if the process is healthy or not.
-	state *processState
-
 	tsrv reversetunnelclient.Server
 }
 
@@ -1173,14 +1170,17 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
-	supervisor := NewSupervisor(processID, cfg.Logger)
-	store, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
+	}
+
+	supervisor, err := NewSupervisor(processID, cfg.Logger, cfg.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewRealClock()
+	store, err := storage.NewProcessStorage(supervisor.ExitContext(), filepath.Join(cfg.DataDir, teleport.ComponentProcess))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// full heartbeat announces are on average every 2/3 * 6/7 of the default
@@ -1458,12 +1458,6 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	}
 
 	serviceStarted := false
-
-	ps, err := process.newProcessStateMachine()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to initialize process state machine")
-	}
-	process.state = ps
 
 	if !cfg.DiagnosticAddr.IsEmpty() {
 		if err := process.initDiagnosticService(); err != nil {
@@ -3146,7 +3140,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
-func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.ReadRelayAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.RelayAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -3157,7 +3151,7 @@ func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, ca
 		return nil, trace.Wrap(err)
 	}
 
-	return cache, nil
+	return authclient.NewRelayWrapper(clt, cache), nil
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
@@ -3441,6 +3435,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			process.proxyPublicAddr(),
 			conn.Client,
+			regular.SetChildLogConfig(cfg),
 			regular.SetUUID(conn.HostUUID()),
 			regular.SetScope(conn.Scope()),
 			regular.SetLimiter(limiter),
@@ -3974,42 +3969,6 @@ func (process *TeleportProcess) initMetricsService() error {
 	return nil
 }
 
-// newProcessStateMachine creates a state machine tracking the Teleport process
-// state. The state machine is then used by the diagnostics or the debug service
-// to evaluate the process health.
-func (process *TeleportProcess) newProcessStateMachine() (*processState, error) {
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDiagnosticHealth, process.id))
-	// Create a state machine that will process and update the internal state of
-	// Teleport based off Events. Use this state machine to return the
-	// status from the /readyz endpoint.
-	ps, err := newProcessState(process)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	process.RegisterFunc("readyz.monitor", func() error {
-		// Start loop to monitor for events that are used to update Teleport state.
-		ctx, cancel := context.WithCancel(process.GracefulExitContext())
-		defer cancel()
-
-		eventCh := make(chan Event, 1024)
-		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
-		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
-		process.ListenForEvents(ctx, TeleportStartingEvent, eventCh)
-
-		for {
-			select {
-			case e := <-eventCh:
-				ps.update(e)
-			case <-ctx.Done():
-				logger.DebugContext(process.ExitContext(), "Teleport is exiting, returning.")
-				return nil
-			}
-		}
-	})
-	return ps, nil
-}
-
 // initDiagnosticService starts diagnostic service currently serving healthz
 // and prometheus endpoints
 func (process *TeleportProcess) initDiagnosticService() error {
@@ -4091,10 +4050,6 @@ func (process *TeleportProcess) initDiagnosticService() error {
 // disable its sensitive pprof and log-setting endpoints, but the liveness
 // and readiness ones are always active.
 func (process *TeleportProcess) initDebugService(exposeDebugRoutes bool) error {
-	if process.state == nil {
-		return trace.BadParameter("teleport process state machine has not yet been initialized (this is a bug)")
-	}
-
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDebug, process.id))
 
 	// Unix socket creation can fail on paths too long. Depending on the UNIX implementation,
@@ -5559,6 +5514,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		conn.Client,
+		regular.SetChildLogConfig(cfg),
 		regular.SetUUID(conn.HostUUID()),
 		regular.SetLimiter(proxyLimiter),
 		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
@@ -5586,13 +5542,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:   clusterName,
-		AccessPoint:   accessPoint,
-		LockWatcher:   lockWatcher,
-		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-		PermitCaching: process.Config.CachePolicy.Enabled,
-	})
+	authorizerOpts := authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      accessPoint,
+		ScopedRoleReader: accessPoint.ScopedRoleReader(),
+		LockWatcher:      lockWatcher,
+		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+		PermitCaching:    process.Config.CachePolicy.Enabled,
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5632,6 +5596,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		TransportCredentials: credentials.NewTLS(sshGRPCTLSConfig),
 		UserGetter:           authMiddleware,
 		Authorizer:           authorizer,
+		ScopedAuthorizer:     scopedAuthorizer,
 		GetAuthPreference:    accessPoint.GetAuthPreference,
 	})
 	if err != nil {
@@ -5667,8 +5632,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
-			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
+		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+			}
+
+			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
+				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
+				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
+			}
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -6559,7 +6531,7 @@ func (process *TeleportProcess) initApps() {
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(accessPoint, app)
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7094,7 +7066,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7103,7 +7075,7 @@ func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) 
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
 			if err == nil {
 				return publicAddr, nil
 			}

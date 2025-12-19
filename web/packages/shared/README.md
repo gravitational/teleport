@@ -15,7 +15,6 @@ Add `@gravitational/shared` to your package.json file.
 ### WASM
 
 This package includes a WASM module built from a Rust codebase located in `packages/shared/libs/ironrdp`.
-It is built with the help of [wasm-pack](https://github.com/rustwasm/wasm-pack).
 
 Running `pnpm build-wasm` builds the WASM binary as well as the appropriate Javascript/Typescript
 bindings and types in `web/packages/shared/libs/ironrdp/pkg`.

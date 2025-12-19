@@ -19,6 +19,7 @@
 import { http, HttpResponse } from 'msw';
 
 import cfg from 'teleport/config';
+import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
 import { ApiBot, EditBotRequest } from 'teleport/services/bot/types';
 import { JsonObject } from 'teleport/types';
 
@@ -175,5 +176,59 @@ export const editBotForever = () =>
         /* never resolved */
       })
   );
+
+export const genWizardCiCdSuccess = (options?: {
+  response?: Awaited<ReturnType<typeof generateGhaK8sTemplates>>;
+}) => {
+  return http.post(cfg.api.bot.genWizardCiCd, async ({ request }) => {
+    const {
+      response = {
+        terraform: TERRAFORM_MOCK.replaceAll(
+          ':body',
+          await request.clone().text()
+        ),
+      },
+    } = options ?? {};
+    return HttpResponse.json(response);
+  });
+};
+
+export const genWizardCiCdError = (
+  status: number,
+  error: string | null = null,
+  extras: JsonObject = {}
+) =>
+  http.post(cfg.api.bot.genWizardCiCd, () => {
+    return HttpResponse.json(
+      { error: { message: `${status} - ${error}` }, extras },
+      { status }
+    );
+  });
+
+export const genWizardCiCdForever = () =>
+  http.post(
+    cfg.api.bot.genWizardCiCd,
+    () =>
+      new Promise(() => {
+        /* never resolved */
+      })
+  );
+
+const TERRAFORM_MOCK = `# POST ${cfg.api.bot.genWizardCiCd}
+# :body
+
+# This is a mocked Terraform template
+resource "teleport_bot" "bot_name" {
+  version = "v1"
+
+  metadata = {
+    name = "bot_name"
+  }
+
+  spec = {
+    roles = ["access"]
+  }
+}
+`;
 
 export type EditBotApiVersion = 'v1' | 'v2' | 'v3';

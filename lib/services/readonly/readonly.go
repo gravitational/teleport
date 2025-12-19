@@ -465,6 +465,9 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *types.GitHubServerMetadata
+
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 var _ Server = types.Server(nil)

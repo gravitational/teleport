@@ -1208,6 +1208,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	// MWI IaC Wizards
+	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -5489,6 +5492,8 @@ type SSORequestParams struct {
 	ConnectorID string
 	// CSRFToken is used to protect against login-CSRF in SSO flows.
 	CSRFToken string
+	// LoginHint is the user's identifier (email) for identifier-first login.
+	LoginHint string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5516,6 +5521,10 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 	}
 
 	query := r.URL.Query()
+	loginHint := query.Get("login_hint")
+	if len(loginHint) > teleport.MaxUsernameLength {
+		loginHint = ""
+	}
 	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
@@ -5530,6 +5539,7 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
+		LoginHint:         loginHint,
 	}, nil
 }
 

@@ -19,6 +19,7 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"net"
@@ -32,6 +33,7 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -199,6 +201,7 @@ func makeTestAuthContext(t *testing.T, roleSet services.RoleSet, app types.Appli
 			Username:   user.GetName(),
 			Groups:     user.GetRoles(),
 			Principals: user.GetLogins(),
+			Expires:    time.Now().Add(time.Hour),
 		},
 	}
 	if app != nil {
@@ -228,7 +231,7 @@ func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPC
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
-		Method:  mcp.MethodToolsCall,
+		Method:  mcputils.MethodToolsCall,
 		Params: mcputils.JSONRPCParams{
 			"name": toolName,
 		},
@@ -239,7 +242,7 @@ func (c *requestBuilder) makeToolsListRequest() *mcputils.JSONRPCRequest {
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
-		Method:  mcp.MethodToolsList,
+		Method:  mcputils.MethodToolsList,
 	}
 }
 
@@ -350,4 +353,43 @@ type mockAuthClient struct {
 
 func (m mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	return "app-token-for-" + req.Username, nil
+}
+
+func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {
+	t.Helper()
+	// "notifications/initialized" may or may not slip in so just check the
+	// first two.
+	slices.SortFunc(events, func(a, b apievents.AuditEvent) int {
+		return cmp.Compare(a.GetIndex(), b.GetIndex())
+	})
+	require.GreaterOrEqual(t, len(events), 2)
+	sessionStart, ok := events[0].(*apievents.MCPSessionStart)
+	require.True(t, ok)
+	assert.Equal(t, "test-client/1.0.0", sessionStart.ClientInfo)
+	request, ok := events[1].(*apievents.MCPSessionRequest)
+	require.True(t, ok)
+	assert.Equal(t, string(mcp.MethodInitialize), request.Message.Method)
+
+	for _, check := range extraChecks {
+		check(t, sessionStart)
+	}
+}
+
+func checkSessionStartWithServerInfo(wantName, wantVersion string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantName+"/"+wantVersion, sessionStart.ServerInfo)
+	}
+}
+func checkSessionStartWithEgressAuthType(wantEgress string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantEgress, sessionStart.EgressAuthType)
+	}
+}
+func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.NotEmpty(t, sessionStart.SessionID)
+	}
 }

@@ -20,6 +20,7 @@ package authclient
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -57,4 +58,54 @@ func (c *HTTPClient) getClusterName(ctx context.Context) (types.ClusterName, err
 	}
 
 	return cn, err
+}
+
+// GetAuthServers returns the list of auth servers registered in the cluster.
+//
+// Deprecated: Prefer paginated variant [APIClient.ListAuthServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
+func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
+	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	re := make([]types.Server, len(items))
+	for i, raw := range items {
+		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
+	}
+	return re, nil
+}
+
+// GetProxies returns the list of auth servers registered in the cluster.
+//
+// Deprecated: Prefer paginated variant [APIClient.ListProxyServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
+func (c *HTTPClient) GetProxies() ([]types.Server, error) {
+	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	re := make([]types.Server, len(items))
+	for i, raw := range items {
+		server, err := services.UnmarshalServer(raw, types.KindProxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
+	}
+	return re, nil
 }

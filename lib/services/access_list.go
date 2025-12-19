@@ -95,6 +95,13 @@ type AccessListsInternal interface {
 	// overwriting the list's members if successful.
 	UpdateAccessListAndOverwriteMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
+	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
+	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+
+	// EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
+	// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
+	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
+
 	// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
 	// upstream source (e.g. EntraID) using a batch operation for improved performance.
 	//

@@ -1,6 +1,6 @@
 ---
 title: MCP Servers
-description: Protect MCP servers with Teleport's access controls and auditing capabilities 
+description: Protect Model Context Protocol (MCP) servers with Teleport's access controls and auditing capabilities 
 template: doc-page
 tags:
  - mcp
@@ -17,6 +17,8 @@ import databaseSvg from "@site/src/components/Icon/teleport-svg/database.svg";
 import kubernetesSvg from "@site/src/components/Icon/svg/kubernetes2.svg";
 import githubSvg from "@site/src/components/Icon/svg/github.svg";
 import vaultSvg from "@site/src/components/Icon/svg/hashicorp-vault.svg";
+import notionSvg from "@site/src/components/Icon/svg/notion.svg";
+import grafanaSvg from "@site/src/components/Icon/svg/grafana.svg";
 
 <DocHero
   title="Enroll your first MCP server"
@@ -112,10 +114,22 @@ Connect an MCP server with the Teleport Application Service, configure and assig
       iconComponent: githubSvg,
     },
     {
+      title: "Grafana",
+      description: "Connect Grafana over MCP",
+      href: "./integration-guides/grafana/",
+      iconComponent: grafanaSvg,
+    },
+    {
       title: "Hashicorp Vault",
       description: "Connect Hashicorp Vault over MCP",
       href: "./integration-guides/vault/",
       iconComponent: vaultSvg,
+    },
+    {
+      title: "Notion",
+      description: "Connect Notion over MCP",
+      href: "./integration-guides/notion/",
+      iconComponent: notionSvg,
     },
   ]}
 />

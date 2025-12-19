@@ -401,18 +401,24 @@ func (q *querier) streamEventsFromChunk(ctx context.Context, date, chunk string)
 		reader.Close()
 	}
 
+	var prevErr error
+
 	return stream.Func(func() (eventParquet, error) {
+		if prevErr != nil {
+			return eventParquet{}, prevErr
+		}
 		// conventional wisdom says that we should use a larger persistent buffer here
 		// but in loadtesting this API was abserved having almost twice the throughput
 		// with a single element local buf variable instead.
 		var buf [1]eventParquet
-		_, err := reader.Read(buf[:])
-		if err != nil {
+		n, err := reader.Read(buf[:])
+		if n == 0 && err != nil {
 			if errors.Is(err, io.EOF) {
 				return eventParquet{}, io.EOF
 			}
 			return eventParquet{}, trace.Wrap(err)
 		}
+		prevErr = err
 		return buf[0], nil
 	}, closer)
 }

@@ -1032,7 +1032,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 			name:    "invalid token type",
 			wantErr: true,
 			getRequest: func() *proto.GetAccountRecoveryTokenRequest {
-				wrongTokenType, err := srv.Auth().NewUserToken(authclient.CreateUserTokenRequest{
+				wrongTokenType, err := srv.Auth().NewUserToken(ctx, authclient.CreateUserTokenRequest{
 					Name: "llama",
 					TTL:  5 * time.Minute,
 					Type: authclient.UserTokenTypeResetPassword,

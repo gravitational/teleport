@@ -14,7 +14,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/peterbourgon/diskv/v3 v3.0.1
 	github.com/sethvargo/go-limiter v1.0.0
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.47.0
 	golang.org/x/time v0.12.0
 	google.golang.org/protobuf v1.36.8
@@ -69,7 +69,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.3 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.74 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.75 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect

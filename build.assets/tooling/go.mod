@@ -13,7 +13,7 @@ require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.1
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/mod v0.29.0
 	golang.org/x/oauth2 v0.30.0
@@ -100,7 +100,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.3 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.74 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.75 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect

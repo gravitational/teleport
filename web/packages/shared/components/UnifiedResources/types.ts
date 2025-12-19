@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentProps } from 'react';
 
 import { Icon } from 'design/Icon';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
@@ -196,6 +197,19 @@ export interface UnifiedResourceViewItem {
   status?: ResourceHealthStatus;
 }
 
+export type VisibleFilterPanelFields = {
+  checkbox: boolean;
+  clusterOpts: boolean;
+  healthStatusOpts: boolean;
+  resourceTypeOpts: boolean;
+  resourceAvailabilityOpts: boolean;
+};
+
+export type VisibleResourceItemFields = {
+  checkbox: boolean;
+  pin: boolean;
+};
+
 export enum PinningSupport {
   Supported = 'Supported',
   /**
@@ -215,6 +229,17 @@ export type IncludedResourceMode =
   | 'requestable'
   | 'accessible';
 
+/**
+ * If this field is not provided, the default config will be:
+ * - No icon, just text label
+ * - Label kind is "secondary"
+ * - No hover states
+ */
+export type ResourceLabelConfig = Omit<
+  ComponentProps<typeof LabelButtonWithIcon>,
+  'children'
+>;
+
 export type ResourceItemProps = {
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
@@ -230,6 +255,18 @@ export type ResourceItemProps = {
    * Used as a flag to render different styling.
    */
   showingStatusInfo: boolean;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleInputFields?: VisibleResourceItemFields;
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
 };
 
 // Props that are needed for the Card view.
@@ -273,6 +310,18 @@ export type ResourceViewProps = {
     showingStatusInfo: boolean;
   }[];
   expandAllLabels: boolean;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   */
+  visibleInputFields?: VisibleResourceItemFields;
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
 };
 
 /**

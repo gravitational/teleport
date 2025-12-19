@@ -853,7 +853,11 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 
-	policySets := scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	var policySets []*types.SessionTrackerPolicySet
+	if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
+
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
@@ -1451,30 +1455,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Events:                eventsMap,
 	}
 
-	bpfService := scx.srv.GetBPF()
-
-	// Only wait for the child to be "ready" if BPF is enabled. This is required
-	// because PAM might inadvertently move the child process to another cgroup
-	// by invoking systemd. If this happens, then the cgroup filter used by BPF
-	// will be looking for events in the wrong cgroup and no events will be captured.
-	// However, unconditionally waiting for the child to be ready results in PAM
-	// deadlocking because stdin/stdout/stderr which it uses to relay details from
-	// PAM auth modules are not properly copied until _after_ the shell request is
-	// replied to.
-	if bpfService.Enabled() {
-		if err := s.term.WaitForChild(); err != nil {
-			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-			return trace.Wrap(err)
-		}
-	} else {
-		// Clean up the read half of the pipe, and set it to nil so that when the
-		// ServerContext is closed it doesn't attempt to a second close.
-		if err := s.scx.readyr.Close(); err != nil {
-			s.logger.ErrorContext(ctx, "Failed closing child ready pipe", "error", err)
-		}
-		s.scx.readyr = nil
+	if err := s.term.WaitForChild(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 
+	bpfService := scx.srv.GetBPF()
 	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
 		return trace.Wrap(err)
@@ -1667,8 +1652,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	if err := execRequest.WaitForChild(); err != nil {
-		s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
+	if err := execRequest.WaitForChild(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1896,9 +1880,14 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2081,9 +2070,14 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2216,9 +2210,14 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
 	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
+		var roles []types.Role
+		if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = scx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
-			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 		}
 
 		modes := s.access.CanJoin(accessContext)

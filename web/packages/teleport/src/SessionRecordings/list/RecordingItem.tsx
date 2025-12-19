@@ -31,6 +31,7 @@ import styled, { css } from 'styled-components';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import {
+  Application,
   ArrowRight,
   Database,
   Desktop,
@@ -103,6 +104,12 @@ export function RecordingItem({
     recording.recordingType
   );
 
+  const handleClick: React.MouseEventHandler<HTMLAnchorElement> = e => {
+    if (!recording.playable) {
+      e.preventDefault();
+    }
+  };
+
   return (
     <RecordingItemContainer
       data-testid="recording-item"
@@ -111,6 +118,7 @@ export function RecordingItem({
       playable={recording.playable}
       density={density}
       viewMode={viewMode}
+      onClick={handleClick}
     >
       <ThumbnailContainer density={density} viewMode={viewMode}>
         {recording.playable ? (
@@ -195,10 +203,9 @@ const RecordingItemContainer = styled(Link).withConfig({
     overflow: hidden; // Needed to keep the rectangular contents from bleeding out of the round corners.
     display: flex;
     flex-grow: 0;
-    cursor: pointer;
+    cursor: ${p.playable ? 'pointer' : 'default'};
     text-decoration: none;
     color: ${p.theme.colors.text.main};
-    pointer-events: ${p.playable ? 'all' : 'none'};
 
     &:hover {
       background: ${p.theme.colors.levels.surface};
@@ -363,6 +370,12 @@ export function getRecordingTypeInfo(type: RecordingType): {
       return {
         icon: Desktop,
         label: 'Desktop Session',
+      };
+
+    case 'app':
+      return {
+        icon: Application,
+        label: 'Application Session Chunk',
       };
   }
 }
