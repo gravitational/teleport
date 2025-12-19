@@ -18,7 +18,9 @@ package mfav1_test
 
 import (
 	"context"
+	"fmt"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -33,6 +35,9 @@ import (
 // mockAuthServer is a mock implementation of AuthServer for testing MFA challenges.
 type mockAuthServer struct {
 	*authtest.Server
+
+	// requestID is a fixed request ID to return for SSO MFA challenges.
+	requestID string
 }
 
 // NewMockAuthServer creates a new instance of mockAuthServer.
@@ -51,7 +56,7 @@ func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*
 	// Wrap the Identity service to allow mocking MFA devices.
 	authServer.Auth().Identity = &mockAuthServerIdentity{Identity: authServer.Auth().Identity, devices: devices}
 
-	return &mockAuthServer{authServer}, nil
+	return &mockAuthServer{Server: authServer}, nil
 }
 
 // BeginSSOMFAChallenge mocks the SSO MFA challenge initiation.
@@ -64,7 +69,10 @@ func (m *mockAuthServer) BeginSSOMFAChallenge(
 	_ *mfav1.ChallengeExtensions,
 	_ *mfav1.SessionIdentifyingPayload,
 ) (*proto.SSOChallenge, error) {
+	m.requestID = fmt.Sprintf("%d", time.Now().UnixNano())
+
 	return &proto.SSOChallenge{
+		RequestId:   m.requestID,
 		Device:      sso,
 		RedirectUrl: ssoClientRedirectURL,
 	}, nil
@@ -73,15 +81,15 @@ func (m *mockAuthServer) BeginSSOMFAChallenge(
 // VerifySSOMFASession mocks the verification of an SSO MFA session.
 func (m *mockAuthServer) VerifySSOMFASession(
 	ctx context.Context,
-	username,
-	sessionID,
+	username string,
+	requestID string,
 	token string,
 	_ *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
-	// In a real implementation, we would verify the token here.
-	// For this mock, we simply check if the token matches a magic token that represents a valid session.
-	if token != "valid-token" {
-		return nil, trace.AccessDenied("invalid SSO MFA token")
+	// In this mock, as long as the request ID matches the one generated during challenge initiation, we consider it
+	// valid.
+	if m.requestID != requestID {
+		return nil, trace.AccessDenied("invalid SSO MFA challenge request ID %q", requestID)
 	}
 
 	devices, err := m.Auth().Identity.GetMFADevices(ctx, username, false)
@@ -100,7 +108,7 @@ func (m *mockAuthServer) VerifySSOMFASession(
 	}
 
 	if ssoDevice == nil {
-		return nil, trace.NotFound("SSO MFA device not found %q", sessionID)
+		return nil, trace.NotFound("SSO MFA device not found %q", requestID)
 	}
 
 	return &authz.MFAAuthData{Device: ssoDevice}, nil
