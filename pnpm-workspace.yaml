@@ -35,4 +35,3 @@ shellEmulator: true
 packageImportMethod: clone-or-copy
 # Do not install packages released less than 2 days (2880 minutes) ago
 minimumReleaseAge: 2880
-trustPolicy: no-downgrade
