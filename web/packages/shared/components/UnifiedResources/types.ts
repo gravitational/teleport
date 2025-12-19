@@ -24,6 +24,7 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
+import type { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceLabel } from 'teleport/services/agents';
@@ -88,6 +89,7 @@ export type UnifiedResourceApp = {
   subKind?: AppSubKind;
   permissionSets?: PermissionSet[];
   mcp?: AppMCP;
+  supportedFeatureIds?: ComponentFeatureID[];
 };
 
 export interface UnifiedResourceDatabase {
