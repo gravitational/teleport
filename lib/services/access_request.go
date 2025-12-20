@@ -91,9 +91,27 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	if len(ar.GetResolveReason()) > maxAccessRequestReasonSize {
 		return trace.BadParameter("access request resolve reason is too long, max %v bytes", maxAccessRequestReasonSize)
 	}
-	if l := len(ar.GetRequestedResourceIDs()); l > maxResourcesPerRequest {
+	if l := len(ar.GetAllRequestedResourceIDs()); l > maxResourcesPerRequest {
 		return trace.BadParameter("access request contains too many resources (%v), max %v", l, maxResourcesPerRequest)
 	}
+
+	for _, r := range ar.GetRequestedResourceAccessIDs() {
+		if r.GetConstraints() == nil {
+			continue
+		}
+		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		switch r.GetResourceID().Kind {
+		// For now, only AWS Console apps are supported, but without fetching the backing resource, the most specific we
+		// can do is check for KindApp.
+		case types.KindApp:
+			continue
+		default:
+			return trace.BadParameter("resource kind %q does not support resource constraints", r.GetResourceID().Kind)
+		}
+	}
+
 	return nil
 }
 
@@ -136,12 +154,12 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 
 // NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
-	return NewAccessRequestWithResources(user, roles, []types.ResourceID{})
+	return NewAccessRequestWithResources(user, roles, []types.ResourceAccessID{})
 }
 
 // NewAccessRequestWithResources assembles an AccessRequest resource with
 // requested resources.
-func NewAccessRequestWithResources(user string, roles []string, resourceIDs []types.ResourceID) (types.AccessRequest, error) {
+func NewAccessRequestWithResources(user string, roles []string, resourceIDs []types.ResourceAccessID) (types.AccessRequest, error) {
 	req, err := types.NewAccessRequestWithResources(uuid.New().String(), user, roles, resourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -229,7 +247,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 
 	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
-		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, req.Login)
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -240,7 +258,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		if req.FilterRequestableRolesByResource {
 			resourceIDs = req.ResourceIDs
 		}
-		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, resourceIDs, req.Login)
+		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, types.ResourceIDsToResourceAccessIDs(resourceIDs), req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -264,15 +282,17 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 
 // PruneMappedSearchAsRoles calculates the roles required to access the given
 // resources based on the supplied set of `search_as` roles.
-func PruneMappedSearchAsRoles(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, mappedUser UserState, mappedSearchAsRoles []string, resources []types.ResourceID, loginHint string) ([]string, error) {
+func PruneMappedSearchAsRoles(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, mappedUser UserState, mappedSearchAsRoles []string, resourceAccessIDs []types.ResourceAccessID, loginHint string) ([]string, error) {
 	clusterNameResource, err := getter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	localClusterName := clusterNameResource.GetClusterName()
 
-	hasRemoteResources := slices.ContainsFunc(resources,
-		func(rID types.ResourceID) bool { return rID.ClusterName != localClusterName })
+	hasRemoteResources := slices.ContainsFunc(resourceAccessIDs,
+		func(rID types.ResourceAccessID) bool {
+			return rID.GetResourceID().ClusterName != localClusterName
+		})
 	if hasRemoteResources {
 		return nil, trace.BadParameter("request must only contain resources in local cluster")
 	}
@@ -282,7 +302,7 @@ func PruneMappedSearchAsRoles(ctx context.Context, clock clockwork.Clock, getter
 		return nil, trace.Wrap(err)
 	}
 
-	roles, err := rv.pruneResourceRequestRoles(ctx, resources, loginHint, mappedSearchAsRoles)
+	roles, err := rv.pruneResourceRequestRoles(ctx, resourceAccessIDs, loginHint, mappedSearchAsRoles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -328,7 +348,7 @@ func (m *RequestValidator) allowedSearchAsRoles() ([]string, error) {
 // applicable for the given list of resourceIDs.
 //
 // If loginHint is provided, it will attempt to prune the list to a single role.
-func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceAccessIDs []types.ResourceAccessID, loginHint string) ([]string, error) {
 	rolesToRequest, err := m.allowedSearchAsRoles()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -336,7 +356,7 @@ func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resource
 
 	// Prune the list of roles to request to only those which may be necessary
 	// to access the requested resources.
-	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceIDs, loginHint, rolesToRequest)
+	rolesToRequest, err = m.pruneResourceRequestRoles(ctx, resourceAccessIDs, loginHint, rolesToRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1060,11 +1080,11 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 	return nil
 }
 
-// requestValidator a helper for validating access requests.
-// a user's statically assigned roles are "added" to the
+// RequestValidator is a helper for validating access requests.
+// A user's statically assigned roles are "added" to the
 // validator via the push() method, which extracts all the
 // relevant rules, performs variable substitutions, and builds
-// a set of simple Allow/Deny datastructures.  These, in turn,
+// a set of simple Allow/Deny datastructures. These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
 	logger    *slog.Logger
@@ -1236,9 +1256,11 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		ReasonMode: types.RequestReasonModeOptional,
 	}
 
+	allRequestedResources := req.GetAllRequestedResourceIDs()
+
 	// populate the custom reason prompts: both from global prompts (spec.options.request_prompt) and
 	// from role/resource specific prompts (spec.allow.request.reason.prompt)
-	if err := m.populateCustomReasonPrompts(ctx, req.GetRoles(), req.GetRequestedResourceIDs()); err != nil {
+	if err := m.populateCustomReasonPrompts(ctx, req.GetRoles(), allRequestedResources); err != nil {
 		return trace.Wrap(err)
 	}
 	// retain a deterministic order of reason prompts
@@ -1248,7 +1270,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 	switch {
 	// for dry-run, store the reason requirement in the enrichment data
 	case req.GetDryRun():
-		required, _, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
+		required, _, err := m.isReasonRequired(ctx, req.GetRoles(), allRequestedResources)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1257,7 +1279,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 		}
 	// for no dry-run and no reason provided, fail if the reason is required
 	case len(strings.TrimSpace(req.GetRequestReason())) == 0:
-		required, explanation, err := m.isReasonRequired(ctx, req.GetRoles(), req.GetRequestedResourceIDs())
+		required, explanation, err := m.isReasonRequired(ctx, req.GetRoles(), allRequestedResources)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1272,7 +1294,7 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 
 	// verify that all requested roles are permissible
 	for _, roleName := range req.GetRoles() {
-		if len(req.GetRequestedResourceIDs()) > 0 {
+		if len(allRequestedResources) > 0 {
 			if !m.canSearchAsRole(roleName) {
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
@@ -1287,10 +1309,10 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 	}
 
 	// Verify that each requested role allows requesting every requested kube resource kind.
-	if len(req.GetRequestedResourceIDs()) > 0 && len(req.GetRoles()) > 0 {
+	if len(allRequestedResources) > 0 && len(req.GetRoles()) > 0 {
 		// If there were pruned roles, then the request will be rejected.
 		// A pruned role meant that role did not allow requesting to all of requested kube resource.
-		prunedRoles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(req.GetRequestedResourceIDs(), req.GetRoles())
+		prunedRoles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(allRequestedResources, req.GetRoles())
 		if len(prunedRoles) != len(req.GetRoles()) {
 			return getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, true /* requestedRoles */)
 		}
@@ -1299,25 +1321,13 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 
 	if m.opts.expandVars {
 		// deduplicate requested resource IDs
-		var deduplicated []types.ResourceID
-		seen := make(map[string]struct{})
-		resourcesLen := 0
-		for _, resource := range req.GetRequestedResourceIDs() {
-			id := types.ResourceIDToString(resource)
-			if _, isDuplicate := seen[id]; isDuplicate {
-				continue
-			}
-			seen[id] = struct{}{}
-			deduplicated = append(deduplicated, resource)
-			resourcesLen += len(id)
-		}
-		req.SetRequestedResourceIDs(deduplicated)
+		deduplicateRequestedResources(req)
 
 		// In addition to capping the maximum number of resources in a single request,
 		// we also need to ensure that the sum of the resource IDs in the request doesn't
 		// get too big.
-		if resourcesLen > maxResourcesLength {
-			return trace.BadParameter("access request exceeds maximum length: try reducing the number of resources in the request")
+		if err := validateRequestedResourcesLength(req); err != nil {
+			return trace.Wrap(err)
 		}
 
 		// determine the roles which should be requested for a resource access
@@ -1420,13 +1430,73 @@ func (m *RequestValidator) validate(ctx context.Context, req types.AccessRequest
 	return nil
 }
 
+// validateRequestedResourcesLength checks the sum length of requested resources when serialized
+// against the maximum allowed length.
+func validateRequestedResourcesLength(req types.AccessRequest) error {
+	resourcesLen := 0
+
+	requestedResourceAccessIDs := req.GetRequestedResourceAccessIDs()
+	requestedResourceIDs := req.GetRequestedResourceIDs()
+
+	if len(requestedResourceAccessIDs) > 0 {
+		str, err := types.ResourceAccessIDsToString(requestedResourceAccessIDs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resourcesLen += len(str)
+	}
+
+	if len(requestedResourceIDs) > 0 {
+		str, err := types.ResourceIDsToString(requestedResourceIDs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resourcesLen += len(str)
+	}
+
+	if resourcesLen > maxResourcesLength {
+		return trace.BadParameter("access request exceeds maximum length: try reducing the number of resources in the request")
+	}
+
+	return nil
+}
+
+// deduplicateRequestedResources deduplicates both requestedResourceIDs and requestedResourceAccessIDs,
+// ensuring there are no duplicate entries in either or across both.
+func deduplicateRequestedResources(req types.AccessRequest) {
+	var deduplicatedResourceIDs []types.ResourceID
+	var deduplicatedResourceAccessIDs []types.ResourceAccessID
+	seen := make(map[string]struct{})
+
+	// first deduplicate requestedResourceAccessIDs so resources carrying constraints take precedence
+	for _, pair := range req.GetRequestedResourceAccessIDs() {
+		idStr := types.ResourceIDToString(pair.Id)
+		if _, isDuplicate := seen[idStr]; isDuplicate {
+			continue
+		}
+		seen[idStr] = struct{}{}
+		deduplicatedResourceAccessIDs = append(deduplicatedResourceAccessIDs, pair)
+	}
+	for _, resource := range req.GetRequestedResourceIDs() {
+		idStr := types.ResourceIDToString(resource)
+		if _, isDuplicate := seen[idStr]; isDuplicate {
+			continue
+		}
+		seen[idStr] = struct{}{}
+		deduplicatedResourceIDs = append(deduplicatedResourceIDs, resource)
+	}
+
+	req.SetRequestedResourceIDs(deduplicatedResourceIDs)
+	req.SetRequestedResourceAccessIDs(deduplicatedResourceAccessIDs)
+}
+
 // isReasonRequired checks if the reason is required for the given roles and resource IDs.
-func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) (required bool, explanation string, err error) {
+func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles []string, requestedResourceAccessIDs []types.ResourceAccessID) (required bool, explanation string, err error) {
 	if v.requireReasonForAllRoles {
 		return true, "request reason must be specified (required request_access option in one of the roles)", nil
 	}
 
-	allApplicableRoles, err := v.getAllApplicableRoles(ctx, requestedRoles, requestedResourceIDs)
+	allApplicableRoles, err := v.getAllApplicableRoles(ctx, requestedRoles, requestedResourceAccessIDs)
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
@@ -1440,8 +1510,8 @@ func (v *RequestValidator) isReasonRequired(ctx context.Context, requestedRoles 
 	return false, "", nil
 }
 
-func (v *RequestValidator) populateCustomReasonPrompts(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) error {
-	allApplicableRoles, err := v.getAllApplicableRoles(ctx, requestedRoles, requestedResourceIDs)
+func (v *RequestValidator) populateCustomReasonPrompts(ctx context.Context, requestedRoles []string, requestedResourceAccessIDs []types.ResourceAccessID) error {
+	allApplicableRoles, err := v.getAllApplicableRoles(ctx, requestedRoles, requestedResourceAccessIDs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1457,11 +1527,11 @@ func (v *RequestValidator) populateCustomReasonPrompts(ctx context.Context, requ
 }
 
 // getAllApplicableRoles returns the combined roles for the given roles and resource IDs (search_as_roles)
-func (v *RequestValidator) getAllApplicableRoles(ctx context.Context, requestedRoles []string, requestedResourceIDs []types.ResourceID) (allApplicableRoles []string, err error) {
+func (v *RequestValidator) getAllApplicableRoles(ctx context.Context, requestedRoles []string, requestedResourceAccessIDs []types.ResourceAccessID) (allApplicableRoles []string, err error) {
 	allApplicableRoles = requestedRoles
-	if len(requestedResourceIDs) > 0 {
+	if len(requestedResourceAccessIDs) > 0 {
 		// Do not provide loginHint. We want all matching search_as_roles for those resources.
-		roles, err := v.applicableSearchAsRoles(ctx, requestedResourceIDs, "")
+		roles, err := v.applicableSearchAsRoles(ctx, requestedResourceAccessIDs, "")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1642,16 +1712,18 @@ func (m *RequestValidator) getResourceViewingRoles() []string {
 // when checking against a known role list. If resource IDs or a login hints
 // are provided, roles will be filtered to only include those that would
 // allow access to the given resource with the given login.
-func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tlsca.Identity, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tlsca.Identity, resourceAccessIDs []types.ResourceAccessID, loginHint string) ([]string, error) {
 	allRoles, err := m.getter.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
+	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, types.ExtractResourceIDs(resourceAccessIDs))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	allowedResourceIDs := types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs)
 
 	cluster, err := m.getter.GetClusterName(ctx)
 	if err != nil {
@@ -1661,15 +1733,15 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		Roles:              m.getResourceViewingRoles(),
 		Traits:             m.userState.GetTraits(),
 		Username:           m.userState.GetName(),
-		AllowedResourceIDs: identity.AllowedResourceIDs,
+		AllowedResourceIDs: allowedResourceIDs,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Filter out resources the user requested but doesn't have access to.
-	filteredResources := make([]types.ResourceWithLabels, 0, len(resources))
-	for _, resource := range resources {
+	filteredResources := make([]types.ResourceWithLabels, 0, len(underlyingResources))
+	for _, resource := range underlyingResources {
 		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
 			filteredResources = append(filteredResources, resource)
 		}
@@ -1684,7 +1756,27 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 
 		roleAllowsAccess := true
 		for _, resource := range filteredResources {
-			access, err := m.roleAllowsResource(role, resource, loginHint)
+			var extraMatchers []RoleMatcher
+
+			// TODO(kiosion): This feels really bad / not deterministic. Should return some kind of bi-directional mapping from 'getUnderlyingResourcesByResourceIDs';
+			// for any provided resourceID there should always either be a returned underlying resource, or, an err.
+			for _, raid := range resourceAccessIDs {
+				if rid := raid.GetResourceID(); rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
+					continue
+				}
+				if c := raid.GetConstraints(); c != nil {
+					rm, err := MatcherFromConstraints(raid.GetConstraints())
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					if rm != nil {
+						extraMatchers = append(extraMatchers, rm)
+					}
+					break
+				}
+			}
+
+			access, err := m.roleAllowsResource(role, resource, loginHint, extraMatchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1839,7 +1931,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		// to be search-based resource requests.
 		return nil
 	}
-	if len(req.GetRequestedResourceIDs()) == 0 {
+	if len(req.GetAllRequestedResourceIDs()) == 0 {
 		// This is not a resource request.
 		return nil
 	}
@@ -1848,7 +1940,7 @@ func (m *RequestValidator) setRolesForResourceRequest(ctx context.Context, req t
 		return nil
 	}
 
-	rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetRequestedResourceIDs(), req.GetLoginHint())
+	rolesToRequest, err := m.applicableSearchAsRoles(ctx, req.GetAllRequestedResourceIDs(), req.GetLoginHint())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1880,10 +1972,11 @@ func requestResourcesToStrings(resources, denied []types.RequestKubernetesResour
 //
 // Returns pruned roles, and a map of requested roles with allowed kinds (with denied applied), used to help aid user in case a request gets rejected,
 // lets user know which kinds are allowed for each requested roles.
-func (m *RequestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceIDs []types.ResourceID, requestedRoles []string) ([]string, map[string][]string) {
+func (m *RequestValidator) pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs []types.ResourceAccessID, requestedRoles []string) ([]string, map[string][]string) {
 	// Filter for the kube_cluster and its subresource kinds.
 	requestedKubeKinds := map[gk]struct{}{}
-	for _, resourceID := range requestedResourceIDs {
+	for _, resource := range requestedResourceAccessIDs {
+		resourceID := resource.GetResourceID()
 		if resourceID.Kind == types.KindKubernetesCluster {
 			requestedKubeKinds[gk{kind: types.KindKubernetesCluster}] = struct{}{}
 		} else if slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || strings.HasPrefix(resourceID.Kind, types.AccessRequestPrefixKindKube) {
@@ -2108,7 +2201,7 @@ type annotationMatcher struct {
 // - req is a resource access request and one of [m.resourceRequestMatchers] matches one of the requested roles
 func (m *annotationMatcher) matchesRequest(req types.AccessRequest) bool {
 	matchers := m.roleRequestMatchers
-	if len(req.GetRequestedResourceIDs()) > 0 {
+	if len(req.GetAllRequestedResourceIDs()) > 0 {
 		matchers = m.resourceRequestMatchers
 	}
 	for _, matcher := range matchers {
@@ -2322,16 +2415,16 @@ func getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds ma
 // If loginHint is provided, it will attempt to prune the list to a single role.
 func (m *RequestValidator) pruneResourceRequestRoles(
 	ctx context.Context,
-	resourceIDs []types.ResourceID,
+	requestedResourceAccessIDs []types.ResourceAccessID,
 	loginHint string,
 	roles []string,
 ) ([]string, error) {
-	if len(resourceIDs) == 0 {
+	if len(requestedResourceAccessIDs) == 0 {
 		// This is not a resource request, nothing to do
 		return roles, nil
 	}
 
-	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(resourceIDs, roles)
+	roles, mappedRequestedRolesToAllowedKinds := m.pruneRequestedRolesNotMatchingKubernetesResourceKinds(requestedResourceAccessIDs, roles)
 	if len(roles) == 0 { // all roles got pruned from not matching every kube requested kind.
 		return nil, getInvalidKubeKindAccessRequestsError(mappedRequestedRolesToAllowedKinds, false /* requestedRoles */)
 	}
@@ -2342,7 +2435,8 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	}
 	localClusterName := clusterNameResource.GetClusterName()
 
-	for _, resourceID := range resourceIDs {
+	for _, resource := range requestedResourceAccessIDs {
+		resourceID := resource.GetResourceID()
 		if resourceID.ClusterName != localClusterName {
 			rbacLogger.LogAttrs(ctx, logutils.TraceLevel, `Requested resource is in a foreign cluster, unable to prune roles - All available "search_as_roles" will be requested`,
 				slog.Any("requested_resources", types.ResourceIDToString(resourceID)),
@@ -2356,19 +2450,31 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := m.getUnderlyingResourcesByResourceIDs(ctx, resourceIDs)
+	requestedResourceIDs := types.ExtractResourceIDs(requestedResourceAccessIDs)
+	underlyingResources, err := m.getUnderlyingResourcesByResourceIDs(ctx, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	necessaryRoles := make(map[string]struct{})
-	for _, resource := range resources {
+	for _, resource := range underlyingResources {
+		var constraints *types.ResourceConstraints
+		for _, r := range requestedResourceAccessIDs {
+			if rid := r.GetResourceID(); rid.Kind != resource.GetKind() || rid.Name != resource.GetName() {
+				continue
+			}
+			if c := r.GetConstraints(); c != nil {
+				constraints = c
+				break
+			}
+		}
+
 		var (
 			rolesForResource    []types.Role
 			matchers            []RoleMatcher
 			kubeResourceMatcher *KubeResourcesMatcher
 		)
-		kubernetesResources, err := getKubeResourcesFromResourceIDs(resourceIDs, resource.GetName())
+		kubernetesResources, err := getKubeResourcesFromResourceIDs(requestedResourceIDs, resource.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2382,6 +2488,14 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
 		case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
+		}
+
+		// If ResourceConstraints were provided for this Resource, wrap existing matchers.
+		if constraints != nil {
+			guard := WithConstraints(constraints)
+			for i := range matchers {
+				matchers[i] = guard(matchers[i])
+			}
 		}
 
 		for _, role := range allRoles {
@@ -2400,7 +2514,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		// we deny the request because the user is trying to request more access
 		// than what is allowed by its search_as_roles.
 		if kubeResourceMatcher != nil && len(kubeResourceMatcher.Unmatched()) > 0 {
-			resourcesStr, err := types.ResourceIDsToString(resourceIDs)
+			resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2422,7 +2536,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	}
 
 	if len(necessaryRoles) == 0 {
-		resourcesStr, err := types.ResourceIDsToString(resourceIDs)
+		resourcesStr, err := types.ResourceIDsToString(requestedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

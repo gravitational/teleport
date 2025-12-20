@@ -18,7 +18,14 @@
 
 package componentfeatures
 
-import componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+import (
+	"context"
+	"log/slog"
+
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+)
 
 // New creates a new [componentfeaturesv1.ComponentFeatures] struct containing the provided FeatureIDs.
 func New(features ...FeatureID) *componentfeaturesv1.ComponentFeatures {
@@ -136,4 +143,55 @@ func ToIntegers(features *componentfeaturesv1.ComponentFeatures) []int {
 	}
 
 	return out
+}
+
+type AuthProxyServersLister interface {
+	GetProxies() ([]types.Server, error)
+	GetAuthServers() ([]types.Server, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+}
+
+// GetClusterAuthProxyServerFeatures fetches all Auth and Proxy servers in the cluster and returns
+// the intersectioin of their supported ComponentFeatures.
+func GetClusterAuthProxyServerFeatures(ctx context.Context, clt AuthProxyServersLister, logger *slog.Logger) *componentfeaturesv1.ComponentFeatures {
+	features := make([]*componentfeaturesv1.ComponentFeatures, 0)
+
+	allProxies, err := clientutils.CollectWithFallback(
+		ctx,
+		clt.ListProxyServers,
+		func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
+			return clt.GetProxies()
+		},
+	)
+	if err != nil {
+		// If we fail to get proxies & can't be sure about feature support,
+		// intersecting on `nil` ensures any intersection of ComponentFeatures will be empty.
+		logger.ErrorContext(ctx, "Failed to get proxy servers to collect ComponentFeatures", "error", err)
+		features = append(features, nil)
+	} else {
+		for _, srv := range allProxies {
+			features = append(features, srv.GetComponentFeatures())
+		}
+	}
+
+	allAuthServers, err := clientutils.CollectWithFallback(
+		ctx,
+		clt.ListAuthServers,
+		func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
+			return clt.GetAuthServers()
+		},
+	)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to get auth servers to collect ComponentFeatures", "error", err)
+		features = append(features, nil)
+	} else {
+		for _, srv := range allAuthServers {
+			features = append(features, srv.GetComponentFeatures())
+		}
+	}
+
+	return Intersect(features...)
 }

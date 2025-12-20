@@ -1717,7 +1717,7 @@ func (c *kubeLoginCommand) accessRequestForKubeCluster(ctx context.Context, cf *
 	switch cf.RequestMode {
 	case accessRequestModeResource, "":
 		// Roles to request will be automatically determined on the backend.
-		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+		req, err = services.NewAccessRequestWithResources(tc.Username, nil /* roles */, types.ResourceIDsToResourceAccessIDs(requestResourceIDs))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
