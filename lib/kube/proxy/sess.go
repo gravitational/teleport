@@ -460,6 +460,26 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	namespace := params.ByName("podNamespace")
 	podName := params.ByName("podName")
 	container := q.Get("container")
+
+	recorder, err := recorder.New(recorder.Config{
+		SessionID:    tsession.ID(id.String()),
+		ServerID:     forwarder.cfg.HostID,
+		Namespace:    forwarder.cfg.Namespace,
+		Clock:        forwarder.cfg.Clock,
+		ClusterName:  forwarder.cfg.ClusterName,
+		RecordingCfg: ctx.recordingConfig,
+		SyncStreamer: forwarder.cfg.AuthClient,
+		DataDir:      forwarder.cfg.DataDir,
+		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		// Session stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context: forwarder.ctx,
+	})
+	if err != nil {
+		streamContextCancel()
+		return nil, trace.Wrap(err)
+	}
+
 	s := &session{
 		podName:                        podName,
 		podNamespace:                   namespace,
@@ -489,11 +509,11 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		partiesWg:                      sync.WaitGroup{},
 		// if session ever starts, emitter and recorder will be replaced
 		// by actual emitter and recorder.
-		emitter: events.NewDiscardEmitter(),
-		recorder: events.WithNoOpPreparer(
-			events.NewDiscardRecorder(),
-		),
+		emitter:  forwarder.cfg.Emitter,
+		recorder: recorder,
 	}
+
+	s.io.AddWriter(sessionRecorderID, recorder)
 
 	s.io.OnWriteError = s.disconnectPartyOnErr
 	s.io.OnReadError = s.disconnectPartyOnErr
@@ -762,7 +782,6 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var err error
 	s.started = true
 	sessionStart := s.forwarder.cfg.Clock.Now().UTC()
 
@@ -919,29 +938,6 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 			s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to set up session end event - event will not be recorded", "error", err)
 		}
 	}
-
-	recorder, err := recorder.New(recorder.Config{
-		SessionID:    tsession.ID(s.id.String()),
-		ServerID:     s.forwarder.cfg.HostID,
-		Namespace:    s.forwarder.cfg.Namespace,
-		Clock:        s.forwarder.cfg.Clock,
-		ClusterName:  s.forwarder.cfg.ClusterName,
-		RecordingCfg: s.ctx.recordingConfig,
-		SyncStreamer: s.forwarder.cfg.AuthClient,
-		DataDir:      s.forwarder.cfg.DataDir,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
-		// Session stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context: s.forwarder.ctx,
-	})
-	if err != nil {
-		return onFinish, trace.Wrap(err)
-	}
-
-	s.recorder = recorder
-	s.emitter = s.forwarder.cfg.Emitter
-
-	s.io.AddWriter(sessionRecorderID, recorder)
 
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.PresenceEnabled {
@@ -1220,7 +1216,7 @@ func (s *session) prepareAndEmitEvent(evt apievents.AuditEvent) {
 		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to prepare event - event will not be recorded into session recording.", "error", err, "event_type", evt.GetType())
 	}
 
-	// Alqyays emit the event to the audit log, even if preparing
+	// Always emit the event to the audit log, even if preparing
 	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, evt); err != nil {
 		s.forwarder.log.WarnContext(s.forwarder.ctx, "Failed to emit event to Audit Log.", "error", err, "event_type", evt.GetType())
 	}
@@ -1405,7 +1401,9 @@ func (s *session) Close() error {
 			// wait for events to be emitted before closing the recorder/emitter.
 			// If we close it immediately we will lose session.end events.
 			s.weakEventsWaiter.Wait()
-			recorder.Close(s.forwarder.ctx)
+			if err := recorder.Complete(s.forwarder.ctx); err != nil {
+				s.log.ErrorContext(s.forwarder.ctx, "Failed to complete session recorder", "error", err)
+			}
 		}
 	})
 
