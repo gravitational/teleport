@@ -76,11 +76,16 @@ impl RdpDecoder {
 /// when the decoder is no longer needed.
 #[no_mangle]
 pub extern "C" fn rdp_decoder_new(width: u16, height: u16) -> *mut RdpDecoder {
-    match catch_unwind(AssertUnwindSafe(|| {
+    match catch_unwind(AssertUnwindSafe(move || {
         Box::into_raw(Box::new(RdpDecoder::new(width, height)))
     })) {
         Ok(ptr) => ptr,
-        Err(_) => ptr::null_mut(),
+        Err(e) => {
+            catch_unwind(AssertUnwindSafe(move || std::mem::drop(e)))
+                .map_err(|_e| std::process::abort())
+                .unwrap();
+            ptr::null_mut()
+        }
     }
 }
 
@@ -94,7 +99,7 @@ pub unsafe extern "C" fn rdp_decoder_free(ptr: *mut RdpDecoder) {
     if ptr.is_null() {
         return;
     }
-    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
         let _ = Box::from_raw(ptr);
     }));
 }
@@ -113,7 +118,7 @@ pub unsafe extern "C" fn rdp_decoder_resize(ptr: *mut RdpDecoder, width: u16, he
     if ptr.is_null() {
         return;
     }
-    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
         decoder.resize(width, height);
     }));
@@ -132,7 +137,7 @@ pub unsafe extern "C" fn rdp_decoder_process(ptr: *mut RdpDecoder, data: *const 
     if ptr.is_null() || data.is_null() || len == 0 {
         return;
     }
-    let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
+    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
         let slice = std::slice::from_raw_parts(data, len);
         decoder.process(slice);
@@ -157,7 +162,7 @@ pub unsafe extern "C" fn rdp_decoder_image_data(
         return ptr::null();
     }
 
-    match catch_unwind(AssertUnwindSafe(|| unsafe {
+    match catch_unwind(AssertUnwindSafe(move || unsafe {
         let decoder = &*ptr;
         let data = decoder.image_data();
         if !out_len.is_null() {

@@ -30,10 +30,15 @@ package decoder
 #cgo darwin LDFLAGS: -lrdp_decoder
 
 #cgo nocallback rdp_decoder_new
+#cgo noescape rdp_decoder_new
 #cgo nocallback rdp_decoder_free
+#cgo noescape rdp_decoder_free
 #cgo nocallback rdp_decoder_resize
+#cgo noescape rdp_decoder_resize
 #cgo nocallback rdp_decoder_process
+#cgo noescape rdp_decoder_process
 #cgo nocallback rdp_decoder_image_data
+#cgo noescape rdp_decoder_image_data
 
 #include <stdint.h>
 
@@ -77,7 +82,7 @@ func New(width, height uint16) (*Decoder, error) {
 	}, nil
 }
 
-func (d *Decoder) Free() {
+func (d *Decoder) Release() {
 	if d.ptr == nil {
 		return
 	}
@@ -102,7 +107,7 @@ func (d *Decoder) Process(frame []byte) {
 	}
 
 	data := unsafe.SliceData(frame)
-	C.rdp_decoder_process(d.ptr, (*C.uint8_t)(unsafe.Pointer(data)), C.size_t(len(frame)))
+	C.rdp_decoder_process(d.ptr, (*C.uint8_t)(data), C.size_t(len(frame)))
 }
 
 // Image produces an RGBA image for the current state of the screen.
@@ -128,7 +133,7 @@ func (d *Decoder) Image() *image.RGBA {
 	rgba := image.NewRGBA(image.Rect(0, 0, w, h))
 
 	// Copy from the Rust-owned memory into Go memory.
-	copy(rgba.Pix, unsafe.Slice((*uint8)(unsafe.Pointer(data)), outLen))
+	copy(rgba.Pix, unsafe.Slice((*uint8)(data), outLen))
 
 	return rgba
 }
