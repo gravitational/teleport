@@ -19,9 +19,10 @@
 import { useEffect, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonIcon, Flex, Label, Text } from 'design';
+import { Box, ButtonIcon, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
 import { Tags, Warning } from 'design/Icon';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -50,6 +51,8 @@ export function ResourceListItem({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
+  visibleInputFields = { pin: true, checkbox: true },
+  resourceLabelConfig,
 }: ResourceItemProps) {
   const {
     name,
@@ -102,28 +105,40 @@ export function ResourceListItem({
         selected={selected}
         shouldDisplayWarning={shouldDisplayStatusWarning}
         showingStatusInfo={showingStatusInfo}
+        hideCheckbox={!visibleInputFields.checkbox}
+        hidePin={!visibleInputFields.pin}
       >
         {/* checkbox */}
-        <HoverTooltip
-          css={`
-            grid-area: checkbox;
-          `}
-          tipContent={selected ? 'Deselect' : 'Select'}
-        >
-          <CheckboxInput checked={selected} onChange={selectResource} />
-        </HoverTooltip>
+        {visibleInputFields.checkbox && (
+          <HoverTooltip
+            css={`
+              grid-area: checkbox;
+            `}
+            tipContent={selected ? 'Deselect' : 'Select'}
+          >
+            <CheckboxInput
+              checked={selected}
+              onChange={selectResource}
+              css={`
+                grid-area: checkbox;
+              `}
+            />
+          </HoverTooltip>
+        )}
 
         {/* pin button */}
-        <PinButton
-          setPinned={pinResource}
-          pinned={pinned}
-          pinningSupport={pinningSupport}
-          hovered={hovered}
-          css={`
-            grid-area: pin;
-            place-self: center center;
-          `}
-        />
+        {visibleInputFields.pin && (
+          <PinButton
+            setPinned={pinResource}
+            pinned={pinned}
+            pinningSupport={pinningSupport}
+            hovered={hovered}
+            css={`
+              grid-area: pin;
+              place-self: center center;
+            `}
+          />
+        )}
 
         {/* icon */}
         <ResourceIcon
@@ -272,12 +287,12 @@ export function ResourceListItem({
           >
             {labels.map((label, i) => {
               const labelText = makeLabelTag(label);
-              // We can use the index i as the key since it will always be unique to this label.
               return (
-                <Label
+                <LabelButtonWithIcon
                   key={i}
                   title={labelText}
                   onClick={() => onLabelClick?.(label)}
+                  withHoverState={!!onLabelClick}
                   kind="secondary"
                   mr={2}
                   css={`
@@ -289,9 +304,10 @@ export function ResourceListItem({
                     text-overflow: ellipsis;
                     white-space: nowrap;
                   `}
+                  {...resourceLabelConfig}
                 >
                   {labelText}
-                </Label>
+                </LabelButtonWithIcon>
               );
             })}
           </Box>
@@ -354,12 +370,8 @@ const RowContainer = styled(Box)<{
 
 const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
   display: grid;
-  grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
   column-gap: ${props => props.theme.space[3]}px;
   grid-template-rows: 56px min-content;
-  grid-template-areas:
-    'checkbox pin icon name type address labels-btn warning-icon button'
-    '. . labels labels labels labels labels labels labels';
   align-items: center;
   height: 100%;
   min-width: 100%;
@@ -375,6 +387,33 @@ const RowInnerContainer = styled(Flex)<BackgroundColorProps>`
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     border-bottom: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
   }
+
+  grid-template-columns: 22px 24px 36px 2fr 1fr 1fr 32px min-content;
+  grid-template-areas:
+    'checkbox pin icon name type address labels-btn warning-icon button'
+    '. . labels labels labels labels labels labels labels';
+
+  ${p =>
+    p.hideCheckbox &&
+    `grid-template-columns: 24px 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'pin icon name type address labels-btn warning-icon button'
+    '. labels labels labels labels labels labels labels';`}
+
+  ${p =>
+    p.hidePin &&
+    `grid-template-columns: 22px 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'checkbox icon name type address labels-btn warning-icon button'
+    '. labels labels labels labels labels labels labels';`}
+
+  ${p =>
+    p.hideCheckbox &&
+    p.hidePin &&
+    `grid-template-columns: 36px 2fr 1fr 1fr 32px min-content;
+    grid-template-areas:
+    'icon name type address labels-btn warning-icon button'
+    'labels labels labels labels labels labels labels';`}
 `;
 
 const Name = styled(Text)`

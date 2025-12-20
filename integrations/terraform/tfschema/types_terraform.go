@@ -3910,10 +3910,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.",
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.",
 			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 7)},
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 8)},
 		},
 	}}, nil
 }
@@ -4530,6 +4530,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"include_subject": {
+					Description: "IncludeSubject is a flag that indicates whether the Subject element is included in the SAML authentication request. Defaults to false. Note: Some IdPs will reject requests that contain a Subject.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},
 				"issuer": {
 					Computed:      true,
@@ -45278,6 +45283,23 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["include_subject"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.IncludeSubject"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.IncludeSubject", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.IncludeSubject = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -46566,6 +46588,28 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 								c.Unknown = false
 								tf.Attrs["user_matchers"] = c
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["include_subject"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.IncludeSubject"})
+						} else {
+							v, ok := tf.Attrs["include_subject"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.IncludeSubject", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.IncludeSubject", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.IncludeSubject) == false
+							}
+							v.Value = bool(obj.IncludeSubject)
+							v.Unknown = false
+							tf.Attrs["include_subject"] = v
 						}
 					}
 				}

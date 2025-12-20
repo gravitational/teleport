@@ -179,6 +179,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/certreloader"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -1373,11 +1374,18 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
 		}
 
-		if upgraderKind == types.UpgraderKindTeleportUpdate {
+		if upgraderKind == types.UpgraderKindTeleportUpdate ||
+			upgraderKind == types.UpgraderKindKubeController {
 			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, hostID)
+			// If the config file is not present for Kubernetes upgraders, do not set the updater info.
+			// This ensures that older chart versions maintain the same behavior when used with newer Teleport.
+			if errors.Is(err, autoupdate.ErrConfigNotFound) &&
+				upgraderKind == types.UpgraderKindKubeController {
+				return hello, nil
+			}
 			if err != nil {
-				// Failing to detect teleport-update info is not fatal, we continue.
-				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				// Failing to detect updater info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering updater status, this might affect automatic update tracking and progress.", "error", err)
 				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 			}
 			hello.UpdaterInfo = info
@@ -3140,7 +3148,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt authclient.ClientI, ca
 	return authclient.NewProxyWrapper(clt, cache), nil
 }
 
-func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.ReadRelayAccessPoint, error) {
+func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, cacheName []string) (authclient.RelayAccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
@@ -3151,7 +3159,7 @@ func (process *TeleportProcess) newLocalCacheForRelay(clt authclient.ClientI, ca
 		return nil, trace.Wrap(err)
 	}
 
-	return cache, nil
+	return authclient.NewRelayWrapper(clt, cache), nil
 }
 
 // newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
@@ -3435,6 +3443,7 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.AdvertiseIP,
 			process.proxyPublicAddr(),
 			conn.Client,
+			regular.SetChildLogConfig(cfg),
 			regular.SetUUID(conn.HostUUID()),
 			regular.SetScope(conn.Scope()),
 			regular.SetLimiter(limiter),
@@ -5513,6 +5522,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		"",
 		process.proxyPublicAddr(),
 		conn.Client,
+		regular.SetChildLogConfig(cfg),
 		regular.SetUUID(conn.HostUUID()),
 		regular.SetLimiter(proxyLimiter),
 		regular.SetProxyMode(peerAddrString, tsrv, accessPoint, proxyRouter),
@@ -5540,13 +5550,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:   clusterName,
-		AccessPoint:   accessPoint,
-		LockWatcher:   lockWatcher,
-		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-		PermitCaching: process.Config.CachePolicy.Enabled,
-	})
+	authorizerOpts := authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      accessPoint,
+		ScopedRoleReader: accessPoint.ScopedRoleReader(),
+		LockWatcher:      lockWatcher,
+		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+		PermitCaching:    process.Config.CachePolicy.Enabled,
+	}
+
+	authorizer, err := authz.NewAuthorizer(authorizerOpts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authorizerOpts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -5586,6 +5604,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		TransportCredentials: credentials.NewTLS(sshGRPCTLSConfig),
 		UserGetter:           authMiddleware,
 		Authorizer:           authorizer,
+		ScopedAuthorizer:     scopedAuthorizer,
 		GetAuthPreference:    accessPoint.GetAuthPreference,
 	})
 	if err != nil {
@@ -5621,8 +5640,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
-			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
+		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+			}
+
+			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
+				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
+				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
+			}
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -6169,10 +6195,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
-		certReloader := NewCertReloader(CertReloaderConfig{
+		certReloader := certreloader.New(certreloader.Config{
 			KeyPairs:               process.Config.Proxy.KeyPairs,
 			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
-		})
+		}, slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy), "name", "proxytls"), nil)
 		if err := certReloader.Run(process.ExitContext()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6513,7 +6539,7 @@ func (process *TeleportProcess) initApps() {
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(accessPoint, app)
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7048,7 +7074,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7057,7 +7083,7 @@ func getPublicAddr(authClient authclient.ReadAppsAccessPoint, a servicecfg.App) 
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
 			if err == nil {
 				return publicAddr, nil
 			}

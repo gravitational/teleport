@@ -587,6 +587,140 @@ func TestCompare(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.rel, Compare(tt.lhs, tt.rhs), "Compare(%q, %q)", tt.lhs, tt.rhs)
+
+			// verify that NormalizeForEquality produces equivalent equality results *except* in the case of two empty scopes,
+			// which are considered orthogonal by Compare but will end up being equal when normalized.
+			if tt.rel == Equivalent || (tt.lhs == "" && tt.rhs == "") {
+				require.Equal(t, NormalizeForEquality(tt.lhs), NormalizeForEquality(tt.rhs), "expected NormalizeForEquality(%q) == NormalizeForEquality(%q)", tt.lhs, tt.rhs)
+			} else {
+				require.NotEqual(t, NormalizeForEquality(tt.lhs), NormalizeForEquality(tt.rhs), "expected NormalizeForEquality(%q) != NormalizeForEquality(%q)", tt.lhs, tt.rhs)
+			}
+		})
+	}
+}
+
+func TestNormalizeForEquality(t *testing.T) {
+	tts := []struct {
+		name   string
+		scope  string
+		expect string
+	}{
+		{
+			name:   "root",
+			scope:  "/",
+			expect: "/",
+		},
+		{
+			name:   "dangling separator",
+			scope:  "/aa/bb/cc/",
+			expect: "/aa/bb/cc",
+		},
+		{
+			name:   "missing prefix",
+			scope:  "aa/bb/cc",
+			expect: "/aa/bb/cc",
+		},
+		{
+			name:   "both missing prefix and dangling separator",
+			scope:  "aa/bb/cc/",
+			expect: "/aa/bb/cc",
+		},
+		{
+			name:   "normal scope",
+			scope:  "/aa/bb/cc",
+			expect: "/aa/bb/cc",
+		},
+		{
+			name:   "empty scope",
+			scope:  "",
+			expect: "",
+		},
+		{
+			name:   "empty segment",
+			scope:  "/aa//bb/cc/",
+			expect: "/aa//bb/cc",
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expect, NormalizeForEquality(tt.scope), "NormalizeForEquality(%q)", tt.scope)
+		})
+	}
+}
+
+// Test Sort verifies that the Sort function produces the expected ordering for various scopes.
+func TestSort(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name        string
+		scopes      []string
+		expected    []string
+		lexographic bool
+	}{
+		{
+			name:        "basic hierarchy",
+			scopes:      []string{"/aa/bb", "/aa", "/", "/aa/bb/cc"},
+			expected:    []string{"/", "/aa", "/aa/bb", "/aa/bb/cc"},
+			lexographic: true,
+		},
+		{
+			name:        "basic non-lexographic",
+			scopes:      []string{"/aa-bb", "/aa", "/", "/aa/bb", "/aa/bb-cc"},
+			expected:    []string{"/", "/aa", "/aa/bb", "/aa/bb-cc", "/aa-bb"},
+			lexographic: false,
+		},
+		{
+			name:        "empty",
+			scopes:      []string{},
+			expected:    []string{},
+			lexographic: true,
+		},
+		{
+			name:        "single element",
+			scopes:      []string{"/aa/bb/cc"},
+			expected:    []string{"/aa/bb/cc"},
+			lexographic: true,
+		},
+		{
+			name:        "missing prefixes",
+			scopes:      []string{"/aa/bb/cc", "aa/bb", "/aa", "/", "xx/yy", "/xx/yy"},
+			expected:    []string{"/", "/aa", "aa/bb", "/aa/bb/cc", "xx/yy", "/xx/yy"},
+			lexographic: false,
+		},
+		{
+			name:        "dangling suffixes",
+			scopes:      []string{"/aa/bb/cc/", "/aa/", "/"},
+			expected:    []string{"/", "/aa/", "/aa/bb/cc/"},
+			lexographic: true,
+		},
+		{
+			name:        "prefix and suffix do not affect ordering of equivalents",
+			scopes:      []string{"xx/yy", "/aa/bb/", "/xx/yy", "/aa/bb", "/aa/bb/", "xx/yy"},
+			expected:    []string{"/aa/bb/", "/aa/bb", "/aa/bb/", "xx/yy", "/xx/yy", "xx/yy"},
+			lexographic: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			sorted := make([]string, len(tt.scopes))
+			copy(sorted, tt.scopes)
+
+			slices.SortFunc(sorted, Sort)
+
+			require.Equal(t, tt.expected, sorted, "expected scope sort")
+
+			lex := make([]string, len(tt.scopes))
+			copy(lex, tt.scopes)
+			slices.Sort(lex)
+
+			if tt.lexographic {
+				require.Equal(t, lex, sorted, "scope sort is expected to match lexographic sort")
+			} else {
+				require.NotEqual(t, lex, sorted, "scope sort is expected to differ from lexographic sort")
+			}
 		})
 	}
 }

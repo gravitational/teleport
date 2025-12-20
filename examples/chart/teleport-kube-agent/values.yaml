@@ -179,7 +179,7 @@ apps: []
 #
 # <Admonition type="tip" title="Example">
 # Once `appResources` is set, you can dynamically register application with
-# `tsh` by following [the Dynamic App Registration guide](../../enroll-resources/application-access/guides/dynamic-registration.mdx).
+# `tsh` by following [the Dynamic App Registration guide](../../enroll-resources/application-access/configuration/dynamic-registration.mdx).
 # </Admonition>
 appResources: []
 
@@ -199,7 +199,7 @@ clusterDomain: "cluster.local"
 # awsDatabases(list) -- configures AWS database auto-discovery.
 #
 # <Admonition type="note" title="IAM roles">
-#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-aws-databases/rds/mysql-postgres-mariadb.mdx#step-36-create-iam-policies-for-teleport).
+#   For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx#step-36-create-iam-policies-for-teleport).
 #   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 #
 #   ```yaml
@@ -239,7 +239,7 @@ awsDatabases: []
 
 # azureDatabases(list) -- configures Azure database auto-discovery.
 # <Admonition type="note" title="Azure IAM">
-#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enroll-azure-databases/azure-postgres-mysql.mdx#step-25-configure-iam-permissions-for-teleport).
+#   For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../enroll-resources/database-access/enrollment/azure/azure-postgres-mysql.mdx#step-25-configure-iam-permissions-for-teleport).
 #
 #   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
 #   The easiest way is to use an Azure client secret.
@@ -671,7 +671,7 @@ updater:
   releaseChannel: "stable/cloud"
 
   # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
-  # When unset, the group defaults to `update.releaseChannel`.
+  # When unset, the group defaults to `default`.
   group: ""
 
   # updater.image(string) -- sets the container image used for Teleport updater
@@ -947,7 +947,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 # By default, the image contains only the Teleport application and its runtime
 # dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `true`.
-# When running an enterprise version, you must use [`image`](#image) instead.
+# When running an OSS version, you must use [`image`](#image) instead.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 
 # imagePullSecrets(list) -- is a list of secrets containing authorization tokens

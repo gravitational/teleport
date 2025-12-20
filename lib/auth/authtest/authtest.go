@@ -213,6 +213,14 @@ func (a *Server) ClusterName() string {
 	return a.TLS.ClusterName()
 }
 
+// Close stops this server immediately.
+func (a *Server) Close() error {
+	return trace.NewAggregate(
+		a.TLS.Close(),
+		a.AuthServer.Close(),
+	)
+}
+
 // Shutdown stops this server instance gracefully
 func (a *Server) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(

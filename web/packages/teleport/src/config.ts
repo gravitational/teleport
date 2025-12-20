@@ -502,6 +502,7 @@ const cfg = {
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
       delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      genWizardCiCd: '/v1/webapi/sites/:clusterId/machine-id/wizards/ci-cd',
     },
 
     botInstance: {
@@ -687,8 +688,18 @@ const cfg = {
     return searchString ? `${path}?${searchString}` : path;
   },
 
-  getSsoUrl(providerUrl, providerName, redirect) {
-    return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
+  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+    loginHint = loginHint === '' ? undefined : loginHint;
+    let basePath =
+      cfg.baseUrl +
+      generatePath(providerUrl, { redirect, providerName, loginHint });
+
+    if (!loginHint) {
+      const url = new URL(basePath);
+      url.searchParams.delete('login_hint', '');
+      basePath = url.toString();
+    }
+    return basePath;
   },
 
   getAuditRoute(clusterId: string) {
@@ -1702,7 +1713,7 @@ const cfg = {
 
   getBotUrl(
     req: (
-      | { action: 'list' | 'create' }
+      | { action: 'list' | 'create' | 'gen-wizard-cicd' }
       | {
           action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
           botName: string;
@@ -1743,6 +1754,10 @@ const cfg = {
         return generatePath(cfg.api.bot.delete, {
           clusterId,
           botName: req.botName,
+        });
+      case 'gen-wizard-cicd':
+        return generatePath(cfg.api.bot.genWizardCiCd, {
+          clusterId,
         });
       default:
         req satisfies never;

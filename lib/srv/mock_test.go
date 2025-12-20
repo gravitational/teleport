@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -106,6 +107,9 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	scx.cmdr, scx.cmdw, err = os.Pipe()
 	require.NoError(t, err)
 
+	_, scx.logw, err = os.Pipe()
+	require.NoError(t, err)
+
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
 
@@ -172,6 +176,7 @@ func newMockServer(t *testing.T) *mockServer {
 
 type mockServer struct {
 	*eventstest.MockRecorderEmitter
+	info      types.Server
 	datadir   string
 	auth      *auth.Server
 	component string
@@ -234,8 +239,18 @@ func (m *mockServer) GetClock() clockwork.Clock {
 	return clockwork.NewRealClock()
 }
 
+// setInfo overrides the default result of [mockServer.GetInfo]. Necessary in order to
+// correctly test the behavior of local node rbac that expects specific server attributes.
+func (m *mockServer) setInfo(server types.Server) {
+	m.info = server
+}
+
 // GetInfo returns a services.Server that represents this server.
 func (m *mockServer) GetInfo() types.Server {
+	if m.info != nil {
+		return m.info
+	}
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -317,6 +332,16 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 // GetSELinuxEnabled
 func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
+		ExecLogConfig: ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // Implementation of ssh.Conn interface.

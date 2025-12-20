@@ -96,7 +96,7 @@ func (s *TerraformSuiteOSS) TestRole() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
 					resource.TestCheckNoResourceAttr(name, "spec.options"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "anonymous"),
 				),
 			},
@@ -119,7 +119,7 @@ func (s *TerraformSuiteOSS) TestRole() {
 					resource.TestCheckResourceAttr(name, "spec.allow.node_labels.example.0", "yes"),
 					resource.TestCheckResourceAttr(name, "spec.allow.node_labels.example.1", "no"),
 
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 				),
 			},
 			{
@@ -263,7 +263,7 @@ func (s *TerraformSuiteOSS) TestRoleLoginsSplitBrain() {
 				Config: s.getFixture("role_drift_0.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "one"),
 				),
 			},
@@ -287,7 +287,7 @@ func (s *TerraformSuiteOSS) TestRoleLoginsSplitBrain() {
 				Config: s.getFixture("role_drift_0.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "one"),
 				),
 			},
@@ -332,6 +332,16 @@ func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 			Namespace: types.Wildcard,
 			Name:      types.Wildcard,
 			Verbs:     []string{types.Wildcard},
+		},
+	}
+
+	defaultV8Wildcard := []types.KubernetesResource{
+		{
+			Kind:      types.Wildcard,
+			Namespace: types.Wildcard,
+			Name:      types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+			APIGroup:  types.Wildcard,
 		},
 	}
 
@@ -442,6 +452,19 @@ func (s *TerraformSuiteOSS) TestRoleVersionUpgrade() {
 				Config:   s.getFixture("role_upgrade_v7.tf"),
 				PlanOnly: true,
 			},
+			{
+				Config: s.getFixture("role_upgrade_v8.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "role"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
+					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "onev8"),
+					checkRoleResource(types.V8, defaultV8Wildcard),
+				),
+			},
+			{
+				Config:   s.getFixture("role_upgrade_v8.tf"),
+				PlanOnly: true,
+			},
 		},
 	})
 }
@@ -451,34 +474,82 @@ func (s *TerraformSuiteOSS) TestRoleWithKubernetesResources() {
 	s.T().Cleanup(cancel)
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetRole(ctx, "upgrade")
-		if trace.IsNotFound(err) {
-			return nil
+		_, err := s.client.GetRole(ctx, "kube_resources_v6")
+		if err != nil && !trace.IsNotFound(err) {
+			return err
 		}
-
-		return err
+		_, err = s.client.GetRole(ctx, "kube_resources_v7")
+		if err != nil && !trace.IsNotFound(err) {
+			return err
+		}
+		_, err = s.client.GetRole(ctx, "kube_resources_v8")
+		if err != nil && !trace.IsNotFound(err) {
+			return err
+		}
+		return nil
 	}
 
-	name := "teleport_role.upgrade"
+	nameV6 := "teleport_role.kube_resources_v6"
+	nameV7 := "teleport_role.kube_resources_v7"
+	nameV8 := "teleport_role.kube_resources_v8"
 
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		CheckDestroy:             checkDestroyed,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("role_with_kube_resources.tf"),
+				Config: s.getFixture("role_with_kube_resources_v6.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v6"),
-					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "onev6"),
-					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "pod"),
-					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.name", "*"),
-					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.namespace", "myns"),
-					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.verbs.0", "*"),
+					resource.TestCheckResourceAttr(nameV6, "kind", "role"),
+					resource.TestCheckResourceAttr(nameV6, "version", "v6"),
+					resource.TestCheckResourceAttr(nameV6, "spec.allow.logins.0", "onev6"),
+					resource.TestCheckResourceAttr(nameV6, "spec.allow.kubernetes_resources.0.kind", "pod"),
+					resource.TestCheckResourceAttr(nameV6, "spec.allow.kubernetes_resources.0.name", "*"),
+					resource.TestCheckResourceAttr(nameV6, "spec.allow.kubernetes_resources.0.namespace", "myns"),
+					resource.TestCheckResourceAttr(nameV6, "spec.allow.kubernetes_resources.0.verbs.0", "*"),
 				),
 			},
 			{
-				Config:   s.getFixture("role_with_kube_resources.tf"),
+				Config:   s.getFixture("role_with_kube_resources_v6.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("role_with_kube_resources_v7.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(nameV7, "kind", "role"),
+					resource.TestCheckResourceAttr(nameV7, "version", "v7"),
+					resource.TestCheckResourceAttr(nameV7, "spec.allow.logins.0", "onev7"),
+					resource.TestCheckResourceAttr(nameV7, "spec.allow.kubernetes_resources.0.kind", "deployment"),
+					resource.TestCheckResourceAttr(nameV7, "spec.allow.kubernetes_resources.0.name", "*"),
+					resource.TestCheckResourceAttr(nameV7, "spec.allow.kubernetes_resources.0.namespace", "myns"),
+					resource.TestCheckResourceAttr(nameV7, "spec.allow.kubernetes_resources.0.verbs.0", "get"),
+				),
+			},
+			{
+				Config:   s.getFixture("role_with_kube_resources_v7.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("role_with_kube_resources_v8.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(nameV8, "kind", "role"),
+					resource.TestCheckResourceAttr(nameV8, "version", "v8"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.logins.0", "onev8"),
+
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.0.kind", "pods"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.0.name", "*"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.0.namespace", "myns"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.0.verbs.0", "get"),
+
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.1.kind", "deployments"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.1.api_group", "apps"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.1.name", "*"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.1.namespace", "myns"),
+					resource.TestCheckResourceAttr(nameV8, "spec.allow.kubernetes_resources.1.verbs.0", "get"),
+				),
+			},
+			{
+				Config:   s.getFixture("role_with_kube_resources_v8.tf"),
 				PlanOnly: true,
 			},
 		},
@@ -508,9 +579,9 @@ func (s *TerraformSuiteOSS) TestRoleWithKubernetesVerbs() {
 				Config: s.getFixture("role_with_kube_verbs.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "role"),
-					resource.TestCheckResourceAttr(name, "version", "v7"),
-					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "onev6"),
-					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "pod"),
+					resource.TestCheckResourceAttr(name, "version", "v8"),
+					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "onev8"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "pods"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.name", "*"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.namespace", "myns"),
 					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.verbs.0", "get"),

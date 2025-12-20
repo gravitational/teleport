@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -96,6 +97,9 @@ type AccessPoint interface {
 
 	// Semaphores provides semaphore operations
 	types.Semaphores
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 
 	// GetClusterName returns cluster name
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
@@ -195,6 +199,18 @@ type Server interface {
 
 	// EventMetadata returns [events.ServerMetadata] for this server.
 	EventMetadata() apievents.ServerMetadata
+
+	// ChildLogConfig returns the log configuration for handling logs from
+	// child processes.
+	ChildLogConfig() ChildLogConfig
+}
+
+// ChildLogConfig is the log configuration for handling logs from child processes.
+type ChildLogConfig struct {
+	ExecLogConfig
+
+	// Writer is the output writer to use for the logger. May be nil.
+	Writer io.Writer
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -399,6 +415,9 @@ type ServerContext struct {
 	cmdr *os.File
 	cmdw *os.File
 
+	// logw is used to send logs from the child process to the parent process.
+	logw *os.File
+
 	// cont{r,w} is used to send the continue signal from the parent process
 	// to the child process.
 	contr *os.File
@@ -585,6 +604,34 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.killShellr)
 	child.AddCloser(child.killShellw)
 
+	// If the log writer is a file, we can pass it directly to the child
+	// process to write to. Otherwise, we need to create a pipe to the child
+	// process and stream the logs to the log writer.
+	logCfg := child.srv.ChildLogConfig()
+	if fileWriter, ok := logCfg.Writer.(*os.File); ok {
+		child.logw = fileWriter
+	} else {
+		// Create a pipe so we can pass the writing side as an *os.File to the child process.
+		// Then we can copy from the reading side to the log writer (e.g. syslog, log file w/ concurrency protection).
+		r, w, err := os.Pipe()
+		if err != nil {
+			childErr := child.Close()
+			return nil, trace.NewAggregate(err, childErr)
+		}
+
+		child.logw = w
+		child.AddCloser(r)
+		child.AddCloser(w)
+
+		// Copy logs from the child process to the parent process over
+		// the pipe until it is closed by the child context.
+		go func() {
+			if _, err := io.Copy(logCfg.Writer, r); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+				slog.ErrorContext(child.CancelContext(), "Failed to copy logs over pipe", "error", err)
+			}
+		}()
+	}
+
 	return child, nil
 }
 
@@ -766,7 +813,10 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	}
 
 	// ensure moderated session policies allow starting an unattended session
-	policySets := c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	var policySets []*types.SessionTrackerPolicySet
+	if c.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = c.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
 	checker := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, c.Identity.TeleportUser)
 	canStart, _, err := checker.FulfilledFor(nil)
 	if err != nil {
@@ -1105,6 +1155,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
+		LogConfig:             c.srv.ChildLogConfig().ExecLogConfig,
 		Command:               command,
 		DestinationAddress:    c.DstAddr,
 		Username:              c.Identity.TeleportUser,
