@@ -38,6 +38,7 @@ import {
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
+  Key,
 } from 'design/Icon';
 import { LabelKind } from 'design/LabelState/LabelState';
 import { TeleportGearIcon } from 'design/SVGIcon';
@@ -49,9 +50,11 @@ import {
   AccessRequestReview,
   AccessRequestReviewer,
   canAssumeNow,
+  hasResourceConstraints,
   RequestKind,
   RequestState,
   Resource,
+  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
 import type {
@@ -62,7 +65,10 @@ import {
   getAssumeStartTimeTooltipText,
   PromotedMessage,
 } from '../../Shared/Shared';
-import { getFormattedDurationTxt } from '../../Shared/utils';
+import {
+  formatAWSRoleARNForDisplay,
+  getFormattedDurationTxt,
+} from '../../Shared/utils';
 import { formattedName } from '../formattedName';
 import { RequestDelete } from './RequestDelete';
 import RequestReview from './RequestReview';
@@ -449,6 +455,42 @@ export function Timestamp({
   );
 }
 
+const AWSConstraintChip = ({ label }: { label: string }) => {
+  return (
+    <Flex
+      flexDirection="row"
+      justifyContent="center"
+      alignItems="center"
+      gap={2}
+      px={3}
+      py={2}
+      backgroundColor={'spotBackground.0'}
+      borderRadius="999px"
+      title={label}
+    >
+      <Key size="small" />
+      <Text typography="body3">{formatAWSRoleARNForDisplay(label)}</Text>
+    </Flex>
+  );
+};
+
+const AwsConsoleConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'aws_console', R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>Role ARNs</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.aws_console.role_arns.map(arn => (
+          <AWSConstraintChip key={arn} label={arn} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
 function Comment({
   author,
   comment,
@@ -460,6 +502,34 @@ function Comment({
   createdDuration: string;
   resources?: Resource[];
 }) {
+  const data = resources?.map(resource => ({
+    ...resource.id,
+    ...resource.details,
+    name: resource.details?.friendlyName || formattedName(resource),
+    constraints: 'constraints' in resource ? resource.constraints : undefined,
+  }));
+
+  const renderConstraints = (r: (typeof data)[number]) => {
+    if (hasResourceConstraints(r, 'aws_console')) {
+      return <AwsConsoleConstraintsList resource={r} />;
+    }
+    return null;
+  };
+
+  const renderAfter = (r: (typeof data)[number]) => {
+    if (r.constraints) {
+      return (
+        <tr style={{ borderTop: 'none' }}>
+          <td colSpan={3}>
+            <Flex flexDirection="column" gap={1} mt={-2}>
+              {renderConstraints(r)}
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+  };
+
   return (
     <Box
       border="1px solid"
@@ -488,11 +558,8 @@ function Comment({
           bg="levels.elevated"
         >
           <StyledTable
-            data={resources.map(resource => ({
-              ...resource.id,
-              ...resource.details,
-              name: resource.details?.friendlyName || formattedName(resource),
-            }))}
+            data={data}
+            row={{ renderAfter }}
             columns={[
               {
                 key: 'clusterName',

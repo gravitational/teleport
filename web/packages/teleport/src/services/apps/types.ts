@@ -18,6 +18,7 @@
 
 import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
+import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 import { ResourceLabel } from 'teleport/services/agents';
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
@@ -87,6 +88,11 @@ export interface App {
    * mcp contains MCP server specific configurations.
    */
   mcp?: AppMCP;
+  /**
+   * supportedFeatureIds contains component feature IDs supported by
+   * both the App and all required back-end components.
+   */
+  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export type UserGroupAndDescription = {
@@ -123,6 +129,7 @@ export type PermissionSet = {
    * eg: 1234--AdministratorAccess
    */
   assignmentId: string;
+  requiresRequest?: boolean;
 };
 
 /**
