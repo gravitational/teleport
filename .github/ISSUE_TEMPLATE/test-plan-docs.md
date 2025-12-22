@@ -81,22 +81,21 @@ version of Teleport.
     changes introduced by the release. If not, plan to update the docs ASAP and
     notify all relevant teams of the delay.
 
-- [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date. Each
-  version of the docs (i.e., each `gravitational/teleport` release branch shown
-  on the docs website) must include a `CHANGELOG.md` file in which the most
-  recent major version is the one that corresponds to its release branch. 
+- [ ] Verify that the [changelog](../../CHANGELOG.md) is up to date. 
 
-  On `master`, edit `CHANGELOG.md` to include a heading for the next major
-  version. We can add notes for features in development under this heading on
-  `master`.
+  - [ ] Each `gravitational/teleport` release branch (`branch/v[0-9]+`) shown on
+    the docs website must include a `CHANGELOG.md` file in which all release
+    notes correspond to the major version of the release branch. For example, on
+    `branch/v18`, all release notes must be for v18.
 
-  For example, if we cut `branch/v20` from `master`, the `CHANGELOG.md` on
-  `branch/v20` must include `v20` release notes at the top. `master` must begin
-  with a heading for `v21` development notes, e.g.:
+  - [ ] On the `master` branch of `gravitational/teleport`, the `CHANGELOG.md`
+    must include release notes from all versions of Teleport, including those on
+    the release branches shown on the docs site.
 
-  ```markdown
-  ## 21.0.0 (xx/xx/xx)
-  ```
+  - [ ] On `master`, edit `CHANGELOG.md` to include a heading for the next major
+    version in the format `## <MAJOR>.0.0 (xx/xx/xx)`, e.g., `## 19.0.0
+    (xx/xx/xx)` for v19. We can add notes for features in development under this
+    heading on `master`.
 
 - [ ] Verify the accuracy of critical docs pages. Follow the docs guides below
   and verify their accuracy while using the newly released major version of
@@ -124,12 +123,6 @@ version of Teleport to Teleport Enterprise (Cloud) customers.
   `"deprecated": true` assigned and the newly rolled out version has
   `"isDefault" true`. Remove the `"isDefault": true` assignment from the
   previous version.
-
-- [ ] Copy the changelog from the previous default branch to the new one:
-
-  ```bash
-  $ git checkout origin/branch/v<release_version> -- CHANGELOG.md
-  ```
 
 - [ ] Verify that the [Upcoming Releases
   Page](../../docs/pages/upcoming-releases.mdx) only exists for the major
