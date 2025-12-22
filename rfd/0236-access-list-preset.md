@@ -266,12 +266,13 @@ The flow is kept in the proxy rather than adding a dedicated access list gRPC en
 
 This two-phase approach keeps role orchestration in the proxy layer while ensuring atomicity. The Access List preset feature is a strict UX/UI flow not supported by CLI or Terraform, as it can be abstracted via a Terraform module with automatic role creation. Terraform manages partial state and allows destroy/retry operations on failure, whereas the frontend flow must be atomic to avoid partial backend state and complex rollback mechanisms.
 
-
 #### Deleting access lists created with a preset
 
 The same [existing endpoint](https://github.com/gravitational/teleport/blob/e26f1f01a0a2433ae104f01ada73a1bf9b935963/api/proto/teleport/accesslist/v1/accesslist_service.proto#L43) will be used to delete an access list with a preset.
 
 In the web UI after an access list has successfully deleted, a popup dialogue will render letting users know that they can optionally delete the roles related to the deleted access list. A row of related roles will be rendered, with a delete button for each row.
+
+Since deleting a role that is used (e.g. a role assigned in another role) can lock a user out with "role not found" error, a warning banner will also be rendered on the delete dialogue to let users know that it is their responsibility to ensure that the roles that they are about to delete is unused.
 
 ### Optimization Consideration
 
