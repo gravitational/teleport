@@ -411,6 +411,11 @@ func (f *fakeSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID
 	return args.Error(0)
 }
 
+func (f *fakeSummarizer) GenerateEmbeddings(ctx context.Context, text string) ([]float64, error) {
+	args := f.Called(ctx, text)
+	return args.Get(0).([]float64), args.Error(1)
+}
+
 func newServiceAuthCtx() authz.Context {
 	return authz.Context{
 		Identity: authz.BuiltinRole{
