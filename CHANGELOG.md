@@ -17,6 +17,9 @@ Teleport now ships with a new guided flow for setting up GitHub Actions workflow
 * Fixed issue where AltGr key combinations did not work correctly in remote desktop sessions. [#62198](https://github.com/gravitational/teleport/pull/62198)
 * Added `annotations` support for `teleport-plugin-event-handler` helm chart. [#62188](https://github.com/gravitational/teleport/pull/62188)
 * Added a new global configuration section auth_connection_config allowing users to configure the backoff behavior for Proxy and Agent instances connecting to the Auth Service. [#62139](https://github.com/gravitational/teleport/pull/62139)
+* Fixed a potential SSRF vulnerability in the Azure join method implementation. [#62406](https://github.com/gravitational/teleport/pull/62406)
+* Support for v8 roles has been added to the Terraform provider. [#62380](https://github.com/gravitational/teleport/pull/62380)
+* Added support for selecting Kube agents as Managed Updates v2 canaries. Important: the default update group is corrected to "default" from "stable/cloud". [#62211](https://github.com/gravitational/teleport/pull/62211)
 
 ## 18.5.1 (12/12/25)
 
