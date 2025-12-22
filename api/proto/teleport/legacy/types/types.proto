@@ -2741,6 +2741,16 @@ message AuthPreferenceSpecV2 {
   // StableUnixUserConfig contains the cluster-wide configuration for stable
   // UNIX users.
   StableUNIXUserConfig stable_unix_user_config = 22;
+
+  // AllowBrowserMFA enables/disables browser support.
+  // Browser authentication requires Webauthn to work.
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowBrowserMFA = 23 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_browser_mfa,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 // StableUNIXUserConfig contains the cluster-wide configuration for stable UNIX
