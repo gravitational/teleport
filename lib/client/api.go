@@ -369,6 +369,9 @@ type Config struct {
 	// PreferSSO prefers SSO in favor of other MFA methods.
 	PreferSSO bool
 
+	// PreferBrowserMFA prefers browser-based Browser MFA in favor of other MFA methods.
+	PreferBrowserMFA bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -4312,7 +4315,7 @@ func (tc *TeleportClient) browserLogin(ctx context.Context, keyRing *KeyRing) (*
 	}
 
 	_ = sso.OpenURLInBrowser(tc.Browser, webUILink)
-	fmt.Fprintf(tc.Stderr, "Complete browser authentication in your local web browser:\n\n%s\n", webUILink)
+	fmt.Fprintf(tc.Stderr, "Complete browser authentication in your web browser:\n\n%s\n", webUILink)
 
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 	if err != nil {

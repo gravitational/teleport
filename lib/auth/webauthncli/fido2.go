@@ -677,7 +677,7 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err, "device locations")
 	}
 	if len(locs) == 0 {
-		return trace.Wrap(errors.New("no security keys found\n\nIf you have MFA setup in the browser, you can use --authbrowser to authenticate via browser"))
+		return trace.Wrap(errors.New("no security keys found"))
 	}
 
 	devices, devicesC, err := startDevices(locs, filter, deviceCallback, prompt)

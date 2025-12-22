@@ -20,13 +20,17 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/types"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
@@ -64,6 +68,7 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 		Writer:           tc.Stderr,
 		PreferOTP:        tc.PreferOTP,
 		PreferSSO:        tc.PreferSSO,
+		PreferBrowserMFA: tc.PreferBrowserMFA,
 		AllowStdinHijack: tc.AllowStdinHijack,
 		StdinFunc:        tc.StdinFunc,
 	})
@@ -103,4 +108,50 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 	}
 
 	return sso.NewCLIMFACeremony(rd), nil
+}
+
+// BrowserMFALogin performs browser-based MFA authentication for per-session MFA.
+// This is an alternative to the challenge-response MFA ceremony and is used when
+// the server supports the Browser MFA.
+// Unlike the ceremony flow, this method returns certificates directly rather than
+// an MFAAuthenticateResponse, as authentication happens out-of-band via the browser.
+func (tc *TeleportClient) BrowserMFALogin(ctx context.Context, keyRing *KeyRing) (*proto.Certs, error) {
+	browserAuthenticationID := services.NewHeadlessAuthenticationID(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
+
+	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", browserAuthenticationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Open the browser and display the URL to the user
+	_ = sso.OpenURLInBrowser(tc.Browser, webUILink)
+	fmt.Fprintf(tc.Stderr, "Complete MFA authentication in your web browser:\n\n%s\n", webUILink)
+
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+			TLSPubKey:         tlsPub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Compatibility:     tc.CertificateFormat,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:                     tc.Username,
+		RemoteAuthenticationType: types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_SESSION,
+		HeadlessAuthenticationID: browserAuthenticationID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.Certs{
+		SSH: response.Cert,
+		TLS: response.TLSCert,
+	}, nil
 }

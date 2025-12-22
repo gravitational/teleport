@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
@@ -521,6 +522,7 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		CertsReq:          certsReq,
 		KeyRing:           keyRing,
 		newUserKeys:       newUserKeys,
+		TeleportClient:    c.tc,
 	}, promptOpts...)
 	return result, trace.Wrap(err)
 }
@@ -710,6 +712,9 @@ type PerformSessionMFACeremonyParams struct {
 	RootAuthClient PerformSessionMFARootClient
 	// MFACeremony handles the MFA ceremony.
 	MFACeremony *mfa.Ceremony
+	// TeleportClient provides access to client configuration and methods like BrowserMFALogin.
+	// Optional, only needed if Browser MFA is available.
+	TeleportClient *TeleportClient
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
@@ -798,6 +803,48 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	if errors.Is(err, &mfa.ErrMFANotRequired) {
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	} else if err != nil {
+		// Check if we should use Browser MFA either because user explicitly requested it
+		// or as a fallback. This respects priority: WebAuthn > SSO > Browser MFA > OTP
+		userPreferredBrowserMFA := errors.Is(err, libmfa.ErrBrowserMFAPreferred)
+
+		teleportClientAvailable := params.TeleportClient != nil
+		if !teleportClientAvailable {
+			return nil, trace.BadParameter("Browser MFA requested but Teleport client isn't available")
+		}
+
+		keyRingAvailable := params.KeyRing != nil
+		if !keyRingAvailable {
+			return nil, trace.BadParameter("Browser MFA requested but Teleport key ring isn't available")
+		}
+
+		// Ping for authentication settings if last ping isn't set
+		if params.TeleportClient.lastPing == nil {
+			params.TeleportClient.Ping(ctx)
+		}
+
+		browserMFAAvailable := params.TeleportClient.lastPing.Auth.AllowBrowserMFA
+
+		if userPreferredBrowserMFA || browserMFAAvailable {
+			if userPreferredBrowserMFA {
+				log.DebugContext(ctx, "User explicitly requested Browser MFA, attempting browser-based authentication")
+			} else {
+				log.DebugContext(ctx, "MFA ceremony failed, attempting Browser MFA as fallback")
+			}
+
+			result, browserErr := performBrowserMFA(ctx, params.TeleportClient, params.KeyRing)
+			if browserErr != nil {
+				if userPreferredBrowserMFA {
+					return nil, trace.Wrap(browserErr, "failed to perform Browser MFA")
+				}
+
+				// If Browser MFA fallback failed, log and return original ceremony error
+				log.DebugContext(ctx, "Browser MFA fallback failed", "error", browserErr)
+				return nil, trace.Wrap(err)
+			}
+
+			return result, nil
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -884,5 +931,21 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		KeyRing:             keyRing,
 		NewCerts:            newCerts,
 		ReusableMFAResponse: reusableMFAResponse,
+	}, nil
+}
+
+// performBrowserMFA attempts to perform Browser MFA authentication and returns the ceremony result.
+func performBrowserMFA(ctx context.Context, tc *TeleportClient, keyRing *KeyRing) (*PerformSessionMFACeremonyResult, error) {
+	certs, err := tc.BrowserMFALogin(ctx, keyRing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyRing.Cert = certs.SSH
+	keyRing.TLSCert = certs.TLS
+
+	return &PerformSessionMFACeremonyResult{
+		KeyRing:  keyRing,
+		NewCerts: certs,
 	}, nil
 }
