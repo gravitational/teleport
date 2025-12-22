@@ -96,7 +96,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	if err != nil {
 		pwd = "."
 	}
-	download.Arg("output-dir", "Directory to download session recordings to.").Default(pwd).StringVar(&c.recordingsDownloadOutputDir)
+	download.Flag("output-dir", "Directory to download session recordings to.").Short('o').Default(pwd).StringVar(&c.recordingsDownloadOutputDir)
 	c.recordingsDownload = download
 
 	if c.recordingsEncryption.stdout == nil {
