@@ -522,7 +522,7 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		CertsReq:          certsReq,
 		KeyRing:           keyRing,
 		newUserKeys:       newUserKeys,
-		TeleportClient:    c.tc,
+		tc:                c.tc,
 	}, promptOpts...)
 	return result, trace.Wrap(err)
 }
@@ -712,9 +712,9 @@ type PerformSessionMFACeremonyParams struct {
 	RootAuthClient PerformSessionMFARootClient
 	// MFACeremony handles the MFA ceremony.
 	MFACeremony *mfa.Ceremony
-	// TeleportClient provides access to client configuration and methods like BrowserMFALogin.
+	// tc provides access to client configuration and methods like BrowserMFALogin.
 	// Optional, only needed if Browser MFA is available.
-	TeleportClient *TeleportClient
+	tc *TeleportClient
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
@@ -807,7 +807,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		// or as a fallback. This respects priority: WebAuthn > SSO > Browser MFA > OTP
 		userPreferredBrowserMFA := errors.Is(err, libmfa.ErrBrowserMFAPreferred)
 
-		teleportClientAvailable := params.TeleportClient != nil
+		teleportClientAvailable := params.tc != nil
 		if !teleportClientAvailable {
 			return nil, trace.BadParameter("Browser MFA requested but Teleport client isn't available")
 		}
@@ -817,12 +817,10 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			return nil, trace.BadParameter("Browser MFA requested but Teleport key ring isn't available")
 		}
 
-		// Ping for authentication settings if last ping isn't set
-		if params.TeleportClient.lastPing == nil {
-			params.TeleportClient.Ping(ctx)
-		}
-
-		browserMFAAvailable := params.TeleportClient.lastPing.Auth.AllowBrowserMFA
+		// Get authentication settings, [Ping] returns cached response if available
+		// TODO: Ask scale team about scaling this call for auth preferences
+		params.tc.Ping(ctx)
+		browserMFAAvailable := params.tc.lastPing.Auth.AllowBrowserMFA
 
 		if userPreferredBrowserMFA || browserMFAAvailable {
 			if userPreferredBrowserMFA {
@@ -831,7 +829,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 				log.DebugContext(ctx, "MFA ceremony failed, attempting Browser MFA as fallback")
 			}
 
-			result, browserErr := performBrowserMFA(ctx, params.TeleportClient, params.KeyRing)
+			result, browserErr := performBrowserMFA(ctx, params.tc, params.KeyRing)
 			if browserErr != nil {
 				if userPreferredBrowserMFA {
 					return nil, trace.Wrap(browserErr, "failed to perform Browser MFA")
