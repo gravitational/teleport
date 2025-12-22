@@ -3862,6 +3862,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
+		RetryLimit:                      10,
 	})
 	if err != nil {
 		return trace.Wrap(err)

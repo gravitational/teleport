@@ -466,6 +466,52 @@ func TestUploadBackoff(t *testing.T) {
 	}
 }
 
+type retryErrorStreamer struct{}
+
+func (e *retryErrorStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+	return nil, trace.Errorf("test error")
+}
+
+func (e *retryErrorStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+	return nil, trace.Errorf("test error")
+}
+
+func TestUploadRetryLimit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		p := newUploaderPack(ctx, t, uploaderPackConfig{
+			clock: clockwork.NewRealClock(),
+			wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
+				return &retryErrorStreamer{}, nil
+			},
+			retryLimit: 1,
+		})
+		// Unset jitter so Duration() calls are consistent.
+		p.uploader.backoff.Jitter = func(d time.Duration) time.Duration { return d }
+
+		synctest.Wait()
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
+		sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+		p.emitEvents(ctx, t, inEvents)
+
+		time.Sleep(p.uploader.backoff.Duration())
+		synctest.Wait()
+		require.FileExists(t, filepath.Join(p.scanDir, sid+".tar"))
+		require.NoFileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar"))
+
+		time.Sleep(p.uploader.backoff.Duration())
+		synctest.Wait()
+		require.FileExists(t, filepath.Join(p.scanDir, sid+".tar"))
+		require.NoFileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar"))
+
+		time.Sleep(p.uploader.backoff.Duration())
+		synctest.Wait()
+		require.NoFileExists(t, filepath.Join(p.scanDir, sid+".tar"))
+		require.FileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar"))
+	})
+}
+
 // TestUploadCorruptSession creates a corrupted session file
 // and makes sure the uploader marks it as faulty and moves it
 // to the corrupted directory
@@ -920,6 +966,7 @@ type uploaderPackConfig struct {
 	encryptedRecordingUploadMaxSize    int
 	clock                              clockwork.Clock
 	concurrentUploads                  int
+	retryLimit                         int
 }
 
 // uploaderPack reduces boilerplate required
@@ -997,6 +1044,7 @@ func newUploaderPack(ctx context.Context, t *testing.T, cfg uploaderPackConfig) 
 		EncryptedRecordingUploadTargetSize: cfg.encryptedRecordingUploadTargetSize,
 		EncryptedRecordingUploadMaxSize:    cfg.encryptedRecordingUploadMaxSize,
 		ConcurrentUploads:                  cfg.concurrentUploads,
+		RetryLimit:                         cfg.retryLimit,
 	}
 	if cfg.wrapEncryptedUploader != nil {
 		uploaderCfg.EncryptedRecordingUploader = cfg.wrapEncryptedUploader(pack.memUploader)

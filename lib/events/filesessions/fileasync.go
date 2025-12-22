@@ -75,6 +75,8 @@ type UploaderConfig struct {
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
+
+	RetryLimit int
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -118,14 +120,26 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err := os.MkdirAll(cfg.CorruptedDir, teleport.SharedDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  cfg.InitialScanDelay,
+		Step:   cfg.ScanPeriod,
+		Max:    cfg.ScanPeriod * 100,
+		Clock:  cfg.Clock,
+		Jitter: retryutils.SeventhJitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	uploader := &Uploader{
-		cfg:           cfg,
-		log:           slog.With(teleport.ComponentKey, cfg.Component),
-		closeC:        make(chan struct{}),
-		semaphore:     make(chan struct{}, cfg.ConcurrentUploads),
-		eventsCh:      make(chan events.UploadEvent, cfg.ConcurrentUploads),
-		eventPreparer: &events.NoOpPreparer{},
+		cfg:            cfg,
+		log:            slog.With(teleport.ComponentKey, cfg.Component),
+		closeC:         make(chan struct{}),
+		semaphore:      make(chan struct{}, cfg.ConcurrentUploads),
+		eventsCh:       make(chan events.UploadEvent, cfg.ConcurrentUploads),
+		eventPreparer:  &events.NoOpPreparer{},
+		backoff:        backoff,
+		uploadAttempts: make(map[string]int),
 	}
 	return uploader, nil
 }
@@ -152,6 +166,9 @@ type Uploader struct {
 	isClosing bool
 
 	eventPreparer *events.NoOpPreparer
+
+	backoff        *retryutils.Linear
+	uploadAttempts map[string]int
 }
 
 func (u *Uploader) Close() {
@@ -207,16 +224,6 @@ func (u *Uploader) Serve(ctx context.Context) error {
 	defer u.wg.Done()
 
 	u.log.InfoContext(ctx, "uploader server ready", "scan_dir", u.cfg.ScanDir, "scan_period", u.cfg.ScanPeriod.String())
-	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  u.cfg.InitialScanDelay,
-		Step:   u.cfg.ScanPeriod,
-		Max:    u.cfg.ScanPeriod * 100,
-		Clock:  u.cfg.Clock,
-		Jitter: retryutils.SeventhJitter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	for {
 		select {
 		case <-u.closeC:
@@ -224,19 +231,21 @@ func (u *Uploader) Serve(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case event := <-u.eventsCh:
+			u.uploadAttempts[event.SessionID]++
 			// Successful and failed upload events are used to speed up and
 			// slow down the scans and uploads.
 			switch {
 			case event.Error == nil:
-				backoff.ResetToDelay()
-			case isSessionError(event.Error):
+				delete(u.uploadAttempts, event.SessionID)
+				u.backoff.ResetToDelay()
+			case isSessionError(event.Error) || (u.cfg.RetryLimit != 0 && u.uploadAttempts[event.SessionID] > u.cfg.RetryLimit):
 				u.log.WarnContext(ctx, "Failed to read session recording, will skip future uploads.", "session_id", event.SessionID)
 				if err := u.writeSessionError(session.ID(event.SessionID), event.Error); err != nil {
 					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
 				}
 			default:
-				backoff.Inc()
-				u.log.WarnContext(ctx, "Increasing session upload backoff due to error, applying backoff before retrying", "backoff", backoff.Duration())
+				u.backoff.Inc()
+				u.log.WarnContext(ctx, "Increasing session upload backoff due to error, applying backoff before retrying", "backoff", u.backoff.Duration())
 			}
 			// forward the event to channel that used in tests
 			if u.cfg.EventsC != nil {
@@ -247,11 +256,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 				}
 			}
 		// Tick at scan period but slow down (and speeds up) on errors.
-		case <-backoff.After():
+		case <-u.backoff.After():
 			if _, err := u.Scan(ctx); err != nil {
 				if !errors.Is(trace.Unwrap(err), errContext) {
-					backoff.Inc()
-					u.log.WarnContext(ctx, "Uploader scan failed, applying backoff before retrying", "backoff", backoff.Duration(), "error", err)
+					u.backoff.Inc()
+					u.log.WarnContext(ctx, "Uploader scan failed, applying backoff before retrying", "backoff", u.backoff.Duration(), "error", err)
 				}
 			}
 		}
