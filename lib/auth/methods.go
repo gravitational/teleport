@@ -820,13 +820,14 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
 			return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 		}
-		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
+
 		switch req.RemoteAuthenticationType {
 		case types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_BROWSER:
 			certReq.ttl = 12 * time.Hour
 		case types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_HEADLESS,
 			types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_SESSION,
 			types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_UNSPECIFIED:
+			certReq.mfaVerified = ha.MfaDevice.Metadata.Name
 			certReq.ttl = time.Minute
 		default:
 			certReq.ttl = time.Minute
