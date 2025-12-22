@@ -19,7 +19,6 @@ import cfg from 'e-teleport/config';
 import { useOktaIntegrationSetUpContext } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/SetUpContext';
 import { FormDataField } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/types';
 import { pluginsService } from 'e-teleport/services/plugins';
-import { getXCSRFToken } from 'teleport/services/api';
 import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 
@@ -138,7 +137,6 @@ export const createOktaPlugin = ({
   orgUrl?: string;
 }) => {
   const formData = new FormData();
-  formData.set('csrf_token', getXCSRFToken());
   formData.set('event_id', eventId);
   formData.set('name', 'okta-default');
   formData.set('type', 'okta');

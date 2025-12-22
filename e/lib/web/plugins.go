@@ -176,24 +176,6 @@ func (p *Plugin) validatePluginConfig(w http.ResponseWriter, r *http.Request, pa
 	return web.OK(), nil
 }
 
-// createPluginHandle expects html form request and
-//   - For OAuth plugins: It
-//   - Sets a cookie with the plugin information and "state" parameter. This parameter will be used later by pluginCallbackHandle.
-//   - Responds with meta redirect. Redirect. Uses "meta" redirect,
-//     since our "form-action" CSP prevents a redirect to an external domain on some browsers. See:
-//     https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action
-//     https://github.com/w3c/webappsec-csp/issues/8
-//   - For non-OAuth plugins: it creates plugin and responds with plugin status.
-func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {
-	pluginType := r.FormValue("type")
-	pd, ok := p.pluginDescriptors[types.PluginType(pluginType)]
-	if !ok {
-		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
-	}
-
-	return pd.HandleInstallRequest(r.Context(), sessCtx, w, r, p)
-}
-
 // installPluginWithStaticAuthCredsHandle expects HTML form request and creates a plugin resource and responds with plugin status.
 // Handles plugins that does not require OAuth.
 func (p *Plugin) installPluginWithStaticAuthCredsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (any, error) {

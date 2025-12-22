@@ -26,7 +26,6 @@ import {
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
-import { isPathNotFoundError } from 'teleport/services/version/unsupported';
 
 import { CleanupDialogue } from './MultiStep/Okta/CleanupDialogue';
 
@@ -125,16 +124,6 @@ export function SubmittablePluginForm({
       try {
         await pluginsService.redirectForPluginOAuth(formData);
       } catch (err) {
-        // TODO(kimlisa): DELETE IN v19.0 (csrf)
-        // Retry request with deprecated behavior, which is to
-        // use browser default form submission event
-        if (isPathNotFoundError(err)) {
-          const form = e.target as HTMLFormElement;
-          // HTMLFormElement.submit() does not run the forms "onsubmit" handler
-          // https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/submit
-          form.submit();
-          return;
-        }
         setAttempt({ status: 'failed', statusText: getErrMessage(err) });
       }
       return;
@@ -213,14 +202,8 @@ export function SubmittablePluginForm({
             />
           )}
           <Validation>
-            {/* A "normal" HTTP form is used here instead of an AJAX request,
-        since the user needs to be redirected to the OAuth provider after submitting. */}
             {({ validator }) => (
-              <form
-                action={cfg.api.plugin.createDeprecated}
-                onSubmit={e => onSubmit(validator, e)}
-                method="POST"
-              >
+              <form onSubmit={e => onSubmit(validator, e)} method="POST">
                 <input
                   type="hidden"
                   name="csrf_token"

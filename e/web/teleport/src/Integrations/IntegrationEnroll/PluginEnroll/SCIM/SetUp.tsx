@@ -36,7 +36,6 @@ import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
 import useTeleportE from 'e-teleport/useTeleportE';
 import { addIndexToViews } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
-import { getXCSRFToken } from 'teleport/services/api';
 import type { Plugin } from 'teleport/services/integrations';
 import { KindAuthConnectors, Resource } from 'teleport/services/resources';
 
@@ -101,7 +100,6 @@ export const SCIMIntegrationSetUp = () => {
   const createIntegration = useMutation({
     mutationFn: (conn: SamlOrOidcConnector) => {
       const formData = new FormData();
-      formData.set('csrf_token', getXCSRFToken());
       formData.set('type', 'scim');
       formData.set(FormDataField.ConnectorName, conn.name);
       formData.set(FormDataField.ConnectorKind, conn.kind);

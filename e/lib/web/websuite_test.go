@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -404,8 +403,6 @@ func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) authcli
 
 type authWebPack struct {
 	clt *TestWebClient
-	// TODO(kimlisa): DELETE IN v19.0 (csrf)
-	csrfToken string
 }
 
 func (s *webSuite) testPassword() string {
@@ -474,22 +471,9 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string, options ...webSuite
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	// TODO(kimlisa): DELETE IN v19.0 (csrf)
-	// remove csrf, and replace jar.SetCookie with:
-	// jar.SetCookies(s.webServerURL, rawSess.Cookies())
-	const csrfToken = "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
-	sessionCookieWithCSRF := append(rawSess.Cookies(), &http.Cookie{
-		Name:  csrf.CookieName,
-		Value: csrfToken,
-	})
-	jar.SetCookies(s.webServerURL, sessionCookieWithCSRF)
-
+	jar.SetCookies(s.webServerURL, rawSess.Cookies())
 	clt = s.client(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
-
-	return &authWebPack{
-		clt:       clt,
-		csrfToken: csrfToken,
-	}
+	return &authWebPack{clt: clt}
 }
 
 type TestWebClient struct {

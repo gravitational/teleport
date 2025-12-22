@@ -61,12 +61,24 @@ func TestRegisterProxyWebHandlers(t *testing.T) {
 
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/releases")
 
-	handlerHasPath(t, h, http.MethodPost, "/enterprise/plugin")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugin")
+	handlerHasPath(t, h, http.MethodPut, "/enterprise/plugin")
+	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugin/:name")
 	handlerHasPath(t, h, http.MethodDelete, "/enterprise/plugin/:name")
 
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugins/types")
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/plugins/oauth/start")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugins/callback/:type")
+
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/plugins/validate")
+	handlerHasPath(t, h, http.MethodGet, "/enterprise/plugins/needscleanup/:type")
+	handlerHasPath(t, h, http.MethodPut, "/enterprise/plugins/cleanup/:type")
+
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/pluginconfig/okta/groups")
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/pluginconfig/okta/apps")
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets")
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/pluginconfig/aws-ic/preview/groups-with-assignments")
+	handlerHasPath(t, h, http.MethodPost, "/enterprise/pluginconfig/aws-ic/preview/permission-sets")
 
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/billing")
 	handlerHasPath(t, h, http.MethodGet, "/enterprise/cloud/billing-summary")
@@ -94,6 +106,7 @@ func TestRegisterProxyWebHandlers(t *testing.T) {
 
 // handlerHasPath asserts that the handler has the given path with the given method.
 func handlerHasPath(t *testing.T, h *web.Handler, method, path string) {
+	t.Helper()
 	handle, _, _ := h.Lookup(method, path)
 	require.NotNil(t, handle, "method: %s, path: %s not found", method, path)
 }

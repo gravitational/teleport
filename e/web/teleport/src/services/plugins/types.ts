@@ -199,7 +199,6 @@ export function pluginTypeToIntegrationEnrollKind(
 export enum PluginConfigBase {
   Name = 'name',
   Type = 'type',
-  CSRFToken = 'csrf_token',
 }
 
 /**

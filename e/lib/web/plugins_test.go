@@ -23,210 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-func TestCreatePlugin_Deprecated(t *testing.T) {
-	t.Parallel()
-
-	s := newWebSuite(t)
-	webPack := s.newAuthWebPack(t, "foo")
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
-	defer func() { testServer.Close() }()
-
-	var testCases = []struct {
-		name         string
-		endpoint     string
-		request      url.Values
-		expectedResp string
-		isOAuth      bool
-		delete       bool
-	}{
-		{
-			name:     "Slack want redirect",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":             {"slack"},
-				"name":             {"test"},
-				"fallback_channel": {"test_fallback_channel"},
-				"csrf_token":       {webPack.csrfToken},
-			},
-			isOAuth:      true,
-			expectedResp: "Teleport Redirection Service",
-		},
-		{
-			name:     "incorrect plugin subType",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":        {"unknown"},
-				"apiEndpoint": {"https://testserver.com"},
-				"csrf_token":  {webPack.csrfToken},
-			},
-			expectedResp: "unknown plugin type",
-		},
-		{
-			name:     "AWS IC plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				awsICPluginNameField:                        {types.PluginTypeAWSIdentityCenter},
-				"type":                                      {types.PluginTypeAWSIdentityCenter},
-				awsICPluginICRegionField:                    {"ca-central-1"},
-				awsICPluginICARNField:                       {"arn:aws:sso:::instance/ssoins-8893885e0d4lllka"},
-				awsICPluginOIDCIntegrationNameField:         {icOIDCIntegrationName},
-				awsICPluginAccessListDefaultOwnersField:     {`["user1", "user2"]`},
-				awsICPluginSAMLServiceProviderNameField:     {types.PluginTypeAWSIdentityCenter},
-				awsICPluginSAMLServiceProviderMetadataField: {newEntityDescriptor("https://example.com", "https://example.com/acs")},
-				awsICPluginSCIMBaseURLField:                 {"https://scim.ca-central-1.amazonaws.com/random-id/scim/v2"},
-				awsICPluginSCIMAccessTokenField:             {"abc123example"},
-				"csrf_token":                                {webPack.csrfToken},
-			},
-			expectedResp: "",
-		},
-		{
-			name:     "Opsgenie plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":         {"opsgenie"},
-				"apiEndpoint":  {testServer.URL},
-				"apiKey":       {"some-api-key"},
-				"scheduleName": {"some-schedule-name"},
-				"csrf_token":   {webPack.csrfToken},
-			},
-			expectedResp: "some-schedule-name",
-		},
-		{
-			name:     "Servicenow plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":        {"servicenow"},
-				"apiEndpoint": {testServer.URL},
-				"username":    {"some-username"},
-				"password":    {"some-password"},
-				"closeCode":   {"some-close-code"},
-				"csrf_token":  {webPack.csrfToken},
-			},
-			expectedResp: "Incidents will be created at",
-		},
-		{
-			name:     "PagerDuty plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":        {"pagerduty"},
-				"apiEndPoint": {"https://www.some-apiendoint.com"},
-				"apiKey":      {"some-api-key"},
-				"email":       {"root@example.com"},
-				"csrf_token":  {webPack.csrfToken},
-			},
-			expectedResp: "root@example.com",
-		},
-		{
-			name:     "Mattermost plugin with only team/channel defined",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":       {"mattermost"},
-				"url":        {"https://www.some-apiendoint.com"},
-				"token":      {"some-token"},
-				"channel":    {"some-channel"},
-				"team":       {"some-team"},
-				"csrf_token": {webPack.csrfToken},
-			},
-			expectedResp: `and to the \"some-channel\" channel from team \"some-team\"`,
-			delete:       true,
-		},
-		{
-			name:     "Mattermost plugin with only email defined",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":       {"mattermost"},
-				"url":        {"https://www.some-apiendoint.com"},
-				"token":      {"some-token"},
-				"email":      {"some-email"},
-				"csrf_token": {webPack.csrfToken},
-			},
-			expectedResp: `and to Mattermost user \"some-email\"`,
-			delete:       true,
-		},
-		{
-			name:     "Mattermost plugin with both team/channel and email defined",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":       {"mattermost"},
-				"url":        {"https://www.some-apiendoint.com"},
-				"token":      {"some-token"},
-				"email":      {"some-email"},
-				"channel":    {"some-channel"},
-				"team":       {"some-team"},
-				"csrf_token": {webPack.csrfToken},
-			},
-			expectedResp: `, to Mattermost user \"some-email\", and to the \"some-channel\" channel from team \"some-team\"`,
-		},
-		{
-			name:     "Datadog plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":              {"datadog"},
-				"apiEndpoint":       {"https://www.some-apiendpoint.com"},
-				"fallbackRecipient": {"root@example.com"},
-				"apiKey":            {"some-api-key"},
-				"applicationKey":    {"some-application-key"},
-				"csrf_token":        {webPack.csrfToken},
-			},
-			expectedResp: `Incidents will be created at \"https://www.some-apiendpoint.com\" and notify \"root@example.com\" recipient`,
-		},
-		{
-			name:     "Email (mailgun) plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":              {"email"},
-				"service":           {"mailgun"},
-				"sender":            {"sender@example.com"},
-				"fallbackRecipient": {"root@example.com"},
-				"domain":            {"sandbox.mailgun.org"},
-				"privateKey":        {"some-private-key"},
-				"csrf_token":        {webPack.csrfToken},
-			},
-			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
-			delete:       true,
-		},
-		{
-			name:     "Email (smtp) plugin",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":              {"email"},
-				"service":           {"smtp"},
-				"sender":            {"sender@example.com"},
-				"fallbackRecipient": {"root@example.com"},
-				"host":              {"smtp.example.com"},
-				"port":              {"587"},
-				"startTLSPolicy":    {"mandatory"},
-				"username":          {"user@example.com"},
-				"password":          {"example-password"},
-				"csrf_token":        {webPack.csrfToken},
-			},
-			expectedResp: `Emails will be sent by \"sender@example.com\" to \"root@example.com\"`,
-			delete:       true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			resp, err := webPack.clt.PostForm(s.ctx, tc.endpoint, tc.request)
-			require.NoError(t, err)
-			if tc.isOAuth {
-				require.True(t, true, cookieExist(resp.Cookies(), "__Host-plugin-params"))
-			}
-
-			if tc.expectedResp != "" {
-				require.Contains(t, string(resp.Bytes()), tc.expectedResp)
-			}
-			if tc.delete {
-				endpoint := webPack.clt.Endpoint("enterprise", "plugin", tc.request["type"][0])
-				_, err := webPack.clt.Delete(s.ctx, endpoint)
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestCreateStaticAuthPluginHandle(t *testing.T) {
 	t.Parallel()
 
@@ -236,26 +32,25 @@ func TestCreateStaticAuthPluginHandle(t *testing.T) {
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {}))
 	defer func() { testServer.Close() }()
 
+	// Plugins like Slack require OAuth and are not compatible with
+	// the /enterprise/plugins/staticauth endpoint.
+	t.Run("IncompatibleOAuthPlugin", func(t *testing.T) {
+		req := url.Values{
+			"type":             {"slack"},
+			"name":             {"test"},
+			"fallback_channel": {"test_fallback_channel"},
+		}
+		resp, err := webPack.clt.PostForm(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "staticauth"), req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusNotImplemented, resp.Code())
+	})
+
 	var testCases = []struct {
 		name         string
 		request      url.Values
 		expectedResp string
 		delete       bool
-		// TODO(kimlisa): DELETE IN v19.0 (csrf)
-		isOAuth bool
 	}{
-		// TODO(kimlisa): DELETE IN v19.0 (csrf):
-		// Replace test with returning an error for oauth required plugins.
-		{
-			name: "Slack want redirect",
-			request: url.Values{
-				"type":             {"slack"},
-				"name":             {"test"},
-				"fallback_channel": {"test_fallback_channel"},
-			},
-			isOAuth:      true,
-			expectedResp: "Teleport Redirection Service",
-		},
 		{
 			name: "incorrect plugin subType",
 			request: url.Values{
@@ -392,9 +187,6 @@ func TestCreateStaticAuthPluginHandle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := webPack.clt.PostForm(s.ctx, webPack.clt.Endpoint("enterprise", "plugins", "staticauth"), tc.request)
 			require.NoError(t, err)
-			if tc.isOAuth {
-				require.True(t, true, cookieExist(resp.Cookies(), "__Host-plugin-params"))
-			}
 
 			if tc.expectedResp != "" {
 				require.Contains(t, string(resp.Bytes()), tc.expectedResp)

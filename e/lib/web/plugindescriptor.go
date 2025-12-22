@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/teleport/lib/web/app"
 )
 
 // pluginDescriptor describes various plugin operations that need individual
@@ -1137,21 +1136,9 @@ func (slackDescriptor) HandleValidateConfigRequest(context.Context, *web.Session
 // HandleInstallRequest kicks off a OAuth2 Code Grant Flow for authorizing
 // access to a slack App.
 //
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// We can't delete this function as it's a part of a interface,
-// instead we need to replace code block with "return trace.NotImplemented("HandleInstallRequest")"
+// Deprecated: use HandleOAuthStart instead.
 func (sd slackDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
-	url, err := sd.setCookieAndCreateAuthnURL(ctx, sessCtx, w, r, p)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = app.MetaRedirect(w, url)
-	if err != nil {
-		p.Logger.WarnContext(ctx, "Failed to issue a redirect", "error", err)
-		return nil, trace.Wrap(err)
-	}
-	return nil, nil
+	return nil, trace.NotImplemented("HandleInstallRequest")
 }
 
 // HandleOAuthStart sets required cookie and returns a redirect URL that will start a

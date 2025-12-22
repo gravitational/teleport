@@ -23,7 +23,6 @@ import {
   PluginConfigBase,
 } from 'e-teleport/services/plugins/types';
 import { StyledBox } from 'teleport/Discover/Shared';
-import { getXCSRFToken } from 'teleport/services/api';
 import {
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
@@ -85,7 +84,6 @@ export function AwsIcConfigureScim() {
     });
     formData.set(PluginConfigAwsIc.ScimBaseURL, baseUrl.trim());
     formData.set(PluginConfigAwsIc.ScimAccessToken, accessToken.trim());
-    formData.set(PluginConfigBase.CSRFToken, getXCSRFToken());
     formData.set(PluginConfigBase.Name, selectedPlugin.type);
     formData.set(PluginConfigBase.Type, selectedPlugin.type);
     const [, err] = await createPlugin();

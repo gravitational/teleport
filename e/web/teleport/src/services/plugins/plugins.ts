@@ -15,7 +15,6 @@ import {
   PluginStatusOkta,
 } from 'teleport/services/integrations/oktaStatusTypes';
 import { CtaEvent } from 'teleport/services/userEvent';
-import { isPathNotFoundError } from 'teleport/services/version/unsupported';
 
 import {
   AwsIcAccounts,
@@ -57,28 +56,9 @@ export const pluginsService = {
     const webauthnResponse =
       await auth.getMfaChallengeResponseForAdminAction(true);
 
-    try {
-      return await api
-        .postFormData(
-          cfg.api.plugin.createStaticAuth,
-          formData,
-          webauthnResponse
-        )
-        .then(makePlugin);
-    } catch (err) {
-      // TODO(kimlisa): DELETE IN v19.0 (csrf)
-      // Retry request with deprecated endpoint.
-      if (isPathNotFoundError(err)) {
-        return api
-          .postFormData(
-            cfg.api.plugin.createDeprecated,
-            formData,
-            webauthnResponse
-          )
-          .then(makePlugin);
-      }
-      throw err;
-    }
+    return await api
+      .postFormData(cfg.api.plugin.createStaticAuth, formData, webauthnResponse)
+      .then(makePlugin);
   },
 
   /**

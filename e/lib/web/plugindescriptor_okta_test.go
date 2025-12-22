@@ -97,7 +97,7 @@ func (d testOktaDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 	return trace.NotImplemented("testOktaDescriptor.TranslateCallbackCookie")
 }
 
-// TranslateCallbackCookie implements testOktaDescriptor for the
+// HandleOAuthStart implements testOktaDescriptor for the
 // testOktaDescriptor type. Always returns NotImplemented.
 func (d testOktaDescriptor) HandleOAuthStart(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.OAuthPluginStartResponse, error) {
 	return nil, trace.NotImplemented("testOktaDescriptor.HandleOAuthStart")

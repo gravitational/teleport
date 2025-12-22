@@ -316,20 +316,13 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.POST("/enterprise/crownjewels", h.WithAuth(p.markCrownJewel))
 	h.DELETE("/enterprise/crownjewels/:name", h.WithAuth(p.deleteCrownJewel))
 
-	// Plugins: RESTy endpoints (create/list/delete)
-	// createPluginHandle expects html form request and
-	//	-	For OAuth plugins: it responds with meta redirect. With meta redirect, browser takes user to
-	//		OAuth provider for OAuth registration. OAuth plugins are created after successful callback from
-	// 		OAuth provider with pluginCallbackHandle.
-	//  -	For non-OAuth plugins: it creates plugin and responds with plugin status.
-	//
-	// TODO(kimlisa): DELETE IN v19.0 (csrf)
-	// replaced by "/enterprise/plugins/staticauth" and "/enterprise/plugins/oauth/start".
-	// Delete same endpoint in "e/web/teleport/src/config.ts".
-	h.POST("/enterprise/plugin", h.WithAuthCookieAndCSRF(p.createPluginHandle))
 	// Handles plugins that does not require OAuth.
 	h.POST("/enterprise/plugins/staticauth", h.WithAuth(p.installPluginWithStaticAuthCredsHandle))
+
+	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
 	h.PUT("/enterprise/plugin", h.WithAuth(p.updatePluginHandler))
+	h.GET("/enterprise/plugin/:name", h.WithAuth(p.getPluginStatus))
+	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
 
 	// The flow to create plugins that require OAuth (eg: slack) is completed in 2 steps:
 	//
@@ -360,9 +353,6 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.POST("/enterprise/plugins/oauth/start", h.WithAuth(p.startPluginOAuthHandle))
 	h.GET("/enterprise/plugins/callback/:type", h.WithSession(p.pluginCallbackHandle))
 
-	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
-	// get enrolled plugins
-	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
 	// get supported plugins
 	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
 	// validate (possibly partial) plugin config without trying to create the plugin itself
@@ -374,10 +364,6 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.POST("/enterprise/pluginconfig/aws-ic/preview/accounts-with-permission-sets", h.WithAuth(p.awsICPluginAccountsWithAssignedPermSets))
 	h.POST("/enterprise/pluginconfig/aws-ic/preview/groups-with-assignments", h.WithAuth(p.awsICPluginGroupsWithAccountAndPermAssignment))
 	h.POST("/enterprise/pluginconfig/aws-ic/preview/permission-sets", h.WithAuth(p.awsICPluginListPermissionSets))
-
-	// get status info for a given plugin. The schema of the resulting object
-	// may vary with the given plugin
-	h.GET("/enterprise/plugin/:name", h.WithAuth(p.getPluginStatus))
 
 	// Security reports API
 	h.GET("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.getSecurityReport))
