@@ -120,7 +120,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 disabled={state.isBranchDisabled}
                 label="Branch"
-                placeholder="main"
+                placeholder="refs/heads/main"
                 value={state.branch}
                 onChange={e => {
                   dispatch({
@@ -210,7 +210,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                   <FieldInput
                     flex={1}
                     label={'Git Ref'}
-                    placeholder="ref/heads/main"
+                    placeholder="refs/heads/main"
                     value={state.ref}
                     onChange={e => {
                       dispatch({
@@ -346,14 +346,14 @@ const Container = styled(Flex)`
 `;
 
 const FormContainer = styled(Flex)`
-  flex: 1;
+  flex: 4;
   flex-direction: column;
   overflow: auto;
   padding-right: ${({ theme }) => theme.space[5]}px;
 `;
 
 const CodeContainer = styled(Flex)`
-  flex: 1;
+  flex: 6;
   flex-direction: column;
   overflow: auto;
 `;

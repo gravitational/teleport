@@ -1,5 +1,6 @@
 ---
 title: Configure Trusted Clusters
+sidebar_label: Trusted Clusters
 description: Explains how you can configure a trust relationship and manage access between two Teleport clusters.
 tags:
  - how-to
@@ -11,7 +12,7 @@ tags:
 Trusted clusters are only available for self-hosted Teleport clusters.
 </Admonition>
 
-As you learned in [Core Concepts](../../../core-concepts.mdx), a Teleport cluster
+As you learned in [Core Concepts](../../core-concepts.mdx), a Teleport cluster
 consists of the Teleport Auth Service, the Teleport Proxy Service, and the
 Teleport services that manage access to resources in your infrastructure.
 With Teleport, you can also partition your infrastructure into multiple connected
@@ -49,7 +50,7 @@ Proxy Service instances, you have multiple tunnels for high availability.
 
 The following diagram provides a simplified view of the architecture:
 
-![Trusted cluster](../../../../img/trusted-clusters/simplified-trusted-cluster.png)
+![Trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster.png)
 
 As this diagram suggests, users can sign in to the root cluster to receive certificates signed by the root
 cluster certificate authority. They can then connect to leaf clusters either directly
@@ -79,7 +80,7 @@ Based on the information in the certificate, the Teleport Auth Service performs 
 The following diagram provides a simplified view of the interaction between the services running
 on the leaf cluster and service running on the root cluster:
 
-![Service interaction in a trusted cluster](../../../../img/trusted-clusters/trusted-cluster-service-interaction.png)
+![Service interaction in a trusted cluster](../../../img/trusted-clusters/trusted-cluster-service-interaction.png)
 
 Note that trusted clusters only work in one direction.
 Users from the leaf cluster can't see or connect to resources in the root cluster.
@@ -107,14 +108,14 @@ local cluster roles.
 The following diagram provides a simplified view of how role mapping works using the same trusted
 cluster with `msp-root.example.com` as the root cluster and `leaf-east.example.com` as the leaf cluster:
 
-![Role mapping in a trusted cluster](../../../../img/trusted-clusters/simplified-trusted-cluster-role-mapping.png)
+![Role mapping in a trusted cluster](../../../img/trusted-clusters/simplified-trusted-cluster-role-mapping.png)
 
 In this example, the user Alice signs in to the `msp-root.example.com` root cluster. The root cluster is
 configured with a single sign-on identity provider that authenticates her identity and her group membership.
 Based on the information from the identity provider, the root cluster assigns Alice the `full-access` role
 and issues her a certificate. The mapping of single sign-on properties to Teleport roles is configured when
 you add an authentication connector to the Teleport cluster. To learn more about configuring single sign-on
-through an external identity provider, see [Configure Single Sign-on](../../../zero-trust-access/sso/sso.mdx).
+through an external identity provider, see [Configure Single Sign-on](../sso/sso.mdx).
 
 Alice receives the certificate that specifies the roles assigned to her in the root cluster. This metadata
 about her roles is contained in the certificate extensions and is protected by the signature of the root
@@ -148,7 +149,7 @@ to learn how to:
 
 To complete the steps in this guide, verify your environment meets the following requirements:
 
-- [Proxy peering](../operations/proxy-peering.mdx) must be disabled. Proxy Peering and Trusted Clusters are not compatible.
+- [Proxy peering](proxy-peering.mdx) must be disabled. Proxy Peering and Trusted Clusters are not compatible.
 
 - Access to **two** Teleport cluster instances.
 
@@ -167,11 +168,11 @@ To complete the steps in this guide, verify your environment meets the following
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-  For more information about installing Teleport, see [Installation](../../../installation/installation.mdx).
+  For more information about installing Teleport, see [Installation](../../installation/installation.mdx).
 
 - A Teleport SSH server that is joined to the cluster you plan to use as the **leaf cluster**.
   For information about how to enroll a resource in your cluster, see
-  [Join Services to your Cluster](../../../enroll-resources/agents/agents.mdx).
+  [Join Services to your Cluster](../../enroll-resources/agents/agents.mdx).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -702,7 +703,7 @@ node_labels:
 
 For full details on how variable expansion works in Teleport roles, see the
 [Access Controls
-Reference](../../../reference/access-controls/roles.mdx).
+Reference](../../reference/access-controls/roles.mdx).
 
 ### Update role mappings
 

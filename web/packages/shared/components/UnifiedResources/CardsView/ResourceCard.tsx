@@ -19,8 +19,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Box, ButtonLink, Flex, Label, Text } from 'design';
+import { Box, ButtonLink, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
+import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 
@@ -66,6 +67,8 @@ export function ResourceCard({
   onShowStatusInfo,
   showingStatusInfo,
   viewItem,
+  visibleInputFields = { pin: true, checkbox: true },
+  resourceLabelConfig,
 }: Omit<ResourceItemProps, 'expandAllLabels'>) {
   const {
     name,
@@ -186,7 +189,7 @@ export function ResourceCard({
           p={3}
           // we set padding left a bit larger so we can have space to absolutely
           // position the pin/checkbox buttons
-          pl={6}
+          pl={visibleInputFields.pin || visibleInputFields.checkbox ? 6 : 2}
           alignItems="start"
           onMouseLeave={onMouseLeave}
           pinned={pinned}
@@ -199,27 +202,31 @@ export function ResourceCard({
           {...(shouldDisplayStatusWarning && !showAllLabels && { pr: '35px' })}
           {...(shouldDisplayStatusWarning && showAllLabels && { pr: '7px' })}
         >
-          <CheckboxInput
-            checked={selected}
-            onChange={selectResource}
-            style={{ position: 'absolute', top: '16px', left: '16px' }}
-          />
-          <Box
-            css={`
-              position: absolute;
-              // we position far from the top so the layout of the pin doesn't change if we expand the card
-              top: ${props => props.theme.space[9]}px;
-              transition: none;
-              left: 16px;
-            `}
-          >
-            <PinButton
-              setPinned={pinResource}
-              pinned={pinned}
-              pinningSupport={pinningSupport}
-              hovered={hovered}
+          {visibleInputFields.checkbox && (
+            <CheckboxInput
+              checked={selected}
+              onChange={selectResource}
+              style={{ position: 'absolute', top: '16px', left: '16px' }}
             />
-          </Box>
+          )}
+          {visibleInputFields.pin && (
+            <Box
+              css={`
+                position: absolute;
+                // we position far from the top so the layout of the pin doesn't change if we expand the card
+                top: ${props => props.theme.space[9]}px;
+                transition: none;
+                left: 16px;
+              `}
+            >
+              <PinButton
+                setPinned={pinResource}
+                pinned={pinned}
+                pinningSupport={pinningSupport}
+                hovered={hovered}
+              />
+            </Box>
+          )}
           <ResourceIcon
             name={primaryIconName}
             width="45px"
@@ -284,8 +291,10 @@ export function ResourceCard({
                       key={i}
                       title={labelText}
                       onClick={() => onLabelClick?.(label)}
+                      withHoverState={!!onLabelClick}
                       kind="secondary"
                       data-is-label=""
+                      {...resourceLabelConfig}
                     >
                       {labelText}
                     </StyledLabel>
@@ -463,7 +472,7 @@ const LabelsContainer = styled(Box)<{ showAll?: boolean }>`
   overflow: hidden;
 `;
 
-const StyledLabel = styled(Label)`
+const StyledLabel = styled(LabelButtonWithIcon)`
   height: ${labelHeight}px;
   margin: 1px 0;
   overflow: hidden;

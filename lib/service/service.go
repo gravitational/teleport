@@ -179,6 +179,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/certreloader"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -1373,11 +1374,18 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
 		}
 
-		if upgraderKind == types.UpgraderKindTeleportUpdate {
+		if upgraderKind == types.UpgraderKindTeleportUpdate ||
+			upgraderKind == types.UpgraderKindKubeController {
 			info, err := autoupdate.ReadHelloUpdaterInfo(supervisor.ExitContext(), cfg.Logger, hostID)
+			// If the config file is not present for Kubernetes upgraders, do not set the updater info.
+			// This ensures that older chart versions maintain the same behavior when used with newer Teleport.
+			if errors.Is(err, autoupdate.ErrConfigNotFound) &&
+				upgraderKind == types.UpgraderKindKubeController {
+				return hello, nil
+			}
 			if err != nil {
-				// Failing to detect teleport-update info is not fatal, we continue.
-				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering teleport-update status, this might affect automatic update tracking and progress.", "error", err)
+				// Failing to detect updater info is not fatal, we continue.
+				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering updater status, this might affect automatic update tracking and progress.", "error", err)
 				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 			}
 			hello.UpdaterInfo = info
@@ -6187,10 +6195,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
-		certReloader := NewCertReloader(CertReloaderConfig{
+		certReloader := certreloader.New(certreloader.Config{
 			KeyPairs:               process.Config.Proxy.KeyPairs,
 			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
-		})
+		}, slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy), "name", "proxytls"), nil)
 		if err := certReloader.Run(process.ExitContext()); err != nil {
 			return nil, trace.Wrap(err)
 		}

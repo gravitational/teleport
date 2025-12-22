@@ -809,7 +809,7 @@ It is also used as a failover when fetching the version using the webapi protoco
 | `string` | `""` |
 
 `updater.group` is the update group used when fetching the version using the webapi protocol.
-When unset, the group defaults to `update.releaseChannel`.
+When unset, the group defaults to `default`.
 
 ### `updater.image`
 
@@ -1203,7 +1203,7 @@ Teleport-published image.
 By default, the image contains only the Teleport application and its runtime
 dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `true`.
-When running an enterprise version, you must use [`image`](#image) instead.
+When running an OSS version, you must use [`image`](#image) instead.
 
 ## `imagePullSecrets`
 

@@ -75,9 +75,6 @@ describe('useGitHubK8sFlow', () => {
     );
 
     expect(result.current.template.ghaWorkflow).toContain(
-      'TELEPORT_TOOLS_VERSION: "4.4.0-dev"'
-    );
-    expect(result.current.template.ghaWorkflow).toContain(
       'TELEPORT_PROXY_ADDR: "some-long-cluster-public-url-name.cloud.teleport.gravitational.io:1234"'
     );
   });

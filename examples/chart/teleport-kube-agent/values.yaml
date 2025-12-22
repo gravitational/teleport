@@ -671,7 +671,7 @@ updater:
   releaseChannel: "stable/cloud"
 
   # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
-  # When unset, the group defaults to `update.releaseChannel`.
+  # When unset, the group defaults to `default`.
   group: ""
 
   # updater.image(string) -- sets the container image used for Teleport updater
@@ -947,7 +947,7 @@ image: public.ecr.aws/gravitational/teleport-distroless
 # By default, the image contains only the Teleport application and its runtime
 # dependencies, and does not contain a shell.
 # This setting only takes effect when [`enterprise`](#enterprise) is `true`.
-# When running an enterprise version, you must use [`image`](#image) instead.
+# When running an OSS version, you must use [`image`](#image) instead.
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 
 # imagePullSecrets(list) -- is a list of secrets containing authorization tokens
