@@ -275,7 +275,7 @@ type envVarDefault struct {
 
 // loadDefaultEnvVars loads possible default environment variables defined in a YAML file
 // that matches the application name.
-func loadDefaultEnvVars(appName string) ([][4]string, error) {
+func loadDefaultEnvVars(appName string) (map[string]envVarDefault, error) {
 	pathname := filepath.Join("lib", "utils", "docenvdefaults", appName+".yaml")
 	data, err := os.ReadFile(pathname)
 	if err != nil || len(data) == 0 {
@@ -287,28 +287,13 @@ func loadDefaultEnvVars(appName string) ([][4]string, error) {
 		return nil, fmt.Errorf("unable to parse YAML from %s: %w", pathname, err)
 	}
 
-	if len(envDefaults) == 0 {
-		return nil, nil
-	}
-
-	rows := make([][4]string, 0, len(envDefaults))
 	for envVar, def := range envDefaults {
 		if def.Description == "" || def.Default == "" || def.Type == "" {
 			return nil, fmt.Errorf("invalid YAML structure in %s: entry %q is missing one of required fields 'description', 'default' or 'type'", pathname, envVar)
 		}
-		rows = append(rows, [4]string{
-			envVar,
-			strings.Trim(def.Default, "`"),
-			def.Description,
-			def.Type,
-		})
 	}
 
-	slices.SortFunc(rows, func(a, b [4]string) int {
-		return cmp.Compare(a[0], b[0])
-	})
-
-	return rows, nil
+	return envDefaults, nil
 }
 
 // UpdateAppUsageTemplate updates the app usage template to print a reference
@@ -320,19 +305,13 @@ func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
 	}
 
 	existingEnvVars := make(map[string]struct{})
-
 	for _, flag := range app.Model().Flags {
 		if flag.Envar != "" {
 			existingEnvVars[flag.Envar] = struct{}{}
 		}
 	}
 
-	for _, envRow := range defaultEnvVars {
-		envVarName := envRow[0]
-		defaultVal := envRow[1]
-		description := envRow[2]
-		envVarType := envRow[3]
-
+	for envVarName, envVar := range defaultEnvVars {
 		// Check if the flag already exists in the app model to avoid
 		// duplicate flag errors.
 		if _, flagExists := existingEnvVars[envVarName]; flagExists {
@@ -341,10 +320,10 @@ func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
 
 		// If the flag does not exist, create it with the default value
 		// and description from the YAML file.
-		flag := app.Flag(envVarName, description).
+		flag := app.Flag(envVarName, envVar.Description).
 			Envar(envVarName).
-			Default(defaultVal)
-		if envVarType == "bool" {
+			Default(envVar.Default)
+		if envVar.Type == "bool" {
 			flag.Bool()
 		} else {
 			flag.String()
