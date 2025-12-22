@@ -2433,6 +2433,25 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	return false, nil
 }
 
+type linuxLoginMatcher struct {
+	login string
+}
+
+// NewLinuxLoginMatcher creates a RoleMatcher that checks whether the role's
+// Linux desktop logins match the specified condition.
+func NewLinuxLoginMatcher(login string) RoleMatcher {
+	return &linuxLoginMatcher{login: login}
+}
+
+// Match matches a Linux Desktop login against a role.
+func (l *linuxLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetLinuxLogins(typ)
+	if slices.Contains(logins, l.login) {
+		return true, nil
+	}
+	return false, nil
+}
+
 type awsAppLoginMatcher struct {
 	awsRole string
 }

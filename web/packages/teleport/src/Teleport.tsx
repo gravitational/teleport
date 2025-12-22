@@ -47,6 +47,8 @@ import { SingleLogoutFailed } from './SingleLogoutFailed';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
 import { Welcome } from './Welcome';
+import {LinuxDesktopSelector} from "teleport/LinuxDesktop/LinuxDesktopSelector";
+import {LinuxDesktopSession} from "teleport/LinuxDesktop/LinuxDesktopSession";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -215,6 +217,16 @@ export function getSharedPrivateRoutes() {
       key="desktop"
       path={cfg.routes.desktop}
       component={DesktopSession}
+    />,
+    <Route
+      key="linuxDesktop"
+      path={cfg.routes.linuxDesktop}
+      component={LinuxDesktopSession}
+    />,
+    <Route
+      key="linuxDesktopSelector"
+      path={cfg.routes.linuxDesktopSelector}
+      component={LinuxDesktopSelector}
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route

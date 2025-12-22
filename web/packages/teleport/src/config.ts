@@ -184,6 +184,8 @@ const cfg = {
     databases: '/web/cluster/:clusterId/databases',
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+    linuxDesktopSelector: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
+    linuxDesktop: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username/:sessionName',
     users: '/web/users',
     bots: '/web/bots',
     bot: '/web/bot/:botName',
@@ -300,6 +302,10 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
+    linuxDesktopWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username',
+    linuxDesktopPlaybackWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
@@ -934,6 +940,23 @@ const cfg = {
       clusterId,
       desktopName,
       username,
+    });
+  },
+
+  getLinuxDesktopSelectorRoute({ clusterId, username, desktopName }) {
+    return generatePath(cfg.routes.linuxDesktopSelector, {
+      clusterId,
+      desktopName,
+      username,
+    });
+  },
+
+  getLinuxDesktopRoute({ clusterId, username, desktopName, sessionName }) {
+    return generatePath(cfg.routes.linuxDesktop, {
+      clusterId,
+      desktopName,
+      username,
+      sessionName
     });
   },
 

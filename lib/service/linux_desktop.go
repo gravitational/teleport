@@ -221,6 +221,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		AuthClient:           conn.Client,
 		Labels:               cfg.LinuxDesktop.Labels,
 		ConnectedProxyGetter: proxyGetter,
+		Hostname:             process.Config.Hostname,
 		Heartbeat: desktop.HeartbeatConfig{
 			HostUUID:    conn.HostUUID(),
 			PublicAddr:  publicAddr,

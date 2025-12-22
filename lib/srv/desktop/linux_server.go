@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -219,4 +220,9 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 
 func (s *LinuxService) handleConnection(conn net.Conn) {
 	defer conn.Close()
+	tdpConn := tdp.NewConn(conn)
+	tdpConn.WriteMessage(tdp.Alert{
+		Message:  "Connection closed gracefully",
+		Severity: tdp.SeverityInfo,
+	})
 }

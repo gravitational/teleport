@@ -4375,7 +4375,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole, h
 		}
 	case types.RoleApp, types.RoleOkta:
 		principals = append(principals, hostUUID)
-	case types.RoleWindowsDesktop:
+	case types.RoleWindowsDesktop, types.RoleLinuxDesktop:
 		addrs = append(addrs,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
