@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -245,6 +246,15 @@ func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) 
 		}
 		return instance, nil
 	}, cancel)
+}
+
+// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
+func (c *Client) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
+	rsp, err := c.InventoryServiceClient().ListUnifiedInstances(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rsp, nil
 }
 
 func newDownstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamClient, cancel context.CancelFunc) DownstreamInventoryControlStream {

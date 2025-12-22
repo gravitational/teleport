@@ -73,7 +73,7 @@ In the Azure portal, select the "Groups" menu which is available under the
 From the "Groups" UI, click the "New group" button to create a new user group 
 named `ad-app-admin`.
 
-![Entra ID create group](../../../img/sso/entraid/oidc/entra-id-create-group.png) 
+![Entra ID create group](../../../../img/sso/entraid/oidc/entra-id-create-group.png) 
 
 You may add desired users to this group. 
 Repeat this step to create another group named `ad-app-support`.
@@ -84,7 +84,7 @@ In the Azure Portal, from the “Azure services” menu, select “Enterprise ap
 Click on the `+ New Application` button, then click `+ Create your own application` 
 button. Enter a name for your application and create the application.
 
-![Entra ID create application](../../../img/sso/entraid/oidc/entra-id-create-application.png) 
+![Entra ID create application](../../../../img/sso/entraid/oidc/entra-id-create-application.png) 
 
 ### Assign groups
 
@@ -96,7 +96,7 @@ In the "Users and groups" UI, click `+Add user/group` button.
 Now assign the two groups you created in Step 1. If you are following this guide 
 with an existing user groups, select those groups in this step.
 
-![Entra ID assign](../../../img/sso/entraid/oidc/entra-id-assign-group.png) 
+![Entra ID assign](../../../../img/sso/entraid/oidc/entra-id-assign-group.png) 
 
 ### Configure OIDC
 
@@ -123,7 +123,7 @@ to configure OIDC redirect URI.
 https://<Var name="example.teleport.sh" />/v1/webapi/oidc/callback
 ```
 
-![Entra ID OIDC redirect URI](../../../img/sso/entraid/oidc/entra-id-oidc-redirect-uri.png)
+![Entra ID OIDC redirect URI](../../../../img/sso/entraid/oidc/entra-id-oidc-redirect-uri.png)
 
 Save the configuration once the redirect URI is configured.
 
@@ -137,7 +137,7 @@ In the "App registrations" UI for the enterprise application, from the "Manage"
 menu, select "Certificates & secrets". Now select the "Client secrets" tab and 
 click on the `+ New client secret` button. Create a new client secret. 
 
-![Entra ID OIDC client credential](../../../img/sso/entraid/oidc/entra-id-oidc-client-credential.png)
+![Entra ID OIDC client credential](../../../../img/sso/entraid/oidc/entra-id-oidc-client-credential.png)
 
 Once the secret is created, copy the value and save it in your working environment: 
 ```code 
@@ -157,7 +157,7 @@ Select group type you wish to include in user's OIDC `groups` claim.
 
 The reference image below shows that a "Security groups" type is selected. 
 
-![Entra ID OIDC groups claim](../../../img/sso/entraid/oidc/entra-id-oidc-group-claim.png)
+![Entra ID OIDC groups claim](../../../../img/sso/entraid/oidc/entra-id-oidc-group-claim.png)
 
 You may configure other claims as desired. All the claims issued by Microsoft 
 Entra ID are preserved as user's traits in the user resource.
@@ -187,7 +187,7 @@ Application permissions". In the permission filter search bar, type `User.ReadBa
 
 Select the permission and add it to the application by clicking on the `Add permissions` button.
 
-![Entra ID OIDC graph permission](../../../img/sso/entraid/oidc/entra-id-oidc-graph-permission.png)
+![Entra ID OIDC graph permission](../../../../img/sso/entraid/oidc/entra-id-oidc-graph-permission.png)
 
 Once you add the permission, you will need to grant an admin consent.
 
@@ -278,6 +278,13 @@ version: v3
 </details>
 
 (!docs/pages/includes/sso/username-claim.mdx!)
+
+<details>
+<summary>Changing the callback address</summary>
+
+(!docs/pages/includes/sso/change-callback.mdx!)
+
+</details>
 
 ### Test the connector
 
