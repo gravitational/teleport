@@ -122,6 +122,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	oracleimds "github.com/gravitational/teleport/lib/cloud/imds/oracle"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
@@ -182,6 +183,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/certreloader"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	procutils "github.com/gravitational/teleport/lib/utils/process"
 	"github.com/gravitational/teleport/lib/versioncontrol/endpoint"
@@ -2800,9 +2802,10 @@ func (process *TeleportProcess) initAuthService() error {
 					Name:      connector.HostUUID(),
 				},
 				Spec: types.ServerSpecV2{
-					Addr:     authAddr,
-					Hostname: process.Config.Hostname,
-					Version:  teleport.Version,
+					Addr:              authAddr,
+					Hostname:          process.Config.Hostname,
+					Version:           teleport.Version,
+					ComponentFeatures: componentfeatures.ForAuthServer(),
 				},
 			}
 			state, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
@@ -6244,10 +6247,10 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
 	} else {
-		certReloader := NewCertReloader(CertReloaderConfig{
+		certReloader := certreloader.New(certreloader.Config{
 			KeyPairs:               process.Config.Proxy.KeyPairs,
 			KeyPairsReloadInterval: process.Config.Proxy.KeyPairsReloadInterval,
-		})
+		}, slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxy), "name", "proxytls"), nil)
 		if err := certReloader.Run(process.ExitContext()); err != nil {
 			return nil, trace.Wrap(err)
 		}

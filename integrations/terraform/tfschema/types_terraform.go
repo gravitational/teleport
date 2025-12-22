@@ -28,6 +28,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gravitational_teleport_api_constants "github.com/gravitational/teleport/api/constants"
 	_ "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
@@ -2869,7 +2870,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Computed:      true,
 							Description:   "KubernetesResources is the Kubernetes Resources this Role grants access to.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{DefaultKubernetesResources()},
 						},
 						"kubernetes_users": {
 							Description: "KubeUsers is an optional kubernetes users to impersonate",
@@ -3915,10 +3916,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.",
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.",
 			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 7)},
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 8)},
 		},
 	}}, nil
 }

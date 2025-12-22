@@ -171,9 +171,6 @@ type GenerateCredentialsRequest struct {
 	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
 	ActiveDirectorySID string
-	// CAType is the certificate authority type used to generate the certificate.
-	// This is used to proper generate the CRL LDAP path.
-	CAType types.CertAuthType
 	// CreateUser specifies if Windows user should be created if missing
 	CreateUser bool
 	// Groups are groups that user should be member of

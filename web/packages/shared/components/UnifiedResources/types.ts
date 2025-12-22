@@ -24,11 +24,14 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
+import type { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceLabel } from 'teleport/services/agents';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
+
+import { SortOrder } from '../Controls/SortMenuV2';
 
 // "mixed" indicates the resource has a mix of health
 // statuses. This can happen when multiple agents proxy the same resource.
@@ -86,6 +89,7 @@ export type UnifiedResourceApp = {
   subKind?: AppSubKind;
   permissionSets?: PermissionSet[];
   mcp?: AppMCP;
+  supportedFeatureIds?: ComponentFeatureID[];
 };
 
 export interface UnifiedResourceDatabase {
@@ -174,7 +178,7 @@ export type UnifiedResourcesQueryParams = {
   search?: string;
   sort?: {
     fieldName: string;
-    dir: 'ASC' | 'DESC';
+    dir: SortOrder;
   };
   pinnedOnly?: boolean;
   statuses?: ResourceHealthStatus[];
