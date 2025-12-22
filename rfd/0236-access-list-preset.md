@@ -88,7 +88,7 @@ We expect `admins` to have full permissions but there can be edge cases where th
 
 #### Backend
 
-- The user is required to have access to perform all CRUD operations on a role otherwise upsertion request with preset will fail. The user may not be directly performing actions on a role, but Teleport will on behalf of the user.
+- The user is required to have access to perform all CRUD operations on a role otherwise upsert request with preset will fail. The user may not be directly performing actions on a role, but Teleport will on behalf of the user.
 - The [same existing rules](https://github.com/gravitational/teleport.e/blob/e49a5ad654408ce0779622c38c7acda0417bfef0/lib/accesslist/service.go#L1648) are applied when creating/deleting/updating an access list. E.g. for updating an access list the user will have to either be a owner of the list or have access to `access_list` resource rules.
 
 #### Web UI
@@ -113,8 +113,12 @@ When defining access for a resource, we will attempt to list a preview of what r
 
 New web API endpoints are created for access list preset operations:
 
+{/_ spell-checker: disable _/}
+
 - `POST /enterprise/accesslistpreset` - Create an access list with a preset
 - `PUT /enterprise/accesslistpreset/:accessListId` - Update an access list with a preset
+
+{/_ spell-checker: enable _/}
 
 #### Request Structure
 
@@ -245,6 +249,8 @@ spec:
       'env': 'staging'
 ```
 
+{/_ spell-checker: disable _/}
+
 ```yaml
 # role spec 2
 # allows all applications with labels "teleport.dev/origin: aws-identity-center"
@@ -258,9 +264,15 @@ spec:
         permission_set: arn:aws:sso:::permissionSet/ssoins-XXXX
 ```
 
+{/_ spell-checker: enable _/}
+
 #### Request Backend Handling Flow
 
+{/_ spell-checker: disable _/}
+
 The frontend sends the preset type, access list configuration, and role specifications to the web endpoints (`POST /enterprise/accesslistpreset` for creation or `PUT /enterprise/accesslistpreset/:accessListId` for updates). The proxy implements these endpoints as simple wrappers that orchestrate two sequential gRPC calls to the auth server: first calling `AtomicWriteRoles/ModifyRolesForAccessList` to create or update the requester, reviewer, and access roles atomically with strong consistency guarantees that prevent concurrent role updates, then creating or updating the access list grants referencing the created roles.
+
+{/_ spell-checker: enable _/}
 
 The flow is kept in the proxy rather than adding a dedicated access list gRPC endpoint because this feature is a simple UX wrapper designed exclusively for the frontend flow. The orchestration logic is straightforward and does not require server-side implementation in the auth layer. By implementing it as a proxy wrapper, the design remains lightweight and avoids adding complexity to the core access list gRPC API for a feature that is solely used by FE
 
@@ -308,4 +320,4 @@ version: v8
 To extend this feature to access list, we will need a similar `claims_to_roles` support for the following role fields:
 
 - `request.search_as_roles` required to allow user to list + search for resources to request
-- `review_requests.preview_as_roles` allows the reviewer to preview details of an access requet (e.g. view friendly names of resources instead of its UID that are usually just random alphanumerics)
+- `review_requests.preview_as_roles` allows the reviewer to preview details of an access request (e.g. view friendly names of resources instead of its UID that are usually just random alphanumerics)
