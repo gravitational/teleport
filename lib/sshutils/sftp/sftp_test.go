@@ -586,7 +586,11 @@ func TestHomeDirExpansion(t *testing.T) {
 			path:         "~",
 			expandedPath: ".",
 		},
-
+		{
+			name:         "tilde slash",
+			path:         "~/",
+			expandedPath: ".",
+		},
 		{
 			name: "~user path",
 			path: "~user/foo",
@@ -598,7 +602,7 @@ func TestHomeDirExpansion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expanded, err := expandPath(tt.path)
+			expanded, err := ExpandHomeDir(tt.path)
 			if tt.errCheck == nil {
 				require.NoError(t, err)
 				require.Equal(t, tt.expandedPath, expanded)
