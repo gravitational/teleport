@@ -22,8 +22,10 @@ import (
 	"bytes"
 	"cmp"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -278,11 +280,20 @@ type envVarDefault struct {
 func loadDefaultEnvVars(appName string) (map[string]envVarDefault, error) {
 	pathname := filepath.Join("lib", "utils", "docenvdefaults", appName+".yaml")
 	data, err := os.ReadFile(pathname)
-	if err != nil || len(data) == 0 {
-		return nil, nil
+	envDefaults := make(map[string]envVarDefault)
+	if errors.Is(err, fs.ErrNotExist) {
+		fmt.Printf("No doc generation config file at %v. Skipping manual environment variable additions.", pathname)
+		return envDefaults, nil
 	}
 
-	envDefaults := make(map[string]envVarDefault)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read CLI doc generation config file at %v: %w", pathname, err)
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("read zero bytes from CLI doc generation config file at %v: %w", pathname, err)
+	}
+
 	if err := yaml.Unmarshal(data, &envDefaults); err != nil {
 		return nil, fmt.Errorf("unable to parse YAML from %s: %w", pathname, err)
 	}
@@ -297,7 +308,9 @@ func loadDefaultEnvVars(appName string) (map[string]envVarDefault, error) {
 }
 
 // UpdateAppUsageTemplate updates the app usage template to print a reference
-// guide for the CLI application.
+// guide for the CLI application. Panics on errors since we need to keep the
+// signature of UpdateAppUsageTemplate consistent with the one included without
+// build tags, i.e., with no return value.
 func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
 	defaultEnvVars, err := loadDefaultEnvVars(app.Name)
 	if err != nil {
@@ -330,9 +343,6 @@ func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
 		}
 	}
 
-	// Panic when failing to open or read from the docs usage template since
-	// we need to keep the signature of UpdateAppUsageTemplate consistent
-	// with the one included without build tags, i.e., with no return value.
 	f, err := os.Open(docsUsageTemplatePath)
 	if err != nil {
 		panic(fmt.Sprintf("unable to open the docs usage template at %v: %v", docsUsageTemplatePath, err))
