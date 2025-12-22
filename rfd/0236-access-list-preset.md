@@ -1,5 +1,5 @@
 ---
-author: Lisa Kim (lisa@goteleport.com)
+author: Lisa Kim (lisa@goteleport.com) and Marek Smoliński (marek@goteleport.com)
 state: draft
 ---
 
@@ -7,7 +7,7 @@ state: draft
 
 # Required Approvers
 
-- Engineering: @r0mant || @smallinsky (marek) && @kopiczko (pavel)
+- Engineering: @r0mant || @smallinsky (marek) && @fspmarshall (forrest)
 - Product: @r0mant
 
 ## What
