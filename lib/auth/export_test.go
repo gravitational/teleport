@@ -451,6 +451,12 @@ func WithAuthVersion(v *semver.Version) iamRegisterOption {
 	return withAuthVersion(v)
 }
 
+func WithAzureIssuerHTTPClient(httpClient utils.HTTPDoClient) AzureRegisterOption {
+	return func(cfg *AzureRegisterConfig) {
+		cfg.issuerHTTPClient = httpClient
+	}
+}
+
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer
 }

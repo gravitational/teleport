@@ -45,6 +45,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -118,6 +119,7 @@ type azureRegisterConfig struct {
 	certificateAuthorities []*x509.Certificate
 	verify                 azureVerifyTokenFunc
 	getVMClient            vmClientGetter
+	issuerHTTPClient       utils.HTTPDoClient
 }
 
 func azureVerifyFuncFromOIDCVerifier(cfg *oidc.Config) azureVerifyTokenFunc {
@@ -185,6 +187,13 @@ func (cfg *azureRegisterConfig) CheckAndSetDefaults(ctx context.Context) error {
 			return client, trace.Wrap(err)
 		}
 	}
+	if cfg.issuerHTTPClient == nil {
+		httpClient, err := defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.issuerHTTPClient = httpClient
+	}
 	return nil
 }
 
@@ -193,7 +202,7 @@ type azureRegisterOption func(cfg *azureRegisterConfig)
 // parseAndVeryAttestedData verifies that an attested data document was signed
 // by Azure. If verification is successful, it returns the ID of the VM that
 // produced the document.
-func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge string, certs []*x509.Certificate) (subscriptionID, vmID string, err error) {
+func parseAndVerifyAttestedData(ctx context.Context, cfg *azureRegisterConfig, adBytes []byte, challenge string) (subscriptionID, vmID string, err error) {
 	var signedAD signedAttestedData
 	if err := utils.FastUnmarshal(adBytes, &signedAD); err != nil {
 		return "", "", trace.Wrap(err)
@@ -223,22 +232,30 @@ func parseAndVerifyAttestedData(ctx context.Context, adBytes []byte, challenge s
 	if len(p7.Certificates) == 0 {
 		return "", "", trace.AccessDenied("no certificates for signature")
 	}
-	fixAzureSigningAlgorithm(p7)
+	signingCert := p7.Certificates[0]
+
+	if !isAllowedDomain(signingCert.Subject.CommonName, allowedAzureCommonNames) {
+		return "", "", trace.AccessDenied(
+			"certificate common name does not match allow-list (%s)",
+			signingCert.Subject.CommonName,
+		)
+	}
 
 	// Azure only sends the leaf cert, so we have to fetch the intermediate.
-	intermediate, err := getAzureIssuerCert(ctx, p7.Certificates[0])
-	if err != nil {
-		return "", "", trace.Wrap(err)
-	}
-	if intermediate != nil {
+	if len(signingCert.IssuingCertificateURL) != 0 {
+		intermediate, err := getAzureIssuerCert(ctx, signingCert, cfg.issuerHTTPClient)
+		if err != nil {
+			return "", "", trace.Wrap(err, "getting intermediate issuing certificate for attested data")
+		}
 		p7.Certificates = append(p7.Certificates, intermediate)
 	}
 
 	pool := x509.NewCertPool()
-	for _, cert := range certs {
+	for _, cert := range cfg.certificateAuthorities {
 		pool.AddCert(cert)
 	}
 
+	fixAzureSigningAlgorithm(p7)
 	if err := p7.VerifyWithChain(pool); err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -421,7 +438,7 @@ func (a *Server) checkAzureRequest(
 		return nil, trace.BadParameter("azure join method only supports ProvisionTokenV2, '%T' was provided", provisionToken)
 	}
 
-	subID, vmID, err := parseAndVerifyAttestedData(ctx, req.AttestedData, challenge, cfg.certificateAuthorities)
+	subID, vmID, err := parseAndVerifyAttestedData(ctx, cfg, req.AttestedData, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

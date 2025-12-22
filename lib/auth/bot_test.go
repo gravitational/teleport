@@ -22,11 +22,13 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"net/http"
 	"strings"
 	"testing"
@@ -66,7 +68,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -774,12 +775,16 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 			subID: vmClient,
 		})
 
-		tlsConfig, err := fixtures.LocalTLSConfig()
-		require.NoError(t, err)
+		caChain := newFakeAzureCAChain(t)
+		// Fake the HTTP client used to fetch the issuer CA.
+		httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
 
-		block, _ := pem.Decode(fixtures.LocalhostKey)
-		pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		require.NoError(t, err)
+		instanceCert := caChain.issueLeafCert(t,
+			instanceKey.Public(),
+			"instance.metadata.azure.com",
+			"http://www.microsoft.com/pkiops/certs/testcert.crt")
 
 		certs, err := a.RegisterUsingAzureMethodWithOpts(context.Background(), func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 			ad := auth.AttestedData{
@@ -791,7 +796,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 			require.NoError(t, err)
 			s, err := pkcs7.NewSignedData(adBytes)
 			require.NoError(t, err)
-			require.NoError(t, s.AddSigner(tlsConfig.Certificate, pkey, pkcs7.SignerInfoConfig{}))
+			require.NoError(t, s.AddSigner(instanceCert, instanceKey, pkcs7.SignerInfoConfig{}))
 			signature, err := s.Finish()
 			require.NoError(t, err)
 			signedAD := auth.SignedAttestedData{
@@ -814,7 +819,12 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 				AccessToken:  accessToken,
 			}
 			return req, nil
-		}, auth.WithAzureCerts([]*x509.Certificate{tlsConfig.Certificate}), auth.WithAzureVerifyFunc(mockVerifyToken(nil)), auth.WithAzureVMClientGetter(getVMClient))
+		},
+			auth.WithAzureCerts([]*x509.Certificate{caChain.rootCert}),
+			auth.WithAzureVerifyFunc(mockVerifyToken(nil)),
+			auth.WithAzureVMClientGetter(getVMClient),
+			auth.WithAzureIssuerHTTPClient(httpClient),
+		)
 		require.NoError(t, err)
 		checkCertLoginIP(t, certs.TLS, remoteAddr)
 	})
