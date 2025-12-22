@@ -22,6 +22,7 @@ import {
   Box,
   ButtonPrimary,
   ButtonPrimaryBorder,
+  Card,
   Flex,
   H1,
   H2,
@@ -59,7 +60,7 @@ export default function Empty(props: Props) {
     );
   }
 
-  const buttonWidth = `200px`;
+  const cardWidth = `350px`;
 
   return (
     <Box
@@ -71,47 +72,54 @@ export default function Empty(props: Props) {
       alignItems="center"
       justifyContent="center"
     >
-      <Box maxWidth={600}>
+      <Box>
         <Box mb={4} textAlign="center">
-          <ResourceIcon name="server" mx="auto" mb={4} height="160px" />
+          <ResourceIcon name="server" mx="auto" mb={4} height="150px" />
           <H1>{title}</H1>
         </Box>
-        <Box mb={1} textAlign="center">
-          <H2>Automatic Discovery</H2>
-          <Text>
-            Connect your AWS, Azure, or GCP account to automatically scan and
-            import all resources.
-          </Text>
-        </Box>
-        <Box mb={4} textAlign="center">
-          <ButtonPrimary
-            as={Link}
-            to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
-            width={buttonWidth}
-          >
-            Connect Cloud Account
-          </ButtonPrimary>
-        </Box>
-        <Box mb={1} textAlign="center">
-          <H2>Manual Entry</H2>
-          <Text>
-            Browse and add individual servers, databases, or apps one at a time.
-          </Text>
-        </Box>
-        <Box textAlign="center">
-          <ButtonPrimaryBorder
-            as={Link}
-            to={{
-              pathname: `${cfg.routes.discover}`,
-              state: {
-                entity: 'unified_resource',
-              },
-            }}
-            width={buttonWidth}
-          >
-            Add New Resource
-          </ButtonPrimaryBorder>
-        </Box>
+        <Flex>
+          <Card p={4} mr={4} width={cardWidth}>
+            <Box mb={2} textAlign={`left`}>
+              <H2>Automatically Discover</H2>
+              <Text>
+                Connect your AWS, Azure, or GCP account to automatically scan
+                and import all resources.
+              </Text>
+            </Box>
+            <Box textAlign="center">
+              <ButtonPrimary
+                as={Link}
+                to={cfg.getIntegrationsEnrollRoute({ tags: ['cloud'] })}
+                width={`100%`}
+              >
+                Connect Cloud Account
+              </ButtonPrimary>
+            </Box>
+          </Card>
+          <Card p={4} width={cardWidth}>
+            <Box mb={2} textAlign={`left`}>
+              <H2>Manually Enter</H2>
+              <Text>
+                Browse and add individual servers, databases, or apps one at a
+                time.
+              </Text>
+            </Box>
+            <Box textAlign="center">
+              <ButtonPrimaryBorder
+                as={Link}
+                to={{
+                  pathname: `${cfg.routes.discover}`,
+                  state: {
+                    entity: 'unified_resource',
+                  },
+                }}
+                width={`100%`}
+              >
+                Add New Resource
+              </ButtonPrimaryBorder>
+            </Box>
+          </Card>
+        </Flex>
       </Box>
     </Box>
   );
