@@ -80,29 +80,71 @@ This step assumes you are still in the **Okta Integration** configuration wizard
 
 ## Step 2/2. Configure SCIM details in the Okta app
 
-1. In Okta Console, go to **Applications** and find the Teleport application created during the [guided Okta single sign-on integration](./guided-sso.mdx).
+<Tabs groupId="scim-app" defaultValue="legacy">
+<TabItem label="Okta Integration Network" value="oin">
 
-2. Click on the Teleport application and go to the **Provisioning** tab.
+   1. In Okta Console, go to **Applications** and find the Teleport application created during the [guided Okta single sign-on integration](./guided-sso.mdx).
 
-3. Click **Configure API Integration**, check the **Enable API integration** box and:
-   1. Paste the Bearer Token generated in Step 1.
-   2. Uncheck "Import Groups" box clicking **Continue** in the pop-up warning.
+   2. Click on the Teleport application and go to the **Provisioning** tab.
 
-   ![Generate SCIM token](../../../../img/okta/scim-paste-token.png)
+   3. Click **Configure API Integration**, check the **Enable API integration** box and:
+      1. Paste the Bearer Token generated in Step 1 of this guide.
+      2. Uncheck "Import Groups" box clicking **Continue** in the pop-up warning.
 
-4. Click **Save** (it is OK to click **Test API Credentials** but it's done regardless while clicking **Save**).
+      ![Generate SCIM token](../../../../img/okta/scim-paste-token.png)
 
-5. Make sure you are in the **To App** section of the **Provisioning** tab and click **Edit** in the top-right corner of the tab.
+   4. Click **Save** (it is OK to click **Test API Credentials** but it's done regardless while clicking **Save**).
 
-6. Enable **Create Users**, **Update User Attributes** and **Deactivate Users**.
+   5. Make sure you are in the **To App** section of the **Provisioning** tab and click **Edit** in the top-right corner of the tab.
 
-7. Make sure the "Set password when creating new users" box under **Create Users** is unchecked.
+   6. Enable "Create Users", "Update User Attributes" and "Deactivate Users".
 
-   ![Generate SCIM token](../../../../img/okta/scim-config.png)
+   7. Make sure the "Set password when creating new users" box under **Create Users** is disabled.
 
-8. Click **Save**.
+      ![Generate SCIM token](../../../../img/okta/scim-config.png)
 
-9. Go back to the Teleport SCIM configuration wizard and click **Continue**.
+   8. Click **Save**.
+
+   9. Go back to the Teleport SCIM configuration wizard and click **Continue**.
+
+</TabItem>
+<TabItem label="Custom SAML 2.0 app (legacy)" value="legacy">
+
+  <Admonition type="note">
+  Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
+  </Admonition>
+
+  1. In Okta Console, go to **Applications** and find the Teleport application created during the [guided Okta single sign-on integration](./guided-sso.mdx).
+
+  2. Click on the Teleport application and go to the **Sign On** tab.
+
+  3. Click **Edit** in the top-right corner of the tab, select "SCIM" in the "Provisioning" section and click **Save**.
+
+     ![Enable SCIM](../../../../img/okta/legacy-scim-enable.png)
+
+  4. Go to the newly appeared **Provisioning** tab, click **Edit** in the top-right corner and:
+
+     - Provide SCIM connector base URL, like: `https://example.teleport.sh/v1/webapi/scim/okta`.
+     - Unique identifier field for users: `userName`.
+     - Enable Supported provisioning actions: "Push New Users", "Push Profile Updates", "Push Groups".
+     - Set Authentication Mode to "HTTP Header" and paste the Bearer Token generated in Step 1 of this guide.
+
+     ![SCIM configuration 1](../../../../img/okta/legacy-scim-config-1.png)
+
+  5. Click **Save** (it is OK to click **Test API Credentials** but it's done regardless while clicking **Save**).
+
+  6. Make sure you are in the **To App** section of the **Provisioning** tab and click **Edit** in the top-right corner of the tab.
+
+  7. Enable "Create Users", "Update User Attributes" and "Deactivate Users".
+
+     ![SCIM configuration 2](../../../../img/okta/legacy-scim-config-2.png)
+
+  8. Click **Save**.
+
+  9. Go back to the Teleport SCIM configuration wizard and click **Continue**.
+
+</TabItem>
+</Tabs>
 
 At this point your Teleport Okta SCIM integration is complete. Users newly assigned/unassigned to the Okta Teleport app should be created/deleted in Teleport nearly instantly. 
 

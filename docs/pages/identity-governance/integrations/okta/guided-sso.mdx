@@ -59,8 +59,8 @@ If you are using already configured Okta connector, you can skip Okta app config
 
 ## Step 2/4. Create and configure an Okta app
 
-<Tabs>
-<TabItem label="Okta Integration Network">
+<Tabs groupId="saml-app" defaultValue="legacy">
+<TabItem label="Okta Integration Network" value="oin">
 
   Add Teleport app to Okta if it hasn't been added previously:
 
@@ -72,7 +72,7 @@ If you are using already configured Okta connector, you can skip Okta app config
 
   4. Complete the fields on the settings page and click **Done**.
 
-  5. Go to the **General** tab and click **Edit** on the top-right corner of the tab.
+  5. Go to the **Sign On** tab and click **Edit** on the top-right corner of the tab.
 
   6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
 
@@ -82,7 +82,7 @@ If you are using already configured Okta connector, you can skip Okta app config
   7. Scroll down and click **Save**.
 
 </TabItem>
-<TabItem label="Custom SAML 2.0 app (legacy)">
+<TabItem label="Custom SAML 2.0 app (legacy)" value="legacy">
 
   <Admonition type="note">
   Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
