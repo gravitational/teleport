@@ -83,6 +83,7 @@ type TestContext struct {
 	KubeProxy          *TLSServer
 	Emitter            *eventstest.ChannelEmitter
 	Context            context.Context
+	UploadHandler      *eventstest.MemoryUploader
 	kubeServerListener net.Listener
 	kubeProxyListener  net.Listener
 	cancel             context.CancelFunc
@@ -121,16 +122,26 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		cancel:          cancel,
 		heartbeatCtx:    heartbeatCtx,
 		heartbeatCancel: heartbeatCancel,
+		UploadHandler:   eventstest.NewMemoryUploader(),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
 	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
 
+	streamer, err := events.NewProtoStreamer(
+		events.ProtoStreamerConfig{
+			Uploader: testCtx.UploadHandler,
+		},
+	)
+	require.NoError(t, err)
+
 	// Create and start test auth server.
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:       clockwork.NewFakeClockAt(time.Now()),
-		ClusterName: testCtx.ClusterName,
-		Dir:         t.TempDir(),
+		Clock:         clockwork.NewFakeClockAt(time.Now()),
+		ClusterName:   testCtx.ClusterName,
+		Streamer:      streamer,
+		UploadHandler: testCtx.UploadHandler,
+		Dir:           t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
