@@ -173,36 +173,6 @@ func TestPlugin_getUpgradeWindowStartHourHandle(t *testing.T) {
 	require.Equal(t, pass, actual)
 }
 
-func TestPlugin_surveyCompanyResponsesHandler(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/survey/company", nil)
-	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
-	wCtx := &web.SessionContext{}
-
-	pass := &cloudapi.SurveyCompanyResponse{
-		MarketingParams: &cloudapi.MarketingParamData{
-			Campaign: "some-camp",
-			Source:   "some-source",
-			Medium:   "some-medium",
-			Intent:   "some-intent",
-		},
-	}
-
-	client := &testClient{
-		MockedClient: cloud.MockedClient{
-			MockGetSurveyCompany: func(context.Context, *cloudapi.EmptyRequest, ...grpc.CallOption) (*cloudapi.SurveyCompanyResponse, error) {
-				return pass, nil
-			},
-		},
-	}
-
-	actual, err := s.webPlugin.surveyCompanyResponsesHandler(w, r, wCtx, client)
-	require.NoError(t, err)
-	require.Equal(t, pass, actual)
-}
-
 func TestPlugin_surveyResultsHandler(t *testing.T) {
 	t.Parallel()
 	jsonReq := `{ "companyName": "some-company", "employeeCount": "35", "resources": [], "role": "eng", "team": "marketing", "username": "some-username" }`

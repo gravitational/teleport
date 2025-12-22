@@ -58,11 +58,6 @@ func (p *Plugin) registerCloudHandlers() {
 		// Keeping it for now to ensure compatibility between proxies within one major of difference.
 		p.h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.withCloudCache(p.getUpgradeWindowStartHourHandle)))
 		p.h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
-
-		// surveyCompanyResponsesHandler gets survey company responses for the account.
-		// Deprecated: no longer used.
-		// TODO(bl-nero) DELETE IN v19.0.0
-		p.h.GET("/enterprise/cloud/survey/company", p.withCloudAuth(p.withCloudCache(p.surveyCompanyResponsesHandler)))
 	}
 
 	// upgrade window endpoints with cluster param
@@ -210,15 +205,6 @@ func (p *Plugin) updateClusterUpgradeWindowStartHourHandle(w http.ResponseWriter
 	}
 
 	return web.OK(), nil
-}
-
-func (p *Plugin) surveyCompanyResponsesHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
-	res, err := client.GetSurveyCompany(r.Context(), &cloudapi.EmptyRequest{})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return res, nil
 }
 
 func (p *Plugin) getClientIPRestrictions(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {
