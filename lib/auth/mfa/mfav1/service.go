@@ -165,7 +165,7 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	supportedMFADevices := s.groupAndFilterSupportedMFADevices(username, devices)
+	supportedMFADevices := s.groupAndFilterSupportedMFADevices(ctx, username, devices)
 	if len(supportedMFADevices.Webauthn) == 0 && supportedMFADevices.SSO == nil {
 		return nil, trace.BadParameter("user %q has no registered MFA devices", username)
 	}
@@ -374,7 +374,7 @@ type devicesByType struct {
 	SSO      *types.MFADevice
 }
 
-func (s *Service) groupAndFilterSupportedMFADevices(username string, devices []*types.MFADevice) devicesByType {
+func (s *Service) groupAndFilterSupportedMFADevices(ctx context.Context, username string, devices []*types.MFADevice) devicesByType {
 	var (
 		webauthnDevices []*types.MFADevice
 		ssoDevice       *types.MFADevice
@@ -392,7 +392,9 @@ func (s *Service) groupAndFilterSupportedMFADevices(username string, devices []*
 			} else {
 				// Currently only one SSO device is supported. In the future, we may support multiple SSO devices. If we
 				// ever do, we'll need to update this logic to return all SSO devices instead of just the first one.
-				s.logger.Warn("Multiple SSO devices found for user, only the first device encountered will be used",
+				s.logger.WarnContext(
+					ctx,
+					"Multiple SSO devices found for user, only the first device encountered will be used",
 					"user", username,
 					"used_device_id", ssoDevice.Id,
 					"ignored_device_id", dev.Id,
