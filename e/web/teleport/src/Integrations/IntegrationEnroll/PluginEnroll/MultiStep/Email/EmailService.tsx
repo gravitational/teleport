@@ -70,7 +70,8 @@ export function EmailService() {
     }
 
     run(async () => {
-      const resp = await pluginsService.createStaticAuthPlugin(formData);
+      const resp =
+        await pluginsService.createStaticAuthPlugin<'email'>(formData);
       setInstalledPlugin(resp);
       nextStep();
     });

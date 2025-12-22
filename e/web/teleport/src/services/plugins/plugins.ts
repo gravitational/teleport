@@ -4,9 +4,10 @@ import auth from 'teleport/services/auth/auth';
 import {
   Plugin,
   PluginCredentials,
+  PluginEntraIDStatusDetails,
   PluginKind,
-  PluginNameToDetails,
-  PluginNameToSpec,
+  PluginKindToSpec,
+  PluginKindToStatusDetails,
   PluginStatus,
 } from 'teleport/services/integrations';
 import {
@@ -52,7 +53,7 @@ export const pluginsService = {
    */
   async createStaticAuthPlugin<T extends string>(
     formData: FormData
-  ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
+  ): Promise<Plugin<PluginKindToSpec[T], PluginKindToStatusDetails[T]>> {
     const webauthnResponse =
       await auth.getMfaChallengeResponseForAdminAction(true);
 
@@ -117,15 +118,15 @@ export const pluginsService = {
   },
 
   fetchPlugin<T extends string>(
-    name: T,
+    name: string,
     abortSignal?: AbortSignal
-  ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
+  ): Promise<Plugin<PluginKindToSpec[T], PluginKindToStatusDetails[T]>> {
     return api.get(cfg.getPluginUrl(name, 'get'), abortSignal).then(makePlugin);
   },
 
   updatePlugin<T extends string>(
     req: PluginUpdateRequest<T>
-  ): Promise<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>> {
+  ): Promise<Plugin<PluginKindToSpec[T], PluginKindToStatusDetails[T]>> {
     return api.put(cfg.api.plugin.update, req).then(makePlugin);
   },
 
@@ -175,6 +176,10 @@ function makePlugin(json: any): Plugin {
     if (status.details) {
       if (type === 'okta' && status.details?.okta) {
         madeStatus.details = makeOktaPluginStatus(status.details.okta);
+      }
+
+      if (type === 'entra-id' && status.details?.entra) {
+        madeStatus.details = makeEntraIDPluginStatus(status.details.entra);
       }
     }
   }
@@ -294,6 +299,16 @@ function makeOktaPluginStatus(rawOktaDetails): PluginStatusOkta {
   }
 
   return status;
+}
+
+function makeEntraIDPluginStatus(
+  rawEntraIDStatusDetails: any
+): PluginEntraIDStatusDetails {
+  const { imported_users, imported_groups } = rawEntraIDStatusDetails;
+  return {
+    imported_users: imported_users ?? 0,
+    imported_groups: imported_groups ?? 0,
+  };
 }
 
 export function getCTAForPlugin(plugin: PluginKind) {

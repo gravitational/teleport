@@ -75,7 +75,7 @@ export const SetUpSSO = () => {
         })
         .catch(withUnsupportedOktaPluginCreateErrorConversion)
         // refetch the plugin to put into the cache because the create plugin endpoint doesn't return plugin.status.details
-        .then(() => pluginsService.fetchPlugin('okta')),
+        .then(() => pluginsService.fetchPlugin<'okta'>('okta')),
     onSuccess: data =>
       queryClient.setQueryData(createFetchPluginQueryKey('okta'), data),
   });

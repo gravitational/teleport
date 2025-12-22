@@ -3,8 +3,8 @@ import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import { pluginsService } from 'e-teleport/services/plugins/plugins';
 import {
   Plugin,
-  PluginNameToDetails,
-  PluginNameToSpec,
+  PluginKindToSpec,
+  PluginKindToStatusDetails,
 } from 'teleport/services/integrations';
 import { createQueryHook } from 'teleport/services/queryHelpers';
 
@@ -22,13 +22,13 @@ const { useQuery: _useFetchPlugin, createQueryKey: createFetchPluginQueryKey } =
 export { createFetchPluginQueryKey };
 
 export function useFetchPlugin<T extends string>(
-  name: T,
+  name: string,
   options?: Omit<
-    UseQueryOptions<Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>>,
+    UseQueryOptions<Plugin<PluginKindToSpec[T], PluginKindToStatusDetails[T]>>,
     'queryKey' | 'queryFn'
   >
 ) {
   return _useFetchPlugin(name, options) as UseQueryResult<
-    Plugin<PluginNameToSpec[T], PluginNameToDetails[T]>
+    Plugin<PluginKindToSpec[T], PluginKindToStatusDetails[T]>
   >;
 }
