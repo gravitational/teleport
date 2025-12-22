@@ -229,14 +229,14 @@ const Container = styled(Flex)`
 `;
 
 const FormContainer = styled(Flex)`
-  flex: 1;
+  flex: 4;
   flex-direction: column;
   overflow: auto;
   padding-right: ${({ theme }) => theme.space[5]}px;
 `;
 
 const CodeContainer = styled(Flex)`
-  flex: 1;
+  flex: 6;
   flex-direction: column;
   overflow: auto;
 `;
