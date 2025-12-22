@@ -86,7 +86,7 @@ should mount tls.existingCASecretName and set environment when set in values:
       - name: TELEPORT_PLUGIN_FAIL_FAST
         value: "true"
       - name: SSL_CERT_FILE
-        value: /etc/teleport-tls-ca/ca.pem
+        value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
       image: public.ecr.aws/gravitational/teleport-plugin-event-handler:18.6.0
       imagePullPolicy: IfNotPresent
       name: teleport-plugin-event-handler
