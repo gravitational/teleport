@@ -83,6 +83,9 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
+      - name: Install govulncheck-report
+        run: go -C ./build.assets/tooling/cmd/govulncheck-report install .
+
       - name: Run govulncheck on all Go modules
         env:
           BRANCH: ${{ matrix.branch }}
@@ -105,8 +108,18 @@ jobs:
             echo "Checking ${MODULE_NAME} at '${MODULE_DIRECTORY_PATH}'..."
 
             set +e  # Ignore errors for this part
+            # TODO(codingllama): Remove ignores once AWS SDK is updated to v2.
+            # - GO-2022-0635: https://github.com/gravitational/teleport/issues/62442
+            # - GO-2022-0646: https://github.com/gravitational/teleport/issues/62442
+            # TODO(codingllama): Remove ignores once sigstore/timestamp-authority is updated to v2.
+            # - GO-2025-4192: https://github.com/gravitational/teleport/issues/62441
             GOOS=${MOD_GOOS[${MODULE_DIRECTORY_PATH}]:-${DEFAULT_GOOS}} \
-            govulncheck -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... 2>&1; \
+            govulncheck-report \
+                --ignore=GO-2022-0635 \
+                --ignore=GO-2022-0646 \
+                --ignore=GO-2025-4192 \
+                -- \
+                -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... 2>&1; \
               EXIT_CODE=$?
             set -e
 
