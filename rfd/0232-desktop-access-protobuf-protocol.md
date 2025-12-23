@@ -266,38 +266,17 @@ messages containing either a TDP message or TDPB message.
 
 ### Appendix A: Example Message Definitions
 ```protobuf
-extend google.protobuf.MessageOptions {
-  optional MessageType tdp_type_option = 61111;
-}
+syntax = "proto3";
 
-// Types of messages that TDPB implementations will exchange
-enum MessageType {
-  MESSAGE_TYPE_UNSPECIFIED = 0;
-  MESSAGE_TYPE_PNG_FRAME = 1;
-  MESSAGE_TYPE_FASTPATH_PDU = 2;
-  MESSAGE_TYPE_RDP_RESPONSE_PDU = 3;
-  MESSAGE_TYPE_SYNC_KEYS = 4;
-  MESSAGE_TYPE_MOUSE_MOVE = 5;
-  MESSAGE_TYPE_MOUSE_BUTTON = 6;
-  MESSAGE_TYPE_KEYBOARD_BUTTON = 7;
-  MESSAGE_TYPE_ALERT = 8;
-  MESSAGE_TYPE_MOUSE_WHEEL = 9;
-  MESSAGE_TYPE_CLIPBOARD_DATA = 10;
-  MESSAGE_TYPE_MFA = 11;
-  MESSAGE_TYPE_SHARED_DIRECTORY_REQUEST = 12;
-  MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE = 13;
-  MESSAGE_TYPE_SHARED_DIRECTORY_ANNOUNCE = 14;
-  MESSAGE_TYPE_SHARED_DIRECTORY_ACKNOWLEDGE = 15;
-  MESSAGE_TYPE_LATENCY_STATS = 16;
-  MESSAGE_TYPE_PING = 17;
-  MESSAGE_TYPE_CLIENT_HELLO = 18;
-  MESSAGE_TYPE_SERVER_HELLO = 19;
-  MESSAGE_TYPE_CLIENT_SCREEN_SPEC = 20;
-}
+package teleport.desktop.v1;
+
+import "google/protobuf/descriptor.proto";
+import "teleport/mfa/v1/challenge.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1";
 
 // Sent by client to begin a TDPB connection and advertise capabilities.
 message ClientHello {
-  option (tdp_type_option) = MESSAGE_TYPE_CLIENT_HELLO;
   string username = 1;
   ClientScreenSpec screen_spec = 2;
   uint32 keyboard_layout = 3;
@@ -307,7 +286,6 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
-  option (tdp_type_option) = MESSAGE_TYPE_SERVER_HELLO;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -321,20 +299,17 @@ message Rectangle {
 
 // Contains updated image data to be displayed.
 message PNGFrame {
-  option (tdp_type_option) = MESSAGE_TYPE_PNG_FRAME;
   Rectangle coordinates = 1;
   bytes data = 2;
 }
 
 // Contains a raw RDP FastPath message to by interpreted by the client.
 message FastPathPDU {
-  option (tdp_type_option) = MESSAGE_TYPE_FASTPATH_PDU;
   bytes pdu = 1;
 }
 
-// Contains a raw RDP response PDU to be interpreted by the server.
+// Contains a raw RDP response PDU to send to the server.
 message RDPResponsePDU {
-  option (tdp_type_option) = MESSAGE_TYPE_RDP_RESPONSE_PDU;
   bytes response = 1;
 }
 
@@ -349,7 +324,6 @@ message ConnectionActivated {
 
 // Conveys the current state of keyboard buttons with persistent state.
 message SyncKeys {
-  option (tdp_type_option) = MESSAGE_TYPE_SYNC_KEYS;
   bool scroll_lock_pressed = 1;
   bool num_lock_state = 2;
   bool caps_lock_state = 3;
@@ -358,12 +332,11 @@ message SyncKeys {
 
 // Represents the current position of the cursor on the client.
 message MouseMove {
-  option (tdp_type_option) = MESSAGE_TYPE_MOUSE_MOVE;
   uint32 x = 1;
   uint32 y = 2;
 }
 
-// Specifies which mount button was pressed.
+// Specifies which mouse button was pressed.
 enum MouseButtonType {
   MOUSE_BUTTON_TYPE_UNSPECIFIED = 0;
   MOUSE_BUTTON_TYPE_LEFT = 1;
@@ -373,24 +346,21 @@ enum MouseButtonType {
 
 // Informs the server of a mouse button press.
 message MouseButton {
-  option (tdp_type_option) = MESSAGE_TYPE_MOUSE_BUTTON;
   MouseButtonType button = 1;
   bool pressed = 2;
 }
 
 // Informs the server of a keyboard button press.
 message KeyboardButton {
-  option (tdp_type_option) = MESSAGE_TYPE_KEYBOARD_BUTTON;
   uint32 key_code = 1;
   bool pressed = 2;
 }
 
 // Composed in Client Hello to inform the server of the client's screen size.
 // May also be sent during a desktop session as the client resizes its display.
-// These messages are captured for session recordings in order to replay
+// These mesasages are captured for session recordings in order to replay
 // resizing events.
 message ClientScreenSpec {
-  option (tdp_type_option) = MESSAGE_TYPE_CLIENT_SCREEN_SPEC;
   uint32 width = 1;
   uint32 height = 2;
 }
@@ -405,7 +375,6 @@ enum AlertSeverity {
 
 // Represents an Alert to be displayed by the client.
 message Alert {
-  option (tdp_type_option) = MESSAGE_TYPE_ALERT;
   string message = 1;
   AlertSeverity severity = 2;
 }
@@ -417,20 +386,18 @@ enum MouseWheelAxis {
   MOUSE_WHEEL_AXIS_HORIZONTAL = 2;
 }
 
-// Mouse wheel event
+// Mouse wheel event.
 message MouseWheel {
-  option (tdp_type_option) = MESSAGE_TYPE_MOUSE_WHEEL;
   MouseWheelAxis axis = 1;
   uint32 delta = 2;
 }
 
 // Represents shared clipboard data.
 message ClipboardData {
-  option (tdp_type_option) = MESSAGE_TYPE_CLIPBOARD_DATA;
   bytes data = 1;
 }
 
-// MFA challenge type
+// MFA challenge type.
 enum MFAType {
   MFA_TYPE_UNSPECIFIED = 0;
   MFA_TYPE_WEBAUTHN = 1;
@@ -441,68 +408,142 @@ enum MFAType {
 // The client implicitly expects a non-empty challenge while the server
 // expects a non-empty response.
 message MFA {
-  option (tdp_type_option) = MESSAGE_TYPE_MFA;
   MFAType type = 1;
-  proto.MFAAuthenticateChallenge challenge = 2;
-  proto.MFAAuthenticateResponse authentication_response = 3;
+  string channel_id = 2;
+  mfa.v1.AuthenticateChallenge challenge = 3;
+  mfa.v1.AuthenticateResponse authentication_response = 4;
 }
 
 // Sent by client to announce a new shared directory.
 message SharedDirectoryAnnounce {
-  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_ANNOUNCE;
   uint32 directory_id = 1;
   string name = 2;
 }
 
 // Sent by server to acknowledge a new shared directory.
 message SharedDirectoryAcknowledge {
-  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_ACKNOWLEDGE;
   uint32 directory_id = 1;
   uint32 error_code = 2;
 }
 
-// Represents an operation on a shared directory.
-enum DirectoryOperation {
-  DIRECTORY_OPERATION_UNSPECIFIED = 0;
-  DIRECTORY_OPERATION_INFO = 1;
-  DIRECTORY_OPERATION_CREATE = 2;
-  DIRECTORY_OPERATION_DELETE = 3;
-  DIRECTORY_OPERATION_LIST = 4;
-  DIRECTORY_OPERATION_READ = 5;
-  DIRECTORY_OPERATION_WRITE = 6;
-  DIRECTORY_OPERATION_MOVE = 7;
-  DIRECTORY_OPERATION_TRUNCATE = 8;
-  DIRECTORY_OPERATION_ANNOUNCE = 9;
-  DIRECTORY_OPERATION_ACKNOWLEDGE = 10;
+// Shared directory operation requests.
+message SharedDirectoryRequest {
+  // Common fields used for all request types.
+  uint32 directory_id = 1;
+  uint32 completion_id = 2;
+
+  // Info request.
+  message Info {
+    string path = 1;
+  }
+
+  // Create request.
+  message Create {
+    string path = 1;
+    uint32 file_type = 2;
+  }
+
+  // Delete request.
+  message Delete {
+    string path = 1;
+  }
+
+  // List request.
+  message List {
+    string path = 1;
+  }
+
+  // Read Request.
+  message Read {
+    string path = 1;
+    uint64 offset = 2;
+    uint32 length = 3;
+  }
+
+  // Write Request.
+  message Write {
+    string path = 1;
+    uint64 offset = 2;
+    bytes data = 3;
+  }
+
+  // Move Request.
+  message Move {
+    string original_path = 1;
+    string new_path = 2;
+  }
+
+  // Truncate Request.
+  message Truncate {
+    string path = 1;
+    uint32 end_of_file = 2;
+  }
+
+  // operation is the particular operation type being requested.
+  oneof operation {
+    Info info = 3;
+    Create create = 4;
+    Delete delete = 5;
+    List list = 6;
+    Read read = 7;
+    Write write = 8;
+    Move move = 9;
+    Truncate truncate = 10;
+  }
 }
 
-// Contains data necessary for shared directory operations.
-// Not all operation types make use of all fields.
-message SharedDirectoryRequest {
-  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_REQUEST;
-  // Operation type
-  DirectoryOperation operation_code = 1;
-  // Common fields
-  uint32 directory_id = 2;
-  uint32 completion_id = 3;
-  // Subject path for Info and Move requests.
-  string path = 4;
-  // Destination path for Move requests.
-  string new_path = 9;
-  // Specifies file type in CREATE requests.
-  uint32 file_type = 5;
-  // Specifies offset where the read/write should start
-  // in READ and WRITE requests.
-  uint64 offset = 6;
-  // Requested length to read for READ requests.
-  uint32 length = 7;
-  // For TRUNCATE requests.
-  uint32 end_of_file = 8;
-  // Data to be written in WRITE requests.
-  bytes data = 10;
-  // Defines the shared directory name in
-  // ANNOUNCE operations.
-  string name = 11;
+// Shared directory operation responses.
+message SharedDirectoryResponse {
+  // Common fields used for all response types.
+  uint32 completion_id = 1;
+  uint32 error_code = 2;
+
+  // Info response.
+  message Info {
+    FileSystemObject fso = 1;
+  }
+
+  // Create response.
+  message Create {
+    FileSystemObject fso = 1;
+  }
+
+  // Delete response.
+  message Delete {}
+
+  // List response.
+  message List {
+    repeated FileSystemObject fso_list = 1;
+  }
+
+  // Read response.
+  message Read {
+    bytes data = 1;
+  }
+
+  // Write response.
+  message Write {
+    uint32 bytes_written = 1;
+  }
+
+  // Move response.
+  message Move {}
+
+  // Truncate response.
+  message Truncate {}
+
+  // operation is the particular operation type that
+  // this response is intended for.
+  oneof operation {
+    Info info = 3;
+    Create create = 4;
+    Delete delete = 5;
+    List list = 6;
+    Read read = 7;
+    Write write = 8;
+    Move move = 9;
+    Truncate truncate = 10;
+  }
 }
 
 // Represents a file object in a shared directory.
@@ -514,33 +555,42 @@ message FileSystemObject {
   string path = 5;
 }
 
-// Contains data necessary for responses to shared directory operations.
-// Not all operation types make use of all fields.
-message SharedDirectoryResponse {
-  option (tdp_type_option) = MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE;
-  // Common response fields
-  uint32 completion_id = 1;
-  uint32 error_code = 2;
-  // Returned FileSystemObject(s) for INFO and LIST responses.
-  repeated FileSystemObject fso_list = 3;
-  // Data returned in READ responses.
-  bytes data = 4;
-}
-
-
-
 // Contains latency metrics between the proxy and RDP host
 // as well as between the proxy and client.
 message LatencyStats {
-  option (tdp_type_option) = MESSAGE_TYPE_LATENCY_STATS;
-  uint32 client_latency = 1;
-  uint32 server_latency = 2;
+  uint32 client_latency_ms = 1;
+  uint32 server_latency_ms = 2;
 }
 
 // A ping message used to time latency between the web client and proxy.
 message Ping {
-  option (tdp_type_option) = MESSAGE_TYPE_PING;
-  // UUID is used to correlate message send by proxy and received from the Windows Desktop Service
+  // UUID is used to correlate message sent by proxy and received from the Windows Desktop Service.
   bytes uuid = 1;
+}
+
+// Envelope wraps all messages that are allowed to be sent on the wire.
+message Envelope {
+  oneof payload {
+    ClientHello client_hello = 1;
+    ServerHello server_hello = 2;
+    PNGFrame png_frame = 3;
+    FastPathPDU fast_path_pdu = 4;
+    RDPResponsePDU rdp_response_pdu = 5;
+    SyncKeys sync_keys = 6;
+    MouseMove mouse_move = 7;
+    MouseButton mouse_button = 8;
+    KeyboardButton keyboard_button = 9;
+    ClientScreenSpec client_screen_spec = 10;
+    Alert alert = 11;
+    MouseWheel mouse_wheel = 12;
+    ClipboardData clipboard_data = 13;
+    MFA mfa = 14;
+    SharedDirectoryAnnounce shared_directory_announce = 15;
+    SharedDirectoryAcknowledge shared_directory_acknowledge = 16;
+    SharedDirectoryRequest shared_directory_request = 17;
+    SharedDirectoryResponse shared_directory_response = 18;
+    LatencyStats latency_stats = 19;
+    Ping ping = 20;
+  }
 }
 ```
