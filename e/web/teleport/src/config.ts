@@ -168,6 +168,8 @@ const cfg = {
       create: '/v1/webapi/sites/:clusterId/accessmonitoringrule',
       update: '/v1/webapi/sites/:clusterId/accessmonitoringrule/:name',
       delete: '/v1/webapi/sites/:clusterId/accessmonitoringrule/:name',
+      terraform:
+        '/v1/webapi/sites/:clusterId/accessmonitoringrule/:name/terraform',
     },
 
     externalAuditStorage: {
@@ -456,6 +458,13 @@ const cfg = {
   getAccessMonitoringRuleCreateUrl(clusterId: string) {
     return generatePath(cfg.api.accessMonitoringRule.create, {
       clusterId,
+    });
+  },
+
+  getAccessMonitoringRuleTerraformUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.accessMonitoringRule.terraform, {
+      clusterId,
+      name,
     });
   },
 

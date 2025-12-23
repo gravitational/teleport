@@ -169,6 +169,23 @@ subjects:
 - access_request
 version: v1`;
 
+const ruleTerraform = `resource "teleport_access_monitoring_rule" "sdfssd" {
+  version = "v1"
+
+  metadata = {
+    name = "sdfssd"
+  }
+
+  spec = {
+    subjects  = ["access_request"]
+    condition = "some-condition"
+    notification = {
+      name       = "mattermost"
+      recipients = ["apple", "banana", "carrot"]
+    }
+  }
+}`;
+
 const invalidReviewRuleObject = {
   metadata: { name: 'review-rule' },
   spec: {
@@ -189,6 +206,39 @@ const invalidReviewRuleObject = {
     },
   },
 };
+
+const reviewRuleTerraform = `resource "teleport_access_monitoring_rule" "review-rule" {
+  version = "v1"
+
+  metadata = {
+    name = "review-rule"
+  }
+
+  spec = {
+    subjects  = ["access_request"]
+    condition = "contains_all(set("access"), access_request.spec.roles) &&\ncontains_any(user.traits["level"], set("L1")) &&\ncontains_any(user.traits["team"], set("Dev")) &&\ncontains_any(user.traits["location"], set("Seattle")) &&\naccess_request.spec.resource_labels_intersection["env"].contains("dev")"
+    notification = {
+      name       = "slack-plugin"
+      recipients = ["apple", "banana", "carrot"]
+    }
+    automatic_review = {
+      integration = "builtin"
+      decision    = "APPROVED"
+    }
+    desired_state = "reviewed"
+    schedules = {
+      default = {
+        time = {
+          shifts = [{
+            end     = "23:59"
+            start   = "00:00"
+            weekday = "Monday"
+          }]
+        }
+      }
+    }
+  }
+}`;
 
 const reviewRuleYaml = `
 kind: access_monitoring_rule
@@ -408,6 +458,11 @@ CreateAndViewValidRule.parameters = {
           yaml: ruleYaml,
         })
       ),
+      http.get(cfg.api.accessMonitoringRule.terraform, () =>
+        HttpResponse.json({
+          terraform: ruleTerraform,
+        })
+      ),
     ],
   },
 };
@@ -431,6 +486,11 @@ CreateAndViewReviewRule.parameters = {
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({
           yaml: reviewRuleYaml,
+        })
+      ),
+      http.get(cfg.api.accessMonitoringRule.terraform, () =>
+        HttpResponse.json({
+          terraform: reviewRuleTerraform,
         })
       ),
     ],
@@ -620,6 +680,72 @@ WithNoCreateAccess.parameters = {
       ),
       http.post(cfg.oss.api.yaml.stringify, () =>
         HttpResponse.json({ yaml: ruleYaml })
+      ),
+    ],
+  },
+};
+
+export const WithNoEditAccess = () => {
+  const ctx = createTeleportContext({ customAcl: getAcl({ noAccess: true }) });
+  ctx.storeUser.state.acl.accessMonitoringRule.edit = false;
+  ctx.storeUser.state.acl.accessMonitoringRule.list = true;
+  ctx.storeUser.state.acl.accessMonitoringRule.read = true;
+  return (
+    <TeleportProviderBasic teleportCtx={ctx}>
+      <AccessAutomations />
+    </TeleportProviderBasic>
+  );
+};
+WithNoEditAccess.parameters = {
+  msw: {
+    handlers: [
+      withRule,
+      withPlugins,
+      deleteRule,
+      createRule,
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({ resource: validRuleObjectSlack })
+      ),
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({ yaml: ruleYaml })
+      ),
+      http.get(cfg.api.accessMonitoringRule.terraform, () =>
+        HttpResponse.json({
+          terraform: ruleTerraform,
+        })
+      ),
+    ],
+  },
+};
+
+export const WithNoViewAccess = () => {
+  const ctx = createTeleportContext({ customAcl: getAcl({ noAccess: true }) });
+  ctx.storeUser.state.acl.accessMonitoringRule.edit = false;
+  ctx.storeUser.state.acl.accessMonitoringRule.list = false;
+  ctx.storeUser.state.acl.accessMonitoringRule.read = false;
+  return (
+    <TeleportProviderBasic teleportCtx={ctx}>
+      <AccessAutomations />
+    </TeleportProviderBasic>
+  );
+};
+WithNoViewAccess.parameters = {
+  msw: {
+    handlers: [
+      withRule,
+      withPlugins,
+      deleteRule,
+      createRule,
+      http.post(cfg.oss.api.yaml.parse, () =>
+        HttpResponse.json({ resource: validRuleObjectSlack })
+      ),
+      http.post(cfg.oss.api.yaml.stringify, () =>
+        HttpResponse.json({ yaml: ruleYaml })
+      ),
+      http.get(cfg.api.accessMonitoringRule.terraform, () =>
+        HttpResponse.json({
+          terraform: ruleTerraform,
+        })
       ),
     ],
   },

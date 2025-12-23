@@ -42,4 +42,13 @@ export const accessMonitoringRuleService = {
   }): Promise<void> {
     return api.delete(cfg.getAccessMonitoringRuleDeleteUrl(clusterId, name));
   },
+
+  fetchAccessMonitoringRuleTerraform(
+    { clusterId, name }: { clusterId: string; name: string },
+    signal?: AbortSignal
+  ): Promise<string> {
+    return api
+      .get(cfg.getAccessMonitoringRuleTerraformUrl(clusterId, name), signal)
+      .then(resp => resp.terraform);
+  },
 };

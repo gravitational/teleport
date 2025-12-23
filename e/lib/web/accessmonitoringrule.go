@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tfgen"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -186,4 +187,38 @@ func extractAndValidateRule(content string) (*accessmonitoringrulesv1.AccessMoni
 	}
 
 	return resource, nil
+}
+
+func (p *Plugin) getAccessMonitoringRuleTerraform(
+	_ http.ResponseWriter,
+	r *http.Request,
+	params httprouter.Params,
+	ctx *web.SessionContext,
+	cluster reversetunnelclient.Cluster,
+) (any, error) {
+	clt, err := ctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client := clt.AccessMonitoringRuleClient()
+
+	rule, err := client.GetAccessMonitoringRule(r.Context(), params.ByName("name"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if rule.Metadata != nil {
+		rule.Metadata.Revision = ""
+	}
+
+	tfResult, err := tfgen.Generate(rule)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessMonitoringRuleGenerateTerraformResponse{Terraform: string(tfResult)}, nil
+}
+
+type accessMonitoringRuleGenerateTerraformResponse struct {
+	Terraform string `json:"terraform"`
 }

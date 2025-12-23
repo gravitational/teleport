@@ -1,9 +1,10 @@
 import { type JSX } from 'react';
 import styled from 'styled-components';
 
-import { Box, ButtonBorder, Flex, Label } from 'design';
+import { Box, Flex, Label, MenuItem } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { IconTooltip } from 'design/Tooltip';
+import { MenuButton } from 'shared/components/MenuAction';
 import { SearchPanel } from 'shared/components/Search';
 import { capitalizeFirstLetter } from 'shared/utils/text';
 
@@ -22,24 +23,32 @@ import {
   PluginMsTeamsSpec,
   PluginSlackSpec,
 } from 'teleport/services/integrations';
+import { Access } from 'teleport/services/user';
 
 import { TableRow, TableRowFallback, TableRowRule } from './types';
 
 export function RuleList({
   onEdit,
   onSearchChange,
+  onViewTerraform,
   viewingRule,
   search,
   serversidePagination,
   plugins,
+  rulesAcl,
 }: {
   onEdit(rule: AccessMonitoringRuleWithYaml): void;
   onSearchChange(search: string): void;
+  onViewTerraform(rule: AccessMonitoringRuleWithYaml): void;
   viewingRule: AccessMonitoringRuleWithYaml;
   search: string;
   serversidePagination: SeversidePagination<AccessMonitoringRuleWithYaml>;
   plugins: Plugin[];
+  rulesAcl: Access;
 }) {
+  const canView = rulesAcl.list && rulesAcl.read;
+  const canEdit = rulesAcl.edit;
+
   return (
     <Table
       data={[
@@ -100,7 +109,13 @@ export function RuleList({
           render: (row: TableRow) => {
             const isViewing = row.name === viewingRule?.object?.metadata?.name;
             return 'item' in row
-              ? renderActionCell(isViewing, () => onEdit(row.item))
+              ? renderActionCell(
+                  isViewing,
+                  canView,
+                  canEdit,
+                  () => onEdit(row.item),
+                  () => onViewTerraform(row.item)
+                )
               : renderInfoCell(row.plugin);
           },
         },
@@ -162,13 +177,26 @@ function fallbackRows(plugins: Plugin[] = []): TableRowFallback[] {
   }));
 }
 
-function renderActionCell(viewing: boolean, onClick: () => void): JSX.Element {
+function renderActionCell(
+  viewing: boolean,
+  canView: boolean,
+  canEdit: boolean,
+  onEdit: () => void,
+  onViewTerraform: () => void
+): JSX.Element {
   return (
     <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
       <Flex alignItems="center" justifyContent="right" width="60px">
-        <ButtonBorder size="small" ml={3} onClick={onClick}>
-          {viewing ? 'Hide' : 'View'}
-        </ButtonBorder>
+        <MenuButton>
+          {(viewing || canView) && (
+            <MenuItem onClick={onEdit}>
+              {viewing ? 'Hide' : canEdit ? 'Edit' : 'View Details'}
+            </MenuItem>
+          )}
+          {canView && (
+            <MenuItem onClick={onViewTerraform}>View Terraform</MenuItem>
+          )}
+        </MenuButton>
       </Flex>
     </Cell>
   );

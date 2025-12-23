@@ -73,7 +73,7 @@ describe('AccessAutomations', () => {
 
     await screen.findAllByText(/plugin-name/i);
     expect(screen.getAllByText(/plugin-name/i)).toHaveLength(2);
-    expect(screen.getAllByText(/view/i)).toHaveLength(2); // plugins don't have view buttons
+    expect(screen.getAllByText(/options/i)).toHaveLength(2); // plugins don't have action buttons
     expect(screen.getAllByText(/fallback slack/i)).toHaveLength(2);
   });
 
@@ -107,8 +107,13 @@ describe('AccessAutomations', () => {
 
     await screen.findAllByText(/plugin-name/i);
 
-    const btns = screen.getAllByRole('button', { name: /view/i });
+    const btns = screen.getAllByRole('button', { name: /options/i });
     await userEvent.click(btns[0]);
+
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(2);
+    await userEvent.click(menuItems[0]);
+
     expect(screen.getByTestId('standard')).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('delete'));
@@ -118,7 +123,7 @@ describe('AccessAutomations', () => {
       screen.getByRole('button', { name: /yes, delete rule/i })
     );
 
-    expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /options/i })).toHaveLength(1);
     expect(screen.queryByText(/name-valid-/i)).not.toBeInTheDocument();
     expect(screen.getByText(/name-invalid-/i)).toBeInTheDocument();
 
@@ -131,7 +136,7 @@ describe('AccessAutomations', () => {
     await waitForAllAsyncCalls();
 
     await screen.findAllByText(/plugin-name/i);
-    expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /options/i })).toHaveLength(2);
 
     await userEvent.click(
       screen.getByRole('button', { name: /create new access automation/i })
@@ -144,7 +149,7 @@ describe('AccessAutomations', () => {
     await userEvent.click(screen.getByRole('tab', { name: /yaml/i }));
     await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
 
-    expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: /options/i })).toHaveLength(3);
     expect(screen.getByText(/created-rule/i)).toBeInTheDocument();
 
     // sidebar is closed after create.
@@ -167,7 +172,9 @@ describe('AccessAutomations', () => {
     await userEvent.click(screen.getByRole('button', { name: /create rule/i }));
 
     await waitFor(() => {
-      expect(screen.getAllByRole('button', { name: /view/i })).toHaveLength(3);
+      expect(screen.getAllByRole('button', { name: /options/i })).toHaveLength(
+        3
+      );
     });
     expect(screen.getByText(/created-rule/i)).toBeInTheDocument();
 
@@ -192,7 +199,12 @@ describe('AccessAutomations', () => {
     ).not.toBeInTheDocument();
 
     // default to standard editor when viewing
-    await userEvent.click(screen.getByRole('button', { name: /view/i }));
+    await userEvent.click(screen.getByRole('button', { name: /options/i }));
+
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(2);
+    await userEvent.click(menuItems[0]);
+
     expect(screen.getByRole('tab', { name: /standard/i })).toHaveClass(
       'selected'
     );
@@ -226,7 +238,12 @@ describe('AccessAutomations', () => {
     ).not.toBeInTheDocument();
 
     // defaults to yaml editor when viewing
-    await userEvent.click(screen.getByRole('button', { name: /view/i }));
+    await userEvent.click(screen.getByRole('button', { name: /options/i }));
+
+    const menuItems = screen.queryAllByRole('menuitem');
+    expect(menuItems).toHaveLength(2);
+    await userEvent.click(menuItems[0]);
+
     expect(screen.getByRole('tab', { name: /yaml/i })).toHaveClass('selected');
     expect(screen.getByTestId('yaml')).toBeInTheDocument();
 

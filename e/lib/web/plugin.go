@@ -386,6 +386,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.POST("/webapi/sites/:site/accessmonitoringrule", h.WithClusterAuth(p.createAccessMonitoringRule))
 	h.PUT("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.updateAccessMonitoringRule))
 	h.DELETE("/webapi/sites/:site/accessmonitoringrule/:name", h.WithClusterAuth(p.deleteAccessMonitoringRule))
+	h.GET("/webapi/sites/:site/accessmonitoringrule/:name/terraform", h.WithClusterAuth(p.getAccessMonitoringRuleTerraform))
 
 	h.POST("/webapi/sites/:site/integration/externalauditstorage/generate", h.WithClusterAuth(externalAuditStorageGenerate))
 	h.GET("/webapi/scripts/integration/externalauditstorage-bootstrap.sh", h.WithLimiter(p.getExternalAuditStorageBootstrapScript))

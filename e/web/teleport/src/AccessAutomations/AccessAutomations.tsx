@@ -27,6 +27,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import { RuleEditor } from './RuleEditor/RuleEditor';
 import { RuleList } from './RuleList/RuleList';
+import { TerraformDialog } from './TerraformDialog/TerraformDialog';
 import { useRules } from './useRules';
 
 export function AccessAutomations() {
@@ -168,6 +169,8 @@ export function AccessAutomations() {
     setViewingRule(null);
   }
 
+  const [terraformRuleName, setTerraformRuleName] = useState('');
+
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
@@ -238,7 +241,11 @@ export function AccessAutomations() {
             onSearchChange={setSearch}
             search={search}
             onEdit={toggleViewingRule}
+            onViewTerraform={rule =>
+              setTerraformRuleName(rule?.object?.metadata?.name)
+            }
             viewingRule={viewingRule}
+            rulesAcl={rulesAcl}
           />
         </Box>
         {showEditor && (
@@ -253,6 +260,12 @@ export function AccessAutomations() {
             onDelete={onDelete}
             plugins={plugins}
             editor={editor}
+          />
+        )}
+        {terraformRuleName !== '' && (
+          <TerraformDialog
+            ruleName={terraformRuleName}
+            onCancel={() => setTerraformRuleName('')}
           />
         )}
       </Flex>

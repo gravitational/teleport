@@ -370,3 +370,52 @@ func TestGetAccessMonitoringRules_WithAccessRequestFilter(t *testing.T) {
 		require.NotEmpty(t, rule.YAML)
 	}
 }
+
+const validAccessMonitoringRuleTerraform = `resource "teleport_access_monitoring_rule" "foo" {
+  version = "v1"
+
+  metadata = {
+    name      = "foo"
+    namespace = "default"
+  }
+
+  spec = {
+    subjects  = ["access_request"]
+    states    = ["testing"]
+    condition = "true"
+    notification = {
+      name       = "mattermost"
+      recipients = ["apple"]
+    }
+  }
+}
+`
+
+func TestGetAccessMonitoringRuleTerraform_Valid(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+	clusterName := s.testAuthServer.ClusterName()
+	authServer := s.testAuthServer.AuthServer.AuthServer
+
+	rule, err := services.NewAccessMonitoringRuleWithLabels("foo", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		States:    []string{"testing"},
+		Notification: &pb.Notification{
+			Name:       "mattermost",
+			Recipients: []string{"apple"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.CreateAccessMonitoringRule(s.ctx, rule)
+	require.NoError(t, err)
+
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "accessmonitoringrule", rule.Metadata.GetName(), "terraform")
+	re, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	var resp accessMonitoringRuleGenerateTerraformResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Equal(t, validAccessMonitoringRuleTerraform, resp.Terraform)
+}
