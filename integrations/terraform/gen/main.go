@@ -688,6 +688,28 @@ var (
 		ConvertPackagePath:    "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1",
 	}
 
+	vnetConfig = payload{
+		Name:                  "VnetConfig",
+		TypeName:              "VnetConfig",
+		VarName:               "VnetConfig",
+		GetMethod:             "VnetConfigClient().GetVnetConfig",
+		CreateMethod:          "VnetConfigClient().CreateVnetConfig",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "VnetConfigClient().UpsertVnetConfig",
+		DeleteMethod:          "VnetConfigClient().DeleteVnetConfig",
+		ID:                    "vnetConfig.Header.Metadata.Name",
+		Kind:                  "vnetConfig",
+		HasStaticID:           true,
+		ProtoPackage:          "vnetv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1",
+		TerraformResourceType: "teleport_vnet_config",
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindVnetConfig",
+		ConvertPackagePath:    "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1",
+	}
+
 	integration = payload{
 		Name:                   "Integration",
 		VarName:                "integration",
@@ -769,6 +791,8 @@ func genTFSchema() {
 	generateDataSource(discoveryConfig, pluralDataSource)
 	generateResource(integration, pluralResource)
 	generateDataSource(integration, pluralDataSource)
+	generateResource(vnetConfig, pluralResource)
+	generateDataSource(vnetConfig, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
