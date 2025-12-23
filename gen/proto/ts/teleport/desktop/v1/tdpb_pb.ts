@@ -29,7 +29,7 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
-import { MessageType as MessageType$ } from "@protobuf-ts/runtime";
+import { MessageType } from "@protobuf-ts/runtime";
 import { AuthenticateResponse } from "../../mfa/v1/challenge_pb";
 import { AuthenticateChallenge } from "../../mfa/v1/challenge_pb";
 /**
@@ -253,7 +253,7 @@ export interface Alert {
     severity: AlertSeverity;
 }
 /**
- * Mouse wheel event
+ * Mouse wheel event.
  *
  * @generated from protobuf message teleport.desktop.v1.MouseWheel
  */
@@ -334,120 +334,338 @@ export interface SharedDirectoryAcknowledge {
     errorCode: number;
 }
 /**
- * Contains data necessary for shared directory operations.
- * Not all operation types make use of all fields.
+ * Shared directory operation requests.
  *
  * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest
  */
 export interface SharedDirectoryRequest {
     /**
-     * Operation type
+     * Common fields used for all request types.
      *
-     * @generated from protobuf field: teleport.desktop.v1.DirectoryOperation operation_code = 1;
-     */
-    operationCode: DirectoryOperation;
-    /**
-     * Common fields
-     *
-     * @generated from protobuf field: uint32 directory_id = 2;
+     * @generated from protobuf field: uint32 directory_id = 1;
      */
     directoryId: number;
     /**
-     * @generated from protobuf field: uint32 completion_id = 3;
+     * @generated from protobuf field: uint32 completion_id = 2;
      */
     completionId: number;
     /**
-     * Subject path for Info and Move requests.
-     *
-     * @generated from protobuf field: string path = 4;
+     * @generated from protobuf oneof: operation
+     */
+    operation: {
+        oneofKind: "info";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Info info = 3;
+         */
+        info: SharedDirectoryRequest_Info;
+    } | {
+        oneofKind: "create";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Create create = 4;
+         */
+        create: SharedDirectoryRequest_Create;
+    } | {
+        oneofKind: "delete";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Delete delete = 5;
+         */
+        delete: SharedDirectoryRequest_Delete;
+    } | {
+        oneofKind: "list";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.List list = 6;
+         */
+        list: SharedDirectoryRequest_List;
+    } | {
+        oneofKind: "read";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Read read = 7;
+         */
+        read: SharedDirectoryRequest_Read;
+    } | {
+        oneofKind: "write";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Write write = 8;
+         */
+        write: SharedDirectoryRequest_Write;
+    } | {
+        oneofKind: "move";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Move move = 9;
+         */
+        move: SharedDirectoryRequest_Move;
+    } | {
+        oneofKind: "truncate";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest.Truncate truncate = 10;
+         */
+        truncate: SharedDirectoryRequest_Truncate;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * Info request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Info
+ */
+export interface SharedDirectoryRequest_Info {
+    /**
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+}
+/**
+ * Create request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Create
+ */
+export interface SharedDirectoryRequest_Create {
+    /**
+     * @generated from protobuf field: string path = 1;
      */
     path: string;
     /**
-     * Destination path for Move requests.
-     *
-     * @generated from protobuf field: string new_path = 9;
-     */
-    newPath: string;
-    /**
-     * Specifies file type in CREATE requests.
-     *
-     * @generated from protobuf field: uint32 file_type = 5;
+     * @generated from protobuf field: uint32 file_type = 2;
      */
     fileType: number;
+}
+/**
+ * Delete request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Delete
+ */
+export interface SharedDirectoryRequest_Delete {
     /**
-     * Specifies offset where the read/write should start
-     * in READ and WRITE requests.
-     *
-     * @generated from protobuf field: uint64 offset = 6;
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+}
+/**
+ * List request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.List
+ */
+export interface SharedDirectoryRequest_List {
+    /**
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+}
+/**
+ * Read Request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Read
+ */
+export interface SharedDirectoryRequest_Read {
+    /**
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+    /**
+     * @generated from protobuf field: uint64 offset = 2;
      */
     offset: bigint;
     /**
-     * Requested length to read for READ requests.
-     *
-     * @generated from protobuf field: uint32 length = 7;
+     * @generated from protobuf field: uint32 length = 3;
      */
     length: number;
-    /**
-     * For TRUNCATE requests.
-     *
-     * @generated from protobuf field: uint32 end_of_file = 8;
-     */
-    endOfFile: number;
-    /**
-     * Data to be written in WRITE requests.
-     *
-     * @generated from protobuf field: bytes data = 10;
-     */
-    data: Uint8Array;
-    /**
-     * Defines the shared directory name in
-     * ANNOUNCE operations.
-     *
-     * @generated from protobuf field: string name = 11;
-     */
-    name: string;
 }
 /**
- * Contains data necessary for responses to shared directory operations.
- * Not all operation types make use of all fields.
+ * Write Request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Write
+ */
+export interface SharedDirectoryRequest_Write {
+    /**
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+    /**
+     * @generated from protobuf field: uint64 offset = 2;
+     */
+    offset: bigint;
+    /**
+     * @generated from protobuf field: bytes data = 3;
+     */
+    data: Uint8Array;
+}
+/**
+ * Move Request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Move
+ */
+export interface SharedDirectoryRequest_Move {
+    /**
+     * @generated from protobuf field: string original_path = 1;
+     */
+    originalPath: string;
+    /**
+     * @generated from protobuf field: string new_path = 2;
+     */
+    newPath: string;
+}
+/**
+ * Truncate Request.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRequest.Truncate
+ */
+export interface SharedDirectoryRequest_Truncate {
+    /**
+     * @generated from protobuf field: string path = 1;
+     */
+    path: string;
+    /**
+     * @generated from protobuf field: uint32 end_of_file = 2;
+     */
+    endOfFile: number;
+}
+/**
+ * Shared directory operation responses.
  *
  * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse
  */
 export interface SharedDirectoryResponse {
     /**
-     * Operation type
+     * Common fields used for all response types.
      *
-     * @generated from protobuf field: teleport.desktop.v1.DirectoryOperation operation_code = 1;
-     */
-    operationCode: DirectoryOperation;
-    /**
-     * Common response fields
-     *
-     * @generated from protobuf field: uint32 completion_id = 2;
+     * @generated from protobuf field: uint32 completion_id = 1;
      */
     completionId: number;
     /**
-     * @generated from protobuf field: uint32 error_code = 3;
+     * @generated from protobuf field: uint32 error_code = 2;
      */
     errorCode: number;
     /**
-     * Returned FileSystemObject(s) for INFO and LIST responses.
-     *
-     * @generated from protobuf field: repeated teleport.desktop.v1.FileSystemObject fso_list = 4;
+     * @generated from protobuf oneof: operation
+     */
+    operation: {
+        oneofKind: "info";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Info info = 3;
+         */
+        info: SharedDirectoryResponse_Info;
+    } | {
+        oneofKind: "create";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Create create = 4;
+         */
+        create: SharedDirectoryResponse_Create;
+    } | {
+        oneofKind: "delete";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Delete delete = 5;
+         */
+        delete: SharedDirectoryResponse_Delete;
+    } | {
+        oneofKind: "list";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.List list = 6;
+         */
+        list: SharedDirectoryResponse_List;
+    } | {
+        oneofKind: "read";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Read read = 7;
+         */
+        read: SharedDirectoryResponse_Read;
+    } | {
+        oneofKind: "write";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Write write = 8;
+         */
+        write: SharedDirectoryResponse_Write;
+    } | {
+        oneofKind: "move";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Move move = 9;
+         */
+        move: SharedDirectoryResponse_Move;
+    } | {
+        oneofKind: "truncate";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse.Truncate truncate = 10;
+         */
+        truncate: SharedDirectoryResponse_Truncate;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * Info response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Info
+ */
+export interface SharedDirectoryResponse_Info {
+    /**
+     * @generated from protobuf field: teleport.desktop.v1.FileSystemObject fso = 1;
+     */
+    fso?: FileSystemObject;
+}
+/**
+ * Create response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Create
+ */
+export interface SharedDirectoryResponse_Create {
+    /**
+     * @generated from protobuf field: teleport.desktop.v1.FileSystemObject fso = 1;
+     */
+    fso?: FileSystemObject;
+}
+/**
+ * Delete response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Delete
+ */
+export interface SharedDirectoryResponse_Delete {
+}
+/**
+ * List response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.List
+ */
+export interface SharedDirectoryResponse_List {
+    /**
+     * @generated from protobuf field: repeated teleport.desktop.v1.FileSystemObject fso_list = 1;
      */
     fsoList: FileSystemObject[];
+}
+/**
+ * Read response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Read
+ */
+export interface SharedDirectoryResponse_Read {
     /**
-     * Data returned in READ responses.
-     *
-     * @generated from protobuf field: bytes data = 5;
+     * @generated from protobuf field: bytes data = 1;
      */
     data: Uint8Array;
+}
+/**
+ * Write response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Write
+ */
+export interface SharedDirectoryResponse_Write {
     /**
-     * Returned in WRITE responses.
-     *
-     * @generated from protobuf field: uint32 bytes_written = 6;
+     * @generated from protobuf field: uint32 bytes_written = 1;
      */
     bytesWritten: number;
+}
+/**
+ * Move response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Move
+ */
+export interface SharedDirectoryResponse_Move {
+}
+/**
+ * Truncate response.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryResponse.Truncate
+ */
+export interface SharedDirectoryResponse_Truncate {
 }
 /**
  * Represents a file object in a shared directory.
@@ -499,102 +717,144 @@ export interface LatencyStats {
  */
 export interface Ping {
     /**
-     * UUID is used to correlate message sent by proxy and received from the Windows Desktop Service
+     * UUID is used to correlate message sent by proxy and received from the Windows Desktop Service.
      *
      * @generated from protobuf field: bytes uuid = 1;
      */
     uuid: Uint8Array;
 }
 /**
- * Types of messages that TDPB implementations will exchange
+ * Envelope wraps all messages that are allowed to be sent on the wire.
  *
- * @generated from protobuf enum teleport.desktop.v1.MessageType
+ * @generated from protobuf message teleport.desktop.v1.Envelope
  */
-export enum MessageType {
+export interface Envelope {
     /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_UNSPECIFIED = 0;
+     * @generated from protobuf oneof: payload
      */
-    UNSPECIFIED = 0,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_PNG_FRAME = 1;
-     */
-    PNG_FRAME = 1,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_FASTPATH_PDU = 2;
-     */
-    FASTPATH_PDU = 2,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_RDP_RESPONSE_PDU = 3;
-     */
-    RDP_RESPONSE_PDU = 3,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_SYNC_KEYS = 4;
-     */
-    SYNC_KEYS = 4,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_MOUSE_MOVE = 5;
-     */
-    MOUSE_MOVE = 5,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_MOUSE_BUTTON = 6;
-     */
-    MOUSE_BUTTON = 6,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_KEYBOARD_BUTTON = 7;
-     */
-    KEYBOARD_BUTTON = 7,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_ALERT = 8;
-     */
-    ALERT = 8,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_MOUSE_WHEEL = 9;
-     */
-    MOUSE_WHEEL = 9,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_CLIPBOARD_DATA = 10;
-     */
-    CLIPBOARD_DATA = 10,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_MFA = 11;
-     */
-    MFA = 11,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_SHARED_DIRECTORY_REQUEST = 12;
-     */
-    SHARED_DIRECTORY_REQUEST = 12,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE = 13;
-     */
-    SHARED_DIRECTORY_RESPONSE = 13,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_SHARED_DIRECTORY_ANNOUNCE = 14;
-     */
-    SHARED_DIRECTORY_ANNOUNCE = 14,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_SHARED_DIRECTORY_ACKNOWLEDGE = 15;
-     */
-    SHARED_DIRECTORY_ACKNOWLEDGE = 15,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_LATENCY_STATS = 16;
-     */
-    LATENCY_STATS = 16,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_PING = 17;
-     */
-    PING = 17,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_CLIENT_HELLO = 18;
-     */
-    CLIENT_HELLO = 18,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_SERVER_HELLO = 19;
-     */
-    SERVER_HELLO = 19,
-    /**
-     * @generated from protobuf enum value: MESSAGE_TYPE_CLIENT_SCREEN_SPEC = 20;
-     */
-    CLIENT_SCREEN_SPEC = 20
+    payload: {
+        oneofKind: "clientHello";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.ClientHello client_hello = 1;
+         */
+        clientHello: ClientHello;
+    } | {
+        oneofKind: "serverHello";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.ServerHello server_hello = 2;
+         */
+        serverHello: ServerHello;
+    } | {
+        oneofKind: "pngFrame";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.PNGFrame png_frame = 3;
+         */
+        pngFrame: PNGFrame;
+    } | {
+        oneofKind: "fastPathPdu";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.FastPathPDU fast_path_pdu = 4;
+         */
+        fastPathPdu: FastPathPDU;
+    } | {
+        oneofKind: "rdpResponsePdu";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.RDPResponsePDU rdp_response_pdu = 5;
+         */
+        rdpResponsePdu: RDPResponsePDU;
+    } | {
+        oneofKind: "syncKeys";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SyncKeys sync_keys = 6;
+         */
+        syncKeys: SyncKeys;
+    } | {
+        oneofKind: "mouseMove";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MouseMove mouse_move = 7;
+         */
+        mouseMove: MouseMove;
+    } | {
+        oneofKind: "mouseButton";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MouseButton mouse_button = 8;
+         */
+        mouseButton: MouseButton;
+    } | {
+        oneofKind: "keyboardButton";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.KeyboardButton keyboard_button = 9;
+         */
+        keyboardButton: KeyboardButton;
+    } | {
+        oneofKind: "clientScreenSpec";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.ClientScreenSpec client_screen_spec = 10;
+         */
+        clientScreenSpec: ClientScreenSpec;
+    } | {
+        oneofKind: "alert";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.Alert alert = 11;
+         */
+        alert: Alert;
+    } | {
+        oneofKind: "mouseWheel";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MouseWheel mouse_wheel = 12;
+         */
+        mouseWheel: MouseWheel;
+    } | {
+        oneofKind: "clipboardData";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.ClipboardData clipboard_data = 13;
+         */
+        clipboardData: ClipboardData;
+    } | {
+        oneofKind: "mfa";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFA mfa = 14;
+         */
+        mfa: MFA;
+    } | {
+        oneofKind: "sharedDirectoryAnnounce";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryAnnounce shared_directory_announce = 15;
+         */
+        sharedDirectoryAnnounce: SharedDirectoryAnnounce;
+    } | {
+        oneofKind: "sharedDirectoryAcknowledge";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryAcknowledge shared_directory_acknowledge = 16;
+         */
+        sharedDirectoryAcknowledge: SharedDirectoryAcknowledge;
+    } | {
+        oneofKind: "sharedDirectoryRequest";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRequest shared_directory_request = 17;
+         */
+        sharedDirectoryRequest: SharedDirectoryRequest;
+    } | {
+        oneofKind: "sharedDirectoryResponse";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryResponse shared_directory_response = 18;
+         */
+        sharedDirectoryResponse: SharedDirectoryResponse;
+    } | {
+        oneofKind: "latencyStats";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.LatencyStats latency_stats = 19;
+         */
+        latencyStats: LatencyStats;
+    } | {
+        oneofKind: "ping";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.Ping ping = 20;
+         */
+        ping: Ping;
+    } | {
+        oneofKind: undefined;
+    };
 }
 /**
  * Specifies which mouse button was pressed.
@@ -662,7 +922,7 @@ export enum MouseWheelAxis {
     HORIZONTAL = 2
 }
 /**
- * MFA challenge type
+ * MFA challenge type.
  *
  * @generated from protobuf enum teleport.desktop.v1.MFAType
  */
@@ -680,57 +940,14 @@ export enum MFAType {
      */
     MFA_TYPE_U2F = 2
 }
-/**
- * Represents an operation on a shared directory.
- *
- * @generated from protobuf enum teleport.desktop.v1.DirectoryOperation
- */
-export enum DirectoryOperation {
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_INFO = 1;
-     */
-    INFO = 1,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_CREATE = 2;
-     */
-    CREATE = 2,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_DELETE = 3;
-     */
-    DELETE = 3,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_LIST = 4;
-     */
-    LIST = 4,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_READ = 5;
-     */
-    READ = 5,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_WRITE = 6;
-     */
-    WRITE = 6,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_MOVE = 7;
-     */
-    MOVE = 7,
-    /**
-     * @generated from protobuf enum value: DIRECTORY_OPERATION_TRUNCATE = 8;
-     */
-    TRUNCATE = 8
-}
 // @generated message type with reflection information, may provide speed optimized methods
-class ClientHello$Type extends MessageType$<ClientHello> {
+class ClientHello$Type extends MessageType<ClientHello> {
     constructor() {
         super("teleport.desktop.v1.ClientHello", [
             { no: 1, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "screen_spec", kind: "message", T: () => ClientScreenSpec },
             { no: 3, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_CLIENT_HELLO" });
+        ]);
     }
     create(value?: PartialMessage<ClientHello>): ClientHello {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -786,12 +1003,12 @@ class ClientHello$Type extends MessageType$<ClientHello> {
  */
 export const ClientHello = new ClientHello$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ServerHello$Type extends MessageType$<ServerHello> {
+class ServerHello$Type extends MessageType<ServerHello> {
     constructor() {
         super("teleport.desktop.v1.ServerHello", [
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_SERVER_HELLO" });
+        ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -840,7 +1057,7 @@ class ServerHello$Type extends MessageType$<ServerHello> {
  */
 export const ServerHello = new ServerHello$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class Rectangle$Type extends MessageType$<Rectangle> {
+class Rectangle$Type extends MessageType<Rectangle> {
     constructor() {
         super("teleport.desktop.v1.Rectangle", [
             { no: 1, name: "left", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
@@ -911,12 +1128,12 @@ class Rectangle$Type extends MessageType$<Rectangle> {
  */
 export const Rectangle = new Rectangle$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class PNGFrame$Type extends MessageType$<PNGFrame> {
+class PNGFrame$Type extends MessageType<PNGFrame> {
     constructor() {
         super("teleport.desktop.v1.PNGFrame", [
             { no: 1, name: "coordinates", kind: "message", T: () => Rectangle },
             { no: 2, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_PNG_FRAME" });
+        ]);
     }
     create(value?: PartialMessage<PNGFrame>): PNGFrame {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -965,11 +1182,11 @@ class PNGFrame$Type extends MessageType$<PNGFrame> {
  */
 export const PNGFrame = new PNGFrame$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class FastPathPDU$Type extends MessageType$<FastPathPDU> {
+class FastPathPDU$Type extends MessageType<FastPathPDU> {
     constructor() {
         super("teleport.desktop.v1.FastPathPDU", [
             { no: 1, name: "pdu", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_FASTPATH_PDU" });
+        ]);
     }
     create(value?: PartialMessage<FastPathPDU>): FastPathPDU {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1012,11 +1229,11 @@ class FastPathPDU$Type extends MessageType$<FastPathPDU> {
  */
 export const FastPathPDU = new FastPathPDU$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class RDPResponsePDU$Type extends MessageType$<RDPResponsePDU> {
+class RDPResponsePDU$Type extends MessageType<RDPResponsePDU> {
     constructor() {
         super("teleport.desktop.v1.RDPResponsePDU", [
             { no: 1, name: "response", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_RDP_RESPONSE_PDU" });
+        ]);
     }
     create(value?: PartialMessage<RDPResponsePDU>): RDPResponsePDU {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1059,7 +1276,7 @@ class RDPResponsePDU$Type extends MessageType$<RDPResponsePDU> {
  */
 export const RDPResponsePDU = new RDPResponsePDU$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ConnectionActivated$Type extends MessageType$<ConnectionActivated> {
+class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
     constructor() {
         super("teleport.desktop.v1.ConnectionActivated", [
             { no: 1, name: "io_channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
@@ -1130,14 +1347,14 @@ class ConnectionActivated$Type extends MessageType$<ConnectionActivated> {
  */
 export const ConnectionActivated = new ConnectionActivated$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class SyncKeys$Type extends MessageType$<SyncKeys> {
+class SyncKeys$Type extends MessageType<SyncKeys> {
     constructor() {
         super("teleport.desktop.v1.SyncKeys", [
             { no: 1, name: "scroll_lock_pressed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 2, name: "num_lock_state", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "caps_lock_state", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "kana_lock_state", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_SYNC_KEYS" });
+        ]);
     }
     create(value?: PartialMessage<SyncKeys>): SyncKeys {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1201,12 +1418,12 @@ class SyncKeys$Type extends MessageType$<SyncKeys> {
  */
 export const SyncKeys = new SyncKeys$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class MouseMove$Type extends MessageType$<MouseMove> {
+class MouseMove$Type extends MessageType<MouseMove> {
     constructor() {
         super("teleport.desktop.v1.MouseMove", [
             { no: 1, name: "x", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "y", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_MOUSE_MOVE" });
+        ]);
     }
     create(value?: PartialMessage<MouseMove>): MouseMove {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1256,12 +1473,12 @@ class MouseMove$Type extends MessageType$<MouseMove> {
  */
 export const MouseMove = new MouseMove$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class MouseButton$Type extends MessageType$<MouseButton> {
+class MouseButton$Type extends MessageType<MouseButton> {
     constructor() {
         super("teleport.desktop.v1.MouseButton", [
             { no: 1, name: "button", kind: "enum", T: () => ["teleport.desktop.v1.MouseButtonType", MouseButtonType, "MOUSE_BUTTON_TYPE_"] },
             { no: 2, name: "pressed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_MOUSE_BUTTON" });
+        ]);
     }
     create(value?: PartialMessage<MouseButton>): MouseButton {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1311,12 +1528,12 @@ class MouseButton$Type extends MessageType$<MouseButton> {
  */
 export const MouseButton = new MouseButton$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class KeyboardButton$Type extends MessageType$<KeyboardButton> {
+class KeyboardButton$Type extends MessageType<KeyboardButton> {
     constructor() {
         super("teleport.desktop.v1.KeyboardButton", [
             { no: 1, name: "key_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "pressed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_KEYBOARD_BUTTON" });
+        ]);
     }
     create(value?: PartialMessage<KeyboardButton>): KeyboardButton {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1366,12 +1583,12 @@ class KeyboardButton$Type extends MessageType$<KeyboardButton> {
  */
 export const KeyboardButton = new KeyboardButton$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ClientScreenSpec$Type extends MessageType$<ClientScreenSpec> {
+class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
     constructor() {
         super("teleport.desktop.v1.ClientScreenSpec", [
             { no: 1, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_CLIENT_SCREEN_SPEC" });
+        ]);
     }
     create(value?: PartialMessage<ClientScreenSpec>): ClientScreenSpec {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1421,12 +1638,12 @@ class ClientScreenSpec$Type extends MessageType$<ClientScreenSpec> {
  */
 export const ClientScreenSpec = new ClientScreenSpec$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class Alert$Type extends MessageType$<Alert> {
+class Alert$Type extends MessageType<Alert> {
     constructor() {
         super("teleport.desktop.v1.Alert", [
             { no: 1, name: "message", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "severity", kind: "enum", T: () => ["teleport.desktop.v1.AlertSeverity", AlertSeverity, "ALERT_SEVERITY_"] }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_ALERT" });
+        ]);
     }
     create(value?: PartialMessage<Alert>): Alert {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1476,12 +1693,12 @@ class Alert$Type extends MessageType$<Alert> {
  */
 export const Alert = new Alert$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class MouseWheel$Type extends MessageType$<MouseWheel> {
+class MouseWheel$Type extends MessageType<MouseWheel> {
     constructor() {
         super("teleport.desktop.v1.MouseWheel", [
             { no: 1, name: "axis", kind: "enum", T: () => ["teleport.desktop.v1.MouseWheelAxis", MouseWheelAxis, "MOUSE_WHEEL_AXIS_"] },
             { no: 2, name: "delta", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_MOUSE_WHEEL" });
+        ]);
     }
     create(value?: PartialMessage<MouseWheel>): MouseWheel {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1531,11 +1748,11 @@ class MouseWheel$Type extends MessageType$<MouseWheel> {
  */
 export const MouseWheel = new MouseWheel$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ClipboardData$Type extends MessageType$<ClipboardData> {
+class ClipboardData$Type extends MessageType<ClipboardData> {
     constructor() {
         super("teleport.desktop.v1.ClipboardData", [
             { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_CLIPBOARD_DATA" });
+        ]);
     }
     create(value?: PartialMessage<ClipboardData>): ClipboardData {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1578,14 +1795,14 @@ class ClipboardData$Type extends MessageType$<ClipboardData> {
  */
 export const ClipboardData = new ClipboardData$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class MFA$Type extends MessageType$<MFA> {
+class MFA$Type extends MessageType<MFA> {
     constructor() {
         super("teleport.desktop.v1.MFA", [
             { no: 1, name: "type", kind: "enum", T: () => ["teleport.desktop.v1.MFAType", MFAType] },
             { no: 2, name: "channel_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "challenge", kind: "message", T: () => AuthenticateChallenge },
             { no: 4, name: "authentication_response", kind: "message", T: () => AuthenticateResponse }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_MFA" });
+        ]);
     }
     create(value?: PartialMessage<MFA>): MFA {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1647,12 +1864,12 @@ class MFA$Type extends MessageType$<MFA> {
  */
 export const MFA = new MFA$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class SharedDirectoryAnnounce$Type extends MessageType$<SharedDirectoryAnnounce> {
+class SharedDirectoryAnnounce$Type extends MessageType<SharedDirectoryAnnounce> {
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryAnnounce", [
             { no: 1, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_SHARED_DIRECTORY_ANNOUNCE" });
+        ]);
     }
     create(value?: PartialMessage<SharedDirectoryAnnounce>): SharedDirectoryAnnounce {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1702,12 +1919,12 @@ class SharedDirectoryAnnounce$Type extends MessageType$<SharedDirectoryAnnounce>
  */
 export const SharedDirectoryAnnounce = new SharedDirectoryAnnounce$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class SharedDirectoryAcknowledge$Type extends MessageType$<SharedDirectoryAcknowledge> {
+class SharedDirectoryAcknowledge$Type extends MessageType<SharedDirectoryAcknowledge> {
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryAcknowledge", [
             { no: 1, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_SHARED_DIRECTORY_ACKNOWLEDGE" });
+        ]);
     }
     create(value?: PartialMessage<SharedDirectoryAcknowledge>): SharedDirectoryAcknowledge {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -1757,35 +1974,26 @@ class SharedDirectoryAcknowledge$Type extends MessageType$<SharedDirectoryAcknow
  */
 export const SharedDirectoryAcknowledge = new SharedDirectoryAcknowledge$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class SharedDirectoryRequest$Type extends MessageType$<SharedDirectoryRequest> {
+class SharedDirectoryRequest$Type extends MessageType<SharedDirectoryRequest> {
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryRequest", [
-            { no: 1, name: "operation_code", kind: "enum", T: () => ["teleport.desktop.v1.DirectoryOperation", DirectoryOperation, "DIRECTORY_OPERATION_"] },
-            { no: 2, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 3, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 9, name: "new_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "file_type", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 6, name: "offset", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 7, name: "length", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 8, name: "end_of_file", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 10, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 11, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_SHARED_DIRECTORY_REQUEST" });
+            { no: 1, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Info },
+            { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Create },
+            { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Delete },
+            { no: 6, name: "list", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_List },
+            { no: 7, name: "read", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Read },
+            { no: 8, name: "write", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Write },
+            { no: 9, name: "move", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Move },
+            { no: 10, name: "truncate", kind: "message", oneof: "operation", T: () => SharedDirectoryRequest_Truncate }
+        ]);
     }
     create(value?: PartialMessage<SharedDirectoryRequest>): SharedDirectoryRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.operationCode = 0;
         message.directoryId = 0;
         message.completionId = 0;
-        message.path = "";
-        message.newPath = "";
-        message.fileType = 0;
-        message.offset = 0n;
-        message.length = 0;
-        message.endOfFile = 0;
-        message.data = new Uint8Array(0);
-        message.name = "";
+        message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryRequest>(this, message, value);
         return message;
@@ -1795,38 +2003,59 @@ class SharedDirectoryRequest$Type extends MessageType$<SharedDirectoryRequest> {
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* teleport.desktop.v1.DirectoryOperation operation_code */ 1:
-                    message.operationCode = reader.int32();
-                    break;
-                case /* uint32 directory_id */ 2:
+                case /* uint32 directory_id */ 1:
                     message.directoryId = reader.uint32();
                     break;
-                case /* uint32 completion_id */ 3:
+                case /* uint32 completion_id */ 2:
                     message.completionId = reader.uint32();
                     break;
-                case /* string path */ 4:
-                    message.path = reader.string();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Info info */ 3:
+                    message.operation = {
+                        oneofKind: "info",
+                        info: SharedDirectoryRequest_Info.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).info)
+                    };
                     break;
-                case /* string new_path */ 9:
-                    message.newPath = reader.string();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Create create */ 4:
+                    message.operation = {
+                        oneofKind: "create",
+                        create: SharedDirectoryRequest_Create.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).create)
+                    };
                     break;
-                case /* uint32 file_type */ 5:
-                    message.fileType = reader.uint32();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Delete delete */ 5:
+                    message.operation = {
+                        oneofKind: "delete",
+                        delete: SharedDirectoryRequest_Delete.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).delete)
+                    };
                     break;
-                case /* uint64 offset */ 6:
-                    message.offset = reader.uint64().toBigInt();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.List list */ 6:
+                    message.operation = {
+                        oneofKind: "list",
+                        list: SharedDirectoryRequest_List.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).list)
+                    };
                     break;
-                case /* uint32 length */ 7:
-                    message.length = reader.uint32();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Read read */ 7:
+                    message.operation = {
+                        oneofKind: "read",
+                        read: SharedDirectoryRequest_Read.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).read)
+                    };
                     break;
-                case /* uint32 end_of_file */ 8:
-                    message.endOfFile = reader.uint32();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Write write */ 8:
+                    message.operation = {
+                        oneofKind: "write",
+                        write: SharedDirectoryRequest_Write.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).write)
+                    };
                     break;
-                case /* bytes data */ 10:
-                    message.data = reader.bytes();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Move move */ 9:
+                    message.operation = {
+                        oneofKind: "move",
+                        move: SharedDirectoryRequest_Move.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).move)
+                    };
                     break;
-                case /* string name */ 11:
-                    message.name = reader.string();
+                case /* teleport.desktop.v1.SharedDirectoryRequest.Truncate truncate */ 10:
+                    message.operation = {
+                        oneofKind: "truncate",
+                        truncate: SharedDirectoryRequest_Truncate.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).truncate)
+                    };
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1840,39 +2069,36 @@ class SharedDirectoryRequest$Type extends MessageType$<SharedDirectoryRequest> {
         return message;
     }
     internalBinaryWrite(message: SharedDirectoryRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.desktop.v1.DirectoryOperation operation_code = 1; */
-        if (message.operationCode !== 0)
-            writer.tag(1, WireType.Varint).int32(message.operationCode);
-        /* uint32 directory_id = 2; */
+        /* uint32 directory_id = 1; */
         if (message.directoryId !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.directoryId);
-        /* uint32 completion_id = 3; */
+            writer.tag(1, WireType.Varint).uint32(message.directoryId);
+        /* uint32 completion_id = 2; */
         if (message.completionId !== 0)
-            writer.tag(3, WireType.Varint).uint32(message.completionId);
-        /* string path = 4; */
-        if (message.path !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.path);
-        /* string new_path = 9; */
-        if (message.newPath !== "")
-            writer.tag(9, WireType.LengthDelimited).string(message.newPath);
-        /* uint32 file_type = 5; */
-        if (message.fileType !== 0)
-            writer.tag(5, WireType.Varint).uint32(message.fileType);
-        /* uint64 offset = 6; */
-        if (message.offset !== 0n)
-            writer.tag(6, WireType.Varint).uint64(message.offset);
-        /* uint32 length = 7; */
-        if (message.length !== 0)
-            writer.tag(7, WireType.Varint).uint32(message.length);
-        /* uint32 end_of_file = 8; */
-        if (message.endOfFile !== 0)
-            writer.tag(8, WireType.Varint).uint32(message.endOfFile);
-        /* bytes data = 10; */
-        if (message.data.length)
-            writer.tag(10, WireType.LengthDelimited).bytes(message.data);
-        /* string name = 11; */
-        if (message.name !== "")
-            writer.tag(11, WireType.LengthDelimited).string(message.name);
+            writer.tag(2, WireType.Varint).uint32(message.completionId);
+        /* teleport.desktop.v1.SharedDirectoryRequest.Info info = 3; */
+        if (message.operation.oneofKind === "info")
+            SharedDirectoryRequest_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.Create create = 4; */
+        if (message.operation.oneofKind === "create")
+            SharedDirectoryRequest_Create.internalBinaryWrite(message.operation.create, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.Delete delete = 5; */
+        if (message.operation.oneofKind === "delete")
+            SharedDirectoryRequest_Delete.internalBinaryWrite(message.operation.delete, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.List list = 6; */
+        if (message.operation.oneofKind === "list")
+            SharedDirectoryRequest_List.internalBinaryWrite(message.operation.list, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.Read read = 7; */
+        if (message.operation.oneofKind === "read")
+            SharedDirectoryRequest_Read.internalBinaryWrite(message.operation.read, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.Write write = 8; */
+        if (message.operation.oneofKind === "write")
+            SharedDirectoryRequest_Write.internalBinaryWrite(message.operation.write, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.Move move = 9; */
+        if (message.operation.oneofKind === "move")
+            SharedDirectoryRequest_Move.internalBinaryWrite(message.operation.move, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest.Truncate truncate = 10; */
+        if (message.operation.oneofKind === "truncate")
+            SharedDirectoryRequest_Truncate.internalBinaryWrite(message.operation.truncate, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1884,25 +2110,458 @@ class SharedDirectoryRequest$Type extends MessageType$<SharedDirectoryRequest> {
  */
 export const SharedDirectoryRequest = new SharedDirectoryRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class SharedDirectoryResponse$Type extends MessageType$<SharedDirectoryResponse> {
+class SharedDirectoryRequest_Info$Type extends MessageType<SharedDirectoryRequest_Info> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Info", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Info>): SharedDirectoryRequest_Info {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Info>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Info): SharedDirectoryRequest_Info {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Info, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Info
+ */
+export const SharedDirectoryRequest_Info = new SharedDirectoryRequest_Info$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_Create$Type extends MessageType<SharedDirectoryRequest_Create> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Create", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "file_type", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Create>): SharedDirectoryRequest_Create {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.fileType = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Create>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Create): SharedDirectoryRequest_Create {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* uint32 file_type */ 2:
+                    message.fileType = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Create, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* uint32 file_type = 2; */
+        if (message.fileType !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.fileType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Create
+ */
+export const SharedDirectoryRequest_Create = new SharedDirectoryRequest_Create$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_Delete$Type extends MessageType<SharedDirectoryRequest_Delete> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Delete", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Delete>): SharedDirectoryRequest_Delete {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Delete>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Delete): SharedDirectoryRequest_Delete {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Delete, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Delete
+ */
+export const SharedDirectoryRequest_Delete = new SharedDirectoryRequest_Delete$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_List$Type extends MessageType<SharedDirectoryRequest_List> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.List", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_List>): SharedDirectoryRequest_List {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_List>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_List): SharedDirectoryRequest_List {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_List, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.List
+ */
+export const SharedDirectoryRequest_List = new SharedDirectoryRequest_List$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_Read$Type extends MessageType<SharedDirectoryRequest_Read> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Read", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "offset", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "length", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Read>): SharedDirectoryRequest_Read {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.offset = 0n;
+        message.length = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Read>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Read): SharedDirectoryRequest_Read {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* uint64 offset */ 2:
+                    message.offset = reader.uint64().toBigInt();
+                    break;
+                case /* uint32 length */ 3:
+                    message.length = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Read, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* uint64 offset = 2; */
+        if (message.offset !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.offset);
+        /* uint32 length = 3; */
+        if (message.length !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.length);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Read
+ */
+export const SharedDirectoryRequest_Read = new SharedDirectoryRequest_Read$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_Write$Type extends MessageType<SharedDirectoryRequest_Write> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Write", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "offset", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Write>): SharedDirectoryRequest_Write {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.offset = 0n;
+        message.data = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Write>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Write): SharedDirectoryRequest_Write {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* uint64 offset */ 2:
+                    message.offset = reader.uint64().toBigInt();
+                    break;
+                case /* bytes data */ 3:
+                    message.data = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Write, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* uint64 offset = 2; */
+        if (message.offset !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.offset);
+        /* bytes data = 3; */
+        if (message.data.length)
+            writer.tag(3, WireType.LengthDelimited).bytes(message.data);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Write
+ */
+export const SharedDirectoryRequest_Write = new SharedDirectoryRequest_Write$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_Move$Type extends MessageType<SharedDirectoryRequest_Move> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Move", [
+            { no: 1, name: "original_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "new_path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Move>): SharedDirectoryRequest_Move {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.originalPath = "";
+        message.newPath = "";
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Move>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Move): SharedDirectoryRequest_Move {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string original_path */ 1:
+                    message.originalPath = reader.string();
+                    break;
+                case /* string new_path */ 2:
+                    message.newPath = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Move, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string original_path = 1; */
+        if (message.originalPath !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.originalPath);
+        /* string new_path = 2; */
+        if (message.newPath !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.newPath);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Move
+ */
+export const SharedDirectoryRequest_Move = new SharedDirectoryRequest_Move$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRequest_Truncate> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRequest.Truncate", [
+            { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "end_of_file", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRequest_Truncate>): SharedDirectoryRequest_Truncate {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.path = "";
+        message.endOfFile = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRequest_Truncate>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRequest_Truncate): SharedDirectoryRequest_Truncate {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string path */ 1:
+                    message.path = reader.string();
+                    break;
+                case /* uint32 end_of_file */ 2:
+                    message.endOfFile = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRequest_Truncate, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string path = 1; */
+        if (message.path !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.path);
+        /* uint32 end_of_file = 2; */
+        if (message.endOfFile !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.endOfFile);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRequest.Truncate
+ */
+export const SharedDirectoryRequest_Truncate = new SharedDirectoryRequest_Truncate$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> {
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryResponse", [
-            { no: 1, name: "operation_code", kind: "enum", T: () => ["teleport.desktop.v1.DirectoryOperation", DirectoryOperation, "DIRECTORY_OPERATION_"] },
-            { no: 2, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 3, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "fso_list", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => FileSystemObject },
-            { no: 5, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
-            { no: 6, name: "bytes_written", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_SHARED_DIRECTORY_RESPONSE" });
+            { no: 1, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Info },
+            { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Create },
+            { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Delete },
+            { no: 6, name: "list", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_List },
+            { no: 7, name: "read", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Read },
+            { no: 8, name: "write", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Write },
+            { no: 9, name: "move", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Move },
+            { no: 10, name: "truncate", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Truncate }
+        ]);
     }
     create(value?: PartialMessage<SharedDirectoryResponse>): SharedDirectoryResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.operationCode = 0;
         message.completionId = 0;
         message.errorCode = 0;
-        message.fsoList = [];
-        message.data = new Uint8Array(0);
-        message.bytesWritten = 0;
+        message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryResponse>(this, message, value);
         return message;
@@ -1912,23 +2571,59 @@ class SharedDirectoryResponse$Type extends MessageType$<SharedDirectoryResponse>
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* teleport.desktop.v1.DirectoryOperation operation_code */ 1:
-                    message.operationCode = reader.int32();
-                    break;
-                case /* uint32 completion_id */ 2:
+                case /* uint32 completion_id */ 1:
                     message.completionId = reader.uint32();
                     break;
-                case /* uint32 error_code */ 3:
+                case /* uint32 error_code */ 2:
                     message.errorCode = reader.uint32();
                     break;
-                case /* repeated teleport.desktop.v1.FileSystemObject fso_list */ 4:
-                    message.fsoList.push(FileSystemObject.internalBinaryRead(reader, reader.uint32(), options));
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Info info */ 3:
+                    message.operation = {
+                        oneofKind: "info",
+                        info: SharedDirectoryResponse_Info.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).info)
+                    };
                     break;
-                case /* bytes data */ 5:
-                    message.data = reader.bytes();
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Create create */ 4:
+                    message.operation = {
+                        oneofKind: "create",
+                        create: SharedDirectoryResponse_Create.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).create)
+                    };
                     break;
-                case /* uint32 bytes_written */ 6:
-                    message.bytesWritten = reader.uint32();
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Delete delete */ 5:
+                    message.operation = {
+                        oneofKind: "delete",
+                        delete: SharedDirectoryResponse_Delete.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).delete)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryResponse.List list */ 6:
+                    message.operation = {
+                        oneofKind: "list",
+                        list: SharedDirectoryResponse_List.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).list)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Read read */ 7:
+                    message.operation = {
+                        oneofKind: "read",
+                        read: SharedDirectoryResponse_Read.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).read)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Write write */ 8:
+                    message.operation = {
+                        oneofKind: "write",
+                        write: SharedDirectoryResponse_Write.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).write)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Move move */ 9:
+                    message.operation = {
+                        oneofKind: "move",
+                        move: SharedDirectoryResponse_Move.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).move)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryResponse.Truncate truncate */ 10:
+                    message.operation = {
+                        oneofKind: "truncate",
+                        truncate: SharedDirectoryResponse_Truncate.internalBinaryRead(reader, reader.uint32(), options, (message.operation as any).truncate)
+                    };
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1942,24 +2637,36 @@ class SharedDirectoryResponse$Type extends MessageType$<SharedDirectoryResponse>
         return message;
     }
     internalBinaryWrite(message: SharedDirectoryResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.desktop.v1.DirectoryOperation operation_code = 1; */
-        if (message.operationCode !== 0)
-            writer.tag(1, WireType.Varint).int32(message.operationCode);
-        /* uint32 completion_id = 2; */
+        /* uint32 completion_id = 1; */
         if (message.completionId !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.completionId);
-        /* uint32 error_code = 3; */
+            writer.tag(1, WireType.Varint).uint32(message.completionId);
+        /* uint32 error_code = 2; */
         if (message.errorCode !== 0)
-            writer.tag(3, WireType.Varint).uint32(message.errorCode);
-        /* repeated teleport.desktop.v1.FileSystemObject fso_list = 4; */
-        for (let i = 0; i < message.fsoList.length; i++)
-            FileSystemObject.internalBinaryWrite(message.fsoList[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* bytes data = 5; */
-        if (message.data.length)
-            writer.tag(5, WireType.LengthDelimited).bytes(message.data);
-        /* uint32 bytes_written = 6; */
-        if (message.bytesWritten !== 0)
-            writer.tag(6, WireType.Varint).uint32(message.bytesWritten);
+            writer.tag(2, WireType.Varint).uint32(message.errorCode);
+        /* teleport.desktop.v1.SharedDirectoryResponse.Info info = 3; */
+        if (message.operation.oneofKind === "info")
+            SharedDirectoryResponse_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.Create create = 4; */
+        if (message.operation.oneofKind === "create")
+            SharedDirectoryResponse_Create.internalBinaryWrite(message.operation.create, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.Delete delete = 5; */
+        if (message.operation.oneofKind === "delete")
+            SharedDirectoryResponse_Delete.internalBinaryWrite(message.operation.delete, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.List list = 6; */
+        if (message.operation.oneofKind === "list")
+            SharedDirectoryResponse_List.internalBinaryWrite(message.operation.list, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.Read read = 7; */
+        if (message.operation.oneofKind === "read")
+            SharedDirectoryResponse_Read.internalBinaryWrite(message.operation.read, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.Write write = 8; */
+        if (message.operation.oneofKind === "write")
+            SharedDirectoryResponse_Write.internalBinaryWrite(message.operation.write, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.Move move = 9; */
+        if (message.operation.oneofKind === "move")
+            SharedDirectoryResponse_Move.internalBinaryWrite(message.operation.move, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse.Truncate truncate = 10; */
+        if (message.operation.oneofKind === "truncate")
+            SharedDirectoryResponse_Truncate.internalBinaryWrite(message.operation.truncate, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1971,7 +2678,315 @@ class SharedDirectoryResponse$Type extends MessageType$<SharedDirectoryResponse>
  */
 export const SharedDirectoryResponse = new SharedDirectoryResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class FileSystemObject$Type extends MessageType$<FileSystemObject> {
+class SharedDirectoryResponse_Info$Type extends MessageType<SharedDirectoryResponse_Info> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Info", [
+            { no: 1, name: "fso", kind: "message", T: () => FileSystemObject }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Info>): SharedDirectoryResponse_Info {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Info>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Info): SharedDirectoryResponse_Info {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.FileSystemObject fso */ 1:
+                    message.fso = FileSystemObject.internalBinaryRead(reader, reader.uint32(), options, message.fso);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Info, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.FileSystemObject fso = 1; */
+        if (message.fso)
+            FileSystemObject.internalBinaryWrite(message.fso, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Info
+ */
+export const SharedDirectoryResponse_Info = new SharedDirectoryResponse_Info$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_Create$Type extends MessageType<SharedDirectoryResponse_Create> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Create", [
+            { no: 1, name: "fso", kind: "message", T: () => FileSystemObject }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Create>): SharedDirectoryResponse_Create {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Create>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Create): SharedDirectoryResponse_Create {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.FileSystemObject fso */ 1:
+                    message.fso = FileSystemObject.internalBinaryRead(reader, reader.uint32(), options, message.fso);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Create, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.FileSystemObject fso = 1; */
+        if (message.fso)
+            FileSystemObject.internalBinaryWrite(message.fso, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Create
+ */
+export const SharedDirectoryResponse_Create = new SharedDirectoryResponse_Create$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_Delete$Type extends MessageType<SharedDirectoryResponse_Delete> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Delete", []);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Delete>): SharedDirectoryResponse_Delete {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Delete>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Delete): SharedDirectoryResponse_Delete {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Delete, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Delete
+ */
+export const SharedDirectoryResponse_Delete = new SharedDirectoryResponse_Delete$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_List$Type extends MessageType<SharedDirectoryResponse_List> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.List", [
+            { no: 1, name: "fso_list", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => FileSystemObject }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_List>): SharedDirectoryResponse_List {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.fsoList = [];
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_List>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_List): SharedDirectoryResponse_List {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.desktop.v1.FileSystemObject fso_list */ 1:
+                    message.fsoList.push(FileSystemObject.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_List, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.desktop.v1.FileSystemObject fso_list = 1; */
+        for (let i = 0; i < message.fsoList.length; i++)
+            FileSystemObject.internalBinaryWrite(message.fsoList[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.List
+ */
+export const SharedDirectoryResponse_List = new SharedDirectoryResponse_List$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_Read$Type extends MessageType<SharedDirectoryResponse_Read> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Read", [
+            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Read>): SharedDirectoryResponse_Read {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.data = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Read>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Read): SharedDirectoryResponse_Read {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes data */ 1:
+                    message.data = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Read, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes data = 1; */
+        if (message.data.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Read
+ */
+export const SharedDirectoryResponse_Read = new SharedDirectoryResponse_Read$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_Write$Type extends MessageType<SharedDirectoryResponse_Write> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Write", [
+            { no: 1, name: "bytes_written", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Write>): SharedDirectoryResponse_Write {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.bytesWritten = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Write>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Write): SharedDirectoryResponse_Write {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 bytes_written */ 1:
+                    message.bytesWritten = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Write, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 bytes_written = 1; */
+        if (message.bytesWritten !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.bytesWritten);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Write
+ */
+export const SharedDirectoryResponse_Write = new SharedDirectoryResponse_Write$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_Move$Type extends MessageType<SharedDirectoryResponse_Move> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Move", []);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Move>): SharedDirectoryResponse_Move {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Move>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Move): SharedDirectoryResponse_Move {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Move, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Move
+ */
+export const SharedDirectoryResponse_Move = new SharedDirectoryResponse_Move$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryResponse_Truncate$Type extends MessageType<SharedDirectoryResponse_Truncate> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryResponse.Truncate", []);
+    }
+    create(value?: PartialMessage<SharedDirectoryResponse_Truncate>): SharedDirectoryResponse_Truncate {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryResponse_Truncate>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryResponse_Truncate): SharedDirectoryResponse_Truncate {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: SharedDirectoryResponse_Truncate, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryResponse.Truncate
+ */
+export const SharedDirectoryResponse_Truncate = new SharedDirectoryResponse_Truncate$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class FileSystemObject$Type extends MessageType<FileSystemObject> {
     constructor() {
         super("teleport.desktop.v1.FileSystemObject", [
             { no: 1, name: "last_modified", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
@@ -2050,12 +3065,12 @@ class FileSystemObject$Type extends MessageType$<FileSystemObject> {
  */
 export const FileSystemObject = new FileSystemObject$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class LatencyStats$Type extends MessageType$<LatencyStats> {
+class LatencyStats$Type extends MessageType<LatencyStats> {
     constructor() {
         super("teleport.desktop.v1.LatencyStats", [
             { no: 1, name: "client_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "server_latency_ms", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_LATENCY_STATS" });
+        ]);
     }
     create(value?: PartialMessage<LatencyStats>): LatencyStats {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -2105,11 +3120,11 @@ class LatencyStats$Type extends MessageType$<LatencyStats> {
  */
 export const LatencyStats = new LatencyStats$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class Ping$Type extends MessageType$<Ping> {
+class Ping$Type extends MessageType<Ping> {
     constructor() {
         super("teleport.desktop.v1.Ping", [
             { no: 1, name: "uuid", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
-        ], { "teleport.desktop.v1.tdp_type_option": "MESSAGE_TYPE_PING" });
+        ]);
     }
     create(value?: PartialMessage<Ping>): Ping {
         const message = globalThis.Object.create((this.messagePrototype!));
@@ -2151,3 +3166,243 @@ class Ping$Type extends MessageType$<Ping> {
  * @generated MessageType for protobuf message teleport.desktop.v1.Ping
  */
 export const Ping = new Ping$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class Envelope$Type extends MessageType<Envelope> {
+    constructor() {
+        super("teleport.desktop.v1.Envelope", [
+            { no: 1, name: "client_hello", kind: "message", oneof: "payload", T: () => ClientHello },
+            { no: 2, name: "server_hello", kind: "message", oneof: "payload", T: () => ServerHello },
+            { no: 3, name: "png_frame", kind: "message", oneof: "payload", T: () => PNGFrame },
+            { no: 4, name: "fast_path_pdu", kind: "message", oneof: "payload", T: () => FastPathPDU },
+            { no: 5, name: "rdp_response_pdu", kind: "message", oneof: "payload", T: () => RDPResponsePDU },
+            { no: 6, name: "sync_keys", kind: "message", oneof: "payload", T: () => SyncKeys },
+            { no: 7, name: "mouse_move", kind: "message", oneof: "payload", T: () => MouseMove },
+            { no: 8, name: "mouse_button", kind: "message", oneof: "payload", T: () => MouseButton },
+            { no: 9, name: "keyboard_button", kind: "message", oneof: "payload", T: () => KeyboardButton },
+            { no: 10, name: "client_screen_spec", kind: "message", oneof: "payload", T: () => ClientScreenSpec },
+            { no: 11, name: "alert", kind: "message", oneof: "payload", T: () => Alert },
+            { no: 12, name: "mouse_wheel", kind: "message", oneof: "payload", T: () => MouseWheel },
+            { no: 13, name: "clipboard_data", kind: "message", oneof: "payload", T: () => ClipboardData },
+            { no: 14, name: "mfa", kind: "message", oneof: "payload", T: () => MFA },
+            { no: 15, name: "shared_directory_announce", kind: "message", oneof: "payload", T: () => SharedDirectoryAnnounce },
+            { no: 16, name: "shared_directory_acknowledge", kind: "message", oneof: "payload", T: () => SharedDirectoryAcknowledge },
+            { no: 17, name: "shared_directory_request", kind: "message", oneof: "payload", T: () => SharedDirectoryRequest },
+            { no: 18, name: "shared_directory_response", kind: "message", oneof: "payload", T: () => SharedDirectoryResponse },
+            { no: 19, name: "latency_stats", kind: "message", oneof: "payload", T: () => LatencyStats },
+            { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping }
+        ]);
+    }
+    create(value?: PartialMessage<Envelope>): Envelope {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.payload = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<Envelope>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: Envelope): Envelope {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.ClientHello client_hello */ 1:
+                    message.payload = {
+                        oneofKind: "clientHello",
+                        clientHello: ClientHello.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).clientHello)
+                    };
+                    break;
+                case /* teleport.desktop.v1.ServerHello server_hello */ 2:
+                    message.payload = {
+                        oneofKind: "serverHello",
+                        serverHello: ServerHello.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).serverHello)
+                    };
+                    break;
+                case /* teleport.desktop.v1.PNGFrame png_frame */ 3:
+                    message.payload = {
+                        oneofKind: "pngFrame",
+                        pngFrame: PNGFrame.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).pngFrame)
+                    };
+                    break;
+                case /* teleport.desktop.v1.FastPathPDU fast_path_pdu */ 4:
+                    message.payload = {
+                        oneofKind: "fastPathPdu",
+                        fastPathPdu: FastPathPDU.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).fastPathPdu)
+                    };
+                    break;
+                case /* teleport.desktop.v1.RDPResponsePDU rdp_response_pdu */ 5:
+                    message.payload = {
+                        oneofKind: "rdpResponsePdu",
+                        rdpResponsePdu: RDPResponsePDU.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).rdpResponsePdu)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SyncKeys sync_keys */ 6:
+                    message.payload = {
+                        oneofKind: "syncKeys",
+                        syncKeys: SyncKeys.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).syncKeys)
+                    };
+                    break;
+                case /* teleport.desktop.v1.MouseMove mouse_move */ 7:
+                    message.payload = {
+                        oneofKind: "mouseMove",
+                        mouseMove: MouseMove.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mouseMove)
+                    };
+                    break;
+                case /* teleport.desktop.v1.MouseButton mouse_button */ 8:
+                    message.payload = {
+                        oneofKind: "mouseButton",
+                        mouseButton: MouseButton.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mouseButton)
+                    };
+                    break;
+                case /* teleport.desktop.v1.KeyboardButton keyboard_button */ 9:
+                    message.payload = {
+                        oneofKind: "keyboardButton",
+                        keyboardButton: KeyboardButton.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).keyboardButton)
+                    };
+                    break;
+                case /* teleport.desktop.v1.ClientScreenSpec client_screen_spec */ 10:
+                    message.payload = {
+                        oneofKind: "clientScreenSpec",
+                        clientScreenSpec: ClientScreenSpec.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).clientScreenSpec)
+                    };
+                    break;
+                case /* teleport.desktop.v1.Alert alert */ 11:
+                    message.payload = {
+                        oneofKind: "alert",
+                        alert: Alert.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).alert)
+                    };
+                    break;
+                case /* teleport.desktop.v1.MouseWheel mouse_wheel */ 12:
+                    message.payload = {
+                        oneofKind: "mouseWheel",
+                        mouseWheel: MouseWheel.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mouseWheel)
+                    };
+                    break;
+                case /* teleport.desktop.v1.ClipboardData clipboard_data */ 13:
+                    message.payload = {
+                        oneofKind: "clipboardData",
+                        clipboardData: ClipboardData.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).clipboardData)
+                    };
+                    break;
+                case /* teleport.desktop.v1.MFA mfa */ 14:
+                    message.payload = {
+                        oneofKind: "mfa",
+                        mfa: MFA.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mfa)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryAnnounce shared_directory_announce */ 15:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryAnnounce",
+                        sharedDirectoryAnnounce: SharedDirectoryAnnounce.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryAnnounce)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryAcknowledge shared_directory_acknowledge */ 16:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryAcknowledge",
+                        sharedDirectoryAcknowledge: SharedDirectoryAcknowledge.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryAcknowledge)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryRequest shared_directory_request */ 17:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryRequest",
+                        sharedDirectoryRequest: SharedDirectoryRequest.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryRequest)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SharedDirectoryResponse shared_directory_response */ 18:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryResponse",
+                        sharedDirectoryResponse: SharedDirectoryResponse.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryResponse)
+                    };
+                    break;
+                case /* teleport.desktop.v1.LatencyStats latency_stats */ 19:
+                    message.payload = {
+                        oneofKind: "latencyStats",
+                        latencyStats: LatencyStats.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).latencyStats)
+                    };
+                    break;
+                case /* teleport.desktop.v1.Ping ping */ 20:
+                    message.payload = {
+                        oneofKind: "ping",
+                        ping: Ping.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).ping)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: Envelope, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.ClientHello client_hello = 1; */
+        if (message.payload.oneofKind === "clientHello")
+            ClientHello.internalBinaryWrite(message.payload.clientHello, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.ServerHello server_hello = 2; */
+        if (message.payload.oneofKind === "serverHello")
+            ServerHello.internalBinaryWrite(message.payload.serverHello, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.PNGFrame png_frame = 3; */
+        if (message.payload.oneofKind === "pngFrame")
+            PNGFrame.internalBinaryWrite(message.payload.pngFrame, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.FastPathPDU fast_path_pdu = 4; */
+        if (message.payload.oneofKind === "fastPathPdu")
+            FastPathPDU.internalBinaryWrite(message.payload.fastPathPdu, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.RDPResponsePDU rdp_response_pdu = 5; */
+        if (message.payload.oneofKind === "rdpResponsePdu")
+            RDPResponsePDU.internalBinaryWrite(message.payload.rdpResponsePdu, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SyncKeys sync_keys = 6; */
+        if (message.payload.oneofKind === "syncKeys")
+            SyncKeys.internalBinaryWrite(message.payload.syncKeys, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.MouseMove mouse_move = 7; */
+        if (message.payload.oneofKind === "mouseMove")
+            MouseMove.internalBinaryWrite(message.payload.mouseMove, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.MouseButton mouse_button = 8; */
+        if (message.payload.oneofKind === "mouseButton")
+            MouseButton.internalBinaryWrite(message.payload.mouseButton, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.KeyboardButton keyboard_button = 9; */
+        if (message.payload.oneofKind === "keyboardButton")
+            KeyboardButton.internalBinaryWrite(message.payload.keyboardButton, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.ClientScreenSpec client_screen_spec = 10; */
+        if (message.payload.oneofKind === "clientScreenSpec")
+            ClientScreenSpec.internalBinaryWrite(message.payload.clientScreenSpec, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.Alert alert = 11; */
+        if (message.payload.oneofKind === "alert")
+            Alert.internalBinaryWrite(message.payload.alert, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.MouseWheel mouse_wheel = 12; */
+        if (message.payload.oneofKind === "mouseWheel")
+            MouseWheel.internalBinaryWrite(message.payload.mouseWheel, writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.ClipboardData clipboard_data = 13; */
+        if (message.payload.oneofKind === "clipboardData")
+            ClipboardData.internalBinaryWrite(message.payload.clipboardData, writer.tag(13, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.MFA mfa = 14; */
+        if (message.payload.oneofKind === "mfa")
+            MFA.internalBinaryWrite(message.payload.mfa, writer.tag(14, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryAnnounce shared_directory_announce = 15; */
+        if (message.payload.oneofKind === "sharedDirectoryAnnounce")
+            SharedDirectoryAnnounce.internalBinaryWrite(message.payload.sharedDirectoryAnnounce, writer.tag(15, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryAcknowledge shared_directory_acknowledge = 16; */
+        if (message.payload.oneofKind === "sharedDirectoryAcknowledge")
+            SharedDirectoryAcknowledge.internalBinaryWrite(message.payload.sharedDirectoryAcknowledge, writer.tag(16, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRequest shared_directory_request = 17; */
+        if (message.payload.oneofKind === "sharedDirectoryRequest")
+            SharedDirectoryRequest.internalBinaryWrite(message.payload.sharedDirectoryRequest, writer.tag(17, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryResponse shared_directory_response = 18; */
+        if (message.payload.oneofKind === "sharedDirectoryResponse")
+            SharedDirectoryResponse.internalBinaryWrite(message.payload.sharedDirectoryResponse, writer.tag(18, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.LatencyStats latency_stats = 19; */
+        if (message.payload.oneofKind === "latencyStats")
+            LatencyStats.internalBinaryWrite(message.payload.latencyStats, writer.tag(19, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.Ping ping = 20; */
+        if (message.payload.oneofKind === "ping")
+            Ping.internalBinaryWrite(message.payload.ping, writer.tag(20, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.Envelope
+ */
+export const Envelope = new Envelope$Type();
