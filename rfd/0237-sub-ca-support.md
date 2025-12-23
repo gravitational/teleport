@@ -95,10 +95,11 @@ Alice creates and signs the CSR, then does:
 
 ```shell
 $ tctl create <<EOF
-type: cert_authority_override
+kind: cert_authority_override
+sub_kind: db_client
 version: v1
 metadata:
-  name: db_client # matches CA name
+  name: zarquon # cluster name
 spec:
   certificate_overrides:
   - certificate: |-
@@ -277,10 +278,11 @@ Using a declarative resource:
 
 # 4. Create the disabled override.
 cat >db_client_override.yaml <<EOF
-type: cert_authority_override
+kind: cert_authority_override
+sub_kind: db_client
 version: v1
 metadata:
-  name: db_client
+  name: zarquon # cluster name
 spec:
   certificate_overrides:
   - disabled: true
@@ -339,13 +341,15 @@ Creating an override automatically generates the corresponding empty CRL.
 package teleport.subca.v1;
 
 message CertAuthorityOverride {
-  // Kind is "cert_authority_override"
+  // Kind is "cert_authority_override".
   string kind = 1;
-  // Sub kind not supported.
+  // Sub kind is the CA type.
+  // Eg: "db_client", "spiffe-tls", "windows".
   string sub_kind = 2;
   // Version is "v1".
   string version = 3;
   // Metadata for the resource.
+  // The name of the resource is the cluster name.
   teleport.header.v1.Metadata metadata = 4;
   // Spec for the resource.
   CertAuthorityOverrideSpec spec = 5;
@@ -711,13 +715,14 @@ package events; // api/proto/teleport/legacy/types/events
 message CertAuthorityOverrideEvent {
   Metadata metadata = 1;
   UserMetadata user = 2;
-  ResourceMetadata resource = 3; // name=ca_type
+  ResourceMetadata resource = 3; // name=cluster name
   Status status = 4;             // Distinguishes successes and failures.
   CertAuthorityOverrideMetadata cert_authority_override = 4;
 }
 
 message CertAuthorityOverrideMetadata {
-  repeated CertAuthorityCertificateOverrideMetadata certificate_overrides = 1;
+  string ca_type = 1;
+  repeated CertAuthorityCertificateOverrideMetadata certificate_overrides = 2;
 }
 
 message CertAuthorityCertificateOverrideMetadata {
