@@ -677,7 +677,7 @@ func runOnFIDO2Devices(
 		return trace.Wrap(err, "device locations")
 	}
 	if len(locs) == 0 {
-		return trace.Wrap(errors.New("no security keys found"))
+		return trace.Wrap(ErrNoSecurityKeysFound)
 	}
 
 	devices, devicesC, err := startDevices(locs, filter, deviceCallback, prompt)

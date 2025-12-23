@@ -3823,8 +3823,15 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return tc.pwdlessLogin, nil
 			}
 
+			// Return a login function that tries local login first, then falls back to browser login
+			// if no security keys are found.
 			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
+				resp, err := tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
+				if err != nil && errors.Is(err, wancli.ErrNoSecurityKeysFound) {
+					fmt.Printf("Local MFA attempt failed, falling back to browser-based authentication\n")
+					return tc.browserLogin(ctx, keyRing)
+				}
+				return resp, err
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)

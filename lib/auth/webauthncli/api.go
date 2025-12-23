@@ -46,6 +46,9 @@ var (
 // usual Go error conventions (capitalized sentences, punctuation).
 var ErrUsingNonRegisteredDevice = errors.New("you are using a security key that is not registered with Teleport - try a different security key")
 
+// ErrNoSecurityKeysFound is returned when no security keys are detected.
+var ErrNoSecurityKeysFound = errors.New("no security keys found")
+
 // AuthenticatorAttachment allows callers to choose a specific attachment.
 type AuthenticatorAttachment int
 
