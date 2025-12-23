@@ -272,8 +272,6 @@ package teleport.desktop.v1;
 import "google/protobuf/descriptor.proto";
 import "teleport/mfa/v1/challenge.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1";
-
 // Sent by client to begin a TDPB connection and advertise capabilities.
 message ClientHello {
   string username = 1;
@@ -357,7 +355,7 @@ message KeyboardButton {
 
 // Composed in Client Hello to inform the server of the client's screen size.
 // May also be sent during a desktop session as the client resizes its display.
-// These mesasages are captured for session recordings in order to replay
+// These messages are captured for session recordings in order to replay
 // resizing events.
 message ClientScreenSpec {
   uint32 width = 1;
