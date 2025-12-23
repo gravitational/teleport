@@ -3403,6 +3403,11 @@
       "source": "/zero-trust-access/management/operations/breakglass-access/",
       "destination": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
       "permanent": true
+    },
+    {
+      "source": "/connect-your-client/request-access/",
+      "destination": "/connect-your-client/teleport-clients/request-access/",
+      "permanent": true
     }
   ]
 }
