@@ -9,15 +9,13 @@ import Validation from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  CreateFilters,
-  FilterOption,
-} from 'e-teleport/Integrations/shared/CreateFilters';
+import { CreateFilters } from 'e-teleport/Integrations/shared/CreateFilters';
 import cfg from 'teleport/config';
 import { StyledBox } from 'teleport/Discover/Shared';
 import { useTeleport } from 'teleport/index';
 import userService, { User } from 'teleport/services/user';
 
+import { emptyFilter, filterCollection, toFilterOption } from './GroupsImport';
 import { Filters, FormDataField } from './types';
 
 type UserOption = Option<User>;
@@ -62,11 +60,6 @@ export function FormMixin({ attempt }) {
   // plugin spec.
   const [hideFilters, setHideFilters] = useState(true);
   const [filters, setFilters] = useState<Filters>(emptyFilter);
-
-  function toFilterOption(filters: string[]): FilterOption[] {
-    // TODO(sshah): report invalid filters.
-    return filters.map(f => ({ label: f, value: f, invalid: false }));
-  }
 
   return (
     <Box width="800px">
@@ -244,43 +237,3 @@ export function FormMixin({ attempt }) {
     </Box>
   );
 }
-
-type filter = {
-  name: keyof Filters;
-  label: string;
-  placeholder: string;
-};
-
-export const filterCollection: filter[] = [
-  {
-    name: 'id',
-    label: 'Include Groups Matching the Specified Group IDs',
-    placeholder: 'Type a group ID and press enter',
-  },
-  {
-    name: 'nameRegex',
-    label:
-      'Include Groups Matching the Specified Group Name(s) - Regex and Glob Supported',
-    placeholder:
-      'Type a group name, regex or glob matching group name(s) and press enter',
-  },
-  {
-    name: 'excludeId',
-    label: 'Exclude Groups Matching the Specified Group IDs',
-    placeholder: 'Type a group ID and press enter',
-  },
-  {
-    name: 'excludeNameRegex',
-    label:
-      'Exclude Groups Matching the Specified Group Name(s) - Regex and Glob Supported',
-    placeholder:
-      'Type a group name, regex or glob matching group name(s) and press enter',
-  },
-];
-
-export const emptyFilter: Filters = {
-  id: [],
-  nameRegex: [],
-  excludeId: [],
-  excludeNameRegex: [],
-};
