@@ -241,7 +241,7 @@ can be matched to their corresponding request via the existing `completionId` fi
 ## Backwards Compatibility with Screen Recordings
 RFD 48 defines a protocol buffer message `DesktopRecordingEvent` that captures
 a subset of TDP messages required for session playback.  We can simply add a
-new field, `ProtoMessage` to this message.
+new field, `tdpb_message` to this message.
 
 ```protobuf
 message DesktopRecordingEvent {
@@ -253,7 +253,7 @@ message DesktopRecordingEvent {
 
     // A TDPFrame message which contains PNG, Screen Spec,
     // ClipboardData, Mouse Move, and mouse button events
-    bytes ProtoMessage = 4;
+    desktop.v1.Envelope tdpb_message = 4;
 
     // DelayMilliseconds is the delay in milliseconds from the start of the session
     int64 DelayMilliseconds = 3;
