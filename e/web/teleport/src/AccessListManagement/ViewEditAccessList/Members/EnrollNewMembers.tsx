@@ -26,8 +26,10 @@ import {
   AccessListMemberKind,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
+import { type User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
+import { useUserOptions } from '../../Shared/hooks';
 import type { HybridUserOption, MemberSelection } from '../../Shared/Shared';
 
 type Props = {
@@ -49,27 +51,15 @@ export function EnrollNewMembersFields({
   optional?: boolean;
   userKind: UserKind;
 }) {
-  const ctx = useTeleport();
-
-  const fetchUsersOptions = useCallback(
-    async (input: string) => {
-      const usersResult = await ctx.userService.fetchUsersV2({
-        search: input,
-        limit: 50,
-      });
-
-      const options: HybridUserOption[] = usersResult.items.map(user => ({
-        label: user.name,
-        value: {
-          membershipKind: AccessListMemberKind.User,
-          name: user.name,
-        },
-      }));
-
-      return options;
-    },
-    [ctx.userService]
-  );
+  const { loadOptions } = useUserOptions<HybridUserOption>((user: User[]) => {
+    return user.map(user => ({
+      label: user.name,
+      value: {
+        membershipKind: AccessListMemberKind.User,
+        name: user.name,
+      },
+    }));
+  });
 
   const fetchAccessListsOptions = useCallback(async (input: string) => {
     const accessListsResult = await accessManagementService.fetchAccessListsV2({
@@ -144,7 +134,7 @@ export function EnrollNewMembersFields({
         onChange={vals =>
           updateSelectedMembers(vals || [], AccessListMemberKind.User)
         }
-        loadOptions={fetchUsersOptions}
+        loadOptions={loadOptions}
         placeholder="Search for a user…"
         label={`Add ${userKind}`}
         requiredErrMsg={requiredErrMsg}

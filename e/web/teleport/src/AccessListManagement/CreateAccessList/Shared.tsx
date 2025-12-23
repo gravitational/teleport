@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 
 import Link from 'design/Link';
@@ -6,7 +5,6 @@ import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
-import { debounce } from 'shared/utils/highbar';
 
 import ResourceService from 'teleport/services/resources';
 
@@ -112,38 +110,6 @@ export function EligibleUsersFieldSelect({
   // If undefined, userKind refers to Teleport users.
   userKind?: 'nested-access-list' | undefined;
 }) {
-  const debouncedFn = useMemo(
-    () =>
-      debounce(
-        async (
-          searchInput: string,
-          resolve: (result: HybridUserOption[]) => void,
-          reject: (error: unknown) => void
-        ) => {
-          try {
-            const result = await loadOptions(searchInput);
-            resolve(result);
-          } catch (e) {
-            reject(e);
-          }
-        },
-        300
-      ),
-    [loadOptions]
-  );
-
-  const wrappedLoadOptions = useCallback(
-    async (input: string): Promise<HybridUserOption[]> => {
-      if (!input) {
-        return loadOptions('');
-      }
-      return new Promise((resolve, reject) => {
-        debouncedFn(input, resolve, reject);
-      });
-    },
-    [debouncedFn, loadOptions]
-  );
-
   const Component = disableCreate
     ? FieldSelectAsync
     : FieldSelectCreatableAsync;
@@ -163,7 +129,7 @@ export function EligibleUsersFieldSelect({
         isClearable={false}
         isDisabled={isDisabled}
         onChange={onChange}
-        loadOptions={wrappedLoadOptions}
+        loadOptions={loadOptions}
         defaultOptions={true}
         noOptionsMessage={() => noOptionsMsg}
         components={{
