@@ -7954,7 +7954,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user, challengeExtensions)
+		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{User: user, ChallengeExtensions: challengeExtensions})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7964,7 +7964,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
+		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions, nil); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -8223,7 +8223,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}, nil
 
 	case *proto.MFAAuthenticateResponse_SSO:
-		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)

@@ -44,11 +44,13 @@ func TestCRLDN(t *testing.T) {
 		{
 			name:        "test cluster name",
 			clusterName: "test",
+			caType:      types.UserCA,
 			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
 			name:        "full cluster name",
 			clusterName: "cluster.goteleport.com",
+			caType:      types.UserCA,
 			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
@@ -87,7 +89,9 @@ func TestCRLDN(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.crlDN, CRLDN(test.clusterName, test.issuerSKID, "test.goteleport.com", test.caType))
+			got, err := CRLDN(test.clusterName, test.issuerSKID, "test.goteleport.com", test.caType)
+			require.NoError(t, err)
+			require.Equal(t, test.crlDN, got)
 		})
 	}
 }

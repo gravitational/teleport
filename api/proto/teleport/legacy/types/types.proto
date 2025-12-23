@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
+import "teleport/componentfeatures/v1/component_features.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -972,6 +973,9 @@ message ServerSpecV2 {
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 17;
 
+  // component_features represents features supported by this server
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 18;
+
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
@@ -1060,6 +1064,9 @@ message AppServerSpecV3 {
   string relay_group = 7;
   // the list of Relay host IDs that the server is connected to
   repeated string relay_ids = 8;
+
+  // component_features contains features supported by this app server.
+  teleport.componentfeatures.v1.ComponentFeatures component_features = 9;
 }
 
 // AppV3List represents a list of app resources.
@@ -3523,7 +3530,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [

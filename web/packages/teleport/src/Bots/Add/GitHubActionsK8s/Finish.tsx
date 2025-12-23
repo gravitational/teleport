@@ -63,7 +63,7 @@ export function Finish(props: FlowStepProps) {
 
   return (
     <Container>
-      <Box flex={1}>
+      <Box flex={4}>
         <H2 mb={3} mt={3}>
           Setup Workflow
         </H2>
@@ -157,11 +157,11 @@ export function Finish(props: FlowStepProps) {
 const Container = styled(Flex)`
   flex: 1;
   overflow: auto;
-  gap: ${({ theme }) => theme.space[3]}px;
+  gap: ${({ theme }) => theme.space[5]}px;
 `;
 
 const CodeContainer = styled(Flex)`
-  flex: 1;
+  flex: 6;
   flex-direction: column;
   overflow: auto;
 `;
