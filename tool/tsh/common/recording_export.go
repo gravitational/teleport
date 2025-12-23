@@ -27,7 +27,6 @@ import (
 	"image/draw"
 	"image/jpeg"
 	"image/png"
-	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -36,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdp/decoder"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -64,7 +64,7 @@ func onExportRecording(cf *CLIConf) error {
 			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
+	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf)
 	return trace.Wrap(err)
 }
 
@@ -78,12 +78,13 @@ func makeAVIFileName(prefix string, currentFile int) string {
 
 // writeMovie writes the events for the specified session into one or more movie files
 // beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
+func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error)) (frames int, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var screen *image.NRGBA
 	var movie mjpeg.AviWriter
+	var fastPathDecoder *decoder.Decoder
 
 	lastEmitted := int64(-1)
 	buf := new(bytes.Buffer)
@@ -93,7 +94,7 @@ func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, 
 	currentFilename := makeAVIFileName(prefix, fileCount)
 
 	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
-	fastPathReceived := false
+
 loop:
 	for {
 		select {
@@ -120,19 +121,7 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
-				if !fastPathReceived {
-					break loop
-				}
-				if movie != nil {
-					movie.Close()
-					os.Remove(currentFilename)
-				}
-				url := fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d",
-					webProxyAddr,
-					evt.ClusterName,
-					evt.SessionID,
-					evt.EndTime.Sub(evt.StartTime).Milliseconds())
-				return frameCount, trace.BadParameter("this session can't be exported, please visit %s to view it", url)
+				break loop
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
@@ -143,12 +132,9 @@ loop:
 				}
 
 				switch msg := msg.(type) {
-				case tdp.RDPFastPathPDU:
-					fastPathReceived = true
 				case tdp.ClientScreenSpec:
-					if screen != nil {
-						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
-					}
+					// TODO(zmb3): handle resizes
+
 					// Use the dimensions in the ClientScreenSpec to allocate
 					// our virtual canvas and video file.
 					// Note: this works because we don't currently support resizing
@@ -165,6 +151,20 @@ loop:
 					if err != nil {
 						return frameCount, trace.Wrap(err)
 					}
+
+				case tdp.RDPFastPathPDU:
+					if screen == nil {
+						return frameCount, trace.BadParameter("this session is missing required start metadata")
+					}
+					if fastPathDecoder == nil {
+						var err error
+						fastPathDecoder, err = decoder.New(uint16(width), uint16(height))
+						if err != nil {
+							return frameCount, trace.Wrap(err)
+						}
+						defer fastPathDecoder.Release()
+					}
+					fastPathDecoder.Process(msg)
 
 				case tdp.PNGFrame, tdp.PNG2Frame:
 					if screen == nil {
@@ -202,7 +202,15 @@ loop:
 						"frames_to_emit", framesToEmit,
 					)
 					buf.Reset()
-					if err := jpeg.Encode(buf, screen, nil); err != nil {
+
+					// The current state of the screen is different depending on whether
+					// we're processing legacy PNG recordings or modern RemoteRF recordings.
+					var image image.Image = screen
+					if fastPathDecoder != nil {
+						image = fastPathDecoder.Image()
+					}
+
+					if err := jpeg.Encode(buf, image, nil); err != nil {
 						return frameCount, trace.Wrap(err)
 					}
 					for range int(framesToEmit) {
