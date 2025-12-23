@@ -2037,6 +2037,7 @@ func (process *TeleportProcess) initAuthExternalAuditLog(auditConfig types.Clust
 			if err := cfg.SetFromURL(uri); err != nil {
 				return nil, trace.Wrap(err)
 			}
+			cfg.EventsCertReloadInterval = auditConfig.CertRotationInterval().Duration()
 			logger, err := pgevents.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)

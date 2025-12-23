@@ -114,9 +114,10 @@ type Config struct {
 	Log        *slog.Logger
 	PoolConfig *pgxpool.Config
 
-	DisableCleanup  bool
-	RetentionPeriod time.Duration
-	CleanupInterval time.Duration
+	DisableCleanup           bool
+	RetentionPeriod          time.Duration
+	CleanupInterval          time.Duration
+	EventsCertReloadInterval time.Duration
 }
 
 // SetFromURL sets config params from the URL, as per [pgxpool.ParseConfig]
@@ -204,7 +205,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Returns a new Log given a Config. Starts a background cleanup task unless
+// New returns a new Log given a Config. Starts a background cleanup task unless
 // disabled in the Config.
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -215,8 +216,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err, "registering prometheus collectors")
 	}
 
-	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
-		return nil, trace.Wrap(err)
+	if cfg.EventsCertReloadInterval != 0 {
+		if err := pgcommon.CreateClientCertReloader(ctx,
+			"pgevents",
+			cfg.PoolConfig.ConnString(),
+			cfg.PoolConfig.ConnConfig,
+			cfg.EventsCertReloadInterval,
+			nil); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	cfg.Log.InfoContext(ctx, "Setting up events backend.")

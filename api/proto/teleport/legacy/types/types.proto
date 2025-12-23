@@ -2373,6 +2373,12 @@ message ClusterAuditConfigSpecV2 {
   }
   // UseFIPSEndpoint configures AWS endpoints to use FIPS.
   FIPSEndpointState UseFIPSEndpoint = 15 [(gogoproto.jsontag) = "use_fips_endpoint,omitempty"];
+
+  // CertReloadInterval is interval duration the client certificate should be reloaded
+  int64 CertReloadInterval = 16 [
+    (gogoproto.jsontag) = "events_cert_reload_interval,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // ClusterNetworkingConfigV2 contains cluster-wide networking configuration.
