@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Label } from 'teleport/types';
-
-export function makeLabelTag(label: Label) {
+export function makeLabelTag(label: { name: string; value: string }): string {
   return `${label.name}: ${label.value}`;
 }
