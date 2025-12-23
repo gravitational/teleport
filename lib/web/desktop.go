@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -166,9 +167,12 @@ func handleTDPUpgrade(ctx context.Context, rw tdp.MessageReadWriter, log *slog.L
 	// The ReadWriter implementation is expected to discard any legacy TDP messages
 	// while waiting for the client hello.
 	msg, err := rw.ReadMessage()
-	hello := &tdpbv1.ClientHello{}
-	if err = tdp.AsTDPB(msg, hello); err != nil {
+	if err != nil {
 		return handshakeData{}, trace.Wrap(err)
+	}
+	hello, ok := msg.(*tdpb.ClientHello)
+	if !ok {
+		return handshakeData{}, trace.Errorf("Expected client hello message but got %T", msg)
 	}
 
 	log.InfoContext(ctx, "Received client hello message", "message", hello)
@@ -188,7 +192,7 @@ type handshakeData struct {
 	keyboardLayout *tdp.ClientKeyboardLayout
 
 	// TDPB capable clients are required to send a hello
-	hello *tdpbv1.ClientHello
+	hello *tdpb.ClientHello
 }
 
 // ForwardTDP forwards legacy TDP handshake messages (Username, ClientScreenSpec, KeyboardLayout (optional))
@@ -196,11 +200,16 @@ func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboard
 	// Do we need to construct the screenspec from modern messages?
 	if h.screenSpec == nil {
 		if h.hello != nil {
-			h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.GetScreenSpec().GetWidth(), Height: h.hello.GetScreenSpec().GetHeight()}
+			if h.hello.ScreenSpec != nil {
+				h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.ScreenSpec.Width, Height: h.hello.ScreenSpec.Height}
+			} else {
+				// TODO: Consider using proto validate?
+				return trace.Errorf("Client Hello does not contain required ScreenSpec field")
+			}
 		} else {
 			return trace.Errorf("No client screen spec nor client hello message reeived. Cannot complete TDP/TDPB handhsake")
 		}
-		h.keyboardLayout = &tdp.ClientKeyboardLayout{KeyboardLayout: h.hello.GetKeyboardLayout()}
+		h.keyboardLayout = &tdp.ClientKeyboardLayout{KeyboardLayout: h.hello.KeyboardLayout}
 	}
 
 	messages := make([]tdp.Message, 0, 3)
@@ -229,7 +238,7 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 		if h.screenSpec == nil {
 			return trace.Errorf("Received neither a client hello nor client screenspec messages. Cannot forward TDPB handshake data")
 		}
-		h.hello = &tdpbv1.ClientHello{
+		h.hello = &tdpb.ClientHello{
 			ScreenSpec: &tdpbv1.ClientScreenSpec{
 				Width:  h.screenSpec.Width,
 				Height: h.screenSpec.Height,
@@ -242,7 +251,7 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 		}
 	}
 
-	return trace.Wrap(tdp.NewTDPBMessage(h.hello).EncodeTo(w))
+	return trace.Wrap(tdpb.EncodeTo(w, h.hello))
 }
 
 func sendTDPError(w tdp.MessageReadWriter, err error) error {
@@ -264,7 +273,7 @@ func sendTDPBError(w tdp.MessageReadWriter, err error) error {
 		err = errors.New("")
 	}
 
-	err = w.WriteMessage(tdp.NewTDPBMessage(&tdpbv1.Alert{
+	err = w.WriteMessage((&tdpb.Alert{
 		Message:  err.Error(),
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
 	}))
@@ -333,7 +342,7 @@ func (h *Handler) createDesktopConnection(
 					// discard any legacy TDP messages received
 					continue
 				default:
-					msg, err := tdp.DecodeTDPB(bytes.NewReader(data))
+					msg, err := tdpb.Decode(bytes.NewReader(data))
 					return msg, trace.Wrap(err)
 				}
 			}
@@ -342,7 +351,7 @@ func (h *Handler) createDesktopConnection(
 		sendError = sendTDPBError
 		init = handshakeInitializer{
 			clientHandshakeHandler: handleTDPUpgrade,
-			promptBuilder:          mfaPromptBuilder(tdp.NewTDPBMFAPrompt(&adapter, &withheld)),
+			promptBuilder:          mfaPromptBuilder(tdpb.NewTDPBMFAPrompt(&adapter, &withheld)),
 		}
 	} else {
 		log.DebugContext(ctx, "Creating Desktop connection for legacy TDP client")
@@ -665,17 +674,8 @@ func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
 	switch m := msg.(type) {
 	case tdp.Ping:
 		uuid = m.UUID[:]
-	case tdp.TdpbMessage:
-		ping := &tdpbv1.Ping{}
-		if err := m.As(ping); err != nil {
-			if errors.Is(err, tdp.ErrUnexpectedMessageType) {
-				// This simply isn't the message we're looking for
-				return []tdp.Message{msg}, nil
-			}
-			// Something else went wrong
-			return nil, trace.Wrap(err)
-		}
-		uuid = ping.Uuid
+	case *tdpb.Ping:
+		uuid = m.Uuid
 	default:
 		// This may be some other legacy TDP message
 		return []tdp.Message{msg}, nil
@@ -711,10 +711,10 @@ func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
 }
 
 func (d desktopPinger) reportTDPB(_ context.Context, stats latency.Statistics) error {
-	return d.client.WriteMessage(tdp.NewTDPBMessage(&tdpbv1.LatencyStats{
+	return d.client.WriteMessage(&tdpb.LatencyStats{
 		ClientLatencyMs: uint32(stats.Client),
 		ServerLatencyMs: uint32(stats.Server),
-	}))
+	})
 }
 
 func (d desktopPinger) reportTDP(_ context.Context, stats latency.Statistics) error {
@@ -730,14 +730,14 @@ func (d desktopPinger) pingTDP(ctx context.Context) error {
 
 func (d desktopPinger) pingTDPB(ctx context.Context) error {
 	uuid := uuid.New()
-	return d.ping(ctx, tdp.NewTDPBMessage(&tdpbv1.Ping{
+	return d.ping(ctx, &tdpb.Ping{
 		Uuid: uuid[:],
-	}))
+	})
 }
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == protocolTDPB {
-		return tdp.NewConn(rwc, tdp.WithTDPBDecoder())
+		return tdp.NewConn(rwc, tdp.WithDecoder(tdpb.Decode))
 	}
 	return tdp.NewConn(rwc)
 }
@@ -783,18 +783,18 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDPB, "client_dialect", protocolTDP)
 			// Server speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
-			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdp.TranslateToModern)
+			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToModern)
 			// Client speaks TDP
 			// Translate to TDP (legacy) when writing to this connection
-			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdp.TranslateToLegacy)
+			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToLegacy)
 		} else {
 			slog.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", protocolTDPB)
 			// Server speaks TDP
 			// Translate to TDPB when reading from this connection.
-			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdp.TranslateToLegacy)
+			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToLegacy)
 			// The client speaks TDPB
 			// Translate to TDPB (modern) when writing to this connection
-			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdp.TranslateToModern)
+			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToModern)
 		}
 	} else {
 		slog.InfoContext(ctx, "Proxying desktop connection without translation", "dialect", serverProtocol)

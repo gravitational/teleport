@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,12 +48,12 @@ func TestProxyConnection(t *testing.T) {
 	tdpbEchoServer := func(conn net.Conn) error {
 		rdr := bufio.NewReader(conn)
 		for {
-			msg, err := tdp.DecodeTDPB(rdr)
+			msg, err := tdpb.Decode(rdr)
 			if err != nil {
 				return err
 			}
 
-			if err = msg.EncodeTo(conn); err != nil {
+			if err = tdpb.EncodeTo(conn, msg); err != nil {
 				return err
 			}
 		}
@@ -116,18 +117,18 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpbClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.WithTDPBDecoder())
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.WithDecoder(tdpb.Decode))
 
-		rdpMsg := &tdpbv1.RDPResponsePDU{
+		rdpMsg := &tdpb.RDPResponsePDU{
 			Response: []byte("hello"),
 		}
 
-		mouseMsg := &tdpbv1.MouseWheel{Axis: tdpbv1.MouseWheelAxis_MOUSE_WHEEL_AXIS_HORIZONTAL, Delta: 4}
+		mouseMsg := &tdpb.MouseWheel{Axis: tdpbv1.MouseWheelAxis_MOUSE_WHEEL_AXIS_HORIZONTAL, Delta: 4}
 
-		if err := conn.WriteMessage(tdp.NewTDPBMessage(rdpMsg)); err != nil {
+		if err := conn.WriteMessage(rdpMsg); err != nil {
 			return err
 		}
-		if err := conn.WriteMessage(tdp.NewTDPBMessage(mouseMsg)); err != nil {
+		if err := conn.WriteMessage(mouseMsg); err != nil {
 			return err
 		}
 
@@ -141,22 +142,17 @@ func TestProxyConnection(t *testing.T) {
 				return err
 			}
 
-			protoMsg, err := tdp.ToTDPBProto(msg)
-			if err != nil {
-				return err
-			}
-
-			switch m := protoMsg.(type) {
-			case *tdpbv1.RDPResponsePDU:
+			switch m := msg.(type) {
+			case *tdpb.RDPResponsePDU:
 				//assert.Truef(t, proto.Equal(m, rdpMsg), "got: %+v, expected: %+v", m, rdpMsg)
 				assert.True(t, bytes.Equal(rdpMsg.Response, m.Response))
 				gotRDP = true
-			case *tdpbv1.MouseWheel:
+			case *tdpb.MouseWheel:
 				//assert.Truef(t, proto.Equal(m, mouseMsg), "got: %+v, expected: %+v", m, mouseMsg)
 				assert.Equal(t, m.Axis, mouseMsg.Axis)
 				assert.Equal(t, m.Delta, mouseMsg.Delta)
 				gotMouse = true
-			case *tdpbv1.LatencyStats:
+			case *tdpb.LatencyStats:
 				if !expectLatency {
 					t.Error("unexpected latency stats")
 				}
@@ -269,7 +265,7 @@ func TestHandshakeData(t *testing.T) {
 		data handshakeData
 	}{
 		{"tdpb-input", handshakeData{
-			hello: &tdpbv1.ClientHello{
+			hello: &tdpb.ClientHello{
 				ScreenSpec: &tdpbv1.ClientScreenSpec{
 					Height: 64,
 					Width:  128,
@@ -291,11 +287,10 @@ func TestHandshakeData(t *testing.T) {
 			buf := bufCloser{Buffer: &bytes.Buffer{}}
 			// ForwardTDPB should yield a single client_hello
 			require.NoError(t, test.data.ForwardTDPB(buf, "user"))
-			msg, err := tdp.DecodeTDPB(buf)
+			msg, err := tdpb.Decode(buf)
 			require.NoError(t, err)
-			hello := &tdpbv1.ClientHello{}
-			require.NoError(t, tdp.AsTDPB(msg, hello))
-			_, err = tdp.DecodeTDPB(buf)
+			require.IsType(t, &tdpb.ClientHello{}, msg)
+			_, err = tdpb.Decode(buf)
 			require.ErrorIs(t, err, io.EOF)
 
 			// ForwardTDP should yield 3 messages (if forwardKeyboardLayout == true)

@@ -54,7 +54,7 @@ type Conn struct {
 	rwc       io.ReadWriteCloser
 	writeMu   sync.Mutex
 	bufr      *bufio.Reader
-	decode    decoderFunc
+	decode    Decoder
 	closeOnce sync.Once
 
 	// OnSend is an optional callback that is invoked when a TDP message
@@ -74,17 +74,15 @@ type Conn struct {
 
 // decoderFunc is a function that decodes incoming data
 // into a Message.
-type decoderFunc func(io.Reader) (Message, error)
+type Decoder func(io.Reader) (Message, error)
 
 type connOption func(c *Conn)
 
 // WithDecoder configures the Conn to interpret incoming data
 // as TDPB messages, as opposed to the default TDP.
-func WithTDPBDecoder() connOption {
+func WithDecoder(d Decoder) connOption {
 	return func(c *Conn) {
-		c.decode = func(r io.Reader) (Message, error) {
-			return DecodeTDPB(r)
-		}
+		c.decode = d
 	}
 }
 
