@@ -1,0 +1,53 @@
+---
+title: Teleport Cloud Client IP Restrictions
+description: Block CIDR ranges from connecting to your cloud cluster.
+tags:
+ - faq
+ - platform-wide
+---
+
+Client IP Allowlist restricts access to your Teleport Cloud cluster, allowing traffic only from the specified network ranges (CIDR blocks). This feature is currently [opt-in](#how-to-enable).
+
+## How to enable
+Please contact your account executive or customer support to enable client IP restrictions for your tenant.
+
+## Adding CIDR blocks to the IP Allowlist
+
+Log in to your Teleport Cloud account. Open the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the IP Allowlist section.
+Once you add a CIDR, they will take effect in 5-20 minutes and will terminate existing connections. Changes to the allowlist are recorded in the audit log.
+
+![Web UI view showing IP Allowlist for Teleport](../img/cloud/client-ip-restrictions.png)
+
+Managing CIDR blocks is governed by Teleport’s existing RBAC system.
+
+A new resource type is introduced: `client_ip_restriction`.
+
+In order to see the current allowlist, the user must have the `list` verb enabled.
+
+To update the allowlist, `create` and `update` are required.
+
+By default, the `editor` role can **read and write** CIDR allowlists.
+
+## Limitations
+
+### Misconfiguration
+Misconfiguration can block all access to your cluster. Make sure to include your current network before saving changes. 
+
+### third-party service ranges
+Teleport does not auto-add third-party service ranges. You must add all required CIDRs explicitly. 
+
+### Network Security
+The allowlist applies to Teleport Cloud access; it does not replace your organization’s network/firewall policies.
+
+### Sync Time
+The Client IP Restriction allowlist may take up to 20 minutes before it is fully synced. 
+
+## FAQ
+
+### How many CIDRs can you configure?
+
+By default, up to 256 CIDR blocks can be configured. Please contact your account executive or customer support to increase the limit. 
+
+### Do you support a denylist?
+
+Teleport Cloud Client IP Restrictions doesn't currently support a denylist. 
