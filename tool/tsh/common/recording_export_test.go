@@ -22,19 +22,20 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
-	"os"
-	"path/filepath"
+	"fmt"
+	"image"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/tool/tsh/common/internal/recordingexport"
 )
 
 var pngFrame []byte
@@ -48,55 +49,57 @@ func init() {
 	binary.BigEndian.PutUint32(pngFrame[17:], 64) // bottom
 }
 
-func TestWriteMovieCanBeCanceled(t *testing.T) {
+func TestUnsupportedRecordings(t *testing.T) {
+	t.Parallel()
+
+	for _, startEvent := range []apievents.AuditEvent{
+		new(apievents.SessionStart),
+		new(apievents.AppSessionStart),
+		new(apievents.MCPSessionStart),
+		new(apievents.DatabaseSessionStart),
+	} {
+		t.Run(fmt.Sprintf("%T", startEvent), func(t *testing.T) {
+			events := []apievents.AuditEvent{startEvent}
+			exporter := &desktopRecordingExporter{
+				ss:  eventstest.NewFakeStreamer(events, 0),
+				sid: session.NewID(),
+			}
+			_, err := exporter.getSessionMetadata(t.Context())
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
+		})
+	}
+}
+
+func TestGetSessionMetadata(t *testing.T) {
 	t.Parallel()
 
 	events := []apievents.AuditEvent{
 		&apievents.WindowsDesktopSessionStart{},
-	}
-	fs := eventstest.NewFakeStreamer(events, 3*time.Second)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	frames, _, err := writeMovieWrapper(t, ctx, fs, "test", "test", nil)
-	require.ErrorIs(t, err, context.Canceled)
-	require.Equal(t, 0, frames)
-}
-
-func TestWriteMovieDoesNotSupportSSH(t *testing.T) {
-	t.Parallel()
-
-	events := []apievents.AuditEvent{
-		&apievents.SessionStart{},
-	}
-	fs := eventstest.NewFakeStreamer(events, 0)
-
-	frames, _, err := writeMovieWrapper(t, context.Background(), fs, "test", "test", nil)
-	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
-	require.Equal(t, 0, frames)
-}
-
-// TestWriteMovieMultipleScreenSpecs verifies that the export fails when a session recording
-// contains multiple TDP screen spec messages.
-//
-// At the time of this implementation, desktop access does not support resizing during the
-// screen during a session. This test exists to prevent regressions should that behavior change.
-func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
-	t.Parallel()
-
-	events := []apievents.AuditEvent{
+		tdpEvent(t, tdp.ClientScreenSpec{Width: 1024, Height: 768}),
+		tdpEvent(t, tdp.PNG2Frame(pngFrame)),
+		tdpEvent(t, tdp.PNG2Frame(pngFrame)),
 		tdpEvent(t, tdp.ClientScreenSpec{Width: 1920, Height: 1080}),
-		tdpEvent(t, tdp.ClientScreenSpec{Width: 1920, Height: 1080}),
+		tdpEvent(t, tdp.PNG2Frame(pngFrame)),
+		&apievents.WindowsDesktopSessionEnd{},
 	}
 
-	fs := eventstest.NewFakeStreamer(events, 0)
-	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
-	require.True(t, trace.IsBadParameter(err), "expected bad paramater error, got %v", err)
-	require.Equal(t, 0, frames)
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	meta, err := exporter.getSessionMetadata(t.Context())
+	require.NoError(t, err)
+	require.NotNil(t, meta)
+
+	assert.False(t, meta.isRemoteFX)
+	assert.EqualValues(t, 1920, meta.maxWidth)
+	assert.EqualValues(t, 1080, meta.maxHeight)
+	assert.EqualValues(t, len(events), meta.totalEvents)
 }
 
-func TestWriteMovieWritesOneFrame(t *testing.T) {
+func TestWritesOneFrame(t *testing.T) {
 	t.Parallel()
 
 	oneFrame := frameDelayMillis
@@ -106,13 +109,43 @@ func TestWriteMovieWritesOneFrame(t *testing.T) {
 		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), 0),
 		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), int64(oneFrame)+1),
 	}
-	fs := eventstest.NewFakeStreamer(events, 0)
-	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
+
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	frames, err := exporter.run(
+		t.Context(),
+		&recordingMetadata{},
+		recordingexport.NewPNGDecoder(128, 128),
+		nopEncoder{})
 	require.NoError(t, err)
 	require.Equal(t, 1, frames)
 }
 
-func TestWriteMovieWritesManyFrames(t *testing.T) {
+func TestCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	events := []apievents.AuditEvent{&apievents.WindowsDesktopSessionStart{}}
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 3*time.Second),
+		sid: session.NewID(),
+	}
+
+	frames, err := exporter.run(
+		ctx,
+		&recordingMetadata{},
+		recordingexport.NewPNGDecoder(128, 128),
+		nopEncoder{})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, 0, frames)
+}
+
+func TestWritesManyFrames(t *testing.T) {
 	t.Parallel()
 
 	events := []apievents.AuditEvent{
@@ -122,22 +155,19 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 		// the final frame is just over 1s after the first frame
 		tdpEventMillis(t, tdp.PNG2Frame(pngFrame), 1001),
 	}
-	fs := eventstest.NewFakeStreamer(events, 0)
-	t.Cleanup(func() { os.RemoveAll("test.avi") })
-	frames, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
+
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	frames, err := exporter.run(
+		t.Context(),
+		&recordingMetadata{},
+		recordingexport.NewPNGDecoder(128, 128),
+		nopEncoder{})
 	require.NoError(t, err)
 	require.Equal(t, framesPerSecond, frames)
-}
-
-// writeMovieWrapper calls writeMovie, and tells the test state to cleanup the created files upon completion.
-// Returns the writeMovie call results, as well as the path-qualified prefix to the created file.
-func writeMovieWrapper(t *testing.T, ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
-	write func(format string, args ...any) (int, error)) (int, string, error) {
-
-	tempDir := t.TempDir()
-	prefix = filepath.Join(tempDir, prefix)
-	frames, err := writeMovie(ctx, ss, sid, prefix, write, "")
-	return frames, prefix, err
 }
 
 func tdpEvent(t *testing.T, msg tdp.Message) *apievents.DesktopRecording {
@@ -156,3 +186,8 @@ func tdpEventMillis(t *testing.T, msg tdp.Message, millis int64) *apievents.Desk
 	evt.DelayMilliseconds = millis
 	return evt
 }
+
+type nopEncoder struct{}
+
+func (nopEncoder) EmitFrames(image.Image, int) error { return nil }
+func (nopEncoder) Close() error                      { return nil }
