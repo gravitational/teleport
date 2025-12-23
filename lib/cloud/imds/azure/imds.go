@@ -163,7 +163,8 @@ func (client *InstanceMetadataClient) getVersions(ctx context.Context) ([]string
 	return versions.APIVersions, nil
 }
 
-// IsAvailable checks if instance metadata is available.
+// IsAvailable checks if instance metadata is available based on the API version.
+// It also initializes the API version itself, so it must be called before other methods.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	if client.GetAPIVersion() != "" {
 		return true
@@ -225,6 +226,10 @@ type InstanceInfo struct {
 
 // GetInstanceInfo gets the Azure Instance information.
 func (client *InstanceMetadataClient) GetInstanceInfo(ctx context.Context) (*InstanceInfo, error) {
+	if !client.IsAvailable(ctx) {
+		return nil, trace.NotFound("Instance metadata is not available")
+	}
+
 	body, err := client.getRawMetadata(ctx, "/instance/compute", url.Values{"format": []string{"json"}})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,12 +258,20 @@ func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error)
 
 // GetAttestedData gets attested data from the instance.
 func (client *InstanceMetadataClient) GetAttestedData(ctx context.Context, nonce string) ([]byte, error) {
+	if !client.IsAvailable(ctx) {
+		return nil, trace.NotFound("Instance metadata is not available")
+	}
+
 	body, err := client.getRawMetadata(ctx, "/attested/document", url.Values{"nonce": []string{nonce}, "format": []string{"json"}})
 	return body, trace.Wrap(err)
 }
 
 // GetAccessToken gets an oauth2 access token from the instance.
 func (client *InstanceMetadataClient) GetAccessToken(ctx context.Context, clientID string) (string, error) {
+	if !client.IsAvailable(ctx) {
+		return "", trace.NotFound("Instance metadata is not available")
+	}
+
 	params := url.Values{"resource": []string{"https://management.azure.com/"}}
 	if clientID != "" {
 		params["client_id"] = []string{clientID}
