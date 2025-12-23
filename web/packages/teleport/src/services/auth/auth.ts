@@ -222,7 +222,6 @@ const auth = {
   headlessSsoGet(transactionId: string) {
     return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
       json = json || {};
-      console.log(json);
       return {
         clientIpAddress: json.client_ip_address,
         authType: json.type,
