@@ -827,6 +827,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 				log.DebugContext(ctx, "User explicitly requested Browser MFA, attempting browser-based authentication")
 			} else {
 				log.DebugContext(ctx, "MFA ceremony failed, attempting Browser MFA as fallback")
+				fmt.Fprintf(params.tc.Stderr, "Local MFA attempts failed, attempting Browser MFA\n")
 			}
 
 			result, browserErr := performBrowserMFA(ctx, params.tc, params.KeyRing)

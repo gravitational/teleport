@@ -161,7 +161,6 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		promptWebauthn, promptOTP = false, false
 		userSpecifiedMethod = true
 	case c.cfg.PreferBrowserMFA:
-		userSpecifiedMethod = true
 		return nil, trace.Wrap(ErrBrowserMFAPreferred)
 	case c.cfg.PreferOTP && promptOTP:
 		chosenMethods = []string{cliMFATypeOTP}

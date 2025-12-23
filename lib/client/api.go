@@ -369,7 +369,7 @@ type Config struct {
 	// PreferSSO prefers SSO in favor of other MFA methods.
 	PreferSSO bool
 
-	// PreferBrowserMFA prefers browser-based Browser MFA in favor of other MFA methods.
+	// PreferBrowserMFA prefers Browser MFA in favor of other MFA methods.
 	PreferBrowserMFA bool
 
 	// CheckVersions will check that client version is compatible
