@@ -914,6 +914,7 @@ helmunit/installed:
 test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-updater
 	helm unittest -3 --with-subchart=false examples/chart/teleport-relay
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 --with-subchart=false examples/chart/access/*
@@ -924,6 +925,7 @@ test-helm: helmunit/installed
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-updater
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-relay
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
 	helm unittest -3 -u --with-subchart=false examples/chart/access/*

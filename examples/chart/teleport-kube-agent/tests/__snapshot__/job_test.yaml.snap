@@ -9,35 +9,36 @@ should create ServiceAccount for post-delete hook by default:
         helm.sh/hook-weight: "-4"
       name: RELEASE-NAME-delete-hook
       namespace: NAMESPACE
-? should inherit ServiceAccount name from values and not create serviceAccount if serviceAccount.create is false and serviceAccount.name is set
+? should inherit ServiceAccount name from values and not create serviceAccount if
+  serviceAccount.create is false and serviceAccount.name is set
 : 1: |
     automountServiceAccountToken: true
     containers:
-      - args:
-          - kube-state
-          - delete
-        command:
-          - teleport
-        env:
-          - name: KUBE_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: RELEASE_NAME
-            value: RELEASE-NAME
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
-        imagePullPolicy: IfNotPresent
-        name: post-delete-job
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
-          seccompProfile:
-            type: RuntimeDefault
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     restartPolicy: OnFailure
     serviceAccountName: lint-serviceaccount
 should not create ServiceAccount for post-delete hook if serviceAccount.create is false:
@@ -52,14 +53,14 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
       name: RELEASE-NAME-delete-hook
       namespace: NAMESPACE
     rules:
-      - apiGroups:
-          - ""
-        resources:
-          - secrets
-        verbs:
-          - get
-          - delete
-          - list
+    - apiGroups:
+      - ""
+      resources:
+      - secrets
+      verbs:
+      - get
+      - delete
+      - list
   2: |
     apiVersion: rbac.authorization.k8s.io/v1
     kind: RoleBinding
@@ -75,9 +76,9 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
       kind: Role
       name: RELEASE-NAME-delete-hook
     subjects:
-      - kind: ServiceAccount
-        name: lint-serviceaccount
-        namespace: NAMESPACE
+    - kind: ServiceAccount
+      name: lint-serviceaccount
+      namespace: NAMESPACE
   3: |
     apiVersion: batch/v1
     kind: Job
@@ -97,93 +98,93 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
         spec:
           automountServiceAccountToken: true
           containers:
-            - args:
-                - kube-state
-                - delete
-              command:
-                - teleport
-              env:
-                - name: KUBE_NAMESPACE
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.namespace
-                - name: RELEASE_NAME
-                  value: RELEASE-NAME
-              image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
-              imagePullPolicy: IfNotPresent
-              name: post-delete-job
-              securityContext:
-                allowPrivilegeEscalation: false
-                capabilities:
-                  drop:
-                    - ALL
-                readOnlyRootFilesystem: true
-                runAsNonRoot: true
-                runAsUser: 9807
-                seccompProfile:
-                  type: RuntimeDefault
+          - args:
+            - kube-state
+            - delete
+            command:
+            - teleport
+            env:
+            - name: KUBE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELEASE_NAME
+              value: RELEASE-NAME
+            image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: post-delete-job
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 9807
+              seccompProfile:
+                type: RuntimeDefault
           restartPolicy: OnFailure
           serviceAccountName: lint-serviceaccount
 should not create ServiceAccount, Role or RoleBinding for post-delete hook if serviceAccount.create and rbac.create are false:
   1: |
     automountServiceAccountToken: true
     containers:
-      - args:
-          - kube-state
-          - delete
-        command:
-          - teleport
-        env:
-          - name: KUBE_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: RELEASE_NAME
-            value: RELEASE-NAME
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
-        imagePullPolicy: IfNotPresent
-        name: post-delete-job
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
-          seccompProfile:
-            type: RuntimeDefault
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     restartPolicy: OnFailure
     serviceAccountName: lint-serviceaccount
 should set nodeSelector in post-delete hook:
   1: |
     automountServiceAccountToken: true
     containers:
-      - args:
-          - kube-state
-          - delete
-        command:
-          - teleport
-        env:
-          - name: KUBE_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: RELEASE_NAME
-            value: RELEASE-NAME
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
-        imagePullPolicy: IfNotPresent
-        name: post-delete-job
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
-          seccompProfile:
-            type: RuntimeDefault
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     nodeSelector:
       gravitational.io/k8s-role: node
     restartPolicy: OnFailure
@@ -192,37 +193,37 @@ should set resources in the Job's pod spec if resources is set in values:
   1: |
     automountServiceAccountToken: true
     containers:
-      - args:
-          - kube-state
-          - delete
-        command:
-          - teleport
-        env:
-          - name: KUBE_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: RELEASE_NAME
-            value: RELEASE-NAME
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
-        imagePullPolicy: IfNotPresent
-        name: post-delete-job
-        resources:
-          limits:
-            cpu: 2
-            memory: 4Gi
-          requests:
-            cpu: 1
-            memory: 2Gi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
-          seccompProfile:
-            type: RuntimeDefault
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-dev
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+        seccompProfile:
+          type: RuntimeDefault
     restartPolicy: OnFailure
     serviceAccountName: RELEASE-NAME-delete-hook

@@ -76,10 +76,11 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: "version-server.example.com"
-        group: foobar
+      enabled: true
+      versionServer: "version-server.example.com"
+      group: foobar
+      appImage: public.ecr.aws/gravitational/teleport-distroless
+      containerName: teleport
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
@@ -116,9 +117,10 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: ""
+      enabled: true
+      versionServer: ""
+      appImage: public.ecr.aws/gravitational/teleport-distroless
+      containerName: teleport
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
@@ -149,10 +151,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations["kubernetes.io/deployment"]
+          path: metadata.annotations.kubernetes\.io/deployment
           value: test-annotation
       - equal:
-          path: metadata.annotations["kubernetes.io/deployment-different"]
+          path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
   - it: sets the pod annotations
     values:
@@ -160,10 +162,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations["kubernetes.io/pod"]
+          path: spec.template.metadata.annotations.kubernetes\.io/pod
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
+          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
   - it: sets the affinity
     values:
@@ -238,7 +240,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
   - it: sets the updater container extraEnv
     values:
       - ../.lint/updater.yaml

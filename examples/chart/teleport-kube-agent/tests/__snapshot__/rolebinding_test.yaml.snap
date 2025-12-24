@@ -10,9 +10,9 @@ creates a RoleBinding:
       kind: Role
       name: RELEASE-NAME
     subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME
-        namespace: NAMESPACE
+    - kind: ServiceAccount
+      name: RELEASE-NAME
+      namespace: NAMESPACE
 sets RoleBinding labels when specified:
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -28,6 +28,6 @@ sets RoleBinding labels when specified:
       kind: Role
       name: RELEASE-NAME
     subjects:
-      - kind: ServiceAccount
-        name: RELEASE-NAME
-        namespace: NAMESPACE
+    - kind: ServiceAccount
+      name: RELEASE-NAME
+      namespace: NAMESPACE
