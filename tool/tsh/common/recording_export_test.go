@@ -136,7 +136,7 @@ func writeMovieWrapper(t *testing.T, ctx context.Context, ss events.SessionStrea
 
 	tempDir := t.TempDir()
 	prefix = filepath.Join(tempDir, prefix)
-	frames, err := writeMovie(ctx, ss, sid, prefix, write, "")
+	frames, err := writeMovie(ctx, ss, sid, prefix, write)
 	return frames, prefix, err
 }
 
