@@ -46,8 +46,9 @@ tsh login --proxy teleport.example.com --user alice
 
 She is asked for her password, which is then sent to Teleport. Teleport verifies
 her username and password, and checks for valid methods of second factor
-authentication. It finds her passkey and returns a URL which `tsh` prints and
-attempts to open in the default browser for her to complete the challenge.
+authentication. Available methods of MFA are returned and `tsh` determines that
+no security keys are present, so `tsh` catches the error and prints a URL and
+attempts to open it in the default browser for her to complete the challenge.
 
 The browser will open to a page that contains a modal prompting her to verify it
 is her by completing the MFA check. Once this is completed, the browser will
@@ -63,17 +64,21 @@ that requires per-session MFA. She runs the following command:
 ```
 tsh ssh alice@node
 ```
-The MFA URL is printed and `tsh` attempts to open her browser, to authenticate
-with her MFA. Upon success, she is redirected back and the ssh session can
-continue.
+
+`tsh` queries the cluster for available methods of MFA and checks for local
+hardware keys and SSO config that can be used for MFA. If none are found, `tsh`
+falls back to browser-based MFA. The MFA URL is printed and `tsh` attempts to
+open her browser, to authenticate with her MFA. Upon successful MFA, `tsh`
+receives short-lived, MFA-verified certificates to connect to the resource.
 
 ### Design
 
 #### Login process
 
 This flow will be followed when a user first logs in to their cluster using
-`tsh`. It follows the [headless authentication](0105-headless-authentication.md)
-flow very closely as it is a proven method that achieves something very similar.
+`tsh`. It uses the [headless authentication](0105-headless-authentication.md)
+flow to authenticate the user with some modifications to the certificate that is
+returned.
 
 ```mermaid
 sequenceDiagram
@@ -90,7 +95,7 @@ sequenceDiagram
         Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
 
     and local client request
-        tsh-->>Web Browser: user copies URL to local browser
+        tsh-->>Web Browser: web browser opens
         Note over Web Browser: proxy.example.com/headless/<request_id>
         opt user is not already logged in locally
             Web Browser->>Teleport Proxy: user logs in normally e.g. password+MFA
@@ -110,13 +115,13 @@ sequenceDiagram
         Note over Web Browser: share request details with user
         Web Browser->>Teleport Auth: rpc CreateAuthenticateChallenge
         Teleport Auth->>Web Browser: MFA Challenge
-        Note over Web Browser: user taps YubiKey<br/>to sign MFA challenge
+        Note over Web Browser: user completes MFA challenge
         Web Browser->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
         Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login, state=approved, mfaDevice}
     and headless client request
         Backend ->>- Teleport Auth: unblock on state change
-        Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, standard user cert TTL)
-        Teleport Proxy->>tsh: user certificates<br/>(MFA-verified, standard user cert TTL)
+        Teleport Auth->>Teleport Proxy: user certificates<br/>(standard user cert TTL)
+        Teleport Proxy->>tsh: user certificates<br/>(standard user cert TTL)
         Note over tsh: User is authenticated
     end
 ```
@@ -124,18 +129,18 @@ sequenceDiagram
 ##### Login Flow
 
 The flow can be broken down in to three sections:
-1. `tsh` initiating a browser login flow
+1. `tsh` initiating a headless login flow
 1. The user verifying their MFA through the browser
 1. `tsh` receiving certificates 
 
-##### `tsh` initiating a browser login flow
+##### `tsh` initiating a headless login flow
 
 When the user performs a `tsh login`, it will check for either an explicit
 `--auth=browser` flag or it will error if there are no other MFA methods
-available. This error will be changed to prompt the user to try browser
-authentication.
+available. This error is caught and the user is prompted to try attempt
+authentication through the browser.
 
-`tsh` will send a unauthenticated request to `POST /webapi/login/headless` that
+`tsh` will send an unauthenticated request to `POST /webapi/login/headless` that
 will remain open until the request is approved, denied, or times out. It will
 send the client's SSH public key, proxy address, and the authentication type
 etc. The Proxy fowards these details to the Auth server using
@@ -144,10 +149,10 @@ unauthenticated endpoint will be discussed in the
 [security section](#unauthenticated-webapiloginbrowser-endpoint).
 
 The auth service will store the Request ID on the backend under
-`/browser_authentication/<request_id>`. The record will have a short TTL of 5
+`/headless_authentication/<request_id>`. The record will have a short TTL of 5
 minutes. It will contain the authentication type, user, ip, and the
 current state (pending). The auth server waits for a decision from the user by
-using a resource watcher.
+using a resource watcher on the headless authentication object.
 
 ##### The user verifying their MFA through the browser
 
@@ -180,70 +185,58 @@ state and which MFA device was used. The auth server will unblock the request
 and certificates with the standard user TTL will be generated and returned to
 `tsh`. If verification fails, an error will be returned.
 
-#### Per-session MFA (TBD)
+#### Per-session MFA
 
-This flow will be followed when a user needs to reauthenticate before accessing
-a protected resource.
+This flow will be followed when a user wants to connect to a resource that
+requires per-session MFA.
 
 ```mermaid
 sequenceDiagram
-    participant web
+    participant Web Browser
     participant tsh
-    participant proxy
-    participant auth
-    participant backend
+    participant Teleport Proxy
+    participant Teleport Auth
 
     Note over tsh: tsh ssh alice@node
-    Note over tsh: Generate code_verifier (random string)
-    Note over tsh: Generate code_challenge = BASE64URL(SHA256(code_verifier))
-    Note over tsh: Print URL proxy.example.com/web/browser/<request_id>
+    Note over tsh: print URL proxy.example.com/headless/<request_id>
+    par headless client request
+        tsh->>Teleport Proxy: POST /webapi/login/headless
+        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
+        Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
 
-    tsh->>proxy: POST /webapi/login/browser<br/>{request_id, request_type=session, code_challenge, code_challenge_method: S256}
-    proxy->>auth: POST /:version/users/:user/ssh/authenticate<br/>{request_id, request_type, code_challenge}
-    auth->>backend: insert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=pending}
-    auth->>+backend: wait for state change to 'approved'
+    and local client request
+        tsh-->>Web Browser: web browser opens
+        Note over Web Browser: proxy.example.com/headless/<request_id>
+        opt user is not already logged in locally
+            Web Browser->>Teleport Proxy: user logs in normally e.g. password+MFA
+            Teleport Proxy->>Web Browser:
+        end
+        Web Browser->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
+        Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
 
-    tsh-->>web: browser opens to URL
-    Note over web: proxy.example.com/web/browser/<request_id>
-    
-    opt user is not already logged in locally
-        web->>proxy: user logs in normally e.g. password+MFA
-        proxy->>web: login success
-    end
+        par headless client request
+            Backend ->>- Teleport Auth: unblock on insert
+            Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=session}
+            Teleport Auth ->>+ Backend: wait for state change
+        end
 
-    web->>auth: rpc GetHeadlessAuthentication(request_id)
-    auth->>backend: read /browser_authentication/<request_id>
-    auth->>web: Browser Authentication details {request_id, user, ip, request_type}
+        Teleport Auth->>Web Browser: Headless Authentication details
 
-    Note over web: Share request details with user
-    web->>auth: rpc CreateAuthenticateChallenge
-    auth->>web: MFA Challenge
-    Note over web: User auths with biometrics/passkey
-    web->>auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
-    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice}
-
-    backend->>-auth: unblock on state change
-    auth->>auth: Generate authorization_code
-    auth->>backend: upsert /browser_authentication/<request_id><br/>{request_type, code_challenge, user, ip, state=approved, mfaDevice, authorization_code}
-    auth->>tsh: Authorization Code
-
-    tsh->>proxy: POST /webapi/login/browser/exchange/<request_id><br/>{authorization_code, code_verifier}
-    proxy->>auth: POST /:version/users/:user/exchange<br/>{request_id, authorization_code, code_verifier}
-    auth->>backend: read /browser_authentication/<request_id> for authorization_code
-    auth->>auth: Verify: SHA256(code_verifier) == code_challenge
-    alt PKCE verification successful
-        auth->>auth: Generate user certificates<br/>(MFA-verified, 1 minute TTL)
-        auth->>proxy: user certificates
-        proxy->>tsh: user certificates
-        Note over tsh: tsh uses cert to connect to alice@node
-    else PKCE verification failed
-        auth->>proxy: Error: Invalid code_verifier
-        proxy->>tsh: Error: Authentication failed
-        Note over tsh: tsh ssh fails
+        Note over Web Browser: share request details with user
+        Web Browser->>Teleport Auth: rpc CreateAuthenticateChallenge
+        Teleport Auth->>Web Browser: MFA Challenge
+        Note over Web Browser: user completes MFA challenge
+        Web Browser->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
+        Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=session, state=approved, mfaDevice}
+    and headless client request
+        Backend ->>- Teleport Auth: unblock on state change
+        Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, short cert TTL)
+        Teleport Proxy->>tsh: user certificates<br/>(MFA-verified, short cert TTL)
+        Note over tsh: User is authenticated
     end
 ```
 
-The flow is similar to the [login flow](#login-flow) except for a few key
+The flow is similar to the [login flow](#login-flow) except for two key
 changes:
 1. The flow is started when a user connects to a per-session MFA protected
    resource.
@@ -252,21 +245,12 @@ changes:
 
 ### Security
 
-#### Unauthenticated `/webapi/login/browser` endpoint
+#### Unauthenticated `/webapi/login/headless` endpoint
 
-The endpoint that the unauthenticated `tsh` client will make a request to will
-need to be unauthenticated. This exposes the proxy to the risk of DoS attacks.
-
-To mitigate this risk, the endpoint will be rate limited and the
-`HeadlessAuthentication` object will be unique per user. A
-`HeadlessAuthentication` resource needs to be created on the backend to store
-information about the request. Instead of creating the resource when the
-unauthenticated `tsh` client sends a request, it will be created when the
-authenticated user calls `rpc GetHeadlessAuthentication`, which is called during
-the browser authentication flow. Initially, `GetHeadlessAuthentication` creates
-an empty `HeadlessAuthentication`, if it doesn't already exist. The details are
-then updated by the auth service once it detects that the resource has been
-created.
+The initial unauthenticated call from `tsh` to the proxy uses the existing
+[endpoint](0105-headless-authentication.md#unauthenticated-headless-login-endpoint)
+that was introduced by the headless authentication method. This feature doesn't
+expand on this part of the flow.
 
 #### IP restrictions
 
@@ -285,18 +269,26 @@ match.
 This will increase load on auth servers with watchers that are waiting for
 the `HeadlessAuthentication` object on the backend to be created when an
 unauthenticated `tsh` client initiates a login request. To limit the impact of
-this, the watcher will be only be created once per client as described [above](#unauthenticated-webapiloginbrowser-endpoint). The watcher will also timeout
-after 5 minutes, the same TTL as the user has to authenticate their request.
+this, the watcher will be only be created once per client as described
+[above](0105-headless-authentication.md#unauthenticated-headless-login-endpoint).
+The watcher will also timeout after 5 minutes, the same TTL the user has to
+authenticate their request.
+
+When initiating a command that requires per-session MFA, a call to retrieve
+authentication settings will need to be made to determine if browser MFA is
+available. If this request hit the auth server everytime, this would add a lot
+of load. TBD how this impact will be lessened. 
 
 ### Backward Compatibility
 
-`tsh` will ping the proxy and determine its version before attempting browser
-authentication. If the proxy is new enough, `tsh` will proceed with browser
-authentication. If not, it will fallback to existing methods.
+`tsh` will `GET /webapi/ping` to get the authentication settings supported by
+the cluster. If `AllowBrowserMFA` is present and `true`, `tsh` will proceed with
+browser authentication. If the field isn't present or it is set to false, 
+browser authentication will not be attempted.
 
 ### Test Plan
 
-Add a step to test that browser authentication works for logging in and for
+Add steps to test that browser authentication works for logging in and for
 per-session MFA.
 
 ### Audit Events
@@ -304,7 +296,7 @@ per-session MFA.
 Events will be logged when:
 
 1. `tsh` makes its initial unauthenticated request, which logs:
-    - IP address
+    - Remote IP address
     - Client public key
     - Request type
 1. a user approves/denies an authentication event, which logs:
