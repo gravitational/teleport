@@ -198,7 +198,7 @@ describe('GithubJoinTokenForm', () => {
   // eslint-disable-next-line jest/expect-expect
   it(
     'ref field can be populated',
-    populateRuleFieldTest('ref', 'ref/heads/main', 'ref/heads/main')
+    populateRuleFieldTest('ref', 'refs/heads/main', 'refs/heads/main')
   );
 
   it('ref type can be selected', async () => {

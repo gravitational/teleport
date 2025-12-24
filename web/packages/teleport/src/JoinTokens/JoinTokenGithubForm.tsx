@@ -161,7 +161,7 @@ export const JoinTokenGithubForm = ({
             <FieldInput
               flex={2}
               label="Git ref"
-              placeholder="ref/heads/main"
+              placeholder="refs/heads/main"
               value={rule.ref ?? ''}
               onChange={e => updateRuleField(index, 'ref', e.target.value)}
               readonly={readonly}
