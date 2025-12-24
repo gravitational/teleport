@@ -151,7 +151,7 @@ export function JoinTokenGitlabForm(props: {
             <FieldInput
               flex={2}
               label="Git ref"
-              placeholder="ref/heads/main"
+              placeholder="main"
               value={rule.ref ?? ''}
               onChange={e => updateRuleField(index, 'ref', e.target.value)}
               readonly={readonly}
