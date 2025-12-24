@@ -157,16 +157,14 @@ your resource usage, and then scaling resources based on measured outcomes.
 Note that you are not limited to a single `windows_desktop_service`, and can connect multiple to your cluster in order to
 spread resources out over multiple logical machines.
 
-## Node Agent Resource Limits
+## Node Resource Limits
 
-Teleport Agent resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Node Agent.
+Teleport Node resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Node Agent.
 
 There are three primary factors that influence resource utilization on a Node Agent:
 1. User workload.
 1. Number of concurrent sessions.
 1. Number of new sessions per second.
-
-Given the workload is unknown, this section will focus on the latter two factors. It is highly recommended to assess metrics within the target environment using a representative workload.
 
 <Admonition
   type="note"
@@ -207,8 +205,8 @@ The primary driver of CPU usage by the Node Agent is the burst usage when new se
 
 To estimate the resource requirements for a Node Agent:
 1. Determine the worst case resource requirements of a typical user workload.
-1. Estimate the maximum number of concurrent sessions.
-1. Estimate the maximum number of new sessions per second.
+1. Determine the maximum number of concurrent sessions.
+1. Determine the maximum number of new sessions per second.
 
 Using `tsh ssh` and `tsh bench ssh`, simulate session activity to measure resource usage under expected conditions.
 Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
