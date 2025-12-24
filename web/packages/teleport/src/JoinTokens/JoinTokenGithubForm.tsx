@@ -65,12 +65,7 @@ export const JoinTokenGithubForm = ({
       ...tokenState,
       github: {
         ...tokenState.github,
-        rules: [
-          ...(rules ?? []),
-          {
-            ref_type: 'any' as const,
-          },
-        ],
+        rules: [...(rules ?? []), {}],
       },
     };
     onUpdateState(newState);
@@ -176,9 +171,18 @@ export const JoinTokenGithubForm = ({
               flex={1}
               label="Ref type"
               options={refTypeOptions}
-              value={refTypeOptions.find(o => o.value === rule.ref_type)}
-              onChange={opts => updateRuleField(index, 'ref_type', opts?.value)}
-              isDisabled={!rule.ref || readonly}
+              value={
+                refTypeOptions.find(o => o.value === rule.ref_type) ??
+                refTypeOptions[0]
+              }
+              onChange={opts =>
+                updateRuleField(
+                  index,
+                  'ref_type',
+                  opts?.value === 'any' ? undefined : opts?.value
+                )
+              }
+              isDisabled={readonly}
               data-testid="ref-type-select"
             />
           </Flex>

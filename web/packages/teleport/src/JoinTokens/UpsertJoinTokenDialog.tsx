@@ -116,7 +116,7 @@ export type NewJoinTokenGithubStateRule = {
   workflow?: string | null;
   environment?: string | null;
   ref?: string | null;
-  ref_type?: 'any' | 'branch' | 'tag' | null;
+  ref_type?: 'branch' | 'tag' | null;
 };
 
 type NewJoinTokenGitlabState = {
@@ -130,7 +130,7 @@ export type NewJoinTokenGitlabStateRule = {
   namespace_path?: string | null;
   environment?: string | null;
   ref?: string | null;
-  ref_type?: 'any' | 'branch' | 'tag' | null;
+  ref_type?: 'branch' | 'tag' | null;
 };
 
 export type NewJoinTokenState = {
@@ -223,7 +223,7 @@ function parseRefType(refType: string | null | undefined) {
   } else if (refType == 'tag') {
     return 'tag';
   } else {
-    return 'any';
+    return undefined;
   }
 }
 

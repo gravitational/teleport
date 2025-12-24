@@ -52,7 +52,6 @@ const populateRuleFieldTest =
       baseState({
         rules: [
           {
-            ref_type: 'any',
             [field]: value,
           },
         ],
@@ -107,14 +106,7 @@ describe('GithubJoinTokenForm', () => {
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenLastCalledWith(
       baseState({
-        rules: [
-          {
-            ref_type: 'any',
-          },
-          {
-            ref_type: 'any',
-          },
-        ],
+        rules: [{}, {}],
       })
     );
   });
@@ -209,17 +201,12 @@ describe('GithubJoinTokenForm', () => {
     populateRuleFieldTest('ref', 'ref/heads/main', 'ref/heads/main')
   );
 
-  it('ref type is disabled when ref is not populated', async () => {
-    renderComponent();
-    expect(screen.getByLabelText('Ref type')).toBeDisabled();
-  });
-
   it('ref type can be selected', async () => {
     const state = baseState({
       rules: [
         {
-          ref: 'ref/heads/main',
-          ref_type: 'any',
+          ref: 'refs/heads/main',
+          ref_type: undefined,
         },
       ],
     });
@@ -239,6 +226,22 @@ describe('GithubJoinTokenForm', () => {
               {
                 ...state.github.rules[0],
                 ref_type: 'branch',
+              },
+            ]
+          : [],
+      })
+    );
+
+    await selectEvent.select(selectElement, ['Any']);
+
+    expect(onUpdate).toHaveBeenCalledTimes(2);
+    expect(onUpdate).toHaveBeenLastCalledWith(
+      baseState({
+        rules: state.github?.rules
+          ? [
+              {
+                ...state.github.rules[0],
+                ref_type: undefined,
               },
             ]
           : [],
@@ -327,10 +330,6 @@ const baseState = (
   bot_name: 'test-bot-name',
   github: {
     ...github,
-    rules: github.rules ?? [
-      {
-        ref_type: 'any',
-      },
-    ],
+    rules: github.rules ?? [{}],
   },
 });
