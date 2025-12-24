@@ -19,14 +19,11 @@
 export function makeGhaWorkflow(params: {
   tokenName: string;
   clusterPublicUrl: string;
-  toolsVersion: string;
 }) {
   return GHA_WORKFLOW.replaceAll(
     ':token_name',
     JSON.stringify(params.tokenName)
-  )
-    .replaceAll(':cluster_public_url', JSON.stringify(params.clusterPublicUrl))
-    .replaceAll(':tools_version', JSON.stringify(params.toolsVersion));
+  ).replaceAll(':cluster_public_url', JSON.stringify(params.clusterPublicUrl));
 }
 
 export const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow which enrolls with Teleport in
@@ -43,7 +40,6 @@ export const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow whic
 on: workflow_dispatch
 
 env:
-  TELEPORT_TOOLS_VERSION: :tools_version
   TELEPORT_PROXY_ADDR: :cluster_public_url
   TELEPORT_JOIN_TOKEN_NAME: :token_name
 
@@ -67,14 +63,15 @@ jobs:
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
-        version: $TELEPORT_TOOLS_VERSION
+        version: auto
+        proxy: \${{ env.TELEPORT_PROXY_ADDR }}
 
     - name: Fetch credentials using Machine & Workload Identity
       uses: teleport-actions/auth-k8s@v2
       with:
-        proxy: $TELEPORT_PROXY_ADDR
-        token: $TELEPORT_JOIN_TOKEN_NAME
-        kubernetes-cluster: $TELEPORT_K8S_CLUSTER_NAME
+        proxy: \${{ env.TELEPORT_PROXY_ADDR }}
+        token: \${{ env.TELEPORT_JOIN_TOKEN_NAME }}
+        kubernetes-cluster: \${{ env.TELEPORT_K8S_CLUSTER_NAME }}
         # Enable the submission of anonymous usage telemetry. This helps us
         # shape the future development of \`tbot\`. You can disable this by
         # omitting this.
@@ -83,5 +80,5 @@ jobs:
     # Use kubectl or other compatible tools to interact with your Kubernetes
     # cluster.
     - name: List pods
-      run: kubectl get pods -A
+      run: kubectl version
 `;

@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -87,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -3437,6 +3439,8 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
+	clusterAuthProxyFeatures := h.getAuthProxyComponentFeaturesIntersection(request.Context())
+
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
@@ -3469,6 +3473,11 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
 
+			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
+			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
+			// along the request path.
+			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyFeatures)
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
 				LocalProxyDNSName:     proxyDNSName,
@@ -3477,6 +3486,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.logger,
 				RequiresRequest:       enriched.RequiresRequest,
+				SupportedFeatures:     appComponentFeatures,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
@@ -3512,6 +3522,51 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
+}
+
+// getAuthProxyComponentFeaturesIntersection returns an intersection of supported ComponentFeatures
+// from all cluster Proxy and Auth servers.
+func (h *Handler) getAuthProxyComponentFeaturesIntersection(ctx context.Context) *componentfeaturesv1.ComponentFeatures {
+	ap := h.GetAccessPoint()
+	features := make([]*componentfeaturesv1.ComponentFeatures, 0)
+
+	allProxies, err := clientutils.CollectWithFallback(
+		ctx,
+		ap.ListProxyServers,
+		func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
+			return ap.GetProxies()
+		},
+	)
+	if err != nil {
+		// If we fail to get proxies & can't be sure about feature support,
+		// intersecting on `nil` ensures any intersection of ComponentFeatures will be empty.
+		h.logger.ErrorContext(ctx, "Failed to get proxy servers to collect ComponentFeatures", "error", err)
+		features = append(features, nil)
+	} else {
+		for _, srv := range allProxies {
+			features = append(features, srv.GetComponentFeatures())
+		}
+	}
+
+	allAuthServers, err := clientutils.CollectWithFallback(
+		ctx,
+		ap.ListAuthServers,
+		func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
+			return ap.GetAuthServers()
+		},
+	)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "Failed to get auth servers to collect ComponentFeatures", "error", err)
+		features = append(features, nil)
+	} else {
+		for _, srv := range allAuthServers {
+			features = append(features, srv.GetComponentFeatures())
+		}
+	}
+
+	return componentfeatures.Intersect(features...)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.
@@ -5679,44 +5734,4 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
-}
-
-// WithAuthCookieAndCSRF ensures that a request is authenticated
-// for plain old non-AJAX requests (does not check the Bearer header).
-// It enforces CSRF checks.
-//
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
-	// formFieldName is the default form field to inspect.
-	const formFieldName = "csrf_token"
-
-	// verifyFormField checks if HTTP form value matches the cookie.
-	verifyFormField := func(r *http.Request) error {
-		token := r.FormValue(formFieldName)
-		if len(token) == 0 {
-			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
-		}
-
-		err := csrf.VerifyToken(token, r)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, err := h.AuthenticateRequest(w, r, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		errForm := verifyFormField(r)
-		if errForm != nil {
-			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
-			return nil, trace.AccessDenied("access denied")
-		}
-		return fn(w, r, p, sctx)
-	})
 }

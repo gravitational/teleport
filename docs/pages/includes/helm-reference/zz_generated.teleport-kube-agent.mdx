@@ -775,9 +775,14 @@ You must create a secret containing the CA certs in the same namespace as Telepo
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Admonition type="warning" title="Root CA filename">
-  The key containing the root CA in the secret must be `ca.pem`.
-</Admonition>
+### `tls.existingCASecretKeyName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
+
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
 
 ## `existingDataVolume`
 

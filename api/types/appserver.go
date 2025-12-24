@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/iterutils"
 )
@@ -70,6 +71,10 @@ type AppServer interface {
 	GetRelayIDs() []string
 	// GetScope returns the scope this server belongs to.
 	GetScope() string
+	// GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this AppServer.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -112,6 +117,16 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 			PublicAddr:  publicAddr,
 		}},
 	})
+}
+
+// GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
+func (s *AppServerV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this AppServer.
+func (s *AppServerV3) SetComponentFeatures(cf *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = cf
 }
 
 // GetVersion returns the database server resource version.

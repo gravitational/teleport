@@ -19,9 +19,9 @@ windows_desktop_service:
     # For best results, this address should point to a highly-available
     # endpoint rather than a single domain controller.
     addr: "$LDAP_SERVER_ADDRESS"
-    # locate_server gets a list of available LDAP servers from the AD 
+    # locate_server gets a list of available LDAP servers from the AD
     # domain's SRV records. When enabled, addr is ignored.
-    locate_server: 
+    locate_server:
       enabled: true
       # Optional: Site is the logical AD site that locate_server should return.
       # Ignored if locate_server is false.
@@ -113,6 +113,9 @@ windows_desktop_service:
       # The key of the label will be "ldap/" + the value of the attribute.
       label_attributes:
         - location
+      # (optional) static labels to apply to all hosts discovered via this policy
+      labels:
+        env: prod
       # (optional) The port to use for RDP.
       # Defaults to 3389 if unspecified.
       rdp_port: 3389

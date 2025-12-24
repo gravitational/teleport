@@ -59,6 +59,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   BotInstances = 'Bot Instances',
+  InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -210,6 +211,8 @@ export interface FeatureFlags {
   readBots: boolean;
   readBotInstances: boolean;
   listBotInstances: boolean;
+  readInstances: boolean;
+  listInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
