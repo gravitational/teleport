@@ -29,6 +29,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -69,6 +70,8 @@ func (m *mockAuthServer) BeginSSOMFAChallenge(
 	_ string,
 	_ *mfav1.ChallengeExtensions,
 	_ *mfav1.SessionIdentifyingPayload,
+	sourceClusterName string,
+	targetClusterName string,
 ) (*proto.SSOChallenge, error) {
 	requestID := strconv.Itoa(int(time.Now().UnixNano()))
 	m.requestIDs.Store(requestID, struct{}{})
@@ -112,7 +115,14 @@ func (m *mockAuthServer) VerifySSOMFASession(
 		return nil, trace.NotFound("SSO MFA device not found %q", requestID)
 	}
 
-	return &authz.MFAAuthData{Device: ssoDevice}, nil
+	return &authz.MFAAuthData{
+		Device: ssoDevice,
+		Payload: &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: []byte("test-payload"),
+		},
+		SourceCluster: "root",
+		TargetCluster: "root",
+	}, nil
 }
 
 type mockAuthServerIdentity struct {

@@ -17,20 +17,24 @@
 package mfav1
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
-	"github.com/gravitational/trace"
+	"github.com/google/uuid"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
@@ -43,6 +47,8 @@ type AuthServer interface {
 		proxyAddress string,
 		ext *mfav1.ChallengeExtensions,
 		sip *mfav1.SessionIdentifyingPayload,
+		sourceCluster string,
+		targetCluster string,
 	) (*proto.SSOChallenge, error)
 
 	VerifySSOMFASession(
@@ -80,23 +86,25 @@ type Identity interface {
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	AuthServer AuthServer
-	Cache      Cache
-	Emitter    Emitter
-	Identity   Identity
+	Authorizer                   authz.Authorizer
+	AuthServer                   AuthServer
+	Cache                        Cache
+	Emitter                      Emitter
+	Identity                     Identity
+	ValidatedMFAChallengeService services.ValidatedMFAChallengeService
 }
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 type Service struct {
 	mfav1.UnimplementedMFAServiceServer
 
-	logger     *slog.Logger
-	authorizer authz.Authorizer
-	authServer AuthServer
-	cache      Cache
-	emitter    Emitter
-	identity   Identity
+	logger                       *slog.Logger
+	authorizer                   authz.Authorizer
+	authServer                   AuthServer
+	cache                        Cache
+	emitter                      Emitter
+	identity                     Identity
+	validatedMFAChallengeService services.ValidatedMFAChallengeService
 }
 
 // NewService creates a new [Service] instance.
@@ -112,15 +120,18 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("param Emitter is required for MFA service")
 	case cfg.Identity == nil:
 		return nil, trace.BadParameter("param Identity is required for MFA service")
+	case cfg.ValidatedMFAChallengeService == nil:
+		return nil, trace.BadParameter("param ValidatedMFAChallengeService is required for MFA service")
 	}
 
 	return &Service{
-		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
-		authorizer: cfg.Authorizer,
-		authServer: cfg.AuthServer,
-		cache:      cfg.Cache,
-		emitter:    cfg.Emitter,
-		identity:   cfg.Identity,
+		logger:                       slog.With(teleport.ComponentKey, "mfa.service"),
+		authorizer:                   cfg.Authorizer,
+		authServer:                   cfg.AuthServer,
+		cache:                        cfg.Cache,
+		emitter:                      cfg.Emitter,
+		identity:                     cfg.Identity,
+		validatedMFAChallengeService: cfg.ValidatedMFAChallengeService,
 	}, nil
 }
 
@@ -178,7 +189,18 @@ func (s *Service) CreateSessionChallenge(
 		"has_sso_device", supportedMFADevices.SSO != nil,
 	)
 
-	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{}}
+	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{Name: uuid.NewString()}}
+
+	clusterName, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Source cluster is always the current cluster.
+	sourceClusterName := clusterName.GetClusterName()
+
+	// Target cluster is the current cluster unless specified otherwise in the request.
+	targetClusterName := cmp.Or(req.TargetCluster, sourceClusterName)
 
 	// If Webauthn is enabled and there are registered devices, create a Webauthn challenge.
 	if enableWebauthn && len(supportedMFADevices.Webauthn) > 0 {
@@ -194,6 +216,8 @@ func (s *Service) CreateSessionChallenge(
 				User:                      username,
 				ChallengeExtensions:       &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 				SessionIdentifyingPayload: req.Payload,
+				SourceCluster:             sourceClusterName,
+				TargetCluster:             targetClusterName,
 			},
 		)
 		if err != nil {
@@ -214,6 +238,8 @@ func (s *Service) CreateSessionChallenge(
 			req.ProxyAddressForSso,
 			&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
 			req.Payload,
+			sourceClusterName,
+			targetClusterName,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -224,11 +250,6 @@ func (s *Service) CreateSessionChallenge(
 			RequestId:   ssoChallenge.RequestId,
 			RedirectUrl: ssoChallenge.RedirectUrl,
 		}
-	}
-
-	clusterName, err := s.cache.GetClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
@@ -278,23 +299,21 @@ func (s *Service) ValidateSessionChallenge(
 	}
 
 	var (
-		device      *types.MFADevice
-		validateErr error
+		userConfirmedIdentity *confirmedIdentity
+		validateErr           error
 	)
 
 	// Validate the challenge response. Error is captured to report in the audit event and handled later.
 	switch resp := req.MfaResponse.GetResponse().(type) {
 	case *mfav1.AuthenticateResponse_Webauthn:
-		device, validateErr = s.validateWebauthnResponse(ctx, username, resp)
+		userConfirmedIdentity, validateErr = s.validateWebauthnResponse(ctx, username, resp)
 
 	case *mfav1.AuthenticateResponse_Sso:
-		device, validateErr = s.validateSSOResponse(ctx, username, resp)
+		userConfirmedIdentity, validateErr = s.validateSSOResponse(ctx, username, resp)
 
 	default:
 		return nil, trace.BadParameter("unknown MFA response type %T", resp)
 	}
-
-	// TODO(cthach): Store ValidatedMFAChallenge for retrieval during session creation.
 
 	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
@@ -318,9 +337,9 @@ func (s *Service) ValidateSessionChallenge(
 		event.Code = events.ValidateMFAAuthResponseCode
 		event.Success = true
 		event.MFADevice = &apievents.MFADeviceMetadata{
-			DeviceName: device.GetName(),
-			DeviceID:   device.Id,
-			DeviceType: device.MFAType(),
+			DeviceName: userConfirmedIdentity.Device.GetName(),
+			DeviceID:   userConfirmedIdentity.Device.Id,
+			DeviceType: userConfirmedIdentity.Device.MFAType(),
 		}
 	}
 
@@ -330,6 +349,36 @@ func (s *Service) ValidateSessionChallenge(
 
 	if validateErr != nil {
 		return nil, trace.AccessDenied("validate MFA response: %v", validateErr)
+	}
+
+	if userConfirmedIdentity.Payload.SSHSessionID == nil {
+		return nil, trace.BadParameter("validated MFA response has empty session identifying payload")
+	}
+
+	s.logger.InfoContext(ctx, "MFA challenge validated", "confirmed_identity", userConfirmedIdentity)
+
+	_, err = s.validatedMFAChallengeService.CreateValidatedMFAChallenge(
+		ctx,
+		username,
+		&mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: "v1",
+			Metadata: &types.Metadata{
+				Name: req.GetMfaResponse().GetName(),
+			},
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				Payload: &mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+						SshSessionId: userConfirmedIdentity.Payload.SSHSessionID,
+					},
+				},
+				SourceCluster: userConfirmedIdentity.SourceCluster,
+				TargetCluster: userConfirmedIdentity.TargetCluster,
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	s.logger.DebugContext(
@@ -419,6 +468,10 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 		return trace.BadParameter("nil ValidateSessionChallengeRequest.mfa_response")
 	}
 
+	if mfaResp.GetName() == "" {
+		return trace.BadParameter("missing ValidateSessionChallengeRequest.mfa_response.name")
+	}
+
 	resp := mfaResp.GetResponse()
 	if resp == nil {
 		return trace.BadParameter("nil ValidateSessionChallengeRequest.mfa_response.response")
@@ -431,11 +484,18 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 	return nil
 }
 
+type confirmedIdentity struct {
+	Device        *types.MFADevice
+	Payload       *mfatypes.SessionIdentifyingPayload
+	SourceCluster string
+	TargetCluster string
+}
+
 func (s *Service) validateWebauthnResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Webauthn,
-) (*types.MFADevice, error) {
+) (*confirmedIdentity, error) {
 	pref, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -462,14 +522,19 @@ func (s *Service) validateWebauthnResponse(
 		return nil, trace.AccessDenied("validate Webauthn response: %v", err)
 	}
 
-	return loginData.Device, nil
+	return &confirmedIdentity{
+		Device:        loginData.Device,
+		Payload:       loginData.Payload,
+		SourceCluster: loginData.SourceCluster,
+		TargetCluster: loginData.TargetCluster,
+	}, nil
 }
 
 func (s *Service) validateSSOResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Sso,
-) (*types.MFADevice, error) {
+) (*confirmedIdentity, error) {
 	data, err := s.authServer.VerifySSOMFASession(
 		ctx,
 		username,
@@ -481,7 +546,12 @@ func (s *Service) validateSSOResponse(
 		return nil, trace.AccessDenied("validate SSO response: %v", err)
 	}
 
-	return data.Device, nil
+	return &confirmedIdentity{
+		Device:        data.Device,
+		Payload:       data.Payload,
+		SourceCluster: "TODO",
+		TargetCluster: "TODO",
+	}, nil
 }
 
 func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, error) {

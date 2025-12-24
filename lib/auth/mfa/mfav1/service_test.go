@@ -59,11 +59,12 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer,
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -98,6 +99,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify a Webauthn challenge was returned.
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
 
 	// Verify emitted event.
@@ -121,6 +123,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.MfaChallenge.Name,
 				Response: &mfav1.AuthenticateResponse_Webauthn{
 					Webauthn: mfaResp.GetWebauthn(),
 				},
@@ -181,11 +184,12 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer,
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -212,6 +216,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SSO challenge was returned.
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetSsoChallenge(), "SSOChallenge must not be nil")
 	require.Equal(t, "test-display-name", challengeResp.GetMfaChallenge().GetSsoChallenge().GetDevice().DisplayName)
 	require.Equal(t, "test-device-connector-id", challengeResp.GetMfaChallenge().GetSsoChallenge().GetDevice().ConnectorId)
@@ -232,6 +237,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.GetMfaChallenge().GetName(),
 				Response: &mfav1.AuthenticateResponse_Sso{
 					Sso: &mfav1.SSOChallengeResponse{
 						RequestId: challengeResp.GetMfaChallenge().GetSsoChallenge().GetRequestId(),
@@ -263,11 +269,12 @@ func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer.Auth(),
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -299,11 +306,12 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer.Auth(),
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -385,11 +393,12 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer,
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -424,11 +433,12 @@ func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer.Auth(),
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -460,11 +470,12 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer.Auth(),
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -527,11 +538,12 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer,
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -564,12 +576,14 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge())
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
+	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.GetMfaChallenge().GetName(),
 				Response: &mfav1.AuthenticateResponse_Webauthn{
 					Webauthn: &webauthnpb.CredentialAssertionResponse{
 						Type: "invalid",
@@ -630,11 +644,12 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
+		Authorizer:                   authServer.AuthServer.Authorizer,
+		AuthServer:                   authServer,
+		Cache:                        authServer.Auth().Cache,
+		Emitter:                      authServer.Auth(),
+		Identity:                     authServer.Auth().Identity,
+		ValidatedMFAChallengeService: authServer.Auth(),
 	})
 	require.NoError(t, err)
 
@@ -661,12 +676,14 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SSO challenge was returned.
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetSsoChallenge(), "SSOChallenge must not be nil")
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.GetMfaChallenge().GetName(),
 				Response: &mfav1.AuthenticateResponse_Sso{
 					Sso: &mfav1.SSOChallengeResponse{
 						RequestId: "invalid-request-id-to-fail-validation",

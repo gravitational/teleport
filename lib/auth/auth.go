@@ -609,6 +609,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.ValidatedMFAChallengeService == nil {
+		cfg.ValidatedMFAChallengeService, err = local.NewValidatedMFAChallengeService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating ValidatedMFAChallenge service")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -677,6 +684,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
+		ValidatedMFAChallengeService:    cfg.ValidatedMFAChallengeService,
 	}
 
 	as = &Server{
@@ -951,6 +959,7 @@ type Services struct {
 	events.MultipartHandler
 	services.Summarizer
 	services.ScopedTokenService
+	services.ValidatedMFAChallengeService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -7964,7 +7973,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions, nil); err != nil {
+		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions, nil, "", ""); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

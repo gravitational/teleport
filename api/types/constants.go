@@ -690,6 +690,9 @@ const (
 	// KindAppAuthConfig is the resource kind for app auth configs.
 	KindAppAuthConfig = "app_auth_config"
 
+	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
+	KindValidatedMFAChallenge = "validated_mfa_challenge"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 

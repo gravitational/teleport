@@ -37,7 +37,17 @@ import (
 // BeginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
 // TODO(cthach): Refactor to accept a params struct since there are many parameters. Must be done after SSO MFA device
 // support is added to lib/auth/authtest (https://github.com/gravitational/teleport/issues/62271).
-func (a *Server) BeginSSOMFAChallenge(ctx context.Context, user string, sso *types.SSOMFADevice, ssoClientRedirectURL, proxyAddress string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload) (*proto.SSOChallenge, error) {
+func (a *Server) BeginSSOMFAChallenge(
+	ctx context.Context,
+	user string,
+	sso *types.SSOMFADevice,
+	ssoClientRedirectURL,
+	proxyAddress string,
+	ext *mfav1.ChallengeExtensions,
+	sip *mfav1.SessionIdentifyingPayload,
+	sourceCluster string,
+	targetCluster string,
+) (*proto.SSOChallenge, error) {
 	chal := &proto.SSOChallenge{
 		Device: sso,
 	}
@@ -75,7 +85,7 @@ func (a *Server) BeginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 		return nil, trace.BadParameter("unsupported sso connector type %v", sso.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, user, chal.RequestId, sso.ConnectorId, sso.ConnectorType, ext, sip); err != nil {
+	if err := a.upsertSSOMFASession(ctx, user, chal.RequestId, sso.ConnectorId, sso.ConnectorType, ext, sip, sourceCluster, targetCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -140,15 +150,18 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	}
 
 	return &authz.MFAAuthData{
-		Device:     groupedDevs.SSO,
-		User:       username,
-		AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
+		Device:        groupedDevs.SSO,
+		User:          username,
+		AllowReuse:    mfaSess.ChallengeExtensions.AllowReuse,
+		Payload:       mfaSess.Payload,
+		SourceCluster: mfaSess.SourceCluster,
+		TargetCluster: mfaSess.TargetCluster,
 	}, nil
 }
 
 // upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
 // sessionID, connector details, and challenge extensions.
-func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload) error {
+func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string) error {
 	data := &services.SSOMFASessionData{
 		Username:      user,
 		RequestID:     sessionID,
@@ -158,6 +171,8 @@ func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID
 			Scope:      ext.Scope,
 			AllowReuse: ext.AllowReuse,
 		},
+		SourceCluster: sourceCluster,
+		TargetCluster: targetCluster,
 	}
 
 	if sip != nil {

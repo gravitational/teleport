@@ -37,4 +37,8 @@ type SSOMFASessionData struct {
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions"`
 	// Payload is an optional session identifying value that uniquely identifies the user's session.
 	Payload *mfatypes.SessionIdentifyingPayload `json:"payload,omitempty"`
+	// SourceCluster is the optional cluster where the authentication originated.
+	SourceCluster string `json:"source_cluster,omitempty"`
+	// TargetCluster is the optional cluster where the authentication is targeted.
+	TargetCluster string `json:"target_cluster,omitempty"`
 }

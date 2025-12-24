@@ -63,7 +63,9 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 	}
-	return lf.begin(ctx, "" /* user */, chalExt, nil)
+	return lf.begin(ctx, BeginParams{
+		ChallengeExtensions: chalExt,
+	})
 }
 
 // Finish is the last step of the passwordless login flow.
