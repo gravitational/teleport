@@ -1,0 +1,24 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: kube
+kubeClusterName: test-kube-cluster
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: gravitational.io/dedicated
+          operator: In
+          values:
+          - teleport
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - teleport
+        topologyKey: kubernetes.io/hostname
+      weight: 1

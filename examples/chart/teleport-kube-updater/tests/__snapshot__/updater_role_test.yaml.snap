@@ -1,76 +1,93 @@
 sets the correct role rules:
   1: |
     - apiGroups:
-      - ""
+        - ""
       resources:
-      - pods
+        - pods
       verbs:
-      - get
-      - watch
-      - list
-      - delete
+        - get
+        - watch
+        - list
+        - delete
     - apiGroups:
-      - ""
+        - ""
       resources:
-      - pods/status
+        - pods/status
       verbs:
-      - get
-      - watch
-      - list
+        - get
+        - watch
+        - list
     - apiGroups:
-      - ""
+        - ""
       resources:
-      - secrets
+        - secrets
       verbs:
-      - watch
-      - list
+        - watch
+        - list
     - apiGroups:
-      - ""
+        - ""
       resourceNames:
-      - RELEASE-NAME-shared-state
+        - RELEASE-NAME-shared-state
       resources:
-      - secrets
+        - secrets
       verbs:
-      - get
+        - get
     - apiGroups:
-      - ""
+        - ""
       resources:
-      - events
+        - events
       verbs:
-      - create
-      - patch
+        - create
+        - patch
     - apiGroups:
-      - apps
+        - ""
       resources:
-      - deployments
-      - statefulsets
-      - deployments/status
-      - statefulsets/status
+        - configmaps
       verbs:
-      - get
-      - watch
-      - list
+        - create
+        - watch
+        - list
     - apiGroups:
-      - apps
+        - ""
       resourceNames:
-      - RELEASE-NAME
+        - RELEASE-NAME-teleport-kube-updater
       resources:
-      - deployments
-      - statefulsets
+        - configmaps
       verbs:
-      - update
+        - get
+        - update
     - apiGroups:
-      - coordination.k8s.io
+        - apps
       resources:
-      - leases
+        - deployments
+        - statefulsets
+        - deployments/status
+        - statefulsets/status
       verbs:
-      - create
+        - get
+        - watch
+        - list
     - apiGroups:
-      - coordination.k8s.io
+        - apps
       resourceNames:
-      - RELEASE-NAME
+        - RELEASE-NAME
       resources:
-      - leases
+        - deployments
+        - statefulsets
       verbs:
-      - get
-      - update
+        - update
+    - apiGroups:
+        - coordination.k8s.io
+      resources:
+        - leases
+      verbs:
+        - create
+    - apiGroups:
+        - coordination.k8s.io
+      resourceNames:
+        - RELEASE-NAME
+      resources:
+        - leases
+      verbs:
+        - get
+        - update

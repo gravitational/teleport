@@ -7,22 +7,25 @@ release:
 tests:
   - it: should create ServiceAccount, Role, RoleBinding and Job for post-delete hook by default
     template: delete_hook.yaml
-    documentIndex: 3
     values:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
-          kind: ServiceAccount
           apiVersion: v1
+          kind: ServiceAccount
+        documentIndex: 0
       - containsDocument:
+          apiVersion: rbac.authorization.k8s.io/v1
           kind: Role
-          apiVersion: rbac.authorization.k8s.io/v1
+        documentIndex: 1
       - containsDocument:
+          apiVersion: rbac.authorization.k8s.io/v1
           kind: RoleBinding
-          apiVersion: rbac.authorization.k8s.io/v1
+        documentIndex: 2
       - containsDocument:
-          kind: Job
           apiVersion: batch/v1
+          kind: Job
+        documentIndex: 3
 
   - it: should set securityContext in post-delete hook
     template: delete_hook.yaml
@@ -120,6 +123,7 @@ tests:
 
   - it: should create Role for post-delete hook by default
     template: delete_hook.yaml
+    documentIndex: 1
     values:
       - ../.lint/backwards-compatibility.yaml
     asserts:
@@ -142,6 +146,7 @@ tests:
 
   - it: should create RoleBinding for post-delete hook by default
     template: delete_hook.yaml
+    documentIndex: 2
     values:
       - ../.lint/backwards-compatibility.yaml
     asserts:

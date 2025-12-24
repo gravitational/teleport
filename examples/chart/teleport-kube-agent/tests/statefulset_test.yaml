@@ -51,10 +51,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
 
   - it: sets Pod annotations when specified
@@ -64,10 +64,10 @@ tests:
       - ../.lint/stateful.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
       - matchSnapshot:
           path: spec.template.spec
@@ -188,7 +188,7 @@ tests:
     set:
       disableTopologySpreadConstraints: true
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
 
   - it: removes topology spread constraints when running on antique kubernetes
@@ -199,7 +199,7 @@ tests:
       majorVersion: 1
       minorVersion: 17
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
 
   - it: uses custom topology spread constraints when set
@@ -820,8 +820,10 @@ tests:
       - ../.lint/initcontainers.yaml
     asserts:
       - matchSnapshot:
+          snapshotName: initContainerSecurityContext
           path: spec.template.spec.initContainers[0].securityContext
       - matchSnapshot:
+          snapshotName: mainContainerSecurityContext
           path: spec.template.spec.containers[0].securityContext
 
   - it: sets no container security context when manually unset
@@ -830,12 +832,10 @@ tests:
       - ../.lint/initcontainers.yaml
       - ../.lint/security-context-empty.yaml
     asserts:
-      - equal:
+      - notExists:
           path: spec.template.spec.initContainers[0].securityContext
-          value: null
-      - equal:
+      - notExists:
           path: spec.template.spec.containers[0].securityContext
-          value: null
 
   - it: should enable maintenance schedule export when updater is enabled
     template: statefulset.yaml

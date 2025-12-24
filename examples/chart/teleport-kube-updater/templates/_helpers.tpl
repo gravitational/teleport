@@ -26,7 +26,7 @@ Create the name of the service account to use
 {{- if .Values.serviceAccount.name }}
 {{- .Values.serviceAccount.name }}
 {{- else }}
-{{- printf "%s-updater" (include "teleport-kube-updater.fullname" .) }}
+{{- include "teleport-kube-updater.fullname" . }}
 {{- end }}
 {{- end }}
 
@@ -47,7 +47,7 @@ Create the name of the service account to use
 {{- end -}}
 
 {{- define "teleport-kube-updater.app.baseImage" -}}
-  {{- .Values.appImage | required "agentImage must be provided" -}}
+  {{- .Values.appImage | required "appImage must be provided" -}}
 {{- end -}}
 
 {{- define "teleport-kube-updater.app.containerName" -}}

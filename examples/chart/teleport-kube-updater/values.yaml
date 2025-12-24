@@ -3,7 +3,7 @@
 # This is a YAML-formatted file.
 # The default values are documented in the Chart.yaml.
 
-# enabled(bool) -- Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+# enabled(bool) -- Enables the Kube Updater and deploys it alongside the Teleport Agent or Tbot.
 # You can enable this when:
 #
 # - using Teleport Cloud and your tenant is enrolled into automatic updates.
@@ -32,7 +32,7 @@ enabled: false
 # | `teleport-cluster` Helm chart | `teleport.example.com:443`          |
 proxyAddr: ""
 
-# versionServer(string) -- is the URL of the version server the agent
+# versionServer(string) -- is the URL of the version server the updater
 # fetches the target version from. The complete version endpoint is built by
 # concatenating [`versionServer`](#versionserver) and [`releaseChannel`
 # ](#releasechannel).
@@ -61,7 +61,7 @@ group: ""
 # image(string) -- sets the container image used for Teleport updater
 # pods run when `enabled` is true.
 #
-# You can override this to use your own Teleport Kube Agent Updater image rather
+# You can override this to use your own Teleport Kube Updater image rather
 # than a Teleport-published image.
 image: public.ecr.aws/gravitational/teleport-kube-agent-updater
 
@@ -69,7 +69,7 @@ image: public.ecr.aws/gravitational/teleport-kube-agent-updater
 # chart.
 appImage: ""
 
-# containerName(string) -- sets the name of the main container in the Teleport Kube Agent Updater pod.
+# containerName(string) -- sets the name of the main container in the Teleport Kube Updater pod.
 # This value is typically left empty and is required to be set during installation.
 containerName: ""
 
@@ -82,7 +82,7 @@ syncPeriod: "10h"
 # serviceAccount --
 serviceAccount:
   # serviceAccount.name(string) -- is the updater Kubernetes Service
-  # Account name. When unset, it defaults to `<kube agent sa name>-updater`
+  # Account name. When unset, it defaults to `<kube updater sa name>`
   name: ""
   create: true
 
@@ -124,8 +124,13 @@ extraVolumes: []
 # ```
 extraVolumeMounts: []
 
-# tls -- contains settings for mounting your own TLS material in the agent pod.
-# The agent does not expose a TLS server, so this is only used to trust CAs.
+# resources(object) -- sets the resource requests/limits for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+# for more details.
+resources: { }
+
+# tls -- contains settings for mounting your own TLS material in the updater pod.
+# The updater does not expose a TLS server, so this is only used to trust CAs.
 tls:
   # tls.existingCASecretName(string) -- sets the `SSL_CERT_FILE` environment
   # variable to load a trusted CA or bundle in PEM format into Teleport pods.
@@ -169,10 +174,16 @@ extraLabels:
   # extraLabels.serviceAccount(object) -- are labels to set on the ServiceAccount.
   serviceAccount: { }
 
-
-# serviceAccountName(string) -- is deprecated and will be removed in a future
-# version. Use [`serviceAccount.name`](#serviceaccountname-1) instead.
-serviceAccountName: ""
+# extraEnv(list) -- contains extra environment variables to set in the main
+# updater pod.
+#
+# For example:
+# ```yaml
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: "http://username:password@my.proxy.host:3128"
+# ```
+extraEnv: [ ]
 
 # annotations -- contains annotations to apply to the different Kubernetes
 # objects created by the chart. See [the Kubernetes annotation
@@ -196,3 +207,8 @@ annotations:
   # put on the `ServiceAccount` resource created by the chart.
   serviceAccount: {}
 
+# priorityClassName(string) -- sets the priority class used by any pods created by the chart.
+# The user is responsible for creating the `PriorityClass` resource before deploying the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+# for more details.
+priorityClassName: ""
