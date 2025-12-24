@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	"image/jpeg"
 	"image/png"
@@ -60,11 +61,20 @@ func onExportRecording(cf *CLIConf) error {
 	filenamePrefix := cf.SessionID
 	if cf.OutFile != "" {
 		// trim the extension if it was provided (we'll add it later on)
-		filenamePrefix = strings.TrimSuffix(
-			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
+		filenamePrefix = strings.TrimSuffix(strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf)
+	exporter := &desktopRecordingExporter{
+		ss:  clusterClient.AuthClient,
+		sid: session.ID(cf.SessionID),
+	}
+
+	meta, err := exporter.getSessionMetadata(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = exporter.writeMovie(cf.Context, meta, filenamePrefix, fmt.Printf)
 	return trace.Wrap(err)
 }
 
@@ -76,40 +86,92 @@ func makeAVIFileName(prefix string, currentFile int) string {
 	return fmt.Sprintf("%v-%d.avi", prefix, currentFile)
 }
 
+type desktopRecordingExporter struct {
+	ss  events.SessionStreamer
+	sid session.ID
+}
+
+type recordingMetadata struct {
+	totalEvents uint32
+	maxWidth    uint32
+	maxHeight   uint32
+}
+
+// getSessionMetadata pre-processes the session recording in order to identify
+// metadata necessary for the export.
+func (d *desktopRecordingExporter) getSessionMetadata(ctx context.Context) (*recordingMetadata, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	total, width, height := uint32(0), uint32(0), uint32(0)
+
+	evts, errs := d.ss.StreamSessionEvents(ctx, d.sid, 0)
+loop:
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err, "failed to process session")
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case evt, ok := <-evts:
+			if !ok {
+				break loop
+			}
+			total++
+			dr, ok := evt.(*apievents.DesktopRecording)
+			if !ok {
+				continue
+			}
+			msg, err := tdp.Decode(dr.Message)
+			if err != nil {
+				return nil, trace.Wrap(err, "recording includes invalid data")
+			}
+			if resize, ok := msg.(tdp.ClientScreenSpec); ok {
+				height = max(height, resize.Height)
+				width = max(width, resize.Width)
+			}
+		}
+	}
+	return &recordingMetadata{totalEvents: total, maxWidth: width, maxHeight: height}, nil
+}
+
 // writeMovie writes the events for the specified session into one or more movie files
 // beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error)) (frames int, err error) {
+func (d *desktopRecordingExporter) writeMovie(
+	ctx context.Context,
+	meta *recordingMetadata,
+	prefix string,
+	write func(format string, args ...any) (int, error),
+) (frames int, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var screen *image.NRGBA
-	var movie mjpeg.AviWriter
 	var fastPathDecoder *decoder.Decoder
 
 	lastEmitted := int64(-1)
 	buf := new(bytes.Buffer)
 
 	var frameCount, fileCount int
-	var width, height int32
 	currentFilename := makeAVIFileName(prefix, fileCount)
+	movie, err := mjpeg.New(currentFilename, int32(meta.maxWidth), int32(meta.maxHeight), framesPerSecond)
+	if err != nil {
+		return frameCount, trace.Wrap(err)
+	}
 
-	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
+	evts, errs := d.ss.StreamSessionEvents(ctx, d.sid, 0)
 
 loop:
 	for {
 		select {
 		case err := <-errs:
-			if movie != nil {
-				if err := movie.Close(); err == nil && write != nil && frames > 0 {
-					write("wrote %v\n", currentFilename)
-				}
+			if err := movie.Close(); err == nil && write != nil && frames > 0 {
+				write("wrote %v\n", currentFilename)
 			}
 			return frameCount, trace.Wrap(err)
 		case <-ctx.Done():
-			if movie != nil {
-				if err := movie.Close(); err == nil && write != nil && frames > 0 {
-					write("wrote %v\n", currentFilename)
-				}
+			if err := movie.Close(); err == nil && write != nil && frames > 0 {
+				write("wrote %v\n", currentFilename)
 			}
 			return frameCount, ctx.Err()
 		case evt, more := <-evts:
@@ -130,35 +192,22 @@ loop:
 					logger.WarnContext(ctx, "failed to decode desktop recording message", "error", err)
 					break loop
 				}
-
 				switch msg := msg.(type) {
 				case tdp.ClientScreenSpec:
-					// TODO(zmb3): handle resizes
-
-					// Use the dimensions in the ClientScreenSpec to allocate
-					// our virtual canvas and video file.
-					// Note: this works because we don't currently support resizing
-					// the window during a session. If this changes, we'd have to
-					// find the maximum window size first.
-					logger.DebugContext(ctx, "allocating screen size", "width", msg.Width, "height", msg.Height)
-					width, height = int32(msg.Width), int32(msg.Height)
-					screen = image.NewNRGBA(image.Rectangle{
-						Min: image.Pt(0, 0),
-						Max: image.Pt(int(msg.Width), int(msg.Height)),
-					})
-
-					movie, err = mjpeg.New(currentFilename, width, height, framesPerSecond)
-					if err != nil {
-						return frameCount, trace.Wrap(err)
+					// Clear the screen out. This is important to avoid visual artifacts if the screen
+					// is made smaller during the session.
+					if screen != nil {
+						// Fill the screen with opaque black.
+						draw.Draw(screen, screen.Bounds(), image.NewUniform(color.Black), image.Point{}, draw.Src)
+					} else if fastPathDecoder != nil {
+						println("resizing rfx")
+						fastPathDecoder.Resize(uint16(meta.maxWidth), uint16(meta.maxHeight))
 					}
 
 				case tdp.RDPFastPathPDU:
-					if screen == nil {
-						return frameCount, trace.BadParameter("this session is missing required start metadata")
-					}
 					if fastPathDecoder == nil {
 						var err error
-						fastPathDecoder, err = decoder.New(uint16(width), uint16(height))
+						fastPathDecoder, err = decoder.New(uint16(meta.maxWidth), uint16(meta.maxHeight))
 						if err != nil {
 							return frameCount, trace.Wrap(err)
 						}
@@ -168,7 +217,10 @@ loop:
 
 				case tdp.PNGFrame, tdp.PNG2Frame:
 					if screen == nil {
-						return frameCount, trace.BadParameter("this session is missing required start metadata")
+						screen = image.NewNRGBA(image.Rectangle{
+							Min: image.Pt(0, 0),
+							Max: image.Pt(int(meta.maxWidth), int(meta.maxHeight)),
+						})
 					}
 
 					fragment, err := imgFromPNGMessage(msg)
@@ -193,6 +245,11 @@ loop:
 					continue loop
 				}
 
+				// If we haven't received any image data yet there's nothing to emit.
+				if screen == nil && fastPathDecoder == nil {
+					continue loop
+				}
+
 				// emit a frame if there's been enough of a time lapse between last event
 				delta := evt.DelayMilliseconds - lastEmitted
 				framesToEmit := int64(float64(delta) / frameDelayMillis)
@@ -207,10 +264,10 @@ loop:
 					// we're processing legacy PNG recordings or modern RemoteRF recordings.
 					var image image.Image = screen
 					if fastPathDecoder != nil {
-						image = fastPathDecoder.Image()
+						image = fastPathDecoder.Image() // TODO: nil check
 					}
 
-					if err := jpeg.Encode(buf, image, nil); err != nil {
+					if err := jpeg.Encode(buf, image, nil /* options */); err != nil {
 						return frameCount, trace.Wrap(err)
 					}
 					for range int(framesToEmit) {
@@ -225,7 +282,7 @@ loop:
 							}
 							fileCount++
 							currentFilename = makeAVIFileName(prefix, fileCount)
-							movie, err = mjpeg.New(currentFilename, width, height, framesPerSecond)
+							movie, err = mjpeg.New(currentFilename, int32(meta.maxWidth), int32(meta.maxHeight), framesPerSecond)
 							if err != nil {
 								return frameCount, trace.Wrap(err)
 							}
@@ -246,12 +303,6 @@ loop:
 				logger.DebugContext(ctx, "got unexpected audit event", "event", logutils.TypeAttr(evt))
 			}
 		}
-	}
-
-	// if we received a session start event but the context is canceled
-	// before we received the screen dimensions, then there's no movie to close
-	if movie == nil {
-		return 0, ctx.Err()
 	}
 
 	err = movie.Close()
