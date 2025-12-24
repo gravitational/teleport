@@ -381,8 +381,8 @@ export const UpsertJoinTokenDialog = ({
           repository_owner: rule.repository_owner,
           workflow: rule.workflow,
 
-          actor: null, // Unsupported field
-          sub: null, // Unsupported field
+          actor: undefined, // Unsupported field
+          sub: undefined, // Unsupported field
         })),
         enterprise_server_host: newTokenState.github?.server_host,
         enterprise_slug: newTokenState.github?.enterprise_slug,
