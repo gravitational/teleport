@@ -21,9 +21,10 @@ package services
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func roleAllowingAWSARNs(arns ...string) types.Role {
@@ -31,14 +32,6 @@ func roleAllowingAWSARNs(arns ...string) types.Role {
 		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
 		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
 		rv.Spec.Allow.AWSRoleARNs = append([]string{}, arns...)
-	})
-}
-
-func roleAllowingIC(assignments ...types.IdentityCenterAccountAssignment) types.Role {
-	return newRole(func(rv *types.RoleV6) {
-		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
-		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
-		rv.SetIdentityCenterAccountAssignments(types.Allow, assignments)
 	})
 }
 
@@ -50,10 +43,9 @@ func TestWithConstraints_AWSConsole_ScopesLoginMatcher(t *testing.T) {
 
 	role := roleAllowingAWSARNs(adminARN, readOnlyARN)
 	rc := &types.ResourceConstraints{
-		Domain: types.ResourceConstraintDomain_RESOURCE_CONSTRAINT_DOMAIN_AWS_CONSOLE,
-		Details: &types.ResourceConstraints_AWSConsole{
-			AWSConsole: &types.AWSConsoleResourceConstraints{
-				RoleARNs: []string{readOnlyARN},
+		Details: &types.ResourceConstraints_AwsConsole{
+			AwsConsole: &types.AWSConsoleResourceConstraints{
+				RoleArns: []string{readOnlyARN},
 			},
 		},
 	}
@@ -75,9 +67,8 @@ func TestWithConstraints_AWSConsole_ScopesLoginMatcher(t *testing.T) {
 
 func TestWithConstraints_NoOpForNonPrincipalMatchers(t *testing.T) {
 	rc := &types.ResourceConstraints{
-		Domain: types.ResourceConstraintDomain_RESOURCE_CONSTRAINT_DOMAIN_AWS_CONSOLE,
-		Details: &types.ResourceConstraints_AWSConsole{
-			AWSConsole: &types.AWSConsoleResourceConstraints{RoleARNs: []string{"x"}},
+		Details: &types.ResourceConstraints_AwsConsole{
+			AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: []string{"x"}},
 		},
 	}
 	guard := WithConstraints(rc)
@@ -93,32 +84,22 @@ func TestWithConstraints_NoOpForNonPrincipalMatchers(t *testing.T) {
 }
 
 func TestWithConstraints_ErrorCases(t *testing.T) {
-	// Unsupported domain
-	rcBad := &types.ResourceConstraints{
-		Domain: 9999,
-	}
-	guard := WithConstraints(rcBad)
-	_, err := guard(NewAppAWSLoginMatcher("x")).Match(roleAllowingAWSARNs("x"), types.Allow)
-	require.ErrorIs(t, err, trace.BadParameter("unsupported constraint domain %q", rcBad.Domain))
-
 	// AWS console domain but missing list
 	rcEmptyConsole := &types.ResourceConstraints{
-		Domain: types.ResourceConstraintDomain_RESOURCE_CONSTRAINT_DOMAIN_AWS_CONSOLE,
-		Details: &types.ResourceConstraints_AWSConsole{
-			AWSConsole: &types.AWSConsoleResourceConstraints{RoleARNs: nil},
+		Details: &types.ResourceConstraints_AwsConsole{
+			AwsConsole: &types.AWSConsoleResourceConstraints{RoleArns: nil},
 		},
 	}
-	guard = WithConstraints(rcEmptyConsole)
-	_, err = guard(NewAppAWSLoginMatcher("x")).Match(roleAllowingAWSARNs("x"), types.Allow)
+	guard := WithConstraints(rcEmptyConsole)
+	_, err := guard(NewAppAWSLoginMatcher("x")).Match(roleAllowingAWSARNs("x"), types.Allow)
 	require.ErrorIs(t, err, trace.BadParameter("aws_console constraints require role_arns, none provided"))
 }
 
 func TestMatcherFromConstraints_AWSConsole_BuildsAnyOf(t *testing.T) {
 	rc := &types.ResourceConstraints{
-		Domain: types.ResourceConstraintDomain_RESOURCE_CONSTRAINT_DOMAIN_AWS_CONSOLE,
-		Details: &types.ResourceConstraints_AWSConsole{
-			AWSConsole: &types.AWSConsoleResourceConstraints{
-				RoleARNs: []string{
+		Details: &types.ResourceConstraints_AwsConsole{
+			AwsConsole: &types.AWSConsoleResourceConstraints{
+				RoleArns: []string{
 					"arn:aws:iam::123456789012:role/ReadOnly",
 					"arn:aws:iam::123456789012:role/Admin",
 				},

@@ -2805,9 +2805,9 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 
 	req, err := types.NewAccessRequestWithResources("name", user, nil, /* roles */
 		[]types.ResourceAccessID{
-			{ID: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}},
-			{ID: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}}, // a  duplicate
-			{ID: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource2"}}, // not a duplicate
+			{Id: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}},
+			{Id: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}}, // a  duplicate
+			{Id: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource2"}}, // not a duplicate
 		})
 	require.NoError(t, err)
 
@@ -2874,7 +2874,7 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 				remoteClusters: remoteClusters,
 			}
 			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceAccessID{
-				{ID: types.ResourceID{ClusterName: "someCluster"}},
+				{Id: types.ResourceID{ClusterName: "someCluster"}},
 			})
 			require.NoError(t, err)
 
@@ -4892,7 +4892,7 @@ func TestReasonPrompts(t *testing.T) {
 			require.NoError(t, err)
 
 			req, err := types.NewAccessRequestWithResources(
-				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+				"some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			// perform request validation (necessary in order to initialize internal

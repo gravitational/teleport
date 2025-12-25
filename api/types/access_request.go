@@ -535,9 +535,7 @@ func (r *AccessRequestV3) GetAllRequestedResourceIDs() []ResourceAccessID {
 			wrapped = append(wrapped, ResourceAccessID{Id: rid})
 		}
 	}
-	for _, ridc := range r.Spec.RequestedResourceAccessIDs {
-		wrapped = append(wrapped, ridc)
-	}
+	wrapped = append(wrapped, r.Spec.RequestedResourceAccessIDs...)
 	return wrapped
 }
 
