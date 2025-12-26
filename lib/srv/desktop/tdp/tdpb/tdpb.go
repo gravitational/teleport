@@ -3,18 +3,13 @@ package tdpb
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"image/png"
 	"io"
 	"log/slog"
 
 	"github.com/google/uuid"
-	clientProto "github.com/gravitational/teleport/api/client/proto"
 	tdpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
@@ -22,15 +17,16 @@ import (
 )
 
 const (
-
-	// We differentiate between TDP and TDPB messages on the wire
+	// We can differentiate between TDP and TDPB messages on the wire
 	// by inspecting the first byte received. A non-empty first byte
 	// is presumed to be a TDP message, otherwise, TDPB.
 	// Since the first byte of a TDPB message is the high 8 bits of its
 	// length, we must take care not to allow TDPB messages that
 	// meet or exceed length 2^24 (16MiB).
+	// Once TDP is fully deprecated we can relax this constraint, although
+	// it's unlikely we would ever want messages anywhere near this size.
 	maxMessageLength = (1 << 24) - 1
-	tdpbHeaderLength = 4
+	tdpbHeaderLength = 4 // sizeof(uint32)
 )
 
 func translateFso(fso *tdpb.FileSystemObject) tdp.FileSystemObject {
@@ -72,9 +68,8 @@ func boolToButtonState(b bool) tdp.ButtonState {
 	return tdp.ButtonNotPressed
 }
 
-// Converts a TDPB (Modern) message to one or more TDP (Legacy) messages
+// TranslateToLegacy converts a TDPB (Modern) message to one or more TDP (Legacy) messages.
 func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
-
 	messages := make([]tdp.Message, 0, 1)
 	switch m := msg.(type) {
 	case *PNGFrame:
@@ -279,9 +274,8 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 	return messages, nil
 }
 
-// Converts a TDP (Legacy) message to one or more TDPB (Modern) messages
+// TranslateToModern converts a TDP (Legacy) message to one or more TDPB (Modern) messages.
 func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
-	slog.Warn("translating TDP to TDPB")
 	messages := make([]tdp.Message, 0, 1)
 	switch m := msg.(type) {
 	case tdp.ClientScreenSpec:
@@ -566,8 +560,10 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 	return wrapped, nil
 }
 
+// ClientHello message.
 type ClientHello tdpb.ClientHello
 
+// Encode encodes a ClientHello message.
 func (c *ClientHello) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_ClientHello{
@@ -576,88 +572,106 @@ func (c *ClientHello) Encode() ([]byte, error) {
 	})
 }
 
+// ServerHello message.
 type ServerHello tdpb.ServerHello
 
-func (c *ServerHello) Encode() ([]byte, error) {
+// Encode encodes a ServerHello message.
+func (S *ServerHello) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_ServerHello{
-			ServerHello: (*tdpbv1.ServerHello)(c),
+			ServerHello: (*tdpbv1.ServerHello)(S),
 		},
 	})
 }
 
+// PNGFrame message.
 type PNGFrame tdpb.PNGFrame
 
-func (c *PNGFrame) Encode() ([]byte, error) {
+// Encode encodes a PNGFrame message.
+func (p *PNGFrame) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_PngFrame{
-			PngFrame: (*tdpbv1.PNGFrame)(c),
+			PngFrame: (*tdpbv1.PNGFrame)(p),
 		},
 	})
 }
 
+// FastPathPDU message.
 type FastPathPDU tdpb.FastPathPDU
 
-func (c *FastPathPDU) Encode() ([]byte, error) {
+// Encode encodes a FastPathPDU message.
+func (f *FastPathPDU) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_FastPathPdu{
-			FastPathPdu: (*tdpbv1.FastPathPDU)(c),
+			FastPathPdu: (*tdpbv1.FastPathPDU)(f),
 		},
 	})
 }
 
+// RDPResponsePDU message.
 type RDPResponsePDU tdpb.RDPResponsePDU
 
-func (c *RDPResponsePDU) Encode() ([]byte, error) {
+// Encode encodes a RDPResponsePDU message.
+func (f *RDPResponsePDU) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_RdpResponsePdu{
-			RdpResponsePdu: (*tdpbv1.RDPResponsePDU)(c),
+			RdpResponsePdu: (*tdpbv1.RDPResponsePDU)(f),
 		},
 	})
 }
 
+// SyncKeys message.
 type SyncKeys tdpb.SyncKeys
 
-func (c *SyncKeys) Encode() ([]byte, error) {
+// Encode encodes a SyncKeys message.
+func (s *SyncKeys) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_SyncKeys{
-			SyncKeys: (*tdpbv1.SyncKeys)(c),
+			SyncKeys: (*tdpbv1.SyncKeys)(s),
 		},
 	})
 }
 
+// MouseMove message.
 type MouseMove tdpb.MouseMove
 
-func (c *MouseMove) Encode() ([]byte, error) {
+// Encode encodes a MouseMove message.
+func (m *MouseMove) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_MouseMove{
-			MouseMove: (*tdpbv1.MouseMove)(c),
+			MouseMove: (*tdpbv1.MouseMove)(m),
 		},
 	})
 }
 
+// MouseButton message.
 type MouseButton tdpb.MouseButton
 
-func (c *MouseButton) Encode() ([]byte, error) {
+// Encode encodes a MouseButton message.
+func (m *MouseButton) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_MouseButton{
-			MouseButton: (*tdpbv1.MouseButton)(c),
+			MouseButton: (*tdpbv1.MouseButton)(m),
 		},
 	})
 }
 
+// KeyboardButton message.
 type KeyboardButton tdpb.KeyboardButton
 
-func (c *KeyboardButton) Encode() ([]byte, error) {
+// Encode encodes a KeyboardButton message.
+func (k *KeyboardButton) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_KeyboardButton{
-			KeyboardButton: (*tdpbv1.KeyboardButton)(c),
+			KeyboardButton: (*tdpbv1.KeyboardButton)(k),
 		},
 	})
 }
 
+// ClientScreenSpec message.
 type ClientScreenSpec tdpb.ClientScreenSpec
 
+// Encode encodes a ClientScreenSpec message.
 func (c *ClientScreenSpec) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_ClientScreenSpec{
@@ -666,28 +680,34 @@ func (c *ClientScreenSpec) Encode() ([]byte, error) {
 	})
 }
 
+// Alert message.
 type Alert tdpb.Alert
 
-func (c *Alert) Encode() ([]byte, error) {
+// Encode encodes a Alert message.
+func (a *Alert) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_Alert{
-			Alert: (*tdpbv1.Alert)(c),
+			Alert: (*tdpbv1.Alert)(a),
 		},
 	})
 }
 
+// MouseWheel message.
 type MouseWheel tdpb.MouseWheel
 
-func (c *MouseWheel) Encode() ([]byte, error) {
+// Encode encodes a MouseWheel message.
+func (m *MouseWheel) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_MouseWheel{
-			MouseWheel: (*tdpbv1.MouseWheel)(c),
+			MouseWheel: (*tdpbv1.MouseWheel)(m),
 		},
 	})
 }
 
+// ClipboardData message.
 type ClipboardData tdpb.ClipboardData
 
+// Encode encodes a ClipboardData message.
 func (c *ClipboardData) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_ClipboardData{
@@ -696,72 +716,86 @@ func (c *ClipboardData) Encode() ([]byte, error) {
 	})
 }
 
+// MFA message.
 type MFA tdpb.MFA
 
-func (c *MFA) Encode() ([]byte, error) {
+// Encode encodes a MFA message.
+func (m *MFA) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_Mfa{
-			Mfa: (*tdpbv1.MFA)(c),
+			Mfa: (*tdpbv1.MFA)(m),
 		},
 	})
 }
 
+// SharedDirectoryAnnounce message.
 type SharedDirectoryAnnounce tdpb.SharedDirectoryAnnounce
 
-func (c *SharedDirectoryAnnounce) Encode() ([]byte, error) {
+// Encode encodes a SharedDirectoryAnnounce message.
+func (s *SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_SharedDirectoryAnnounce{
-			SharedDirectoryAnnounce: (*tdpbv1.SharedDirectoryAnnounce)(c),
+			SharedDirectoryAnnounce: (*tdpbv1.SharedDirectoryAnnounce)(s),
 		},
 	})
 }
 
+// SharedDirectoryAcknowledge message.
 type SharedDirectoryAcknowledge tdpb.SharedDirectoryAcknowledge
 
-func (c *SharedDirectoryAcknowledge) Encode() ([]byte, error) {
+// Encode encodes a SharedDirectoryAcknowledge message.
+func (s *SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_SharedDirectoryAcknowledge{
-			SharedDirectoryAcknowledge: (*tdpbv1.SharedDirectoryAcknowledge)(c),
+			SharedDirectoryAcknowledge: (*tdpbv1.SharedDirectoryAcknowledge)(s),
 		},
 	})
 }
 
+// SharedDirectoryRequest message.
 type SharedDirectoryRequest tdpb.SharedDirectoryRequest
 
-func (c *SharedDirectoryRequest) Encode() ([]byte, error) {
+// Encode encodes a SharedDirectoryRequest message.
+func (s *SharedDirectoryRequest) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_SharedDirectoryRequest{
-			SharedDirectoryRequest: (*tdpbv1.SharedDirectoryRequest)(c),
+			SharedDirectoryRequest: (*tdpbv1.SharedDirectoryRequest)(s),
 		},
 	})
 }
 
+// SharedDirectoryResponse message.
 type SharedDirectoryResponse tdpb.SharedDirectoryResponse
 
-func (c *SharedDirectoryResponse) Encode() ([]byte, error) {
+// Encode encodes a SharedDirectoryResponse message.
+func (s *SharedDirectoryResponse) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_SharedDirectoryResponse{
-			SharedDirectoryResponse: (*tdpbv1.SharedDirectoryResponse)(c),
+			SharedDirectoryResponse: (*tdpbv1.SharedDirectoryResponse)(s),
 		},
 	})
 }
 
+// LatencyStats message.
 type LatencyStats tdpb.LatencyStats
 
-func (c *LatencyStats) Encode() ([]byte, error) {
+// Encode encodes a LatencyStats message.
+func (l *LatencyStats) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_LatencyStats{
-			LatencyStats: (*tdpbv1.LatencyStats)(c),
+			LatencyStats: (*tdpbv1.LatencyStats)(l),
 		},
 	})
 }
 
+// Ping message.
 type Ping tdpb.Ping
 
-func (c *Ping) Encode() ([]byte, error) {
+// Encodes a ping message.
+func (p *Ping) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpb.Envelope{
 		Payload: &tdpbv1.Envelope_Ping{
-			Ping: (*tdpbv1.Ping)(c),
+			Ping: (*tdpbv1.Ping)(p),
 		},
 	})
 }
@@ -776,24 +810,25 @@ func marshalWithHeader(msg proto.Message) ([]byte, error) {
 		return nil, trace.Errorf("TDPB message too large. %d bytes exceeds maximum: %d", len(data), maxMessageLength)
 	}
 
-	header := make([]byte, len(data)+4)
-	binary.BigEndian.PutUint32(header[:4], uint32(len(data)))
-	copy(header[4:], data)
+	header := make([]byte, len(data)+tdpbHeaderLength)
+	binary.BigEndian.PutUint32(header[:tdpbHeaderLength], uint32(len(data)))
+	copy(header[tdpbHeaderLength:], data)
 
 	return header, nil
 }
 
-var ErrEmptyMessage = errors.New("decoded empty TDPB envelope")
-
+// Decode reads a TDPB message from a reader.
+// Returns ErrEmptyMessage if a valid TDPB Envelope was received, but no
+// wrapped message was found.
 func Decode(rdr io.Reader) (tdp.Message, error) {
 	// Read header
-	header := [4]byte{}
-	_, err := io.ReadFull(rdr, header[:])
+	header := make([]byte, tdpbHeaderLength)
+	_, err := io.ReadFull(rdr, header)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.WrapWithMessage(err, "error reading next TDPB message header")
 	}
 
-	messageLength := binary.BigEndian.Uint32(header[:])
+	messageLength := binary.BigEndian.Uint32(header)
 
 	if messageLength >= maxMessageLength {
 		return nil, trace.Errorf("message of length '%d' exceeds maximum allowed length '%d'", messageLength, maxMessageLength)
@@ -802,19 +837,22 @@ func Decode(rdr io.Reader) (tdp.Message, error) {
 	message := make([]byte, messageLength)
 	_, err = io.ReadFull(rdr, message)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.WrapWithMessage(err, "error reading TDPB message body")
 	}
 
 	env := &tdpb.Envelope{}
 	if err = proto.Unmarshal(message, env); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.WrapWithMessage(err, "error unmarshalling TDPB message envelope")
 	}
 
 	if msg := messageFromEnvelope(env); msg != nil {
 		return msg, nil
 	}
 
-	return nil, trace.Wrap(ErrEmptyMessage)
+	// Allow the caller to distinguish unmarshal errors (likely considered fatal)
+	// from an "empty" message, which could simply mean that we've received
+	// a new (unsupported) message from a newer implementation.
+	return nil, trace.Wrap(tdp.ErrEmptyMessage)
 }
 
 func messageFromEnvelope(e *tdpb.Envelope) tdp.Message {
@@ -864,76 +902,7 @@ func messageFromEnvelope(e *tdpb.Envelope) tdp.Message {
 	}
 }
 
-// Handle TDPB MFA ceremony
-func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message) func(string) mfa.PromptFunc {
-	return func(channelID string) mfa.PromptFunc {
-		convert := func(challenge *clientProto.MFAAuthenticateChallenge) (tdp.Message, error) {
-			if challenge == nil {
-				return nil, errors.New("empty MFA challenge")
-			}
-
-			mfaMsg := &MFA{
-				ChannelId: channelID,
-			}
-
-			if challenge.WebauthnChallenge != nil {
-				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
-					WebauthnChallenge: challenge.WebauthnChallenge,
-				}
-			}
-
-			if challenge.SSOChallenge != nil {
-				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
-					SsoChallenge: &mfav1.SSOChallenge{
-						RequestId:   challenge.SSOChallenge.RequestId,
-						RedirectUrl: challenge.SSOChallenge.RedirectUrl,
-						Device:      challenge.SSOChallenge.Device,
-					},
-				}
-			}
-
-			if challenge.WebauthnChallenge == nil && challenge.SSOChallenge == nil && challenge.TOTP == nil {
-				return nil, trace.Wrap(authclient.ErrNoMFADevices)
-			}
-
-			return mfaMsg, nil
-		}
-
-		isResponse := func(msg tdp.Message) (*clientProto.MFAAuthenticateResponse, error) {
-			mfaMsg, ok := msg.(*MFA)
-			if !ok {
-				return nil, tdp.ErrUnexpectedMessageType
-			}
-
-			if mfaMsg.AuthenticationResponse == nil {
-				return nil, trace.Errorf("MFA response is empty")
-			}
-
-			switch response := mfaMsg.AuthenticationResponse.Response.(type) {
-			case *mfav1.AuthenticateResponse_Sso:
-				return &clientProto.MFAAuthenticateResponse{
-					Response: &clientProto.MFAAuthenticateResponse_SSO{
-						SSO: &clientProto.SSOResponse{
-							RequestId: response.Sso.RequestId,
-							Token:     response.Sso.Token,
-						},
-					},
-				}, nil
-			case *mfav1.AuthenticateResponse_Webauthn:
-				return &clientProto.MFAAuthenticateResponse{
-					Response: &clientProto.MFAAuthenticateResponse_Webauthn{
-						Webauthn: response.Webauthn,
-					},
-				}, nil
-			default:
-				return nil, trace.Errorf("Unexpected MFA response type %T", mfaMsg.AuthenticationResponse)
-			}
-		}
-
-		return tdp.NewMfaPrompt(rw, isResponse, convert, withheld)
-	}
-}
-
+// EncodeTo calls 'Encode' on the given message and writes it to 'w'.
 func EncodeTo(w io.Writer, msg tdp.Message) error {
 	data, err := msg.Encode()
 	if err != nil {

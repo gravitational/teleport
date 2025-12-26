@@ -39,12 +39,16 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -351,7 +355,7 @@ func (h *Handler) createDesktopConnection(
 		sendError = sendTDPBError
 		init = handshakeInitializer{
 			clientHandshakeHandler: handleTDPUpgrade,
-			promptBuilder:          mfaPromptBuilder(tdpb.NewTDPBMFAPrompt(&adapter, &withheld)),
+			promptBuilder:          mfaPromptBuilder(newTDPBMFAPrompt(&adapter, &withheld)),
 		}
 	} else {
 		log.DebugContext(ctx, "Creating Desktop connection for legacy TDP client")
@@ -367,7 +371,7 @@ func (h *Handler) createDesktopConnection(
 		sendError = sendTDPError
 		init = handshakeInitializer{
 			clientHandshakeHandler: readTDPInitialMessages,
-			promptBuilder:          tdp.NewTDPMFAPrompt(&adapter, &withheld),
+			promptBuilder:          newTDPMFAPrompt(&adapter, &withheld),
 		}
 	}
 	// Read the initial set of TDP messages, or handle TDP upgrade and subsequent
@@ -868,4 +872,167 @@ func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log 
 	}
 
 	log.WarnContext(ctx, "Error proxying a desktop protocol websocket to windows_desktop_service", "error", proxyWsConnErr)
+}
+
+var (
+	errUnexpectedMessageType = errors.New("unexpected message type")
+)
+
+// convertChallenge converts an MFA challenge to a Message. Returns
+// a non-nil error if the conversion fails
+type convertChallenge func(*proto.MFAAuthenticateChallenge) (tdp.Message, error)
+
+// isMFAResponse returns:
+//   - ErrUnexpectedMessageType if a valid messages was received but was not an MFA message.
+//   - Any other non-nil error if there was an error intepreeting the message.
+//   - nil if a valid, non-nil MFA messages was found.
+type isMFAResponse func(tdp.Message) (*proto.MFAAuthenticateResponse, error)
+
+// newMfaPrompt constructs a function that reads, encodes, and sends an MFA challenge to the client,
+// then waits for the corresponding MFA response message. It caches any non-MFA messages received so
+// that they may be forwarded to the server later on.
+func newMfaPrompt(rw tdp.MessageReadWriter, isResponse isMFAResponse, toMessage convertChallenge, withheld *[]tdp.Message) mfa.PromptFunc {
+	return func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		challengeMsg, err := toMessage(chal)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		slog.DebugContext(ctx, "Writing MFA challenge to client")
+		if err = rw.WriteMessage(challengeMsg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for {
+			msg, err := rw.ReadMessage()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resp, err := isResponse(msg)
+			if err != nil {
+				if errors.Is(err, errUnexpectedMessageType) {
+					// Withhold this non-MFA message and try reading again
+					slog.DebugContext(ctx, "Received non-MFA message", "message", msg)
+					*withheld = append(*withheld, msg)
+					continue
+				} else {
+					slog.DebugContext(ctx, "Error receiving MFA response", "error", err)
+					// Unexpected error occurred while inspecting the message
+					return nil, trace.Wrap(err)
+				}
+			}
+			// Found our MFA response!
+			slog.DebugContext(ctx, "Received MFA response")
+			return resp, nil
+		}
+	}
+}
+
+// Handle TDP MFA ceremony
+func newTDPMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message) func(string) mfa.PromptFunc {
+	return func(channelID string) mfa.PromptFunc {
+		convert := func(chal *proto.MFAAuthenticateChallenge) (tdp.Message, error) {
+			// Convert from proto to JSON types.
+			var challenge client.MFAAuthenticateChallenge
+			if chal.WebauthnChallenge != nil {
+				challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
+			}
+
+			if chal.SSOChallenge != nil {
+				challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+				challenge.SSOChallenge.ChannelID = channelID
+			}
+
+			if chal.WebauthnChallenge == nil && chal.SSOChallenge == nil && chal.TOTP == nil {
+				return nil, trace.Wrap(authclient.ErrNoMFADevices)
+			}
+
+			tdpMsg := &tdp.MFA{
+				Type:                     defaults.WebsocketMFAChallenge[0],
+				MFAAuthenticateChallenge: &challenge,
+			}
+			return tdpMsg, nil
+		}
+
+		isResponse := func(msg tdp.Message) (*proto.MFAAuthenticateResponse, error) {
+			switch t := msg.(type) {
+			case *tdp.MFA:
+				return t.MFAAuthenticateResponse, nil
+			default:
+				return nil, errUnexpectedMessageType
+			}
+		}
+
+		return newMfaPrompt(rw, isResponse, convert, withheld)
+	}
+}
+
+// Handle TDPB MFA ceremony
+func newTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message) func(string) mfa.PromptFunc {
+	return func(channelID string) mfa.PromptFunc {
+		convert := func(challenge *proto.MFAAuthenticateChallenge) (tdp.Message, error) {
+			if challenge == nil {
+				return nil, errors.New("empty MFA challenge")
+			}
+
+			mfaMsg := &tdpb.MFA{
+				ChannelId: channelID,
+			}
+
+			if challenge.WebauthnChallenge != nil {
+				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
+					WebauthnChallenge: challenge.WebauthnChallenge,
+				}
+			}
+
+			if challenge.SSOChallenge != nil {
+				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
+					SsoChallenge: &mfav1.SSOChallenge{
+						RequestId:   challenge.SSOChallenge.RequestId,
+						RedirectUrl: challenge.SSOChallenge.RedirectUrl,
+						Device:      challenge.SSOChallenge.Device,
+					},
+				}
+			}
+
+			if challenge.WebauthnChallenge == nil && challenge.SSOChallenge == nil && challenge.TOTP == nil {
+				return nil, trace.Wrap(authclient.ErrNoMFADevices)
+			}
+
+			return mfaMsg, nil
+		}
+
+		isResponse := func(msg tdp.Message) (*proto.MFAAuthenticateResponse, error) {
+			mfaMsg, ok := msg.(*tdpb.MFA)
+			if !ok {
+				return nil, errUnexpectedMessageType
+			}
+
+			if mfaMsg.AuthenticationResponse == nil {
+				return nil, trace.Errorf("MFA response is empty")
+			}
+
+			switch response := mfaMsg.AuthenticationResponse.Response.(type) {
+			case *mfav1.AuthenticateResponse_Sso:
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_SSO{
+						SSO: &proto.SSOResponse{
+							RequestId: response.Sso.RequestId,
+							Token:     response.Sso.Token,
+						},
+					},
+				}, nil
+			case *mfav1.AuthenticateResponse_Webauthn:
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_Webauthn{
+						Webauthn: response.Webauthn,
+					},
+				}, nil
+			default:
+				return nil, trace.Errorf("Unexpected MFA response type %T", mfaMsg.AuthenticationResponse)
+			}
+		}
+
+		return newMfaPrompt(rw, isResponse, convert, withheld)
+	}
 }

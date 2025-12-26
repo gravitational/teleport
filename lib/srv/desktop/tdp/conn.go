@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var ErrEmptyMessage = errors.New("decoded empty TDPB envelope")
+
 type MessageReader interface {
 	ReadMessage() (Message, error)
 }
@@ -146,11 +148,20 @@ func (c *Conn) NextMessageType() (MessageType, error) {
 
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
-	m, err := c.decode(c.bufr)
-	if c.OnRecv != nil {
-		c.OnRecv(m)
+	for {
+		m, err := c.decode(c.bufr)
+		if err != nil {
+			// Tolerate empty/unknown message types
+			if errors.Is(err, ErrEmptyMessage) {
+				continue
+			}
+			return nil, err
+		}
+		if c.OnRecv != nil {
+			c.OnRecv(m)
+		}
+		return m, trace.Wrap(err)
 	}
-	return m, trace.Wrap(err)
 }
 
 // WriteMessage sends a message to the connection.
