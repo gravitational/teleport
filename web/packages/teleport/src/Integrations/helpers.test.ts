@@ -17,11 +17,12 @@
  */
 
 import { getStatus, getStatusAndLabel } from 'teleport/Integrations/helpers';
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 import {
   Integration,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
+
+import { IntegrationLike, Status } from './types';
 
 test.each`
   type                        | code                                       | expected

@@ -16,24 +16,33 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { SecondaryOutlined } from 'design/Label';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { IconTooltip } from 'design/Tooltip';
+import {
+  applyFilters,
+  FilterMap,
+  ListFilters,
+} from 'shared/components/ListFilters';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 import cfg from 'teleport/config';
-import { getStatus } from 'teleport/Integrations/helpers';
+import {
+  filterByIntegrationTags,
+  getStatus,
+  integrationLikeToIntegrationTags,
+} from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
-  ExternalAuditStorageIntegration,
   getStatusCodeDescription,
   getStatusCodeTitle,
   Integration,
@@ -44,6 +53,17 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import {
+  getIntegrationTagLabel,
+  IntegrationLike,
+  IntegrationTag,
+  integrationTagOptions,
+  Status,
+} from './types';
+
+type Filters = {
+  Type: IntegrationTag;
+};
 
 type Props = {
   list: IntegrationLike[];
@@ -54,11 +74,6 @@ type Props = {
   };
   onDeleteExternalAuditStorage?(opType: ExternalAuditStorageOpType): void;
 };
-
-export type IntegrationLike =
-  | Integration
-  | Plugin
-  | ExternalAuditStorageIntegration;
 
 // statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
 const statusKinds = [
@@ -105,11 +120,26 @@ export function IntegrationList(props: Props) {
   );
 
   const { clusterId } = useStickyClusterId();
+
+  const [filters, setFilters] = useState<FilterMap<IntegrationLike, Filters>>({
+    Type: {
+      options: integrationTagOptions,
+      selected: [],
+      apply: filterByIntegrationTags,
+    },
+  });
+
+  const filteredList = useMemo(
+    () => applyFilters(props.list, filters),
+    [props.list, filters]
+  );
+
   return (
     <Table
       pagination={{ pageSize: 20 }}
       isSearchable
-      data={props.list}
+      filters={<ListFilters filters={filters} onFilterChange={setFilters} />}
+      data={filteredList}
       row={{
         onClick: handleRowClick,
         getStyle: getRowStyle,
@@ -121,9 +151,25 @@ export function IntegrationList(props: Props) {
         },
         {
           key: 'kind',
-          headerText: 'Integration',
+          headerText: 'Name',
           isSortable: true,
           render: item => <IconCell item={item} />,
+        },
+        {
+          key: 'tags',
+          headerText: 'Type',
+          isSortable: true,
+          render: item => (
+            <Cell>
+              <Flex gap={1}>
+                {integrationLikeToIntegrationTags(item).map(tag => (
+                  <SecondaryOutlined key={tag}>
+                    {getIntegrationTagLabel(tag)}
+                  </SecondaryOutlined>
+                ))}
+              </Flex>
+            </Cell>
+          ),
         },
         {
           key: 'details',
@@ -287,13 +333,6 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
     </Cell>
   );
 };
-
-export enum Status {
-  Success,
-  Warning,
-  Error,
-  OktaConfigError = 20,
-}
 
 const StatusLight = styled(Box)<{ status: Status }>`
   border-radius: 50%;

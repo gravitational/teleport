@@ -57,6 +57,7 @@ export type TableProps<T> = {
     onSearchValueChange(searchString: string): void;
   };
   isSearchable?: boolean;
+  filters?: JSX.Element;
   searchableProps?: Extract<keyof T, string>[];
   // customSearchMatchers contains custom functions to run when search matching.
   // 'targetValue' prop will have to be uppercased for proper matching since
@@ -225,6 +226,7 @@ export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   pagination: Pagination<T>;
   fetching?: FetchingConfig;
   isSearchable?: boolean;
+  filters?: JSX.Element;
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {

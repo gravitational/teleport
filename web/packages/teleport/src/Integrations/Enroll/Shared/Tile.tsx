@@ -25,6 +25,10 @@ import * as Icon from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon/resourceIconSpecs';
 
 import cfg from 'teleport/config';
+import {
+  getIntegrationTagLabel,
+  type IntegrationTag,
+} from 'teleport/Integrations/types';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IntegrationIcon } from '../common';
@@ -33,7 +37,6 @@ import {
   GenericNoPermBadge,
   renderExternalAuditStorageBadge,
 } from '../IntegrationTiles/IntegrationTiles';
-import { integrationTagOptions, type IntegrationTag } from './common';
 
 type IntegrationLink = {
   url: string | undefined;
@@ -110,11 +113,6 @@ export function Tile({
   Badge?: ReactNode;
   'data-testid'?: string;
 }) {
-  const nameForTag = (tag: IntegrationTag) => {
-    const option = integrationTagOptions.find(option => option.value === tag);
-    return option ? option.label : null;
-  };
-
   let tileProps = {};
   if (hasAccess && link?.url) {
     if (link.external) {
@@ -173,11 +171,11 @@ export function Tile({
                 return (
                   <StyledLabel
                     key={tag}
-                    title={nameForTag(tag)}
+                    title={getIntegrationTagLabel(tag)}
                     kind="secondary"
                     data-is-label=""
                   >
-                    {nameForTag(tag)}
+                    {getIntegrationTagLabel(tag)}
                   </StyledLabel>
                 );
               })}

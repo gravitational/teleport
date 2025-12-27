@@ -18,12 +18,15 @@
 
 import { LabelKind } from 'design/Label';
 
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
 import {
   getStatusCodeTitle,
   Integration,
+  IntegrationKind,
   IntegrationStatusCode,
+  PluginKind,
 } from 'teleport/services/integrations';
+
+import { IntegrationLike, IntegrationTag, Status } from './types';
 
 export function getStatus(item: IntegrationLike): Status {
   if (item.resourceType === 'integration') {
@@ -71,4 +74,81 @@ export function getStatusAndLabel(integration: Integration): {
     default:
       return { labelKind: 'secondary', status: title };
   }
+}
+
+export function integrationKindToTags(k: IntegrationKind): IntegrationTag[] {
+  switch (k) {
+    case IntegrationKind.AwsOidc:
+    case IntegrationKind.AzureOidc:
+      return ['idp'];
+
+    case IntegrationKind.AwsRa:
+    case IntegrationKind.ExternalAuditStorage:
+    case IntegrationKind.GitHub:
+      return ['resourceaccess'];
+
+    default:
+      return [];
+  }
+}
+
+export function pluginKindToIntegrationTags(p: PluginKind): IntegrationTag[] {
+  switch (p) {
+    case 'slack':
+    case 'opsgenie':
+    case 'servicenow':
+    case 'jira':
+    case 'pagerduty':
+    case 'email':
+    case 'discord':
+    case 'mattermost':
+    case 'msteams':
+    case 'datadog':
+      return ['notifications'];
+
+    case 'okta':
+    case 'scim':
+    case 'aws-identity-center':
+      return ['idp', 'scim'];
+
+    case 'jamf':
+    case 'intune':
+      return ['devicetrust'];
+
+    case 'entra-id':
+      return ['idp'];
+
+    case 'openai':
+      return [];
+
+    default:
+      return [];
+  }
+}
+
+export function integrationLikeToIntegrationTags(
+  i: IntegrationLike
+): IntegrationTag[] {
+  switch (i.resourceType) {
+    case 'integration':
+    case 'external-audit-storage':
+      return integrationKindToTags(i.kind);
+    case 'plugin':
+      return pluginKindToIntegrationTags(i.kind);
+  }
+}
+
+export function filterByIntegrationTags(
+  l: IntegrationLike[],
+  s: IntegrationTag[]
+): IntegrationLike[] {
+  return l.filter(i => {
+    if (s.length) {
+      if (!s.some(tags => integrationLikeToIntegrationTags(i).includes(tags))) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 }

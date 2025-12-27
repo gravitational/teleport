@@ -25,6 +25,7 @@ import { integrationService } from './integrations';
 import {
   IntegrationAudience,
   IntegrationAwsOidc,
+  IntegrationKind,
   IntegrationStatusCode,
 } from './types';
 
@@ -44,7 +45,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
     cfg.getIntegrationsUrl('integration-name')
   );
   expect(response).toEqual({
-    kind: 'aws-oidc',
+    kind: IntegrationKind.AwsOidc,
     name: 'aws-oidc-integration',
     resourceType: 'integration',
     details:
@@ -89,7 +90,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
     nextKey: 'some-key',
     items: [
       {
-        kind: 'aws-oidc',
+        kind: IntegrationKind.AwsOidc,
         name: 'aws-oidc-integration',
         resourceType: 'integration',
         details:
@@ -100,7 +101,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         statusCode: IntegrationStatusCode.Running,
       },
       {
-        kind: 'aws-oidc',
+        kind: IntegrationKind.AwsOidc,
         name: 'aws-oidc-integration2',
         resourceType: 'integration',
         details:
@@ -112,7 +113,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
         statusCode: IntegrationStatusCode.Running,
       },
       {
-        kind: 'github',
+        kind: IntegrationKind.GitHub,
         name: 'github-my-org',
         resourceType: 'integration',
         details: 'GitHub repository access for organization "my-org"',
