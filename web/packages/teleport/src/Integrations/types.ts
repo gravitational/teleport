@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,18 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Label, {
-  Danger,
-  DangerOutlined,
-  Primary,
-  Secondary,
-  SecondaryOutlined,
-  SuccessOutlined,
-  Warning,
-  WarningOutlined,
-} from './Label';
+export const Status = {
+  Healthy: 'Healthy',
+  Issues: 'Issues',
+  Failed: 'Failed',
+  Draft: 'Draft',
+  Unknown: 'Unknown',
+} as const;
 
-export default Label;
-export { Primary, Secondary, Warning, Danger };
-export { SecondaryOutlined, SuccessOutlined, WarningOutlined, DangerOutlined };
-export type { LabelKind } from './Label';
+export type Status = (typeof Status)[keyof typeof Status];
+
+export const StatusOptions: { label: Status; value: Status }[] = Object.values(
+  Status
+).map(s => ({
+  label: s,
+  value: s,
+}));
