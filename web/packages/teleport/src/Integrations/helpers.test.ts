@@ -16,33 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getStatus, getStatusAndLabel } from 'teleport/Integrations/helpers';
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
-import {
-  Integration,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+import { IntegrationLike } from 'teleport/Integrations/IntegrationList';
+import { IntegrationStatusCode } from 'teleport/services/integrations';
+
+import { getStatus } from './shared/StatusLabel';
+import { Status } from './types';
 
 test.each`
   type                        | code                                       | expected
-  ${'integration'}            | ${IntegrationStatusCode.Draft}             | ${Status.Success}
-  ${'integration'}            | ${IntegrationStatusCode.Running}           | ${Status.Success}
-  ${'integration'}            | ${IntegrationStatusCode.Unauthorized}      | ${Status.Success}
-  ${'integration'}            | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Success}
-  ${'integration'}            | ${IntegrationStatusCode.Unknown}           | ${Status.Success}
-  ${'integration'}            | ${IntegrationStatusCode.OtherError}        | ${Status.Success}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Draft}             | ${Status.Warning}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Running}           | ${Status.Success}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Unauthorized}      | ${Status.Success}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Success}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Unknown}           | ${Status.Success}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.OtherError}        | ${Status.Success}
-  ${'any'}                    | ${IntegrationStatusCode.Draft}             | ${Status.Warning}
-  ${'any'}                    | ${IntegrationStatusCode.Running}           | ${Status.Success}
-  ${'any'}                    | ${IntegrationStatusCode.Unauthorized}      | ${Status.Error}
-  ${'any'}                    | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Warning}
-  ${'any'}                    | ${IntegrationStatusCode.Unknown}           | ${null}
-  ${'any'}                    | ${IntegrationStatusCode.OtherError}        | ${Status.Error}
+  ${'integration'}            | ${IntegrationStatusCode.Draft}             | ${Status.Healthy}
+  ${'integration'}            | ${IntegrationStatusCode.Running}           | ${Status.Healthy}
+  ${'integration'}            | ${IntegrationStatusCode.Unauthorized}      | ${Status.Healthy}
+  ${'integration'}            | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Healthy}
+  ${'integration'}            | ${IntegrationStatusCode.Unknown}           | ${Status.Healthy}
+  ${'integration'}            | ${IntegrationStatusCode.OtherError}        | ${Status.Healthy}
+  ${'external-audit-storage'} | ${IntegrationStatusCode.Draft}             | ${Status.Draft}
+  ${'external-audit-storage'} | ${IntegrationStatusCode.Running}           | ${Status.Healthy}
+  ${'external-audit-storage'} | ${IntegrationStatusCode.Unauthorized}      | ${Status.Healthy}
+  ${'external-audit-storage'} | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Healthy}
+  ${'external-audit-storage'} | ${IntegrationStatusCode.Unknown}           | ${Status.Healthy}
+  ${'external-audit-storage'} | ${IntegrationStatusCode.OtherError}        | ${Status.Healthy}
+  ${'any'}                    | ${IntegrationStatusCode.Draft}             | ${Status.Draft}
+  ${'any'}                    | ${IntegrationStatusCode.Running}           | ${Status.Healthy}
+  ${'any'}                    | ${IntegrationStatusCode.Unauthorized}      | ${Status.Failed}
+  ${'any'}                    | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Issues}
+  ${'any'}                    | ${IntegrationStatusCode.Unknown}           | ${Status.Unknown}
+  ${'any'}                    | ${IntegrationStatusCode.OtherError}        | ${Status.Failed}
 `(
   'getStatus type $type with code $code returns $expected',
   async ({ type, code, expected }) => {
@@ -52,42 +51,7 @@ test.each`
       resourceType: type,
       statusCode: code,
     };
-    const status = getStatus(item);
+    const { status } = getStatus(item);
     expect(status).toBe(expected);
-  }
-);
-
-test.each`
-  type                        | code                                       | expectedLabelKind | expectedTitle
-  ${'integration'}            | ${IntegrationStatusCode.Draft}             | ${'success'}      | ${'Draft'}
-  ${'integration'}            | ${IntegrationStatusCode.Running}           | ${'success'}      | ${'Running'}
-  ${'integration'}            | ${IntegrationStatusCode.Unauthorized}      | ${'success'}      | ${'Unauthorized'}
-  ${'integration'}            | ${IntegrationStatusCode.SlackNotInChannel} | ${'success'}      | ${'Bot not invited to channel'}
-  ${'integration'}            | ${IntegrationStatusCode.Unknown}           | ${'success'}      | ${'Unknown'}
-  ${'integration'}            | ${IntegrationStatusCode.OtherError}        | ${'success'}      | ${'Unknown error'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Draft}             | ${'warning'}      | ${'Draft'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Running}           | ${'success'}      | ${'Running'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Unauthorized}      | ${'success'}      | ${'Unauthorized'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.SlackNotInChannel} | ${'success'}      | ${'Bot not invited to channel'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Unknown}           | ${'success'}      | ${'Unknown'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.OtherError}        | ${'success'}      | ${'Unknown error'}
-  ${'any'}                    | ${IntegrationStatusCode.Draft}             | ${'warning'}      | ${'Draft'}
-  ${'any'}                    | ${IntegrationStatusCode.Running}           | ${'success'}      | ${'Running'}
-  ${'any'}                    | ${IntegrationStatusCode.Unauthorized}      | ${'danger'}       | ${'Unauthorized'}
-  ${'any'}                    | ${IntegrationStatusCode.SlackNotInChannel} | ${'warning'}      | ${'Bot not invited to channel'}
-  ${'any'}                    | ${IntegrationStatusCode.Unknown}           | ${'secondary'}    | ${'Unknown'}
-  ${'any'}                    | ${IntegrationStatusCode.OtherError}        | ${'danger'}       | ${'Unknown error'}
-`(
-  'getStatusAndLabel type $type with code $code returns expected',
-  async ({ type, code, expectedLabelKind, expectedTitle }) => {
-    const item: Integration = {
-      name: '',
-      kind: undefined,
-      resourceType: type,
-      statusCode: code,
-    };
-    const status = getStatusAndLabel(item);
-    expect(status.status).toBe(expectedTitle);
-    expect(status.labelKind).toBe(expectedLabelKind);
   }
 );

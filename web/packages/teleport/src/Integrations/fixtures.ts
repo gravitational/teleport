@@ -70,7 +70,7 @@ export const plugins: Plugin[] = [
     name: 'openai',
     details: '',
     kind: 'openai',
-    statusCode: IntegrationStatusCode.Running,
+    statusCode: IntegrationStatusCode.Draft,
     spec: {},
   },
   {
