@@ -58,7 +58,7 @@ func TestMFAService_CRUD(t *testing.T) {
 
 	// Get non-existent
 	_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
-	require.Error(t, err)
+	require.ErrorContains(t, err, "doesn't exist")
 }
 
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
@@ -70,11 +70,9 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
-	ctx := t.Context()
-
 	defaultUsername := "bob"
 
-	cases := []struct {
+	for _, testCase := range []struct {
 		name     string
 		username *string
 		chal     *mfav1.ValidatedMFAChallenge
@@ -201,12 +199,10 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			},
 			wantErr: true,
 		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := svc.CreateValidatedMFAChallenge(ctx, *cmp.Or(tc.username, &defaultUsername), tc.chal)
-			if tc.wantErr {
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := svc.CreateValidatedMFAChallenge(t.Context(), *cmp.Or(testCase.username, &defaultUsername), testCase.chal)
+			if testCase.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -228,8 +224,8 @@ func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
 					SshSessionId: []byte("session-id"),
 				},
 			},
-			SourceCluster: "source",
-			TargetCluster: "target",
+			SourceCluster: "src",
+			TargetCluster: "tgt",
 		},
 	}
 }
