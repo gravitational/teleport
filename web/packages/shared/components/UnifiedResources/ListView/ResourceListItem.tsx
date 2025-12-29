@@ -21,13 +21,11 @@ import styled, { css } from 'styled-components';
 
 import { Box, ButtonIcon, Flex, Text } from 'design';
 import { CheckboxInput } from 'design/Checkbox';
+import { makeLabelTag } from 'design/formatters';
 import { Tags, Warning } from 'design/Icon';
 import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
-
-// eslint-disable-next-line no-restricted-imports -- FIXME
-import { makeLabelTag } from 'teleport/components/formatters';
 
 import { CopyButton } from '../../CopyButton/CopyButton';
 import {
