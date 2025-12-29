@@ -18,7 +18,10 @@
 
 package mfatypes
 
-import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+import (
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/types"
+)
 
 // ChallengeExtensions is a json struct for [mfav1.ChallengeExtensions].
 type ChallengeExtensions struct {
@@ -30,4 +33,19 @@ type ChallengeExtensions struct {
 // SessionIdentifyingPayload is a json struct for [mfav1.SessionIdentifyingPayload].
 type SessionIdentifyingPayload struct {
 	SSHSessionID []byte `json:"ssh_session_id,omitempty"`
+}
+
+// BeginSSOMFAChallengeParams contains parameters for lib/auth/Server.BeginSSOMFAChallenge. This struct is in this
+// package in order to avoid a circular dependency between lib/auth and lib/auth/mfa/mfav1.
+// TODO(cthach): Move params struct back to lib/auth package after SSO MFA device support is added to lib/auth/authtest
+// (https://github.com/gravitational/teleport/issues/62271) and the lib/auth/mfa/mfav1.AuthServer interface is updated.
+type BeginSSOMFAChallengeParams struct {
+	User                 string
+	SSO                  *types.SSOMFADevice
+	SSOClientRedirectURL string
+	ProxyAddress         string
+	Ext                  *mfav1.ChallengeExtensions
+	SIP                  *mfav1.SessionIdentifyingPayload
+	SourceCluster        string
+	TargetCluster        string
 }

@@ -21,7 +21,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed because mfav1.ValidatedMFAChallenge uses gogoproto
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -30,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
-	"github.com/gravitational/trace"
 )
 
 // MFAService implements the storage layer for MFA resources.
@@ -55,8 +55,8 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 	}
 
 	return &MFAService{
-		svc:    svc,
 		logger: slog.With(teleport.ComponentKey, "MFAService.local"),
+		svc:    svc,
 	}, nil
 }
 
@@ -67,14 +67,16 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
+	case ctx == nil:
+		return nil, trace.BadParameter("param ctx must not be nil")
 	case username == "":
-		return nil, trace.BadParameter("param username is empty")
+		return nil, trace.BadParameter("param username must not be empty")
 	case chal == nil:
-		return nil, trace.BadParameter("param chal is nil")
+		return nil, trace.BadParameter("param chal must not be nil")
 	}
 
 	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	// TODO: Copying can be expensive at scale, consult with team if this is acceptable or if there's a better way.
+	// TODO(cthach): Copying can be expensive at scale, consult with team if there's a better way.
 	svc := s.svc.WithPrefix(username)
 
 	// All validated MFA challenges must expire after 5 minutes.
@@ -95,14 +97,16 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	chalName string,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
+	case ctx == nil:
+		return nil, trace.BadParameter("param ctx must not be nil")
 	case username == "":
-		return nil, trace.BadParameter("param username is empty")
+		return nil, trace.BadParameter("param username must not be empty")
 	case chalName == "":
-		return nil, trace.BadParameter("param chalName is empty")
+		return nil, trace.BadParameter("param chalName must not be empty")
 	}
 
 	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	// TODO: Copying can be expensive at scale, consult with team if this is acceptable or if there's a better way.
+	// TODO(cthach): Copying can be expensive at scale, consult with team if there's a better way.
 	svc := s.svc.WithPrefix(username)
 
 	res, err := svc.GetResource(ctx, chalName)

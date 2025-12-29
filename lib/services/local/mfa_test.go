@@ -88,8 +88,8 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 		{
 			name: "missing username",
 			username: func() *string {
-				s := ""
-				return &s
+				emptyStr := ""
+				return &emptyStr
 			}(),
 			wantErr: true,
 		},
@@ -157,7 +157,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing ssh_session_id",
+			name: "empty ssh_session_id",
 			chal: &mfav1.ValidatedMFAChallenge{
 				Kind:     types.KindValidatedMFAChallenge,
 				Version:  "v1",

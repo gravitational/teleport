@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -7973,7 +7974,16 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions, nil, "", ""); err != nil {
+		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(
+			ctx,
+			mfatypes.BeginSSOMFAChallengeParams{
+				User:                 user,
+				SSO:                  groupedDevs.SSO.GetSso(),
+				SSOClientRedirectURL: ssoClientRedirectURL,
+				ProxyAddress:         proxyAddress,
+				Ext:                  challengeExtensions,
+			},
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

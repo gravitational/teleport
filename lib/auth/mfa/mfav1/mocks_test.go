@@ -64,22 +64,15 @@ func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*
 // BeginSSOMFAChallenge mocks the SSO MFA challenge initiation.
 func (m *mockAuthServer) BeginSSOMFAChallenge(
 	_ context.Context,
-	_ string,
-	sso *types.SSOMFADevice,
-	ssoClientRedirectURL,
-	_ string,
-	_ *mfav1.ChallengeExtensions,
-	_ *mfav1.SessionIdentifyingPayload,
-	sourceClusterName string,
-	targetClusterName string,
+	params mfatypes.BeginSSOMFAChallengeParams,
 ) (*proto.SSOChallenge, error) {
 	requestID := strconv.Itoa(int(time.Now().UnixNano()))
 	m.requestIDs.Store(requestID, struct{}{})
 
 	return &proto.SSOChallenge{
 		RequestId:   requestID,
-		Device:      sso,
-		RedirectUrl: ssoClientRedirectURL,
+		Device:      params.SSO,
+		RedirectUrl: params.SSOClientRedirectURL,
 	}, nil
 }
 

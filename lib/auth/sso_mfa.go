@@ -35,29 +35,17 @@ import (
 )
 
 // BeginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
-// TODO(cthach): Refactor to accept a params struct since there are many parameters. Must be done after SSO MFA device
-// support is added to lib/auth/authtest (https://github.com/gravitational/teleport/issues/62271).
-func (a *Server) BeginSSOMFAChallenge(
-	ctx context.Context,
-	user string,
-	sso *types.SSOMFADevice,
-	ssoClientRedirectURL,
-	proxyAddress string,
-	ext *mfav1.ChallengeExtensions,
-	sip *mfav1.SessionIdentifyingPayload,
-	sourceCluster string,
-	targetCluster string,
-) (*proto.SSOChallenge, error) {
+func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.BeginSSOMFAChallengeParams) (*proto.SSOChallenge, error) {
 	chal := &proto.SSOChallenge{
-		Device: sso,
+		Device: params.SSO,
 	}
 
-	switch sso.ConnectorType {
+	switch params.SSO.ConnectorType {
 	case constants.SAML:
 		resp, err := a.CreateSAMLAuthRequestForMFA(ctx, types.SAMLAuthRequest{
-			ConnectorID:       sso.ConnectorId,
-			Type:              sso.ConnectorType,
-			ClientRedirectURL: ssoClientRedirectURL,
+			ConnectorID:       params.SSO.ConnectorId,
+			Type:              params.SSO.ConnectorType,
+			ClientRedirectURL: params.SSOClientRedirectURL,
 			CheckUser:         true,
 		})
 		if err != nil {
@@ -69,10 +57,10 @@ func (a *Server) BeginSSOMFAChallenge(
 		codeVerifier := oauth2.GenerateVerifier()
 
 		resp, err := a.CreateOIDCAuthRequestForMFA(ctx, types.OIDCAuthRequest{
-			ConnectorID:       sso.ConnectorId,
-			Type:              sso.ConnectorType,
-			ClientRedirectURL: ssoClientRedirectURL,
-			ProxyAddress:      proxyAddress,
+			ConnectorID:       params.SSO.ConnectorId,
+			Type:              params.SSO.ConnectorType,
+			ClientRedirectURL: params.SSOClientRedirectURL,
+			ProxyAddress:      params.ProxyAddress,
 			PkceVerifier:      codeVerifier,
 			CheckUser:         true,
 		})
@@ -82,10 +70,10 @@ func (a *Server) BeginSSOMFAChallenge(
 		chal.RequestId = resp.StateToken
 		chal.RedirectUrl = resp.RedirectURL
 	default:
-		return nil, trace.BadParameter("unsupported sso connector type %v", sso.ConnectorType)
+		return nil, trace.BadParameter("unsupported sso connector type %v", params.SSO.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, user, chal.RequestId, sso.ConnectorId, sso.ConnectorType, ext, sip, sourceCluster, targetCluster); err != nil {
+	if err := a.upsertSSOMFASession(ctx, params.User, chal.RequestId, params.SSO.ConnectorId, params.SSO.ConnectorType, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

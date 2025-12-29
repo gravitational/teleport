@@ -22,6 +22,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,21 +35,15 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
+// TODO(cthach): Remove after SSO MFA device support is added to lib/auth/authtest
+// (https://github.com/gravitational/teleport/issues/62271) and update the tests to use lib/auth/authtest for mocking.
 type AuthServer interface {
 	BeginSSOMFAChallenge(
 		ctx context.Context,
-		user string,
-		sso *types.SSOMFADevice,
-		ssoClientRedirectURL,
-		proxyAddress string,
-		ext *mfav1.ChallengeExtensions,
-		sip *mfav1.SessionIdentifyingPayload,
-		sourceCluster string,
-		targetCluster string,
+		params mfatypes.BeginSSOMFAChallengeParams,
 	) (*proto.SSOChallenge, error)
 
 	VerifySSOMFASession(
@@ -236,14 +231,16 @@ func (s *Service) CreateSessionChallenge(
 	if enableSSO && supportedMFADevices.SSO != nil && req.SsoClientRedirectUrl != "" && req.ProxyAddressForSso != "" {
 		ssoChallenge, err := s.authServer.BeginSSOMFAChallenge(
 			ctx,
-			username,
-			supportedMFADevices.SSO.GetSso(),
-			req.SsoClientRedirectUrl,
-			req.ProxyAddressForSso,
-			&mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
-			req.Payload,
-			sourceClusterName,
-			targetClusterName,
+			mfatypes.BeginSSOMFAChallengeParams{
+				User:                 username,
+				SSO:                  supportedMFADevices.SSO.GetSso(),
+				SSOClientRedirectURL: req.SsoClientRedirectUrl,
+				ProxyAddress:         req.ProxyAddressForSso,
+				Ext:                  &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION},
+				SIP:                  req.Payload,
+				SourceCluster:        sourceClusterName,
+				TargetCluster:        targetClusterName,
+			},
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
