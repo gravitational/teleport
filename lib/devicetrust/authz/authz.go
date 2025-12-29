@@ -95,21 +95,74 @@ func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, ident *sshca.Iden
 func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, isBot bool, verified bool) error {
 	mode := dtconfig.GetEnforcementMode(dt)
 
-	var pass bool
-	switch mode {
-	case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
-		// OK, extensions not enforced.
-		pass = true
-	case constants.DeviceTrustModeRequiredForHumans:
-		// Humans must use trusted devices, bots can use untrusted devices.
-		pass = verified || isBot
-	case constants.DeviceTrustModeRequired:
-		// Only trusted devices allowed for bot human and bot users.
-		pass = verified
+	if err := VerifyTrustedDeviceMode(mode, VerifyTrustedDeviceModeParams{
+		IsTrustedDevice: verified,
+		IsBot:           isBot,
+	}); err != nil {
+		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)
+		return trace.Wrap(err)
 	}
 
-	if !pass {
-		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)
+	return nil
+}
+
+// VerifyTrustedDeviceModeParams holds additional parameters for
+// [VerifyTrustedDeviceMode].
+type VerifyTrustedDeviceModeParams struct {
+	// IsTrustedDevice informs if the device in use is trusted.
+	IsTrustedDevice bool
+	// IsBot informs if the user is a bot.
+	IsBot bool
+	// AllowEmptyMode allows an empty "enforcementMode", treating it similarly to
+	// DeviceTrustModeOff.
+	AllowEmptyMode bool
+}
+
+// VerifyTrustedDeviceMode runs the fundamental device trust authorization
+// logic, checking an effective device trust mode against a set of access
+// params.
+//
+// Most callers should use a higher level function, such as [VerifyTLSUser] or
+// [VerifySSHUser].
+//
+// If enforcementMode comes from the global config it must be resolved via
+// [dtconfig.GetEnforcementMode] prior to calling the method.
+//
+// Returns an error, typically ErrTrustedDeviceRequired, if the checked device
+// is not allowed.
+func VerifyTrustedDeviceMode(
+	enforcementMode constants.DeviceTrustMode,
+	params VerifyTrustedDeviceModeParams,
+) error {
+	if enforcementMode == "" && params.AllowEmptyMode {
+		return nil // Equivalent to mode=off.
+	}
+
+	// Assume required so it fails closed.
+	required := true
+
+	// Switch on mode before any exemptions so we catch unknown modes.
+	switch enforcementMode {
+	case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional:
+		// OK, extensions not enforced.
+		required = false
+
+	case constants.DeviceTrustModeRequiredForHumans:
+		// Humans must use trusted devices, bots can use untrusted devices.
+		required = !params.IsBot
+
+	case constants.DeviceTrustModeRequired:
+		// Only trusted devices allowed for bot human and bot users.
+
+	default:
+		// Unknown mode. Trusted devices are allowed to pass.
+		slog.WarnContext(context.Background(),
+			"Unknown device trust mode, treating enforcement as required",
+			"mode", enforcementMode,
+		)
+	}
+
+	if required && !params.IsTrustedDevice {
 		return trace.Wrap(ErrTrustedDeviceRequired)
 	}
 
