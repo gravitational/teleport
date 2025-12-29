@@ -17,6 +17,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 
 import {
@@ -226,9 +227,10 @@ const LocalForm = ({
   hasTransitionEnded,
   autoFocus = false,
 }: Props & { hasTransitionEnded: boolean }) => {
+  const { search } = useLocation();
   const { isProcessing } = attempt;
   const [pass, setPass] = useState('');
-  const [user, setUser] = useState('');
+  const [user, setUser] = useState(() => new URLSearchParams(search).get('user') || '');
   const [token, setToken] = useState('');
 
   const mfaOptions = useMemo(
