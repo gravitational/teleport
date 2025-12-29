@@ -21,13 +21,14 @@ package rdpclient
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 type fakeConn struct {
@@ -54,30 +55,18 @@ func (f *fakeConn) AddMessage(message tdp.Message) error {
 
 func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
-	require.NoError(t, err)
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
-	_, err = New(createConfig(conn))
-	require.EqualError(t, err, "EOF")
+	_, err := New(createConfig(conn))
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
+	err := f.AddMessage(&tdpb.ClientHello{Username: "user"})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
@@ -85,25 +74,14 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 
 func TestClientNew_KeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientKeyboardLayout{})
-	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
-		Width:  100,
-		Height: 100,
-	})
+	err := f.AddMessage(&tdpb.ClientHello{Username: "user", KeyboardLayout: 1})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
+
 }
 
 func createConfig(conn *tdp.Conn) Config {
@@ -112,5 +90,7 @@ func createConfig(conn *tdp.Conn) Config {
 		AuthorizeFn: func(login string) error { return nil },
 		Conn:        conn,
 		Logger:      slog.Default(),
+		Width:       1,
+		Height:      1,
 	}
 }

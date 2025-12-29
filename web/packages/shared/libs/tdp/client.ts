@@ -368,8 +368,17 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(buffer: ArrayBufferLike): Promise<void> {
-    const result = this.codec.decodeMessage(buffer);
+  async processMessage(
+    buffer: ArrayBufferLike,
+    codecOverride?: Codec
+  ): Promise<void> {
+    let codec = this.codec;
+    if (codecOverride) {
+      // Allow the caller to override the codec.
+      codec = codecOverride;
+    }
+
+    const result = codec.decodeMessage(buffer);
     if (!result) {
       // Codec implementations *should* return an 'unknown' result kind
       // instead of undefined, but double check anyway for safety.
