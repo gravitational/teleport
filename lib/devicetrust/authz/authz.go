@@ -169,11 +169,11 @@ func VerifyTrustedDeviceMode(
 		// Only trusted devices allowed for bot human and bot users.
 
 	default:
-		// Unknown mode. Trusted devices are allowed to pass.
 		slog.WarnContext(context.Background(),
-			"Unknown device trust mode, treating enforcement as required",
+			"Unknown device trust mode, treating device as untrusted",
 			"mode", enforcementMode,
 		)
+		return trace.Wrap(ErrTrustedDeviceRequired)
 	}
 
 	if required && !params.IsTrustedDevice {

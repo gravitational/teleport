@@ -379,7 +379,7 @@ func TestVerifyTrustedDeviceMode(t *testing.T) {
 	tests = append(tests,
 		testCase{
 			name:    "empty mode: AllowEmptyMode=false",
-			wantErr: true, // Strict.
+			wantErr: true, // Unknown mode always errors.
 		},
 		testCase{
 			name: "empty mode: AllowEmptyMode=true",
@@ -395,7 +395,7 @@ func TestVerifyTrustedDeviceMode(t *testing.T) {
 		testCase{
 			name:    "unknown mode: untrusted human",
 			mode:    "llama",
-			wantErr: true, // Strict.
+			wantErr: true, // Unknown mode always errors.
 		},
 		testCase{
 			name: "unknown mode: trusted human",
@@ -403,7 +403,7 @@ func TestVerifyTrustedDeviceMode(t *testing.T) {
 			params: authz.VerifyTrustedDeviceModeParams{
 				IsTrustedDevice: true,
 			},
-			wantErr: false, // Trusted device allowed.
+			wantErr: true, // Unknown mode always errors.
 		},
 	)
 
