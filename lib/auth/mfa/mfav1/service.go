@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -60,6 +61,7 @@ type AuthServer interface {
 type Cache interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
 }
 
 // Emitter defines the subset of event emitter methods used by the MFA service.
@@ -144,7 +146,7 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.AccessDenied("only local or remote users can create MFA session challenges")
 	}
 
-	if err := validateCreateSessionChallengeRequest(req); err != nil {
+	if err := s.validateCreateSessionChallengeRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -391,11 +393,10 @@ func (s *Service) ValidateSessionChallenge(
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
 
-func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
-	if req == nil {
-		return trace.BadParameter("param CreateSessionChallengeRequest is nil")
-	}
-
+func (s *Service) validateCreateSessionChallengeRequest(
+	ctx context.Context,
+	req *mfav1.CreateSessionChallengeRequest,
+) error {
 	payload := req.GetPayload()
 	if payload == nil {
 		return trace.BadParameter("missing CreateSessionChallengeRequest payload")
@@ -406,14 +407,41 @@ func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequ
 	}
 
 	// If either SSO challenge field is set, both must be set.
-	if req.SsoClientRedirectUrl != "" || req.ProxyAddressForSso != "" {
-		if req.SsoClientRedirectUrl == "" {
-			return trace.BadParameter("missing SsoClientRedirectUrl for SSO challenge")
-		}
+	switch {
+	case req.SsoClientRedirectUrl != "" && req.ProxyAddressForSso == "":
+		return trace.BadParameter("missing ProxyAddressForSso for SSO challenge")
+	case req.SsoClientRedirectUrl == "" && req.ProxyAddressForSso != "":
+		return trace.BadParameter("missing SsoClientRedirectUrl for SSO challenge")
+	}
 
-		if req.ProxyAddressForSso == "" {
-			return trace.BadParameter("missing ProxyAddressForSso for SSO challenge")
-		}
+	// Target cluster is not set, so no further validation is needed.
+	if req.TargetCluster == "" {
+		return nil
+	}
+
+	// Ensure that the target cluster exists as either the current cluster or a remote cluster.
+	return s.clusterExists(ctx, req.TargetCluster)
+}
+
+func (s *Service) clusterExists(ctx context.Context, clusterName string) error {
+	currentCluster, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if currentCluster.GetClusterName() == clusterName {
+		return nil
+	}
+
+	remoteClusters, err := s.cache.GetRemoteClusters(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !slices.ContainsFunc(remoteClusters, func(rc types.RemoteCluster) bool {
+		return rc.GetName() == clusterName
+	}) {
+		return trace.BadParameter("cluster %q does not exist", clusterName)
 	}
 
 	return nil

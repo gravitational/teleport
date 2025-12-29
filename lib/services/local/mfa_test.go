@@ -32,10 +32,10 @@ import (
 func TestMFAService_CRUD(t *testing.T) {
 	t.Parallel()
 
-	bk, err := memory.New(memory.Config{})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	svc, err := local.NewMFAService(bk)
+	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
 	username, chal := "alice", newValidatedMFAChallenge()
@@ -64,10 +64,10 @@ func TestMFAService_CRUD(t *testing.T) {
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 	t.Parallel()
 
-	bk, err := memory.New(memory.Config{})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	svc, err := local.NewMFAService(bk)
+	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
 	ctx := t.Context()

@@ -138,3 +138,34 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 	// Combine the devices that were passed in NewMockAuthServer with any registered after the mock was created.
 	return slices.Concat([]*types.MFADevice{}, m.devices, devices), nil
 }
+
+type mockMFAService struct {
+	// If ReturnError is set, methods will return this error.
+	ReturnError error
+}
+
+var _ services.MFAService = &mockMFAService{}
+
+func (m *mockMFAService) CreateValidatedMFAChallenge(
+	ctx context.Context,
+	username string,
+	chal *mfav1.ValidatedMFAChallenge,
+) (*mfav1.ValidatedMFAChallenge, error) {
+	if m.ReturnError != nil {
+		return nil, m.ReturnError
+	}
+
+	return chal, nil
+}
+
+func (m *mockMFAService) GetValidatedMFAChallenge(
+	ctx context.Context,
+	username string,
+	challengeName string,
+) (*mfav1.ValidatedMFAChallenge, error) {
+	if m.ReturnError != nil {
+		return nil, m.ReturnError
+	}
+
+	return &mfav1.ValidatedMFAChallenge{}, nil
+}

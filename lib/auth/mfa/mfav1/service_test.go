@@ -17,6 +17,7 @@
 package mfav1_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -300,7 +301,8 @@ func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			ClusterName: "test-cluster",
+			Dir:         t.TempDir(),
 		},
 	})
 	require.NoError(t, err)
@@ -324,18 +326,21 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	for _, testCase := range []struct {
-		name string
-		req  *mfav1.CreateSessionChallengeRequest
+		name          string
+		req           *mfav1.CreateSessionChallengeRequest
+		expectedError string
 	}{
 		{
-			name: "missing payload",
-			req:  &mfav1.CreateSessionChallengeRequest{Payload: nil},
+			name:          "missing payload",
+			req:           &mfav1.CreateSessionChallengeRequest{Payload: nil},
+			expectedError: "missing CreateSessionChallengeRequest payload",
 		},
 		{
 			name: "missing SshSessionId in payload",
 			req: &mfav1.CreateSessionChallengeRequest{
 				Payload: &mfav1.SessionIdentifyingPayload{Payload: nil},
 			},
+			expectedError: "empty SshSessionId in payload",
 		},
 		{
 			name: "empty SshSessionId in payload",
@@ -346,6 +351,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 					},
 				},
 			},
+			expectedError: "empty SshSessionId in payload",
 		},
 		{
 			name: "SSO challenge missing SsoClientRedirectUrl",
@@ -358,6 +364,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				SsoClientRedirectUrl: "", // missing
 				ProxyAddressForSso:   "proxy.example.com",
 			},
+			expectedError: "missing SsoClientRedirectUrl for SSO challenge",
 		},
 		{
 			name: "SSO challenge missing ProxyAddressForSso",
@@ -370,11 +377,25 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				SsoClientRedirectUrl: "https://client/redirect",
 				ProxyAddressForSso:   "", // missing
 			},
+			expectedError: "missing ProxyAddressForSso for SSO challenge",
+		},
+		{
+			name: "target cluster specified but does not exist",
+			req: &mfav1.CreateSessionChallengeRequest{
+				Payload: &mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+						SshSessionId: []byte("test-session-id"),
+					},
+				},
+				TargetCluster: "non-existent-cluster", // does not exist
+			},
+			expectedError: "cluster \"non-existent-cluster\" does not exist",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			resp, err := service.CreateSessionChallenge(ctx, testCase.req)
 			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, testCase.expectedError)
 			require.Nil(t, resp)
 		})
 	}
@@ -705,4 +726,105 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	require.Equal(t, user.GetName(), e.GetUser())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 	require.False(t, e.Success)
+}
+
+func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	authServer, err := NewMockAuthServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
+			ClusterName: "test-cluster",
+			Dir:         t.TempDir(),
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+				},
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			},
+		},
+	},
+		nil,
+	)
+	require.NoError(t, err)
+
+	mfaService := &mockMFAService{ReturnError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+		Storage:    mfaService,
+	})
+	require.NoError(t, err)
+
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	// Register a Webauthn device for the user.
+	device, err := authtest.RegisterTestDevice(
+		ctx,
+		authServer.Auth(),
+		"webauthn-device",
+		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		nil,
+	)
+	require.NoError(t, err)
+
+	challengeResp, err := service.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
+	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
+
+	challenge := &proto.MFAAuthenticateChallenge{
+		WebauthnChallenge: challengeResp.MfaChallenge.WebauthnChallenge,
+	}
+
+	mfaResp, err := device.SolveAuthn(challenge)
+	require.NoError(t, err)
+
+	validateResp, err := service.ValidateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.MfaChallenge.Name,
+				Response: &mfav1.AuthenticateResponse_Webauthn{
+					Webauthn: mfaResp.GetWebauthn(),
+				},
+			},
+		},
+	)
+	require.ErrorContains(t, err, "MOCKED TEST ERROR FROM STORAGE LAYER")
+	require.Nil(t, validateResp)
+
+	// Verify emitted event.
+	event := emitter.LastEvent()
+	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
+	require.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
+	require.Equal(t, "test-cluster", event.GetClusterName())
+	e, ok := event.(*apievents.ValidateMFAAuthResponse)
+	require.True(t, ok)
+	require.Equal(t, user.GetName(), e.GetUser())
+	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
+	require.False(t, e.Success)
+	require.Contains(t, e.Error, "MOCKED TEST ERROR FROM STORAGE LAYER")
 }
