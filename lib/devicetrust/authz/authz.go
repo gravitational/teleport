@@ -47,18 +47,24 @@ func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
 
 // VerifyTLSUser verifies if the TLS identity has the required extensions to
 // fulfill the device trust configuration.
-func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, identity tlsca.Identity) error {
-	return verifyDeviceExtensions(ctx, dt, identity.Username, identity.IsBot(), IsTLSDeviceVerified(&identity.DeviceExtensions))
+func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, id tlsca.Identity) error {
+	return verifyDeviceExtensions(ctx,
+		dt,
+		id.Username,
+		VerifyTrustedDeviceModeParams{
+			IsTrustedDevice: IsTLSDeviceVerified(&id.DeviceExtensions),
+			IsBot:           id.IsBot(),
+		})
 }
 
 // IsSSHDeviceVerified returns true if cert contains all required device
 // extensions.
-func IsSSHDeviceVerified(ident *sshca.Identity) bool {
+func IsSSHDeviceVerified(id *sshca.Identity) bool {
 	// Expect all device extensions to be present.
-	return ident != nil &&
-		ident.DeviceID != "" &&
-		ident.DeviceAssetTag != "" &&
-		ident.DeviceCredentialID != ""
+	return id != nil &&
+		id.DeviceID != "" &&
+		id.DeviceAssetTag != "" &&
+		id.DeviceCredentialID != ""
 }
 
 // HasDeviceTrustExtensions returns true if the certificate's extension names
@@ -85,20 +91,28 @@ func HasDeviceTrustExtensions(extensions []string) bool {
 
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
 // fulfill the device trust configuration.
-func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, ident *sshca.Identity) error {
-	if ident == nil {
+func VerifySSHUser(ctx context.Context, dt *types.DeviceTrust, id *sshca.Identity) error {
+	if id == nil {
 		return trace.BadParameter("ssh identity required")
 	}
-	return verifyDeviceExtensions(ctx, dt, ident.Username, ident.IsBot(), IsSSHDeviceVerified(ident))
+	return verifyDeviceExtensions(ctx,
+		dt,
+		id.Username,
+		VerifyTrustedDeviceModeParams{
+			IsTrustedDevice: IsSSHDeviceVerified(id),
+			IsBot:           id.IsBot(),
+		})
 }
 
-func verifyDeviceExtensions(ctx context.Context, dt *types.DeviceTrust, username string, isBot bool, verified bool) error {
-	mode := dtconfig.GetEnforcementMode(dt)
+func verifyDeviceExtensions(
+	ctx context.Context,
+	dt *types.DeviceTrust,
+	username string,
+	params VerifyTrustedDeviceModeParams,
+) error {
+	enforcementMode := dtconfig.GetEnforcementMode(dt)
 
-	if err := VerifyTrustedDeviceMode(mode, VerifyTrustedDeviceModeParams{
-		IsTrustedDevice: verified,
-		IsBot:           isBot,
-	}); err != nil {
+	if err := VerifyTrustedDeviceMode(enforcementMode, params); err != nil {
 		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)
 		return trace.Wrap(err)
 	}
