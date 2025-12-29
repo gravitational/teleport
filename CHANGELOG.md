@@ -2,7 +2,7 @@
 
 ## 18.6.2 (12/26/25)
 
-This is a private security release. Changelog will be publicly announced in a later version
+This is a private security release. Changelog will be publicly announced in a later version.
 
 ## 18.6.1 (12/24/25)
 
