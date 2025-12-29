@@ -33,6 +33,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -4290,10 +4291,15 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 func (tc *TeleportClient) browserLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
 	browserAuthenticationID := services.NewHeadlessAuthenticationID(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
 
-	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", browserAuthenticationID)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	u := &url.URL{
+		Scheme: "https",
+		Host:   tc.WebProxyAddr,
+		Path:   path.Join("web", "headless", browserAuthenticationID),
 	}
+	if tc.Username != "" {
+		u.RawQuery = url.Values{"user": []string{tc.Username}}.Encode()
+	}
+	webUILink := u.String()
 
 	_ = sso.OpenURLInBrowser(tc.Browser, webUILink)
 	fmt.Fprintf(tc.Stderr, "Complete browser authentication in your web browser:\n\n%s\n", webUILink)
