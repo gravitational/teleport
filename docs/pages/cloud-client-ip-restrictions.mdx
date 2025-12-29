@@ -18,12 +18,21 @@ Once you add a CIDR, it will take effect in 5-20 minutes and will terminate exis
 
 ![Web UI view showing IP Allowlist for Teleport](../img/cloud/client-ip-restrictions.png)
 Managing allow rules is governed by Teleport’s existing RBAC system.
-A new resource type is introduced: `client_ip_restriction`.
-To see the current allowlist, the user must have the  `list` verb enabled.
+The preset `editor` role has permissions to read and write the allowlist.
 
-To update the allowlist, `create` and `update` are required.
+You can also create custom roles granting access via the `client_ip_restriction`
+resource.
 
-By default, the `editor` role can **read and write** CIDR allowlists.
+```yaml
+allow:
+  - resources: [ client_ip_restriction ]
+    verbs:
+      # list is required to view the allowlist
+      - list
+      # create and update are required to modify the allowlist
+      - create
+      - update 
+      
 
 ## Limitations
 
