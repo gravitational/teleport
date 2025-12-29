@@ -32,22 +32,9 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.6.0  | Week of December 15, 2025  |
 | 18.7.0  | Week of January 26, 2026   |
 | 19.0.0  | August 2026                |
 
-### 18.6.0
-
-#### Identifier-first login enhancements
-
-Teleport will automatically pass the username to the identifier provider when performing
-Identifier-first login with OIDC or SAML IdPs. 
-
-#### GitHub Actions Kubernetes Wizard
-
-Teleport will ship with a new guided flow for setting up GitHub Actions workflows that
-connect to Teleport-protected Kubernetes clusters without secrets.
- 
 ### 18.7.0
 
 #### VNet for Linux
@@ -70,6 +57,12 @@ access to resources.
 Teleport will provide in-product UX for configuring EC2 auto-discovery in a single AWS
 account using terraform module.
 
+#### Static labels for auto-discovered Windows desktops
+
+Teleport can now be configured to apply a set of static labels to Windows
+desktops that it discovers via LDAP. This is an alternative to setting labels
+based on the value of LDAP attributes.
+
 #### Access requests privilege escalation UX for AWS
 
 Teleport users will be able to see specific IAM roles available to them when requesting
@@ -91,8 +84,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| December 1, 2025   | Teleport 18.5 will begin rollout on Cloud.                   |
-| December 1, 2025   | Teleport 18.5 agents will begin rollout to eligible tenants. |
+| December 29, 2025   | Teleport 18.6 will begin rollout on Cloud.                   |
+| December 29, 2025   | Teleport 18.6 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
