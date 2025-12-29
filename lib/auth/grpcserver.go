@@ -6531,12 +6531,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	decisionpb.RegisterDecisionServiceServer(server, decisionService)
 
 	mfaService, err := mfav1.NewService(mfav1.ServiceConfig{
-		Authorizer:                   cfg.Authorizer,
-		AuthServer:                   cfg.AuthServer,
-		Cache:                        cfg.AuthServer.Cache,
-		Emitter:                      cfg.Emitter,
-		Identity:                     cfg.AuthServer.Identity,
-		ValidatedMFAChallengeService: cfg.AuthServer.ValidatedMFAChallengeService,
+		Authorizer: cfg.Authorizer,
+		AuthServer: cfg.AuthServer,
+		Cache:      cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+		Identity:   cfg.AuthServer.Identity,
+		Storage:    cfg.AuthServer.MFAService,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

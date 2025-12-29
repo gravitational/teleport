@@ -609,8 +609,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.ValidatedMFAChallengeService == nil {
-		cfg.ValidatedMFAChallengeService, err = local.NewValidatedMFAChallengeService(cfg.Backend)
+	if cfg.MFAService == nil {
+		cfg.MFAService, err = local.NewMFAService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating ValidatedMFAChallenge service")
 		}
@@ -684,7 +684,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
-		ValidatedMFAChallengeService:    cfg.ValidatedMFAChallengeService,
+		MFAService:                      cfg.MFAService,
 	}
 
 	as = &Server{
@@ -959,7 +959,7 @@ type Services struct {
 	events.MultipartHandler
 	services.Summarizer
 	services.ScopedTokenService
-	services.ValidatedMFAChallengeService
+	services.MFAService
 }
 
 // GetWebSession returns existing web session described by req.

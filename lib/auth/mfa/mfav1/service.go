@@ -86,25 +86,25 @@ type Identity interface {
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct {
-	Authorizer                   authz.Authorizer
-	AuthServer                   AuthServer
-	Cache                        Cache
-	Emitter                      Emitter
-	Identity                     Identity
-	ValidatedMFAChallengeService services.ValidatedMFAChallengeService
+	Authorizer authz.Authorizer
+	AuthServer AuthServer
+	Cache      Cache
+	Emitter    Emitter
+	Identity   Identity
+	Storage    services.MFAService
 }
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
 type Service struct {
 	mfav1.UnimplementedMFAServiceServer
 
-	logger                       *slog.Logger
-	authorizer                   authz.Authorizer
-	authServer                   AuthServer
-	cache                        Cache
-	emitter                      Emitter
-	identity                     Identity
-	validatedMFAChallengeService services.ValidatedMFAChallengeService
+	logger     *slog.Logger
+	authorizer authz.Authorizer
+	authServer AuthServer
+	cache      Cache
+	emitter    Emitter
+	identity   Identity
+	storage    services.MFAService
 }
 
 // NewService creates a new [Service] instance.
@@ -120,18 +120,18 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("param Emitter is required for MFA service")
 	case cfg.Identity == nil:
 		return nil, trace.BadParameter("param Identity is required for MFA service")
-	case cfg.ValidatedMFAChallengeService == nil:
-		return nil, trace.BadParameter("param ValidatedMFAChallengeService is required for MFA service")
+	case cfg.Storage == nil:
+		return nil, trace.BadParameter("param MFAService is required for MFA service")
 	}
 
 	return &Service{
-		logger:                       slog.With(teleport.ComponentKey, "mfa.service"),
-		authorizer:                   cfg.Authorizer,
-		authServer:                   cfg.AuthServer,
-		cache:                        cfg.Cache,
-		emitter:                      cfg.Emitter,
-		identity:                     cfg.Identity,
-		validatedMFAChallengeService: cfg.ValidatedMFAChallengeService,
+		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
+		authorizer: cfg.Authorizer,
+		authServer: cfg.AuthServer,
+		cache:      cfg.Cache,
+		emitter:    cfg.Emitter,
+		identity:   cfg.Identity,
+		storage:    cfg.Storage,
 	}, nil
 }
 
@@ -183,23 +183,27 @@ func (s *Service) CreateSessionChallenge(
 
 	s.logger.DebugContext(
 		ctx,
-		"Fetched devices for MFA challenge",
+		"Fetched devices for challenge",
 		"user", username,
 		"num_webauthn_devices", len(supportedMFADevices.Webauthn),
 		"has_sso_device", supportedMFADevices.SSO != nil,
 	)
 
+	// Create the MFA challenge response with a randomly generated UUID for its name. This name is used to track the
+	// status of the MFA challenge throughout its lifecycle by the service that the user is authenticating to. The name
+	// is scoped to the user and the actual challenge has a short TTL, so collisions are extremely unlikely.
 	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{Name: uuid.NewString()}}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
+	currentCluster, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Source cluster is always the current cluster.
-	sourceClusterName := clusterName.GetClusterName()
+	sourceClusterName := currentCluster.GetClusterName()
 
 	// Target cluster is the current cluster unless specified otherwise in the request.
+	// TODO(cthach): Verify the target cluster is actually a valid cluster.
 	targetClusterName := cmp.Or(req.TargetCluster, sourceClusterName)
 
 	// If Webauthn is enabled and there are registered devices, create a Webauthn challenge.
@@ -256,17 +260,17 @@ func (s *Service) CreateSessionChallenge(
 		Metadata: apievents.Metadata{
 			Type:        events.CreateMFAAuthChallengeEvent,
 			Code:        events.CreateMFAAuthChallengeCode,
-			ClusterName: clusterName.GetClusterName(),
+			ClusterName: currentCluster.GetClusterName(),
 		},
 		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		FlowType:     apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND,
 	}); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
+		s.logger.ErrorContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
 
 	s.logger.DebugContext(
 		ctx,
-		"Created MFA challenge",
+		"Created challenge",
 		"user", username,
 		"has_webauthn_challenge", challenge.MfaChallenge.WebauthnChallenge != nil,
 		"has_sso_challenge", challenge.MfaChallenge.SsoChallenge != nil,
@@ -298,48 +302,83 @@ func (s *Service) ValidateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
+	currentCluster, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var (
-		userConfirmedIdentity *confirmedIdentity
-		validateErr           error
+		details     *authDetails
+		validateErr error
+		createErr   error
 	)
 
-	// Validate the challenge response. Error is captured to report in the audit event and handled later.
+	// Validate the challenge response. Error is captured and handled later.
 	switch resp := req.MfaResponse.GetResponse().(type) {
 	case *mfav1.AuthenticateResponse_Webauthn:
-		userConfirmedIdentity, validateErr = s.validateWebauthnResponse(ctx, username, resp)
+		details, validateErr = s.validateWebauthnResponse(ctx, username, resp)
 
 	case *mfav1.AuthenticateResponse_Sso:
-		userConfirmedIdentity, validateErr = s.validateSSOResponse(ctx, username, resp)
+		details, validateErr = s.validateSSOResponse(ctx, username, resp)
 
 	default:
 		return nil, trace.BadParameter("unknown MFA response type %T", resp)
 	}
 
-	clusterName, err := s.cache.GetClusterName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Only store the validated challenge resource if validation succeeded. Error is captured and handled later.
+	if validateErr == nil {
+		if _, createErr = s.storage.CreateValidatedMFAChallenge(
+			ctx,
+			username,
+			&mfav1.ValidatedMFAChallenge{
+				Kind:    types.KindValidatedMFAChallenge,
+				Version: "v1",
+				Metadata: &types.Metadata{
+					Name: req.GetMfaResponse().GetName(),
+				},
+				Spec: &mfav1.ValidatedMFAChallengeSpec{
+					Payload: &mfav1.SessionIdentifyingPayload{
+						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+							SshSessionId: details.Payload.SSHSessionID,
+						},
+					},
+					SourceCluster: details.SourceCluster,
+					TargetCluster: details.TargetCluster,
+				},
+			},
+		); createErr != nil {
+			s.logger.ErrorContext(
+				ctx,
+				"Failed to create validated MFA challenge resource after successful validation",
+				"user", username,
+				"challenge_name", req.GetMfaResponse().GetName(),
+				"error", createErr,
+			)
+		}
 	}
 
 	event := &apievents.ValidateMFAAuthResponse{
 		Metadata: apievents.Metadata{
 			Type:        events.ValidateMFAAuthResponseEvent,
-			ClusterName: clusterName.GetClusterName(),
+			ClusterName: currentCluster.GetClusterName(),
 		},
 		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		FlowType:     apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND,
 	}
-	if validateErr != nil {
+
+	// If either validation or creation failed, mark the event as a failure.
+	if validateErr != nil || createErr != nil {
 		event.Code = events.ValidateMFAAuthResponseFailureCode
 		event.Success = false
-		event.UserMessage = validateErr.Error()
-		event.Error = validateErr.Error()
+		event.UserMessage = cmp.Or(validateErr, createErr).Error()
+		event.Error = cmp.Or(validateErr, createErr).Error()
 	} else {
 		event.Code = events.ValidateMFAAuthResponseCode
 		event.Success = true
 		event.MFADevice = &apievents.MFADeviceMetadata{
-			DeviceName: userConfirmedIdentity.Device.GetName(),
-			DeviceID:   userConfirmedIdentity.Device.Id,
-			DeviceType: userConfirmedIdentity.Device.MFAType(),
+			DeviceName: details.Device.GetName(),
+			DeviceID:   details.Device.Id,
+			DeviceType: details.Device.MFAType(),
 		}
 	}
 
@@ -347,45 +386,10 @@ func (s *Service) ValidateSessionChallenge(
 		s.logger.WarnContext(ctx, "Failed to emit ValidateMFAAuthResponse event", "error", err)
 	}
 
-	if validateErr != nil {
-		return nil, trace.AccessDenied("validate MFA response: %v", validateErr)
+	// Finally, handle any validation or creation errors.
+	if validateErr != nil || createErr != nil {
+		return nil, trace.AccessDenied("validate MFA challenge response: %v", cmp.Or(validateErr, createErr))
 	}
-
-	if userConfirmedIdentity.Payload.SSHSessionID == nil {
-		return nil, trace.BadParameter("validated MFA response has empty session identifying payload")
-	}
-
-	s.logger.InfoContext(ctx, "MFA challenge validated", "confirmed_identity", userConfirmedIdentity)
-
-	_, err = s.validatedMFAChallengeService.CreateValidatedMFAChallenge(
-		ctx,
-		username,
-		&mfav1.ValidatedMFAChallenge{
-			Kind:    types.KindValidatedMFAChallenge,
-			Version: "v1",
-			Metadata: &types.Metadata{
-				Name: req.GetMfaResponse().GetName(),
-			},
-			Spec: &mfav1.ValidatedMFAChallengeSpec{
-				Payload: &mfav1.SessionIdentifyingPayload{
-					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
-						SshSessionId: userConfirmedIdentity.Payload.SSHSessionID,
-					},
-				},
-				SourceCluster: userConfirmedIdentity.SourceCluster,
-				TargetCluster: userConfirmedIdentity.TargetCluster,
-			},
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.logger.DebugContext(
-		ctx,
-		"Validated MFA challenge",
-		"user", username,
-	)
 
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
@@ -484,7 +488,7 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 	return nil
 }
 
-type confirmedIdentity struct {
+type authDetails struct {
 	Device        *types.MFADevice
 	Payload       *mfatypes.SessionIdentifyingPayload
 	SourceCluster string
@@ -495,7 +499,7 @@ func (s *Service) validateWebauthnResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Webauthn,
-) (*confirmedIdentity, error) {
+) (*authDetails, error) {
 	pref, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -522,7 +526,7 @@ func (s *Service) validateWebauthnResponse(
 		return nil, trace.AccessDenied("validate Webauthn response: %v", err)
 	}
 
-	return &confirmedIdentity{
+	return &authDetails{
 		Device:        loginData.Device,
 		Payload:       loginData.Payload,
 		SourceCluster: loginData.SourceCluster,
@@ -534,8 +538,8 @@ func (s *Service) validateSSOResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Sso,
-) (*confirmedIdentity, error) {
-	data, err := s.authServer.VerifySSOMFASession(
+) (*authDetails, error) {
+	authData, err := s.authServer.VerifySSOMFASession(
 		ctx,
 		username,
 		resp.Sso.RequestId,
@@ -546,11 +550,11 @@ func (s *Service) validateSSOResponse(
 		return nil, trace.AccessDenied("validate SSO response: %v", err)
 	}
 
-	return &confirmedIdentity{
-		Device:        data.Device,
-		Payload:       data.Payload,
-		SourceCluster: "TODO",
-		TargetCluster: "TODO",
+	return &authDetails{
+		Device:        authData.Device,
+		Payload:       authData.Payload,
+		SourceCluster: authData.SourceCluster,
+		TargetCluster: authData.TargetCluster,
 	}, nil
 }
 

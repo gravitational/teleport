@@ -425,8 +425,8 @@ type InitConfig struct {
 	// app auth config resources.
 	AppAuthConfig services.AppAuthConfig
 
-	// ValidatedMFAChallengeService is a service that manages validated MFA challenge resources.
-	ValidatedMFAChallengeService services.ValidatedMFAChallengeService
+	// MFAService is the service that manages MFA resources.
+	MFAService services.MFAService
 }
 
 // Init instantiates and configures an instance of AuthServer

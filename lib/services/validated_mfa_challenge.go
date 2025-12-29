@@ -21,7 +21,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
-type ValidatedMFAChallengeService interface {
+type MFAService interface {
 	// CreateValidatedMFAChallenge persists the ValidatedMFAChallenge resource.
 	CreateValidatedMFAChallenge(
 		ctx context.Context,

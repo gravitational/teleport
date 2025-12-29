@@ -33,14 +33,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ValidatedMFAChallengeService implements the storage layer for the ValidatedMFAChallenge resource.
-type ValidatedMFAChallengeService struct {
-	svc    *generic.ServiceWrapper[*validatedMFAChallenge]
+// MFAService implements the storage layer for MFA resources.
+type MFAService struct {
 	logger *slog.Logger
+	svc    *generic.ServiceWrapper[*validatedMFAChallenge]
 }
 
-// NewValidatedMFAChallengeService returns a new ValidatedMFAChallenge storage service.
-func NewValidatedMFAChallengeService(b backend.Backend) (*ValidatedMFAChallengeService, error) {
+// NewMFAService returns a new MFA storage service.
+func NewMFAService(b backend.Backend) (*MFAService, error) {
 	svc, err := generic.NewServiceWrapper(
 		generic.ServiceConfig[*validatedMFAChallenge]{
 			Backend:       b,
@@ -54,14 +54,14 @@ func NewValidatedMFAChallengeService(b backend.Backend) (*ValidatedMFAChallengeS
 		return nil, trace.Wrap(err)
 	}
 
-	return &ValidatedMFAChallengeService{
+	return &MFAService{
 		svc:    svc,
-		logger: slog.With(teleport.ComponentKey, "ValidatedMFAChallenge.local"), // TODO: What should the component key be?
+		logger: slog.With(teleport.ComponentKey, "MFAService.local"),
 	}, nil
 }
 
 // CreateValidatedMFAChallenge persists the ValidatedMFAChallenge resource.
-func (s *ValidatedMFAChallengeService) CreateValidatedMFAChallenge(
+func (s *MFAService) CreateValidatedMFAChallenge(
 	ctx context.Context,
 	username string,
 	chal *mfav1.ValidatedMFAChallenge,
@@ -89,7 +89,7 @@ func (s *ValidatedMFAChallengeService) CreateValidatedMFAChallenge(
 }
 
 // GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource.
-func (s *ValidatedMFAChallengeService) GetValidatedMFAChallenge(
+func (s *MFAService) GetValidatedMFAChallenge(
 	ctx context.Context,
 	username string,
 	chalName string,
