@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -837,7 +838,7 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 
 // CreateAppSessionForAppAuth creates a new app session based on app auth
 // config.
-func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *types.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
+func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthconfigv1.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
 	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
