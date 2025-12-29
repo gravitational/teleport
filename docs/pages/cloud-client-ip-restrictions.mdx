@@ -40,7 +40,7 @@ allow:
 Misconfiguration can block all access to your cluster. Make sure to include your current network before saving changes. 
 
 ### Third-party service ranges
-Teleport does not auto-add third-party service ranges. You must add all required CIDRs explicitly. 
+Teleport does not auto-add third-party service ranges. You must add allow rules for any third party service that needs to access your Teleport cluster (CI/CD systems, Identity Providers, etc.)
 
 ### Network security
 The allowlist applies to Teleport Cloud access; it does not replace your organization’s network/firewall policies.
