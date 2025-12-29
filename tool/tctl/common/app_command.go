@@ -138,7 +138,7 @@ Fill out and run this command on a node to make the application available:
 > teleport app start \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --auth-server={{.proy_server}} \
+   --auth-server={{.proxy_server}} \
    --name={{printf "%-30v" .app_name}} ` + "`" + `# Change "{{.app_name}}" to the name of your application.` + "`" + ` \
    --uri={{printf "%-31v" .app_uri}} ` + "`" + `# Change "{{.app_uri}}" to the address of your application.` + "`" + `
 
