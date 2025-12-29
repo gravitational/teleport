@@ -118,7 +118,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	case cfg.Identity == nil:
 		return nil, trace.BadParameter("param Identity is required for MFA service")
 	case cfg.Storage == nil:
-		return nil, trace.BadParameter("param MFAService is required for MFA service")
+		return nil, trace.BadParameter("param Storage is required for MFA service")
 	}
 
 	return &Service{
@@ -200,7 +200,6 @@ func (s *Service) CreateSessionChallenge(
 	sourceClusterName := currentCluster.GetClusterName()
 
 	// Target cluster is the current cluster unless specified otherwise in the request.
-	// TODO(cthach): Verify the target cluster is actually a valid cluster.
 	targetClusterName := cmp.Or(req.TargetCluster, sourceClusterName)
 
 	// If Webauthn is enabled and there are registered devices, create a Webauthn challenge.
