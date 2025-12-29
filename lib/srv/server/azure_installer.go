@@ -26,20 +26,13 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// AzureInstaller handles running commands that install Teleport on Azure
+// AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
-type AzureInstaller struct {
-	Emitter apievents.Emitter
-}
-
-// AzureRunRequest combines parameters for running commands on a set of Azure
-// virtual machines.
-type AzureRunRequest struct {
-	Client          azure.RunCommandClient
+type AzureInstallRequest struct {
 	Instances       []*armcompute.VirtualMachine
 	InstallerParams *types.InstallerParams
 	ProxyAddrGetter func(context.Context) (string, error)
@@ -47,9 +40,15 @@ type AzureRunRequest struct {
 	ResourceGroup   string
 }
 
-// Run runs a command on a set of virtual machines and then blocks until the
+// AzureInstallResult is the result of installation request.
+type AzureInstallResult struct {
+	// Failures stores all errors returned for each failed installation attempt.
+	Failures map[string]error
+}
+
+// Run initiates Teleport installation on a set of virtual machines and then blocks until the
 // commands have completed.
-func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
+func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) (*AzureInstallResult, error) {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -57,23 +56,46 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 	// to the script, forcing Azure to see each invocation as unique.
 	script, err := installerScript(ctx, req.InstallerParams, withNonceComment(), withProxyAddrGetter(req.ProxyAddrGetter))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	g, ctx := errgroup.WithContext(ctx)
+
 	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
 	// hundreds of nodes at once.
-	g.SetLimit(10)
+	// TODO (Tener): increase limit/make it configurable.
+	const azureParallelInstallLimit = 10
+	g.SetLimit(azureParallelInstallLimit)
+
+	var errMap utils.SyncMap[string, error]
 
 	for _, inst := range req.Instances {
 		g.Go(func() error {
+			// If the caller cancels, stop trying to run more commands.
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
 			runRequest := azure.RunCommandRequest{
 				Region:        req.Region,
 				ResourceGroup: req.ResourceGroup,
 				VMName:        azure.StringVal(inst.Name),
 				Script:        script,
 			}
-			return trace.Wrap(req.Client.Run(ctx, runRequest))
+
+			runError := client.Run(ctx, runRequest)
+			if runError != nil {
+				errMap.Store(azure.StringVal(inst.ID), runError)
+			}
+
+			// return nil: local failure should not affect other runs.
+			return nil
 		})
 	}
-	return trace.Wrap(g.Wait())
+
+	groupErr := g.Wait()
+	if groupErr != nil {
+		return nil, trace.Wrap(groupErr)
+	}
+
+	return &AzureInstallResult{Failures: errMap.Clone()}, nil
 }
