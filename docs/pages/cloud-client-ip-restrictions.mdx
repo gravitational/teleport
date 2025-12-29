@@ -1,12 +1,12 @@
 ---
 title: Teleport Cloud Client IP Restrictions
-description: Block CIDR ranges from connecting to your cloud cluster.
+description: Restrict access to your cloud cluster with a configurable allowlist.
 tags:
  - faq
  - platform-wide
 ---
 
-**Client IP Allowlist** restricts access to your Teleport Cloud cluster, allowing traffic only from the specified network ranges (CIDR blocks).
+**Client IP Restrictions** restricts access to your Teleport Cloud cluster, allowing traffic only from the specified network ranges (CIDR blocks).
 
 ## How to enable
 This feature is currently opt-in only. Please contact your account executive or [customer support](https://goteleport.com/support/) to enable client IP restrictions for your tenant.
@@ -14,6 +14,8 @@ This feature is currently opt-in only. Please contact your account executive or 
 ## Adding CIDR blocks to the IP Allowlist
 
 Log in to your Teleport Cloud account. Open the user dropdown menu on the top right of the navigation bar, and select "Help & Support," then scroll down until you see the IP Allowlist section.
+If you do not see the IP Allowlist section, then it has yet to be enabled for your account. Please refer to ["how to enable"](#how-to-enable).
+
 Once you add a CIDR, it will take effect in 5-20 minutes and will terminate existing connections. Changes to the allowlist are recorded in the audit log.
 
 ![Web UI view showing IP Allowlist for Teleport](../img/cloud/client-ip-restrictions.png)
