@@ -1,5 +1,9 @@
 # Changelog
 
+## 18.6.2 (12/26/25)
+
+This is a private security release. Changelog will be publicly announced in a later version
+
 ## 18.6.1 (12/24/25)
 
 * Fixed an issue preventing text editors in the Web UI from allowing edits. [#62488](https://github.com/gravitational/teleport/pull/62488)
