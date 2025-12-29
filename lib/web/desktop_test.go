@@ -293,6 +293,7 @@ func TestHandshakeData(t *testing.T) {
 			msg, err := tdpb.Decode(buf)
 			require.NoError(t, err)
 			require.IsType(t, &tdpb.ClientHello{}, msg)
+			assert.Equal(t, "user", msg.(*tdpb.ClientHello).Username)
 			_, err = tdpb.Decode(buf)
 			require.ErrorIs(t, err, io.EOF)
 

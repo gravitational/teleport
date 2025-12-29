@@ -247,13 +247,13 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 				Width:  h.screenSpec.Width,
 				Height: h.screenSpec.Height,
 			},
-			Username: username,
 		}
 
 		if h.keyboardLayout != nil {
 			h.hello.KeyboardLayout = h.keyboardLayout.KeyboardLayout
 		}
 	}
+	h.hello.Username = username
 
 	return trace.Wrap(tdpb.EncodeTo(w, h.hello))
 }
@@ -437,6 +437,7 @@ func (h *Handler) createDesktopConnection(
 
 	// ALPN informs us which dialect the server will be using.
 	alpnResult := serviceConnTLS.ConnectionState().NegotiatedProtocol
+	log.InfoContext(ctx, "ALPN", "result", alpnResult)
 	switch alpnResult {
 	case "":
 		alpnResult = protocolTDP
@@ -582,6 +583,7 @@ func (h *Handler) createDesktopTLSConfig(
 	}
 
 	tlsConfig.Certificates = []tls.Certificate{certConf}
+	tlsConfig.NextProtos = []string{protocolTDPB}
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
 	return tlsConfig, nil
