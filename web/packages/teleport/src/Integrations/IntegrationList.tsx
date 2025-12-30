@@ -131,8 +131,7 @@ export function IntegrationList(props: Props) {
               item.kind === IntegrationKind.AwsRa ||
               item.kind === 'entra-id'
             ) {
-              // do not show any action menu for aws oidc or roles anywhere;
-              // settings are available on the dashboard
+              // action menu for these integrations are available on the status page dashboard.
               return;
             }
 
