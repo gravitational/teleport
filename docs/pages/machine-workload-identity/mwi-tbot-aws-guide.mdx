@@ -194,6 +194,42 @@ Replace:
 
 Use `tctl create ./workload-identity.yaml` to create the Workload Identity.
 
+### Using workload attestation
+
+Instead of hard-coding values in the SPIFFE ID, you can also use 
+[workload attestation](../reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx) 
+to dynamically populate it based on workload attributes. For example, you can include the name of the `systemd` service requesting the identity.
+
+Add the following to your `tbot.yaml` configuration to enable the `systemd` attestor:
+
+```yaml
+services:
+  - type: workload-identity-api
+    listen: unix:///opt/machine-id/workload.sock
+    selector:
+      name: example-workload-identity
+    attestors:
+      systemd:
+        enabled: true
+```
+
+Then define a workload identity that references the attested service name:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+  labels:
+    example: getting-started
+spec:
+  spiffe:
+    id: "/svc/{{workload.systemd.service}}"
+```
+
+With this configuration, the SPIFFE ID automatically 
+includes the systemd service name, such as `/svc/my-app` for a service named `my-app`.
+
 ## Step 6/7. Testing the Workload API with `tbot spiffe-inspect`
 
 Use `tbot spiffe-inspect` to verify that the Workload API endpoint is issuing SPIFFE credentials correctly.
