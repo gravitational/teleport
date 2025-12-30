@@ -476,7 +476,7 @@ func (e *retryErrorStreamer) ResumeAuditStream(ctx context.Context, sid session.
 	return nil, trace.Errorf("test error")
 }
 
-func TestUploadRetryLimit(t *testing.T) {
+func TestUploadMaxAttempts(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
 
