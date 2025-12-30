@@ -247,7 +247,8 @@ type AuthServer struct {
 	LockWatcher *services.LockWatcher
 }
 
-// NewAuthServer returns new instances of Auth server
+// NewAuthServer returns a new test auth server.
+// The caller should close the server when it is no longer needed.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 

@@ -84,6 +84,7 @@ func newTestTLSServer(t testing.TB, opts ...authtest.TestTLSServerOption) (*auth
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	emitter := &eventstest.MockRecorderEmitter{}
 	opts = append(opts, func(config *authtest.TLSServerConfig) {
