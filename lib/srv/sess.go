@@ -26,9 +26,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"os/user"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -1820,59 +1817,6 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 	return isApproved, nil
 }
 
-// newFileTransferRequest takes FileTransferParams and creates a new fileTransferRequest struct
-func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestParams) (*FileTransferRequest, error) {
-	location, err := s.expandFileTransferRequestPath(params.Location)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req := FileTransferRequest{
-		ID:        uuid.New().String(),
-		Requester: params.Requester,
-		Location:  location,
-		Filename:  params.Filename,
-		Download:  params.Download,
-		approvers: make(map[string]*party),
-	}
-
-	return &req, nil
-}
-
-func (s *session) expandFileTransferRequestPath(p string) (string, error) {
-	expanded := filepath.Clean(p)
-	dir := filepath.Dir(expanded)
-
-	tildePrefixed := dir == "~"
-	noBaseDir := dir == "."
-	if tildePrefixed || noBaseDir {
-		localUser, err := user.Lookup(s.login)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		exists, err := CheckHomeDir(localUser)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		homeDir := localUser.HomeDir
-		if !exists {
-			homeDir = string(os.PathSeparator)
-		}
-
-		if tildePrefixed {
-			// expand home dir to make an absolute path
-			expanded = filepath.Join(homeDir, expanded[2:])
-		} else {
-			// if no directories are specified SFTP will assume the file
-			// to be in the user's home dir
-			expanded = filepath.Join(homeDir, expanded)
-		}
-	}
-
-	return expanded, nil
-}
-
 // addFileTransferRequest will create a new file transfer request and add it to the current session's fileTransferRequests map
 // and broadcast the appropriate string to the session.
 func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestParams, scx *ServerContext) error {
@@ -1886,18 +1830,21 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 		return trace.BadParameter("no source file is set for the upload")
 	}
 
-	req, err := s.newFileTransferRequest(params)
-	if err != nil {
-		return trace.Wrap(err)
+	s.fileTransferReq = &FileTransferRequest{
+		ID:        uuid.New().String(),
+		Requester: params.Requester,
+		Location:  params.Location,
+		Filename:  params.Filename,
+		Download:  params.Download,
+		approvers: make(map[string]*party),
 	}
-	s.fileTransferReq = req
 
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
 		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
 	}
-	err = s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
+	err := s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
 
 	return trace.Wrap(err)
 }
