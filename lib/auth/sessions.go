@@ -735,7 +735,7 @@ func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppToke
 
 	issuer := ca.GetClusterName()
 	if req.AuthorityType == types.OIDCIdPCA {
-		if issuer, err = oidc.IssuerForCluster(ctx, a, ""); err != nil {
+		if issuer, err = oidc.IssuerForCluster(ctx, a); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}
