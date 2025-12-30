@@ -1328,6 +1328,7 @@ lint-helm:
 	fi; \
 	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
 		if [ -d $${CHART}/.lint ]; then \
+		  	helm dependency build $${CHART}; \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
 				echo -n "Using values from '$${VALUES}': "; \
@@ -1339,6 +1340,7 @@ lint-helm:
 			done \
 		else \
 			export HELM_TEMP=$$(mktemp); \
+			helm dependency build $${CHART}; \
 			helm lint --quiet --strict $${CHART} || exit 1; \
 			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
 			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
