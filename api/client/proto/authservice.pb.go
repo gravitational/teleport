@@ -3707,6 +3707,7 @@ type GenerateAppTokenRequest struct {
 	// Traits are the traits assigned to the user within Teleport.
 	Traits map[string]*wrappers.StringValues `protobuf:"bytes,5,rep,name=Traits,proto3" json:"traits" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// AuthorityType configures which Teleport authority issues the JWT token.
+	// Defaults to JWTSigner ("jwt") if empty.
 	AuthorityType        string   `protobuf:"bytes,6,opt,name=authority_type,json=authorityType,proto3" json:"authority_type,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

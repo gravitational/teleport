@@ -19,6 +19,7 @@
 package jwt
 
 import (
+	"cmp"
 	"testing"
 	"time"
 
@@ -94,6 +95,7 @@ func TestSignAndVerify(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, "foo@example.com", claims.Username)
 					require.Equal(t, []string{"foo", "bar"}, claims.Roles)
+					require.Equal(t, cmp.Or(tc.issuer, "example.com"), claims.Issuer)
 				})
 			}
 		})

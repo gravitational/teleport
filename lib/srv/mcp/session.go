@@ -113,6 +113,10 @@ func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.Acce
 // ttl to 5 minutes.
 func (c *SessionCtx) generateJWTAndTraits(ctx context.Context, auth AuthClient) (err error) {
 	c.jwt, c.traitsForRewriteHeaders, err = appcommon.GenerateJWTAndTraits(ctx, &c.Identity, c.App, auth)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if newRewriteAuthDetails(c.App.GetRewrite()).hasIDTokenTrait {
 		idToken, err := generateIDToken(ctx, &c.Identity, c.App, auth)
 		if err != nil {
@@ -120,7 +124,7 @@ func (c *SessionCtx) generateJWTAndTraits(ctx context.Context, auth AuthClient) 
 		}
 		c.traitsForRewriteHeaders[constants.TraitIDToken] = []string{idToken}
 	}
-	return trace.Wrap(err)
+	return nil
 }
 
 type sessionHandlerConfig struct {
