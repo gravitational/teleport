@@ -111,13 +111,6 @@ storage:
   type: directory
   path: /var/lib/teleport/bot
 
-# Outputs section - specifies the credentials tbot should generate
-outputs:
-  - type: identity
-    destination:
-      type: directory
-      path: /opt/machine-id/identity
-
 # Services section - configures the workload-identity-api service
 services:
   - type: workload-identity-api
