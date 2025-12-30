@@ -131,7 +131,7 @@ type CommandLineFlags struct {
 	// It's useful for learning Teleport (following quick starts, etc).
 	InsecureMode bool
 
-	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140 compliant
 	// configuration.
 	FIPS bool
 
@@ -2569,8 +2569,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		return trace.Wrap(err)
 	}
 
-	// If FIPS mode is specified, validate Teleport configuration is FedRAMP/FIPS
-	// 140-2 compliant.
+	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
 		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
@@ -2590,10 +2589,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}
 
-		// Make sure cluster settings are also FedRAMP/FIPS 140-2 compliant.
+		// Make sure cluster settings are also FedRAMP/FIPS compliant.
 		if cfg.Auth.Enabled {
 			// Only SSO based authentication is supported. The SSO provider is where
-			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
+			// any FedRAMP/FIPS compliance (like password complexity) should be
 			// enforced.
 			if cfg.Auth.Preference.GetAllowLocalAuth() {
 				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")
