@@ -134,9 +134,7 @@ const FeatureContainer: React.FC<PropsWithChildren<FeatureContainerProps>> = ({
           <Label kind="secondary" css={{ borderRadius: '999px' }}>
             <Flex py={1} gap={1} alignItems="center">
               {getIcon(pluginType)}
-              <Text fontSize={1}>
-                {capitalizeFirstLetter(pluginType)} Integration
-              </Text>
+              <Text fontSize={1}>{getSubTitle(pluginType)} Integration</Text>
             </Flex>
           </Label>
         </Flex>
@@ -154,5 +152,19 @@ const FeatureContainer: React.FC<PropsWithChildren<FeatureContainerProps>> = ({
 function getIcon(type: PluginKind) {
   if (type === 'okta') {
     return <ResourceIcon name="okta" mr={1} width="20px" height="20px" />;
+  }
+
+  if (type === 'entra-id') {
+    return <ResourceIcon name="entraid" mr={1} width="20px" height="20px" />;
+  }
+}
+
+function getSubTitle(kind: PluginKind) {
+  if (kind === 'okta') {
+    return capitalizeFirstLetter(kind);
+  }
+
+  if (kind === 'entra-id') {
+    return 'Entra ID';
   }
 }
