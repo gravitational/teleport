@@ -38,9 +38,9 @@ var (
 	// They are used to control the graph traversal. Using trace.Errorf() or
 	// other trace errors would cause useless stacktrace captures each time an
 	// error is returned.
-	// nolint:staticcheck // we mimick the Walk err naming, which don't follow the errFoo pattern
+	//nolint:staticcheck // we mimick the Walk err naming, which don't follow the errFoo pattern
 	skipLeg = errors.New("skip this access leg")
-	// nolint:staticcheck // we mimick the Walk err naming, which don't follow the errFoo pattern
+	//nolint:staticcheck // we mimick the Walk err naming, which don't follow the errFoo pattern
 	skipAll = errors.New("skip everything and stop the walk")
 )
 
@@ -77,8 +77,11 @@ func isAccessListMember(ctx context.Context, user types.User, cfg walkConfig, no
 			}
 
 			// If the membership is expired, it is invalid and we skip it.
+			// This check is common for list and user members.
 			if !leg.member.Spec.Expires.IsZero() && !now.Before(leg.member.Spec.Expires) {
 				skipped = append(skipped, skippedAccessPath{path, "expired"})
+				// Sometimes we might return skipLeg on a user membership instead of a list member.
+				// walk should handle this properly.
 				return skipLeg
 			}
 		}
@@ -205,7 +208,7 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 	err := walkFn(accessPath{firstLeg})
 	if err != nil {
 		// if the first leg is skipped, we return early
-		if err == skipLeg || err == skipAll { // nolint:errorlint // error can't be wrapped
+		if err == skipLeg || err == skipAll { //nolint:errorlint // error can't be wrapped
 			return nil
 		}
 		return trace.Wrap(err)
@@ -265,9 +268,9 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 				// Try to walk the leg.
 				leg = accessLeg{member: member, list: nestedList}
 				if err := walkFn(append(path, leg)); err != nil {
-					if err == skipLeg { // nolint:errorlint // error can't be wrapped
+					if err == skipLeg { //nolint:errorlint // error can't be wrapped
 						continue
-					} else if err == skipAll {
+					} else if err == skipAll { //nolint:errorlint // error can't be wrapped
 						return nil
 					}
 					return trace.Wrap(err, "calling walk function for list %q at %q", name, append(path, leg))
@@ -284,7 +287,12 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 			// This is not a nested list but an individual member.
 			// Check if the member passes the walkFn.
 			if err := walkFn(append(path, leg)); err != nil {
-				if err == skipAll { // nolint:errorlint // error can't be wrapped
+				if err == skipLeg { //nolint:errorlint // error can't be wrapped
+					// Although skipLeg doesn't make sense for a user, some of the checks from
+					// the walkFunc can be common for list and user members (e.g. expiry).
+					// In this case we might receive a skipLeg error and should handle it gracefully.
+					continue
+				} else if err == skipAll { //nolint:errorlint // error can't be wrapped
 					return nil
 				}
 				return trace.Wrap(err, "calling walk function for member %q at %q", member.GetName(), append(path, leg))
