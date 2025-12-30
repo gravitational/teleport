@@ -7,18 +7,14 @@
 |------|---------|
 | `bool` | `false` |
 
-`enabled` Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+`enabled` Enables the Kube Updater and deploys it alongside the Teleport Agent or Tbot.
 You can enable this when:
 
-- using Teleport Cloud and your tenant is enrolled into automatic updates.
-  (You can check this through the web UI, choose `Add Kubernetes` and
-  `Enroll New Resource of type Kubernetes`, and check if the value is turned
-  on.)
+- using Teleport Cloud and your tenant is enrolled into automatic updates by default.
 - using self-hosted Teleport and you maintain your own version server.
 
 You must not enable this when:
 
-- you are a Teleport Cloud customer not enrolled in automatic updates.
 - you are a self-hosted Teleport user and have not set up your Teleport cluster to
   support automatic updates.
 
@@ -46,7 +42,7 @@ Here are a few examples:
 |------|---------|
 | `string` | `"https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"` |
 
-`versionServer` is the URL of the version server the agent
+`versionServer` is the URL of the version server the updater
 fetches the target version from. The complete version endpoint is built by
 concatenating [`versionServer`](#versionserver) and [`releaseChannel`
 ](#releasechannel).
@@ -90,7 +86,7 @@ When unset, the group defaults to `default`.
 `image` sets the container image used for Teleport updater
 pods run when `enabled` is true.
 
-You can override this to use your own Teleport Kube Agent Updater image rather
+You can override this to use your own Teleport Kube Updater image rather
 than a Teleport-published image.
 
 ## `appImage`
@@ -100,7 +96,7 @@ than a Teleport-published image.
 | `string` | `""` |
 
 `appImage` sets the container image used for updating pods monitored by this
-chart.
+chart. If it is not defined Kube Updater will receive it from the target pod for updating.
 
 ## `containerName`
 
@@ -108,7 +104,7 @@ chart.
 |------|---------|
 | `string` | `""` |
 
-`containerName` sets the name of the main container in the Teleport Kube Agent Updater pod.
+`containerName` sets the name of the main container in the Teleport Kube Updater pod.
 This value is typically left empty and is required to be set during installation.
 
 ## `syncPeriod`
@@ -131,7 +127,7 @@ The default value is "10h".
 | `string` | `""` |
 
 `serviceAccount.name` is the updater Kubernetes Service
-Account name. When unset, it defaults to `<kube agent sa name>-updater`
+Account name. When unset, it defaults to `<kube updater sa name>`
 
 ## `pullCredentials`
 
@@ -191,10 +187,20 @@ extraVolumesMounts:
   mountPath: /path/on/host
 ```
 
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
 ## `tls`
 
-`tls` contains settings for mounting your own TLS material in the agent pod.
-The agent does not expose a TLS server, so this is only used to trust CAs.
+`tls` contains settings for mounting your own TLS material in the updater pod.
+The updater does not expose a TLS server, so this is only used to trust CAs.
 
 ### `tls.existingCASecretName`
 
@@ -265,14 +271,21 @@ Deployment, StatefulSet, or Job.
 
 `extraLabels.serviceAccount` are labels to set on the ServiceAccount.
 
-## `serviceAccountName`
+## `extraEnv`
 
 | Type | Default |
 |------|---------|
-| `string` | `""` |
+| `list` | `[]` |
 
-`serviceAccountName` is deprecated and will be removed in a future
-version. Use [`serviceAccount.name`](#serviceaccountname-1) instead.
+`extraEnv` contains extra environment variables to set in the main
+updater pod.
+
+For example:
+```yaml
+extraEnv:
+  - name: HTTPS_PROXY
+    value: "http://username:password@my.proxy.host:3128"
+```
 
 ## `annotations`
 
@@ -326,3 +339,14 @@ This has no effect when `joinTokenSecret.create` is `false`.
 
 `annotations.serviceAccount` contains the Kubernetes annotations
 put on the `ServiceAccount` resource created by the chart.
+
+## `priorityClassName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`priorityClassName` sets the priority class used by any pods created by the chart.
+The user is responsible for creating the `PriorityClass` resource before deploying the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/)
+for more details.

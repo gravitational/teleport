@@ -118,35 +118,14 @@ below.
 `enabled` Enables the Kube Updater and deploys it alongside the Teleport Agent.
 You can enable this when:
 
-- using Teleport Cloud and your tenant is enrolled into automatic updates.
-  (You can check this through the web UI, choose `Add Kubernetes` and
-  `Enroll New Resource of type Kubernetes`, and check if the value is turned
-  on.)
-- using self-hosted Teleport and you maintain your own version server.
-
-You must not enable this when:
-
-- you are a Teleport Cloud customer not enrolled in automatic updates.
-- you are a self-hosted Teleport user and have not set up your Teleport cluster to
-  support automatic updates.
+- using Teleport Cloud and your tenant is enrolled into automatic updates by default.
+- using self-hosted Teleport and managed updates are enabled.
 
 ## `containerName`
 
 `containerName` sets the name of the main container in the tbot pod.
 This value is used to identify the container in Kubernetes and is typically set to "tbot"
 for the tbot chart.
-
-## `image`
-
-| Type | Default |
-|------|---------|
-| `string` | `"public.ecr.aws/gravitational/tbot-distroless"` |
-
-`image` sets the container image used for tbot pods created by this
-chart.
-
-You can override this to use your own tbot image rather than a
-Teleport-published image.
 
 ## `argocd`
 

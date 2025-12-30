@@ -6,15 +6,11 @@
 # enabled(bool) -- Enables the Kube Updater and deploys it alongside the Teleport Agent or Tbot.
 # You can enable this when:
 #
-# - using Teleport Cloud and your tenant is enrolled into automatic updates.
-#   (You can check this through the web UI, choose `Add Kubernetes` and
-#   `Enroll New Resource of type Kubernetes`, and check if the value is turned
-#   on.)
+# - using Teleport Cloud and your tenant is enrolled into automatic updates by default.
 # - using self-hosted Teleport and you maintain your own version server.
 #
 # You must not enable this when:
 #
-# - you are a Teleport Cloud customer not enrolled in automatic updates.
 # - you are a self-hosted Teleport user and have not set up your Teleport cluster to
 #   support automatic updates.
 enabled: false
