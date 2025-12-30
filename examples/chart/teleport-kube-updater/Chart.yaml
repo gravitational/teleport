@@ -5,6 +5,7 @@ apiVersion: v2
 version: *version
 appVersion: *version
 description: Teleport Kube Updater chart for automatically updating the Teleport Kubernetes Deployments
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
 keywords:
   - Teleport
   - updater

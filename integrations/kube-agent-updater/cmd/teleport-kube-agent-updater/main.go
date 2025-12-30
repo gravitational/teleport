@@ -42,7 +42,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -410,7 +409,7 @@ func getUpdateID(ctx context.Context, mgr manager.Manager, ref kclient.ObjectKey
 
 // getAgentImage reads the image of the first container from either a StatefulSet
 // or Deployment named agentName in agentNamespace, using the controller-runtime client.
-func getAgentImage(ctx context.Context, c client.Reader, agentNamespace, agentName string) (string, error) {
+func getAgentImage(ctx context.Context, c kclient.Reader, agentNamespace, agentName string) (string, error) {
 	key := types.NamespacedName{Namespace: agentNamespace, Name: agentName}
 
 	// Check StatefulSet first.
