@@ -134,7 +134,7 @@ helm repo update
 > helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
   --set roles="{{.set_roles}}" \
-  --set proxyAddr={{.auth_server}} \
+  --set proxyAddr={{.proxy_server}} \
   --set authToken={{.token}} \
   --set updater.enabled=true \
   --create-namespace \
@@ -144,7 +144,7 @@ helm repo update
 Please note:
 
   - This invitation token will expire in {{.minutes}} minutes.
-  - {{.auth_server}} must be reachable from Kubernetes cluster.
+  - {{.proxy_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.
   - See https://goteleport.com/docs/kubernetes-access/ for detailed installation information.
 
