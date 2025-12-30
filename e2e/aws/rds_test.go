@@ -195,7 +195,6 @@ func testRDS(t *testing.T) {
 		pgMustExec(t, ctx, conn, fmt.Sprintf("GRANT SELECT ON %q.%q TO %q", testSchema, testTable, autoRole2))
 
 		autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
-		var pgxConnMu sync.Mutex
 		for _, test := range []struct {
 			name              string
 			db                types.Database
@@ -240,8 +239,6 @@ func testRDS(t *testing.T) {
 						dbUser: autoUserKeep,
 						query:  autoRolesQuery,
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 						},
 					},
@@ -250,8 +247,6 @@ func testRDS(t *testing.T) {
 						dbUser: autoUserDrop,
 						query:  autoRolesQuery,
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserDrop(t, ctx, conn, autoUserDrop)
 						},
 					},
@@ -269,8 +264,6 @@ func testRDS(t *testing.T) {
 								%q.%q
 							`, testTable, testSchema, testTable),
 						afterConnTestFn: func(t *testing.T) {
-							pgxConnMu.Lock()
-							defer pgxConnMu.Unlock()
 							waitForPostgresAutoUserPermissionsRemoved(t, ctx, conn, autoUserFineGrain)
 						},
 					},
