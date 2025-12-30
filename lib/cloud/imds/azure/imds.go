@@ -163,8 +163,9 @@ func (client *InstanceMetadataClient) getVersions(ctx context.Context) ([]string
 	return versions.APIVersions, nil
 }
 
-// IsAvailable checks if instance metadata is available based on the API version.
-// It also initializes the API version itself, so it must be called before other methods.
+// IsAvailable reports whether the Azure Instance Metadata Service is reachable.
+// On first use it discovers and caches a supported IMDS API version (via /versions).
+// Other methods call this internally to ensure the client is initialized.
 func (client *InstanceMetadataClient) IsAvailable(ctx context.Context) bool {
 	if client.GetAPIVersion() != "" {
 		return true
