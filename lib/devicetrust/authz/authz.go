@@ -152,7 +152,7 @@ func VerifyTrustedDeviceMode(
 		return nil // Equivalent to mode=off.
 	}
 
-	// Assume required so it fails closed.
+	// Assume required so it denies by default.
 	required := true
 
 	// Switch on mode before any exemptions so we catch unknown modes.
