@@ -1950,10 +1950,12 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 		config := s3sessions.Config{
 			UseFIPSEndpoint: auditConfig.GetUseFIPSEndpoint(),
 		}
+		region := auditConfig.Region()
 		if externalAuditStorage.IsUsed() {
 			config.CredentialsProvider = externalAuditStorage.CredentialsProvider()
+			region = externalAuditStorage.GetSpec().Region
 		}
-		if err := config.SetFromURL(uri, auditConfig.Region()); err != nil {
+		if err := config.SetFromURL(uri, region); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
