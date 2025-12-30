@@ -190,11 +190,9 @@ func testRedshiftCluster(t *testing.T) {
 					Database:    "dev",
 				}
 				t.Run("via proxy", func(t *testing.T) {
-					t.Parallel()
 					postgresConnTest(t, cluster, test.user, route, test.query)
 				})
 				t.Run("via local proxy", func(t *testing.T) {
-					t.Parallel()
 					postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
 				})
 			})
