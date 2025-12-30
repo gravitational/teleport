@@ -63,9 +63,11 @@ spec:
         args:
           - "--agent-name={{ include "teleport-kube-updater.app.fullname" . }}"
           - "--agent-namespace={{ include "teleport-kube-updater.namespace" . }}"
-          - "--base-image={{ include "teleport-kube-updater.app.baseImage" . }}"
           - "--container-name={{ include "teleport-kube-updater.app.containerName" . }}"
           - "--sync-period={{ include "teleport-kube-updater.app.syncPeriod" . }}"
+  {{- if .Values.appImage}}
+          - "--base-image={{ include "teleport-kube-updater.app.image" . }}"
+  {{- end}}
   {{- if .Values.versionServer}}
           - "--version-server={{ tpl .Values.versionServer . }}"
           - "--version-channel={{ .Values.releaseChannel }}"

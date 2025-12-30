@@ -38,9 +38,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -112,7 +114,7 @@ func main() {
 	flag.StringVar(&updateGroup, "update-group", "", "The agent update group, as defined in the `autoupdate_config` resource. When unset or set to an unknown value, agent will update with the default group.")
 	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "stable/cloud", "Version channel to get updates from.")
-	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
+	flag.StringVar(&baseImageName, "base-image", "", "Image reference containing registry and repository.")
 	flag.StringVar(&containerName, "container-name", "teleport", "Name of the container that should be updated.")
 	flag.StringVar(&credSource, "pull-credentials", img.NoCredentialSource,
 		fmt.Sprintf("Where to get registry pull credentials, values are '%s', '%s', '%s', '%s'.",
@@ -290,6 +292,14 @@ func main() {
 		imageValidators = append(imageValidators, validator)
 	}
 
+	if baseImageName == "" {
+		baseImageName, err = getAgentImage(ctx, mgr.GetAPIReader(), agentNamespace, agentName)
+		if err != nil {
+			ctrl.Log.Error(err, "failed to get image, exiting")
+			os.Exit(1)
+		}
+	}
+
 	baseImage, err := reference.ParseNamed(baseImageName)
 	if err != nil {
 		ctrl.Log.Error(err, "failed to parse base image reference, exiting")
@@ -396,4 +406,34 @@ func getUpdateID(ctx context.Context, mgr manager.Manager, ref kclient.ObjectKey
 		return updateID, nil // proceed with empty UUID instead of crashing or deleting user data
 	}
 	return uuid.Nil, trace.Errorf("failing due to multiple conflicts")
+}
+
+// getAgentImage reads the image of the first container from either a StatefulSet
+// or Deployment named agentName in agentNamespace, using the controller-runtime client.
+func getAgentImage(ctx context.Context, c client.Reader, agentNamespace, agentName string) (string, error) {
+	key := types.NamespacedName{Namespace: agentNamespace, Name: agentName}
+
+	// Check StatefulSet first.
+	var sts appsv1.StatefulSet
+	if err := c.Get(ctx, key, &sts); err == nil {
+		if len(sts.Spec.Template.Spec.Containers) == 0 {
+			return "", fmt.Errorf("statefulset %s/%s has no containers", agentNamespace, agentName)
+		}
+		return sts.Spec.Template.Spec.Containers[0].Image, nil
+	} else if !apierrors.IsNotFound(err) {
+		return "", fmt.Errorf("getting statefulset %s/%s: %w", agentNamespace, agentName, err)
+	}
+
+	// Fallback to Deployment.
+	var deploy appsv1.Deployment
+	if err := c.Get(ctx, key, &deploy); err == nil {
+		if len(deploy.Spec.Template.Spec.Containers) == 0 {
+			return "", fmt.Errorf("deployment %s/%s has no containers", agentNamespace, agentName)
+		}
+		return deploy.Spec.Template.Spec.Containers[0].Image, nil
+	} else if !apierrors.IsNotFound(err) {
+		return "", fmt.Errorf("getting deployment %s/%s: %w", agentNamespace, agentName, err)
+	}
+
+	return "", fmt.Errorf("neither statefulset nor deployment %s/%s found", agentNamespace, agentName)
 }

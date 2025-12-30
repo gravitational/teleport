@@ -101,13 +101,6 @@ updater:
   # This value is used to identify the container in Kubernetes and is typically set to "tbot"
   # for the tbot chart.
   containerName: "tbot"
-  # image(string) -- sets the container image used for tbot pods created by this
-  # chart.
-  #
-  # You can override this to use your own tbot image rather than a
-  # Teleport-published image.
-  appImage: public.ecr.aws/gravitational/tbot-distroless
-
 
 # argocd -- configures tbot to synchronize Teleport-managed Kubernetes clusters
 # to Argo CD.

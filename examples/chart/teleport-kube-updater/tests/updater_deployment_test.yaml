@@ -54,7 +54,6 @@ tests:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
       enabled: true
-      appImage: public.ecr.aws/gravitational/teleport-distroless
       containerName: teleport
     asserts:
       - contains:
@@ -66,7 +65,6 @@ tests:
       roles: "custom"
       enabled: true
       versionServer: ""
-      appImage: public.ecr.aws/gravitational/teleport-distroless
       containerName: teleport
     asserts:
       - contains:
@@ -79,7 +77,6 @@ tests:
       enabled: true
       versionServer: "version-server.example.com"
       group: foobar
-      appImage: public.ecr.aws/gravitational/teleport-distroless
       containerName: teleport
     asserts:
       - notContains:
@@ -94,7 +91,6 @@ tests:
       roles: "custom"
       enabled: true
       versionServer: ""
-      appImage: public.ecr.aws/gravitational/teleport-distroless
       containerName: teleport
     asserts:
       - contains:
@@ -107,7 +103,6 @@ tests:
       enabled: true
       versionServer: ""
       group: "foobar"
-      appImage: public.ecr.aws/gravitational/teleport-distroless
       containerName: teleport
     asserts:
       - contains:
@@ -119,7 +114,6 @@ tests:
       roles: "custom"
       enabled: true
       versionServer: ""
-      appImage: public.ecr.aws/gravitational/teleport-distroless
       containerName: teleport
     asserts:
       - notContains:

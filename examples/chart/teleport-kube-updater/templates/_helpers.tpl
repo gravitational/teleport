@@ -46,8 +46,8 @@ Create the name of the service account to use
   {{- .Values.image -}}
 {{- end -}}
 
-{{- define "teleport-kube-updater.app.baseImage" -}}
-  {{- .Values.appImage | required "appImage must be provided" -}}
+{{- define "teleport-kube-updater.app.image" -}}
+  {{- .Values.appImage }}
 {{- end -}}
 
 {{- define "teleport-kube-updater.app.containerName" -}}

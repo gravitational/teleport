@@ -122,12 +122,6 @@ updater:
   # This value is used to identify the container in Kubernetes and is typically set to "teleport"
   # for the teleport-kube-agent chart.
   containerName: "teleport"
-  # appImage(string) -- sets the container image used for tbot pods created by this
-  # chart.
-  #
-  # You can override this to use your own tbot image rather than a
-  # Teleport-published image.
-  appImage: public.ecr.aws/gravitational/teleport-distroless
 
 # joinParams -- controls how the Teleport Agent joins the Teleport cluster.
 # These sub-values must be configured for the agent to connect to a cluster.
