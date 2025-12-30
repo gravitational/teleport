@@ -75,8 +75,10 @@ type UploaderConfig struct {
 	// encrypted recording parts before sending them to EncryptedRecordingUploader.
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
-
-	RetryLimit int
+	// MaxUploadAttempts is the maximum number of times the uploader will attempt
+	// to upload a particular session before marking it as corrupted. If set to
+	// zero, there is no limit.
+	MaxUploadAttempts int
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -231,19 +233,20 @@ func (u *Uploader) Serve(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case event := <-u.eventsCh:
-			u.uploadAttempts[event.SessionID]++
 			// Successful and failed upload events are used to speed up and
 			// slow down the scans and uploads.
 			switch {
 			case event.Error == nil:
 				delete(u.uploadAttempts, event.SessionID)
 				u.backoff.ResetToDelay()
-			case isSessionError(event.Error) || (u.cfg.RetryLimit != 0 && u.uploadAttempts[event.SessionID] > u.cfg.RetryLimit):
+			case isSessionError(event.Error) || (u.cfg.MaxUploadAttempts != 0 && u.uploadAttempts[event.SessionID] >= u.cfg.MaxUploadAttempts):
+				delete(u.uploadAttempts, event.SessionID)
 				u.log.WarnContext(ctx, "Failed to read session recording, will skip future uploads.", "session_id", event.SessionID)
 				if err := u.writeSessionError(session.ID(event.SessionID), event.Error); err != nil {
 					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
 				}
 			default:
+				u.uploadAttempts[event.SessionID]++
 				u.backoff.Inc()
 				u.log.WarnContext(ctx, "Increasing session upload backoff due to error, applying backoff before retrying", "backoff", u.backoff.Duration())
 			}

@@ -485,7 +485,7 @@ func TestUploadRetryLimit(t *testing.T) {
 			wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
 				return &retryErrorStreamer{}, nil
 			},
-			retryLimit: 1,
+			maxUploadAttempts: 1,
 		})
 		// Unset jitter so Duration() calls are consistent.
 		p.uploader.backoff.Jitter = func(d time.Duration) time.Duration { return d }
@@ -494,21 +494,25 @@ func TestUploadRetryLimit(t *testing.T) {
 		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
 		sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
 		p.emitEvents(ctx, t, inEvents)
+		sessionFile := filepath.Join(p.scanDir, sid+".tar")
+		corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
 
 		time.Sleep(p.uploader.backoff.Duration())
 		synctest.Wait()
-		require.FileExists(t, filepath.Join(p.scanDir, sid+".tar"))
-		require.NoFileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar"))
+		require.FileExists(t, sessionFile)
+		require.NoFileExists(t, corruptedSessionFile)
 
+		// Session should not be marked as corrupted after first attempt.
 		time.Sleep(p.uploader.backoff.Duration())
 		synctest.Wait()
-		require.FileExists(t, filepath.Join(p.scanDir, sid+".tar"))
-		require.NoFileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar"))
+		require.FileExists(t, sessionFile)
+		require.NoFileExists(t, corruptedSessionFile)
 
+		// Session should be marked as corrupted after upload attempts are exhausted.
 		time.Sleep(p.uploader.backoff.Duration())
 		synctest.Wait()
-		require.NoFileExists(t, filepath.Join(p.scanDir, sid+".tar"))
-		require.FileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar"))
+		require.NoFileExists(t, sessionFile)
+		require.FileExists(t, corruptedSessionFile)
 	})
 }
 
@@ -966,7 +970,7 @@ type uploaderPackConfig struct {
 	encryptedRecordingUploadMaxSize    int
 	clock                              clockwork.Clock
 	concurrentUploads                  int
-	retryLimit                         int
+	maxUploadAttempts                  int
 }
 
 // uploaderPack reduces boilerplate required
@@ -1044,7 +1048,7 @@ func newUploaderPack(ctx context.Context, t *testing.T, cfg uploaderPackConfig) 
 		EncryptedRecordingUploadTargetSize: cfg.encryptedRecordingUploadTargetSize,
 		EncryptedRecordingUploadMaxSize:    cfg.encryptedRecordingUploadMaxSize,
 		ConcurrentUploads:                  cfg.concurrentUploads,
-		RetryLimit:                         cfg.retryLimit,
+		MaxUploadAttempts:                  cfg.maxUploadAttempts,
 	}
 	if cfg.wrapEncryptedUploader != nil {
 		uploaderCfg.EncryptedRecordingUploader = cfg.wrapEncryptedUploader(pack.memUploader)
