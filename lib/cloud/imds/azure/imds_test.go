@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -174,6 +175,14 @@ type mockIMDS struct {
 	t              *testing.T
 	versionsCalled bool
 	lastAPIVersion string
+
+	mu sync.Mutex
+}
+
+func (m *mockIMDS) status() (versionsCalled bool, lastAPIVersion string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.versionsCalled, m.lastAPIVersion
 }
 
 func newMockIMDS(t *testing.T, overrides map[string]http.Handler) (*mockIMDS, *httptest.Server) {
@@ -181,7 +190,14 @@ func newMockIMDS(t *testing.T, overrides map[string]http.Handler) (*mockIMDS, *h
 
 	m := &mockIMDS{t: t}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+
 		m.lastAPIVersion = r.URL.Query().Get("api-version")
+
+		if r.URL.Path == "/versions" {
+			m.versionsCalled = true
+		}
 
 		// /versions doesn't require api-version; all other endpoints do
 		if r.URL.Path != "/versions" && m.lastAPIVersion == "" {
@@ -198,21 +214,19 @@ func newMockIMDS(t *testing.T, overrides map[string]http.Handler) (*mockIMDS, *h
 			}
 		}
 
-		switch r.URL.Path {
-		case "/versions":
-			m.versionsCalled = true
-			w.Write([]byte(`{"apiVersions":["2021-02-01","2023-07-01"]}`))
-		case "/instance/compute":
-			w.Write([]byte(`{"resourceId":"/subscriptions/test","location":"eastus"}`))
-		case "/instance/compute/tagsList":
-			w.Write([]byte(`[{"name":"foo","value":"bar"}]`))
-		case "/attested/document":
-			w.Write([]byte(`{"signature":"test"}`))
-		case "/identity/oauth2/token":
-			w.Write([]byte(`{"access_token":"test-token"}`))
-		default:
-			http.NotFound(w, r)
+		responses := map[string]string{
+			"/versions":                  `{"apiVersions":["2021-02-01","2023-07-01"]}`,
+			"/instance/compute":          `{"resourceId":"/subscriptions/test","location":"eastus"}`,
+			"/instance/compute/tagsList": `[{"name":"foo","value":"bar"}]`,
+			"/attested/document":         `{"signature":"test"}`,
+			"/identity/oauth2/token":     `{"access_token":"test-token"}`,
 		}
+
+		if body, ok := responses[r.URL.Path]; ok {
+			_, _ = w.Write([]byte(body))
+			return
+		}
+		http.NotFound(w, r)
 	}))
 
 	t.Cleanup(srv.Close)
@@ -374,8 +388,9 @@ func TestMethodsEnsureInitialization(t *testing.T) {
 
 			err := tc.call(t.Context(), client)
 			require.NoError(t, err)
-			require.True(t, mock.versionsCalled, "should call /versions to initialize")
-			require.Equal(t, "2023-07-01", mock.lastAPIVersion, "should use negotiated api-version")
+			versionsCalled, lastAPIVersion := mock.status()
+			require.True(t, versionsCalled, "should call /versions to initialize")
+			require.Equal(t, "2023-07-01", lastAPIVersion, "should use negotiated api-version")
 			require.Equal(t, "2023-07-01", client.GetAPIVersion(), "client should be initialized")
 		})
 	}
