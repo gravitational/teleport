@@ -190,7 +190,7 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		if errors.As(trace.Unwrap(err), &permanentRetryError) {
 			return trace.Wrap(err)
 		}
-		slog.DebugContext(ctx, "Waiting to retry operation again", "wait", r.Duration(), "error", err)
+		slog.DebugContext(ctx, "Waiting to retry operation again", "wait", r.Duration().String(), "error", err)
 		select {
 		case <-r.After():
 			r.Inc()
