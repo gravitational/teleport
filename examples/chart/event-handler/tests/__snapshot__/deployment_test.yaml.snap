@@ -20,14 +20,18 @@ should match the snapshot:
         metadata:
           labels:
             app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-event-handler
+            app.kubernetes.io/version: 19.0.0-dev
+            helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
+          - args:
             - start
             - --config
             - /etc/teleport-event-handler.toml
+            command:
+            - /usr/local/bin/teleport-plugin
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
@@ -72,16 +76,17 @@ should match the snapshot:
 should mount tls.existingCASecretName and set environment when set in values:
   1: |
     containers:
-    - command:
-      - /usr/local/bin/teleport-plugin
+    - args:
       - start
       - --config
       - /etc/teleport-event-handler.toml
+      command:
+      - /usr/local/bin/teleport-plugin
       env:
       - name: TELEPORT_PLUGIN_FAIL_FAST
         value: "true"
       - name: SSL_CERT_FILE
-        value: /etc/teleport-tls-ca/ca.pem
+        value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
       image: public.ecr.aws/gravitational/teleport-plugin-event-handler:19.0.0-dev
       imagePullPolicy: IfNotPresent
       name: teleport-plugin-event-handler

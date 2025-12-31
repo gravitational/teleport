@@ -94,6 +94,7 @@ func TestExportAuthorities(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err, "failed to create authtest.NewAuthServer")
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 
 	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
 		cert, err := x509.ParseCertificate([]byte(s))
@@ -521,6 +522,7 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 
 	fingerprint, err := sshutils.AuthorizedKeyFingerprint([]byte(fixtures.SSHCAPublicKey))
 	require.NoError(t, err)

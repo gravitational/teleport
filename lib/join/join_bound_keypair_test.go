@@ -73,6 +73,8 @@ func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 	t.Cleanup(func() {

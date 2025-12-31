@@ -141,6 +141,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
+										"role_name": {
+											Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										},
 									}),
 									Description: "AssumeRoleARN is the AWS role to assume for database discovery.",
 									Optional:    true,
@@ -219,6 +224,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								},
 								"role_arn": {
 									Description: "RoleARN is the fully specified AWS IAM role ARN.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"role_name": {
+									Description: "RoleName is the AWS IAM Role name to assume. This is used in place of Role ARN when iterating over multiple accounts in an AWS Organization.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -317,6 +327,33 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
+						"organization": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"organization_id": {
+									Description: "OrganizationID is the AWS Organization ID to match against. Required.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"organizational_units": {
+									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+										"exclude": {
+											Description: "Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude. Accounts that belong to these OUs, and their children, will be excluded, even if they were included. Only exact matches are supported. Optional. If empty, no OUs are excluded.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+										"include": {
+											Description: "Include is a list of AWS Organizational Unit IDs and children OUs to include. Accounts that belong to these OUs, and their children, will be included. Only exact matches or wildcard (*) are supported. Required.",
+											Optional:    true,
+											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+										},
+									}),
+									Description: "OrganizationalUnits contains rules for matchings AWS accounts based on their Organizational Units.",
+									Optional:    true,
+								},
+							}),
+							Description: "Organization is an AWS Organization matcher for discovering resources accross multiple accounts under an Organization.",
+							Optional:    true,
+						},
 						"regions": {
 							Description: "Regions are AWS regions to query for databases.",
 							Optional:    true,
@@ -356,11 +393,13 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								"azure": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"client_id": {
 										Description: "ClientID is the client ID of the managed identity discovered nodes should use to join the cluster.",
-										Optional:    true,
+										Required:    true,
 										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									}}),
-									Description: "Azure is the set of Azure-specific installation parameters.",
-									Optional:    true,
+									Computed:      true,
+									Description:   "Azure is the set of Azure-specific installation parameters.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 								},
 								"enroll_mode": {
 									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
@@ -395,12 +434,12 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 								},
 								"join_method": {
 									Description: "JoinMethod is the method to use when joining the cluster",
-									Optional:    true,
+									Required:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"join_token": {
 									Description: "JoinToken is the token to use when joining the cluster",
-									Optional:    true,
+									Required:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"proxy_addr": {
@@ -409,9 +448,11 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"script_name": {
-									Description: "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "ScriptName is the name of the teleport installer script resource for the cloud instance to execute",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sshd_config": {
 									Description: "SSHDConfig provides the path to write sshd configuration changes",
@@ -429,8 +470,10 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "Params sets the join method when installing on discovered Azure nodes.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "Params sets the join method when installing on discovered Azure nodes.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"integration": {
 							Description: "Integration is the integration name used to generate credentials to interact with Azure APIs. Environment credentials will not be used when this value is set.",
@@ -958,6 +1001,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																		}
 																	}
 																}
+																{
+																	a, ok := tf.Attrs["role_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.RoleName = t
+																		}
+																	}
+																}
 															}
 														}
 													}
@@ -1327,6 +1387,113 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																t = string(v.Value)
 															}
 															obj.SetupAccessForARN = t
+														}
+													}
+												}
+												{
+													a, ok := tf.Attrs["organization"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+														} else {
+															obj.Organization = nil
+															if !v.Null && !v.Unknown {
+																tf := v
+																obj.Organization = &github_com_gravitational_teleport_api_types.AWSOrganizationMatcher{}
+																obj := obj.Organization
+																{
+																	a, ok := tf.Attrs["organization_id"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationID"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.OrganizationID = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["organizational_units"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+																		} else {
+																			obj.OrganizationalUnits = nil
+																			if !v.Null && !v.Unknown {
+																				tf := v
+																				obj.OrganizationalUnits = &github_com_gravitational_teleport_api_types.AWSOrganizationUnitsMatcher{}
+																				obj := obj.OrganizationalUnits
+																				{
+																					a, ok := tf.Attrs["include"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																						} else {
+																							obj.Include = make([]string, len(v.Elems))
+																							if !v.Null && !v.Unknown {
+																								for k, a := range v.Elems {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																									} else {
+																										var t string
+																										if !v.Null && !v.Unknown {
+																											t = string(v.Value)
+																										}
+																										obj.Include[k] = t
+																									}
+																								}
+																							}
+																						}
+																					}
+																				}
+																				{
+																					a, ok := tf.Attrs["exclude"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+																						} else {
+																							obj.Exclude = make([]string, len(v.Elems))
+																							if !v.Null && !v.Unknown {
+																								for k, a := range v.Elems {
+																									v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+																									} else {
+																										var t string
+																										if !v.Null && !v.Unknown {
+																											t = string(v.Value)
+																										}
+																										obj.Exclude[k] = t
+																									}
+																								}
+																							}
+																						}
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
 														}
 													}
 												}
@@ -2400,6 +2567,23 @@ func CopyDiscoveryConfigFromTerraform(_ context.Context, tf github_com_hashicorp
 																						}
 																					}
 																				}
+																				{
+																					a, ok := tf.Attrs["role_name"]
+																					if !ok {
+																						diags.Append(attrReadMissingDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName"})
+																					} else {
+																						v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrReadConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						} else {
+																							var t string
+																							if !v.Null && !v.Unknown {
+																								t = string(v.Value)
+																							}
+																							obj.RoleName = t
+																						}
+																					}
+																				}
 																			}
 																		}
 																	}
@@ -3151,6 +3335,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																	tf.Attrs["external_id"] = v
 																}
 															}
+															{
+																t, ok := tf.AttrTypes["role_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName"})
+																} else {
+																	v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.RoleName) == ""
+																	}
+																	v.Value = string(obj.RoleName)
+																	v.Unknown = false
+																	tf.Attrs["role_name"] = v
+																}
+															}
 														}
 														v.Unknown = false
 														tf.Attrs["assume_role"] = v
@@ -3666,6 +3872,198 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 													v.Value = string(obj.SetupAccessForARN)
 													v.Unknown = false
 													tf.Attrs["setup_access_for_arn"] = v
+												}
+											}
+											{
+												a, ok := tf.AttrTypes["organization"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization"})
+												} else {
+													o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if !ok {
+														diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+													} else {
+														v, ok := tf.Attrs["organization"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if obj.Organization == nil {
+															v.Null = true
+														} else {
+															obj := obj.Organization
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["organization_id"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationID"})
+																} else {
+																	v, ok := tf.Attrs["organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.OrganizationID", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.OrganizationID) == ""
+																	}
+																	v.Value = string(obj.OrganizationID)
+																	v.Unknown = false
+																	tf.Attrs["organization_id"] = v
+																}
+															}
+															{
+																a, ok := tf.AttrTypes["organizational_units"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits"})
+																} else {
+																	o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+																	if !ok {
+																		diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+																	} else {
+																		v, ok := tf.Attrs["organizational_units"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																		if !ok {
+																			v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																				AttrTypes: o.AttrTypes,
+																				Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+																			}
+																		} else {
+																			if v.Attrs == nil {
+																				v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+																			}
+																		}
+																		if obj.OrganizationalUnits == nil {
+																			v.Null = true
+																		} else {
+																			obj := obj.OrganizationalUnits
+																			tf := &v
+																			{
+																				a, ok := tf.AttrTypes["include"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include"})
+																				} else {
+																					o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						c, ok := tf.Attrs["include"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																						if !ok {
+																							c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																								ElemType: o.ElemType,
+																								Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include)),
+																								Null:     true,
+																							}
+																						} else {
+																							if c.Elems == nil {
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
+																							}
+																						}
+																						if obj.Include != nil {
+																							t := o.ElemType
+																							if len(obj.Include) != len(c.Elems) {
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Include))
+																							}
+																							for k, a := range obj.Include {
+																								v, ok := tf.Attrs["include"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								if !ok {
+																									i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																									if err != nil {
+																										diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", err})
+																									}
+																									v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Include", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									}
+																									v.Null = string(a) == ""
+																								}
+																								v.Value = string(a)
+																								v.Unknown = false
+																								c.Elems[k] = v
+																							}
+																							if len(obj.Include) > 0 {
+																								c.Null = false
+																							}
+																						}
+																						c.Unknown = false
+																						tf.Attrs["include"] = c
+																					}
+																				}
+																			}
+																			{
+																				a, ok := tf.AttrTypes["exclude"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude"})
+																				} else {
+																					o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+																					if !ok {
+																						diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+																					} else {
+																						c, ok := tf.Attrs["exclude"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+																						if !ok {
+																							c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+																								ElemType: o.ElemType,
+																								Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude)),
+																								Null:     true,
+																							}
+																						} else {
+																							if c.Elems == nil {
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
+																							}
+																						}
+																						if obj.Exclude != nil {
+																							t := o.ElemType
+																							if len(obj.Exclude) != len(c.Elems) {
+																								c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Exclude))
+																							}
+																							for k, a := range obj.Exclude {
+																								v, ok := tf.Attrs["exclude"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																								if !ok {
+																									i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																									if err != nil {
+																										diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", err})
+																									}
+																									v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																									if !ok {
+																										diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.aws.Organization.OrganizationalUnits.Exclude", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																									}
+																									v.Null = string(a) == ""
+																								}
+																								v.Value = string(a)
+																								v.Unknown = false
+																								c.Elems[k] = v
+																							}
+																							if len(obj.Exclude) > 0 {
+																								c.Null = false
+																							}
+																						}
+																						c.Unknown = false
+																						tf.Attrs["exclude"] = c
+																					}
+																				}
+																			}
+																		}
+																		v.Unknown = false
+																		tf.Attrs["organizational_units"] = v
+																	}
+																}
+															}
+														}
+														v.Unknown = false
+														tf.Attrs["organization"] = v
+													}
 												}
 											}
 										}
@@ -5399,6 +5797,28 @@ func CopyDiscoveryConfigToTerraform(ctx context.Context, obj *github_com_gravita
 																					v.Value = string(obj.ExternalID)
 																					v.Unknown = false
 																					tf.Attrs["external_id"] = v
+																				}
+																			}
+																			{
+																				t, ok := tf.AttrTypes["role_name"]
+																				if !ok {
+																					diags.Append(attrWriteMissingDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName"})
+																				} else {
+																					v, ok := tf.Attrs["role_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																					if !ok {
+																						i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																						if err != nil {
+																							diags.Append(attrWriteGeneralError{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", err})
+																						}
+																						v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																						if !ok {
+																							diags.Append(attrWriteConversionFailureDiag{"DiscoveryConfig.spec.access_graph.AWS.AssumeRole.RoleName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																						}
+																						v.Null = string(obj.RoleName) == ""
+																					}
+																					v.Value = string(obj.RoleName)
+																					v.Unknown = false
+																					tf.Attrs["role_name"] = v
 																				}
 																			}
 																		}

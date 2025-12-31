@@ -1396,38 +1396,12 @@ func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName str
 	return nil
 }
 
-// LoadKeyForClusterWithReissue fetches a cluster-specific SSH key and loads it into the
-// SSH agent.  If the key is not found, it is requested to be reissued.
-func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/LoadKeyForClusterWithReissue",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
-	)
-	defer span.End()
-
-	err := tc.LoadKeyForCluster(ctx, clusterName)
-	if err == nil {
-		return nil
-	}
-	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	// Reissuing also loads the new key.
-	err = tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // SignersForClusterWithReissue fetches cluster-specific signers from stored certificates.
 // If the cluster certificates are not found, it is requested to be reissued.
 func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clusterName string) ([]ssh.Signer, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/LoadKeyForClusterWithReissue",
+		"teleportClient/SignersForClusterWithReissue",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
 	)
@@ -1662,7 +1636,7 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		Labels:              tc.Labels,
 	})
 	switch {
-	//TODO(tross): DELETE IN v20.0.0
+	// TODO(tross): DELETE IN v20.0.0
 	case trace.IsNotImplemented(err):
 		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 			Kinds:               []string{types.KindNode},
@@ -2595,7 +2569,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
-	if err := player.Err(); err != nil {
+	if err := player.Err(); err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}
 
@@ -5306,8 +5280,8 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 	return nil
 }
 
-// isFIPS returns if the binary was build with BoringCrypto, which implies
-// FedRAMP/FIPS 140-2 mode for tsh.
+// isFIPS returns if the binary was built with a FIPS validated
+// module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
 }

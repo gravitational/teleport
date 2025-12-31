@@ -218,6 +218,14 @@ func (c *SplitAccessCheckerContext) Scoped() *ScopedAccessCheckerContext {
 	return c.scopedContext
 }
 
+// ScopePin returns the scope pin associated with the context, if any.
+func (c *SplitAccessCheckerContext) ScopePin() (*scopesv1.Pin, bool) {
+	if c.scopedContext == nil {
+		return nil, false
+	}
+	return c.scopedContext.ScopePin(), true
+}
+
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided rules. in practice
 // this currently just serves to exit early in the event that we are dealing with an unscoped identity without appropriate
 // permissions, but it could be extended in future to perform more complex checks if needed.

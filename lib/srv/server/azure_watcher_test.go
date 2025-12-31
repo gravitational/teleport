@@ -29,26 +29,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockClients struct {
-	cloud.AzureClients
+	azure.Clients
 
-	azureClient azure.VirtualMachinesClient
+	vmClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
-	return c.azureClient, nil
+func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
+	return c.vmClient, nil
 }
 
 func TestAzureWatcher(t *testing.T) {
 	t.Parallel()
 
 	clients := mockClients{
-		azureClient: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
+		vmClient: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
 			VirtualMachines: map[string][]*armcompute.VirtualMachine{
 				"rg1": {
 					{
@@ -157,12 +156,15 @@ func TestAzureWatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
-			watcher, err := NewAzureWatcher(ctx, func() []Fetcher {
-				return MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher}, func(ctx context.Context, integration string) (cloud.AzureClients, error) {
-					return &clients, nil
-				}, "" /* discovery config */)
-			})
-			require.NoError(t, err)
+			watcher := NewWatcher[*AzureInstances](ctx)
+
+			const noDiscoveryConfig = ""
+			watcher.SetFetchers(noDiscoveryConfig,
+				MatchersToAzureInstanceFetchers(logger, []types.AzureMatcher{tc.matcher},
+					func(ctx context.Context, integration string) (azure.Clients, error) {
+						return &clients, nil
+					}, noDiscoveryConfig),
+			)
 
 			go watcher.Run()
 			t.Cleanup(watcher.Stop)
@@ -172,13 +174,13 @@ func TestAzureWatcher(t *testing.T) {
 			for len(vmIDs) < len(tc.wantVMs) {
 				select {
 				case results := <-watcher.InstancesC:
-					for _, vm := range results.Azure.Instances {
+					for _, vm := range results.Instances {
 						parsedResource, err := arm.ParseResourceID(*vm.ID)
 						require.NoError(t, err)
 						vmID := parsedResource.Name
 						vmIDs = append(vmIDs, vmID)
 					}
-					require.NotEqual(t, "*", results.Azure.ResourceGroup)
+					require.NotEqual(t, "*", results.ResourceGroup)
 				case <-ctx.Done():
 					require.Fail(t, "Expected %v VMs, got %v", tc.wantVMs, len(vmIDs))
 				}

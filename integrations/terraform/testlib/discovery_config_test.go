@@ -18,6 +18,8 @@ package testlib
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
@@ -127,6 +129,154 @@ func (s *TerraformSuiteOSS) TestImportDiscoveryConfig() {
 
 					return nil
 				},
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestDiscoveryConfigAzureRequiredFields() {
+	t := s.T()
+
+	baseConfig := `
+resource "teleport_discovery_config" "test" {
+  header = {
+    metadata = {
+      name = "test"
+    }
+    version = "v1"
+  }
+  spec = {
+    discovery_group = "azure_teleport"
+    azure = [{
+      types         = ["vm"]
+      regions       = ["eastus"]
+      subscriptions = ["123123-123123-123123-123123"]
+
+      install_params = {
+%s
+      }
+    }]
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.terraformConfig + "\n" + fmt.Sprintf(baseConfig, `
+        join_token = "azure-token"
+        azure = {
+          client_id = "managed-identity-id"
+        }`),
+				ExpectError: regexp.MustCompile(`attribute "join_method" is required`),
+			},
+			{
+				Config: s.terraformConfig + "\n" + fmt.Sprintf(baseConfig, `
+        join_method = "azure"
+        azure = {
+          client_id = "managed-identity-id"
+        }`),
+				ExpectError: regexp.MustCompile(`attribute "join_token" is required`),
+			},
+			{
+				Config: s.terraformConfig + "\n" + fmt.Sprintf(baseConfig, `
+        join_method = "azure"
+        join_token  = "azure-token"
+        azure = {
+        }`),
+				ExpectError: regexp.MustCompile(`(?s)attribute "azure":.*attribute "client_id" is\s+required`),
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteOSS) TestDiscoveryConfigAzureComputedFields() {
+	t := s.T()
+	name := "teleport_discovery_config.test"
+
+	configWithoutInstallParams := s.terraformConfig + `
+resource "teleport_discovery_config" "test" {
+  header = {
+    metadata = {
+      name = "test"
+    }
+    version = "v1"
+  }
+  spec = {
+    discovery_group = "azure_teleport"
+    azure = [{
+      types           = ["vm"]
+      regions         = ["eastus"]
+      subscriptions   = ["123123-123123-123123-123123"]
+      resource_groups = ["group"]
+      tags = {
+        "*" = ["*"]
+      }
+    }]
+  }
+}
+`
+
+	configWithoutScriptName := s.terraformConfig + `
+resource "teleport_discovery_config" "test" {
+  header = {
+    metadata = {
+      name = "test"
+    }
+    version = "v1"
+  }
+  spec = {
+    discovery_group = "azure_teleport"
+    azure = [{
+      types           = ["vm"]
+      regions         = ["eastus"]
+      subscriptions   = ["123123-123123-123123-123123"]
+      resource_groups = ["group"]
+      tags = {
+        "*" = ["*"]
+      }
+
+      install_params = {
+        join_method = "azure"
+        join_token  = "azure-token"
+        azure = {
+          client_id = "managed-identity-id"
+        }
+      }
+    }]
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories:  s.terraformProviders,
+		PreventPostDestroyRefresh: true,
+		IsUnitTest:                true,
+		Steps: []resource.TestStep{
+			{
+				Config: configWithoutInstallParams,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.discovery_group", "azure_teleport"),
+					resource.TestCheckResourceAttr(name, "spec.azure.0.types.0", "vm"),
+				),
+			},
+			{
+				Config:   configWithoutInstallParams,
+				PlanOnly: true,
+			},
+			{
+				Config: configWithoutScriptName,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.azure.0.install_params.join_method", "azure"),
+					resource.TestCheckResourceAttr(name, "spec.azure.0.install_params.join_token", "azure-token"),
+					resource.TestCheckResourceAttr(name, "spec.azure.0.install_params.azure.client_id", "managed-identity-id"),
+				),
+			},
+			{
+				Config:   configWithoutScriptName,
+				PlanOnly: true,
 			},
 		},
 	})

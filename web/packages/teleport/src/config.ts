@@ -188,6 +188,7 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
+    instances: '/web/instances',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -293,6 +294,8 @@ const cfg = {
     databaseServer: {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
+
+    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -505,6 +508,7 @@ const cfg = {
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
       delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      genWizardCiCd: '/v1/webapi/sites/:clusterId/machine-id/wizards/ci-cd',
     },
 
     botInstance: {
@@ -894,6 +898,10 @@ const cfg = {
     return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
   },
 
+  getInstancesRoute() {
+    return generatePath(cfg.routes.instances);
+  },
+
   getWorkloadIdentitiesRoute() {
     return generatePath(cfg.routes.workloadIdentities);
   },
@@ -1165,6 +1173,13 @@ const cfg = {
 
   getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databaseServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.instancesPath, {
       clusterId,
       ...params,
     });
@@ -1715,7 +1730,7 @@ const cfg = {
 
   getBotUrl(
     req: (
-      | { action: 'list' | 'create' }
+      | { action: 'list' | 'create' | 'gen-wizard-cicd' }
       | {
           action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
           botName: string;
@@ -1756,6 +1771,10 @@ const cfg = {
         return generatePath(cfg.api.bot.delete, {
           clusterId,
           botName: req.botName,
+        });
+      case 'gen-wizard-cicd':
+        return generatePath(cfg.api.bot.genWizardCiCd, {
+          clusterId,
         });
       default:
         req satisfies never;

@@ -39,10 +39,6 @@ spec:
       - name: "teleport"
         image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
-{{- if $proxy.resources }}
-        resources:
-  {{- toYaml $proxy.resources | nindent 10 }}
-{{- end }}
 {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
         env:
   {{- if (gt (len $proxy.extraEnv) 0) }}
@@ -50,7 +46,7 @@ spec:
   {{- end }}
   {{- if $proxy.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
-          value: /etc/teleport-tls-ca/ca.pem
+          value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
   {{- end }}
 {{- end }}
         command:

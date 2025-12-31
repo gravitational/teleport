@@ -1000,11 +1000,18 @@ const (
 )
 
 // SessionRecordingEvents is a list of events that are related to session
-// recorings.
+// recordings.
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
+
+	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
+	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
+	//
+	// TCP application sessions emit AppSessionEndEvent but produce no
+	// recordings, so it is excluded.
+	AppSessionChunkEvent,
 }
 
 // ServerMetadataGetter represents interface

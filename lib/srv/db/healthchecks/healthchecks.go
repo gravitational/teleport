@@ -140,8 +140,8 @@ func (cfg *HealthCheckerConfig) checkAndSetDefaults() error {
 
 // GCPClients are clients used to resolve GCP endpoints.
 type GCPClients interface {
-	// GetGCPSQLAdminClient returns GCP Cloud SQL Admin client.
-	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
-	// GetGCPAlloyDBClient returns GCP AlloyDB Admin client.
-	GetGCPAlloyDBClient(context.Context) (gcp.AlloyDBAdminClient, error)
+	// GetSQLAdminClient returns GCP Cloud SQL Admin client.
+	GetSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
+	// GetAlloyDBClient returns GCP AlloyDB Admin client.
+	GetAlloyDBClient(context.Context) (gcp.AlloyDBAdminClient, error)
 }

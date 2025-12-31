@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
@@ -46,6 +47,7 @@ import (
 	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -260,7 +262,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	// sanity check there are no proxies to start with
-	proxies, err := authServer.GetProxies()
+	proxies, err := stream.Collect(clientutils.Resources(ctx, authServer.ListProxyServers))
 	require.NoError(t, err)
 	require.Empty(t, proxies)
 
@@ -274,7 +276,7 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// the proxy should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		proxies, err := authServer.GetProxies()
+		proxies, err := stream.Collect(clientutils.Resources(ctx, authServer.ListProxyServers))
 		require.NoError(t, err)
 		require.NotEmpty(t, proxies)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for proxy to join cluster")

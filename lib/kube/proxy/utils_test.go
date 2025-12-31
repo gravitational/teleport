@@ -73,23 +73,23 @@ import (
 )
 
 type TestContext struct {
-	HostID               string
-	ClusterName          string
-	TLSServer            *authtest.TLSServer
-	AuthServer           *auth.Server
-	AuthClient           *authclient.Client
-	Authz                authz.Authorizer
-	KubeServer           *TLSServer
-	KubeProxy            *TLSServer
-	Emitter              *eventstest.ChannelEmitter
-	Context              context.Context
-	kubeServerListener   net.Listener
-	kubeProxyListener    net.Listener
-	cancel               context.CancelFunc
-	heartbeatCtx         context.Context
-	heartbeatCancel      context.CancelFunc
-	lockWatcher          *services.LockWatcher
-	closeSessionTrackers chan struct{}
+	HostID             string
+	ClusterName        string
+	TLSServer          *authtest.TLSServer
+	AuthServer         *auth.Server
+	AuthClient         *authclient.Client
+	Authz              authz.Authorizer
+	KubeServer         *TLSServer
+	KubeProxy          *TLSServer
+	Emitter            *eventstest.ChannelEmitter
+	Context            context.Context
+	UploadHandler      *eventstest.MemoryUploader
+	kubeServerListener net.Listener
+	kubeProxyListener  net.Listener
+	cancel             context.CancelFunc
+	heartbeatCtx       context.Context
+	heartbeatCancel    context.CancelFunc
+	lockWatcher        *services.LockWatcher
 }
 
 // KubeClusterConfig defines the cluster to be created
@@ -108,6 +108,7 @@ type TestConfig struct {
 	OnEvent              func(apievents.AuditEvent)
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
+	WrapAuthClient       func(authclient.ClientI) authclient.ClientI
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -115,23 +116,32 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	ctx, cancel := context.WithCancel(ctx)
 	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 	testCtx := &TestContext{
-		ClusterName:          "root.example.com",
-		HostID:               uuid.New().String(),
-		Context:              ctx,
-		cancel:               cancel,
-		heartbeatCtx:         heartbeatCtx,
-		heartbeatCancel:      heartbeatCancel,
-		closeSessionTrackers: make(chan struct{}),
+		ClusterName:     "root.example.com",
+		HostID:          uuid.New().String(),
+		Context:         ctx,
+		cancel:          cancel,
+		heartbeatCtx:    heartbeatCtx,
+		heartbeatCancel: heartbeatCancel,
+		UploadHandler:   eventstest.NewMemoryUploader(),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
 	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
 
+	streamer, err := events.NewProtoStreamer(
+		events.ProtoStreamerConfig{
+			Uploader: testCtx.UploadHandler,
+		},
+	)
+	require.NoError(t, err)
+
 	// Create and start test auth server.
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:       clockwork.NewFakeClockAt(time.Now()),
-		ClusterName: testCtx.ClusterName,
-		Dir:         t.TempDir(),
+		Clock:         clockwork.NewFakeClockAt(time.Now()),
+		ClusterName:   testCtx.ClusterName,
+		Streamer:      streamer,
+		UploadHandler: testCtx.UploadHandler,
+		Dir:           t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -256,6 +266,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
 
+	var authClient authclient.ClientI = client
+	if cfg.WrapAuthClient != nil {
+		authClient = cfg.WrapAuthClient(client)
+	}
+
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -269,7 +284,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
+			AuthClient: authClient,
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
 			Emitter:           testCtx.Emitter,
@@ -353,7 +368,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
+			AuthClient: authClient,
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
 			Emitter:           testCtx.Emitter,

@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -114,6 +115,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/conntest"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -581,6 +583,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Wait for proxy to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := s.proxyClient.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) != 0 {
@@ -959,11 +962,13 @@ func Test_clientMetaFromReq(t *testing.T) {
 		http.MethodGet, "https://example.com/webapi/foo", nil,
 	)
 	r.Header.Set("User-Agent", ua)
+	r.Header.Set("Max-Touch-Points", "5")
 
 	got := clientMetaFromReq(r)
 	require.Equal(t, &authclient.ForwardedClientMetadata{
-		UserAgent:  ua,
-		RemoteAddr: "192.0.2.1:1234",
+		UserAgent:      ua,
+		RemoteAddr:     "192.0.2.1:1234",
+		MaxTouchPoints: 5,
 	}, got)
 }
 
@@ -1299,6 +1304,120 @@ func TestUserGroupsGet(t *testing.T) {
 			{Name: "appnameonly", FriendlyName: ""},
 		},
 	}})
+}
+
+func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	ctx := t.Context()
+	username := "test-user@example.com"
+
+	u, err := user.Current()
+	require.NoError(t, err)
+	loginUser := u.Username
+
+	role := defaultRoleForNewUser(&types.UserV2{Metadata: types.Metadata{Name: username}}, loginUser)
+	role.SetAppLabels(types.Allow, types.Labels{"env": []string{"prod"}})
+
+	pack := proxy.authPack(t, username, []types.Role{role})
+
+	// - cluster (auth/proxy) support `feature1`
+	// - app has 2 appservers, both support `feature1` + `feature2`
+	// - aggregated appserver features should = {feature1, feature2}
+	// - final app supportedFeatureIDs should = {feature1}
+	feature1 := componentfeatures.FeatureID(9998)
+	feature2 := componentfeatures.FeatureID(9999)
+
+	{
+		for srv := range clientutils.Resources(ctx, env.server.Auth().ListProxyServers) {
+			srv.SetComponentFeatures(componentfeatures.New(feature1))
+			err := env.server.Auth().UpsertProxy(ctx, srv)
+			require.NoError(t, err)
+		}
+	}
+	{
+		for srv := range clientutils.Resources(ctx, env.server.Auth().ListAuthServers) {
+			srv.SetComponentFeatures(componentfeatures.New(feature1))
+			err := env.server.Auth().UpsertAuthServer(ctx, srv)
+			require.NoError(t, err)
+		}
+	}
+
+	// AWS Console app + 2 app servers serving it
+	appName := "aws-console-app"
+	awsApp, err := types.NewAppV3(
+		types.Metadata{
+			Name: appName,
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		},
+		types.AppSpecV3{
+			URI:   "https://console.aws.amazon.com",
+			Cloud: "AWS",
+		},
+	)
+	require.NoError(t, err)
+
+	awsSrv1, err := types.NewAppServerV3FromApp(awsApp, "localhost", "host-1")
+	require.NoError(t, err)
+	awsSrv1.SetComponentFeatures(componentfeatures.New(feature1, feature2))
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsSrv1)
+	require.NoError(t, err)
+
+	awsSrv2, err := types.NewAppServerV3FromApp(awsApp, "localhost", "host-2")
+	require.NoError(t, err)
+	awsSrv2.SetComponentFeatures(componentfeatures.New(feature1, feature2))
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsSrv2)
+	require.NoError(t, err)
+
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+	query := url.Values{"kinds": []string{types.KindApp}}
+
+	require.Eventually(t, func() bool {
+		return env.server.Auth().UnifiedResourceCache.IsInitialized()
+	}, 5*time.Second, 50*time.Millisecond, "unified resource cache failed to initialize")
+
+	// Ensure aggregated AppServers' features are intersected as expected
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var got []types.AppServer
+
+		for srv, err := range env.server.Auth().UnifiedResourceCache.AppServers(
+			ctx, services.UnifiedResourcesIterateParams{},
+		) {
+			require.NoError(t, err)
+			if srv.GetApp() == nil || srv.GetApp().GetName() != appName {
+				continue
+			}
+			got = append(got, srv)
+		}
+
+		require.Len(t, got, 1)
+
+		cf := got[0].GetComponentFeatures()
+		require.NotNil(t, cf)
+		require.ElementsMatch(t, componentfeatures.New(feature1, feature2).GetFeatures(), cf.GetFeatures())
+	}, 5*time.Second, 50*time.Millisecond, "unified resource cache did not expose aggregated AppServer")
+
+	// Ensure returned UnifiedResource's features are intersected as expected (against all auth/proxy)
+	re, err := pack.clt.Get(ctx, endpoint, query)
+	require.NoError(t, err)
+
+	var resp struct {
+		Items []webui.App `json:"items"`
+	}
+	err = json.Unmarshal(re.Bytes(), &resp)
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1)
+
+	app := resp.Items[0]
+	require.True(t, app.AWSConsole)
+
+	require.ElementsMatch(t, []int{int(feature1)}, app.SupportedFeatureIDs)
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
@@ -8401,6 +8520,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	// Wait for proxies to fully register before starting the test.
 	for start := time.Now(); ; {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		proxies, err := proxies[0].client.GetProxies()
 		require.NoError(t, err)
 		if len(proxies) == numProxies {
@@ -10902,7 +11022,11 @@ func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, 
 }
 
 func TestGithubConnector(t *testing.T) {
-	ctx := context.Background()
+	// We run this test as a Teleport Enterprise server to bypass the check for whether
+	// the GitHub org uses SSO.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
