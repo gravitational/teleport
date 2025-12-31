@@ -118,6 +118,7 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 	conn := streamutils.NewConn(desktopReadWriter, &net.TCPAddr{}, &net.TCPAddr{})
 	tlsConfig := &tls.Config{
 		ServerName:   desktopName + DesktopSNISuffix,
+		NextProtos:   []string{"teleport-tdpb-1.0"},
 		Certificates: []tls.Certificate{desktopCert},
 		RootCAs:      rootCAs,
 	}
