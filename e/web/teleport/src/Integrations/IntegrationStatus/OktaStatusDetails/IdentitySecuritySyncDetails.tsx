@@ -26,11 +26,12 @@ import {
   OktaIntegrationStepType,
   UpsellBulletList,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import cfg from 'teleport/config';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-import { Panel, PanelTitle, StatusAndOptions } from './Shared';
+import { Panel, PanelTitle } from './Shared';
 
 export function IdentitySecuritySyncDetails({
   accessGraphEnabled,

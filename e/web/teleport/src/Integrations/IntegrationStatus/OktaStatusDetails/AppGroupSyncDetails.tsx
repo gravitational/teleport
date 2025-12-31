@@ -16,8 +16,8 @@ import {
   getDurationText,
   Panel,
   PanelTitle,
-  StatusAndOptions,
 } from 'e-teleport/Integrations/IntegrationStatus/OktaStatusDetails/Shared';
+import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import {
   OktaAccessListSyncDetails,

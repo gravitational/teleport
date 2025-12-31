@@ -4,6 +4,7 @@ import { useHistory } from 'react-router-dom';
 import { Link as ExternalLink, Flex, Mark, Text } from 'design';
 import { NewTab, PlugsConnected } from 'design/Icon';
 
+import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import useTeleportE from 'e-teleport/useTeleportE';
 import cfg from 'teleport/config';
 import {
@@ -12,7 +13,7 @@ import {
 } from 'teleport/services/integrations/oktaStatusTypes';
 
 import { generateOktaSamlAppUrl } from './generateOktaAdminLink';
-import { Panel, PanelTitle, StatusAndOptions } from './Shared';
+import { Panel, PanelTitle } from './Shared';
 
 export const SsoDetails = ({
   spec,

@@ -10,13 +10,14 @@ import {
   SCIM_CONFIG,
   UpsellBulletList,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import cfg from 'teleport/config';
 import { OktaSsoDetails } from 'teleport/services/integrations/oktaStatusTypes';
 import { CtaEvent } from 'teleport/services/userEvent';
 
 import { generateOktaScimSettingsUrl } from './generateOktaAdminLink';
-import { Panel, PanelTitle, StatusAndOptions } from './Shared';
+import { Panel, PanelTitle } from './Shared';
 
 export function ScimDetails({
   spec,

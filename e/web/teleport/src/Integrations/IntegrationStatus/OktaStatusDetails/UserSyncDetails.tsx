@@ -9,6 +9,7 @@ import {
   UpsellBulletList,
   USER_SYNC_CONFIG,
 } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import cfg from 'teleport/config';
 import {
@@ -17,13 +18,7 @@ import {
 } from 'teleport/services/integrations/oktaStatusTypes';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-import {
-  ErrorTooltip,
-  getDurationText,
-  Panel,
-  PanelTitle,
-  StatusAndOptions,
-} from './Shared';
+import { ErrorTooltip, getDurationText, Panel, PanelTitle } from './Shared';
 
 export function UserSyncDetails({
   spec,
