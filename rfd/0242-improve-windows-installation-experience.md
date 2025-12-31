@@ -47,8 +47,9 @@ the app will provide a dual-mode installer:
 ### Per-User Mode
 
 We will reintroduce the unprivileged installation path for users who do not need VNet functionality.
-By setting `oneClick: false` and `perMachine: false` in the `electron-builder` configuration, users can choose between
-"Install for me" (unprivileged) and "Install for all users" (privileged).
+By setting `oneClick: false`, `perMachine: false`, and `selectPerMachineByDefault: true` in the `electron-builder`
+configuration, users can choose between "Install for me" (unprivileged) and "Install for all users" (privileged).
+The "Install for all users" option will be preselected, so users will end up with VNet support by default.
 
 > Note: IT admins generally don't like apps that install to `%LocalAppData%`, [since they are more difficult to manage
 > through centralized management tools](https://old.reddit.com/r/sysadmin/comments/ea96ut/apps_installing_to_appdata/).
@@ -90,7 +91,8 @@ An attacker could trick a user into adding a malicious cluster to the app and se
 effectively granting that remote cluster control over the local per-machine service version.
 
 This risk is a direct consequence of our update model. Since different clusters may require specific client versions, we
-delegate the decision of which cluster to "follow" for updates to the end user.
+delegate the decision of which cluster to "follow" for updates to the end user (for details see
+https://github.com/gravitational/teleport/blob/75b56b1c67bd7eccc1074738ece671adccf21ea2/rfd/0144-client-tools-updates.md#multi-cluster-support).
 While a similar risk exists for per-user installations, the impact is isolated to the user's local space.
 With a per-machine service, a standard user's decision to follow a malicious cluster could compromise the security of
 the entire machine.
