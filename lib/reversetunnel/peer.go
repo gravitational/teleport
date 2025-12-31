@@ -98,6 +98,14 @@ func (p *clusterPeers) NodeWatcher() (*services.GenericWatcher[types.Server, rea
 	return peer.NodeWatcher()
 }
 
+func (p *clusterPeers) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	peer, err := p.pickPeer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return peer.AppServerWatcher()
+}
+
 func (p *clusterPeers) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	peer, err := p.pickPeer()
 	if err != nil {
@@ -210,6 +218,10 @@ func (s *clusterPeer) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, e
 
 func (s *clusterPeer) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, s.discoveryError("unable to fetch node watcher for leaf cluster")
+}
+
+func (s *clusterPeer) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return nil, s.discoveryError("unable to fetch app server watcher for leaf cluster")
 }
 
 func (s *clusterPeer) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
