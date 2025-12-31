@@ -41,7 +41,8 @@ The scope of work proposed by this RFD is:
   scoped access rules.
 - Support for static and ephemeral tokens.
 - Support for provisioning hosts using all join methods other than
-  `bound_keypair`.
+  `bound_keypair`. This includes ephemeral and static tokens as well as
+  delegated join methods like `iam`, `github`, and `tpm`.
 - Support for configuring an `assigned_scope` on a scoped token which will
   in turn be assigned to joining nodes at provisioning time.
 - Support for configuring a scoped token with a set of labels that are
@@ -94,7 +95,6 @@ to facilitate existing provisioning semantics.
 +  repeated string roles = 2;
 +
 +  // The joining method required in order to use this token.
-+  // Supported joining methods for scoped tokens only include 'token'.
 +  string join_method = 3;
 +
 +  // The usage mode of the token. Can be "single_use" or "unlimited". Single use
@@ -173,9 +173,15 @@ Scoped resources will be provisioned by extending the existing `Join` RPC to
 support scoped tokens. When the join method is `token` the auth server will
 query both the existing `ProvisionTokenV2` and the new `ScopedToken` resources
 using the provided token name. Conflicting token names between scoped and
-unscoped tokens will result in an error and it will be up to the administrator
-to resolve the ambiguity. Either by deleting one of the conflicting tokens or
-creating a new token with a different name.
+unscoped tokens will result in an error message describing the collision and an
+immediate join failure. It will be up to the administrator to resolve the
+ambiguity. Either by deleting one of the conflicting tokens or creating a new
+token with a different name. If ambiguity were introduced mid-join by creating
+a token with a duplicate name, it would have no effect as the join process will
+retain the initially resolved token for the duration of the flow. It's worth
+noting that the node agent will continue join attempts after collisions just as
+it does today for other join failures. Meaning that if the ambiguity is
+resolved the node may join successfully without intervention.
 
 A new `token_secret` field will be included in the `TokenInit` message when
 joining with a scoped token. This secret must match the secret found in the
@@ -241,6 +247,14 @@ no longer be usable at all.
 
 By default, a new scoped token should be created with a `mode` of `unlimited`
 unless another mode is explicitly specified.
+
+#### Clock skew
+
+When checking whether or not a single-use scoped token can be reused, the
+Teleport Auth service will allow for up to 5 minutes of clock skew. It is also
+recommended that all Teleport Auth Service instances leverage NTP to ensure
+that clock skew is minimized. Any skew in individual SSH node clocks is not
+relevant when evaluating token expirations.
 
 ### `tctl` subcommands
 
@@ -343,6 +357,72 @@ in order to maintain usage parity with unscoped tokens.
 Modification of the scope assigned to a resource will not be permitted
 initially. Reprovisioning the resource using a new scoped token configured with
 the correct scope will be the only way to "move" a resource into another scope.
+
+## Audit events
+
+Interacting with scoped tokens should generate the following audit events:
+
+- `scoped_token.created`: When a scoped token is created (e.g. with
+  `tctl scoped tokens add`).
+- `scoped_token.deleted`: When a scoped token is deleted (e.g. with
+  `tctl scoped tokens rm`).
+- `scoped_token.used`: When a scoped token is used to generate host
+  certificates.
+- `scoped_token.use_failed`: When a resource fails to join while using a
+  scoped token.
+
+These will contain metadata similar to the existing `join_token.created` event
+with a few additions specific to scoped tokens.
+
+```diff
+--- a/api/proto/teleport/legacy/types/events/events.proto
++++ b/api/proto/teleport/legacy/types/events/events.proto
+@@ -2472,6 +2472,47 @@ message ProvisionTokenCreate {
+   ];
+ }
+
++// The event emitted when a scoped token is created.
++message ScopedTokenCreate {
++  Metadata metadata = 1;
++  ResourceMetadata resource = 2;
++  UserMetadata user = 3;
++  repeated string roles = 4;
++  string join_method = 5;
++  string usage_mode = 6;
++  string scope = 7;
++  string assigned_scope = 8;
++}
++
++// The event emitted when a scoped token is deleted.
++message ScopedTokenDelete {
++  Metadata metadata = 1;
++  ResourceMetadata resource = 2;
++  UserMetadata user = 3;
++}
++
++// The event emitted when a scoped token is used to provision a resource.
++message ScopedTokenUse {
++  Metadata metadata = 1;
++  ResourceMetadata resource = 2;
++  repeated string roles = 4;
++  string join_method = 3;
++  string usage_mode = 6;
++  string scope = 7;
++  string assigned_scope = 8;
++}
++
++// The event emitted when a scoped token fails to provision a resource.
++message ScopedTokenFailed {
++  Metadata metadata = 1;
++  ResourceMetadata resource = 2;
++  repeated string roles = 4;
++  string join_method = 3;
++  string usage_mode = 6;
++  string scope = 7;
++  string assigned_scope = 8;
++}
++
+```
 
 ## Security considerations
 
