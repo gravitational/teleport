@@ -1,17 +1,16 @@
-{{- if .Values.updater.enabled -}}
-{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater -}}
-{{- if $updater.rbac.create -}}
+{{- if .Values.enabled }}
+{{- if .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-updater
-  namespace: {{ .Release.Namespace }}
-{{- if $updater.extraLabels.role }}
-  labels: {{- toYaml $updater.extraLabels.role | nindent 4 }}
+  name: {{ template "teleport-kube-updater.fullname" . }}-role
+  namespace: {{ include "teleport-kube-updater.namespace" . }}
+{{- if .Values.extraLabels.role }}
+  labels: {{ toYaml .Values.extraLabels.role | nindent 4 }}
 {{- end }}
 rules:
-# the updater needs to list pods to check their health
-# it also needs to delete pods to unstuck Statefulset rollouts
+  # the updater needs to list pods to check their health
+  # it also needs to delete pods to unstuck Statefulset rollouts
 - apiGroups:
     - ""
   resources:
@@ -29,8 +28,8 @@ rules:
     - get
     - watch
     - list
-# the updater needs to get the secret created by the agent containing the
-# maintenance window
+  # the updater needs to get the secret created by the agent containing the
+  # maintenance window
 - apiGroups:
     - ""
   resources:
@@ -53,7 +52,7 @@ rules:
   verbs:
     - create
     - patch
-# the updater needs to create, get, and update the configmap containing updater state
+  # the updater needs to create, get, and update the configmap containing updater state
 - apiGroups:
     - ""
   resources:
@@ -70,9 +69,9 @@ rules:
     - get
     - update
   resourceNames:
-    - {{ .Release.Name }}-updater
-# the controller in the updater must be able to watch deployments and
-# statefulsets and get the one it should reconcile
+    - {{ template "teleport-kube-updater.fullname" . }}
+  # the controller in the updater must be able to watch deployments and
+  # statefulsets and get the one it should reconcile
 - apiGroups:
     - "apps"
   resources:
@@ -84,7 +83,7 @@ rules:
     - get
     - watch
     - list
-# However the updater should only update the agent it is watching
+  # However the updater should only update the resource it is watching
 - apiGroups:
     - "apps"
   resources:
@@ -109,5 +108,5 @@ rules:
   verbs:
     - get
     - update
-{{- end -}}
+{{- end }}
 {{- end -}}

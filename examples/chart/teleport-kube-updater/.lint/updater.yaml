@@ -1,0 +1,8 @@
+proxyAddr: proxy.example.com:3080
+roles: "custom"
+
+enabled: true
+containerName: teleport
+versionServer: https://my-custom-version-server/v1
+releaseChannel: custom/preview
+appImage: public.ecr.aws/gravitational/teleport-distroless

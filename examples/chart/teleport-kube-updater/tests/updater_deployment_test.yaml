@@ -1,6 +1,6 @@
 suite: Updater Deployment
 templates:
-  - updater/deployment.yaml
+  - deployment.yaml
 tests:
   #
   # Basic tests
@@ -16,7 +16,7 @@ tests:
       - containsDocument:
           kind: Deployment
           apiVersion: apps/v1
-          name: RELEASE-NAME-updater
+          name: RELEASE-NAME-teleport-kube-updater
           namespace: NAMESPACE
   #
   # Testing the agent configuration
@@ -25,20 +25,12 @@ tests:
     values:
       - ../.lint/updater.yaml
     set:
-      image: repo.example.com/gravitational/teleport-distroless
+      iamge: repo.example.com/gravitational/teleport-distroless
+      appImage: repo.example.com/gravitational/teleport-distroless
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
           content: "--base-image=repo.example.com/gravitational/teleport-distroless"
-  - it: sets the updater base entreprise image
-    values:
-      - ../.lint/updater.yaml
-    set:
-      enterprise: true
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: "--base-image=public.ecr.aws/gravitational/teleport-ent-distroless"
   - it: sets the updater agent name
     values:
       - ../.lint/updater.yaml
@@ -61,8 +53,8 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
+      enabled: true
+      containerName: teleport
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -71,9 +63,9 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: ""
+      enabled: true
+      versionServer: ""
+      containerName: teleport
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -82,10 +74,10 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: "version-server.example.com"
-        group: foobar
+      enabled: true
+      versionServer: "version-server.example.com"
+      group: foobar
+      containerName: teleport
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
@@ -97,9 +89,9 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: ""
+      enabled: true
+      versionServer: ""
+      containerName: teleport
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -108,10 +100,10 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: ""
-        group: "foobar"
+      enabled: true
+      versionServer: ""
+      group: "foobar"
+      containerName: teleport
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -120,9 +112,9 @@ tests:
     set:
       proxyAddr: proxy.teleport.example.com:443
       roles: "custom"
-      updater:
-        enabled: true
-        versionServer: ""
+      enabled: true
+      versionServer: ""
+      containerName: teleport
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
@@ -285,15 +277,14 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName
-          value: teleport-kube-agent-sa-updater
+          value: teleport-kube-agent-sa
   - it: sets the pod service-account (override)
     values:
       - ../.lint/updater.yaml
       - ../.lint/service-account-name.yaml
     set:
-      updater:
-        serviceAccount:
-          name: distinct-updater-sa
+      serviceAccount:
+        name: distinct-updater-sa
     asserts:
       - equal:
           path: spec.template.spec.serviceAccountName
@@ -303,9 +294,8 @@ tests:
     values:
       - ../.lint/updater.yaml
     set:
-      updater:
-        extraArgs:
-          - "--foo=bar"
+      extraArgs:
+        - "--foo=bar"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -315,8 +305,7 @@ tests:
     values:
       - ../.lint/updater.yaml
     set:
-      updater:
-        pullCredentials: "amazon"
+      pullCredentials: "amazon"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args

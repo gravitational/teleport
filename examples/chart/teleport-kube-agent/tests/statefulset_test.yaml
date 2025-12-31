@@ -14,7 +14,6 @@ tests:
           of: StatefulSet
       - hasDocuments:
           count: 1
-
   - it: sets StatefulSet labels when specified
     template: statefulset.yaml
     values:
@@ -820,8 +819,10 @@ tests:
       - ../.lint/initcontainers.yaml
     asserts:
       - matchSnapshot:
+          snapshotName: initContainerSecurityContext
           path: spec.template.spec.initContainers[0].securityContext
       - matchSnapshot:
+          snapshotName: mainContainerSecurityContext
           path: spec.template.spec.containers[0].securityContext
 
   - it: sets no container security context when manually unset
@@ -830,12 +831,10 @@ tests:
       - ../.lint/initcontainers.yaml
       - ../.lint/security-context-empty.yaml
     asserts:
-      - equal:
+      - isEmpty:
           path: spec.template.spec.initContainers[0].securityContext
-          value: null
-      - equal:
+      - isEmpty:
           path: spec.template.spec.containers[0].securityContext
-          value: null
 
   - it: should enable maintenance schedule export when updater is enabled
     template: statefulset.yaml
@@ -864,7 +863,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: TELEPORT_UPDATE_CONFIG_FILE
-            value: /etc/updater-config/update.yaml
+            value: "/etc/updater-config/update.yaml"
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -874,9 +873,9 @@ tests:
       - contains:
           path: spec.template.spec.volumes
           content:
-            name: updater-config
+            name: config
             configMap:
-              name: RELEASE-NAME-updater
+              name: RELEASE-NAME
 
   - it: should not mount the update.yaml configmap when updater is disabled
     template: statefulset.yaml
