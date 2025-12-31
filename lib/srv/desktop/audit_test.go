@@ -33,7 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -225,7 +226,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			// when everything is working as expected
 			name:          "typical operation",
 			sendsAnnounce: true,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
 				return baseEvent
 			},
@@ -234,7 +235,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			// the announce operation failed
 			name:          "announce failed",
 			sendsAnnounce: true,
-			errCode:       tdp.ErrCodeFailed,
+			errCode:       protocol.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryStartFailureCode
 				return baseEvent
@@ -244,7 +245,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 			// should never happen but just in case
 			name:          "directory name unknown",
 			sendsAnnounce: false,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryStart) *events.DesktopSharedDirectoryStart {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryStartFailureCode
 				baseEvent.DirectoryName = "unknown"
@@ -317,7 +318,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			name:          "typical operation",
 			sendsAnnounce: true,
 			sendsReq:      true,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				return baseEvent
 			},
@@ -327,7 +328,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			name:          "read failed",
 			sendsAnnounce: true,
 			sendsReq:      true,
-			errCode:       tdp.ErrCodeFailed,
+			errCode:       protocol.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 				return baseEvent
@@ -338,7 +339,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			name:          "directory name unknown",
 			sendsAnnounce: false,
 			sendsReq:      true,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 				baseEvent.DirectoryName = "unknown"
@@ -350,7 +351,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			name:          "request info unknown",
 			sendsAnnounce: true,
 			sendsReq:      false,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 
@@ -371,7 +372,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 			name:          "directory name and request info unknown",
 			sendsAnnounce: false,
 			sendsReq:      false,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryRead) *events.DesktopSharedDirectoryRead {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryReadFailureCode
 
@@ -467,7 +468,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			name:          "typical operation",
 			sendsAnnounce: true,
 			sendsReq:      true,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				return baseEvent
 			},
@@ -477,7 +478,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			name:          "write failed",
 			sendsAnnounce: true,
 			sendsReq:      true,
-			errCode:       tdp.ErrCodeFailed,
+			errCode:       protocol.ErrCodeFailed,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 				return baseEvent
@@ -488,7 +489,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			name:          "directory name unknown",
 			sendsAnnounce: false,
 			sendsReq:      true,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 				baseEvent.DirectoryName = "unknown"
@@ -500,7 +501,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			name:          "request info unknown",
 			sendsAnnounce: true,
 			sendsReq:      false,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 
@@ -521,7 +522,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 			name:          "directory name and request info unknown",
 			sendsAnnounce: false,
 			sendsReq:      false,
-			errCode:       tdp.ErrCodeNil,
+			errCode:       protocol.ErrCodeNil,
 			expected: func(baseEvent *events.DesktopSharedDirectoryWrite) *events.DesktopSharedDirectoryWrite {
 				baseEvent.Metadata.Code = libevents.DesktopSharedDirectoryWriteFailureCode
 
@@ -824,7 +825,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	// SharedDirectoryReadResponse should cause the entry in the readRequestCache to be cleaned up.
 	audit.makeSharedDirectoryReadResponse(tdp.SharedDirectoryReadResponse{
 		CompletionID:   uint32(testCompletionID),
-		ErrCode:        tdp.ErrCodeNil,
+		ErrCode:        protocol.ErrCodeNil,
 		ReadDataLength: testLength,
 		ReadData:       []byte{}, // irrelevant in this context
 	})
@@ -833,7 +834,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	// SharedDirectoryWriteResponse should cause the entry in the writeRequestCache to be cleaned up.
 	audit.makeSharedDirectoryWriteResponse(tdp.SharedDirectoryWriteResponse{
 		CompletionID: uint32(testCompletionID),
-		ErrCode:      tdp.ErrCodeNil,
+		ErrCode:      protocol.ErrCodeNil,
 		BytesWritten: testLength,
 	})
 	require.Equal(t, 1, audit.auditCache.totalItems())

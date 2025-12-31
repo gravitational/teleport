@@ -9,9 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	tdpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/stretchr/testify/require"
@@ -42,7 +41,7 @@ func TestEncodeDecode(t *testing.T) {
 	//  decodes messages are lazily unmarshalled when inspected with 'ToTDPBProto', or 'AsTDPB'.
 	for _, test := range []struct {
 		Name    string
-		Message tdp.Message
+		Message protocol.Message
 	}{
 		{Name: "raw-message-happy-path", Message: png},
 		{Name: "decoded-message-happy-path", Message: decodedMessage},
@@ -75,7 +74,7 @@ func TestEncodeDecode(t *testing.T) {
 
 func TestHandleUnknownMessageTypes(t *testing.T) {
 	// Craft an empty envelope
-	msg := &tdpb.Envelope{}
+	msg := &tdpbv1.Envelope{}
 	data, err := proto.Marshal(msg)
 	require.NoError(t, err)
 	badMsgBuffer := make([]byte, len(data)+4)
@@ -89,30 +88,24 @@ func TestHandleUnknownMessageTypes(t *testing.T) {
 		// Should return a sentinel error indicating that
 		// an empty message was received.
 		decoded, err := Decode(buf)
-		require.ErrorIs(t, err, tdp.ErrEmptyMessage)
+		require.ErrorIs(t, err, protocol.ErrEmptyMessage)
 		require.Nil(t, decoded)
 	})
 
-	t.Run("conn-tolerates-unknown-messages", func(t *testing.T) {
-		in, out := net.Pipe()
-		defer in.Close()
-		bufferedIn := bufio.NewWriter(in)
-		conn := tdp.NewConn(out, tdp.WithDecoder(Decode))
-		defer conn.Close()
+	t.Run("decode-tolerates-unknown-messages", func(t *testing.T) {
+		buf := bytes.NewBuffer(nil)
 
 		// Write the bad message
-		_, err := bufferedIn.Write(badMsgBuffer)
+		_, err := buf.Write(badMsgBuffer)
 		require.NoError(t, err)
 
 		// Then write a good message
 		msg := &MouseButton{Pressed: true, Button: 2}
-		require.NoError(t, EncodeTo(bufferedIn, msg))
-
-		go bufferedIn.Flush()
+		require.NoError(t, EncodeTo(buf, msg))
 
 		// Validate that good message is received without error
 		// (bad message dropped)
-		newMsg, err := conn.ReadMessage()
+		newMsg, err := Decode(buf)
 		require.NoError(t, err)
 		_, ok := newMsg.(*MouseButton)
 		require.True(t, ok)
@@ -123,20 +116,20 @@ func TestSendRecv(t *testing.T) {
 	// Define a few messages to encode and decode
 	alertMsg := &Alert{
 		Message:  "Warning!",
-		Severity: tdpb.AlertSeverity_ALERT_SEVERITY_WARNING,
+		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,
 	}
 	fastPathMsg := &FastPathPDU{
 		Pdu: []byte{0xDE, 0xCA, 0xFB, 0xAD},
 	}
 	helloMsg := &ClientHello{
-		ScreenSpec: &tdpb.ClientScreenSpec{
+		ScreenSpec: &tdpbv1.ClientScreenSpec{
 			Width:  1920,
 			Height: 1080,
 		},
 		KeyboardLayout: 1,
 	}
 
-	messages := []tdp.Message{
+	messages := []protocol.Message{
 		alertMsg,
 		fastPathMsg,
 		helloMsg,

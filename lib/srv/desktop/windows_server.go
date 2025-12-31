@@ -58,7 +58,11 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop/rdp/rdpclient"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+
+	tdpUtils "github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/dns"
@@ -623,12 +627,12 @@ func (s *WindowsService) Serve(plainLis net.Listener) error {
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
-	tdpConn := tdp.NewConn(proxyConn)
+	tdpConn := tdpUtils.NewConn(proxyConn)
 	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
+		if err := tdpConn.WriteMessage(tdp.Alert{Message: message, Severity: tdp.SeverityError}); err != nil {
 			log.ErrorContext(context.Background(), "Failed to send TDP error message", "error", err)
 		}
 	}
@@ -709,7 +713,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdpUtils.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	log = log.With("teleport_user", identity.Username, "desktop_addr", desktop.GetAddr(), "ad", !desktop.NonAD())
@@ -971,10 +975,10 @@ func (s *WindowsService) makeTDPSendHandler(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
-	tdpConn *tdp.Conn,
+	tdpConn *tdpUtils.Conn,
 	audit *desktopSessionAuditor,
-) func(m tdp.Message, b []byte) {
-	return func(m tdp.Message, b []byte) {
+) func(m protocol.Message, b []byte) {
+	return func(m protocol.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
 			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeAlert):
@@ -1042,12 +1046,12 @@ func (s *WindowsService) makeTDPReceiveHandler(
 	ctx context.Context,
 	recorder libevents.SessionPreparerRecorder,
 	delay func() int64,
-	tdpConn *tdp.Conn,
+	tdpConn *tdpUtils.Conn,
 	audit *desktopSessionAuditor,
-) func(m tdp.Message) {
-	return func(m tdp.Message) {
+) func(m protocol.Message) {
+	return func(m protocol.Message) {
 		switch msg := m.(type) {
-		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
+		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
 			b, err := m.Encode()
 			if err != nil {
 				s.cfg.Logger.WarnContext(ctx, "could not emit desktop recording event", "error", err)
@@ -1069,11 +1073,11 @@ func (s *WindowsService) makeTDPReceiveHandler(
 					s.cfg.Logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
 				}
 			}
-		case tdp.ClipboardData:
+		case *tdpb.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we
 			// received clipboard data from the user (over TDP) and are sending
 			// it to the remote desktop
-			sendEvent := audit.makeClipboardSend(int32(len(msg)))
+			sendEvent := audit.makeClipboardSend(int32(len(msg.Data)))
 			s.emit(ctx, sendEvent)
 		case tdp.SharedDirectoryAnnounce:
 			errorEvent := audit.onSharedDirectoryAnnounce(m.(tdp.SharedDirectoryAnnounce))
@@ -1350,11 +1354,11 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 // monitor disconnect messages back to the frontend
 // over the tdp.Conn
 type monitorErrorSender struct {
-	tdpConn *tdp.Conn
+	tdpConn *tdpUtils.Conn
 }
 
 func (m *monitorErrorSender) WriteString(s string) (n int, err error) {
-	if err := m.tdpConn.SendNotification(s, tdp.SeverityError); err != nil {
+	if err := m.tdpConn.WriteMessage(tdp.Alert{Message: s, Severity: tdp.SeverityError}); err != nil {
 		return 0, trace.Wrap(err, "sending TDP error message")
 	}
 

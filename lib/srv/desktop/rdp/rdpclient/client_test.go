@@ -26,7 +26,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	tdpConn "github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
 
 type fakeConn struct {
@@ -42,7 +44,7 @@ func (f *fakeConn) Close() error {
 	return nil
 }
 
-func (f *fakeConn) AddMessage(message tdp.Message) error {
+func (f *fakeConn) AddMessage(message protocol.Message) error {
 	msg, err := message.Encode()
 	if err != nil {
 		return err
@@ -55,7 +57,7 @@ func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
 	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	conn := tdp.NewConn(&f)
+	conn := tdpConn.NewConn(&f)
 
 	_, err = New(createConfig(conn))
 	require.EqualError(t, err, "EOF")
@@ -76,7 +78,7 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f)
+	conn := tdpConn.NewConn(&f)
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
@@ -99,13 +101,13 @@ func TestClientNew_KeyboardLayout(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f)
+	conn := tdpConn.NewConn(&f)
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
 }
 
-func createConfig(conn *tdp.Conn) Config {
+func createConfig(conn *tdpConn.Conn) Config {
 	return Config{
 		Addr:        "example.com",
 		AuthorizeFn: func(login string) error { return nil },

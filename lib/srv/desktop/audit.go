@@ -29,7 +29,8 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -242,7 +243,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 		name = "unknown"
 	}
 
-	if m.ErrCode != tdp.ErrCodeNil {
+	if m.ErrCode != protocol.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryStartFailureCode
 	}
 
@@ -341,7 +342,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 		name = "unknown"
 	}
 
-	if m.ErrCode != tdp.ErrCodeNil {
+	if m.ErrCode != protocol.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
@@ -444,7 +445,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 		name = "unknown"
 	}
 
-	if m.ErrCode != tdp.ErrCodeNil {
+	if m.ErrCode != protocol.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
@@ -482,7 +483,7 @@ func (s *WindowsService) record(ctx context.Context, recorder libevents.SessionP
 }
 
 func statusFromErrCode(errCode uint32) events.Status {
-	success := errCode == tdp.ErrCodeNil
+	success := errCode == protocol.ErrCodeNil
 
 	// early return for most common case
 	if success {
@@ -493,11 +494,11 @@ func statusFromErrCode(errCode uint32) events.Status {
 
 	msg := unknownErrStatusMsg
 	switch errCode {
-	case tdp.ErrCodeFailed:
+	case protocol.ErrCodeFailed:
 		msg = failedStatusMessage
-	case tdp.ErrCodeDoesNotExist:
+	case protocol.ErrCodeDoesNotExist:
 		msg = doesNotExistStatusMessage
-	case tdp.ErrCodeAlreadyExists:
+	case protocol.ErrCodeAlreadyExists:
 		msg = alreadyExistsStatusMessage
 	}
 

@@ -19,7 +19,7 @@
 // Package tdp implements the Teleport desktop protocol (TDP)
 // encoder/decoder.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
-package tdp
+package legacy
 
 // TODO(zmb3): complete the implementation of all messages, even if we don't
 // use them yet.
@@ -40,6 +40,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
 
@@ -89,17 +90,36 @@ const (
 	TypeUpgrade                         = MessageType(38)
 )
 
-// Message is a Go representation of a desktop protocol message.
-type Message interface {
-	Encode() ([]byte, error)
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, clipDataMaxLenErr) ||
+		errors.Is(err, stringMaxLenErr) ||
+		errors.Is(err, fileReadWriteMaxLenErr) ||
+		errors.Is(err, mfaDataMaxLenErr)
 }
 
-// Decode decodes the wire representation of a message.
-func Decode(buf []byte) (Message, error) {
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
+}
+
+// decode decodes the wire representation of a message.
+func decode(buf []byte) (protocol.Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
-	return decode(bytes.NewReader(buf))
+	return Decode(bytes.NewReader(buf))
 }
 
 type byteReader interface {
@@ -107,7 +127,7 @@ type byteReader interface {
 	io.ByteReader
 }
 
-func decode(in byteReader) (Message, error) {
+func Decode(in byteReader) (protocol.Message, error) {
 	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()
 	if err != nil {
@@ -117,7 +137,7 @@ func decode(in byteReader) (Message, error) {
 	return decodeMessage(t, in)
 }
 
-func decodeMessage(firstByte byte, in byteReader) (Message, error) {
+func decodeMessage(firstByte byte, in byteReader) (protocol.Message, error) {
 	switch mt := MessageType(firstByte); mt {
 	case TypeClientScreenSpec:
 		return decodeClientScreenSpec(in)
@@ -1811,14 +1831,6 @@ const (
 
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
-
-// These correspond to TdpErrCode enum in the rust RDP client.
-const (
-	ErrCodeNil           uint32 = 0
-	ErrCodeFailed        uint32 = 1
-	ErrCodeDoesNotExist  uint32 = 2
-	ErrCodeAlreadyExists uint32 = 3
-)
 
 var (
 	clipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")

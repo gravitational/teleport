@@ -207,7 +207,6 @@ func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboard
 			if h.hello.ScreenSpec != nil {
 				h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.ScreenSpec.Width, Height: h.hello.ScreenSpec.Height}
 			} else {
-				// TODO: Consider using proto validate?
 				return trace.Errorf("Client Hello does not contain required ScreenSpec field")
 			}
 		} else {
@@ -457,6 +456,15 @@ func (h *Handler) createDesktopConnection(
 		log.InfoContext(ctx, "Desktop Service negotiated TDP")
 		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 		err = handshakeData.ForwardTDP(serviceConnTLS, username, sendKeyboardLayout)
+	}
+
+	// Forward any withheld messages during MFA
+	for _, msg := range withheld {
+		if err := tdpb.EncodeTo(serviceConnTLS, msg); err != nil {
+			err = trace.WrapWithMessage(err, "error forwarding message to desktop agent")
+			sendError(&adapter, err)
+			return err
+		}
 	}
 
 	// this blocks until the connection is closed

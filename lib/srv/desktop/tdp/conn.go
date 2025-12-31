@@ -26,17 +26,17 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/trace"
 )
 
-var ErrEmptyMessage = errors.New("decoded empty TDPB envelope")
-
 type MessageReader interface {
-	ReadMessage() (Message, error)
+	ReadMessage() (protocol.Message, error)
 }
 
 type MessageWriter interface {
-	WriteMessage(Message) error
+	WriteMessage(protocol.Message) error
 }
 
 type MessageReadWriter interface {
@@ -62,11 +62,11 @@ type Conn struct {
 	// OnSend is an optional callback that is invoked when a TDP message
 	// is sent on the wire. It is passed both the raw bytes and the encoded
 	// message.
-	OnSend func(m Message, b []byte)
+	OnSend func(m protocol.Message, b []byte)
 
 	// OnRecv is an optional callback that is invoked when a TDP message
 	// is received on the wire.
-	OnRecv func(m Message)
+	OnRecv func(m protocol.Message)
 
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
@@ -76,7 +76,7 @@ type Conn struct {
 
 // decoderFunc is a function that decodes incoming data
 // into a Message.
-type Decoder func(io.Reader) (Message, error)
+type Decoder func(io.Reader) (protocol.Message, error)
 
 type connOption func(c *Conn)
 
@@ -97,8 +97,8 @@ func NewConn(rwc io.ReadWriteCloser, opts ...connOption) *Conn {
 		rwc:  rwc,
 		bufr: br,
 		// Default to legacy TDP decoder
-		decode: func(r io.Reader) (Message, error) {
-			return decode(br)
+		decode: func(r io.Reader) (protocol.Message, error) {
+			return legacy.Decode(br)
 		},
 	}
 
@@ -133,9 +133,8 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// NextMessageType peaks at the next incoming message without
-// consuming it.
-func (c *Conn) NextMessageType() (MessageType, error) {
+// PeakNextByte peaks at the next byte without consuming it.
+func (c *Conn) PeakNextByte() (byte, error) {
 	b, err := c.bufr.ReadByte()
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -143,16 +142,16 @@ func (c *Conn) NextMessageType() (MessageType, error) {
 	if err := c.bufr.UnreadByte(); err != nil {
 		return 0, trace.Wrap(err)
 	}
-	return MessageType(b), nil
+	return b, nil
 }
 
 // ReadMessage reads the next incoming message from the connection.
-func (c *Conn) ReadMessage() (Message, error) {
+func (c *Conn) ReadMessage() (protocol.Message, error) {
 	for {
 		m, err := c.decode(c.bufr)
 		if err != nil {
 			// Tolerate empty/unknown message types
-			if errors.Is(err, ErrEmptyMessage) {
+			if errors.Is(err, protocol.ErrEmptyMessage) {
 				continue
 			}
 			return nil, err
@@ -165,7 +164,7 @@ func (c *Conn) ReadMessage() (Message, error) {
 }
 
 // WriteMessage sends a message to the connection.
-func (c *Conn) WriteMessage(m Message) error {
+func (c *Conn) WriteMessage(m protocol.Message) error {
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
@@ -183,24 +182,24 @@ func (c *Conn) WriteMessage(m Message) error {
 
 // ReadClientScreenSpec reads the next message from the connection, expecting
 // it to be a ClientScreenSpec. If it is not, an error is returned.
-func (c *Conn) ReadClientScreenSpec() (*ClientScreenSpec, error) {
-	m, err := c.ReadMessage()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	spec, ok := m.(ClientScreenSpec)
-	if !ok {
-		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
-	}
-
-	return &spec, nil
-}
+//func (c *Conn) ReadClientScreenSpec() (*ClientScreenSpec, error) {
+//	m, err := c.ReadMessage()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//
+//	spec, ok := m.(ClientScreenSpec)
+//	if !ok {
+//		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
+//	}
+//
+//	return &spec, nil
+//}
 
 // SendNotification is a convenience function for sending a Notification message.
-func (c *Conn) SendNotification(message string, severity Severity) error {
-	return c.WriteMessage(Alert{Message: message, Severity: severity})
-}
+//func (c *Conn) SendNotification(message string, severity Severity) error {
+//	return c.WriteMessage(Alert{Message: message, Severity: severity})
+//}
 
 // LocalAddr returns local address
 func (c *Conn) LocalAddr() net.Addr {
@@ -212,35 +211,11 @@ func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
 
-// IsNonFatalErr returns whether or not an error arising from
-// the tdp package should be interpreted as fatal or non-fatal
-// for an ongoing TDP connection.
-func IsNonFatalErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return errors.Is(err, clipDataMaxLenErr) ||
-		errors.Is(err, stringMaxLenErr) ||
-		errors.Is(err, fileReadWriteMaxLenErr) ||
-		errors.Is(err, mfaDataMaxLenErr)
-}
-
-// IsFatalErr returns the inverse of IsNonFatalErr
-// (except for if err == nil, for which both functions return false)
-func IsFatalErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return !IsNonFatalErr(err)
-}
-
 // Interceptor intercepts messages. It should return
 // the [potentially modified] message(s) in order to pass it on to the
 // other end of the connection, or it may swallow the message by returning
 // a nil or empty slice. Returned slices should not contain nil messages.
-type Interceptor func(message Message) ([]Message, error)
+type Interceptor func(message protocol.Message) ([]protocol.Message, error)
 
 // ReadWriteInterceptor wraps an existing 'MessageReadWriteCloser' and runs the
 // provided interceptor functions in the read and/or write paths. Allows callers
@@ -251,28 +226,28 @@ type ReadWriteInterceptor struct {
 	// The interceptor to run in the write path
 	writeInterceptor Interceptor
 	// A closure over the interceptor to run in the read path
-	readAdapter func() (Message, error)
+	readAdapter func() (protocol.Message, error)
 }
 
 // Message slices returned by interceptor functions should not include
 // nil messages, but a little defensive programming can prevent a crash.
 // 'removeNilMessages' will return a subslice of the input slice with
 // nil messages removed.
-func removeNilMessages(msgs []Message) []Message {
-	return slices.DeleteFunc(msgs, func(msg Message) bool {
+func removeNilMessages(msgs []protocol.Message) []protocol.Message {
+	return slices.DeleteFunc(msgs, func(msg protocol.Message) bool {
 		return msg == nil
 	})
 }
 
 // readInterceptorAdapter closes over an internal slice that keeps track of
 // of messages returned by the read interceptor callback (if present).
-func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, error) {
+func readInterceptorAdapter(src MessageReader, i Interceptor) func() (protocol.Message, error) {
 	if i == nil {
 		return src.ReadMessage
 	}
 
-	var msgs []Message
-	return func() (Message, error) {
+	var msgs []protocol.Message
+	return func() (protocol.Message, error) {
 		// len(msgs) == 0 - initial case / empty cache
 		// len(msgs) > 0  - Return a cached message
 		for len(msgs) == 0 {
@@ -309,7 +284,7 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeI
 // WriteMessage passes the message to the write interceptor (if provided)
 // for omition or modification before writing the message to the underlying
 // writer.
-func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
+func (i *ReadWriteInterceptor) WriteMessage(m protocol.Message) error {
 	if i.writeInterceptor == nil {
 		// No interceptor found
 		return i.src.WriteMessage(m)
@@ -335,7 +310,7 @@ func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 // ReadMessage reads from the underlying reader and passes them to the
 // read interceptor (if provided) for omition or modification before
 // returning the next message.
-func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
+func (i *ReadWriteInterceptor) ReadMessage() (protocol.Message, error) {
 	return i.readAdapter()
 }
 

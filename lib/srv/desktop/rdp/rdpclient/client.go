@@ -87,7 +87,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -232,6 +233,27 @@ func (c *Client) GetClientUsername() string {
 	return c.username
 }
 
+// ReadClientScreenSpec reads the next message from the connection, expecting
+// it to be a ClientScreenSpec. If it is not, an error is returned.
+func (c *Client) ReadClientScreenSpec() (*tdp.ClientScreenSpec, error) {
+	m, err := c.cfg.Conn.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spec, ok := m.(tdp.ClientScreenSpec)
+	if !ok {
+		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
+	}
+
+	return &spec, nil
+}
+
+// SendNotification is a convenience function for sending a Notification message.
+func (c *Client) SendNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
+}
+
 func (c *Client) readClientUsername() error {
 	for {
 		msg, err := c.cfg.Conn.ReadMessage()
@@ -251,7 +273,7 @@ func (c *Client) readClientUsername() error {
 
 func (c *Client) readClientSize() error {
 	for {
-		s, err := c.cfg.Conn.ReadClientScreenSpec()
+		s, err := c.ReadClientScreenSpec()
 		if err != nil {
 			if trace.IsBadParameter(err) {
 				c.cfg.Logger.DebugContext(context.Background(), "Failed to read client screen spec", "error", err)
@@ -291,11 +313,11 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) readClientKeyboardLayout() error {
-	msgType, err := c.cfg.Conn.NextMessageType()
+	msgType, err := c.cfg.Conn.PeakNextByte()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if msgType != tdp.TypeClientKeyboardLayout {
+	if tdp.MessageType(msgType) != tdp.TypeClientKeyboardLayout {
 		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
 		return nil
 	}
@@ -457,7 +479,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		if utils.IsOKNetworkError(err) {
 			return nil
 		} else if tdp.IsNonFatalErr(err) {
-			c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
+			c.SendNotification(err.Error(), tdp.SeverityWarning)
 			continue
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
@@ -525,7 +547,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 }
 
 // handleTDPInput handles a single TDP message sent to us from the browser.
-func (c *Client) handleTDPInput(msg tdp.Message) error {
+func (c *Client) handleTDPInput(msg protocol.Message) error {
 	switch m := msg.(type) {
 	case tdp.ClientScreenSpec:
 		// If the client has specified a fixed screen size, we don't
