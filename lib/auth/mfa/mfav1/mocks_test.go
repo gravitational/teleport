@@ -144,8 +144,6 @@ type mockMFAService struct {
 	ReturnError error
 }
 
-var _ services.MFAService = &mockMFAService{}
-
 func (m *mockMFAService) CreateValidatedMFAChallenge(
 	ctx context.Context,
 	username string,
