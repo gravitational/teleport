@@ -1,0 +1,6 @@
+# the binary
+loadtest-login
+# default passkey location
+device.json
+# dynamically built service
+loadtest.service
