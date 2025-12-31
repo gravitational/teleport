@@ -92,7 +92,10 @@ export const JoinTokens = () => {
 
   function getRowStyle(row: JoinToken): React.CSSProperties {
     if (row.isCloudSystem) {
-      return { background: theme.colors.interactive.tonal.neutral[0] };
+      return {
+        background: theme.colors.interactive.tonal.neutral[0],
+        color: theme.colors.text.muted,
+      };
     }
   }
 
@@ -182,7 +185,7 @@ export const JoinTokens = () => {
             <Alert kind="danger">{joinTokensAttempt.statusText}</Alert>
           )}
           {joinTokensAttempt.status === 'success' && (
-            <Table
+            <JoinTokenTable
               isSearchable
               data={joinTokensAttempt.data.items}
               row={{
@@ -321,6 +324,15 @@ export const JoinTokens = () => {
   );
 };
 
+// This is necessary because the Table component styles
+// hard-code the text color for the <td> element, preventing
+// our row style from being applied.
+const JoinTokenTable = styled(Table)`
+  & > tbody > tr > td {
+    color: inherit;
+  }
+` as typeof Table;
+
 export function searchMatcher(
   targetValue: any,
   searchValue: string,
@@ -381,7 +393,7 @@ const StyledLabel = styled(Label)`
   margin: 1px 0;
   margin-right: ${props => props.theme.space[2]}px;
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
-  color: ${props => props.theme.colors.text.main};
+  color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

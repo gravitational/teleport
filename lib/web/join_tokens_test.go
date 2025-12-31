@@ -161,7 +161,6 @@ func TestGetTokens(t *testing.T) {
 				},
 			},
 			expected: []ui.JoinToken{
-				staticUIToken,
 				{
 					ID:            "cloud-iam",
 					SafeName:      "*********",
@@ -170,6 +169,7 @@ func TestGetTokens(t *testing.T) {
 					IsCloudSystem: true, // due to presence of the teleport.internal/cloud/token label
 					Method:        "token",
 				},
+				staticUIToken,
 			},
 		},
 		{
