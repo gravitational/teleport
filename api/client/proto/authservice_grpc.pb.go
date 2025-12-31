@@ -148,6 +148,7 @@ const (
 	AuthService_UpsertRoleV2_FullMethodName                        = "/proto.AuthService/UpsertRoleV2"
 	AuthService_UpsertRole_FullMethodName                          = "/proto.AuthService/UpsertRole"
 	AuthService_DeleteRole_FullMethodName                          = "/proto.AuthService/DeleteRole"
+	AuthService_AtomicWriteRoles_FullMethodName                    = "/proto.AuthService/AtomicWriteRoles"
 	AuthService_AddMFADevice_FullMethodName                        = "/proto.AuthService/AddMFADevice"
 	AuthService_DeleteMFADevice_FullMethodName                     = "/proto.AuthService/DeleteMFADevice"
 	AuthService_AddMFADeviceSync_FullMethodName                    = "/proto.AuthService/AddMFADeviceSync"
@@ -595,6 +596,21 @@ type AuthServiceClient interface {
 	UpsertRole(ctx context.Context, in *types.RoleV6, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
 	DeleteRole(ctx context.Context, in *DeleteRoleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// AtomicWriteRoles performs atomic role create/update/delete operations using Compare-And-Swap.
+	//
+	// All operations succeed or fail together as a single transaction. This prevents partial state changes
+	// in critical role management scenarios.
+	//
+	// Roles in roles_to_create are created with NotExists() condition, roles in roles_to_update are updated
+	// with Revision() condition for optimistic concurrency control, and roles in role_names_delete are
+	// deleted using Exists() condition.
+	//
+	// Use cases: For transactional UI operations where a single user action triggers multiple role changes,
+	// atomicity ensures the backend state matches user intent, guaranteeing that either the entire operation
+	// succeeds or nothing changes and the user can safely retry. Without atomicity, partial failures can
+	// leave the system in an inconsistent state requiring manual intervention to identify and fix incomplete
+	// operations.
+	AtomicWriteRoles(ctx context.Context, in *AtomicWriteRolesRequest, opts ...grpc.CallOption) (*AtomicWriteRolesResponse, error)
 	// Deprecated: Do not use.
 	// AddMFADevice adds an MFA device for the user calling this RPC.
 	//
@@ -2303,6 +2319,16 @@ func (c *authServiceClient) DeleteRole(ctx context.Context, in *DeleteRoleReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_DeleteRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) AtomicWriteRoles(ctx context.Context, in *AtomicWriteRolesRequest, opts ...grpc.CallOption) (*AtomicWriteRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AtomicWriteRolesResponse)
+	err := c.cc.Invoke(ctx, AuthService_AtomicWriteRoles_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4279,6 +4305,21 @@ type AuthServiceServer interface {
 	UpsertRole(context.Context, *types.RoleV6) (*emptypb.Empty, error)
 	// DeleteRole deletes an existing role in a backend described by the given request.
 	DeleteRole(context.Context, *DeleteRoleRequest) (*emptypb.Empty, error)
+	// AtomicWriteRoles performs atomic role create/update/delete operations using Compare-And-Swap.
+	//
+	// All operations succeed or fail together as a single transaction. This prevents partial state changes
+	// in critical role management scenarios.
+	//
+	// Roles in roles_to_create are created with NotExists() condition, roles in roles_to_update are updated
+	// with Revision() condition for optimistic concurrency control, and roles in role_names_delete are
+	// deleted using Exists() condition.
+	//
+	// Use cases: For transactional UI operations where a single user action triggers multiple role changes,
+	// atomicity ensures the backend state matches user intent, guaranteeing that either the entire operation
+	// succeeds or nothing changes and the user can safely retry. Without atomicity, partial failures can
+	// leave the system in an inconsistent state requiring manual intervention to identify and fix incomplete
+	// operations.
+	AtomicWriteRoles(context.Context, *AtomicWriteRolesRequest) (*AtomicWriteRolesResponse, error)
 	// Deprecated: Do not use.
 	// AddMFADevice adds an MFA device for the user calling this RPC.
 	//
@@ -5102,6 +5143,9 @@ func (UnimplementedAuthServiceServer) UpsertRole(context.Context, *types.RoleV6)
 }
 func (UnimplementedAuthServiceServer) DeleteRole(context.Context, *DeleteRoleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRole not implemented")
+}
+func (UnimplementedAuthServiceServer) AtomicWriteRoles(context.Context, *AtomicWriteRolesRequest) (*AtomicWriteRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AtomicWriteRoles not implemented")
 }
 func (UnimplementedAuthServiceServer) AddMFADevice(grpc.BidiStreamingServer[AddMFADeviceRequest, AddMFADeviceResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method AddMFADevice not implemented")
@@ -7513,6 +7557,24 @@ func _AuthService_DeleteRole_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).DeleteRole(ctx, req.(*DeleteRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_AtomicWriteRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AtomicWriteRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).AtomicWriteRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_AtomicWriteRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).AtomicWriteRoles(ctx, req.(*AtomicWriteRolesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10810,6 +10872,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRole",
 			Handler:    _AuthService_DeleteRole_Handler,
+		},
+		{
+			MethodName: "AtomicWriteRoles",
+			Handler:    _AuthService_AtomicWriteRoles_Handler,
 		},
 		{
 			MethodName: "AddMFADeviceSync",

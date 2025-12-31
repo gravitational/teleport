@@ -1238,6 +1238,26 @@ message DeleteRoleRequest {
   string Name = 1;
 }
 
+// Request message for AtomicWriteRoles.
+message AtomicWriteRolesRequest {
+  // Roles to create.
+  repeated types.RoleV6 roles_to_create = 1;
+  // Roles to update.
+  repeated types.RoleV6 roles_to_update = 2;
+  // Roles to delete.
+  repeated string role_names_to_delete = 3;
+}
+
+// Response message for AtomicWriteRoles.
+message AtomicWriteRolesResponse {
+  // Updated contains all roles that were created.
+  // All roles share the same revision since they were written in a single transaction.
+  repeated types.RoleV6 created = 1;
+  // Updated contains all roles that were updated.
+  // All roles share the same revision since they were written in a single transaction.
+  repeated types.RoleV6 updated = 2;
+}
+
 // DeviceType describes supported MFA device types.
 enum DeviceType {
   DEVICE_TYPE_UNSPECIFIED = 0;
@@ -3289,6 +3309,22 @@ service AuthService {
   }
   // DeleteRole deletes an existing role in a backend described by the given request.
   rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty);
+
+  // AtomicWriteRoles performs atomic role create/update/delete operations using Compare-And-Swap.
+  //
+  // All operations succeed or fail together as a single transaction. This prevents partial state changes
+  // in critical role management scenarios.
+  //
+  // Roles in roles_to_create are created with NotExists() condition, roles in roles_to_update are updated
+  // with Revision() condition for optimistic concurrency control, and roles in role_names_delete are
+  // deleted using Exists() condition.
+  //
+  // Use cases: For transactional UI operations where a single user action triggers multiple role changes,
+  // atomicity ensures the backend state matches user intent, guaranteeing that either the entire operation
+  // succeeds or nothing changes and the user can safely retry. Without atomicity, partial failures can
+  // leave the system in an inconsistent state requiring manual intervention to identify and fix incomplete
+  // operations.
+  rpc AtomicWriteRoles(AtomicWriteRolesRequest) returns (AtomicWriteRolesResponse);
 
   // AddMFADevice adds an MFA device for the user calling this RPC.
   //
