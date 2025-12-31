@@ -23,6 +23,7 @@ package decisionpb
 import (
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -291,9 +292,16 @@ type SSHIdentity struct {
 	// set, the Roles field must not be set.
 	ScopePin *v11.Pin `protobuf:"bytes,35,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
 	// The scope associated with a host identity.
-	AgentScope    string `protobuf:"bytes,36,opt,name=agent_scope,json=agentScope,proto3" json:"agent_scope,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AgentScope string `protobuf:"bytes,36,opt,name=agent_scope,json=agentScope,proto3" json:"agent_scope,omitempty"`
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with additional information such as ResourceConstraints.
+	// Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+	// to express additional information per-resource such as ResourceConstraints.
+	// When present, AllowedResourceAccessIDs should be treated as authoritative
+	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+	AllowedResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,37,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3" json:"allowed_resource_access_ids,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *SSHIdentity) Reset() {
@@ -578,6 +586,13 @@ func (x *SSHIdentity) GetAgentScope() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetAllowedResourceAccessIds() []*types.ResourceAccessID {
+	if x != nil {
+		return x.AllowedResourceAccessIds
+	}
+	return nil
+}
+
 // CertExtension represents a key/value for a certificate extension. This type must
 // be kept up to date with types.CertExtension.
 type CertExtension struct {
@@ -660,10 +675,10 @@ var File_teleport_decision_v1alpha1_ssh_identity_proto protoreflect.FileDescript
 
 const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
+	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x90\f\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\xe8\f\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -709,7 +724,8 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"join_token\x18\" \x01(\tR\tjoinToken\x124\n" +
 	"\tscope_pin\x18# \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x12\x1f\n" +
 	"\vagent_scope\x18$ \x01(\tR\n" +
-	"agentScope\"\xbf\x01\n" +
+	"agentScope\x12V\n" +
+	"\x1ballowed_resource_access_ids\x18% \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +
@@ -737,15 +753,16 @@ func file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP() []byte {
 var file_teleport_decision_v1alpha1_ssh_identity_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_decision_v1alpha1_ssh_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_decision_v1alpha1_ssh_identity_proto_goTypes = []any{
-	(CertExtensionMode)(0),        // 0: teleport.decision.v1alpha1.CertExtensionMode
-	(CertExtensionType)(0),        // 1: teleport.decision.v1alpha1.CertExtensionType
-	(*SSHAuthority)(nil),          // 2: teleport.decision.v1alpha1.SSHAuthority
-	(*SSHIdentity)(nil),           // 3: teleport.decision.v1alpha1.SSHIdentity
-	(*CertExtension)(nil),         // 4: teleport.decision.v1alpha1.CertExtension
-	(*v1.Trait)(nil),              // 5: teleport.trait.v1.Trait
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
-	(*ResourceId)(nil),            // 7: teleport.decision.v1alpha1.ResourceId
-	(*v11.Pin)(nil),               // 8: teleport.scopes.v1.Pin
+	(CertExtensionMode)(0),         // 0: teleport.decision.v1alpha1.CertExtensionMode
+	(CertExtensionType)(0),         // 1: teleport.decision.v1alpha1.CertExtensionType
+	(*SSHAuthority)(nil),           // 2: teleport.decision.v1alpha1.SSHAuthority
+	(*SSHIdentity)(nil),            // 3: teleport.decision.v1alpha1.SSHIdentity
+	(*CertExtension)(nil),          // 4: teleport.decision.v1alpha1.CertExtension
+	(*v1.Trait)(nil),               // 5: teleport.trait.v1.Trait
+	(*timestamppb.Timestamp)(nil),  // 6: google.protobuf.Timestamp
+	(*ResourceId)(nil),             // 7: teleport.decision.v1alpha1.ResourceId
+	(*v11.Pin)(nil),                // 8: teleport.scopes.v1.Pin
+	(*types.ResourceAccessID)(nil), // 9: types.ResourceAccessID
 }
 var file_teleport_decision_v1alpha1_ssh_identity_proto_depIdxs = []int32{
 	5, // 0: teleport.decision.v1alpha1.SSHIdentity.traits:type_name -> teleport.trait.v1.Trait
@@ -753,13 +770,14 @@ var file_teleport_decision_v1alpha1_ssh_identity_proto_depIdxs = []int32{
 	4, // 2: teleport.decision.v1alpha1.SSHIdentity.certificate_extensions:type_name -> teleport.decision.v1alpha1.CertExtension
 	7, // 3: teleport.decision.v1alpha1.SSHIdentity.allowed_resource_ids:type_name -> teleport.decision.v1alpha1.ResourceId
 	8, // 4: teleport.decision.v1alpha1.SSHIdentity.scope_pin:type_name -> teleport.scopes.v1.Pin
-	1, // 5: teleport.decision.v1alpha1.CertExtension.type:type_name -> teleport.decision.v1alpha1.CertExtensionType
-	0, // 6: teleport.decision.v1alpha1.CertExtension.mode:type_name -> teleport.decision.v1alpha1.CertExtensionMode
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9, // 5: teleport.decision.v1alpha1.SSHIdentity.allowed_resource_access_ids:type_name -> types.ResourceAccessID
+	1, // 6: teleport.decision.v1alpha1.CertExtension.type:type_name -> teleport.decision.v1alpha1.CertExtensionType
+	0, // 7: teleport.decision.v1alpha1.CertExtension.mode:type_name -> teleport.decision.v1alpha1.CertExtensionMode
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_decision_v1alpha1_ssh_identity_proto_init() }
