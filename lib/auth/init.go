@@ -424,6 +424,9 @@ type InitConfig struct {
 	// AppAuthConfig is the service for storing and retrieving
 	// app auth config resources.
 	AppAuthConfig services.AppAuthConfig
+
+	// MFAService is the service that manages MFA resources.
+	MFAService MFAService
 }
 
 // Init instantiates and configures an instance of AuthServer
