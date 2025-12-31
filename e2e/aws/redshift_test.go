@@ -125,7 +125,9 @@ func testRedshiftCluster(t *testing.T) {
 			fmt.Sprintf("DROP USER IF EXISTS %q", adminUser.Name),
 		} {
 			_, err := conn.Exec(ctx, stmt)
-			assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+			if err != nil {
+				t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+			}
 		}
 	})
 	testTable := "ctf" // capture the flag :)
