@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Label } from 'teleport/types';
+import { useHistory } from 'react-router-dom';
 
-export function makeLabelTag(label: Label) {
-  return `${label.name}: ${label.value}`;
+import { NavigationSection } from './Navigation';
+
+export function useDefaultNavigation(section: NavigationSection) {
+  const history = useHistory();
+
+  if (section.subsections?.length === 0) {
+    return {};
+  }
+
+  const first = section.subsections[0];
+
+  return {
+    onClick: () => {
+      first.onClick?.();
+      history.push(first.route);
+    },
+  };
 }
