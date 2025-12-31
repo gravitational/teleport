@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +36,10 @@ import (
 func TestMFAService_CRUD(t *testing.T) {
 	t.Parallel()
 
-	clock := clockwork.NewFakeClock()
+	startTime := time.Now()
+
+	clock := clockwork.NewFakeClockAt(startTime)
+
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
@@ -57,17 +62,31 @@ func TestMFAService_CRUD(t *testing.T) {
 
 	created, err := svc.CreateValidatedMFAChallenge(t.Context(), username, chal)
 	require.NoError(t, err)
-	require.Equal(t, chal.Kind, created.Kind)
-	require.Equal(t, chal.Version, created.Version)
-	require.Equal(t, chal.Metadata.Name, created.Metadata.Name)
-	require.WithinDuration(t, time.Now().Add(5*time.Minute), *created.Metadata.Expires, time.Second)
+
+	want := cloneValidatedMFAChallenge(t, chal)
+
+	if diff := cmp.Diff(
+		want,
+		created,
+		cmp.FilterPath(
+			func(p cmp.Path) bool {
+				return p.String() == "Metadata.Expires"
+			},
+			cmp.Ignore(),
+		),
+	); diff != "" {
+		t.Errorf("CreateValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
+	}
+
+	// Expiration time should be set to 5 minutes from creation.
+	require.WithinDuration(t, startTime.Add(5*time.Minute), *created.Metadata.Expires, time.Second)
 
 	got, err := svc.GetValidatedMFAChallenge(t.Context(), username, chal.Metadata.Name)
 	require.NoError(t, err)
-	require.Equal(t, created.Metadata.Name, got.Metadata.Name)
-	require.Equal(t, created.Spec.SourceCluster, got.Spec.SourceCluster)
-	require.Equal(t, created.Spec.TargetCluster, got.Spec.TargetCluster)
-	require.WithinDuration(t, *created.Metadata.Expires, *got.Metadata.Expires, time.Second)
+
+	if diff := cmp.Diff(created, got); diff != "" {
+		t.Errorf("GetValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
@@ -228,4 +247,18 @@ func newValidatedMFAChallenge(t *testing.T) *mfav1.ValidatedMFAChallenge {
 			TargetCluster: "tgt",
 		},
 	}
+}
+
+func cloneValidatedMFAChallenge(t *testing.T, chal *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
+	t.Helper()
+
+	bytes, err := proto.Marshal(chal)
+	require.NoError(t, err)
+
+	clone := &mfav1.ValidatedMFAChallenge{}
+
+	err = proto.Unmarshal(bytes, clone)
+	require.NoError(t, err)
+
+	return clone
 }
