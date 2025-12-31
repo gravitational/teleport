@@ -1980,15 +1980,10 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
 
 	sessionSummarizerEnabled := false
-	isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
-		r.Context(), &summarizerv1.IsEnabledRequest{},
-	)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(),
-			"Cannot tell if the session summarizer is enabled, session summarizations won't show up in the UI",
-			"error", err,
-		)
-	} else {
+	if isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
+		r.Context(),
+		&summarizerv1.IsEnabledRequest{},
+	); err == nil {
 		sessionSummarizerEnabled = isEnabledRes.Enabled
 	}
 
