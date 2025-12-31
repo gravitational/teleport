@@ -155,15 +155,3 @@ func (m *mockMFAService) CreateValidatedMFAChallenge(
 
 	return chal, nil
 }
-
-func (m *mockMFAService) GetValidatedMFAChallenge(
-	ctx context.Context,
-	username string,
-	challengeName string,
-) (*mfav1.ValidatedMFAChallenge, error) {
-	if m.ReturnError != nil {
-		return nil, m.ReturnError
-	}
-
-	return &mfav1.ValidatedMFAChallenge{}, nil
-}

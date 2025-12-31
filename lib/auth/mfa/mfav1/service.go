@@ -35,7 +35,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
@@ -81,6 +80,14 @@ type Identity interface {
 	DeleteWebauthnSessionData(ctx context.Context, user, sessionID string) error
 }
 
+// MFAService defines the interface for managing MFA resources.
+type MFAService interface {
+	CreateValidatedMFAChallenge(ctx context.Context,
+		username string,
+		chal *mfav1.ValidatedMFAChallenge,
+	) (*mfav1.ValidatedMFAChallenge, error)
+}
+
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct {
 	Authorizer authz.Authorizer
@@ -88,7 +95,7 @@ type ServiceConfig struct {
 	Cache      Cache
 	Emitter    Emitter
 	Identity   Identity
-	Storage    services.MFAService
+	Storage    MFAService
 }
 
 // Service implements the teleport.decision.v1alpha1.DecisionService gRPC API.
@@ -101,7 +108,7 @@ type Service struct {
 	cache      Cache
 	emitter    Emitter
 	identity   Identity
-	storage    services.MFAService
+	storage    MFAService
 }
 
 // NewService creates a new [Service] instance.
