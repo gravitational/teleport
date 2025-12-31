@@ -101,7 +101,8 @@ function DesktopSessionComponent(props: {
           shareDirectoryInTshd(appCtx.mainProcessClient, {
             desktopUri,
             login,
-          })
+          }),
+        { mode: 'tdpb' }
       )
   );
 
