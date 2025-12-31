@@ -253,6 +253,7 @@ export enum ResourceKind {
   Bot = 'bot',
   BotInstance = 'bot_instance',
   CertAuthority = 'cert_authority',
+  CloudCluster = 'cloud_cluster',
   ClusterAlert = 'cluster_alert',
   ClusterAuditConfig = 'cluster_audit_config',
   ClusterAuthPreference = 'cluster_auth_preference',
