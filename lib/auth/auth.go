@@ -612,7 +612,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.MFAService == nil {
 		cfg.MFAService, err = local.NewMFAService(cfg.Backend)
 		if err != nil {
-			return nil, trace.Wrap(err, "creating ValidatedMFAChallenge service")
+			return nil, trace.Wrap(err, "creating MFAService")
 		}
 	}
 
