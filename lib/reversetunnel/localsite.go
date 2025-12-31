@@ -186,6 +186,11 @@ func (s *localSite) NodeWatcher() (*services.GenericWatcher[types.Server, readon
 	return s.srv.NodeWatcher, nil
 }
 
+// AppServerWatcher returns the watcher that maintains the app server set for the cluster
+func (s *localSite) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return s.srv.AppServerWatcher, nil
+}
+
 // GitServerWatcher returns a Git server watcher for this cluster.
 func (s *localSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.srv.GitServerWatcher, nil
