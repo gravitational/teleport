@@ -29,23 +29,6 @@ variable "teleport_discovery_group_name" {
   }
 }
 
-locals {
-  allowed_match_aws_resource_types = [
-    # TODO(gavin): add module support for all resource types
-    # "docdb",
-    "ec2",
-    # "eks",
-    # "elasticache-serverless",
-    # "elasticache",
-    # "memorydb",
-    # "opensearch",
-    # "rds",
-    # "rdsproxy",
-    # "redshift-serverless",
-    # "redshift"
-  ]
-}
-
 variable "match_aws_resource_types" {
   description = "AWS resource types to match when discovering resources with Teleport. Valid values are: `ec2`."
   type        = list(string)
@@ -54,11 +37,26 @@ variable "match_aws_resource_types" {
   validation {
     condition = alltrue([
       for rt in var.match_aws_resource_types :
-      contains(local.allowed_match_aws_resource_types, rt)
+      contains([
+        # TODO(gavin): add module support for all resource types
+        # "docdb",
+        "ec2",
+        # "eks",
+        # "elasticache-serverless",
+        # "elasticache",
+        # "memorydb",
+        # "opensearch",
+        # "rds",
+        # "rdsproxy",
+        # "redshift-serverless",
+        # "redshift"
+      ], rt)
     ])
     error_message = format(
       "Allowed values for match_aws_resource_types are: %s.",
-      join(", ", local.allowed_match_aws_resource_types)
+      join(", ", [
+        "ec2",
+      ])
     )
   }
 }
@@ -203,8 +201,7 @@ variable "discovery_service_iam_credential_source" {
 
   validation {
     condition = !(
-      var.create
-      && var.discovery_service_iam_credential_source.use_oidc_integration
+      var.discovery_service_iam_credential_source.use_oidc_integration
       && var.discovery_service_iam_credential_source.trust_role != null
     )
     error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID. If the AWS IAM role for discovery will be attached directly to the discovery service instance outside of this module, then set `use_oidc_integration` to false and leave `trust_role` unset."
@@ -212,10 +209,8 @@ variable "discovery_service_iam_credential_source" {
 
   validation {
     condition = !(
-      var.create
-      && !var.discovery_service_iam_credential_source.use_oidc_integration
-      && var.discovery_service_iam_credential_source.trust_role != null
-      && var.discovery_service_iam_credential_source.trust_role.role_arn == ""
+      !var.discovery_service_iam_credential_source.use_oidc_integration
+      && try(var.discovery_service_iam_credential_source.trust_role.role_arn == "", false)
     )
     error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
   }

@@ -15,24 +15,15 @@ output "teleport_discovery_service_iam_role_arn" {
 
 output "teleport_discovery_config_name" {
   description = "Name of the Teleport discovery config."
-  value = try(
-    teleport_discovery_config.aws[0].header.metadata.name,
-    local.teleport_discovery_config_name,
-  )
+  value       = try(teleport_discovery_config.aws[0].header.metadata.name, null)
 }
 
 output "teleport_integration_name" {
   description = "Name of the Teleport integration."
-  value = try(
-    teleport_integration.aws_oidc[0].metadata.name,
-    local.teleport_integration_name,
-  )
+  value       = try(teleport_integration.aws_oidc[0].metadata.name, null)
 }
 
 output "teleport_provision_token_name" {
   description = "Name of the Teleport provision token that allows Teleport nodes to join the Teleport cluster using AWS IAM credentials."
-  value = nonsensitive(try(
-    teleport_provision_token.aws_iam[0].metadata.name,
-    local.teleport_provision_token_name,
-  ))
+  value       = nonsensitive(try(teleport_provision_token.aws_iam[0].metadata.name, null))
 }
