@@ -1,27 +1,27 @@
 .PHONY: all
 all: ;
 
-SUBDIRS := $(shell find * -type f -name '*.tf' -exec dirname {} \; 2>/dev/null | sort -u)
-README_FILES := $(addsuffix /README.md,$(SUBDIRS))
-
-.PHONY: docs
-docs: $(README_FILES) ;
-
-.PHONY: fmt
-fmt:
-	terraform fmt -recursive .
-
 # this is defined because Make does not support .PHONY pattern recipes, but we
 # can make a no-op .PHONY recipe that a pattern recipe depends on to achieve the
 # same effect
 .PHONY: force
 force: ;
 
-%/README.md: force %
+.PHONY: fmt
+fmt:
+	terraform fmt -recursive .
+
+SUBDIRS := $(shell find . -type f -name '*.tf' -exec dirname {} \; 2>/dev/null | sort -u)
+README_FILES := $(addsuffix /README.md,$(SUBDIRS))
+
+.PHONY: docs
+docs: $(README_FILES) ;
+
+%/README.md: force
 	terraform-docs markdown table \
+		--lockfile=false \
 		--output-file=README.md \
 		--output-mode=inject \
-		--recursive \
 		$*
 
 .PHONY: check

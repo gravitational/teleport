@@ -28,7 +28,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 
 | Name | Version |
 |------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.7 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.0 |
 | <a name="requirement_http"></a> [http](#requirement\_http) | >= 3.0 |
 | <a name="requirement_teleport"></a> [teleport](#requirement\_teleport) | >= 18.5.1 |

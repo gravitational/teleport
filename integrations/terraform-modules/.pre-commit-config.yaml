@@ -6,3 +6,5 @@ repos:
       - id: terraform_validate
       - id: terraform_tflint
       - id: terraform_docs
+        args:
+          - '--args=--lockfile=false' # avoid pinning provider version in README
