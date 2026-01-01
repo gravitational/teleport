@@ -333,8 +333,8 @@ install_teleport() {
   debian | ubuntu | kali | linuxmint | pop | raspbian | neon | zorin | parrot | elementary)
     install_via_apt_get
     ;;
-  # if ID is amazon Linux 2/RHEL/etc, run yum
-  centos | rhel | rocky | almalinux | amzn)
+  # if ID is amazon Linux 2/RHEL/Fedora/etc, run yum
+  centos | rhel | fedora | rocky | almalinux | amzn)
     install_via_yum "$ID"
     ;;
   sles)
