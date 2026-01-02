@@ -67,8 +67,6 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case ctx == nil:
-		return nil, trace.BadParameter("param ctx must not be nil")
 	case username == "":
 		return nil, trace.BadParameter("param username must not be empty")
 	case chal == nil:
@@ -102,8 +100,6 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	chalName string,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case ctx == nil:
-		return nil, trace.BadParameter("param ctx must not be nil")
 	case username == "":
 		return nil, trace.BadParameter("param username must not be empty")
 	case chalName == "":
