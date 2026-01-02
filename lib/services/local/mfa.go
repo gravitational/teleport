@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package local
 
 import (
@@ -35,8 +36,8 @@ import (
 
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
-	logger *slog.Logger
-	svc    *generic.ServiceWrapper[*validatedMFAChallenge]
+	logger  *slog.Logger
+	service *generic.ServiceWrapper[*validatedMFAChallenge]
 }
 
 // NewMFAService returns a new MFA storage service.
@@ -55,8 +56,8 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 	}
 
 	return &MFAService{
-		logger: slog.With(teleport.ComponentKey, "MFAService.local"),
-		svc:    svc,
+		logger:  slog.With(teleport.ComponentKey, "mfa.backend"),
+		service: svc,
 	}, nil
 }
 
@@ -67,22 +68,25 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case ctx == nil:
-		return nil, trace.BadParameter("param ctx must not be nil")
 	case username == "":
 		return nil, trace.BadParameter("param username must not be empty")
 	case chal == nil:
 		return nil, trace.BadParameter("param chal must not be nil")
 	}
 
+	challenge := (*validatedMFAChallenge)(chal)
+
+	if err := validateValidatedMFAChallenge(challenge); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	// TODO(cthach): Copying can be expensive at scale, consult with team if there's a better way.
-	svc := s.svc.WithPrefix(username)
+	svc := s.service.WithPrefix(username)
 
 	// All validated MFA challenges must expire after 5 minutes.
 	chal.Metadata.SetExpiry(time.Now().Add(5 * time.Minute))
 
-	res, err := svc.CreateResource(ctx, (*validatedMFAChallenge)(chal))
+	res, err := svc.CreateResource(ctx, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -97,8 +101,6 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	chalName string,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	switch {
-	case ctx == nil:
-		return nil, trace.BadParameter("param ctx must not be nil")
 	case username == "":
 		return nil, trace.BadParameter("param username must not be empty")
 	case chalName == "":
@@ -106,8 +108,7 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	}
 
 	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	// TODO(cthach): Copying can be expensive at scale, consult with team if there's a better way.
-	svc := s.svc.WithPrefix(username)
+	svc := s.service.WithPrefix(username)
 
 	res, err := svc.GetResource(ctx, chalName)
 	if err != nil {
@@ -117,34 +118,46 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
 }
 
-// validatedMFAChallenge is an alias to mfav1.validatedMFAChallenge in order to satisfy the generic.ResourceMetadata
-// interface. It should not be exported outside of this package to avoid confusion.
+// validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.
+// It should not be exported outside of this package to avoid confusion.
 type validatedMFAChallenge mfav1.ValidatedMFAChallenge
 
 func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
 	return types.LegacyTo153Metadata(*r.Metadata)
 }
 
-// MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON.
-func MarshalValidatedMFAChallenge(chal *validatedMFAChallenge, opts ...services.MarshalOption) ([]byte, error) {
+// MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON. Marshal options are currently
+// unsupported.
+func MarshalValidatedMFAChallenge(chal *validatedMFAChallenge, _ ...services.MarshalOption) ([]byte, error) {
+	marshaler := &jsonpb.Marshaler{
+		EnumsAsInts: true,
+	}
+
 	buf := &bytes.Buffer{}
 
-	if err := (&jsonpb.Marshaler{}).Marshal(buf, (*mfav1.ValidatedMFAChallenge)(chal)); err != nil {
+	challenge := (*mfav1.ValidatedMFAChallenge)(chal)
+
+	if err := marshaler.Marshal(buf, challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return buf.Bytes(), nil
 }
 
-// UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON.
-func UnmarshalValidatedMFAChallenge(b []byte, opts ...services.MarshalOption) (*validatedMFAChallenge, error) {
-	chal := &mfav1.ValidatedMFAChallenge{}
+// UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON. Unmarshal options are currently
+// unsupported.
+func UnmarshalValidatedMFAChallenge(b []byte, _ ...services.MarshalOption) (*validatedMFAChallenge, error) {
+	unmarshaler := &jsonpb.Unmarshaler{
+		AllowUnknownFields: true,
+	}
 
-	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), chal); err != nil {
+	challenge := &mfav1.ValidatedMFAChallenge{}
+
+	if err := unmarshaler.Unmarshal(bytes.NewReader(b), challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*validatedMFAChallenge)(chal), nil
+	return (*validatedMFAChallenge)(challenge), nil
 }
 
 // validateValidatedMFAChallenge validates a ValidatedMFAChallenge resource.
@@ -156,8 +169,12 @@ func validateValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 		return trace.BadParameter("invalid kind: %q", chal.Kind)
 	case chal.Version != "v1":
 		return trace.BadParameter("invalid version: %q", chal.Version)
+	case chal.Metadata == nil:
+		return trace.BadParameter("metadata must be set")
 	case chal.Metadata.Name == "":
 		return trace.BadParameter("name must be set")
+	case chal.Spec == nil:
+		return trace.BadParameter("spec must be set")
 	case chal.Spec.Payload == nil:
 		return trace.BadParameter("payload must be set")
 	case len(chal.Spec.Payload.GetSshSessionId()) == 0:

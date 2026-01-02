@@ -17,10 +17,13 @@
 package local_test
 
 import (
-	"cmp"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -40,25 +43,46 @@ func TestMFAService_CRUD(t *testing.T) {
 
 	username, chal := "alice", newValidatedMFAChallenge()
 
-	// Create
+	t.Run("get non-existent", func(t *testing.T) {
+		t.Parallel()
+
+		_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
+
+		var notFoundErr *trace.NotFoundError
+
+		assert.ErrorAs(t, err, &notFoundErr, "error type mismatch")
+	})
+
+	startTime := time.Now()
+
 	created, err := svc.CreateValidatedMFAChallenge(t.Context(), username, chal)
 	require.NoError(t, err)
-	require.Equal(t, chal.Kind, created.Kind)
-	require.Equal(t, chal.Version, created.Version)
-	require.Equal(t, chal.Metadata.Name, created.Metadata.Name)
-	require.WithinDuration(t, time.Now().Add(5*time.Minute), *created.Metadata.Expires, time.Second)
 
-	// Get
+	want := proto.Clone(chal).(*mfav1.ValidatedMFAChallenge)
+
+	if diff := cmp.Diff(
+		want,
+		created,
+		// Ignore expiration time in comparison.
+		cmp.FilterPath(
+			func(p cmp.Path) bool {
+				return p.String() == "Metadata.Expires"
+			},
+			cmp.Ignore(),
+		),
+	); diff != "" {
+		t.Errorf("CreateValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
+	}
+
+	// Expiration time should be roughly 5 minutes from creation.
+	require.WithinDuration(t, startTime.Add(5*time.Minute), *created.Metadata.Expires, time.Second)
+
 	got, err := svc.GetValidatedMFAChallenge(t.Context(), username, chal.Metadata.Name)
 	require.NoError(t, err)
-	require.Equal(t, created.Metadata.Name, got.Metadata.Name)
-	require.Equal(t, created.Spec.SourceCluster, got.Spec.SourceCluster)
-	require.Equal(t, created.Spec.TargetCluster, got.Spec.TargetCluster)
-	require.WithinDuration(t, *created.Metadata.Expires, *got.Metadata.Expires, time.Second)
 
-	// Get non-existent
-	_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
-	require.ErrorContains(t, err, "doesn't exist")
+	if diff := cmp.Diff(created, got); diff != "" {
+		t.Errorf("GetValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
+	}
 }
 
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
@@ -71,139 +95,128 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 	require.NoError(t, err)
 
 	defaultUsername := "bob"
+	emptyUsername := ""
 
 	for _, testCase := range []struct {
 		name     string
 		username *string
 		chal     *mfav1.ValidatedMFAChallenge
-		wantErr  bool
+		wantErr  error
 	}{
 		{
-			name:    "valid challenge",
-			chal:    newValidatedMFAChallenge(),
-			wantErr: false,
+			name:     "valid challenge",
+			username: &defaultUsername,
+			chal:     newValidatedMFAChallenge(),
+			wantErr:  nil,
 		},
 		{
-			name: "missing username",
-			username: func() *string {
-				emptyStr := ""
-				return &emptyStr
+			name:     "missing username",
+			username: &emptyUsername,
+			wantErr:  trace.BadParameter("param username must not be empty"),
+		},
+		{
+			name:     "nil challenge",
+			username: &defaultUsername,
+			chal:     nil,
+			wantErr:  trace.BadParameter("param chal must not be nil"),
+		},
+		{
+			name:     "invalid kind",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Kind = "wrong_kind"
+				return c
 			}(),
-			wantErr: true,
+			wantErr: trace.BadParameter("invalid kind"),
 		},
 		{
-			name:    "nil challenge",
-			chal:    nil,
-			wantErr: true,
+			name:     "invalid version",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Version = "v2"
+				return c
+			}(),
+			wantErr: trace.BadParameter("invalid version"),
 		},
 		{
-			name: "invalid kind",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     "wrong_kind",
-				Version:  "v1",
-				Metadata: &types.Metadata{Name: "test"},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("id")},
-					},
-					SourceCluster: "src", TargetCluster: "tgt",
-				},
-			},
-			wantErr: true,
+			name:     "missing metadata",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Metadata = nil
+				return c
+			}(),
+			wantErr: trace.BadParameter("metadata must be set"),
 		},
 		{
-			name: "invalid version",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  "v2",
-				Metadata: &types.Metadata{Name: "test"},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("id")},
-					},
-					SourceCluster: "src", TargetCluster: "tgt",
-				},
-			},
-			wantErr: true,
+			name:     "missing name",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Metadata.Name = ""
+				return c
+			}(),
+			wantErr: trace.BadParameter("name must be set"),
 		},
 		{
-			name: "missing name",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  "v1",
-				Metadata: &types.Metadata{Name: ""},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("id")},
-					},
-					SourceCluster: "src", TargetCluster: "tgt",
-				},
-			},
-			wantErr: true,
+			name:     "missing spec",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec = nil
+				return c
+			}(),
+			wantErr: trace.BadParameter("spec must be set"),
 		},
 		{
-			name: "missing payload",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  "v1",
-				Metadata: &types.Metadata{Name: "test"},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload:       nil,
-					SourceCluster: "src", TargetCluster: "tgt",
-				},
-			},
-			wantErr: true,
+			name:     "missing payload",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec.Payload = nil
+				return c
+			}(),
+			wantErr: trace.BadParameter("payload must be set"),
 		},
 		{
-			name: "empty ssh_session_id",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  "v1",
-				Metadata: &types.Metadata{Name: "test"},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("")},
-					},
-					SourceCluster: "src", TargetCluster: "tgt",
-				},
-			},
-			wantErr: true,
+			name:     "empty ssh_session_id",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec.Payload = &mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("")},
+				}
+				return c
+			}(),
+			wantErr: trace.BadParameter("ssh_session_id must be set"),
 		},
 		{
-			name: "missing source_cluster",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  "v1",
-				Metadata: &types.Metadata{Name: "test"},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("id")},
-					},
-					SourceCluster: "", TargetCluster: "tgt",
-				},
-			},
-			wantErr: true,
+			name:     "missing source_cluster",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec.SourceCluster = ""
+				return c
+			}(),
+			wantErr: trace.BadParameter("source_cluster must be set"),
 		},
 		{
-			name: "missing target_cluster",
-			chal: &mfav1.ValidatedMFAChallenge{
-				Kind:     types.KindValidatedMFAChallenge,
-				Version:  "v1",
-				Metadata: &types.Metadata{Name: "test"},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("id")},
-					},
-					SourceCluster: "src", TargetCluster: "",
-				},
-			},
-			wantErr: true,
+			name:     "missing target_cluster",
+			username: &defaultUsername,
+			chal: func() *mfav1.ValidatedMFAChallenge {
+				c := newValidatedMFAChallenge()
+				c.Spec.TargetCluster = ""
+				return c
+			}(),
+			wantErr: trace.BadParameter("target_cluster must be set"),
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := svc.CreateValidatedMFAChallenge(t.Context(), *cmp.Or(testCase.username, &defaultUsername), testCase.chal)
-			if testCase.wantErr {
-				require.Error(t, err)
+			_, err := svc.CreateValidatedMFAChallenge(t.Context(), *testCase.username, testCase.chal)
+			if testCase.wantErr != nil {
+				require.ErrorContains(t, err, testCase.wantErr.Error())
 			} else {
 				require.NoError(t, err)
 			}

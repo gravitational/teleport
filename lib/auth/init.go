@@ -425,7 +425,7 @@ type InitConfig struct {
 	// app auth config resources.
 	AppAuthConfig services.AppAuthConfig
 
-	// MFAService is the service that manages MFA resources.
+	// MFAService is the service that manages backend MFA resources.
 	MFAService MFAService
 }
 

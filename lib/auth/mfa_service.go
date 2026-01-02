@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package auth
 
 import (
@@ -21,13 +22,13 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
-// MFAService defines the interface for managing MFA resources.
+// MFAService defines the interface for managing MFA resources in the backend.
 type MFAService interface {
-	// CreateValidatedMFAChallenge stores a ValidatedMFAChallenge resource.
+	// CreateValidatedMFAChallenge stores a ValidatedMFAChallenge resource for a given username.
 	CreateValidatedMFAChallenge(
 		ctx context.Context,
 		username string,
-		chal *mfav1.ValidatedMFAChallenge,
+		challenge *mfav1.ValidatedMFAChallenge,
 	) (*mfav1.ValidatedMFAChallenge, error)
 
 	// GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource by username and challengeName.
