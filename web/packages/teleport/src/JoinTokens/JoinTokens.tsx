@@ -18,7 +18,7 @@
 
 import { addHours, isAfter } from 'date-fns';
 import { useEffect, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import {
   Alert,
@@ -77,6 +77,8 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
+  const theme = useTheme();
+
   const [creatingToken, setCreatingToken] = useState(false);
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
@@ -87,6 +89,15 @@ export const JoinTokens = () => {
     joinTokensAttempt.data?.items.map(makeTokenResource) || [],
     { join_token: '' } // we are only editing for now, so template can be empty
   );
+
+  function getRowStyle(row: JoinToken): React.CSSProperties {
+    if (row.isCloudSystem) {
+      return {
+        background: theme.colors.interactive.tonal.neutral[0],
+        color: theme.colors.text.muted,
+      };
+    }
+  }
 
   function updateTokenList(token: JoinToken): JoinToken[] {
     let items = joinTokensAttempt.data?.items
@@ -176,9 +187,12 @@ export const JoinTokens = () => {
             <Alert kind="danger">{joinTokensAttempt.statusText}</Alert>
           )}
           {joinTokensAttempt.status === 'success' && (
-            <Table
+            <JoinTokenTable
               isSearchable
               data={joinTokensAttempt.data.items}
+              row={{
+                getStyle: getRowStyle,
+              }}
               columns={[
                 {
                   key: 'id',
@@ -313,6 +327,15 @@ export const JoinTokens = () => {
   );
 };
 
+// This is necessary because the Table component styles
+// hard-code the text color for the <td> element, preventing
+// our row style from being applied.
+const JoinTokenTable = styled(Table)`
+  & > tbody > tr > td {
+    color: inherit;
+  }
+` as typeof Table;
+
 export function searchMatcher(
   targetValue: any,
   searchValue: string,
@@ -373,7 +396,7 @@ const StyledLabel = styled(Label)`
   margin: 1px 0;
   margin-right: ${props => props.theme.space[2]}px;
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
-  color: ${props => props.theme.colors.text.main};
+  color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -437,7 +460,7 @@ const ActionCell = ({
   onDelete(): void;
   token: JoinToken;
 }) => {
-  const buttonProps = { width: '100px' };
+  const buttonProps = { width: '100px', disabled: false };
   if (token.isStatic) {
     return (
       <Cell align="right">
@@ -450,12 +473,29 @@ const ActionCell = ({
       </Cell>
     );
   }
+  if (token.isCloudSystem) {
+    buttonProps.disabled = true;
+  }
+
+  const Button = (
+    <MenuButton buttonProps={buttonProps}>
+      <MenuItem onClick={onEdit}>View/Edit...</MenuItem>
+      <MenuItem onClick={onDelete}>Delete...</MenuItem>
+    </MenuButton>
+  );
+
   return (
     <Cell align="right">
-      <MenuButton buttonProps={buttonProps}>
-        <MenuItem onClick={onEdit}>View/Edit...</MenuItem>
-        <MenuItem onClick={onDelete}>Delete...</MenuItem>
-      </MenuButton>
+      {token.isCloudSystem ? (
+        <HoverTooltip
+          placement="top-end"
+          tipContent="This token is managed by Teleport Cloud."
+        >
+          {Button}
+        </HoverTooltip>
+      ) : (
+        <>{Button}</>
+      )}
     </Cell>
   );
 };

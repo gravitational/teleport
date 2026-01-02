@@ -27,7 +27,7 @@ import Menu from 'design/Menu';
 import { HoverTooltip } from 'design/Tooltip';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import { SortItem, SortMenu } from 'shared/components/Controls/SortMenuV2';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 
 import {
@@ -42,10 +42,24 @@ import {
   ResourceAvailabilityFilter,
 } from './UnifiedResources';
 
-const sortFieldOptions = [
-  { label: 'Name', value: 'name' },
-  { label: 'Type', value: 'kind' },
-] as const;
+const sortFieldOptions: SortItem[] = [
+  {
+    label: 'Name',
+    key: 'name',
+    ascendingLabel: 'Name, A - Z',
+    descendingLabel: 'Name, Z - A',
+    ascendingOptionLabel: 'Alphabetical, A - Z',
+    descendingOptionLabel: 'Alphabetical, Z - A',
+  },
+  {
+    label: 'Type',
+    key: 'kind',
+    ascendingLabel: 'Type, A - Z',
+    descendingLabel: 'Type, Z - A',
+    ascendingOptionLabel: 'Alphabetical, A - Z',
+    descendingOptionLabel: 'Alphabetical, Z - A',
+  },
+];
 
 const resourceStatusOptions: { label: string; value: ResourceHealthStatus }[] =
   [
@@ -108,7 +122,7 @@ export function FilterPanel({
   const { sort, kinds, statuses } = params;
 
   const activeSortFieldOption = sortFieldOptions.find(
-    opt => opt.value === sort.fieldName
+    opt => opt.key === sort.fieldName
   );
 
   const onKindsChanged = (newKinds: string[]) => {
@@ -248,22 +262,20 @@ export function FilterPanel({
           </>
         )}
         <SortMenu
-          current={{
-            fieldName: activeSortFieldOption.value,
-            dir: sort.dir,
-          }}
-          fields={sortFieldOptions.filter(opt => {
-            if (opt.value === 'kind' && availableKinds.length === 0) {
+          selectedKey={activeSortFieldOption?.key ?? sortFieldOptions[0].key}
+          selectedOrder={sort?.dir ?? 'ASC'}
+          items={sortFieldOptions.filter(opt => {
+            if (opt.key === 'kind' && availableKinds.length === 0) {
               return false;
             }
             return true;
           })}
-          onChange={newSort => {
-            if (newSort.dir !== sort.dir) {
+          onChange={(key, order) => {
+            if (order !== sort?.dir) {
               onSortOrderButtonClicked();
             }
-            if (newSort.fieldName !== activeSortFieldOption.value) {
-              onSortFieldChange(newSort.fieldName);
+            if (key !== activeSortFieldOption?.key) {
+              onSortFieldChange(key);
             }
           }}
         />

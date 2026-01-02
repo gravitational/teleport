@@ -2400,6 +2400,33 @@ func TestWindowsDesktopService(t *testing.T) {
 			},
 		},
 		{
+			desc:        "NOK - invalid RDP port",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:  "*",
+						RDPPort: 99999,
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid static label",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN: "*",
+						Labels: map[string]string{
+							"foo":               "bar",
+							"invalid label key": "test",
+						},
+					},
+				}
+			},
+		},
+		{
 			desc:        "OK - valid config",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -5074,6 +5101,57 @@ func TestDiscoveryConfig(t *testing.T) {
 						HTTPProxy:  "http://squid-local:8080",
 						HTTPSProxy: "http://squid-local:8081",
 						NoProxy:    "intranet.local,localhost",
+					},
+				},
+			}},
+		},
+		{
+			desc:          "organization matcher defined for AWS discovery",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"*"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"assume_role_name": "my-role",
+						"organization": cfgMap{
+							"organization_id": "o-123",
+							"organizational_units": cfgMap{
+								"include": []string{"ou-123"},
+								"exclude": []string{"ou-456"},
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "aws-discovery-iam-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "default-installer",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				AssumeRole: &types.AssumeRole{
+					RoleName: "my-role",
+				},
+				Organization: &types.AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+						Exclude: []string{"ou-456"},
 					},
 				},
 			}},

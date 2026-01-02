@@ -76,6 +76,7 @@ func instanceTypeToKind(instanceType inventoryv1.InstanceType) (string, error) {
 	}
 }
 
+// bytestring contains binary data (encoded keys) and is not intended to be printable.
 type bytestring = string
 
 type inventoryIndex string
@@ -435,6 +436,7 @@ func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
+	ic.cfg.Logger.InfoContext(ctx, "Inventory cache init succeeded")
 
 	// This runs infinitely until the context is canceled.
 	ic.processEvents(ctx, watcher)
@@ -658,6 +660,7 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 // fully initialized.
 func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
 	if !ic.IsHealthy() {
+		// This returns HTTP error 503. Keep in sync with web/packages/teleport/src/Instances/Instances.tsx (isCacheInitializing)
 		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy")
 	}
 

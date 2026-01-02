@@ -705,9 +705,14 @@ You must create a secret containing the CA certs in the same namespace as Telepo
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
 
-<Admonition type="warning" title="Root CA filename">
-  The key containing the root CA in the secret must be `ca.pem`.
-</Admonition>
+### `tls.existingCASecretKeyName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
+
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
 
 ## `updater`
 
@@ -1203,7 +1208,7 @@ Teleport-published image.
 By default, the image contains only the Teleport application and its runtime
 dependencies, and does not contain a shell.
 This setting only takes effect when [`enterprise`](#enterprise) is `true`.
-When running an enterprise version, you must use [`image`](#image) instead.
+When running an OSS version, you must use [`image`](#image) instead.
 
 ## `imagePullSecrets`
 
