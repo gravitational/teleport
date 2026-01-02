@@ -219,12 +219,16 @@ extraArgs: []
 extraEnv: []
 
 # securityContext(object) -- sets the container security context for any pods created by the chart.
+# The default high level of privileges are necessary to support the workload attestation feature of `tbot` as this
+# requires the ability to read sensitive information about other processes running on the system.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
 # for more details.
 securityContext:
   privileged: true
 
 # podSecurityContext(object) -- sets the pod security context for any pods created by the chart.
+# The default high level of privileges are necessary to support the workload attestation feature of `tbot` as this
+# requires the ability to read sensitive information about other processes running on the system.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
 # for more details.
 podSecurityContext:
