@@ -177,7 +177,6 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	tlsConfig.NextProtos = []string{"teleport-tdpb-1.0"}
 	// Populate the correct CAs for the incoming client connection.
 	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
