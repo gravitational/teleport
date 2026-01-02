@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AzureInstallRequest combines parameters for running commands on a set of Azure
@@ -40,15 +40,17 @@ type AzureInstallRequest struct {
 	ResourceGroup   string
 }
 
-// AzureInstallResult is the result of installation request.
-type AzureInstallResult struct {
-	// Failures stores all errors returned for each failed installation attempt.
-	Failures map[string]error
+// AzureInstallFailure records installation error associated with particular VM instance.
+type AzureInstallFailure struct {
+	// Instance is the VM instance for which the installation failed.
+	Instance *armcompute.VirtualMachine
+	// Error is the ecountered error.
+	Error error
 }
 
 // Run initiates Teleport installation on a set of virtual machines and then blocks until the
 // commands have completed.
-func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) (*AzureInstallResult, error) {
+func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) ([]AzureInstallFailure, error) {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -66,7 +68,8 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	const azureParallelInstallLimit = 10
 	g.SetLimit(azureParallelInstallLimit)
 
-	var errMap utils.SyncMap[string, error]
+	var failures []AzureInstallFailure
+	var mu sync.Mutex
 
 	for _, inst := range req.Instances {
 		g.Go(func() error {
@@ -84,7 +87,13 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 
 			runError := client.Run(ctx, runRequest)
 			if runError != nil {
-				errMap.Store(azure.StringVal(inst.ID), runError)
+				failure := AzureInstallFailure{
+					Instance: inst,
+					Error:    runError,
+				}
+				mu.Lock()
+				failures = append(failures, failure)
+				mu.Unlock()
 			}
 
 			// return nil: local failure should not affect other runs.
@@ -97,5 +106,5 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 		return nil, trace.Wrap(groupErr)
 	}
 
-	return &AzureInstallResult{Failures: errMap.Clone()}, nil
+	return failures, nil
 }

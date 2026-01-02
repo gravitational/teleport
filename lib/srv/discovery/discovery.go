@@ -1360,15 +1360,15 @@ func (s *Server) handleEC2Discovery() {
 	}
 }
 
-func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) (int, error) {
+func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallFailure, error) {
 	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	req := server.AzureInstallRequest{
@@ -1379,38 +1379,36 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		ProxyAddrGetter: s.publicProxyAddress,
 	}
 
-	result, err := req.Run(s.ctx, runClient)
+	failures, err := req.Run(s.ctx, runClient)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	const maxReportedErrors = 10
 
-	if omitted := len(result.Failures) - maxReportedErrors; omitted > 0 {
-		log.WarnContext(s.ctx, "Too many install failures; reporting only a subset",
-			"reported", maxReportedErrors,
-			"total", len(result.Failures),
-			"omitted", omitted,
-		)
-	}
-
-	reported := 0
-	for vmID, installErr := range result.Failures {
+	for reported, failure := range failures {
 		if reported >= maxReportedErrors {
+			omitted := len(failures) - maxReportedErrors
+
+			log.WarnContext(s.ctx, "Too many install failures; suppressing further errors",
+				"reported", maxReportedErrors,
+				"total", len(failures),
+				"omitted", omitted,
+			)
+
 			break
 		}
 		log.WarnContext(s.ctx, "Failed to install on VM",
-			"vm_id", vmID,
-			"install_error", installErr,
+			"vm_id", azure.StringVal(failure.Instance.ID),
+			"install_error", failure.Error,
 		)
-		reported++
 	}
 
-	err = s.emitUsageEvents(instances.MakeEvents(result))
+	err = s.emitUsageEvents(instances.MakeEvents(failures))
 	if err != nil {
 		log.WarnContext(s.ctx, "Error emitting usage event", "error", err)
 	}
-	return len(result.Failures), nil
+	return failures, nil
 }
 
 // startAzureServerDiscovery starts the Azure VM discovery.
@@ -1505,7 +1503,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances) (results 
 	)
 
 	allFound := len(instances.Instances)
-	results[found] = allFound
+	results[statusFound] = allFound
 
 	if allFound == 0 {
 		log.DebugContext(s.ctx, "No Azure instances found, skipping installation")
@@ -1521,7 +1519,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances) (results 
 
 	// count machines that have already been enrolled in previous cycles.
 	needInstall := len(instances.Instances)
-	results[enrolled] = allFound - needInstall
+	results[statusEnrolled] = allFound - needInstall
 
 	if len(instances.Instances) == 0 {
 		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
@@ -1529,18 +1527,18 @@ func (s *Server) installAzureServers(instances *server.AzureInstances) (results 
 	}
 
 	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
-	failedCount, err := s.enrollAzureVirtualMachines(log, instances)
+	failures, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
 		// we don't expect err to be non-nil for individual enrollment failures.
 		// we will assume all of them failed e.g. due to API-level permission issue.
 		log.ErrorContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err)
-		results[failed] = needInstall
+		results[statusFailed] = needInstall
 		return
 	}
 	// count individual failed enrollments.
-	results[failed] = failedCount
+	results[statusFailed] = len(failures)
 
-	pendingCount := len(instances.Instances) - failedCount
+	pendingCount := len(instances.Instances) - len(failures)
 	if pendingCount > 0 {
 		// Note: we have no "installation in progress" or "installation succeeded" counter, so we ignore those.
 		// If the installation went fine the "enrolled" counter will increase during next iteration.

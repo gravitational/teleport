@@ -946,9 +946,9 @@ func (s *Server) discoverRDSUserTaskAddExistingDatabases(currentUserTask *userta
 type statusType int
 
 const (
-	found statusType = iota
-	enrolled
-	failed
+	statusFound statusType = iota
+	statusEnrolled
+	statusFailed
 )
 
 type fetcherGroupKey struct {
@@ -995,7 +995,7 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		}
 
 		// Update global discovered resources count.
-		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[found])
+		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[statusFailed])
 
 		// Initialize map if needed.
 		if existingStatus.IntegrationDiscoveredResources == nil {
@@ -1010,9 +1010,9 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
-			Found:    uint64(results[found]),
-			Enrolled: uint64(results[enrolled]),
-			Failed:   uint64(results[failed]),
+			Found:    uint64(results[statusFound]),
+			Enrolled: uint64(results[statusEnrolled]),
+			Failed:   uint64(results[statusFailed]),
 		}
 
 		integrationDiscoveredSummaryUpdate(summary, s.resourceType, resourcesSummary)

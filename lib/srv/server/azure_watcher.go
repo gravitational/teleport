@@ -57,17 +57,24 @@ type AzureInstances struct {
 }
 
 // MakeEvents generates MakeEvents for these instances.
-func (instances *AzureInstances) MakeEvents(result *AzureInstallResult) map[string]*usageeventsv1.ResourceCreateEvent {
+func (instances *AzureInstances) MakeEvents(failures []AzureInstallFailure) map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
 	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
-	expectedSize := len(instances.Instances) - len(result.Failures)
+
+	failed := map[string]struct{}{}
+	for _, failure := range failures {
+		id := azure.StringVal(failure.Instance.ID)
+		failed[id] = struct{}{}
+	}
+
+	expectedSize := len(instances.Instances) - len(failures)
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, expectedSize)
 	for _, inst := range instances.Instances {
 		id := azure.StringVal(inst.ID)
 		// skip failed
-		if result.Failures[id] != nil {
+		if _, found := failed[id]; found {
 			continue
 		}
 		events[azureEventPrefix+id] = &usageeventsv1.ResourceCreateEvent{
