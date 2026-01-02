@@ -23,7 +23,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,13 +35,7 @@ import (
 func TestMFAService_CRUD(t *testing.T) {
 	t.Parallel()
 
-	startTime := time.Now()
-
-	clock := clockwork.NewFakeClockAt(startTime)
-
-	backend, err := memory.New(memory.Config{
-		Clock: clock,
-	})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
 	svc, err := local.NewMFAService(backend)
@@ -60,6 +53,8 @@ func TestMFAService_CRUD(t *testing.T) {
 		assert.ErrorAs(t, err, &notFoundErr, "error type mismatch")
 	})
 
+	startTime := time.Now()
+
 	created, err := svc.CreateValidatedMFAChallenge(t.Context(), username, chal)
 	require.NoError(t, err)
 
@@ -68,6 +63,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	if diff := cmp.Diff(
 		want,
 		created,
+		// Ignore expiration time in comparison.
 		cmp.FilterPath(
 			func(p cmp.Path) bool {
 				return p.String() == "Metadata.Expires"
@@ -78,7 +74,7 @@ func TestMFAService_CRUD(t *testing.T) {
 		t.Errorf("CreateValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
 	}
 
-	// Expiration time should be set to 5 minutes from creation.
+	// Expiration time should be roughly 5 minutes from creation.
 	require.WithinDuration(t, startTime.Add(5*time.Minute), *created.Metadata.Expires, time.Second)
 
 	got, err := svc.GetValidatedMFAChallenge(t.Context(), username, chal.Metadata.Name)
