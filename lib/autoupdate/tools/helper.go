@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/autoupdate"
+	"github.com/gravitational/teleport/lib/utils"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 )
 
@@ -108,7 +109,25 @@ func CheckAndUpdateLocal(ctx context.Context, currentProfileName string, reExecA
 	}
 
 	if resp.ReExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, resp.Version, reExecArgs))
+		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
+
+		err := updater.Update(ctxUpdate, resp.Version)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
+			slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", resp.Version)
+			// Continue executing the current version of the client tools (tsh, tctl)
+			// to avoid potential issues with update process (timeout, missing version).
+			return nil
+		}
+
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec(ctx, resp.Version, reExecArgs)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
 	}
 
 	return nil
@@ -147,14 +166,41 @@ func CheckAndUpdateRemote(ctx context.Context, currentProfileName string, insecu
 	}
 
 	slog.DebugContext(ctx, "Attempting to remote update", "current_profile_name", currentProfileName, "insecure", insecure)
-	resp, err := updater.CheckRemote(ctx, currentProfileName, insecure)
+	config, reExec, err := updater.CheckRemote(ctx, currentProfileName, insecure)
 	if err != nil {
 		slog.WarnContext(ctx, "Failed to check remote teleport versions, client tools updates are disabled", "error", err)
 		return nil
 	}
 
-	if !resp.Disabled && resp.ReExec {
-		return trace.Wrap(updateAndReExec(ctx, updater, resp.Version, reExecArgs))
+	if !config.Disabled {
+		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
+		defer cancel()
+		err = updater.Update(ctxUpdate, config.Version)
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
+			slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", config.Version)
+			// Continue executing the current version of the client tools (tsh, tctl)
+			// to avoid potential issues with update process (timeout, missing version).
+			return nil
+		}
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		// Save the configuration related to current profile after update is finished.
+		if err := updater.SaveConfig(utils.TryHost(currentProfileName), config); err != nil {
+			slog.ErrorContext(ctx, "Failed save client tools managed updates configuration", "error", err)
+			return nil
+		}
+	}
+
+	if reExec {
+		// Re-execute client tools with the correct version of client tools.
+		code, err := updater.Exec(ctx, config.Version, reExecArgs)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
+			os.Exit(code)
+		} else if err == nil {
+			os.Exit(code)
+		}
 	}
 
 	return nil
@@ -175,44 +221,18 @@ func DownloadUpdate(ctx context.Context, name string, insecure bool) error {
 	}
 
 	slog.DebugContext(ctx, "Attempting to remote update", "name", name, "insecure", insecure)
-	resp, err := updater.CheckRemote(ctx, name, insecure)
+	resp, reExec, err := updater.CheckRemote(ctx, name, insecure)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !resp.Disabled && resp.ReExec {
+	if !resp.Disabled && reExec {
 		ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
 		defer cancel()
 		err := updater.Update(ctxUpdate, resp.Version)
 		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
 			return trace.Wrap(err)
 		}
-	}
-
-	return nil
-}
-
-func updateAndReExec(ctx context.Context, updater *Updater, toolsVersion string, args []string) error {
-	ctxUpdate, cancel := stacksignal.GetSignalHandler().NotifyContext(ctx)
-	defer cancel()
-	// Download the version of client tools required by the cluster. This
-	// is required if the user passed in the TELEPORT_TOOLS_VERSION
-	// explicitly.
-	err := updater.Update(ctxUpdate, toolsVersion)
-	if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrNoBaseURL) {
-		slog.ErrorContext(ctx, "Failed to update tools version", "error", err, "version", toolsVersion)
-		// Continue executing the current version of the client tools (tsh, tctl)
-		// to avoid potential issues with update process (timeout, missing version).
-		return nil
-	}
-
-	// Re-execute client tools with the correct version of client tools.
-	code, err := updater.Exec(ctx, toolsVersion, args)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		slog.DebugContext(ctx, "Failed to re-exec client tool", "error", err, "code", code)
-		os.Exit(code)
-	} else if err == nil {
-		os.Exit(code)
 	}
 
 	return nil
