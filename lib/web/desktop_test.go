@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -230,7 +231,7 @@ func TestProxyConnection(t *testing.T) {
 			wg := sync.WaitGroup{}
 			var proxyErr, echoErr error
 			wg.Go(func() {
-				proxyErr = proxyWebsocketConn(t.Context(), clientIn, serverIn, test.version, test.clientProtocol, test.serverProtocol)
+				proxyErr = proxyWebsocketConn(t.Context(), clientIn, serverIn, test.version, test.clientProtocol, test.serverProtocol, slog.Default())
 			})
 			wg.Go(func() {
 				echoErr = test.echoFn(serverOut)
@@ -254,84 +255,129 @@ func TestProxyConnection(t *testing.T) {
 	}
 }
 
-func TestHandshakeData(t *testing.T) {
+func TestHandshaker(t *testing.T) {
 
-	t.Run("empty-handshake", func(t *testing.T) {
-		// Make sure empty handshake data doesn't cause a panic
-		data := handshakeData{}
-		require.Error(t, data.ForwardTDP(io.Discard, "user", false))
-		require.Error(t, data.ForwardTDPB(io.Discard, "user"))
+	t.Run("tdp-client", func(t *testing.T) {
+		handshaker, client := newWebsocketConn(t)
+		clientConn := WebsocketIO{Conn: client}
+		defer handshaker.Close()
+		defer client.Close()
+
+		shaker := newHandshaker(t.Context(), protocolTDP, handshaker)
+
+		done := make(chan error)
+		go func() {
+			done <- shaker.performInitialHandshake(t.Context(), slog.Default())
+		}()
+
+		// Send two Screenspecs
+		spec := legacy.ClientScreenSpec{Width: 1, Height: 2}
+		require.NoError(t, tdp.EncodeTo(&clientConn, spec))
+		require.NoError(t, tdp.EncodeTo(&clientConn, spec))
+		// Should succeed
+		require.NoError(t, <-done)
+
+		buf := bytes.NewBuffer(nil)
+		// Ask for keyboard layout, though we won't get one
+		require.NoError(t, shaker.forwardTDP(buf, "bob", true))
+
+		msg, err := legacy.Decode(buf)
+		require.NoError(t, err)
+		require.IsType(t, legacy.ClientUsername{}, msg)
+		assert.Equal(t, "bob", msg.(legacy.ClientUsername).Username)
+
+		// Should get two ClientScreenSpecs as well
+		// One is explicitly forwarded, once was withheld while
+		// anticipating the KeyboardLayout that never arrived.
+		for range 2 {
+			msg, err := legacy.Decode(buf)
+			require.NoError(t, err)
+			require.IsType(t, legacy.ClientScreenSpec{}, msg)
+		}
+		// Should be empty
+		_, err = legacy.Decode(buf)
+		require.ErrorIs(t, err, io.EOF)
+
+		// Now test forwarding as TDPB
+		// Ask for keyboard layout, though we won't get one
+		require.NoError(t, shaker.forwardTDPB(buf, "bob", true))
+
+		msg, err = tdpb.DecodeStrict(buf)
+		require.NoError(t, err)
+		require.IsType(t, &tdpb.ClientHello{}, msg)
+		// Make sure everything got translated correctly.
+		assert.Equal(t, "bob", msg.(*tdpb.ClientHello).Username)
+		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.Width)
+		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.Height)
 	})
 
-	// Make sure that all combinations of TDP/TDPB input and output
-	for _, test := range []struct {
-		name string
-		data handshakeData
-	}{
-		{"tdpb-input", handshakeData{
-			hello: &tdpb.ClientHello{
-				ScreenSpec: &tdpbv1.ClientScreenSpec{
-					Height: 64,
-					Width:  128,
-				},
-				KeyboardLayout: 1,
+	t.Run("tdpb-client", func(t *testing.T) {
+		handshaker, client := newWebsocketConn(t)
+		clientConn := WebsocketIO{Conn: client}
+		defer handshaker.Close()
+		defer client.Close()
+
+		shaker := newHandshaker(t.Context(), protocolTDPB, handshaker)
+
+		done := make(chan error)
+		go func() {
+			done <- shaker.performInitialHandshake(t.Context(), slog.Default())
+		}()
+
+		// Send Client Hello plus a random message to be withheld
+		hello := &tdpb.ClientHello{
+			ScreenSpec: &tdpbv1.ClientScreenSpec{
+				Width:  1,
+				Height: 2,
 			},
-		}},
-		{"tdp-input", handshakeData{
-			screenSpec: &legacy.ClientScreenSpec{
-				Height: 64,
-				Width:  128,
-			},
-			keyboardLayout: &legacy.ClientKeyboardLayout{
-				KeyboardLayout: 1,
-			},
-		}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			buf := bufCloser{Buffer: &bytes.Buffer{}}
-			// ForwardTDPB should yield a single client_hello
-			require.NoError(t, test.data.ForwardTDPB(buf, "user"))
-			msg, err := tdpb.DecodeStrict(buf)
-			require.NoError(t, err)
-			require.IsType(t, &tdpb.ClientHello{}, msg)
-			assert.Equal(t, "user", msg.(*tdpb.ClientHello).Username)
-			_, err = tdpb.DecodeStrict(buf)
-			require.ErrorIs(t, err, io.EOF)
+			KeyboardLayout: 12,
+		}
+		require.NoError(t, tdp.EncodeTo(&clientConn, hello))
+		require.NoError(t, tdp.EncodeTo(&clientConn, &tdpb.PNGFrame{Data: []byte("somedata")}))
+		// Should succeed
+		require.NoError(t, <-done)
 
-			// ForwardTDP should yield 3 messages (if forwardKeyboardLayout == true)
-			require.NoError(t, test.data.ForwardTDP(buf, "user", true))
-			conn := tdp.NewConn(buf, legacy.Decode)
+		buf := bytes.NewBuffer(nil)
+		require.NoError(t, shaker.forwardTDPB(buf, "bob", false /* should be ignored */))
 
-			tdpMessage, err := conn.ReadMessage()
-			require.NoError(t, err)
-			requireMessageIs[legacy.ClientUsername](t, tdpMessage)
+		msg, err := tdpb.DecodeStrict(buf)
+		require.NoError(t, err)
+		// Should get the Client Hello back
+		require.IsType(t, &tdpb.ClientHello{}, msg)
+		assert.Equal(t, "bob", msg.(*tdpb.ClientHello).Username)
+		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.Width)
+		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.Height)
+		assert.Equal(t, uint32(12), msg.(*tdpb.ClientHello).KeyboardLayout)
 
-			tdpMessage, err = conn.ReadMessage()
-			require.NoError(t, err)
-			requireMessageIs[legacy.ClientScreenSpec](t, tdpMessage)
+		// Should be empty
+		_, err = tdpb.DecodeStrict(buf)
+		require.ErrorIs(t, err, io.EOF)
 
-			tdpMessage, err = conn.ReadMessage()
-			require.NoError(t, err)
-			requireMessageIs[legacy.ClientKeyboardLayout](t, tdpMessage)
+		// Now test forwarding as TDP
+		require.NoError(t, shaker.forwardTDP(buf, "bob", true))
 
-			_, err = conn.ReadMessage()
-			require.ErrorIs(t, err, io.EOF)
-		})
-	}
+		msg, err = legacy.Decode(buf)
+		require.NoError(t, err)
+		require.IsType(t, legacy.ClientUsername{}, msg)
+		assert.Equal(t, "bob", msg.(legacy.ClientUsername).Username)
+
+		msg, err = legacy.Decode(buf)
+		require.NoError(t, err)
+		require.IsType(t, legacy.ClientScreenSpec{}, msg)
+		assert.Equal(t, uint32(1), msg.(legacy.ClientScreenSpec).Width)
+		assert.Equal(t, uint32(2), msg.(legacy.ClientScreenSpec).Height)
+
+		msg, err = legacy.Decode(buf)
+		require.NoError(t, err)
+		require.IsType(t, legacy.ClientKeyboardLayout{}, msg)
+		assert.Equal(t, uint32(12), msg.(legacy.ClientKeyboardLayout).KeyboardLayout)
+
+		// Should be empty
+		_, err = legacy.Decode(buf)
+		require.ErrorIs(t, err, io.EOF)
+	})
 
 }
-
-func requireMessageIs[T any](t *testing.T, msg tdp.Message) {
-	_, ok := msg.(T)
-	require.True(t, ok)
-}
-
-// Need a simple buffer that can act as a tdp.ReadWriterCloser
-type bufCloser struct {
-	*bytes.Buffer
-}
-
-func (_ bufCloser) Close() error { return nil }
 
 func TestTDPBMFAFlow(t *testing.T) {
 	client, server := net.Pipe()
@@ -341,7 +387,7 @@ func TestTDPBMFAFlow(t *testing.T) {
 	defer serverConn.Close()
 
 	witheld := []tdp.Message{}
-	promptFn := newTDPBMFAPrompt(serverConn, &witheld)("channel_id")
+	promptFn := newTDPBMFAPrompt(serverConn, &witheld, slog.Default())("channel_id")
 	requestMsg := &proto.MFAAuthenticateChallenge{
 		WebauthnChallenge: &webauthnpb.CredentialAssertion{
 			PublicKey: &webauthnpb.PublicKeyCredentialRequestOptions{

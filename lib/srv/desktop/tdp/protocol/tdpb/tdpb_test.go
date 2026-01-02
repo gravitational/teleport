@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -124,6 +125,14 @@ func TestHandleUnknownMessageTypes(t *testing.T) {
 		require.NoError(t, err)
 		_, ok := newMsg.(*MouseButton)
 		require.True(t, ok)
+	})
+
+	t.Run("tdp-discard", func(t *testing.T) {
+		data, err := legacy.Alert{Message: "alert!", Severity: legacy.SeverityError}.Encode()
+		require.NoError(t, err)
+
+		_, err = DecodeWithTDPDiscard(data)
+		require.ErrorIs(t, err, ErrIsTDP)
 	})
 }
 

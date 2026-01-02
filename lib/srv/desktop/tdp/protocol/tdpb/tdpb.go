@@ -1,6 +1,7 @@
 package tdpb
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -13,6 +14,7 @@ import (
 
 // ErrUnknownMessage is returned when an unknown message is decoded.
 var ErrUnknownMessage = errors.New("decoded unknown TDPB message")
+var ErrIsTDP = errors.New("message is TDP, not TDPB")
 
 const (
 	// We can differentiate between TDP and TDPB messages on the wire
@@ -297,6 +299,24 @@ func DecodePermissive(rdr io.Reader) (tdp.Message, error) {
 			return nil, trace.Wrap(err)
 		}
 		return msg, nil
+	}
+}
+
+// DecodeWithTDPDiscard wraps 'DecodePermissive' and also detects and quietly ignores
+// legacy TDP messages that may appear on the wire. Intended for use during TDP Upgrade as
+// the TDP client *may* send a few legacy messages before receiving the Upgrade request.
+// Assumes you have the full message available.
+func DecodeWithTDPDiscard(data []byte) (tdp.Message, error) {
+	switch {
+	case len(data) < 1:
+		return nil, trace.Errorf("message is empty")
+	case data[0] != 0:
+		// "Legacy" TDP messages begin with non-zero first byte
+		// discard any legacy TDP messages received
+		return nil, ErrIsTDP
+	default:
+		msg, err := DecodePermissive(bytes.NewReader(data))
+		return msg, trace.Wrap(err)
 	}
 }
 
