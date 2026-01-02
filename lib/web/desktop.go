@@ -162,7 +162,7 @@ func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.L
 		)
 	}
 
-	log = log.With("width", width, "height", height)
+	*log = *log.With("width", width, "height", height)
 	msg, err = t.connection.ReadMessage()
 	if err != nil {
 		return trace.Wrap(err)
@@ -439,9 +439,9 @@ func (h *Handler) createDesktopConnection(
 	// to the service, and any withheld messages that were received before the MFA
 	// ceremony was completed.
 	serverProtocol := serviceConnTLS.ConnectionState().NegotiatedProtocol
-	log.InfoContext(ctx, "Connected to windows_desktop_service", "server_protocol", serverProtocol)
 	switch serverProtocol {
 	case "":
+		serverProtocol = protocolTDP
 		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 		err = handshaker.forwardTDP(serviceConnTLS, username, sendKeyboardLayout)
 	case protocolTDPB:
@@ -449,6 +449,7 @@ func (h *Handler) createDesktopConnection(
 	default:
 		err = trace.Errorf("Unknown desktop agent protocol")
 	}
+	log.InfoContext(ctx, "Connected to windows_desktop_service", "server_protocol", serverProtocol)
 
 	if err != nil {
 		return handshaker.sendError(err)
