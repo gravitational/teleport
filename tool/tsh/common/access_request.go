@@ -19,9 +19,11 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -53,12 +55,11 @@ func onRequestList(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if cf.Username == "" {
-		cf.Username = tc.Username
-	}
+	cf.Username = cmp.Or(cf.Username, tc.Username)
 
 	var reqs []types.AccessRequest
 
+	// TODO: consider useing the AccessRequestFilter below to filter server side rather than client side.
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
@@ -66,51 +67,32 @@ func onRequestList(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// NOTE: It probably makes sense for --reviewable, --suggested, and --my-requests
+	// to be mutually exclusive, but the original implementation of request filtering
+	// applied the filters in this order. We retain that behavior now for compatibility.
+
 	if cf.ReviewableRequests {
-		filtered := reqs[:0]
-	Reviewable:
-		for _, req := range reqs {
-			if req.GetUser() == cf.Username {
-				continue Reviewable
-			}
-			for _, rev := range req.GetReviews() {
-				if rev.Author == cf.Username {
-					continue Reviewable
-				}
-			}
-			filtered = append(filtered, req)
-		}
-		reqs = filtered
+		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
+			// Requests made by the same user or requests the user already reviewed are not reviewable.
+			return ar.GetUser() == cf.Username ||
+				slices.ContainsFunc(ar.GetReviews(), func(review types.AccessReview) bool { return review.Author == cf.Username })
+		})
 	}
 	if cf.SuggestedRequests {
-		filtered := reqs[:0]
-	Suggested:
-		for _, req := range reqs {
-			if req.GetUser() == cf.Username {
-				continue Suggested
-			}
-			for _, rev := range req.GetReviews() {
-				if rev.Author == cf.Username {
-					continue Suggested
-				}
-			}
-			for _, reviewer := range req.GetSuggestedReviewers() {
-				if reviewer == cf.Username {
-					filtered = append(filtered, req)
-					continue Suggested
-				}
-			}
-		}
-		reqs = filtered
+		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
+			// Requests made by the same author, requests already reviewed, or requests that do not contain
+			// this user as a suggested reviewer get filtered out.
+			return ar.GetUser() == cf.Username ||
+				slices.ContainsFunc(ar.GetReviews(), func(review types.AccessReview) bool { return review.Author == cf.Username }) ||
+				!slices.ContainsFunc(ar.GetSuggestedReviewers(), func(suggestion string) bool { return suggestion == cf.Username })
+		})
 	}
 	if cf.MyRequests {
-		filtered := reqs[:0]
-		for _, req := range reqs {
-			if req.GetUser() == cf.Username {
-				filtered = append(filtered, req)
-			}
-		}
-		reqs = filtered
+		reqs = slices.DeleteFunc(reqs, func(ar types.AccessRequest) bool {
+			// Filter out requests made by other users.
+			return ar.GetUser() != cf.Username
+		})
 	}
 
 	format := strings.ToLower(cf.Format)
