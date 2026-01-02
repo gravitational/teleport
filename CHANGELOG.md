@@ -1,5 +1,16 @@
 # Changelog
 
+## 18.6.2 (12/26/25)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
+## 18.6.1 (12/24/25)
+
+* Fixed an issue preventing text editors in the Web UI from allowing edits. [#62488](https://github.com/gravitational/teleport/pull/62488)
+* Acking a cluster alert no longer requires the create permission. [#62468](https://github.com/gravitational/teleport/pull/62468)
+* Fixed service health reason formatting for bot instances in the Web UI. [#62328](https://github.com/gravitational/teleport/pull/62328)
+* Fixed an issue causing a ref type of "any" to be added when editing GitHub or Gitlab join tokens in the Web UI. [#62487](https://github.com/gravitational/teleport/pull/62487)
+
 ## 18.6.0 (12/22/25)
 
 ### Identifier-first login enhancements

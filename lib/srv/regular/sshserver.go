@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -168,7 +169,7 @@ type Server struct {
 	// requesting connections to it come over a reverse tunnel.
 	useTunnel bool
 
-	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// fips means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	fips bool
 
@@ -351,6 +352,11 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 // support or not.
 func (s *Server) GetSELinuxEnabled() bool {
 	return s.enableSELinux
+}
+
+// GetProxyMode returns whether the server is started in SSH proxying mode.
+func (s *Server) GetProxyMode() bool {
+	return s.proxyMode
 }
 
 // ChildLogConfig returns the child log config.
@@ -1188,6 +1194,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
 
 	return srv
 }

@@ -963,7 +963,7 @@ func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.Cl
 
 func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
 	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
-	if err := a.authorizeAction(types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := a.authorizeAction(types.KindClusterAlert, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
