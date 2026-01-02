@@ -156,6 +156,25 @@ func (svc *IdentityCenterService) ListIdentityCenterAccounts(ctx context.Context
 	return accounts, nextPage, nil
 }
 
+// ListIdentityCenterAccountsWithFilter returns a paginated list of all
+// Identity Center Accounts in the service backend that match the supplied
+// predicate
+func (svc *IdentityCenterService) ListIdentityCenterAccountsWithFilter(
+	ctx context.Context,
+	pageSize int,
+	page string,
+	matcher func(*identitycenterv1.Account) bool,
+) ([]*identitycenterv1.Account, string, error) {
+	if pageSize == 0 {
+		pageSize = identityCenterPageSize
+	}
+	accounts, nextPage, err := svc.accounts.ListResourcesWithFilter(ctx, pageSize, page, matcher)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return accounts, nextPage, nil
+}
+
 // CreateIdentityCenterAccount creates a new Identity Center Account record
 func (svc *IdentityCenterService) CreateIdentityCenterAccount(ctx context.Context, acct *identitycenterv1.Account) (*identitycenterv1.Account, error) {
 	created, err := svc.accounts.CreateResource(ctx, acct)

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -536,9 +537,9 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	}
 
 	switch rr := r.(type) {
-	case types.Resource153UnwrapperT[IdentityCenterAccount]:
+	case types.Resource153UnwrapperT[*identitycenterv1.Account]:
 		matchers = append(matchers, NewIdentityCenterAccountMatcher(rr.UnwrapT()))
-	case types.Resource153UnwrapperT[IdentityCenterAccountAssignment]:
+	case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
 		matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 	}
 

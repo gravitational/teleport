@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/compare"
 	"github.com/gravitational/teleport/api/utils"
@@ -711,6 +712,10 @@ func FriendlyName(resource ResourceWithLabels) string {
 	}
 
 	switch rr := resource.(type) {
+	case Resource153UnwrapperT[*identitycenterv1.Account]:
+		return rr.UnwrapT().GetSpec().GetName()
+	case Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
+		return rr.UnwrapT().GetSpec().GetDisplay()
 	case interface{ GetHostname() string }:
 		return rr.GetHostname()
 	case interface{ GetDisplayName() string }:
