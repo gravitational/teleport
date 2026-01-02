@@ -32,13 +32,19 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
+	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
+	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
@@ -197,19 +203,9 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	switch params.JoinMethod {
 	case types.JoinMethodUnspecified:
 		// leave joinMethodPtr nil to let the server pick based on the token
-	case types.JoinMethodToken,
-		types.JoinMethodBitbucket,
-		types.JoinMethodBoundKeypair,
-		types.JoinMethodEC2,
-		types.JoinMethodEnv0,
-		types.JoinMethodGitHub,
-		types.JoinMethodGitLab,
-		types.JoinMethodIAM,
-		types.JoinMethodOracle:
+	default:
 		joinMethod := string(params.JoinMethod)
 		joinMethodPtr = &joinMethod
-	default:
-		return nil, trace.NotImplemented("new join service is not implemented for method %v", params.JoinMethod)
 	}
 
 	// Initiate the join request, using a cancelable context to make sure the
@@ -291,8 +287,16 @@ func joinWithMethod(
 	var err error
 
 	switch types.JoinMethod(method) {
-	case types.JoinMethodToken:
-		return tokenJoin(stream, clientParams)
+	case types.JoinMethodAzure:
+		return azureJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodAzureDevops:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBitbucket:
 		// Tests may specify their own IDToken, so only overwrite it when empty.
 		if joinParams.IDToken == "" {
@@ -304,6 +308,14 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodBoundKeypair:
 		return boundKeypairJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodCircleCI:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = circleci.GetIDToken(os.Getenv)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodIAM:
 		return iamJoin(ctx, stream, joinParams, clientParams)
 	case types.JoinMethodEC2:
@@ -319,6 +331,14 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodOracle:
 		return oracleJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodGCP:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = gcp.GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodGitHub:
 		if joinParams.IDToken == "" {
 			joinParams.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
@@ -336,10 +356,36 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
-
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodKubernetes:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = kubetoken.GetIDToken(os.Getenv, joinParams.KubernetesReadFileFunc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodSpacelift:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodToken:
+		return tokenJoin(stream, clientParams)
+	case types.JoinMethodTPM:
+		return tpmJoin(ctx, stream, joinParams, clientParams)
+	case types.JoinMethodTerraformCloud:
+		if joinParams.IDToken == "" {
+			joinParams.IDToken, err = terraformcloud.NewIDTokenSource(joinParams.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 		return oidcJoin(stream, joinParams, clientParams)
 	default:
-		// TODO(nklaassen): implement remaining join methods.
 		sendGivingUpErr := stream.Send(&messages.GivingUp{
 			Reason: messages.GivingUpReasonUnsupportedJoinMethod,
 			Msg:    "join method " + method + " is not supported by this client",

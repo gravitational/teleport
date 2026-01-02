@@ -10,8 +10,9 @@ tags:
 
 {/* lint disable page-structure remark-lint */}
 
-Teleport protects and controls SSH access to servers. Machine ID
-can be used to grant machines secure, short-lived access to these servers.
+Teleport protects and controls SSH access to servers. Machine & Workload
+Identity can be used to grant machines secure, short-lived access to these
+servers.
 
 In this guide, you will configure `tbot` to produce credentials that can be
 used to access a Linux server enrolled in Teleport. The guide
@@ -168,8 +169,9 @@ If you wish to integrate with Ansible, check out the
 [Ansible-specific guide](./ansible.mdx).
 
 If your tool is not compatible with `ssh_config`, it may still be possible to
-configure it to use the credentials produced by Machine ID. It must support
-SSH client certificates and either ProxyCommand or ProxyJump functionality.
+configure it to use the credentials produced by Machine & Workload Identity. It
+must support SSH client certificates and either ProxyCommand or ProxyJump
+functionality.
 
 ## Next steps
 

@@ -2,8 +2,15 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "event-handler.fullname" . }}
+  {{- with .Values.annotations.config }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "event-handler.labels" . | nindent 4 }}
+    {{- with .Values.extraLabels.config }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 data:
   teleport-event-handler.toml: |
     storage = {{ .Values.eventHandler.storagePath | toJson }}
@@ -15,10 +22,33 @@ data:
     types = "{{ join "," .Values.eventHandler.types }}"
     {{- end }}
     {{- if .Values.eventHandler.skipEventTypes }}
-    skip-event-types = "{{ join "," .Values.eventHandler.skipEventTypes  }}"
+    skip-event-types = "{{ join "," .Values.eventHandler.skipEventTypes }}"
     {{- end }}
-    {{- if .Values.eventHandler.skipSessionTypes  }}
+    {{- if .Values.eventHandler.skipSessionTypes }}
     skip-session-types = "{{ join "," .Values.eventHandler.skipSessionTypes }}"
+    {{- end }}
+    {{- if .Values.eventHandler.startTime }}
+    start-time = {{ .Values.eventHandler.startTime | quote }}
+    {{- end }}
+    {{- if .Values.eventHandler.dryRun }}
+    dry-run = {{ .Values.eventHandler.dryRun }}
+    {{- end }}
+    {{- if .Values.eventHandler.concurrency }}
+    concurrency = {{ .Values.eventHandler.concurrency }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock }}
+    {{- if .Values.eventHandler.lock.enabled }}
+    lock-enabled = {{ .Values.eventHandler.lock.enabled }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock.failedAttemptsCount }}
+    lock-failed-attempts-count = {{ .Values.eventHandler.lock.failedAttemptsCount }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock.period }}
+    lock-period = {{ .Values.eventHandler.lock.period | quote }}
+    {{- end }}
+    {{- if .Values.eventHandler.lock.for }}
+    lock-for = {{ .Values.eventHandler.lock.for | quote }}
+    {{- end }}
     {{- end }}
 
     [teleport]
@@ -32,3 +62,4 @@ data:
     ca = "/var/lib/teleport/plugins/event-handler/ca.crt"
     cert = "/var/lib/teleport/plugins/event-handler/client.crt"
     key = "/var/lib/teleport/plugins/event-handler/client.key"
+    max-connections = {{ default (mul .Values.eventHandler.concurrency 2) .Values.fluentd.maxConnections }}

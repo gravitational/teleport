@@ -16,7 +16,7 @@ This document will help you get started.
 We support BPFs only on ARM64 and x86_64 architectures.
 
 1. VM with Ubuntu 20.04+ (or any other Linux distro with the kernel 5.8+ - Docker doesn't work for many BPF features)
-2. Install `clang` (required for compiling BPF code) - `apt install clang` should be enough
+2. Install `clang` and `llvm` (required for compiling BPF code) - `apt install clang llvm` should be enough
 
 You can also use our Dockerfile to build the environment:
 
@@ -24,8 +24,25 @@ You can also use our Dockerfile to build the environment:
 make -C build.assets bpf-bytecode
 ```
 
+You can build BPF files faster using your local clang compiler using `make bpf-bytecode`.
+You will still need to run `make -C build.assets bpf-bytecode` to create reproducible files,
+otherwise the CI job that runs `make bpf-up-to-date` will fail.
+
 Note that there have been some issues with command tracing reading commands and arguments in a arm64 VM. You may
 need to test/develop on an EC2 instance instead.
+
+## Testing
+
+Tests are split across two packages:
+
+* `lib/bpf` - unit tests mainly for BPF related Go code
+* `lib/srv` - integration tests that execute commands as Teleport SSH normally does and checks emitted events
+
+Tests need to be run as root, and will be skipped unless the `TELEPORT_BPF_TEST=1` environment variable is set.
+Loading BPF programs is a privileged operation, and will fail in containers so the tests are further protected
+by an environment variable.
+
+The tests can be easily run with `make test-bpf`.
 
 ## BPF code structure
 
@@ -60,7 +77,6 @@ Here is the best explanation that I found so far https://nakryiko.com/posts/bpf-
 BPF programs can communicate with user space using maps. Maps are key-value stores that can be accessed from both
 BPF programs and user space. BPF programs can only access maps using BPF helpers. User space can access maps using
 `aquasecurity/libbpfgo` library. Maps are defined in BPF programs and can be referenced by name from user space code.
-
 
 ## BPF in Teleport
 

@@ -26,9 +26,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
-	"os/user"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -853,7 +850,11 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 
-	policySets := scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	var policySets []*types.SessionTrackerPolicySet
+	if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+		policySets = scx.Identity.UnstableSessionJoiningAccessChecker.SessionPolicySets()
+	}
+
 	access := moderation.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
 		logger: slog.With(
@@ -1423,7 +1424,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		return trace.Wrap(err)
 	}
 
-	var eventsMap map[string]bool
+	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
 	} else if scx.srv.GetBPF().Enabled() {
@@ -1451,30 +1452,11 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Events:                eventsMap,
 	}
 
-	bpfService := scx.srv.GetBPF()
-
-	// Only wait for the child to be "ready" if BPF is enabled. This is required
-	// because PAM might inadvertently move the child process to another cgroup
-	// by invoking systemd. If this happens, then the cgroup filter used by BPF
-	// will be looking for events in the wrong cgroup and no events will be captured.
-	// However, unconditionally waiting for the child to be ready results in PAM
-	// deadlocking because stdin/stdout/stderr which it uses to relay details from
-	// PAM auth modules are not properly copied until _after_ the shell request is
-	// replied to.
-	if bpfService.Enabled() {
-		if err := s.term.WaitForChild(); err != nil {
-			s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
-			return trace.Wrap(err)
-		}
-	} else {
-		// Clean up the read half of the pipe, and set it to nil so that when the
-		// ServerContext is closed it doesn't attempt to a second close.
-		if err := s.scx.readyr.Close(); err != nil {
-			s.logger.ErrorContext(ctx, "Failed closing child ready pipe", "error", err)
-		}
-		s.scx.readyr = nil
+	if err := s.term.WaitForChild(ctx); err != nil {
+		return trace.Wrap(err)
 	}
 
+	bpfService := scx.srv.GetBPF()
 	if cgroupID, err := bpfService.OpenSession(sessionContext); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to open enhanced recording (interactive) session.", "error", err)
 		return trace.Wrap(err)
@@ -1641,7 +1623,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		scx.SendExecResult(ctx, *result)
 	}
 
-	var eventsMap map[string]bool
+	var eventsMap map[string]struct{}
 	if scx.Identity.AccessPermit != nil {
 		eventsMap = eventsMapFromSSHAccessPermit(scx.Identity.AccessPermit)
 	} else if scx.srv.GetBPF().Enabled() {
@@ -1667,8 +1649,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		Events:                eventsMap,
 	}
 
-	if err := execRequest.WaitForChild(); err != nil {
-		s.logger.ErrorContext(ctx, "Child process never became ready.", "error", err)
+	if err := execRequest.WaitForChild(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1896,9 +1877,14 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -1909,59 +1895,6 @@ func (s *session) checkIfFileTransferApproved(req *FileTransferRequest) (bool, e
 	}
 
 	return isApproved, nil
-}
-
-// newFileTransferRequest takes FileTransferParams and creates a new fileTransferRequest struct
-func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestParams) (*FileTransferRequest, error) {
-	location, err := s.expandFileTransferRequestPath(params.Location)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	req := FileTransferRequest{
-		ID:        uuid.New().String(),
-		Requester: params.Requester,
-		Location:  location,
-		Filename:  params.Filename,
-		Download:  params.Download,
-		approvers: make(map[string]*party),
-	}
-
-	return &req, nil
-}
-
-func (s *session) expandFileTransferRequestPath(p string) (string, error) {
-	expanded := filepath.Clean(p)
-	dir := filepath.Dir(expanded)
-
-	tildePrefixed := dir == "~"
-	noBaseDir := dir == "."
-	if tildePrefixed || noBaseDir {
-		localUser, err := user.Lookup(s.login)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		exists, err := CheckHomeDir(localUser)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		homeDir := localUser.HomeDir
-		if !exists {
-			homeDir = string(os.PathSeparator)
-		}
-
-		if tildePrefixed {
-			// expand home dir to make an absolute path
-			expanded = filepath.Join(homeDir, expanded[2:])
-		} else {
-			// if no directories are specified SFTP will assume the file
-			// to be in the user's home dir
-			expanded = filepath.Join(homeDir, expanded)
-		}
-	}
-
-	return expanded, nil
 }
 
 // addFileTransferRequest will create a new file transfer request and add it to the current session's fileTransferRequests map
@@ -1977,18 +1910,21 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 		return trace.BadParameter("no source file is set for the upload")
 	}
 
-	req, err := s.newFileTransferRequest(params)
-	if err != nil {
-		return trace.Wrap(err)
+	s.fileTransferReq = &FileTransferRequest{
+		ID:        uuid.New().String(),
+		Requester: params.Requester,
+		Location:  params.Location,
+		Filename:  params.Filename,
+		Download:  params.Download,
+		approvers: make(map[string]*party),
 	}
-	s.fileTransferReq = req
 
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
 		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
 	}
-	err = s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
+	err := s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
 
 	return trace.Wrap(err)
 }
@@ -2081,9 +2017,14 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 			continue
 		}
 
+		var roles []types.Role
+		if party.ctx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		participants = append(participants, moderation.SessionAccessContext{
 			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 			Mode:     party.mode,
 		})
 	}
@@ -2216,9 +2157,14 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
 	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
+		var roles []types.Role
+		if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
+			roles = scx.Identity.UnstableSessionJoiningAccessChecker.Roles()
+		}
+
 		accessContext := moderation.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
-			Roles:    scx.Identity.UnstableSessionJoiningAccessChecker.Roles(),
+			Roles:    roles,
 		}
 
 		modes := s.access.CanJoin(accessContext)
@@ -2483,10 +2429,10 @@ func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRec
 	}
 }
 
-func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]bool {
-	eventsMap := make(map[string]bool, len(permit.BpfEvents))
+func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]struct{} {
+	eventsMap := make(map[string]struct{}, len(permit.BpfEvents))
 	for _, event := range permit.BpfEvents {
-		eventsMap[event] = true
+		eventsMap[event] = struct{}{}
 	}
 
 	return eventsMap

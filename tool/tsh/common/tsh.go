@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/piv"
 	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -190,6 +191,8 @@ type CLIConf struct {
 	AssumeStartTimeRaw string
 	// ResourceKind is the resource kind to search for
 	ResourceKind string
+	// RequestableRoles allows users to search for requestable roles.
+	RequestableRoles bool
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// ExplicitUsername is true if Username was initially set by the end-user
@@ -1367,10 +1370,24 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqReview.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z).").StringVar(&cf.AssumeStartTimeRaw)
 
 	reqSearch := req.Command("search", "Search for resources to request access to.")
-	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).", strings.Join(types.RequestableResourceKinds, ", "))).Required().StringVar(&cf.ResourceKind)
+	reqSearch.Flag("kind", fmt.Sprintf("Resource kind to search for (%s).  Mutually exclusive with --roles.", strings.Join(types.RequestableResourceKinds, ", "))).StringVar(&cf.ResourceKind)
+	reqSearch.Flag("roles", "List requestable roles instead of searching for resources. Mutually exclusive with --kind.").BoolVar(&cf.RequestableRoles)
 	reqSearch.Flag("kube-kind", fmt.Sprintf("Kubernetes resource kind name (plural) to search for. Required with --kind=%q Ex: pods, deployments, namespaces, etc.", types.KindKubernetesResource)).StringVar(&cf.kubeResourceKind)
 	reqSearch.Flag("kube-api-group", "Kubernetes API group to search for resources.").StringVar(&cf.kubeAPIGroup)
+	reqSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqSearch.PreAction(func(*kingpin.ParseContext) error {
+		if cf.RequestableRoles && cf.ResourceKind != "" {
+			return trace.BadParameter("only one of --kind and --roles may be specified")
+		}
+		if !cf.RequestableRoles && cf.ResourceKind == "" {
+			return trace.BadParameter("one of --kind and --roles is required")
+		}
+
+		// in --roles mode we don't care about resource kinds or kube flags.
+		if cf.RequestableRoles {
+			return nil
+		}
+
 		// TODO(@creack): DELETE IN v20.0.0. Allow legacy kinds with a warning for now.
 		if slices.Contains(types.LegacyRequestableKubeResourceKinds, cf.ResourceKind) {
 			cf.kubeAPIGroup = types.KubernetesResourcesV7KindGroups[cf.ResourceKind]
@@ -1434,6 +1451,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 	// SCAN subcommands.
 	scan := newScanCommand(app)
+	// scopes subcommands.
+	scopes := newScopesCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host.").Short('p').Int32Var(&cf.NodePort)
@@ -1800,6 +1819,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.join.run(&cf)
 	case scan.keys.FullCommand():
 		err = scan.keys.run(&cf)
+	case scopes.ls.FullCommand():
+		err = scopes.ls.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf, wrapInitClientWithUpdateCheck(makeClient, args))
 	case proxyDB.FullCommand():
@@ -1947,6 +1968,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	if trace.IsNotImplemented(err) {
 		return handleUnimplementedError(ctx, err, cf)
+	}
+
+	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
+	var fipsErr *sshutils.FIPSError
+	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+		return trace.Wrap(err,
+			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
+		)
 	}
 
 	return trace.Wrap(err)
@@ -2549,10 +2578,10 @@ func onLogout(cf *CLIConf) error {
 	active, available, err := cf.FullProfileStatus()
 	if err != nil && !trace.IsCompareFailed(err) {
 		if trace.IsNotFound(err) {
-			fmt.Printf("All users logged out.\n")
+			fmt.Fprintf(cf.Stdout(), "All users logged out.\n")
 			return nil
 		} else if trace.IsAccessDenied(err) {
-			fmt.Printf("%v: Logged in user does not have the correct permissions\n", err)
+			fmt.Fprintf(cf.Stdout(), "%v: Logged in user does not have the correct permissions\n", err)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -2570,7 +2599,33 @@ func onLogout(cf *CLIConf) error {
 
 	switch {
 	// Proxy and username for key to remove.
-	case proxyHost != "" && cf.Username != "":
+	case proxyHost != "":
+		// In the event --user flag is not supplied, and there is only one identity,
+		// we can simply log out the single identity.
+		if cf.Username == "" {
+			clientStore := cf.getClientStore()
+			usernames, err := clientStore.GetIdentities(proxyHost)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if len(usernames) == 0 {
+				fmt.Fprintf(cf.Stdout(), "All users logged out.\n")
+				return nil
+			}
+
+			logger.DebugContext(cf.Context, "No --user flag provided, but identities found for proxy",
+				"proxy_host", proxyHost,
+				"users", usernames)
+
+			if len(usernames) > 1 {
+				fmt.Fprintf(cf.Stdout(), "Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+				return nil
+			}
+
+			cf.Username = usernames[0]
+		}
+
 		tc, err := makeClient(cf)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2599,26 +2654,53 @@ func onLogout(cf *CLIConf) error {
 		err = tc.Logout()
 		if err != nil {
 			if trace.IsNotFound(err) {
-				fmt.Printf("User %v already logged out from %v.\n", cf.Username, proxyHost)
+				fmt.Fprintf(cf.Stdout(), "User %v already logged out from %v.\n", cf.Username, proxyHost)
 				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
 		}
 
 		// Remove Teleport related entries from kubeconfig.
+
+		if profile != nil {
+			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "profile", profile.Name)
+			err = kubeconfig.RemoveByProfileName("", profile.Name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// TODO(espadolini): DELETE IN v20 (maybe, files could be left over from really old versions)
 		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
 		err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
+		fmt.Fprintf(cf.Stdout(), "Logged out %v from %v.\n", cf.Username, proxyHost)
 	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
-		tc, err := makeClient(cf)
+		proxy, err := cf.getClientStore().CurrentProfile()
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		if proxy == "" {
+			// If there's no current profile, try to use the first profile.
+			if len(profiles) > 0 {
+				proxy = profiles[0].ProxyURL.Host
+			} else {
+				fmt.Printf("All users logged out.\n")
+				return nil
+			}
+		}
+
+		tc, err := makeClientForProxy(cf, proxy)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		// TODO(espadolini): DELETE IN v20 (maybe, files could be left over from really old versions)
 		logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster_addr", tc.KubeClusterAddr())
 		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
 			return trace.Wrap(err)
@@ -2626,8 +2708,8 @@ func onLogout(cf *CLIConf) error {
 
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
-			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "cluster", profile.Cluster)
-			err = kubeconfig.RemoveByClusterName("", profile.Cluster)
+			logger.DebugContext(cf.Context, "Removing Teleport related entries from kubeconfig", "profile", profile.Name)
+			err = kubeconfig.RemoveByProfileName("", profile.Name)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2667,7 +2749,7 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(tc.SAMLSingleLogout(ctx, sloURL))
 		})
 		if err != nil {
-			fmt.Printf("We were unable to log you out of your SAML identity provider: %v", err)
+			fmt.Fprintf(cf.Stdout(), "We were unable to log you out of your SAML identity provider: %v\n", err)
 		}
 
 		// Remove all keys from disk and the running agent.
@@ -2676,11 +2758,9 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		fmt.Printf("Logged out all users from all proxies.\n")
-	case proxyHost != "" && cf.Username == "":
-		fmt.Printf("Specify --user to log out a specific user from %q or remove the --proxy flag to log out all users from all proxies.\n", proxyHost)
+		fmt.Fprintf(cf.Stdout(), "Logged out all users from all proxies.\n")
 	case proxyHost == "" && cf.Username != "":
-		fmt.Printf("Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
+		fmt.Fprintf(cf.Stdout(), "Specify --proxy to log out user %q from a specific proxy or remove the --user flag to log out all users from all proxies.\n", cf.Username)
 	}
 	return nil
 }
@@ -2958,14 +3038,31 @@ func listNodesAllClusters(cf *CLIConf) error {
 
 func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
 	var rows [][]string
+	var withScope bool
 	for _, n := range nodes {
-		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, verbose))
+		if n.Node.GetScope() != "" {
+			withScope = true
+			break
+		}
 	}
+
+	for _, n := range nodes {
+		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, withScope, verbose))
+	}
+
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		if withScope {
+			t = asciitable.MakeTable([]string{"Scope", "Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		} else {
+			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
+		}
 	} else {
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+		if withScope {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
+		}
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
@@ -3092,6 +3189,9 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 			if strings.Contains(err.Error(), services.InvalidKubernetesKindAccessRequest) {
 				return trace.BadParameter("%s\nTry searching for specific kinds with:\n> tsh request search --kube-cluster=KUBE_CLUSTER_NAME --kind=KIND", err.Error())
 			}
+			if strings.Contains(err.Error(), services.CannotRequestRole) {
+				return trace.BadParameter("%s\nHint: run \"tsh request search --roles\" to list requestable roles.", err.Error())
+			}
 			return trace.Wrap(err)
 		}
 		cf.RequestID = req.GetName()
@@ -3169,7 +3269,7 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
+func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
 		switch {
@@ -3183,6 +3283,11 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 	}
 
 	row := make([]string, 0)
+
+	if withScope {
+		row = append(row, node.GetScope())
+	}
+
 	if proxy != "" && cluster != "" {
 		row = append(row, proxy, cluster)
 	}
@@ -3198,19 +3303,30 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 
 func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool) error {
 	var rows [][]string
+	var withScope bool
 	for _, n := range nodes {
-		rows = append(rows, getNodeRow("", "", n, verbose))
+		if n.GetScope() != "" {
+			withScope = true
+			break
+		}
+	}
+	for _, n := range nodes {
+		rows = append(rows, getNodeRow("", "", n, withScope, verbose))
 	}
 	var t asciitable.Table
 	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
+		t = asciitable.MakeTable([]string{"Scope", "Node Name", "Node ID", "Address", "Labels"}, rows...)
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		if withScope {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Node Name", "Address", "Labels"}, rows, "Labels")
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
+		}
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
@@ -5057,7 +5173,7 @@ func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
 }
 
 func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
-	currentProfile, profiles, err := c.getClientStore().FullProfileStatus()
+	currentProfile, profiles, err := c.getClientStore().FullProfileStatus(c.Proxy)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -5283,7 +5399,7 @@ func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock
 }
 
 // printStatus prints the status of the profile.
-func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
+func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	clock := clockwork.NewRealClock()
 	var prefix string
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -5295,40 +5411,40 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 		prefix = "  "
 	}
 
-	fmt.Printf("%vProfile URL:        %v\n", prefix, proxyURL)
+	fmt.Fprintf(w, "%vProfile URL:        %v\n", prefix, proxyURL)
 	if debug {
 		switch {
 		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
-			fmt.Printf("  Relay address:      %v (default)\n", p.DefaultRelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (default)\n", p.DefaultRelayAddr)
 		case p.RelayAddr != "" && p.DefaultRelayAddr != "":
-			fmt.Printf("  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (default: %v)\n", p.RelayAddr, p.DefaultRelayAddr)
 		case p.RelayAddr != "" && p.DefaultRelayAddr == "":
-			fmt.Printf("  Relay address:      %v (no default)\n", p.RelayAddr)
+			fmt.Fprintf(w, "  Relay address:      %v (no default)\n", p.RelayAddr)
 		default:
-			fmt.Printf("  Relay address:      (none)\n")
+			fmt.Fprintf(w, "  Relay address:      (none)\n")
 		}
 	} else if relayAddr := cmp.Or(p.RelayAddr, p.DefaultRelayAddr); relayAddr != "" {
-		fmt.Printf("  Relay address:      %v\n", relayAddr)
+		fmt.Fprintf(w, "  Relay address:      %v\n", relayAddr)
 	}
-	fmt.Printf("  Logged in as:       %v\n", p.Username)
+	fmt.Fprintf(w, "  Logged in as:       %v\n", p.Username)
 	if len(p.ActiveRequests) != 0 {
-		fmt.Printf("  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
+		fmt.Fprintf(w, "  Active requests:    %v\n", strings.Join(p.ActiveRequests, ", "))
 	}
 
 	if cluster != "" {
-		fmt.Printf("  Cluster:            %v\n", cluster)
+		fmt.Fprintf(w, "  Cluster:            %v\n", cluster)
 	}
 	if p.Scope != "" {
-		fmt.Printf("  Scope:              %v\n", p.Scope)
-		fmt.Printf("  Scoped Roles:\n")
+		fmt.Fprintf(w, "  Scope:              %v\n", p.Scope)
+		fmt.Fprintf(w, "  Scoped Roles:\n")
 
 		assignedScopes := slices.Collect(maps.Keys(p.ScopedRoles))
 		slices.Sort(assignedScopes)
 		for _, scope := range assignedScopes {
-			fmt.Printf("    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
+			fmt.Fprintf(w, "    %s: %v\n", scope, rolesToString(debug, p.ScopedRoles[scope]))
 		}
 	} else {
-		fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
+		fmt.Fprintf(w, "  Roles:              %v\n", rolesToString(debug, p.Roles))
 	}
 	if debug {
 		var count int
@@ -5337,60 +5453,60 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 				continue
 			}
 			if count == 0 {
-				fmt.Printf("  Traits:             %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Traits:             %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			count = count + 1
 		}
 	}
 	if len(p.Logins) > 0 {
-		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+		fmt.Fprintf(w, "  Logins:             %v\n", strings.Join(p.Logins, ", "))
 	}
 	if p.KubernetesEnabled {
-		fmt.Printf("  Kubernetes:         enabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", kubeCluster)
+			fmt.Fprintf(w, "  Kubernetes cluster: %q\n", kubeCluster)
 		}
 		if len(p.KubernetesUsers) > 0 {
-			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
+			fmt.Fprintf(w, "  Kubernetes users:   %v\n", strings.Join(p.KubernetesUsers, ", "))
 		}
 		if len(p.KubernetesGroups) > 0 {
-			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
+			fmt.Fprintf(w, "  Kubernetes groups:  %v\n", strings.Join(p.KubernetesGroups, ", "))
 		}
 	} else {
-		fmt.Printf("  Kubernetes:         disabled\n")
+		fmt.Fprintf(w, "  Kubernetes:         disabled\n")
 	}
 	if len(p.Databases) != 0 {
-		fmt.Printf("  Databases:          %v\n", strings.Join(p.Databases, ", "))
+		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
 	if len(p.AllowedResourceIDs) > 0 {
 		allowedResourcesStr, err := types.ResourceIDsToString(p.AllowedResourceIDs)
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {
-			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
+			fmt.Fprintf(w, "  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
 	if p.GitHubIdentity != nil {
-		fmt.Printf("  GitHub username:    %s\n", p.GitHubIdentity.Username)
+		fmt.Fprintf(w, "  GitHub username:    %s\n", p.GitHubIdentity.Username)
 	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
-	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
+	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	if debug {
 		first := true
 		for k, v := range p.CriticalOptions {
 			if first {
-				fmt.Printf("  Critical options:   %v: %v\n", k, v)
+				fmt.Fprintf(w, "  Critical options:   %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
+				fmt.Fprintf(w, "                      %v: %v\n", k, v)
 			}
 			first = false
 		}
 	}
 
-	fmt.Printf("\n")
+	fmt.Fprintf(w, "\n")
 }
 
 func isOktaRole(role string) bool {
@@ -5442,12 +5558,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 		// Print the active profile.
 		if profile != nil {
-			printStatus(cf.Debug, active, env, true)
+			printStatus(cf.Stdout(), cf.Debug, active, env, true)
 		}
 
 		// Print all other profiles.
 		for _, p := range others {
-			printStatus(cf.Debug, p, env, false)
+			printStatus(cf.Stdout(), cf.Debug, p, env, false)
 		}
 
 		// Print relevant active env vars, if they are set.
@@ -5478,6 +5594,22 @@ func onStatus(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+	if profile == nil && len(profiles) == 0 {
+		return trace.NotFound("Not logged in.")
+	}
+
+	if err = printLoginInformation(cf, profile, profiles); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if profile == nil {
+		return trace.NotFound("No active profile.")
+	}
+
+	duration := time.Until(profile.ValidUntil)
+	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
+		return trace.NotFound("Active profile expired.")
+	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
 	tc, err := makeClient(cf)
@@ -5490,19 +5622,6 @@ func onStatus(cf *CLIConf) error {
 	// To achieve this, we avoid remote calls that might prompt for
 	// hardware key touch or require a PIN.
 	hardwareKeyInteractionRequired := tc.PrivateKeyPolicy.MFAVerified()
-
-	if err := printLoginInformation(cf, profile, profiles); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if profile == nil {
-		return trace.NotFound("Not logged in.")
-	}
-
-	duration := time.Until(profile.ValidUntil)
-	if !profile.ValidUntil.IsZero() && duration.Nanoseconds() <= 0 {
-		return trace.NotFound("Active profile expired.")
-	}
 
 	if hardwareKeyInteractionRequired {
 		logger.DebugContext(cf.Context, "Skipping cluster alerts due to Hardware Key PIN/Touch requirement")
@@ -6167,7 +6286,8 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient) error {
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
+	const ignoreRelayFalse = false
+	kubeStatus, err := fetchKubeStatus(cf.Context, tc, ignoreRelayFalse)
 	if err != nil {
 		return trace.Wrap(err)
 	}

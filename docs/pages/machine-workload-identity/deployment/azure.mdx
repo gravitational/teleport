@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on Azure
-description: How to install and configure Machine ID on an Azure VM
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on an Azure VM
 sidebar_label: Azure VM
 tags:
  - how-to
@@ -9,10 +9,10 @@ tags:
  - azure
 ---
 
-In this guide, you will install Machine ID's agent, `tbot` on an Azure VM. The
-bot will be configured to use the `azure` delegated joining method to
-authenticate to your Teleport cluster. This eliminates the need for long-lived
-secrets.
+In this guide, you will install Machine & Workload Identity's agent, `tbot`, on
+an Azure VM. The bot will be configured to use the `azure` delegated joining
+method to authenticate to your Teleport cluster. This eliminates the need for
+long-lived secrets.
 
 ## How it works
 
@@ -34,15 +34,15 @@ occur without the use of a long-lived secret.
 - An Azure managed identity with a role granting the
   `Microsoft.Compute/virtualMachines/read` permission. You will need to know
   the UID of this identity.
-- An Azure VM you wish to install Machine ID onto with the managed identity
-  configured as a user-assigned managed identity.
+- An Azure VM you wish to install Machine & Workload Identity onto with the
+  managed identity configured as a user-assigned managed identity.
 
 ## Step 1/5. Install `tbot`
 
 **This step is completed on the Azure VM.**
 
-First, `tbot` needs to be installed on the VM that you wish to use Machine ID
-on.
+First, `tbot` needs to be installed on the VM that you wish to use Machine &
+Workload Identity on.
 
 Download and install the appropriate Teleport package for your platform:
 

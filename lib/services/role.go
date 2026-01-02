@@ -1198,6 +1198,9 @@ func (m mapLabelGetter) GetAllLabels() map[string]string {
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
 // nothing, wildcard matches everything.
+//
+// Keep in sync with front-end implementation;
+//   - web/packages/teleport/src/Bots/Add/Shared/kubernetes.ts:34
 func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
@@ -2767,23 +2770,18 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		// Device verification.
-		var deviceVerificationPassed bool
-		switch role.GetOptions().DeviceTrustMode {
-		case constants.DeviceTrustModeOff, constants.DeviceTrustModeOptional, "":
-			// OK, extensions not enforced.
-			deviceVerificationPassed = true
-		case constants.DeviceTrustModeRequiredForHumans:
-			// Humans must use trusted devices, bots can use untrusted devices.
-			deviceVerificationPassed = deviceTrusted || state.IsBot
-		case constants.DeviceTrustModeRequired:
-			// Only trusted devices allowed for bot human and bot users.
-			deviceVerificationPassed = deviceTrusted
-		}
-		if !deviceVerificationPassed {
+		if err := dtauthz.VerifyTrustedDeviceMode(
+			role.GetOptions().DeviceTrustMode,
+			dtauthz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: deviceTrusted,
+				IsBot:           state.IsBot,
+				AllowEmptyMode:  true, // Empty mode on roles is equivalent to "off".
+			},
+		); err != nil {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
 				slog.String("role", role.GetName()),
 			)
-			return ErrTrustedDeviceRequired
+			return trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive

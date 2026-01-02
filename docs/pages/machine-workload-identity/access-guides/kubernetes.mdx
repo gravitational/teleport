@@ -11,8 +11,8 @@ tags:
 {/* lint disable page-structure remark-lint */}
 
 Teleport protects and controls access to Kubernetes
-clusters. Machine ID can be used to grant machines secure, short-lived
-access to these clusters.
+clusters. Machine & Workload Identity can be used to grant machines secure,
+short-lived access to these clusters.
 
 In this guide, you will configure `tbot` to produce credentials that can be
 used to access a Kubernetes cluster enrolled with your Teleport cluster.
@@ -165,7 +165,7 @@ as registered in Teleport and adjust `/opt/machine-id` if you wish.
 If operating `tbot` as a background service, restart it. If running `tbot` in
 one-shot mode, it must be executed before you attempt to use the credentials.
 
-## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
+## Step 3/3. Connect to your Kubernetes cluster
 
 Once `tbot` has been run with the new service configured, a file called
 `kubeconfig.yaml` should have been generated in the destination directory

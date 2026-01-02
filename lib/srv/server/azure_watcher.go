@@ -22,12 +22,10 @@ import (
 	"context"
 	"log/slog"
 	"slices"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -50,12 +48,14 @@ type AzureInstances struct {
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
+	// Integration is the optional name of the integration to use for auth.
+	Integration string
 }
 
 // MakeEvents generates MakeEvents for these instances.
 func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
+	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		resourceType = types.DiscoveredResourceAgentlessNode
 	}
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
@@ -69,31 +69,11 @@ func (instances *AzureInstances) MakeEvents() map[string]*usageeventsv1.Resource
 	return events
 }
 
-type azureClientGetter interface {
-	GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error)
-}
-
-// NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, fetchersFn func() []Fetcher, opts ...Option) (*Watcher, error) {
-	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher{
-		fetchersFn:    fetchersFn,
-		ctx:           cancelCtx,
-		cancel:        cancelFn,
-		pollInterval:  time.Minute,
-		clock:         clockwork.NewRealClock(),
-		triggerFetchC: make(<-chan struct{}),
-		InstancesC:    make(chan Instances),
-	}
-	for _, opt := range opts {
-		opt(&watcher)
-	}
-	return &watcher, nil
-}
+type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
 
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, clients azureClientGetter, discoveryConfigName string) []Fetcher {
-	ret := make([]Fetcher, 0)
+func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.AzureMatcher, getClient azureClientGetter, discoveryConfigName string) []Fetcher[*AzureInstances] {
+	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
@@ -101,7 +81,7 @@ func MatchersToAzureInstanceFetchers(logger *slog.Logger, matchers []types.Azure
 					Matcher:             matcher,
 					Subscription:        subscription,
 					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   clients,
+					AzureClientGetter:   getClient,
 					DiscoveryConfigName: discoveryConfigName,
 					Logger:              logger,
 				})
@@ -118,7 +98,6 @@ type azureFetcherConfig struct {
 	ResourceGroup       string
 	AzureClientGetter   azureClientGetter
 	DiscoveryConfigName string
-	Integration         string
 	Logger              *slog.Logger
 }
 
@@ -143,12 +122,12 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		ResourceGroup:       cfg.ResourceGroup,
 		Labels:              cfg.Matcher.ResourceTags,
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
-		Integration:         cfg.Integration,
+		Integration:         cfg.Matcher.Integration,
 		Logger:              cfg.Logger,
 	}
 }
 
-func (*azureInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]Instances, error) {
+func (*azureInstanceFetcher) GetMatchingInstances(_ context.Context, _ []types.Server, _ bool) ([]*AzureInstances, error) {
 	return nil, trace.NotImplemented("not implemented for azure fetchers")
 }
 
@@ -168,8 +147,13 @@ type resourceGroupLocation struct {
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
-	client, err := f.AzureClientGetter.GetAzureVirtualMachinesClient(f.Subscription)
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
+	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -224,15 +208,16 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 		instancesByRegionAndResourceGroup[batchGroup] = append(instancesByRegionAndResourceGroup[batchGroup], vm)
 	}
 
-	var instances []Instances
+	var instances []*AzureInstances
 	for batchGroup, vms := range instancesByRegionAndResourceGroup {
-		instances = append(instances, Instances{Azure: &AzureInstances{
+		instances = append(instances, &AzureInstances{
 			SubscriptionID:  f.Subscription,
 			Region:          batchGroup.location,
 			ResourceGroup:   batchGroup.resourceGroup,
 			Instances:       vms,
+			Integration:     f.Integration,
 			InstallerParams: f.InstallerParams,
-		}})
+		})
 	}
 
 	return instances, nil

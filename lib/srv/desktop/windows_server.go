@@ -379,9 +379,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if cfg.LDAPConfig.Enabled() {
 		var err error
 		sidCache, err = utils.NewFnCache(utils.FnCacheConfig{
-			TTL:     4 * time.Hour,
-			Clock:   cfg.Clock,
-			Context: ctx,
+			TTL:         4 * time.Hour,
+			Clock:       cfg.Clock,
+			Context:     ctx,
+			ReloadOnErr: true, // don't cache the error state
 		})
 		if err != nil {
 			close()
@@ -1121,8 +1122,10 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 ) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := host.Address.String()
+
 		labels := getHostLabels(addr)
 		maps.Copy(labels, host.Labels)
+
 		name := host.Name
 		if name == "" {
 			var err error
@@ -1131,14 +1134,21 @@ func (s *WindowsService) staticHostHeartbeatInfo(host servicecfg.WindowsHost,
 				return nil, trace.Wrap(err)
 			}
 		}
+
 		labels[types.OriginLabel] = types.OriginConfigFile
 		labels[types.ADLabel] = strconv.FormatBool(host.AD)
+
+		var domain string
+		if host.AD {
+			domain = s.cfg.Domain
+		}
+
 		desktop, err := types.NewWindowsDesktopV3(
 			name,
 			labels,
 			types.WindowsDesktopSpecV3{
 				Addr:   addr,
-				Domain: s.cfg.Domain,
+				Domain: domain,
 				HostID: s.cfg.Heartbeat.HostUUID,
 				NonAD:  !host.AD,
 			})
@@ -1277,7 +1287,6 @@ type generateCredentialsRequest struct {
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,

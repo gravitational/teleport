@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot on AWS
-description: How to install and configure Machine ID on an AWS EC2 instance
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on an AWS EC2 instance
 sidebar_label: AWS EC2
 tags:
  - how-to
@@ -9,16 +9,18 @@ tags:
  - aws
 ---
 
-This guide shows you how to deploy `tbot` on Amazon Web Services and connect it to your Teleport cluster.
+This guide shows you how to deploy Machine & Workload Identity's agent, `tbot`,
+on an AWS EC2 instance and connect it to your Teleport cluster.
 
 ## How it works
 
 On AWS, virtual machines can be assigned an IAM role, which they can assume in
 order to request a signed document that includes information about the machine.
-The Teleport `iam` join method instructs the Machine ID bot to request this
-signed document from AWS using the assigned identity and send it to the Teleport
-Auth Service for verification. This allows the bot to join the cluster without
-the exchange of a long-lived secret.
+
+The Teleport `iam` join method instructs the Machine & Workload Identity bot to
+request this signed document from AWS using the assigned identity and send it to
+the Teleport Auth Service for verification. This allows the bot to join the
+cluster without the exchange of a long-lived secret.
 
 While this guide focuses on deploying `tbot` on an EC2 instance, it is also
 possible to use the `iam` join method with workloads running on an EKS
@@ -26,7 +28,7 @@ Kubernetes cluster. To do so, you must configure [IAM Roles for Service Accounts
 (IRSA)](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)
 for the cluster and the Kubernetes service account that will be used by the
 `tbot` pod. See the [Kubernetes platform guide](kubernetes.mdx) for further
-guidance on deploying Machine ID as a workload on Kubernetes.
+guidance on deploying `tbot` as a workload on Kubernetes.
 
 ## Prerequisites
 
@@ -36,15 +38,15 @@ guidance on deploying Machine ID as a workload on Kubernetes.
 - An AWS IAM role that you wish to grant access to your Teleport cluster. This
   role must be granted `sts:GetCallerIdentity`. In this guide, this role will
   be named `teleport-bot-role`.
-- An AWS EC2 virtual machine that you wish to install Machine ID onto configured
+- An AWS EC2 virtual machine that you wish to install `tbot` onto configured
   with the IAM role attached.
 
 ## Step 1/5. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
-First, `tbot` needs to be installed on the VM that you wish to use Machine ID
-on.
+First, `tbot` needs to be installed on the VM that you wish to use Machine &
+Workload Identity on.
 
 Download and install the appropriate Teleport package for your platform:
 

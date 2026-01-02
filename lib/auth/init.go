@@ -278,7 +278,7 @@ type InitConfig struct {
 	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
@@ -420,6 +420,10 @@ type InitConfig struct {
 
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
+
+	// AppAuthConfig is the service for storing and retrieving
+	// app auth config resources.
+	AppAuthConfig services.AppAuthConfig
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -1450,7 +1450,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/google-workspace.mdx) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../../zero-trust-access/sso/integrate-idp/google-workspace.mdx) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 ### Global flags
@@ -2071,6 +2071,83 @@ prod       Done  2025-01-15 18:00:12 outside_window
 backup     Done  2025-01-14 20:00:31 outside_window
 ```
 
+## tctl autoupdate agents report
+
+Aggregates the agent autoupdate reports and displays agent count per version and per update group.
+
+## tctl autoupdate agents start-update
+
+```code
+$ tctl autoupdate agents start-update [--force] [<groups>...]
+```
+
+Manually initiates an update for the specified groups.
+
+### Arguments
+
+- `<groups>` - Groups to update. If not specified, all groups will be started.
+- `--force` - Skips progressive deployment mechanism such as canaries or backpressure.
+
+### Examples
+
+Manually trigger staging and production updates:
+```code
+$ tctl autoupdate agents start-update stage prod
+Started updating agents groups: [stage prod].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- --------------
+dev        Unstarted                     cannot_start
+stage      Active    2025-03-10 15:04:16 manual_trigger
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+## tctl autoupdate agents mark-done
+
+```code
+$ tctl autoupdate agents mark-done [<groups>...]
+```
+
+Manually marks an agent update group as successfully updated.
+
+### Arguments
+
+- `<groups>` - Groups to mark as updated. If not specified, all groups will be marked.
+
+### Examples
+
+Manually mark the staging group as updated:
+```code
+$ tctl autoupdate agents mark-done stage
+Successfully marked agent groups as completed: [stage].
+New agent rollout status:
+
+Group Name State     Start Time          State Reason
+---------- --------- ------------------- ------------------
+dev        Unstarted                     cannot_start
+stage      Done      2025-03-10 15:04:16 manual_forced_done
+prod       Active    2025-03-10 15:04:16 manual_trigger
+```
+
+## tctl autoupdate agents rollback
+
+```code
+$ tctl autoupdate agents rollback [<groups>...]
+```
+
+Initiates an immediate rollback of Teleport agents from the target version to the start version.
+
+### Arguments
+
+- `<groups>` - Groups to rollback. If not specified, all groups not in the `unstarted` state will be rolled back.
+
+### Examples
+
+Rollback all agents immediately:
+```code
+$ tctl autoupdate agents rollback
+```
+
 ## tctl plugins install awsic
 
 Install the AWS Identity Center integration.
@@ -2201,11 +2278,11 @@ $ tctl plugins install entraid \
     --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
     --group-name "admin*" \
     --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
-    --exclude-group-name "fin*" 
+    --exclude-group-name "fin*"
 ```
 
-Multiple flags are collected together. In the given example, based on the 
-two `default-owner` flags, all the Access Lists imported by the integration will 
+Multiple flags are collected together. In the given example, based on the
+two `default-owner` flags, all the Access Lists imported by the integration will
 be created with owners `admin` and `root@example.com`.
 
 
@@ -2226,7 +2303,7 @@ $ tctl plugins rotate awsic [<flags>] <token>
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target | 
+| `--plugin-name` | | string | Optionally override the name of the AWS IAM Identity Center integration to target |
 | `--[no-]validate-token` | `--validate-token` | none | Enables or disables validating the supplied token against the configured SCIM server |
 
 ### Examples
@@ -2250,6 +2327,19 @@ Print the version of your `tctl` binary:
 
 ```code
 tctl version
+```
+
+## tctl recordings download
+
+Download session recordings from the cluster's recording storage to a local file.
+If you omit an output directory, recordings are saved to the current working directory.
+
+If session recording encryption is enabled in the cluster, recordings are decrypted during download.
+
+### Example
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
 ```
 
 ## tctl recordings encryption rotate

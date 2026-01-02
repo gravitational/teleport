@@ -205,13 +205,22 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 
 	// initializedModClosures holds all already opened modules closures.
 	initializedModClosures := make([]sessionEnder, 0)
-	for _, module := range []cgroupRegister{
-		s.open,
-		s.exec,
-		s.conn,
+	for _, m := range []struct {
+		eventName string
+		module    cgroupRegister
+	}{
+		{constants.EnhancedRecordingCommand, s.exec},
+		{constants.EnhancedRecordingDisk, s.open},
+		{constants.EnhancedRecordingNetwork, s.conn},
 	} {
+		// If the event is not being monitored in this session we
+		// shouldn't start monitoring it.
+		if _, ok := ctx.Events[m.eventName]; !ok {
+			continue
+		}
+
 		// Register cgroup in the BPF module.
-		if err := module.startSession(cgroupID); err != nil {
+		if err := m.module.startSession(cgroupID); err != nil {
 			// Clean up all already opened modules.
 			for _, closer := range initializedModClosures {
 				if closeErr := closer.endSession(cgroupID); closeErr != nil {
@@ -220,7 +229,7 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 			}
 			return 0, trace.Wrap(err)
 		}
-		initializedModClosures = append(initializedModClosures, module)
+		initializedModClosures = append(initializedModClosures, m.module)
 	}
 
 	// Start watching for any events that come from this cgroup.
@@ -253,13 +262,22 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	for _, module := range []sessionEnder{
-		s.open,
-		s.exec,
-		s.conn,
+	for _, m := range []struct {
+		eventName string
+		module    cgroupRegister
+	}{
+		{constants.EnhancedRecordingCommand, s.exec},
+		{constants.EnhancedRecordingDisk, s.open},
+		{constants.EnhancedRecordingNetwork, s.conn},
 	} {
+		// If the event is not being monitored in this session we
+		// shouldn't stop monitoring it.
+		if _, ok := ctx.Events[m.eventName]; !ok {
+			continue
+		}
+
 		// Remove the cgroup from BPF module.
-		if err := module.endSession(cgroupID); err != nil {
+		if err := m.module.endSession(cgroupID); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}

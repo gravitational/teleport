@@ -1,5 +1,6 @@
 ---
 title: API Architecture
+sidebar_label: API
 description: Architectural overview of the Teleport gRPC API.
 tags:
  - conceptual
@@ -31,9 +32,11 @@ action on the `role` resource. You should create a user and role with the minimu
 
 (!docs/pages/includes/permission-warning.mdx!)
 
+Copy and paste the below and run on the Teleport Auth Service:
+
 ```code
-# Copy and Paste the below and run on the Teleport Auth server.
-cat > api-role.yaml <<EOF
+# Create role configuration
+$ cat > api-role.yaml <<EOF
 kind: role
 metadata:
   name: api-role
@@ -48,9 +51,9 @@ spec:
 version: v5
 EOF
 # Create role
-tctl create -f api-role.yaml
+$ tctl create -f api-role.yaml
 # Add user and login via web proxy
-tctl users add api-user --roles=api-role
+$ tctl users add api-user --roles=api-role
 ```
 
 See our [roles](../access-controls/roles.mdx) documentation for more details

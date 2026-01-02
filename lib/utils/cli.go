@@ -123,7 +123,7 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		o.format = LogFormatJSON
 	}
 
-	logger, _, err := logutils.Initialize(logutils.Config{
+	logger, _, _, err := logutils.Initialize(logutils.Config{
 		Severity:       level.String(),
 		Format:         o.format,
 		EnableColors:   IsTerminal(os.Stderr),
@@ -476,7 +476,7 @@ Usage: {{.App.Name}}{{template "FormatUsage" .App}}
 {{end -}}
 {{if .Context.Flags -}}
 Flags:
-{{.Context.Flags|FlagsToTwoColumnsCompact|FormatTwoColumns}}
+{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
 {{end -}}
 {{if .Context.Args -}}
 Args:

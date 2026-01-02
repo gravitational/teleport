@@ -22,6 +22,7 @@ import { Theme } from 'design/theme';
 
 import { displayDate } from '../datetime';
 import Flex from '../Flex';
+import { makeLabelTag } from '../formatters';
 import * as Icons from '../Icon';
 import Label from '../Label';
 import {
@@ -129,7 +130,7 @@ export const ClickableLabelCell = ({
   onClick: (label: LabelDescription) => void;
 }) => {
   const $labels = labels.map((label, index) => {
-    const labelText = `${label.name}: ${label.value}`;
+    const labelText = makeLabelTag(label);
 
     return (
       <Label

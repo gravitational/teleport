@@ -29,11 +29,12 @@ AWS APIs in a few ways:
 - Workload Identity works with any AWS client, including the command-line tool
   but also
   their SDKs.
-- Using the Teleport Application Service to access AWS does not work with Machine ID
-  and therefore cannot be used when a machine needs to authenticate with AWS.
+- Using the Teleport Application Service to access AWS does not work with
+  Machine & Workload Identity and therefore cannot be used when a machine needs
+  to authenticate with AWS.
 
 Whilst this guide is primarily aimed at allowing a machine to access AWS,
-the `tsh svid issue` command can be used in place of Machine ID to allow a human
+the `tsh svid issue` command can be used in place of `tbot` to allow a human
 user to authenticate with using AWS Roles Anywhere.
 
 ## OIDC Federation vs Roles Anywhere

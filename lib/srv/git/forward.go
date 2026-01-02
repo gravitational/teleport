@@ -121,7 +121,7 @@ type ForwardServerConfig struct {
 	// MACAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -253,7 +253,6 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	return s, nil
-
 }
 
 // Serve starts an SSH server that forwards git commands.
@@ -707,8 +706,8 @@ func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
-func (s *ForwardServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return nil, trace.NotImplemented("not supported for git forward server")
+func (s *ForwardServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 func (s *ForwardServer) GetClock() clockwork.Clock {
 	return s.cfg.Clock
@@ -736,6 +735,17 @@ func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 }
 func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration since the git forwarding server
+// does not spawn child processes.
+func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 type serverContextKey struct{}

@@ -47,7 +47,7 @@ export const Options = memo(function Options({
   value,
   isProcessing,
   onChange,
-}: SectionProps<OptionsModel, never>) {
+}: SectionProps<OptionsModel, never, never>) {
   const theme = useTheme();
   const id = useId();
   const maxSessionTTLId = `${id}-max-session-ttl`;
