@@ -86,6 +86,8 @@ export function makeAcl(json): Acl {
 
   const botInstances = json.botInstances || defaultAccess;
 
+  const instances = json.instances || defaultAccess;
+
   const workloadIdentity = json.workloadIdentity || defaultAccess;
 
   const clientIpRestriction = json.clientIpRestriction || defaultAccess;
@@ -132,6 +134,7 @@ export function makeAcl(json): Acl {
     gitServers,
     accessGraphSettings,
     botInstances,
+    instances,
     workloadIdentity,
     clientIpRestriction,
   };

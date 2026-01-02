@@ -35,4 +35,6 @@ type SSOMFASessionData struct {
 	ConnectorType string `json:"connector_type,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions"`
+	// Payload is an optional session identifying value that uniquely identifies the user's session.
+	Payload *mfatypes.SessionIdentifyingPayload `json:"payload,omitempty"`
 }

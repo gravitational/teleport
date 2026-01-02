@@ -152,7 +152,6 @@ export function GitHubK8sFlowProvider(
       ghaWorkflow: makeGhaWorkflow({
         tokenName: `gha-${state.info?.owner ?? 'gravitational'}-${state.info?.repository ?? 'teleport'}`,
         clusterPublicUrl: cluster.publicURL,
-        toolsVersion: cluster.authVersion,
       }),
     },
   };

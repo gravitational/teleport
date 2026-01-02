@@ -89,7 +89,9 @@ describe('ConnectGitHub', () => {
       screen.getByPlaceholderText('https://github.com/gravitational/teleport')
     ).toHaveValue('https://github.com/gravitational/teleport');
 
-    expect(screen.getByPlaceholderText('main')).toHaveValue('main');
+    expect(screen.getAllByPlaceholderText('refs/heads/main')[0]).toHaveValue(
+      'main'
+    );
 
     expect(screen.getByPlaceholderText('my-workflow')).toHaveValue(
       'my-workflow'
@@ -97,7 +99,9 @@ describe('ConnectGitHub', () => {
 
     expect(screen.getByPlaceholderText('production')).toHaveValue('production');
 
-    expect(screen.getByPlaceholderText('ref/heads/main')).toHaveValue('main');
+    expect(screen.getAllByPlaceholderText('refs/heads/main')[1]).toHaveValue(
+      'main'
+    );
 
     expect(screen.getByPlaceholderText('octo-enterprise')).toHaveValue(
       'octo-enterprise'
