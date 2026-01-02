@@ -39,7 +39,6 @@ import cfg from 'teleport/config';
 import {
   filterByIntegrationTags,
   getStatus,
-  integrationLikeToIntegrationTags,
 } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
@@ -162,7 +161,7 @@ export function IntegrationList(props: Props) {
           render: item => (
             <Cell>
               <Flex gap={1}>
-                {integrationLikeToIntegrationTags(item).map(tag => (
+                {item.tags.map(tag => (
                   <SecondaryOutlined key={tag}>
                     {getIntegrationTagLabel(tag)}
                   </SecondaryOutlined>
