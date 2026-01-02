@@ -58,7 +58,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	created, err := svc.CreateValidatedMFAChallenge(t.Context(), username, chal)
 	require.NoError(t, err)
 
-	want := cloneValidatedMFAChallenge(t, chal)
+	want := proto.Clone(chal).(*mfav1.ValidatedMFAChallenge)
 
 	if diff := cmp.Diff(
 		want,
@@ -241,18 +241,4 @@ func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
 			TargetCluster: "tgt",
 		},
 	}
-}
-
-func cloneValidatedMFAChallenge(t *testing.T, chal *mfav1.ValidatedMFAChallenge) *mfav1.ValidatedMFAChallenge {
-	t.Helper()
-
-	bytes, err := proto.Marshal(chal)
-	require.NoError(t, err)
-
-	clone := &mfav1.ValidatedMFAChallenge{}
-
-	err = proto.Unmarshal(bytes, clone)
-	require.NoError(t, err)
-
-	return clone
 }
