@@ -52,6 +52,7 @@ test.each`
       kind: undefined,
       resourceType: type,
       statusCode: code,
+      tags: [],
     };
     const status = getStatus(item);
     expect(status).toBe(expected);
@@ -86,6 +87,7 @@ test.each`
       kind: undefined,
       resourceType: type,
       statusCode: code,
+      tags: [],
     };
     const status = getStatusAndLabel(item);
     expect(status.status).toBe(expectedTitle);

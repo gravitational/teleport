@@ -27,6 +27,7 @@ import {
   RequiredDiscoverProviders,
   resourceSpecAppAwsCliConsole,
 } from 'teleport/Discover/Fixtures/fixtures';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { getAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
@@ -161,6 +162,7 @@ const Provider = ({
             issuerS3Bucket: '',
             issuerS3Prefix: '',
           },
+          tags: integrationKindToTags(IntegrationKind.AwsOidc),
         },
       }}
       resourceSpec={resourceSpecAppAwsCliConsole}

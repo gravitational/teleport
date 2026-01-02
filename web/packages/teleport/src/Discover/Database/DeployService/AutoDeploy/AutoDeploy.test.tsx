@@ -22,6 +22,7 @@ import { resourceSpecAwsRdsAuroraMysql } from 'teleport/Discover/Fixtures/databa
 import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 import { SHOW_HINT_TIMEOUT } from 'teleport/Discover/Shared/useShowHint';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   AwsRdsDatabase,
@@ -66,6 +67,7 @@ const mockIntegration: IntegrationAwsOidc = {
     issuerS3Prefix: '',
   },
   statusCode: IntegrationStatusCode.Running,
+  tags: integrationKindToTags(IntegrationKind.AwsOidc),
 };
 
 describe('test AutoDeploy.tsx', () => {

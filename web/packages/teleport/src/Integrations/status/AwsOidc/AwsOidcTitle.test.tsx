@@ -21,6 +21,7 @@ import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
@@ -39,6 +40,7 @@ const testIntegration: IntegrationAwsOidc = {
     issuerS3Prefix: '',
   },
   statusCode: IntegrationStatusCode.Running,
+  tags: integrationKindToTags(IntegrationKind.AwsOidc),
 };
 
 test('renders with resource', () => {

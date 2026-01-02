@@ -31,6 +31,7 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
@@ -157,6 +158,7 @@ const agentMeta: AgentMeta = {
       issuerS3Prefix: '',
     },
     statusCode: IntegrationStatusCode.Running,
+    tags: integrationKindToTags(IntegrationKind.AwsOidc),
   },
 };
 

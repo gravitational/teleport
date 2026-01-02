@@ -26,6 +26,7 @@ import {
 } from 'teleport/Discover/Fixtures/fixtures';
 import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { DiscoverContextState } from 'teleport/Discover/useDiscover';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
@@ -51,6 +52,7 @@ beforeEach(() => {
           issuerS3Prefix: '',
         },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       },
     ],
   });
@@ -164,6 +166,7 @@ function getMockedContexts(resourceSpec: SelectResourceSpec) {
           kind: IntegrationKind.AwsOidc,
           spec: { roleArn: '111' },
           statusCode: IntegrationStatusCode.Running,
+          tags: integrationKindToTags(IntegrationKind.AwsOidc),
         },
       ],
     });

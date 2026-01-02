@@ -17,6 +17,7 @@
  */
 
 import { DbMeta } from 'teleport/Discover/useDiscover';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { IamPolicyStatus } from 'teleport/services/databases';
 import {
   IntegrationKind,
@@ -95,6 +96,7 @@ export function getSelectedAwsPostgresDbMeta(): DbMeta {
         issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
+      tags: integrationKindToTags(IntegrationKind.AwsOidc),
     },
   };
 }
