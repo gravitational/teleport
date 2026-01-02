@@ -41,7 +41,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	svc, err := local.NewMFAService(backend)
 	require.NoError(t, err)
 
-	username, chal := "alice", newValidatedMFAChallenge(t)
+	username, chal := "alice", newValidatedMFAChallenge()
 
 	t.Run("get non-existent", func(t *testing.T) {
 		t.Parallel()
@@ -106,7 +106,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "valid challenge",
 			username: &defaultUsername,
-			chal:     newValidatedMFAChallenge(t),
+			chal:     newValidatedMFAChallenge(),
 			wantErr:  nil,
 		},
 		{
@@ -124,7 +124,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "invalid kind",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Kind = "wrong_kind"
 				return c
 			}(),
@@ -134,7 +134,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "invalid version",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Version = "v2"
 				return c
 			}(),
@@ -144,7 +144,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "missing metadata",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Metadata = nil
 				return c
 			}(),
@@ -154,7 +154,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "missing name",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Metadata.Name = ""
 				return c
 			}(),
@@ -164,7 +164,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "missing spec",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Spec = nil
 				return c
 			}(),
@@ -174,7 +174,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "missing payload",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Spec.Payload = nil
 				return c
 			}(),
@@ -184,7 +184,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "empty ssh_session_id",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Spec.Payload = &mfav1.SessionIdentifyingPayload{
 					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("")},
 				}
@@ -196,7 +196,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "missing source_cluster",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Spec.SourceCluster = ""
 				return c
 			}(),
@@ -206,7 +206,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			name:     "missing target_cluster",
 			username: &defaultUsername,
 			chal: func() *mfav1.ValidatedMFAChallenge {
-				c := newValidatedMFAChallenge(t)
+				c := newValidatedMFAChallenge()
 				c.Spec.TargetCluster = ""
 				return c
 			}(),
@@ -224,9 +224,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 	}
 }
 
-func newValidatedMFAChallenge(t *testing.T) *mfav1.ValidatedMFAChallenge {
-	t.Helper()
-
+func newValidatedMFAChallenge() *mfav1.ValidatedMFAChallenge {
 	return &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
