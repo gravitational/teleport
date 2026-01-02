@@ -313,7 +313,7 @@ func (c *Client) readClientSize() error {
 }
 
 func (c *Client) readClientKeyboardLayout() error {
-	msgType, err := c.cfg.Conn.PeakNextByte()
+	msgType, err := c.cfg.Conn.PeekNextByte()
 	if err != nil {
 		return trace.Wrap(err)
 	}

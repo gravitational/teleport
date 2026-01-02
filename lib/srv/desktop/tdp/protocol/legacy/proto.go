@@ -1749,15 +1749,12 @@ func decodeClientKeyboardLayout(in io.Reader) (ClientKeyboardLayout, error) {
 }
 
 // TDPUpgrade directs the client to switch protocols to TDPB.
-// | messsage type (38) | version byte |
-type TDPUpgrade struct {
-	Version uint8
-}
+// | messsage type (38) | empty |
+type TDPUpgrade struct{}
 
 func (t TDPUpgrade) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeUpgrade))
-	buf.WriteByte(t.Version)
 	return buf.Bytes(), nil
 }
 
