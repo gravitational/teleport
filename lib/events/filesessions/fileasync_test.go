@@ -54,7 +54,8 @@ func TestUploadOK(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	p := newUploaderPack(ctx, t, uploaderPackConfig{})
+	p := newUploaderPack(t, uploaderPackConfig{})
+	go p.Serve(ctx)
 
 	clock, ok := p.clock.(*clockwork.FakeClock)
 	require.True(t, ok, "fake clock expected")
@@ -95,7 +96,8 @@ func TestUploadParallel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	p := newUploaderPack(ctx, t, uploaderPackConfig{})
+	p := newUploaderPack(t, uploaderPackConfig{})
+	go p.Serve(ctx)
 
 	clock, ok := p.clock.(*clockwork.FakeClock)
 	require.True(t, ok, "fake clock expected")
@@ -390,7 +392,7 @@ func TestUploadBackoff(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
 
-	p := newUploaderPack(ctx, t, uploaderPackConfig{
+	p := newUploaderPack(t, uploaderPackConfig{
 		wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
@@ -406,6 +408,7 @@ func TestUploadBackoff(t *testing.T) {
 			})
 		},
 	})
+	go p.Serve(ctx)
 
 	clock, ok := p.clock.(*clockwork.FakeClock)
 	require.True(t, ok, "fake clock expected")
@@ -466,54 +469,83 @@ func TestUploadBackoff(t *testing.T) {
 	}
 }
 
-type retryErrorStreamer struct{}
+type retryErrorStreamer struct {
+	err error
+}
 
 func (e *retryErrorStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	return nil, trace.Errorf("test error")
+	return nil, e.err
 }
 
 func (e *retryErrorStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	return nil, trace.Errorf("test error")
+	return nil, e.err
 }
 
 func TestUploadMaxAttempts(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		ctx := t.Context()
+	tests := []struct {
+		name             string
+		uploadErr        error
+		expectMaxRetries bool
+	}{
+		{
+			name:             "hit max attempts",
+			uploadErr:        trace.Errorf("general error"),
+			expectMaxRetries: true,
+		},
+		{
+			name:      "ignore limit for errors that can be fixed",
+			uploadErr: trace.AccessDenied("fixable permissions error"),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
 
-		p := newUploaderPack(ctx, t, uploaderPackConfig{
-			clock: clockwork.NewRealClock(),
-			wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
-				return &retryErrorStreamer{}, nil
-			},
-			maxUploadAttempts: 1,
+				p := newUploaderPack(t, uploaderPackConfig{
+					clock: clockwork.NewRealClock(),
+					wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
+						return &retryErrorStreamer{err: tc.uploadErr}, nil
+					},
+					maxUploadAttempts: 1,
+				})
+				// Unset jitter so Duration() calls are consistent.
+				p.uploader.backoff.Jitter = func(d time.Duration) time.Duration { return d }
+				go p.Serve(ctx)
+
+				synctest.Wait()
+				inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
+				sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+				p.emitEvents(ctx, t, inEvents)
+				sessionFile := filepath.Join(p.scanDir, sid+".tar")
+				corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
+				synctest.Wait()
+
+				time.Sleep(p.uploader.backoff.Duration())
+				synctest.Wait()
+				require.FileExists(t, sessionFile)
+				require.NoFileExists(t, corruptedSessionFile)
+
+				// Session should not be marked as corrupted after first attempt.
+				time.Sleep(p.uploader.backoff.Duration())
+				synctest.Wait()
+				require.FileExists(t, sessionFile)
+				require.NoFileExists(t, corruptedSessionFile)
+
+				// If the error allows retries, session should be marked as corrupted
+				// after upload attempts are exhausted.
+				time.Sleep(p.uploader.backoff.Duration())
+				synctest.Wait()
+				if tc.expectMaxRetries {
+					require.NoFileExists(t, sessionFile)
+					require.FileExists(t, corruptedSessionFile)
+				} else {
+					require.FileExists(t, sessionFile)
+					require.NoFileExists(t, corruptedSessionFile)
+				}
+			})
 		})
-		// Unset jitter so Duration() calls are consistent.
-		p.uploader.backoff.Jitter = func(d time.Duration) time.Duration { return d }
-
-		synctest.Wait()
-		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
-		sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
-		p.emitEvents(ctx, t, inEvents)
-		sessionFile := filepath.Join(p.scanDir, sid+".tar")
-		corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
-
-		time.Sleep(p.uploader.backoff.Duration())
-		synctest.Wait()
-		require.FileExists(t, sessionFile)
-		require.NoFileExists(t, corruptedSessionFile)
-
-		// Session should not be marked as corrupted after first attempt.
-		time.Sleep(p.uploader.backoff.Duration())
-		synctest.Wait()
-		require.FileExists(t, sessionFile)
-		require.NoFileExists(t, corruptedSessionFile)
-
-		// Session should be marked as corrupted after upload attempts are exhausted.
-		time.Sleep(p.uploader.backoff.Duration())
-		synctest.Wait()
-		require.NoFileExists(t, sessionFile)
-		require.FileExists(t, corruptedSessionFile)
-	})
+	}
 }
 
 // TestUploadCorruptSession creates a corrupted session file
@@ -523,9 +555,10 @@ func TestUploadCorruptSession(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
 
-		p := newUploaderPack(ctx, t, uploaderPackConfig{
+		p := newUploaderPack(t, uploaderPackConfig{
 			clock: clockwork.NewRealClock(),
 		})
+		go p.Serve(ctx)
 
 		sessionID := session.NewID()
 		fileName := filepath.Join(p.scanDir, string(sessionID)+tarExt)
@@ -571,10 +604,11 @@ func TestMinimumUpload(t *testing.T) {
 	minUploadBytes := 33768
 	maxUploadBytes := 2 * minUploadBytes
 
-	p := newUploaderPack(ctx, t, uploaderPackConfig{
+	p := newUploaderPack(t, uploaderPackConfig{
 		minimumFileUploadBytes: int64(minFileBytes),
 		minimumUploadBytes:     int64(minUploadBytes),
 	})
+	go p.Serve(ctx)
 
 	clock, ok := p.clock.(*clockwork.FakeClock)
 	require.True(t, ok, "fake clock expected")
@@ -804,7 +838,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 				})
 			})
 
-			p := newUploaderPack(ctx, t, uploaderPackConfig{
+			p := newUploaderPack(t, uploaderPackConfig{
 				minimumFileUploadBytes:             int64(tc.minFileSize),
 				minimumUploadBytes:                 int64(tc.minUploadBytes),
 				encrypter:                          &fakeEncryptedIO{},
@@ -812,6 +846,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 				encryptedRecordingUploadTargetSize: tc.encryptedTargetSize,
 				encryptedRecordingUploadMaxSize:    tc.encryptedMaxSize,
 			})
+			go p.Serve(ctx)
 
 			clock, ok := p.clock.(*clockwork.FakeClock)
 			require.True(t, ok, "fake clock expected")
@@ -898,7 +933,7 @@ func TestUploadCorruptEncryptedRecording(t *testing.T) {
 		// ensure we're releasing the semaphore properly
 		sessionCount := concurrentUploads * 3
 
-		p := newUploaderPack(ctx, t, uploaderPackConfig{
+		p := newUploaderPack(t, uploaderPackConfig{
 			// clock:                              clockwork.NewRealClock(),
 			minimumFileUploadBytes:             64,
 			encrypter:                          &fakeEncryptedIO{},
@@ -906,6 +941,7 @@ func TestUploadCorruptEncryptedRecording(t *testing.T) {
 			wrapEncryptedUploader:              wrapUploaderFn,
 			concurrentUploads:                  concurrentUploads,
 		})
+		go p.Serve(ctx)
 
 		// clean up the scan dir because the tests are flaky otherwise
 		t.Cleanup(func() { os.RemoveAll(p.scanDir) })
@@ -991,12 +1027,9 @@ type uploaderPack struct {
 	memUploader   *eventstest.MemoryUploader
 }
 
-func newUploaderPack(ctx context.Context, t *testing.T, cfg uploaderPackConfig) uploaderPack {
+func newUploaderPack(t *testing.T, cfg uploaderPackConfig) uploaderPack {
 	scanDir := t.TempDir()
 	corruptedDir := t.TempDir()
-
-	ctx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
 
 	clock := cfg.clock
 	if clock == nil {
@@ -1057,9 +1090,11 @@ func newUploaderPack(ctx context.Context, t *testing.T, cfg uploaderPackConfig) 
 	pack.uploader, err = NewUploader(uploaderCfg)
 	require.NoError(t, err)
 
-	go pack.uploader.Serve(ctx)
-
 	return pack
+}
+
+func (p *uploaderPack) Serve(ctx context.Context) error {
+	return p.uploader.Serve(ctx)
 }
 
 func (p *uploaderPack) emitEvents(ctx context.Context, t *testing.T, inEvents []apievents.AuditEvent) {

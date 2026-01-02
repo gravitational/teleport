@@ -246,7 +246,9 @@ func (u *Uploader) Serve(ctx context.Context) error {
 					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
 				}
 			default:
-				u.uploadAttempts[event.SessionID]++
+				if !trace.IsAccessDenied(event.Error) && !trace.IsNotFound(event.Error) {
+					u.uploadAttempts[event.SessionID]++
+				}
 				u.backoff.Inc()
 				u.log.WarnContext(ctx, "Increasing session upload backoff due to error, applying backoff before retrying", "backoff", u.backoff.Duration())
 			}
