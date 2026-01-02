@@ -24,7 +24,9 @@ import (
 	"log/slog"
 	"sort"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -81,6 +83,9 @@ type App struct {
 
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
+
+	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
+	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -135,6 +140,8 @@ type MakeAppsConfig struct {
 	Logger *slog.Logger
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool
+	// SupportedFeatures contains ComponentFeatures supported by this App and all other involved components.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
 }
 
 // MakeApp creates an application object for the WebUI.
@@ -187,6 +194,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Integration:           app.GetIntegration(),
 		PermissionSets:        permissionSets,
 		UseAnyProxyPublicAddr: app.GetUseAnyProxyPublicAddr(),
+		SupportedFeatureIDs:   componentfeatures.ToIntegers(c.SupportedFeatures),
 	}
 
 	if app.IsAWSConsole() {

@@ -21,6 +21,8 @@ package servicecfg
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -208,7 +211,7 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// SkipVersionCheck means the version checking between server and client
@@ -221,9 +224,16 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
+	// LogConfig is the config used to initialize the logger and associated fields below.
+	// We keep the original config for child processes to initialize the same logger.
+	LogConfig logutils.Config
+
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+
+	// LogWriter is the underlying log writer used by the Logger above.
+	LogWriter io.Writer
 
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
@@ -235,8 +245,8 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
-	MaxRetryPeriod time.Duration
+	// AuthConnectionConfig defines the Auth Service connection configuration.
+	AuthConnectionConfig AuthConnectionConfig
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -345,6 +355,59 @@ type AuditLogConfig struct {
 	Enabled bool
 	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
 	StartDate time.Time
+}
+
+// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
+type AuthConnectionConfig struct {
+	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
+	UpperLimitBetweenRetries time.Duration
+	// InitialConnectionDelay is the initial delay before the first retry attempt.
+	// The retry logic will apply jitter to this duration.
+	InitialConnectionDelay time.Duration
+	// BackoffStepDuration is the amount of time added to the retry delay.
+	BackoffStepDuration time.Duration
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
+	const minWatcherBackoff = 10 * time.Second
+
+	if c.UpperLimitBetweenRetries < 1 {
+		c.UpperLimitBetweenRetries = defaults.MaxWatcherBackoff
+	} else if c.UpperLimitBetweenRetries < minWatcherBackoff {
+		return trace.BadParameter("upper_limit_between_retries (%s) cannot be set below %s", c.UpperLimitBetweenRetries, minWatcherBackoff)
+	}
+
+	if c.InitialConnectionDelay < 1 {
+		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 10
+	} else if c.InitialConnectionDelay > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"initial_connection_delay (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.InitialConnectionDelay,
+			c.UpperLimitBetweenRetries,
+		)
+	}
+
+	if c.BackoffStepDuration < 1 {
+		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 5
+	} else if c.BackoffStepDuration > c.UpperLimitBetweenRetries {
+		return trace.BadParameter(
+			"backoff_step_duration (%s) cannot be larger than upper_limit_between_retries (%s)",
+			c.BackoffStepDuration,
+			c.UpperLimitBetweenRetries,
+		)
+	}
+
+	return nil
+}
+
+// DefaultRatioAuthConnectionConfig returns AuthConnectionConfig with parameters based on UpperLimitBetweenRetries
+func DefaultRatioAuthConnectionConfig(UpperLimitBetweenRetries time.Duration) *AuthConnectionConfig {
+	return &AuthConnectionConfig{
+		UpperLimitBetweenRetries: UpperLimitBetweenRetries,
+		InitialConnectionDelay:   UpperLimitBetweenRetries / 10,
+		BackoffStepDuration:      UpperLimitBetweenRetries / 5,
+	}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -522,7 +585,7 @@ func (cfg *Config) DebugDumpToYAML() string {
 	return string(out)
 }
 
-// ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
+// ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
 // compliant.
 func ApplyFIPSDefaults(cfg *Config) {
 	cfg.FIPS = true
@@ -534,12 +597,12 @@ func ApplyFIPSDefaults(cfg *Config) {
 	cfg.MACAlgorithms = defaults.FIPSMACAlgorithms
 
 	// Only SSO based authentication is supported in FIPS mode. The SSO
-	// provider is where any FedRAMP/FIPS 140-2 compliance (like password
+	// provider is where any FedRAMP/FIPS compliance (like password
 	// complexity) should be enforced.
 	cfg.Auth.Preference.SetAllowLocalAuth(false)
 
 	// Update cluster configuration to record sessions at node, this way the
-	// entire cluster is FedRAMP/FIPS 140-2 compliant.
+	// entire cluster is FedRAMP/FIPS compliant.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 }
 
@@ -561,6 +624,10 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
+	}
+
+	if cfg.LogWriter == nil {
+		cfg.LogWriter = io.Discard
 	}
 
 	if cfg.LoggerLevel == nil {
@@ -640,7 +707,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 
@@ -743,6 +810,21 @@ func applyDefaults(cfg *Config) {
 	}
 }
 
+func warnIfUsingCloudOnWrongPort(log *slog.Logger, addr utils.NetAddr, defaultPort int) {
+	ctx := context.Background()
+	isCloud := strings.HasSuffix(addr.Host(), "."+defaults.CloudDomainSuffix)
+
+	if port := addr.Port(defaultPort); isCloud && port != defaults.CloudProxyListenPort {
+		//nolint:sloglint // We want to craft user-friendly and actionable messages here.
+		log.WarnContext(ctx,
+			fmt.Sprintf("Teleport Cloud Proxy Service runs on port 443, but the process is connecting to port %d. This is likely a misconfiguration and will prevent successfully joining the cluster.", port),
+			"port", port,
+			"address", addr.String())
+		//nolint:sloglint // We want to craft user-friendly and actionable messages here.
+		log.WarnContext(ctx, fmt.Sprintf("If you are experiencing connectivity issues, try using the following address: \"%s:%d\".", addr.Host(), defaults.CloudProxyListenPort))
+	}
+}
+
 func validateAuthOrProxyServices(cfg *Config) error {
 	haveAuthServers := len(cfg.authServers) > 0
 	haveProxyServer := !cfg.ProxyServer.IsEmpty()
@@ -771,6 +853,7 @@ func validateAuthOrProxyServices(cfg *Config) error {
 			if port == defaults.AuthListenPort {
 				cfg.Logger.WarnContext(context.Background(), "config: proxy_server is pointing to port 3025, is this the auth server address?")
 			}
+			warnIfUsingCloudOnWrongPort(cfg.Logger, cfg.ProxyServer, defaults.HTTPListenPort)
 		}
 
 		if haveAuthServers {
@@ -793,6 +876,8 @@ func validateAuthOrProxyServices(cfg *Config) error {
 	if !haveAuthServers {
 		return trace.BadParameter("config: auth_servers is required")
 	}
+
+	warnIfUsingCloudOnWrongPort(cfg.Logger, cfg.authServers[0], defaults.AuthListenPort)
 
 	return nil
 }

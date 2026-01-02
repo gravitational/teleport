@@ -94,8 +94,7 @@ type AuthHandlerConfig struct {
 	// or an agentless server.
 	TargetServer types.Server
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
-	// configuration.
+	// FIPS mode means Teleport started in FedRAMP/FIPS mode.
 	FIPS bool
 
 	// Clock specifies the time provider. Will be used to override the time anchor

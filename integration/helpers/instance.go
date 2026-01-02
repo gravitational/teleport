@@ -634,7 +634,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
 	tconf.Keygen = testauthority.New()
-	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
 

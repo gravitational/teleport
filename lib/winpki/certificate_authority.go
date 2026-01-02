@@ -78,7 +78,6 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 	// #1 and #2 are done manually as part of the set-up process (see public docs).
 	// Below we do #3.
 
-	hasCRL := false
 	certAuthorities, err := c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -88,7 +87,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 			if len(keyPair.CRL) == 0 {
 				continue
 			}
-			hasCRL = true
+
 			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 			if err != nil {
 				return trace.Wrap(err)
@@ -100,22 +99,6 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 		}
 	}
 
-	// All authorities are missing CRL, fall back to legacy behavior since some early v18 auth servers
-	// won't have set up CRLs yet.
-	// DELETE IN v19 (zmb3/probakowski): this is agent code, by the time agents are on v19 we won't
-	// need to worry about v18 auth servers.
-	if !hasCRL {
-		c.cfg.Logger.WarnContext(ctx, "No existing certificate authorities had an associated CRL. "+
-			"If you are using HSM or KMS for private key material, please update your auth server.")
-		crlDER, err := c.cfg.AccessPoint.GenerateCertAuthorityCRL(ctx, caType)
-		if err != nil {
-			return trace.Wrap(err, "generating CRL")
-		}
-
-		if err := c.updateCRL(ctx, c.cfg.ClusterName, nil, crlDER, caType, tc); err != nil {
-			return trace.Wrap(err, "updating CRL over LDAP")
-		}
-	}
 	return nil
 }
 
@@ -133,8 +116,14 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 	// Teleport cluster name. So, for instance, CRL for cluster "prod" and User
 	// CA will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := crlContainerDN(c.cfg.Domain, caType)
-	crlDN := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
+	containerDN, err := crlContainerDN(c.cfg.Domain, caType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	crlDN, err := CRLDN(issuerCN, issuerSKID, c.cfg.Domain, caType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	ldapClient, err := DialLDAP(ctx, c.cfg.LC, tc)
 	if err != nil {

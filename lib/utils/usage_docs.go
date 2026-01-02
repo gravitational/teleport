@@ -22,14 +22,17 @@ import (
 	"bytes"
 	"cmp"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"gopkg.in/yaml.v3"
 )
 
 // formatThreeColMarkdownTable formats the provided row data into a three-column
@@ -49,7 +52,9 @@ func flagsToRows(f []*kingpin.FlagModel) [][3]string {
 	rows := [][3]string{}
 
 	for _, flag := range f {
-		if flag.Hidden {
+		// Skip hidden flags and flags whose only purpose is to expose
+		// YAML-based default env variables.
+		if flag.Hidden || flag.Name == flag.Envar {
 			continue
 		}
 		flagString := ""
@@ -84,9 +89,9 @@ func anyVisibleFlags(f []*kingpin.FlagModel) bool {
 // provided exposes an environment variable for configuration.
 func anyEnvVarsForCmd(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) bool {
 	return slices.ContainsFunc(args, func(arg *kingpin.ArgModel) bool {
-		return arg.Envar != ""
+		return arg.Envar != "" && !arg.Hidden
 	}) || slices.ContainsFunc(flags, func(flag *kingpin.FlagModel) bool {
-		return flag.Envar != ""
+		return flag.Envar != "" && !flag.Hidden
 	})
 }
 
@@ -263,12 +268,81 @@ func updateAppUsageTemplate(r io.Reader, app *kingpin.Application) {
 	app.UsageTemplate(buf.String())
 }
 
+// envVarDefault represents the structure of environment variable defaults in YAML files.
+type envVarDefault struct {
+	Description string `yaml:"description"`
+	Default     string `yaml:"default"`
+	Type        string `yaml:"type"`
+}
+
+// loadDefaultEnvVars loads possible default environment variables defined in a YAML file
+// that matches the application name.
+func loadDefaultEnvVars(appName string) (map[string]envVarDefault, error) {
+	pathname := filepath.Join("lib", "utils", "docenvdefaults", appName+".yaml")
+	data, err := os.ReadFile(pathname)
+	envDefaults := make(map[string]envVarDefault)
+	if errors.Is(err, fs.ErrNotExist) {
+		fmt.Printf("No doc generation config file at %v. Skipping manual environment variable additions.", pathname)
+		return envDefaults, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to read CLI doc generation config file at %v: %w", pathname, err)
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("read zero bytes from CLI doc generation config file at %v: %w", pathname, err)
+	}
+
+	if err := yaml.Unmarshal(data, &envDefaults); err != nil {
+		return nil, fmt.Errorf("unable to parse YAML from %s: %w", pathname, err)
+	}
+
+	for envVar, def := range envDefaults {
+		if def.Description == "" || def.Default == "" || def.Type == "" {
+			return nil, fmt.Errorf("invalid YAML structure in %s: entry %q is missing one of required fields 'description', 'default' or 'type'", pathname, envVar)
+		}
+	}
+
+	return envDefaults, nil
+}
+
 // UpdateAppUsageTemplate updates the app usage template to print a reference
-// guide for the CLI application.
+// guide for the CLI application. Panics on errors since we need to keep the
+// signature of UpdateAppUsageTemplate consistent with the one included without
+// build tags, i.e., with no return value.
 func UpdateAppUsageTemplate(app *kingpin.Application, _ []string) {
-	// Panic when failing to open or read from the docs usage template since
-	// we need to keep the signature of UpdateAppUsageTemplate consistent
-	// with the one included without build tags, i.e., with no return value.
+	defaultEnvVars, err := loadDefaultEnvVars(app.Name)
+	if err != nil {
+		panic(err)
+	}
+
+	existingEnvVars := make(map[string]struct{})
+	for _, flag := range app.Model().Flags {
+		if flag.Envar != "" {
+			existingEnvVars[flag.Envar] = struct{}{}
+		}
+	}
+
+	for envVarName, envVar := range defaultEnvVars {
+		// Check if the flag already exists in the app model to avoid
+		// duplicate flag errors.
+		if _, flagExists := existingEnvVars[envVarName]; flagExists {
+			continue
+		}
+
+		// If the flag does not exist, create it with the default value
+		// and description from the YAML file.
+		flag := app.Flag(envVarName, envVar.Description).
+			Envar(envVarName).
+			Default(envVar.Default)
+		if envVar.Type == "bool" {
+			flag.Bool()
+		} else {
+			flag.String()
+		}
+	}
+
 	f, err := os.Open(docsUsageTemplatePath)
 	if err != nil {
 		panic(fmt.Sprintf("unable to open the docs usage template at %v: %v", docsUsageTemplatePath, err))

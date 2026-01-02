@@ -31,13 +31,15 @@ export function CopyButton({
   value,
   mr,
   ml,
+  tooltip,
 }: {
   value: string;
   mr?: number;
   ml?: number;
+  tooltip?: string;
 }) {
   const copySuccess = 'Copied!';
-  const copyDefault = 'Click to copy';
+  const copyDefault = tooltip || 'Click to copy';
   const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copyAnchorEl = useRef(null);
   const [copiedText, setCopiedText] = useState(copyDefault);

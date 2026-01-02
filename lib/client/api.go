@@ -1636,7 +1636,7 @@ func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.Clie
 		Labels:              tc.Labels,
 	})
 	switch {
-	//TODO(tross): DELETE IN v20.0.0
+	// TODO(tross): DELETE IN v20.0.0
 	case trace.IsNotImplemented(err):
 		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
 			Kinds:               []string{types.KindNode},
@@ -2569,7 +2569,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		}
 	}
 
-	if err := player.Err(); err != nil {
+	if err := player.Err(); err != nil && !errors.Is(err, io.EOF) {
 		return trace.Wrap(err)
 	}
 
@@ -5280,8 +5280,8 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 	return nil
 }
 
-// isFIPS returns if the binary was build with BoringCrypto, which implies
-// FedRAMP/FIPS 140-2 mode for tsh.
+// isFIPS returns if the binary was built with a FIPS validated
+// module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
 }
