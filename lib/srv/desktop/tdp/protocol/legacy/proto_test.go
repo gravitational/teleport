@@ -29,7 +29,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	tdpProto "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -38,14 +37,15 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func TestEncodeDecode(t *testing.T) {
-	for _, m := range []tdpProto.Message{
+	for _, m := range []tdp.Message{
 		MouseMove{X: 1, Y: 2},
 		MouseButton{Button: MiddleMouseButton, State: ButtonPressed},
 		KeyboardButton{KeyCode: 1, State: ButtonPressed},
-		func() tdpProto.Message {
+		func() tdp.Message {
 			img := image.NewNRGBA(image.Rect(5, 5, 10, 10))
 			for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
 				for y := img.Rect.Min.Y; y < img.Rect.Max.Y; y++ {
@@ -210,7 +210,7 @@ func TestIsNonFatalErr(t *testing.T) {
 func TestSizeLimitsAreNonFatal(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		msg   tdpProto.Message
+		msg   tdp.Message
 		fatal bool
 	}{
 		{

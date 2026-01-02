@@ -26,17 +26,19 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/trace"
 )
 
+type Message interface {
+	Encode() ([]byte, error)
+}
+
 type MessageReader interface {
-	ReadMessage() (protocol.Message, error)
+	ReadMessage() (Message, error)
 }
 
 type MessageWriter interface {
-	WriteMessage(protocol.Message) error
+	WriteMessage(Message) error
 }
 
 type MessageReadWriter interface {
@@ -62,11 +64,11 @@ type Conn struct {
 	// OnSend is an optional callback that is invoked when a TDP message
 	// is sent on the wire. It is passed both the raw bytes and the encoded
 	// message.
-	OnSend func(m protocol.Message, b []byte)
+	OnSend func(m Message, b []byte)
 
 	// OnRecv is an optional callback that is invoked when a TDP message
 	// is received on the wire.
-	OnRecv func(m protocol.Message)
+	OnRecv func(m Message)
 
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
@@ -74,36 +76,32 @@ type Conn struct {
 	remoteAddr net.Addr
 }
 
+type ByteReader interface {
+	io.Reader
+	io.ByteReader
+}
+
 // decoderFunc is a function that decodes incoming data
 // into a Message.
-type Decoder func(io.Reader) (protocol.Message, error)
+type Decoder func(ByteReader) (Message, error)
 
-type connOption func(c *Conn)
-
-// WithDecoder configures the Conn to interpret incoming data
-// as TDPB messages, as opposed to the default TDP.
-func WithDecoder(d Decoder) connOption {
-	return func(c *Conn) {
-		c.decode = d
+// DecodeAdapter adapts a Decoder that works with a standard io.Reader
+func DecoderAdapter(f func(io.Reader) (Message, error)) Decoder {
+	return func(br ByteReader) (Message, error) {
+		return f(br)
 	}
 }
 
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rwc io.ReadWriteCloser, opts ...connOption) *Conn {
+func NewConn(rwc io.ReadWriteCloser, decoder Decoder) *Conn {
 	br := bufio.NewReader(rwc)
 	c := &Conn{
 		rwc:  rwc,
 		bufr: br,
 		// Default to legacy TDP decoder
-		decode: func(r io.Reader) (protocol.Message, error) {
-			return legacy.Decode(br)
-		},
-	}
-
-	for _, opt := range opts {
-		opt(c)
+		decode: decoder,
 	}
 
 	if tc, ok := rwc.(srvTrackingConn); ok {
@@ -146,14 +144,10 @@ func (c *Conn) PeakNextByte() (byte, error) {
 }
 
 // ReadMessage reads the next incoming message from the connection.
-func (c *Conn) ReadMessage() (protocol.Message, error) {
+func (c *Conn) ReadMessage() (Message, error) {
 	for {
 		m, err := c.decode(c.bufr)
 		if err != nil {
-			// Tolerate empty/unknown message types
-			if errors.Is(err, protocol.ErrEmptyMessage) {
-				continue
-			}
 			return nil, err
 		}
 		if c.OnRecv != nil {
@@ -164,7 +158,7 @@ func (c *Conn) ReadMessage() (protocol.Message, error) {
 }
 
 // WriteMessage sends a message to the connection.
-func (c *Conn) WriteMessage(m protocol.Message) error {
+func (c *Conn) WriteMessage(m Message) error {
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,7 +209,7 @@ func (c *Conn) RemoteAddr() net.Addr {
 // the [potentially modified] message(s) in order to pass it on to the
 // other end of the connection, or it may swallow the message by returning
 // a nil or empty slice. Returned slices should not contain nil messages.
-type Interceptor func(message protocol.Message) ([]protocol.Message, error)
+type Interceptor func(message Message) ([]Message, error)
 
 // ReadWriteInterceptor wraps an existing 'MessageReadWriteCloser' and runs the
 // provided interceptor functions in the read and/or write paths. Allows callers
@@ -226,28 +220,28 @@ type ReadWriteInterceptor struct {
 	// The interceptor to run in the write path
 	writeInterceptor Interceptor
 	// A closure over the interceptor to run in the read path
-	readAdapter func() (protocol.Message, error)
+	readAdapter func() (Message, error)
 }
 
 // Message slices returned by interceptor functions should not include
 // nil messages, but a little defensive programming can prevent a crash.
 // 'removeNilMessages' will return a subslice of the input slice with
 // nil messages removed.
-func removeNilMessages(msgs []protocol.Message) []protocol.Message {
-	return slices.DeleteFunc(msgs, func(msg protocol.Message) bool {
+func removeNilMessages(msgs []Message) []Message {
+	return slices.DeleteFunc(msgs, func(msg Message) bool {
 		return msg == nil
 	})
 }
 
 // readInterceptorAdapter closes over an internal slice that keeps track of
 // of messages returned by the read interceptor callback (if present).
-func readInterceptorAdapter(src MessageReader, i Interceptor) func() (protocol.Message, error) {
+func readInterceptorAdapter(src MessageReader, i Interceptor) func() (Message, error) {
 	if i == nil {
 		return src.ReadMessage
 	}
 
-	var msgs []protocol.Message
-	return func() (protocol.Message, error) {
+	var msgs []Message
+	return func() (Message, error) {
 		// len(msgs) == 0 - initial case / empty cache
 		// len(msgs) > 0  - Return a cached message
 		for len(msgs) == 0 {
@@ -284,7 +278,7 @@ func NewReadWriteInterceptor(src MessageReadWriteCloser, readInterceptor, writeI
 // WriteMessage passes the message to the write interceptor (if provided)
 // for omition or modification before writing the message to the underlying
 // writer.
-func (i *ReadWriteInterceptor) WriteMessage(m protocol.Message) error {
+func (i *ReadWriteInterceptor) WriteMessage(m Message) error {
 	if i.writeInterceptor == nil {
 		// No interceptor found
 		return i.src.WriteMessage(m)
@@ -310,7 +304,7 @@ func (i *ReadWriteInterceptor) WriteMessage(m protocol.Message) error {
 // ReadMessage reads from the underlying reader and passes them to the
 // read interceptor (if provided) for omition or modification before
 // returning the next message.
-func (i *ReadWriteInterceptor) ReadMessage() (protocol.Message, error) {
+func (i *ReadWriteInterceptor) ReadMessage() (Message, error) {
 	return i.readAdapter()
 }
 
@@ -369,4 +363,14 @@ func (c *ConnProxy) Run() error {
 	})
 	wg.Wait()
 	return trace.NewAggregate(clientToServerErr, serverToClientErr)
+}
+
+// EncodeTo calls 'Encode' on the given message and writes it to 'w'.
+func EncodeTo(w io.Writer, msg Message) error {
+	data, err := msg.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
 }

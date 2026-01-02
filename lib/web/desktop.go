@@ -52,7 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/tdpb"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -95,7 +96,7 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
-// Implements tdp.MessageReadWriter
+// Implements legacy.MessageReadWriter
 type wsAdapter struct {
 	Conn *websocket.Conn
 	// Determines how ReadMessage will interpret incoming datagrams
@@ -122,7 +123,7 @@ func readTDPInitialMessages(ctx context.Context, rw tdp.MessageReadWriter, log *
 		return handshakeData{}, trace.Wrap(err)
 	}
 
-	screenSpec, ok := msg.(tdp.ClientScreenSpec)
+	screenSpec, ok := msg.(legacy.ClientScreenSpec)
 	if !ok {
 		return handshakeData{}, trace.BadParameter("client sent unexpected message %T", msg)
 	}
@@ -145,7 +146,7 @@ func readTDPInitialMessages(ctx context.Context, rw tdp.MessageReadWriter, log *
 		return handshakeData{}, trace.Wrap(err)
 	}
 
-	keyboardLayout, gotKeyboardLayout := msg.(tdp.ClientKeyboardLayout)
+	keyboardLayout, gotKeyboardLayout := msg.(legacy.ClientKeyboardLayout)
 	if !gotKeyboardLayout {
 		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
 	} else {
@@ -161,7 +162,7 @@ type handshakeInitializer struct {
 
 // Send upgrade. Ignore messages until Client Hello is received
 func handleTDPUpgrade(ctx context.Context, rw tdp.MessageReadWriter, log *slog.Logger) (handshakeData, error) {
-	upgrade := tdp.TDPUpgrade{Version: uint8(1)}
+	upgrade := legacy.TDPUpgrade{Version: uint8(1)}
 	err := rw.WriteMessage(upgrade)
 	if err != nil {
 		return handshakeData{}, trace.Wrap(err)
@@ -190,10 +191,10 @@ type handshakeData struct {
 	// TDPB handshake data.
 	// As an invariant we expect that
 	// ClientScreenSpec != nil XOR ClientHello != nil
-	screenSpec *tdp.ClientScreenSpec
+	screenSpec *legacy.ClientScreenSpec
 	// May or may not be nil. Some web client versions will send this and
 	// others will not.
-	keyboardLayout *tdp.ClientKeyboardLayout
+	keyboardLayout *legacy.ClientKeyboardLayout
 
 	// TDPB capable clients are required to send a hello
 	hello *tdpb.ClientHello
@@ -205,18 +206,18 @@ func (h *handshakeData) ForwardTDP(w io.Writer, username string, forwardKeyboard
 	if h.screenSpec == nil {
 		if h.hello != nil {
 			if h.hello.ScreenSpec != nil {
-				h.screenSpec = &tdp.ClientScreenSpec{Width: h.hello.ScreenSpec.Width, Height: h.hello.ScreenSpec.Height}
+				h.screenSpec = &legacy.ClientScreenSpec{Width: h.hello.ScreenSpec.Width, Height: h.hello.ScreenSpec.Height}
 			} else {
 				return trace.Errorf("Client Hello does not contain required ScreenSpec field")
 			}
 		} else {
 			return trace.Errorf("No client screen spec nor client hello message reeived. Cannot complete TDP/TDPB handhsake")
 		}
-		h.keyboardLayout = &tdp.ClientKeyboardLayout{KeyboardLayout: h.hello.KeyboardLayout}
+		h.keyboardLayout = &legacy.ClientKeyboardLayout{KeyboardLayout: h.hello.KeyboardLayout}
 	}
 
 	messages := make([]tdp.Message, 0, 3)
-	messages = append(messages, tdp.ClientUsername{Username: username}, h.screenSpec)
+	messages = append(messages, legacy.ClientUsername{Username: username}, h.screenSpec)
 	if forwardKeyboardLayout && h.keyboardLayout != nil {
 		messages = append(messages, h.keyboardLayout)
 	}
@@ -254,7 +255,7 @@ func (h *handshakeData) ForwardTDPB(w io.Writer, username string) error {
 	}
 	h.hello.Username = username
 
-	return trace.Wrap(tdpb.EncodeTo(w, h.hello))
+	return trace.Wrap(tdp.EncodeTo(w, h.hello))
 }
 
 func sendTDPError(w tdp.MessageReadWriter, err error) error {
@@ -263,9 +264,9 @@ func sendTDPError(w tdp.MessageReadWriter, err error) error {
 		err = trace.Errorf("undefined error")
 	}
 
-	err = w.WriteMessage(tdp.Alert{
+	err = w.WriteMessage(legacy.Alert{
 		Message:  err.Error(),
-		Severity: tdp.SeverityError,
+		Severity: legacy.SeverityError,
 	})
 	return trace.Wrap(err)
 }
@@ -363,7 +364,7 @@ func (h *Handler) createDesktopConnection(
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			msg, err := tdp.Decode(data)
+			msg, err := legacy.Decode(bytes.NewBuffer(data))
 			return msg, trace.Wrap(err)
 		}}
 
@@ -460,7 +461,7 @@ func (h *Handler) createDesktopConnection(
 
 	// Forward any withheld messages during MFA
 	for _, msg := range withheld {
-		if err := tdpb.EncodeTo(serviceConnTLS, msg); err != nil {
+		if err := tdp.EncodeTo(serviceConnTLS, msg); err != nil {
 			err = trace.WrapWithMessage(err, "error forwarding message to desktop agent")
 			sendError(&adapter, err)
 			return err
@@ -672,7 +673,7 @@ func readClientProtocol(r *http.Request) (string, error) {
 	}
 }
 
-// desktopPinger measures latency between proxy and the desktop by sending tdp.Ping messages
+// desktopPinger measures latency between proxy and the desktop by sending legacy.Ping messages
 // Windows Desktop Service and measuring the time it takes to receive message with the same UUID back.
 type desktopPinger struct {
 	server tdp.MessageWriter
@@ -686,7 +687,7 @@ type desktopPinger struct {
 func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
 	var uuid []byte
 	switch m := msg.(type) {
-	case tdp.Ping:
+	case legacy.Ping:
 		uuid = m.UUID[:]
 	case *tdpb.Ping:
 		uuid = m.Uuid
@@ -732,14 +733,14 @@ func (d desktopPinger) reportTDPB(_ context.Context, stats latency.Statistics) e
 }
 
 func (d desktopPinger) reportTDP(_ context.Context, stats latency.Statistics) error {
-	return d.client.WriteMessage(tdp.LatencyStats{
+	return d.client.WriteMessage(legacy.LatencyStats{
 		ClientLatency: uint32(stats.Client),
 		ServerLatency: uint32(stats.Server)},
 	)
 }
 
 func (d desktopPinger) pingTDP(ctx context.Context) error {
-	return d.ping(ctx, tdp.Ping{UUID: uuid.New()})
+	return d.ping(ctx, legacy.Ping{UUID: uuid.New()})
 }
 
 func (d desktopPinger) pingTDPB(ctx context.Context) error {
@@ -751,9 +752,9 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == protocolTDPB {
-		return tdp.NewConn(rwc, tdp.WithDecoder(tdpb.Decode))
+		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.Decode))
 	}
-	return tdp.NewConn(rwc)
+	return tdp.NewConn(rwc, legacy.Decode)
 }
 
 // proxyWebsocketConn does a bidrectional copy between the websocket
@@ -772,7 +773,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 		return trace.Wrap(err)
 	}
 
-	// Create a single pair of tdp.Conn instances. tdp.Conn protects the underlying
+	// Create a single pair of legacy.Conn instances. legacy.Conn protects the underlying
 	// streams with a mutex to allow for concurrent writes.
 	serverConn := tdp.MessageReadWriteCloser(newConn(wds, serverProtocol))
 	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
@@ -957,7 +958,7 @@ func newTDPMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message) func(str
 				return nil, trace.Wrap(authclient.ErrNoMFADevices)
 			}
 
-			tdpMsg := &tdp.MFA{
+			tdpMsg := &legacy.MFA{
 				Type:                     defaults.WebsocketMFAChallenge[0],
 				MFAAuthenticateChallenge: &challenge,
 			}
@@ -966,7 +967,7 @@ func newTDPMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message) func(str
 
 		isResponse := func(msg tdp.Message) (*proto.MFAAuthenticateResponse, error) {
 			switch t := msg.(type) {
-			case *tdp.MFA:
+			case *legacy.MFA:
 				return t.MFAAuthenticateResponse, nil
 			default:
 				return nil, errUnexpectedMessageType

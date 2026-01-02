@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ func TestEncodeDecode(t *testing.T) {
 	//  decodes messages are lazily unmarshalled when inspected with 'ToTDPBProto', or 'AsTDPB'.
 	for _, test := range []struct {
 		Name    string
-		Message protocol.Message
+		Message tdp.Message
 	}{
 		{Name: "raw-message-happy-path", Message: png},
 		{Name: "decoded-message-happy-path", Message: decodedMessage},
@@ -88,7 +88,7 @@ func TestHandleUnknownMessageTypes(t *testing.T) {
 		// Should return a sentinel error indicating that
 		// an empty message was received.
 		decoded, err := Decode(buf)
-		require.ErrorIs(t, err, protocol.ErrEmptyMessage)
+		require.ErrorIs(t, err, ErrEmptyMessage)
 		require.Nil(t, decoded)
 	})
 
@@ -101,7 +101,10 @@ func TestHandleUnknownMessageTypes(t *testing.T) {
 
 		// Then write a good message
 		msg := &MouseButton{Pressed: true, Button: 2}
-		require.NoError(t, EncodeTo(buf, msg))
+		data, err := msg.Encode()
+		require.NoError(t, err)
+		_, err = buf.Write(data)
+		require.NoError(t, err)
 
 		// Validate that good message is received without error
 		// (bad message dropped)
@@ -129,7 +132,7 @@ func TestSendRecv(t *testing.T) {
 		KeyboardLayout: 1,
 	}
 
-	messages := []protocol.Message{
+	messages := []tdp.Message{
 		alertMsg,
 		fastPathMsg,
 		helloMsg,

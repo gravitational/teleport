@@ -1,4 +1,4 @@
-package tdp
+package tdpb
 
 import (
 	"bytes"
@@ -7,9 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	tdpRoot "github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
 )
@@ -54,25 +53,25 @@ func boolToButtonState(b bool) tdp.ButtonState {
 }
 
 // TranslateToLegacy converts a TDPB (Modern) message to one or more TDP (Legacy) messages.
-func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
-	messages := make([]protocol.Message, 0, 1)
+func TranslateToLegacy(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
+	messages := make([]tdpRoot.Message, 0, 1)
 	switch m := msg.(type) {
-	case *tdpb.PNGFrame:
+	case *PNGFrame:
 		messages = append(messages, tdp.PNG2Frame(m.Data))
-	case *tdpb.FastPathPDU:
+	case *FastPathPDU:
 		messages = append(messages, tdp.RDPFastPathPDU(m.Pdu))
-	case *tdpb.RDPResponsePDU:
+	case *RDPResponsePDU:
 		messages = append(messages, tdp.RDPResponsePDU(m.Response))
-	case *tdpb.SyncKeys:
+	case *SyncKeys:
 		messages = append(messages, tdp.SyncKeys{
 			ScrollLockState: boolToButtonState(m.ScrollLockPressed),
 			NumLockState:    boolToButtonState(m.NumLockState),
 			CapsLockState:   boolToButtonState(m.CapsLockState),
 			KanaLockState:   boolToButtonState(m.KanaLockState),
 		})
-	case *tdpb.MouseMove:
+	case *MouseMove:
 		messages = append(messages, tdp.MouseMove{X: m.X, Y: m.Y})
-	case *tdpb.MouseButton:
+	case *MouseButton:
 		button := tdp.MouseButtonType(m.Button - 1)
 		state := tdp.ButtonNotPressed
 		if m.Pressed {
@@ -83,7 +82,7 @@ func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
 			Button: button,
 			State:  state,
 		})
-	case *tdpb.KeyboardButton:
+	case *KeyboardButton:
 		state := tdp.ButtonNotPressed
 		if m.Pressed {
 			state = tdp.ButtonPressed
@@ -92,12 +91,12 @@ func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
 			KeyCode: m.KeyCode,
 			State:   state,
 		})
-	case *tdpb.ClientScreenSpec:
+	case *ClientScreenSpec:
 		messages = append(messages, tdp.ClientScreenSpec{
 			Width:  m.Width,
 			Height: m.Height,
 		})
-	case *tdpb.Alert:
+	case *Alert:
 		var severity tdp.Severity
 		switch m.Severity {
 		case tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING:
@@ -111,24 +110,24 @@ func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
 			Message:  m.Message,
 			Severity: severity,
 		})
-	case *tdpb.MouseWheel:
+	case *MouseWheel:
 		messages = append(messages, tdp.MouseWheel{
 			Axis:  tdp.MouseWheelAxis(m.Axis - 1),
 			Delta: int16(m.Delta),
 		})
-	case *tdpb.ClipboardData:
+	case *ClipboardData:
 		messages = append(messages, tdp.ClipboardData(m.Data))
-	case *tdpb.SharedDirectoryAnnounce:
+	case *SharedDirectoryAnnounce:
 		messages = append(messages, tdp.SharedDirectoryAnnounce{
 			DirectoryID: m.DirectoryId,
 			Name:        m.Name,
 		})
-	case *tdpb.SharedDirectoryAcknowledge:
+	case *SharedDirectoryAcknowledge:
 		messages = append(messages, tdp.SharedDirectoryAcknowledge{
 			DirectoryID: m.DirectoryId,
 			ErrCode:     m.ErrorCode,
 		})
-	case *tdpb.SharedDirectoryRequest:
+	case *SharedDirectoryRequest:
 		switch op := m.Operation.(type) {
 		case *tdpbv1.SharedDirectoryRequest_Info_:
 			messages = append(messages, tdp.SharedDirectoryInfoRequest{
@@ -189,7 +188,7 @@ func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
 		default:
 			return nil, trace.Errorf("Unknown shared directory operation")
 		}
-	case *tdpb.SharedDirectoryResponse:
+	case *SharedDirectoryResponse:
 		switch op := m.Operation.(type) {
 		case *tdpbv1.SharedDirectoryResponse_Info_:
 			messages = append(messages, tdp.SharedDirectoryInfoResponse{
@@ -240,12 +239,12 @@ func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
 		default:
 			return nil, trace.Errorf("Unknown shared directory operation")
 		}
-	case *tdpb.LatencyStats:
+	case *LatencyStats:
 		messages = append(messages, tdp.LatencyStats{
 			ClientLatency: m.ClientLatencyMs,
 			ServerLatency: m.ServerLatencyMs,
 		})
-	case *tdpb.Ping:
+	case *Ping:
 		id, err := uuid.FromBytes(m.Uuid)
 		if err != nil {
 			slog.Warn("Cannot parse uuid bytes from ping", "error", err)
@@ -260,16 +259,16 @@ func TranslateToLegacy(msg protocol.Message) ([]protocol.Message, error) {
 }
 
 // TranslateToModern converts a TDP (Legacy) message to one or more TDPB (Modern) messages.
-func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
-	messages := make([]protocol.Message, 0, 1)
+func TranslateToModern(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
+	messages := make([]tdpRoot.Message, 0, 1)
 	switch m := msg.(type) {
 	case tdp.ClientScreenSpec:
-		messages = append(messages, &tdpb.ClientScreenSpec{
+		messages = append(messages, &ClientScreenSpec{
 			Height: m.Height,
 			Width:  m.Width,
 		})
 	case tdp.PNG2Frame:
-		messages = append(messages, &tdpb.PNGFrame{
+		messages = append(messages, &PNGFrame{
 			Coordinates: &tdpbv1.Rectangle{
 				Top:    m.Top(),
 				Left:   m.Left(),
@@ -283,7 +282,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 		if err := png.Encode(buf, m.Img); err != nil {
 			return nil, trace.Errorf("Erroring converting TDP PNGFrame to TDPB - dropping message!: %w", err)
 		}
-		messages = append(messages, &tdpb.PNGFrame{
+		messages = append(messages, &PNGFrame{
 			Coordinates: &tdpbv1.Rectangle{
 				Top:    uint32(m.Img.Bounds().Min.Y),
 				Left:   uint32(m.Img.Bounds().Min.X),
@@ -293,31 +292,31 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			Data: buf.Bytes(),
 		})
 	case tdp.MouseMove:
-		messages = append(messages, &tdpb.MouseMove{
+		messages = append(messages, &MouseMove{
 			X: m.X,
 			Y: m.Y,
 		})
 	case tdp.MouseButton:
-		messages = append(messages, &tdpb.MouseButton{
+		messages = append(messages, &MouseButton{
 			Pressed: m.State == tdp.ButtonPressed,
 			Button:  tdpbv1.MouseButtonType(m.Button + 1),
 		})
 	case tdp.KeyboardButton:
-		messages = append(messages, &tdpb.KeyboardButton{
+		messages = append(messages, &KeyboardButton{
 			KeyCode: m.KeyCode,
 			Pressed: m.State == tdp.ButtonPressed,
 		})
 	case tdp.ClipboardData:
-		messages = append(messages, &tdpb.ClipboardData{
+		messages = append(messages, &ClipboardData{
 			Data: m,
 		})
 	case tdp.MouseWheel:
-		messages = append(messages, &tdpb.MouseWheel{
+		messages = append(messages, &MouseWheel{
 			Axis:  tdpbv1.MouseWheelAxis(m.Axis + 1),
 			Delta: uint32(m.Delta),
 		})
 	case tdp.Error:
-		messages = append(messages, &tdpb.Alert{
+		messages = append(messages, &Alert{
 			Message:  m.Message,
 			Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
 		})
@@ -331,22 +330,22 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 		default:
 			severity = tdpbv1.AlertSeverity_ALERT_SEVERITY_INFO
 		}
-		messages = append(messages, &tdpb.Alert{
+		messages = append(messages, &Alert{
 			Message:  m.Message,
 			Severity: severity,
 		})
 	case tdp.RDPFastPathPDU:
-		messages = append(messages, &tdpb.FastPathPDU{
+		messages = append(messages, &FastPathPDU{
 			Pdu: m,
 		})
 	case tdp.RDPResponsePDU:
-		messages = append(messages, &tdpb.RDPResponsePDU{
+		messages = append(messages, &RDPResponsePDU{
 			Response: m,
 		})
 	case tdp.ConnectionActivated:
 		// Legacy TDP servers send this message once at the start
 		// of the connection.
-		messages = append(messages, &tdpb.ServerHello{
+		messages = append(messages, &ServerHello{
 			ActivationSpec: &tdpbv1.ConnectionActivated{
 				IoChannelId:   uint32(m.IOChannelID),
 				UserChannelId: uint32(m.UserChannelID),
@@ -357,33 +356,33 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			ClipboardEnabled: true,
 		})
 	case tdp.SyncKeys:
-		messages = append(messages, &tdpb.SyncKeys{
+		messages = append(messages, &SyncKeys{
 			ScrollLockPressed: m.ScrollLockState == tdp.ButtonPressed,
 			NumLockState:      m.NumLockState == tdp.ButtonPressed,
 			CapsLockState:     m.CapsLockState == tdp.ButtonPressed,
 			KanaLockState:     m.KanaLockState == tdp.ButtonPressed,
 		})
 	case tdp.LatencyStats:
-		messages = append(messages, &tdpb.LatencyStats{
+		messages = append(messages, &LatencyStats{
 			ClientLatencyMs: m.ClientLatency,
 			ServerLatencyMs: m.ServerLatency,
 		})
 	case tdp.Ping:
-		messages = append(messages, &tdpb.Ping{
+		messages = append(messages, &Ping{
 			Uuid: m.UUID[:],
 		})
 	case tdp.SharedDirectoryAnnounce:
-		messages = append(messages, &tdpb.SharedDirectoryAnnounce{
+		messages = append(messages, &SharedDirectoryAnnounce{
 			DirectoryId: m.DirectoryID,
 			Name:        m.Name,
 		})
 	case tdp.SharedDirectoryAcknowledge:
-		messages = append(messages, &tdpb.SharedDirectoryAcknowledge{
+		messages = append(messages, &SharedDirectoryAcknowledge{
 			DirectoryId: m.DirectoryID,
 			ErrorCode:   m.ErrCode,
 		})
 	case tdp.SharedDirectoryInfoRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Info_{
@@ -393,7 +392,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryInfoResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			ErrorCode:    m.ErrCode,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
@@ -403,7 +402,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryCreateRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Create_{
@@ -413,7 +412,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryCreateResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			ErrorCode:    m.ErrCode,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryResponse_Create_{
@@ -423,7 +422,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryDeleteRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Delete_{
@@ -433,13 +432,13 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryDeleteResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			ErrorCode:    m.ErrCode,
 			CompletionId: m.CompletionID,
 			Operation:    &tdpbv1.SharedDirectoryResponse_Delete_{},
 		})
 	case tdp.SharedDirectoryReadRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Read_{
@@ -451,7 +450,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryReadResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_Read_{
@@ -461,7 +460,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryWriteRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Write_{
@@ -473,7 +472,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryWriteResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_Write_{
@@ -483,7 +482,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryMoveRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Move_{
@@ -494,13 +493,13 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryMoveResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation:    &tdpbv1.SharedDirectoryResponse_Move_{},
 		})
 	case tdp.SharedDirectoryListRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_List_{
 				List: &tdpbv1.SharedDirectoryRequest_List{
@@ -509,7 +508,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryListResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_List_{
@@ -519,7 +518,7 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryTruncateRequest:
-		messages = append(messages, &tdpb.SharedDirectoryRequest{
+		messages = append(messages, &SharedDirectoryRequest{
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
@@ -530,15 +529,15 @@ func TranslateToModern(msg protocol.Message) ([]protocol.Message, error) {
 			},
 		})
 	case tdp.SharedDirectoryTruncateResponse:
-		messages = append(messages, &tdpb.SharedDirectoryResponse{
+		messages = append(messages, &SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 		})
 	default:
-		return nil, trace.Errorf("Could not translate to TDPB. Encountered unexpected message type %T", m)
+		return nil, trace.Errorf("Could not translate to  Encountered unexpected message type %T", m)
 	}
 
-	wrapped := []protocol.Message{}
+	wrapped := []tdpRoot.Message{}
 	for _, msg := range messages {
 		wrapped = append(wrapped, msg)
 	}

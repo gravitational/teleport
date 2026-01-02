@@ -40,7 +40,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
 
@@ -114,20 +114,23 @@ func IsFatalErr(err error) bool {
 	return !IsNonFatalErr(err)
 }
 
+// These correspond to TdpErrCode enum in the rust RDP client.
+const (
+	ErrCodeNil           uint32 = 0
+	ErrCodeFailed        uint32 = 1
+	ErrCodeDoesNotExist  uint32 = 2
+	ErrCodeAlreadyExists uint32 = 3
+)
+
 // decode decodes the wire representation of a message.
-func decode(buf []byte) (protocol.Message, error) {
+func decode(buf []byte) (tdp.Message, error) {
 	if len(buf) == 0 {
 		return nil, trace.BadParameter("input desktop protocol message is empty")
 	}
 	return Decode(bytes.NewReader(buf))
 }
 
-type byteReader interface {
-	io.Reader
-	io.ByteReader
-}
-
-func Decode(in byteReader) (protocol.Message, error) {
+func Decode(in tdp.ByteReader) (tdp.Message, error) {
 	// Peek at the first byte to figure out message type.
 	t, err := in.ReadByte()
 	if err != nil {
@@ -137,7 +140,7 @@ func Decode(in byteReader) (protocol.Message, error) {
 	return decodeMessage(t, in)
 }
 
-func decodeMessage(firstByte byte, in byteReader) (protocol.Message, error) {
+func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 	switch mt := MessageType(firstByte); mt {
 	case TypeClientScreenSpec:
 		return decodeClientScreenSpec(in)
@@ -247,7 +250,7 @@ func (f PNGFrame) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodePNGFrame(in byteReader) (PNGFrame, error) {
+func decodePNGFrame(in tdp.ByteReader) (PNGFrame, error) {
 	var header struct {
 		Left, Top     uint32
 		Right, Bottom uint32
@@ -276,7 +279,7 @@ func decodePNGFrame(in byteReader) (PNGFrame, error) {
 // | message type (27) | png_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
 type PNG2Frame []byte
 
-func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
+func decodePNG2Frame(in tdp.ByteReader) (PNG2Frame, error) {
 	// Read PNG length so we can allocate buffer that will fit PNG2Frame message
 	var pngLength uint32
 	if err := binary.Read(in, binary.BigEndian, &pngLength); err != nil {
@@ -337,7 +340,7 @@ func (f PNG2Frame) Data() []byte   { return f[21:] }
 // | message type (29) | data_length uint32 | parts.
 type RDPFastPathPDU []byte
 
-func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
+func decodeRDPFastPathPDU(in tdp.ByteReader) (RDPFastPathPDU, error) {
 	// Read data length so we can allocate buffer that will fit RDPFastPathPDU message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
@@ -378,7 +381,7 @@ func (f RDPFastPathPDU) Encode() ([]byte, error) {
 // | message type (30) | data_length uint32 | parts.
 type RDPResponsePDU []byte
 
-func decodeRDPResponsePDU(in byteReader) (RDPResponsePDU, error) {
+func decodeRDPResponsePDU(in tdp.ByteReader) (RDPResponsePDU, error) {
 	var resFrameLength uint32
 	if err := binary.Read(in, binary.BigEndian, &resFrameLength); err != nil {
 		return RDPResponsePDU{}, trace.Wrap(err)
@@ -427,7 +430,7 @@ func (c ConnectionActivated) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeConnectionActivated(in byteReader) (ConnectionActivated, error) {
+func decodeConnectionActivated(in tdp.ByteReader) (ConnectionActivated, error) {
 	var ids ConnectionActivated
 	err := binary.Read(in, binary.BigEndian, &ids)
 	return ids, trace.Wrap(err)
@@ -451,7 +454,7 @@ func (k SyncKeys) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSyncKeys(in byteReader) (SyncKeys, error) {
+func decodeSyncKeys(in tdp.ByteReader) (SyncKeys, error) {
 	var k SyncKeys
 	err := binary.Read(in, binary.BigEndian, &k)
 	return k, trace.Wrap(err)
@@ -471,7 +474,7 @@ func (m MouseMove) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeMouseMove(in byteReader) (MouseMove, error) {
+func decodeMouseMove(in tdp.ByteReader) (MouseMove, error) {
 	var m MouseMove
 	err := binary.Read(in, binary.BigEndian, &m)
 	return m, trace.Wrap(err)
@@ -505,7 +508,7 @@ func (m MouseButton) Encode() ([]byte, error) {
 	return []byte{byte(TypeMouseButton), byte(m.Button), byte(m.State)}, nil
 }
 
-func decodeMouseButton(in byteReader) (MouseButton, error) {
+func decodeMouseButton(in tdp.ByteReader) (MouseButton, error) {
 	var m MouseButton
 	err := binary.Read(in, binary.BigEndian, &m)
 	return m, trace.Wrap(err)
@@ -526,7 +529,7 @@ func (k KeyboardButton) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeKeyboardButton(in byteReader) (KeyboardButton, error) {
+func decodeKeyboardButton(in tdp.ByteReader) (KeyboardButton, error) {
 	var k KeyboardButton
 	err := binary.Read(in, binary.BigEndian, &k)
 	return k, trace.Wrap(err)
@@ -640,7 +643,7 @@ func (m Alert) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeAlert(in byteReader) (Alert, error) {
+func decodeAlert(in tdp.ByteReader) (Alert, error) {
 	message, err := decodeString(in, tdpMaxAlertMessageLength)
 	if err != nil {
 		return Alert{}, trace.Wrap(err)
@@ -764,7 +767,7 @@ func (m MFA) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func DecodeMFA(in byteReader) (*MFA, error) {
+func DecodeMFA(in tdp.ByteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -807,7 +810,7 @@ func DecodeMFA(in byteReader) (*MFA, error) {
 
 // DecodeMFAChallenge is a helper function used in test purpose to decode MFA challenge payload because in
 // real flow this logic is invoked by a fronted client.
-func DecodeMFAChallenge(in byteReader) (*MFA, error) {
+func DecodeMFAChallenge(in tdp.ByteReader) (*MFA, error) {
 	mt, err := in.ReadByte()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -974,7 +977,7 @@ func (s SharedDirectoryInfoResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryInfoResponse(in byteReader) (SharedDirectoryInfoResponse, error) {
+func decodeSharedDirectoryInfoResponse(in tdp.ByteReader) (SharedDirectoryInfoResponse, error) {
 	var completionID, errCode uint32
 	err := binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
@@ -1018,7 +1021,7 @@ func (f FileSystemObject) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeFileSystemObject(in byteReader) (FileSystemObject, error) {
+func decodeFileSystemObject(in tdp.ByteReader) (FileSystemObject, error) {
 	var lastModified, size uint64
 	var fileType uint32
 	var isEmpty uint8
@@ -1123,7 +1126,7 @@ func (s SharedDirectoryCreateResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryCreateResponse(in byteReader) (SharedDirectoryCreateResponse, error) {
+func decodeSharedDirectoryCreateResponse(in tdp.ByteReader) (SharedDirectoryCreateResponse, error) {
 	var completionID, errCode uint32
 	err := binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
@@ -1276,7 +1279,7 @@ func (s SharedDirectoryListResponse) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryListResponse(in byteReader) (SharedDirectoryListResponse, error) {
+func decodeSharedDirectoryListResponse(in tdp.ByteReader) (SharedDirectoryListResponse, error) {
 	var completionID, errCode, fsoListLength uint32
 	err := binary.Read(in, binary.BigEndian, &completionID)
 	if err != nil {
@@ -1452,7 +1455,7 @@ func (s SharedDirectoryWriteRequest) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDirectoryWriteRequest, error) {
+func decodeSharedDirectoryWriteRequest(in tdp.ByteReader, maxLen uint32) (SharedDirectoryWriteRequest, error) {
 	var completionID, directoryID, writeDataLength uint32
 	var offset uint64
 

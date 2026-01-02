@@ -18,8 +18,9 @@ import (
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/tdpb"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func TestProxyConnection(t *testing.T) {
 				return err
 			}
 
-			if err = tdpb.EncodeTo(conn, msg); err != nil {
+			if err = tdp.EncodeTo(conn, msg); err != nil {
 				return err
 			}
 		}
@@ -64,7 +65,7 @@ func TestProxyConnection(t *testing.T) {
 
 	// Echos back any TDP messages received
 	tdpEchoServer := func(conn net.Conn) error {
-		tdpConn := tdp.NewConn(conn)
+		tdpConn := tdp.NewConn(conn, legacy.Decode)
 		for {
 			msg, err := tdpConn.ReadMessage()
 			if err != nil {
@@ -78,10 +79,10 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w})
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, legacy.Decode)
 
-		rdpMsg := tdp.RDPResponsePDU([]byte("hello"))
-		mouseMsg := tdp.MouseWheel{Axis: 2, Delta: 4}
+		rdpMsg := legacy.RDPResponsePDU([]byte("hello"))
+		mouseMsg := legacy.MouseWheel{Axis: 2, Delta: 4}
 
 		if err := conn.WriteMessage(rdpMsg); err != nil {
 			return err
@@ -101,13 +102,13 @@ func TestProxyConnection(t *testing.T) {
 			}
 
 			switch m := msg.(type) {
-			case tdp.RDPResponsePDU:
+			case legacy.RDPResponsePDU:
 				assert.Equal(t, rdpMsg, m)
 				gotRDP = true
-			case tdp.MouseWheel:
+			case legacy.MouseWheel:
 				assert.Equal(t, mouseMsg, m)
 				gotMouse = true
-			case tdp.LatencyStats:
+			case legacy.LatencyStats:
 				if !expectLatency {
 					t.Error("unexpected latency stats")
 				}
@@ -120,7 +121,7 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpbClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.WithDecoder(tdpb.Decode))
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.DecoderAdapter(tdpb.Decode))
 
 		rdpMsg := &tdpb.RDPResponsePDU{
 			Response: []byte("hello"),
@@ -277,11 +278,11 @@ func TestHandshakeData(t *testing.T) {
 			},
 		}},
 		{"tdp-input", handshakeData{
-			screenSpec: &tdp.ClientScreenSpec{
+			screenSpec: &legacy.ClientScreenSpec{
 				Height: 64,
 				Width:  128,
 			},
-			keyboardLayout: &tdp.ClientKeyboardLayout{
+			keyboardLayout: &legacy.ClientKeyboardLayout{
 				KeyboardLayout: 1,
 			},
 		}},
@@ -299,19 +300,19 @@ func TestHandshakeData(t *testing.T) {
 
 			// ForwardTDP should yield 3 messages (if forwardKeyboardLayout == true)
 			require.NoError(t, test.data.ForwardTDP(buf, "user", true))
-			conn := tdp.NewConn(buf)
+			conn := tdp.NewConn(buf, legacy.Decode)
 
 			tdpMessage, err := conn.ReadMessage()
 			require.NoError(t, err)
-			requireMessageIs[tdp.ClientUsername](t, tdpMessage)
+			requireMessageIs[legacy.ClientUsername](t, tdpMessage)
 
 			tdpMessage, err = conn.ReadMessage()
 			require.NoError(t, err)
-			requireMessageIs[tdp.ClientScreenSpec](t, tdpMessage)
+			requireMessageIs[legacy.ClientScreenSpec](t, tdpMessage)
 
 			tdpMessage, err = conn.ReadMessage()
 			require.NoError(t, err)
-			requireMessageIs[tdp.ClientKeyboardLayout](t, tdpMessage)
+			requireMessageIs[legacy.ClientKeyboardLayout](t, tdpMessage)
 
 			_, err = conn.ReadMessage()
 			require.ErrorIs(t, err, io.EOF)
@@ -334,8 +335,8 @@ func (_ bufCloser) Close() error { return nil }
 
 func TestTDPBMFAFlow(t *testing.T) {
 	client, server := net.Pipe()
-	clientConn := tdp.NewConn(client, tdp.WithDecoder(tdpb.Decode))
-	serverConn := tdp.NewConn(server, tdp.WithDecoder(tdpb.Decode))
+	clientConn := tdp.NewConn(client, tdp.DecoderAdapter(tdpb.Decode))
+	serverConn := tdp.NewConn(server, tdp.DecoderAdapter(tdpb.Decode))
 	defer clientConn.Close()
 	defer serverConn.Close()
 

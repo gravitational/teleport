@@ -2,13 +2,17 @@ package tdpb
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 )
+
+// ErrEmptyMessage is returned when an empty message is decoded.
+var ErrEmptyMessage = errors.New("decoded empty TDP message")
 
 const (
 	// We can differentiate between TDP and TDPB messages on the wire
@@ -283,7 +287,7 @@ func marshalWithHeader(msg proto.Message) ([]byte, error) {
 // Decode reads a TDPB message from a reader.
 // Returns ErrEmptyMessage if a valid TDPB Envelope was received, but no
 // wrapped message was found.
-func Decode(rdr io.Reader) (protocol.Message, error) {
+func Decode(rdr io.Reader) (tdp.Message, error) {
 	// Read header
 	header := make([]byte, tdpbHeaderLength)
 	_, err := io.ReadFull(rdr, header)
@@ -315,10 +319,10 @@ func Decode(rdr io.Reader) (protocol.Message, error) {
 	// Allow the caller to distinguish unmarshal errors (likely considered fatal)
 	// from an "empty" message, which could simply mean that we've received
 	// a new (unsupported) message from a newer implementation.
-	return nil, trace.Wrap(protocol.ErrEmptyMessage)
+	return nil, trace.Wrap(ErrEmptyMessage)
 }
 
-func messageFromEnvelope(e *tdpbv1.Envelope) protocol.Message {
+func messageFromEnvelope(e *tdpbv1.Envelope) tdp.Message {
 	switch m := e.Payload.(type) {
 	case *tdpbv1.Envelope_ClientHello:
 		return (*ClientHello)(m.ClientHello)
@@ -363,14 +367,4 @@ func messageFromEnvelope(e *tdpbv1.Envelope) protocol.Message {
 	default:
 		return nil
 	}
-}
-
-// EncodeTo calls 'Encode' on the given message and writes it to 'w'.
-func EncodeTo(w io.Writer, msg protocol.Message) error {
-	data, err := msg.Encode()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
 }

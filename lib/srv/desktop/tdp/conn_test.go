@@ -28,8 +28,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/test/bufconn"
@@ -64,7 +62,7 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			tc := NewConn(test.conn)
+			tc := NewConn(test.conn, nil)
 			l := tc.LocalAddr()
 			r := tc.RemoteAddr()
 			require.Equal(t, test.local, l)
@@ -95,8 +93,8 @@ func (f fakeTrackingConn) RemoteAddr() net.Addr {
 
 func newMockRWC() mockReadWriterCloser {
 	return mockReadWriterCloser{
-		readChan:  make(chan protocol.Message, 10),
-		writeChan: make(chan protocol.Message, 10),
+		readChan:  make(chan Message, 10),
+		writeChan: make(chan Message, 10),
 	}
 }
 
@@ -104,19 +102,19 @@ type mockReadWriterCloser struct {
 	closeErr   error
 	readError  error
 	writeError error
-	readChan   chan protocol.Message
-	writeChan  chan protocol.Message
+	readChan   chan Message
+	writeChan  chan Message
 	once       sync.Once
 }
 
-func (r *mockReadWriterCloser) ReadMessage() (protocol.Message, error) {
+func (r *mockReadWriterCloser) ReadMessage() (Message, error) {
 	if msg, ok := <-r.readChan; ok {
 		return msg, nil
 	}
 	return nil, fmt.Errorf("read failed: %w", r.readError)
 }
 
-func (r *mockReadWriterCloser) WriteMessage(m protocol.Message) error {
+func (r *mockReadWriterCloser) WriteMessage(m Message) error {
 	if r.writeError != nil {
 		return fmt.Errorf("write failed: %w", r.writeError)
 	}
@@ -271,12 +269,12 @@ func newMockConn(c net.Conn) *mockConn {
 	}
 }
 
-func (m *mockConn) ReadMessage() (protocol.Message, error) {
+func (m *mockConn) ReadMessage() (Message, error) {
 	var msg mockMessage
 	return msg, m.dec.Decode(&msg)
 }
 
-func (m *mockConn) WriteMessage(msg protocol.Message) error {
+func (m *mockConn) WriteMessage(msg Message) error {
 	return m.enc.Encode(msg)
 }
 
@@ -304,18 +302,18 @@ func newBufferedConn() (net.Conn, net.Conn, error) {
 
 func TestInterceptor(t *testing.T) {
 	// Example interceptor
-	fooToBar := func(message protocol.Message) ([]protocol.Message, error) {
+	fooToBar := func(message Message) ([]Message, error) {
 		switch string(message.(mockMessage)) {
 		case "foo":
-			return []protocol.Message{mockMessage("bar")}, nil
+			return []Message{mockMessage("bar")}, nil
 		case "many":
-			return []protocol.Message{mockMessage("first"), mockMessage("last")}, nil
+			return []Message{mockMessage("first"), mockMessage("last")}, nil
 		case "resilience":
-			return []protocol.Message{nil}, nil
+			return []Message{nil}, nil
 		case "omit":
 			return nil, nil
 		}
-		return []protocol.Message{message}, nil
+		return []Message{message}, nil
 	}
 
 	readFooToBar := func(m *mockConn) *ReadWriteInterceptor {
@@ -395,18 +393,18 @@ func TestInterceptor(t *testing.T) {
 
 func TestRemoveNilMessages(t *testing.T) {
 	tests := []struct {
-		msgs        []protocol.Message
+		msgs        []Message
 		expectedLen int
 	}{
-		{msgs: []protocol.Message{nil}, expectedLen: 0},
-		{msgs: []protocol.Message{nil, nil}, expectedLen: 0},
-		{msgs: []protocol.Message{legacy.MFA{}, nil}, expectedLen: 1},
-		{msgs: []protocol.Message{nil, legacy.MFA{}}, expectedLen: 1},
-		{msgs: []protocol.Message{nil, legacy.MFA{}, nil}, expectedLen: 1},
-		{msgs: []protocol.Message{legacy.MFA{}, nil, legacy.MFA{}}, expectedLen: 2},
-		{msgs: []protocol.Message{legacy.MFA{}, nil, nil, legacy.MFA{}}, expectedLen: 2},
-		{msgs: []protocol.Message{legacy.MFA{}, nil, nil, legacy.MFA{}, nil, nil, legacy.MFA{}}, expectedLen: 3},
-		{msgs: []protocol.Message{legacy.MFA{}, legacy.MFA{}, legacy.MFA{}}, expectedLen: 3},
+		{msgs: []Message{nil}, expectedLen: 0},
+		{msgs: []Message{nil, nil}, expectedLen: 0},
+		{msgs: []Message{mockMessage(""), nil}, expectedLen: 1},
+		{msgs: []Message{nil, mockMessage("")}, expectedLen: 1},
+		{msgs: []Message{nil, mockMessage(""), nil}, expectedLen: 1},
+		{msgs: []Message{mockMessage(""), nil, mockMessage("")}, expectedLen: 2},
+		{msgs: []Message{mockMessage(""), nil, nil, mockMessage("")}, expectedLen: 2},
+		{msgs: []Message{mockMessage(""), nil, nil, mockMessage(""), nil, nil, mockMessage("")}, expectedLen: 3},
+		{msgs: []Message{mockMessage(""), mockMessage(""), mockMessage("")}, expectedLen: 3},
 	}
 
 	for _, test := range tests {
