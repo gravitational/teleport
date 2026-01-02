@@ -29,6 +29,7 @@ import {
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import {
   IntegrationKind,
   IntegrationStatusCode,
@@ -176,6 +177,7 @@ const agentMeta: AgentMeta = {
       issuerS3Prefix: '',
     },
     statusCode: IntegrationStatusCode.Running,
+    tags: integrationKindToTags(IntegrationKind.AwsOidc),
   },
 };
 

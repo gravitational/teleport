@@ -25,6 +25,7 @@ import { Info } from 'design/Alert';
 import cfg from 'teleport/config';
 import { resourceSpecAwsRdsPostgres } from 'teleport/Discover/Fixtures/databases';
 import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import {
   IntegrationKind,
   IntegrationStatusCode,
@@ -280,6 +281,7 @@ const Component = () => {
             issuerS3Prefix: '',
           },
           statusCode: IntegrationStatusCode.Running,
+          tags: integrationKindToTags(IntegrationKind.AwsOidc),
         },
       }}
       resourceSpec={resourceSpecAwsRdsPostgres}

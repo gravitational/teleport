@@ -28,6 +28,7 @@ import {
 } from 'teleport/Discover/Fixtures/fixtures';
 import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import {
   IntegrationKind,
   IntegrationStatusCode,
@@ -111,6 +112,7 @@ const Component = ({
         issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
+      tags: integrationKindToTags(IntegrationKind.AwsOidc),
     },
     autoDiscovery: {
       config: {
