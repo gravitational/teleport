@@ -117,8 +117,8 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	return (*mfav1.ValidatedMFAChallenge)(res), nil
 }
 
-// validatedMFAChallenge is an alias to mfav1.validatedMFAChallenge in order to satisfy the generic.ResourceMetadata
-// interface. It should not be exported outside of this package to avoid confusion.
+// validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.
+// It should not be exported outside of this package to avoid confusion.
 type validatedMFAChallenge mfav1.ValidatedMFAChallenge
 
 func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
