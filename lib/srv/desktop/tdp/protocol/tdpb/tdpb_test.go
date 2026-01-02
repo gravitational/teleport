@@ -11,6 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func TestEncodeDecode(t *testing.T) {
 	data, err := png.Encode()
 	require.NoError(t, err)
 
-	decodedMessage, err := Decode(bytes.NewReader(data))
+	decodedMessage, err := DecodeStrict(bytes.NewReader(data))
 	require.NoError(t, err)
 
 	// Test both "raw" and "decoded" messages.
@@ -66,7 +67,7 @@ func TestEncodeDecode(t *testing.T) {
 		}
 
 		// Decode fails because we can't unmarshal the envelope
-		badMsg, err := Decode(bytes.NewReader(message))
+		badMsg, err := DecodeStrict(bytes.NewReader(message))
 		require.Error(t, err)
 		require.Nil(t, badMsg)
 	})
@@ -74,25 +75,36 @@ func TestEncodeDecode(t *testing.T) {
 
 func TestHandleUnknownMessageTypes(t *testing.T) {
 	// Craft an empty envelope
-	msg := &tdpbv1.Envelope{}
-	data, err := proto.Marshal(msg)
+	data, err := proto.Marshal(&tdpbv1.Envelope{})
 	require.NoError(t, err)
-	badMsgBuffer := make([]byte, len(data)+4)
-	binary.BigEndian.PutUint32(badMsgBuffer, uint32(len(data)))
-	copy(badMsgBuffer[4:], data)
 
-	t.Run("decode-returns-sentinel-error", func(t *testing.T) {
+	innerData, err := proto.Marshal(&tdpbv1.Rectangle{Top: 10, Bottom: 100, Left: 1234, Right: 4321})
+	require.NoError(t, err)
+
+	// Append an unknown field number, 1000
+	tag := protowire.AppendTag(nil, 1000, protowire.BytesType)
+	// Append some phony message data (but make sure it conforms to the wire format)
+	payload := protowire.AppendBytes(nil, innerData)
+
+	badMsg := append(data, tag...)
+	badMsg = append(badMsg, payload...)
+
+	badMsgBuffer := make([]byte, len(badMsg)+4)
+	binary.BigEndian.PutUint32(badMsgBuffer, uint32(len(badMsg)))
+	copy(badMsgBuffer[4:], badMsg)
+
+	t.Run("strict-decode-returns-error", func(t *testing.T) {
 		// Write the bad message first, then a good message
 		buf := bytes.NewBuffer(badMsgBuffer)
 
 		// Should return a sentinel error indicating that
 		// an empty message was received.
-		decoded, err := Decode(buf)
-		require.ErrorIs(t, err, ErrEmptyMessage)
+		decoded, err := DecodeStrict(buf)
+		require.ErrorIs(t, err, ErrUnknownMessage)
 		require.Nil(t, decoded)
 	})
 
-	t.Run("decode-tolerates-unknown-messages", func(t *testing.T) {
+	t.Run("permissive-decode-drops-bad-message", func(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 
 		// Write the bad message
@@ -108,7 +120,7 @@ func TestHandleUnknownMessageTypes(t *testing.T) {
 
 		// Validate that good message is received without error
 		// (bad message dropped)
-		newMsg, err := Decode(buf)
+		newMsg, err := DecodePermissive(buf)
 		require.NoError(t, err)
 		_, ok := newMsg.(*MouseButton)
 		require.True(t, ok)
@@ -161,7 +173,7 @@ func TestSendRecv(t *testing.T) {
 	idx := 0
 	rdr := bufio.NewReader(reader)
 	for {
-		msg, err := Decode(rdr)
+		msg, err := DecodeStrict(rdr)
 		if err != nil {
 			require.ErrorIs(t, err, io.EOF)
 			break

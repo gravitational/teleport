@@ -52,7 +52,7 @@ func TestProxyConnection(t *testing.T) {
 	tdpbEchoServer := func(conn net.Conn) error {
 		rdr := bufio.NewReader(conn)
 		for {
-			msg, err := tdpb.Decode(rdr)
+			msg, err := tdpb.DecodeStrict(rdr)
 			if err != nil {
 				return err
 			}
@@ -121,7 +121,7 @@ func TestProxyConnection(t *testing.T) {
 	}
 
 	tdpbClient := func(w *websocket.Conn, expectLatency bool) error {
-		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.DecoderAdapter(tdpb.Decode))
+		conn := tdp.NewConn(&WebsocketIO{Conn: w}, tdp.DecoderAdapter(tdpb.DecodePermissive))
 
 		rdpMsg := &tdpb.RDPResponsePDU{
 			Response: []byte("hello"),
@@ -291,11 +291,11 @@ func TestHandshakeData(t *testing.T) {
 			buf := bufCloser{Buffer: &bytes.Buffer{}}
 			// ForwardTDPB should yield a single client_hello
 			require.NoError(t, test.data.ForwardTDPB(buf, "user"))
-			msg, err := tdpb.Decode(buf)
+			msg, err := tdpb.DecodeStrict(buf)
 			require.NoError(t, err)
 			require.IsType(t, &tdpb.ClientHello{}, msg)
 			assert.Equal(t, "user", msg.(*tdpb.ClientHello).Username)
-			_, err = tdpb.Decode(buf)
+			_, err = tdpb.DecodeStrict(buf)
 			require.ErrorIs(t, err, io.EOF)
 
 			// ForwardTDP should yield 3 messages (if forwardKeyboardLayout == true)
@@ -335,8 +335,8 @@ func (_ bufCloser) Close() error { return nil }
 
 func TestTDPBMFAFlow(t *testing.T) {
 	client, server := net.Pipe()
-	clientConn := tdp.NewConn(client, tdp.DecoderAdapter(tdpb.Decode))
-	serverConn := tdp.NewConn(server, tdp.DecoderAdapter(tdpb.Decode))
+	clientConn := tdp.NewConn(client, tdp.DecoderAdapter(tdpb.DecodeStrict))
+	serverConn := tdp.NewConn(server, tdp.DecoderAdapter(tdpb.DecodeStrict))
 	defer clientConn.Close()
 	defer serverConn.Close()
 

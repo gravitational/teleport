@@ -346,7 +346,7 @@ func (h *Handler) createDesktopConnection(
 					// discard any legacy TDP messages received
 					continue
 				default:
-					msg, err := tdpb.Decode(bytes.NewReader(data))
+					msg, err := tdpb.DecodePermissive(bytes.NewReader(data))
 					return msg, trace.Wrap(err)
 				}
 			}
@@ -752,7 +752,7 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == protocolTDPB {
-		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.Decode))
+		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive))
 	}
 	return tdp.NewConn(rwc, legacy.Decode)
 }

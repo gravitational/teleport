@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ErrEmptyMessage is returned when an empty message is decoded.
-var ErrEmptyMessage = errors.New("decoded empty TDP message")
+// ErrUnknownMessage is returned when an unknown message is decoded.
+var ErrUnknownMessage = errors.New("decoded unknown TDPB message")
 
 const (
 	// We can differentiate between TDP and TDPB messages on the wire
@@ -274,6 +274,7 @@ func marshalWithHeader(msg proto.Message) ([]byte, error) {
 	}
 
 	if len(data) > maxMessageLength {
+		// Message too large, or did we somehow receive a legacy TDP message by mistake?
 		return nil, trace.Errorf("TDPB message too large. %d bytes exceeds maximum: %d", len(data), maxMessageLength)
 	}
 
@@ -284,10 +285,25 @@ func marshalWithHeader(msg proto.Message) ([]byte, error) {
 	return header, nil
 }
 
-// Decode reads a TDPB message from a reader.
-// Returns ErrEmptyMessage if a valid TDPB Envelope was received, but no
-// wrapped message was found.
-func Decode(rdr io.Reader) (tdp.Message, error) {
+// DecodePermissive quietly tolerates unknown message types to allow interop
+// with newer TDPB implementations
+func DecodePermissive(rdr io.Reader) (tdp.Message, error) {
+	for {
+		msg, err := DecodeStrict(rdr)
+		if err != nil {
+			if errors.Is(err, ErrUnknownMessage) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		return msg, nil
+	}
+}
+
+// DecodeStrict reads a TDPB message from a reader.
+// Returns ErrUnknownMessage if a valid TDPB Envelope was received, but no
+// wrapped message was found (likely because it came from a newer implementation).
+func DecodeStrict(rdr io.Reader) (tdp.Message, error) {
 	// Read header
 	header := make([]byte, tdpbHeaderLength)
 	_, err := io.ReadFull(rdr, header)
@@ -319,7 +335,7 @@ func Decode(rdr io.Reader) (tdp.Message, error) {
 	// Allow the caller to distinguish unmarshal errors (likely considered fatal)
 	// from an "empty" message, which could simply mean that we've received
 	// a new (unsupported) message from a newer implementation.
-	return nil, trace.Wrap(ErrEmptyMessage)
+	return nil, trace.Wrap(ErrUnknownMessage)
 }
 
 func messageFromEnvelope(e *tdpbv1.Envelope) tdp.Message {
