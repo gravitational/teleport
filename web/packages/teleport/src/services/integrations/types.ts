@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { IntegrationTag } from 'teleport/Integrations/types';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { Label } from 'teleport/types';
 
@@ -72,6 +73,7 @@ export type IntegrationTemplate<
   statusCode: IntegrationStatusCode;
   status?: SD;
   credentials?: PluginCredentials;
+  tags: IntegrationTag[];
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration

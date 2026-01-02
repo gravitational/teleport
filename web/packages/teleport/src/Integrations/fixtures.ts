@@ -24,6 +24,8 @@ import {
   type Plugin,
 } from 'teleport/services/integrations';
 
+import { integrationKindToTags, pluginKindToIntegrationTags } from './helpers';
+
 export const plugins: Plugin[] = [
   {
     resourceType: 'plugin',
@@ -32,6 +34,7 @@ export const plugins: Plugin[] = [
     kind: 'slack',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('slack'),
   },
   {
     resourceType: 'plugin',
@@ -40,6 +43,7 @@ export const plugins: Plugin[] = [
     kind: 'slack',
     statusCode: IntegrationStatusCode.Unknown,
     spec: {},
+    tags: pluginKindToIntegrationTags('slack'),
   },
   {
     resourceType: 'plugin',
@@ -48,6 +52,7 @@ export const plugins: Plugin[] = [
     kind: 'acmeco' as any, // unknown plugin, should handle gracefuly
     statusCode: IntegrationStatusCode.Unauthorized,
     spec: {},
+    tags: [],
   },
   {
     resourceType: 'plugin',
@@ -56,6 +61,7 @@ export const plugins: Plugin[] = [
     kind: 'slack',
     statusCode: IntegrationStatusCode.OtherError,
     spec: {},
+    tags: pluginKindToIntegrationTags('slack'),
   },
   {
     resourceType: 'plugin',
@@ -64,6 +70,7 @@ export const plugins: Plugin[] = [
     kind: 'slack',
     statusCode: IntegrationStatusCode.SlackNotInChannel,
     spec: {},
+    tags: pluginKindToIntegrationTags('slack'),
   },
   {
     resourceType: 'plugin',
@@ -72,6 +79,7 @@ export const plugins: Plugin[] = [
     kind: 'openai',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('openai'),
   },
   {
     resourceType: 'plugin',
@@ -80,6 +88,7 @@ export const plugins: Plugin[] = [
     kind: 'okta',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('okta'),
   },
   {
     resourceType: 'plugin',
@@ -88,6 +97,7 @@ export const plugins: Plugin[] = [
     kind: 'opsgenie',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('opsgenie'),
   },
   {
     resourceType: 'plugin',
@@ -96,6 +106,7 @@ export const plugins: Plugin[] = [
     kind: 'jamf',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('jamf'),
   },
   {
     resourceType: 'plugin',
@@ -104,6 +115,7 @@ export const plugins: Plugin[] = [
     kind: 'intune',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('intune'),
   },
   {
     resourceType: 'plugin',
@@ -112,6 +124,7 @@ export const plugins: Plugin[] = [
     kind: 'servicenow',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('servicenow'),
   },
   {
     resourceType: 'plugin',
@@ -120,6 +133,7 @@ export const plugins: Plugin[] = [
     kind: 'mattermost',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('mattermost'),
   },
   {
     resourceType: 'plugin',
@@ -128,6 +142,7 @@ export const plugins: Plugin[] = [
     kind: 'jira',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('jira'),
   },
   {
     resourceType: 'plugin',
@@ -136,6 +151,7 @@ export const plugins: Plugin[] = [
     kind: 'discord',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('discord'),
   },
   {
     resourceType: 'plugin',
@@ -144,6 +160,7 @@ export const plugins: Plugin[] = [
     kind: 'entra-id',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('entra-id'),
   },
   {
     resourceType: 'plugin',
@@ -152,6 +169,7 @@ export const plugins: Plugin[] = [
     kind: 'datadog',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('datadog'),
   },
   {
     resourceType: 'plugin',
@@ -160,6 +178,7 @@ export const plugins: Plugin[] = [
     kind: 'pagerduty',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('pagerduty'),
   },
   {
     resourceType: 'plugin',
@@ -168,6 +187,7 @@ export const plugins: Plugin[] = [
     kind: 'email',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('email'),
   },
   {
     resourceType: 'plugin',
@@ -176,6 +196,7 @@ export const plugins: Plugin[] = [
     kind: 'msteams',
     statusCode: IntegrationStatusCode.Running,
     spec: {},
+    tags: pluginKindToIntegrationTags('msteams'),
   },
 ];
 
@@ -186,12 +207,14 @@ export const integrations: Integration[] = [
     kind: IntegrationKind.AwsOidc,
     statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
+    tags: integrationKindToTags(IntegrationKind.AwsOidc),
   },
   {
     resourceType: 'integration',
     name: 'azure',
     kind: IntegrationKind.AzureOidc,
     statusCode: IntegrationStatusCode.Running,
+    tags: integrationKindToTags(IntegrationKind.AzureOidc),
   },
   {
     resourceType: 'integration',
@@ -200,6 +223,7 @@ export const integrations: Integration[] = [
     statusCode: IntegrationStatusCode.Running,
     details: 'some-detail',
     spec: { organization: 'lsdf' },
+    tags: integrationKindToTags(IntegrationKind.GitHub),
   },
   {
     resourceType: 'integration',
@@ -217,6 +241,7 @@ export const integrations: Integration[] = [
         filters: ['test-*', 'dev-*'],
       },
     },
+    tags: integrationKindToTags(IntegrationKind.AwsRa),
   },
 ];
 

@@ -30,11 +30,10 @@ export type BaseIntegration = (
   description?: string;
 };
 
-export type IntegrationLike = (
+export type IntegrationLike =
   | Integration
   | Plugin
-  | ExternalAuditStorageIntegration
-) & { tags?: string[] };
+  | ExternalAuditStorageIntegration;
 
 export const integrationTags = {
   bot: 'Bot',

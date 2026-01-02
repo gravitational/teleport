@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
@@ -44,8 +45,9 @@ test('fetch a single integration: fetchIntegration()', async () => {
   expect(api.get).toHaveBeenCalledWith(
     cfg.getIntegrationsUrl('integration-name')
   );
+  const kind = IntegrationKind.AwsOidc;
   expect(response).toEqual({
-    kind: IntegrationKind.AwsOidc,
+    kind,
     name: 'aws-oidc-integration',
     resourceType: 'integration',
     details:
@@ -55,6 +57,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
       origin: undefined,
     },
     statusCode: IntegrationStatusCode.Running,
+    tags: integrationKindToTags(kind),
   });
 
   // test null response
@@ -69,6 +72,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
     statusCode: IntegrationStatusCode.Running,
     kind: undefined,
     name: undefined,
+    tags: [],
   });
 });
 
@@ -99,6 +103,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
           roleArn: 'arn-123',
         },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       },
       {
         kind: IntegrationKind.AwsOidc,
@@ -111,6 +116,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
           audience: 'aws-identity-center',
         },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       },
       {
         kind: IntegrationKind.GitHub,
@@ -119,12 +125,14 @@ test('fetch integration list: fetchIntegrations()', async () => {
         details: 'GitHub repository access for organization "my-org"',
         spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.GitHub),
       },
       {
         kind: 'abc',
         name: 'non-aws-oidc-integration',
         resourceType: 'integration',
         statusCode: IntegrationStatusCode.Running,
+        tags: [],
       },
     ],
   });
