@@ -326,7 +326,7 @@ teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
 | `string` | `"kubernetes"` |
 
 `tbot.joinMethod` describes how tbot joins the Teleport cluster.
-See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
 
 ## `annotations`
 
@@ -524,9 +524,18 @@ Service.
 
 You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
 
+```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
 
-  The key containing the root CA in the secret must be `ca.pem`.
+### `tls.existingCASecretKeyName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
+
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
 
 ## `tolerations`
 

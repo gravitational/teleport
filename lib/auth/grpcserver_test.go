@@ -4978,6 +4978,7 @@ func TestExport(t *testing.T) {
 				TraceClient: &tt.mockTraceClient,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 			srv, err := as.NewTestTLSServer()
 			require.NoError(t, err)

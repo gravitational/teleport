@@ -1,5 +1,37 @@
 # Changelog
 
+## 18.6.2 (12/26/25)
+
+This is a private security release. Changelog will be publicly announced in a later version.
+
+## 18.6.1 (12/24/25)
+
+* Fixed an issue preventing text editors in the Web UI from allowing edits. [#62488](https://github.com/gravitational/teleport/pull/62488)
+* Acking a cluster alert no longer requires the create permission. [#62468](https://github.com/gravitational/teleport/pull/62468)
+* Fixed service health reason formatting for bot instances in the Web UI. [#62328](https://github.com/gravitational/teleport/pull/62328)
+* Fixed an issue causing a ref type of "any" to be added when editing GitHub or Gitlab join tokens in the Web UI. [#62487](https://github.com/gravitational/teleport/pull/62487)
+
+## 18.6.0 (12/22/25)
+
+### Identifier-first login enhancements
+Teleport now automatically passes the username to the identifier provider when performing Identifier-first login with OIDC or SAML IdPs.
+
+### GitHub Actions Kubernetes Wizard
+Teleport now ships with a new guided flow for setting up GitHub Actions workflows that connects to Teleport-protected Kubernetes clusters without secrets.
+
+### Other changes and improvements
+
+* Fixed unspecified proxy address breaking moderated SFTP when mixing IPv4 and IPv6. [#62296](https://github.com/gravitational/teleport/pull/62296)
+* Added full configuration file for `teleport-plugin-event-handler` helm chart. [#62280](https://github.com/gravitational/teleport/pull/62280)
+* Added full environment variable configuration for event handler CLI. [#62280](https://github.com/gravitational/teleport/pull/62280)
+* Added support for extraArgs/extraEnv/extraLabels patterns for `teleport-plugin-event-handler` helm chart. [#62266](https://github.com/gravitational/teleport/pull/62266)
+* Fixed issue where AltGr key combinations did not work correctly in remote desktop sessions. [#62198](https://github.com/gravitational/teleport/pull/62198)
+* Added `annotations` support for `teleport-plugin-event-handler` helm chart. [#62188](https://github.com/gravitational/teleport/pull/62188)
+* Added a new global configuration section auth_connection_config allowing users to configure the backoff behavior for Proxy and Agent instances connecting to the Auth Service. [#62139](https://github.com/gravitational/teleport/pull/62139)
+* Fixed a potential SSRF vulnerability in the Azure join method implementation. [#62406](https://github.com/gravitational/teleport/pull/62406)
+* Support for v8 roles has been added to the Terraform provider. [#62380](https://github.com/gravitational/teleport/pull/62380)
+* Added support for selecting Kube agents as Managed Updates v2 canaries. Important: the default update group is corrected to "default" from "stable/cloud". [#62211](https://github.com/gravitational/teleport/pull/62211)
+
 ## 18.5.1 (12/12/25)
 
 * Fixed Teleport instances running the Auth Service sometimes not becoming ready during initialization. [#62194](https://github.com/gravitational/teleport/pull/62194)
@@ -1089,5 +1121,3 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
-
-

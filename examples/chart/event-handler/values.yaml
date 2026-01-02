@@ -149,7 +149,7 @@ tbot:
   teleportAuthAddress: ""
 
   # tbot.joinMethod(string) -- describes how tbot joins the Teleport cluster.
-  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
   joinMethod: "kubernetes"
   token: ""
 
@@ -267,10 +267,13 @@ tls:
   #
   # You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
   #
+  # ```code
   # $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
-  #
-  #   The key containing the root CA in the secret must be `ca.pem`.
+  # ```
   existingCASecretName: ""
+  # tls.existingCASecretKeyName(string) -- determines which key in the CA secret
+  # will be used as a trusted CA bundle file.
+  existingCASecretKeyName: "ca.pem"
 
 # tolerations(list) -- sets the tolerations for any pods created by the chart.
 # See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)

@@ -193,8 +193,7 @@ type Config struct {
 	// Logger specifies the logger
 	Logger *slog.Logger
 
-	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
-	// configuration.
+	// FIPS means Teleport was started in FedRAMP/FIPS mode.
 	FIPS bool
 
 	// Emitter is event emitter
