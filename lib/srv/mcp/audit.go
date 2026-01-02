@@ -450,20 +450,36 @@ func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrit
 	rewriteDetails := newRewriteAuthDetails(rewrite)
 	switch {
 	case rewriteDetails.hasIDTokenTrait:
-		return "app-oidc"
+		return egressAuthTypeAppIDToken
 	case rewriteDetails.hasJWTTrait:
-		return "app-jwt"
+		return egressAuthTypeAppJWT
 	case rewriteDetails.rewriteAuthHeader:
-		return "app-defined"
+		return egressAuthTypeAppDefined
 	}
 
 	// Reach here when app.Rewrite not overwriting auth. Check if Auth header is
 	// defined by the user.
 	if headerWithoutRewrite.Get("Authorization") != "" {
-		return "user-defined"
+		return egressAuthTypeUserDefined
 	}
 
-	// No auth required for the remote MCP server or something we don't
-	// understand yet.
-	return "unknown"
+	return egressAuthTypeUnknown
 }
+
+const (
+	// egressAuthTypeUnknown is reported when no egress auth method can be
+	// determined.
+	egressAuthTypeUnknown = "unknown"
+	// egressAuthTypeUserDefined is reported when the auth header is set by the
+	// user and forwarded from the client.
+	egressAuthTypeUserDefined = "user-defined"
+	// egressAuthTypeAppJWT is reported when "{{internal.jwt}}" is defined in app
+	// rewrite rules.
+	egressAuthTypeAppJWT = "app-jwt"
+	// egressAuthTypeAppIDToken is reported when "{{internal.id_token}}" is
+	// defined in app rewrite rules.
+	egressAuthTypeAppIDToken = "app-id-token"
+	// egressAuthTypeAppDefined is reported when static credentials are defined in
+	// app rewrite rules.
+	egressAuthTypeAppDefined = "app-defined"
+)

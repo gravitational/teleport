@@ -88,7 +88,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 	checkSessionStartAndInitializeEvents(t, emitter.Events(),
 		checkSessionStartWithServerInfo("test-server", "1.0.0"),
 		checkSessionStartHasExternalSessionID(),
-		checkSessionStartWithEgressAuthType("app-jwt"),
+		checkSessionStartWithEgressAuthType(egressAuthTypeAppJWT),
 	)
 
 	// Make a tools call.

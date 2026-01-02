@@ -143,7 +143,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		checkSessionStartAndInitializeEvents(t, emitter.Events(),
 			checkSessionStartWithServerInfo("test-server", "1.0.0"),
 			checkSessionStartHasExternalSessionID(),
-			checkSessionStartWithEgressAuthType("app-oidc"),
+			checkSessionStartWithEgressAuthType(egressAuthTypeAppIDToken),
 		)
 
 		// Close client and wait for end event.
