@@ -335,10 +335,10 @@ type PluginOAuthCredentials = {
 };
 
 /**
- * PluginNameToSpec defines a mapping of plugin names to their respective
+ * PluginKindToSpec defines a mapping of plugin kind to their respective
  * spec types.
  */
-export type PluginNameToSpec = {
+export type PluginKindToSpec = {
   okta: PluginOktaSpec;
   slack: PluginSlackSpec;
   mattermost: PluginMattermostSpec;
@@ -346,15 +346,17 @@ export type PluginNameToSpec = {
   datadog: PluginDatadogSpec;
   email: PluginEmailSpec;
   msteams: PluginMsTeamsSpec;
+  'entra-id': PluginEntraIdSpec;
   [key: string]: any;
 };
 
 /**
- * PluginNameToDetails defines a mapping of plugin names to their respective
+ * PluginKindToStatusDetails defines a mapping of plugin kind to their respective
  * status details types.
  */
-export type PluginNameToDetails = {
+export type PluginKindToStatusDetails = {
   okta: PluginStatusOkta;
+  'entra-id': PluginEntraIDStatusDetails;
   [key: string]: any;
 };
 
@@ -459,6 +461,85 @@ export type PluginDatadogSpec = {
 export type PluginEmailSpec = {
   sender: string;
   fallbackRecipient: string;
+};
+
+/**
+ * PluginEntraIdSpec defines Entra ID plugin
+ * spec fields used in the UI.
+ */
+export type PluginEntraIdSpec = {
+  /**
+   * defaultOwners are the default owners of Access Lists
+   * created for Entra ID groups.
+   */
+  defaultOwners: string[];
+  /**
+   * ssoConnectorId is the name of the SSO connector referenced
+   * by the Entra ID plugin.
+   */
+  ssoConnectorId: string;
+  /**
+   * credentialSource is type of the credential source used
+   * to configure integration with the Microsoft Graph API.
+   * Value is expected to be OIDC or system credentials.
+   */
+  credentialSource: string;
+  /**
+   * tenantId is the Tenant ID of Entra ID.
+   */
+  tenantId: string;
+  /**
+   * entraAppId is the Application ID of the enterprise
+   * application created for the integration.
+   */
+  entraAppId: string;
+  /**
+   * groupFilters defines import filters configured
+   * for the Entra ID plugin.
+   */
+  groupFilters: Filters;
+  /**
+   * accessGraphEnabled is the enabled/disabled state
+   * of access graph sync.
+   * Note: The proto PluginEntraIDSettings type does not maintain
+   * boolean state. It only stores the [AppSsoSettingsCache] field and
+   * the plugin runtime treats existence of this cache value as an
+   * "enabled" state.
+   */
+  accessGraphEnabled: boolean;
+};
+
+/**
+ * Filters defines plugin resource import filter input
+ * param. Fields must be in sync with the [Inputs]
+ * type defined in /lib/plugins/filter/filter.go
+ */
+export type Filters = {
+  /**
+   * id is the unique resource ID of the resource to include.
+   */
+  id: string[];
+  /**
+   * nameRegex is the regex value matching name of the resource to include.
+   */
+  nameRegex: string[];
+  /**
+   * excludeId is the unique resource ID of the resource to exclude.
+   */
+  excludeId: string[];
+  /**
+   * excludeNameRegex is the regex value matching name of the resource to exclude.
+   */
+  excludeNameRegex: string[];
+};
+
+/**
+ * PluginEntraIDStatusDetails defines fields that are specific
+ * to the Entra ID plugin status detail.
+ */
+export type PluginEntraIDStatusDetails = {
+  imported_users?: number;
+  imported_groups?: number;
 };
 
 export type IntegrationOAuthCredentials = {

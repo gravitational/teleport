@@ -21,7 +21,6 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -354,6 +354,11 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	copy(servers, t.c.servers)
 	t.mu.Unlock()
 
+	clusterClient, err := t.c.clusterGetter.Cluster(ctx, t.c.identity.RouteToApp.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var i int
 	for ; i < len(servers); i++ {
 		appServer := servers[i]
@@ -379,7 +384,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 			return dst, nil
 		}
 
-		conn, err = dialAppServer(ctx, t.c.clusterGetter, t.c.identity.RouteToApp.ClusterName, appServer)
+		conn, err = dialAppServer(ctx, clusterClient, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
 			t.c.log.WarnContext(ctx, "Failed to connect to application server", "app_server", appServer.GetName(), "error", err)
 			// Continue to the next server if there is an issue
@@ -434,12 +439,7 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, clusterName string, server types.AppServer) (net.Conn, error) {
-	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func dialAppServer(ctx context.Context, clusterClient reversetunnelclient.Cluster, server readonly.AppServer) (net.Conn, error) {
 	var from net.Addr
 	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
 	clientSrcAddr, originalDst := authz.ClientAddrsFromContext(ctx)
@@ -451,11 +451,34 @@ func dialAppServer(ctx context.Context, clusterGetter reversetunnelclient.Cluste
 		From:                  from,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 		OriginalClientDstAddr: originalDst,
-		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
+		ServerID:              server.GetHostID() + "." + clusterClient.GetName(),
 		ConnType:              server.GetTunnelType(),
 		ProxyIDs:              server.GetProxyIDs(),
 	})
 	return conn, trace.Wrap(err)
+}
+
+// isAppServerDialable tries to establish a connection with the server using the
+// `dialAppServer` function.
+func isAppServerDialable(ctx context.Context, clusterClient reversetunnelclient.Cluster, appServer readonly.AppServer) bool {
+	// Redirected apps don't need to be dialed, as the proxy will redirect to them.
+	if redirectInsteadOfForward(appServer) {
+		return true
+	}
+
+	// Apps that use the Integration should use its credentials which are obtained in Proxy.
+	// There's no need for an ApplicationService in this scenario.
+	if appServer.GetApp().GetIntegration() != "" {
+		return true
+	}
+
+	conn, err := dialAppServer(ctx, clusterClient, appServer)
+	if err != nil {
+		return false
+	}
+
+	conn.Close()
+	return true
 }
 
 // configureTLS creates and configures a *tls.Config that will be used for

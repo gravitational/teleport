@@ -62,7 +62,9 @@ class TextEditor extends Component {
 
     // If the data changes, reset the value in each session so changes are
     // rendered.
-    if (prevProps.data !== this.props.data) {
+    // Only update the content if the editor is read-only to prevent
+    // interrupting the editing experience.
+    if (this.props.readOnly && prevProps.data !== this.props.data) {
       this.props.data.forEach((doc, i) => {
         this.sessions[i].setValue(doc.content);
       });
