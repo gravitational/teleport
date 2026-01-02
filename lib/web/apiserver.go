@@ -1234,6 +1234,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// MWI IaC Wizards
 	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
+
+	h.GET("/webapi/ip", h.WithAuth(h.remoteIp))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -5741,4 +5743,59 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
+}
+
+// WithAuthCookieAndCSRF ensures that a request is authenticated
+// for plain old non-AJAX requests (does not check the Bearer header).
+// It enforces CSRF checks.
+//
+// TODO(kimlisa): DELETE IN v19.0 (csrf)
+// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
+func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
+	// formFieldName is the default form field to inspect.
+	const formFieldName = "csrf_token"
+
+	// verifyFormField checks if HTTP form value matches the cookie.
+	verifyFormField := func(r *http.Request) error {
+		token := r.FormValue(formFieldName)
+		if len(token) == 0 {
+			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
+		}
+
+		err := csrf.VerifyToken(token, r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		errForm := verifyFormField(r)
+		if errForm != nil {
+			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
+			return nil, trace.AccessDenied("access denied")
+		}
+		return fn(w, r, p, sctx)
+	})
+}
+
+type remoteIpResponse struct {
+	RemoteIp string `json:"remote_ip"`
+}
+
+func (h *Handler) remoteIp(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (any, error) {
+	remoteIp, err := getRemoteAddressFromRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return remoteIpResponse{
+		RemoteIp: remoteIp,
+	}, nil
 }

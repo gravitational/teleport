@@ -552,6 +552,8 @@ const cfg = {
         '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
       thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
     },
+
+    clientIpPath: '/v1/webapi/ip',
   },
 
   playable_db_protocols: [],

@@ -263,6 +263,12 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
+  getClientIp() {
+    return api.get(cfg.api.clientIpPath).then((json: any) => {
+      return json?.remote_ip || '';
+    });
+  },
+
   // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
   // is provided and it is found that MFA is not required, returns undefined instead.
   async getMfaChallenge(
