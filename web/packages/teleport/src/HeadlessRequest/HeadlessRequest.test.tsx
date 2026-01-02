@@ -19,12 +19,13 @@
 import { createMemoryHistory } from 'history';
 import { Route, Router } from 'react-router';
 
-import { render, screen } from 'design/utils/testing';
+import { render, screen, waitFor } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
 import { shouldShowMfaPrompt } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
+import { HeadlessAuthenticationType } from './types';
 
 const mockGetChallengeResponse = jest.fn();
 
@@ -36,14 +37,23 @@ jest.mock('teleport/lib/useMfa', () => ({
   shouldShowMfaPrompt: jest.fn(),
 }));
 
-function setup({ mfaPrompt = false, path = '/web/headless/123' } = {}) {
+function setup({
+  mfaPrompt = false,
+  path = '/web/headless/123',
+  authType = HeadlessAuthenticationType.HEADLESS,
+  browserIpAddress = '1.2.3.4',
+} = {}) {
   (shouldShowMfaPrompt as jest.Mock).mockReturnValue(mfaPrompt);
 
   mockGetChallengeResponse.mockResolvedValue({ webauthn_response: {} });
 
   jest
     .spyOn(auth, 'headlessSsoGet')
-    .mockResolvedValue({ clientIpAddress: '1.2.3.4' });
+    .mockResolvedValue({ clientIpAddress: '1.2.3.4', authType });
+
+  jest
+    .spyOn(auth, 'getClientIp')
+    .mockResolvedValue(browserIpAddress);
 
   const mockHistory = createMemoryHistory({ initialEntries: [path] });
 
@@ -61,7 +71,7 @@ describe('HeadlessRequest', () => {
     jest.clearAllMocks();
   });
 
-  test('shows the headless request approve/reject dialog', async () => {
+  test('shows the headless request approve/reject dialog for a headless request', async () => {
     setup({ mfaPrompt: false, path: '/web/headless/abc' });
 
     await expect(
@@ -81,4 +91,39 @@ describe('HeadlessRequest', () => {
 
     expect(await screen.findAllByText(/Verify Your Identity/i)).toHaveLength(2);
   });
+
+  test('shows the headless request approve/reject dialog for browser request', async () => {
+    setup({ mfaPrompt: false, path: '/web/headless/abc', authType: HeadlessAuthenticationType.BROWSER });
+
+    await expect(
+      screen.findByText(/Someone has initiated a login from 1.2.3.4/i)
+    ).resolves.toBeInTheDocument();
+
+    expect(
+      await screen.findByRole('button', { name: /Approve/i })
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /Reject/i })
+    ).toBeInTheDocument();
+  });
+
+  test('user cannot approve browser request that originates from a different ip', async () => {
+    setup({
+      mfaPrompt: false,
+      path: '/web/headless/abc',
+      authType: HeadlessAuthenticationType.BROWSER,
+      browserIpAddress: '5.6.7.8',
+    });
+
+    await expect(
+      screen.findByText(/Someone has initiated a login from 1.2.3.4/i)
+    ).resolves.toBeInTheDocument();
+
+    // Wait for the browser IP address to be fetched and button to become disabled
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /Approve/i })
+      ).toBeDisabled();
+    });
+  }, 500);
 });

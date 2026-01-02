@@ -43,6 +43,8 @@ export function HeadlessRequest() {
     authType: HeadlessAuthenticationType.UNSPECIFIED,
   });
 
+  const [browserIpAddress, setBrowserIpAddress] = useState('');
+
   useEffect(() => {
     const setIpAddress = (response: { clientIpAddress: string, authType: number }) => {
       setState({
@@ -64,6 +66,21 @@ export function HeadlessRequest() {
         });
       });
   }, [requestId]);
+
+  useEffect(() => {
+    const setIpAddress = (browserIpAddress) => {
+      setBrowserIpAddress(browserIpAddress);
+    };
+
+    if (
+      state.authType === HeadlessAuthenticationType.BROWSER ||
+      state.authType === HeadlessAuthenticationType.SESSION
+    ) {
+      auth.getClientIp().then(setIpAddress).catch((err) => {
+        console.error('Failed to fetch browser IP address:', err);
+      });
+    }
+  }, [state.authType])
 
   const mfa = useMfa({
     req: {
@@ -122,6 +139,7 @@ export function HeadlessRequest() {
         ) : (
           <HeadlessRequestDialog
             ipAddress={state.ipAddress}
+            browserIpAddress={browserIpAddress}
             onAccept={() => {
               setState({ ...state, status: 'in-progress' });
 

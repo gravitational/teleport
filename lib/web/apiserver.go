@@ -1217,6 +1217,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	h.GET("/webapi/ip", h.WithAuth(h.remoteIp))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -5704,4 +5706,19 @@ func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
 		}
 		return fn(w, r, p, sctx)
 	})
+}
+
+type remoteIpResponse struct {
+	RemoteIp string `json:"remote_ip"`
+}
+
+func (h *Handler) remoteIp(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, _ *SessionContext) (any, error) {
+	remoteIp, err := getRemoteAddressFromRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return remoteIpResponse{
+		RemoteIp: remoteIp,
+	}, nil
 }

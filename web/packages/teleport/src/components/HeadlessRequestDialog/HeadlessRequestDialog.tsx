@@ -24,14 +24,20 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { HoverTooltip } from 'design/Tooltip';
+import { addressesMatch, extractHost } from 'teleport/services/address';
 
 export default function HeadlessRequestDialog({
   ipAddress,
+  browserIpAddress,
   onAccept,
   onReject,
   errorText,
   action,
 }: Props) {
+  const isDisabled =
+    browserIpAddress && !addressesMatch(ipAddress, browserIpAddress);
+  
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
@@ -70,9 +76,27 @@ export default function HeadlessRequestDialog({
       <DialogFooter textAlign="center">
         {!errorText && (
           <>
-            <ButtonPrimary onClick={onAccept} autoFocus mr={3} width="130px">
-              Approve
-            </ButtonPrimary>
+            {isDisabled ? (
+              <HoverTooltip tipContent={`The IP address of your browser (${browserIpAddress}) and the source of the headless request (${extractHost(ipAddress)}) don't match.`}>
+                <ButtonPrimary
+                  onClick={onAccept}
+                  autoFocus mr={3}
+                  width="130px"
+                  disabled={isDisabled}
+                >
+                  Approve
+                </ButtonPrimary>
+              </HoverTooltip>
+            ) : (
+              <ButtonPrimary
+                onClick={onAccept}
+                autoFocus mr={3}
+                width="130px"
+                disabled={isDisabled}
+              >
+                Approve
+              </ButtonPrimary>
+            )}
             <ButtonSecondary onClick={onReject}>Reject</ButtonSecondary>
           </>
         )}
@@ -83,6 +107,7 @@ export default function HeadlessRequestDialog({
 
 export type Props = {
   ipAddress: string;
+  browserIpAddress: string;
   onAccept: () => void;
   onReject: () => void;
   errorText: string;
