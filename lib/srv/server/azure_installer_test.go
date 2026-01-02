@@ -19,7 +19,6 @@ package server
 import (
 	"context"
 	"errors"
-	"maps"
 	"slices"
 	"testing"
 
@@ -134,7 +133,7 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				ResourceGroup:   "test-rg",
 			}
 
-			result, err := req.Run(t.Context(), client)
+			failures, err := req.Run(t.Context(), client)
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -142,9 +141,14 @@ func TestAzureInstallRequestRun(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.NotNil(t, result)
 
-			require.Equal(t, tt.wantFailedVMs, slices.Sorted(maps.Keys(result.Failures)))
+			var failedNames []string
+			for _, vm := range failures {
+				failedNames = append(failedNames, *vm.Instance.Name)
+			}
+			slices.Sort(failedNames)
+
+			require.Equal(t, tt.wantFailedVMs, failedNames)
 		})
 	}
 }
