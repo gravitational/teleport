@@ -710,7 +710,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, constants.TraitJWT,
 				constants.TraitGitHubOrgs, constants.TraitMCPTools,
-				constants.TraitDefaultRelayAddr:
+				constants.TraitDefaultRelayAddr, constants.TraitIDToken:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
