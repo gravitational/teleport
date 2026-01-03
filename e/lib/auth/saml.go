@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/mail"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -626,13 +627,36 @@ func (sas *SAMLAuthService) checkIDPInitiatedSAML(ctx context.Context, connector
 		return trace.AccessDenied("IdP initiated SAML is not allowed by the connector configuration")
 	}
 
-	// Not all IdP's provide these variables, replay mitigation is best effort.
-	if assertion.SessionIndex != "" || assertion.SessionNotOnOrAfter == nil {
-		return nil
+	// Record each assertion using its unique ID.
+	for _, a := range assertion.Assertions {
+		// Skip replay protection if either NotOnOrAfter is unset or invalid.
+		// (not all IdPs provide this value, replay mitigation is best effort)
+		if a.Conditions != nil && a.Conditions.NotOnOrAfter != "" {
+			// Note: technically there are subtle differences between RFC3339 and XSD dateTime,
+			// but the SAML libraries we use all parse RFC3339 so this should be sufficient.
+			if validUntil, err := time.Parse(time.RFC3339, dateTimeToRFC3339(a.Conditions.NotOnOrAfter)); err == nil {
+				if err := sas.assertionReplayService.RecognizeSSOAssertion(
+					ctx,
+					connector.GetName(),
+					a.ID,
+					assertion.NameID,
+					validUntil,
+				); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+		}
 	}
 
-	err := sas.assertionReplayService.RecognizeSSOAssertion(ctx, connector.GetName(), assertion.SessionIndex, assertion.NameID, *assertion.SessionNotOnOrAfter)
-	return trace.Wrap(err)
+	return nil
+}
+
+// dateTimeToRFC3339 addresses a corner case with different timestamp formats.
+// The XSD date time used by SAML allows 24:00:00 to represent the exact instant
+// at the end of the day (equivalent to 00:00:00 of the following day), but
+// this is not valid for RFC3339.
+func dateTimeToRFC3339(dateTime string) string {
+	return strings.Replace(dateTime, "T24:00:00", "T23:59:59", 1)
 }
 
 func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *auth.SSODiagContext, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, string, error) {

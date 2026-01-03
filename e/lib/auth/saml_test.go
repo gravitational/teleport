@@ -923,16 +923,10 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 		},
 	})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClockAt(time.Date(2022, 4, 25, 9, 0, 0, 0, time.UTC))
 
 	// Create a Server instance for testing.
-	b, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
 	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "me.localhost",
 		Dir:         t.TempDir(),
@@ -958,7 +952,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	installLoginRule(ctx, t, a, b, map[string][]string{
+	installLoginRule(ctx, t, a, testAuthServer.Backend, map[string][]string{
 		"groups":      {"external.groups"},
 		"username":    {"external.username"},
 		"login_rules": {`"true"`},
@@ -988,14 +982,14 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	}
 
 	// check ValidateSAMLResponse
-	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
+	response, err = sas.ValidateSAMLResponse(ctx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	require.Equal(t, 0, int(loginHookCounter.Load()))
 
 	// check ValidateSAMLResponse takes loginIP from provided clientIP parameter for IdP-initiated flow
 	mockEmitter.Reset()
-	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "2.2.2.2")
+	response, err = sas.ValidateSAMLResponse(ctx, base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "2.2.2.2")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	cert, err := tlsca.ParseCertificatePEM(response.Session.GetTLSCert())
@@ -1011,9 +1005,14 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	require.Equal(t, idpInitiatedSAMLTestConn, loginEvt.ConnectorID)
 
 	// check ValidateSAMLResponse takes loginIP from connection for IdP-initiated flow if client IP is empty
+	//
+	// Note: we have to clear out the SAML assertion from the backend, otherwise our replay protections
+	// will kick in and reject the request since we're reusing a SAML response in this test.
+	start := backend.NewKey("recognized_assertions")
+	require.NoError(t, testAuthServer.Backend.DeleteRange(ctx, start, backend.RangeEnd(start)))
 	mockEmitter.Reset()
 	addr := utils.MustParseAddr("1.1.1.1:42")
-	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientSrcAddr(context.Background(), addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "")
+	response, err = sas.ValidateSAMLResponse(authz.ContextWithClientSrcAddr(ctx, addr), base64.StdEncoding.EncodeToString([]byte(respOkta)), idpInitiatedSAMLTestConn, "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	cert, err = tlsca.ParseCertificatePEM(response.Session.GetTLSCert())
@@ -1031,7 +1030,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 	sas.auth.RegisterLoginHook(loginHook)
 	sas.auth.RegisterLoginHook(loginHook)
 
-	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
+	response, err = sas.ValidateSAMLResponse(ctx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
 	require.Equal(t, 2, int(loginHookCounter.Load()))
@@ -1040,11 +1039,11 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, a)
-	auth, loginIP, err := sas.validateSAMLResponse(context.Background(), diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
+	auth, loginIP, err := sas.validateSAMLResponse(ctx, diagCtx, base64.StdEncoding.EncodeToString([]byte(respOkta)), "", "")
 	require.NoError(t, err)
 
 	// ensure diag info got stored and is identical.
-	infoFromBackend, err := a.GetSSODiagnosticInfo(context.Background(), types.KindSAML, auth.Req.ID)
+	infoFromBackend, err := a.GetSSODiagnosticInfo(ctx, types.KindSAML, auth.Req.ID)
 	require.NoError(t, err)
 	diff := cmp.Diff(&diagCtx.Info, infoFromBackend, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 	require.Empty(t, diff, "returned and stored diag info do not match")
@@ -1550,6 +1549,77 @@ func TestSAMLAuthCompat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIDPInitiatedReplayProtection(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.SAML: {Enabled: true},
+		}},
+	})
+
+	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+		require.NoError(t, err)
+		reg := plugin.NewRegistry()
+		reg.Add(authPlugin)
+		cfg.APIConfig.PluginRegistry = reg
+	})
+
+	_, err := authtest.CreateRole(t.Context(), srv.Auth(), "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// Create a fake SAML IdP that will authorize a fake user.
+	idp := NewFakeSAMLIdP(t, srv.Clock())
+
+	connector, err := types.NewSAMLConnector(idpInitiatedSAMLTestConn, types.SAMLConnectorSpecV2{
+		SSO:                      idp.SSOURL.String(),
+		Issuer:                   idp.MetadataURL.String(),
+		Cert:                     idp.CertPEM,
+		AssertionConsumerService: "https://teleport.example.com/webapi/saml/acs/idp-initiated-saml-test-conn",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "groups",
+			Value: "devs",
+			Roles: []string{"access"},
+		}},
+		AllowIDPInitiated: true,
+	})
+	require.NoError(t, err)
+
+	_, err = srv.Auth().CreateSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	proxyClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyClient.Close()) })
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	req, err := proxyClient.CreateSAMLAuthRequest(t.Context(), types.SAMLAuthRequest{
+		ConnectorID:  connector.GetName(),
+		SshPublicKey: ssh.MarshalAuthorizedKey(sshPub),
+		TlsPublicKey: tlsPubBytes,
+		CertTTL:      time.Hour,
+	})
+	require.NoError(t, err)
+
+	samlResponse, err := idp.ServeSSO(req.RedirectURL)
+	require.NoError(t, err)
+
+	_, err = proxyClient.ValidateSAMLResponse(t.Context(), samlResponse, connector.GetName(), "")
+	require.NoError(t, err)
+
+	// Attempt to replay the same SAML response, this should fail.
+	_, err = proxyClient.ValidateSAMLResponse(t.Context(), samlResponse, connector.GetName(), "")
+	require.Error(t, err, "SAML replay should fail")
 }
 
 func TestSAMLLicense(t *testing.T) {
