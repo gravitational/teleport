@@ -2409,6 +2409,27 @@ export const formatters: Formatters = {
         ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
         : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
+  [eventCodes.VNET_CONFIG_CREATE]: {
+    type: 'vnet.config.create',
+    desc: 'VNet config created',
+    format: ({ user }) => {
+      return `User [${user}] created the VNet config`;
+    },
+  },
+  [eventCodes.VNET_CONFIG_UPDATE]: {
+    type: 'vnet.config.update',
+    desc: 'VNet config updated',
+    format: ({ user }) => {
+      return `User [${user}] updated the VNet config`;
+    },
+  },
+  [eventCodes.VNET_CONFIG_DELETE]: {
+    type: 'vnet.config.delete',
+    desc: 'VNet config deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted the VNet config`;
+    },
+  },
 };
 
 const unknownFormatter = {
