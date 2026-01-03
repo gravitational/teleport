@@ -30,17 +30,29 @@ const (
 	DefaultIPv4CIDRRange = "100.64.0.0/10"
 )
 
+// CheckAndSetDefaultsVnetConfig sets static fields for a VnetConfig.
+func CheckAndSetDefaultsVnetConfig(vnetConfig *vnet.VnetConfig) {
+	if vnetConfig.Kind == "" {
+		vnetConfig.Kind = types.KindVnetConfig
+	}
+	if vnetConfig.Version == "" {
+		vnetConfig.Version = types.V1
+	}
+	if vnetConfig.Metadata == nil {
+		vnetConfig.Metadata = &headerv1.Metadata{}
+	}
+	if vnetConfig.Metadata.Name == "" {
+		vnetConfig.Metadata.Name = types.MetaNameVnetConfig
+	}
+}
+
 // NewVnetConfig initializes a new VNet config resource given the spec.
 func NewVnetConfig(spec *vnet.VnetConfigSpec) (*vnet.VnetConfig, error) {
 	config := &vnet.VnetConfig{
-		Kind:    types.KindVnetConfig,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: types.MetaNameVnetConfig,
-		},
 		Spec: spec,
 	}
 
+	CheckAndSetDefaultsVnetConfig(config)
 	if err := ValidateVnetConfig(config); err != nil {
 		return nil, trace.Wrap(err)
 	}

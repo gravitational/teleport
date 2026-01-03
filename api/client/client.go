@@ -116,6 +116,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	vnettypes "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -961,6 +962,26 @@ func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.Reco
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
+}
+
+// UpsertVnetConfig creates or updates the singleton VnetConfig resource.
+func (c *Client) UpsertVnetConfig(ctx context.Context, vnetConfig *vnet.VnetConfig) (*vnet.VnetConfig, error) {
+	vnettypes.CheckAndSetDefaultsVnetConfig(vnetConfig)
+	return c.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{
+		VnetConfig: vnetConfig,
+	})
+}
+
+// ResetVnetConfig resets the singleton VnetConfig resource to defaults.
+func (c *Client) ResetVnetConfig(ctx context.Context) error {
+	defaultConfig, err := vnettypes.DefaultVnetConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = c.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{
+		VnetConfig: defaultConfig,
+	})
+	return trace.Wrap(err)
 }
 
 // Ping gets basic info about the auth server.
