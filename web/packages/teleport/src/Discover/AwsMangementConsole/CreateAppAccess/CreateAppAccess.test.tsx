@@ -24,7 +24,6 @@ import {
   resourceSpecAppAwsCliConsole,
 } from 'teleport/Discover/Fixtures/fixtures';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import {
   IntegrationKind,
   integrationService,
@@ -90,7 +89,6 @@ const agentMeta: AgentMeta = {
       issuerS3Prefix: '',
     },
     statusCode: IntegrationStatusCode.Running,
-    tags: integrationKindToTags(IntegrationKind.AwsOidc),
   },
 };
 

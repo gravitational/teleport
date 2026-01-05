@@ -24,7 +24,6 @@ import {
   resourceSpecAwsEks,
 } from 'teleport/Discover/Fixtures/fixtures';
 import { AgentMeta } from 'teleport/Discover/useDiscover';
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import auth from 'teleport/services/auth';
 import * as discoveryService from 'teleport/services/discovery/discovery';
 import {
@@ -288,7 +287,6 @@ const agentMeta: AgentMeta = {
       issuerS3Prefix: '',
     },
     statusCode: IntegrationStatusCode.Running,
-    tags: integrationKindToTags(IntegrationKind.AwsOidc),
   },
 };
 
