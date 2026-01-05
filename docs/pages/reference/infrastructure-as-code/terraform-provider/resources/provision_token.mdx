@@ -84,6 +84,7 @@ Optional:
 - `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
 - `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
+- `integration` (String) Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.
 - `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
 - `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `oracle` (Attributes) Oracle allows the configuration of options specific to the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
