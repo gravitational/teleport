@@ -446,6 +446,8 @@ plan_modifiers:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
     RoleV6.Spec.Options:
       - "DefaultRoleOptions()"
+    RoleV6.Spec.Allow.KubernetesResources:
+      - "DefaultKubernetesResources()"
 
 validators:
   # Expires must be in the future
