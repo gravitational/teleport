@@ -48,10 +48,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
-	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
-	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
@@ -63,14 +59,6 @@ import (
 // scheme is our own test-specific scheme to avoid using the global
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = controllers.Scheme
-
-func init() {
-	utilruntime.Must(core.AddToScheme(scheme))
-	utilruntime.Must(resourcesv1.AddToScheme(scheme))
-	utilruntime.Must(resourcesv2.AddToScheme(scheme))
-	utilruntime.Must(resourcesv3.AddToScheme(scheme))
-	utilruntime.Must(resourcesv5.AddToScheme(scheme))
-}
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{

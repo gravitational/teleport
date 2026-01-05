@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/common"
 )
 
 func init() {
@@ -41,7 +41,7 @@ type TeleportUser struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   TeleportUserSpec `json:"spec"`
-	Status resources.Status `json:"status"`
+	Status common.Status    `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -60,7 +60,7 @@ func (u TeleportUser) ToTeleport() types.User {
 		Metadata: types.Metadata{
 			Name:        u.Name,
 			Labels:      u.Labels,
-			Description: u.Annotations[resources.DescriptionKey],
+			Description: u.Annotations[common.DescriptionKey],
 		},
 		Spec: types.UserSpecV2(u.Spec),
 	}

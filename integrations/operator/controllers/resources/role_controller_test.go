@@ -36,7 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources/common"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
