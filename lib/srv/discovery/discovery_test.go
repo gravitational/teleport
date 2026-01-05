@@ -1540,6 +1540,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			}()
 			reporter := &mockUsageReporter{}
 			tlsServer.Auth().SetUsageReporter(reporter)
+
+			waitForReconcile := make(chan struct{})
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
@@ -1556,6 +1558,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					Log:            logger,
 					LegacyLogger:   legacyLogger,
 					DiscoveryGroup: mainDiscoveryGroup,
+					onKubernetesClusterReconcile: func() {
+						waitForReconcile <- struct{}{}
+					},
 				})
 
 			require.NoError(t, err)
@@ -1565,48 +1570,26 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			})
 			go discServer.Start()
 
-			clustersNotUpdatedMap := sliceToSet(tc.clustersNotUpdated)
-			clustersFoundInAuth := false
-			require.Eventually(t, func() bool {
-			loop:
-				for {
-					select {
-					case cluster := <-clustersNotUpdated:
-						if _, ok := clustersNotUpdatedMap[cluster]; !ok {
-							require.Failf(t, "expected Action for cluster %s but got no action from reconciler", cluster)
-						}
-						delete(clustersNotUpdatedMap, cluster)
-					default:
-						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
-						require.NoError(t, err)
-						if len(kubeClusters) == len(tc.expectedClustersToExistInAuth) {
-							c1 := types.KubeClusters(kubeClusters).ToMap()
-							c2 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
-							for k := range c1 {
-								if services.CompareResources(c1[k], c2[k]) != services.Equal {
-									return false
-								}
-							}
-							clustersFoundInAuth = true
-						}
-						break loop
+			select {
+			case <-waitForReconcile:
+				kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
+				require.NoError(t, err)
+
+				c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
+				c2 := types.KubeClusters(kubeClusters).ToMap()
+				for k := range c1 {
+					if services.CompareResources(c1[k], c2[k]) != services.Equal {
+						require.Equal(t, c1[k], c2[k], "expected no differences")
 					}
 				}
-				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
-			}, 5*time.Second, 200*time.Millisecond)
+			case <-time.After(10 * time.Second):
+				require.FailNow(t, "Didn't receive reconcile event after 10s")
+			}
 
 			require.ElementsMatch(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
 			require.ElementsMatch(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 
-			if tc.wantEvents > 0 {
-				require.Eventually(t, func() bool {
-					return reporter.ResourceCreateEventCount() == tc.wantEvents
-				}, time.Second, 100*time.Millisecond)
-			} else {
-				require.Never(t, func() bool {
-					return reporter.ResourceCreateEventCount() != 0
-				}, time.Second, 100*time.Millisecond)
-			}
+			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
 		})
 	}
 }
@@ -1887,14 +1870,6 @@ func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, d
 func modifyKubeCluster(cluster types.KubeCluster) types.KubeCluster {
 	cluster.GetStaticLabels()["test"] = "test"
 	return cluster
-}
-
-func sliceToSet[T comparable](slice []T) map[T]struct{} {
-	set := map[T]struct{}{}
-	for _, v := range slice {
-		set[v] = struct{}{}
-	}
-	return set
 }
 
 func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, kubeService *corev1.Service, port corev1.ServicePort) types.Application {
@@ -2494,17 +2469,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(10 * time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s")
-			}
-
-			if tc.wantEvents > 0 {
-				require.Eventually(t, func() bool {
-					return reporter.ResourceCreateEventCount() == tc.wantEvents
-				}, 10*time.Second, 100*time.Millisecond)
-			} else {
-				require.Never(t, func() bool {
-					return reporter.ResourceCreateEventCount() != 0
-				}, 10*time.Second, 100*time.Millisecond)
+				require.FailNow(t, "Didn't receive reconcile event after 10s")
 			}
 
 			if tc.discoveryConfigStatusCheck != nil {
@@ -2520,6 +2485,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 			if tc.userTasksCheck != nil {
 				tc.userTasksCheck(t, tlsServer.Auth())
 			}
+
+			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
 		})
 	}
 }
