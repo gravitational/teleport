@@ -177,6 +177,9 @@ type Handler struct {
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// appServerWatcher ia a app server watcher to speed up app look up.
+	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
 
@@ -308,6 +311,9 @@ type Config struct {
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// AppServerWatcher ia a app server watcher to speed up app look up.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
@@ -370,7 +376,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := h.handler.appServerWatcher.CurrentResourcesWithFilter(r.Context(), app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -629,6 +635,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	if cfg.NodeWatcher != nil {
 		h.nodeWatcher = cfg.NodeWatcher
+	}
+
+	if cfg.AppServerWatcher != nil {
+		h.appServerWatcher = cfg.AppServerWatcher
 	}
 
 	const v1Prefix = "/v1"
@@ -1991,15 +2001,10 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
 
 	sessionSummarizerEnabled := false
-	isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
-		r.Context(), &summarizerv1.IsEnabledRequest{},
-	)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(),
-			"Cannot tell if the session summarizer is enabled, session summarizations won't show up in the UI",
-			"error", err,
-		)
-	} else {
+	if isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
+		r.Context(),
+		&summarizerv1.IsEnabledRequest{},
+	); err == nil {
 		sessionSummarizerEnabled = isEnabledRes.Enabled
 	}
 
@@ -5734,44 +5739,4 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
-}
-
-// WithAuthCookieAndCSRF ensures that a request is authenticated
-// for plain old non-AJAX requests (does not check the Bearer header).
-// It enforces CSRF checks.
-//
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
-	// formFieldName is the default form field to inspect.
-	const formFieldName = "csrf_token"
-
-	// verifyFormField checks if HTTP form value matches the cookie.
-	verifyFormField := func(r *http.Request) error {
-		token := r.FormValue(formFieldName)
-		if len(token) == 0 {
-			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
-		}
-
-		err := csrf.VerifyToken(token, r)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, err := h.AuthenticateRequest(w, r, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		errForm := verifyFormField(r)
-		if errForm != nil {
-			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
-			return nil, trace.AccessDenied("access denied")
-		}
-		return fn(w, r, p, sctx)
-	})
 }

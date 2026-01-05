@@ -548,24 +548,8 @@ func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClien
 	// like we do with tctl auth export
 	type output struct{ cert, crl []byte }
 	var results []output
-	for i, keypair := range tlsKeys {
-		crl := keypair.CRL
-		// DELETE IN v19 (probakowski, zmb3): tctl v19 means the server is either v19 or v20,
-		// both of which are guaranteed to have CRLs already in place.
-		if len(crl) == 0 {
-			// WARNING: GenerateCertAuthorityCRL will find any suitable keypair for signing the CRL,
-			// it is not guaranteed to use _this_ particular keypair.
-			fmt.Fprintf(os.Stderr, "Keypair %v is missing CRL for %v authority %v, generating legacy fallback.",
-				i, authority.GetType(), authority.GetName())
-			if len(tlsKeys) > 1 {
-				fmt.Fprintf(os.Stderr, "If you are using HSM or KMS for private key material, please update your auth server and re-export CRLs.")
-			}
-			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		results = append(results, output{keypair.Cert, crl})
+	for _, keypair := range tlsKeys {
+		results = append(results, output{keypair.Cert, keypair.CRL})
 	}
 
 	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)

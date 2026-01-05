@@ -963,7 +963,7 @@ func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.Cl
 
 func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
 	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
-	if err := a.authorizeAction(types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := a.authorizeAction(types.KindClusterAlert, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6259,11 +6259,11 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 		return "", trace.Wrap(err)
 	}
 
-	session, err := a.authServer.generateAppToken(ctx, req.Username, req.Roles, req.Traits, req.URI, req.Expires)
+	token, err := a.authServer.generateAppToken(ctx, req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return session, nil
+	return token, nil
 }
 
 func (a *ServerWithRoles) Close() error {
