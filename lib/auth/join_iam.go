@@ -44,12 +44,6 @@ func (a *Server) GetHTTPClientForAWSSTS() utils.HTTPDoClient {
 	return a.httpClientForAWSSTS
 }
 
-// SetAWSOrganizationsClientGetter sets a client getter that will be used for describing accounts in AWS Organizations.
-// client-signed sts:GetCallerIdentity requests to AWS, for tests.
-func (a *Server) SetAWSOrganizationsClientGetter(organizationsAPIGetter iamjoin.OrganizationsAPIGetter) {
-	a.awsOrganizationsClientGetter = organizationsAPIGetter
-}
-
 // GetAWSOrganizationsClientGetter returns client getter which is capable of describing accounts in AWS Organizations.
 func (a *Server) GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter {
 	return a.awsOrganizationsClientGetter

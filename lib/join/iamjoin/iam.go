@@ -262,7 +262,7 @@ func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, allowRules [
 		}
 
 		if rule.AWSOrganizationID != "" {
-			organizationID, err := organizationIDFetcher.fetch(ctx, identity.Account)
+			organizationID, err := organizationIDFetcher.fetch(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -340,6 +340,7 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 
 	organizationsIDFetcher := &organizationsIDFetcher{
 		organizationsAPIGetter: params.OrganizationsAPIGetter,
+		accountID:              identity.Account,
 	}
 
 	// check that the node identity matches an allow rule for this token
@@ -364,11 +365,12 @@ func GenerateIAMChallenge() (string, error) {
 }
 
 type organizationsIDFetcher struct {
+	accountID              string
 	organizationsAPIGetter OrganizationsAPIGetter
 	fetchedOrganizationID  string
 }
 
-func (f *organizationsIDFetcher) fetch(ctx context.Context, accountID string) (string, error) {
+func (f *organizationsIDFetcher) fetch(ctx context.Context) (string, error) {
 	if f.fetchedOrganizationID != "" {
 		return f.fetchedOrganizationID, nil
 	}
@@ -379,7 +381,7 @@ func (f *organizationsIDFetcher) fetch(ctx context.Context, accountID string) (s
 	}
 
 	accountDetail, err := organizationsClient.DescribeAccount(ctx, &organizations.DescribeAccountInput{
-		AccountId: awssdk.String(accountID),
+		AccountId: awssdk.String(f.accountID),
 	})
 	if err != nil {
 		convertedError := libcloudaws.ConvertRequestFailureError(err)

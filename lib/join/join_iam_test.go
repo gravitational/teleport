@@ -125,7 +125,6 @@ type iamJoinTestCase struct {
 	requestTokenName         string
 	tokenSpec                types.ProvisionTokenSpecV2
 	stsClient                utils.HTTPDoClient
-	organizationsAPI         iamjoin.OrganizationsAPI
 	challengeResponseOptions []challengeResponseOption
 	challengeResponseErr     error
 	assertError              require.ErrorAssertionFunc
@@ -135,9 +134,21 @@ func TestJoinIAM(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
+	allowedOrgID := "o-allowedorg"
+	organizationsClientGetter := &mockAWSOrganizationsClientGetter{
+		OrganizationsAPI: &mockAWSOrganizationsClient{
+			getAccountOutput: &organizations.DescribeAccountOutput{
+				Account: &organizationstypes.Account{
+					Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgID + "/1234"),
+				},
+			},
+		},
+	}
+
 	regularServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:                          t.TempDir(),
+			AWSOrganizationsClientGetter: organizationsClientGetter,
 		},
 	})
 	require.NoError(t, err)
@@ -193,7 +204,7 @@ func TestJoinIAM(t *testing.T) {
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
 					{
-						AWSOrganizationID: "o-allowedorg",
+						AWSOrganizationID: allowedOrgID,
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -204,13 +215,6 @@ func TestJoinIAM(t *testing.T) {
 					Account: "1234",
 					Arn:     "arn:aws::1234",
 				}),
-			},
-			organizationsAPI: &mockAWSOrganizationsClient{
-				getAccountOutput: &organizations.DescribeAccountOutput{
-					Account: &organizationstypes.Account{
-						Arn: aws.String("arn:aws:organizations::123456789012:account/o-allowedorg/1234"),
-					},
-				},
 			},
 			assertError: require.NoError,
 		},
@@ -223,7 +227,7 @@ func TestJoinIAM(t *testing.T) {
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
 					{
-						AWSOrganizationID: "o-allowedorg",
+						AWSOrganizationID: "not-allowedorg",
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -234,13 +238,6 @@ func TestJoinIAM(t *testing.T) {
 					Account: "1234",
 					Arn:     "arn:aws::1234",
 				}),
-			},
-			organizationsAPI: &mockAWSOrganizationsClient{
-				getAccountOutput: &organizations.DescribeAccountOutput{
-					Account: &organizationstypes.Account{
-						Arn: aws.String("arn:aws:organizations::123456789012:account/o-not-allowed/1234"),
-					},
-				},
 			},
 			assertError: require.Error,
 		},
@@ -722,9 +719,6 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	ctx := t.Context()
 	// Set mock client.
 	tc.authServer.Auth().SetHTTPClientForAWSSTS(tc.stsClient)
-	tc.authServer.Auth().SetAWSOrganizationsClientGetter(&mockAWSOrganizationsClientGetter{
-		OrganizationsAPI: tc.organizationsAPI,
-	})
 
 	// Add token to auth server.
 	token, err := types.NewProvisionTokenFromSpec(
