@@ -61,7 +61,7 @@ accept_role_session_name: true
 
 |Field Name|Description|Type|
 |---|---|---|
-|accept_role_session_name|Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This values comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName|Boolean|
+|accept_role_session_name|Whether this Roles Anywhere Profile accepts a custom role session name. When not supported, the AWS Session Name will be the X.509 certificate's serial number. When supported, the AWS Session Name will be the identity's username. This value comes from: https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName|Boolean|
 |profile_arn|The AWS IAM Roles Anywhere Profile ARN that originated this Teleport App.|string|
 
 ## App Identity Center
@@ -128,12 +128,12 @@ mcp: # [...]
 |cloud|Identifies the cloud instance the app represents.|string|
 |cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORS Policy](#cors-policy)|
 |dynamic_labels|The app's command labels.|map[string][Command Label V2](#command-label-v2)|
-|identity_center|Encasulates AWS identity-center specific information. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
+|identity_center|Encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
 |integration|The integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|string|
 |mcp|Contains MCP server related configurations.|[MCP](#mcp)|
 |public_addr|The public address the application is accessible at.|string|
-|required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.|[]string|
+|required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|[]string|
 |rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
 |tcp_ports|A list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|[][Port Range](#port-range)|
 |uri|The web app endpoint.|string|
@@ -205,7 +205,7 @@ A wrapper around duration to set up custom marshal/unmarshal
 
 ## Header
 
-Represents a single http header passed over to the proxied application.
+Represents a single HTTP header passed over to the proxied application.
 
 
 Example:
