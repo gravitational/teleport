@@ -73,7 +73,7 @@ export type IntegrationTemplate<
   statusCode: IntegrationStatusCode;
   status?: SD;
   credentials?: PluginCredentials;
-  tags: IntegrationTag[];
+  tags?: IntegrationTag[];
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration

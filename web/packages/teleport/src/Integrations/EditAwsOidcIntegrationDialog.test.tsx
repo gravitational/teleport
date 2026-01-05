@@ -30,7 +30,6 @@ import {
 } from 'teleport/services/integrations';
 
 import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
-import { integrationKindToTags } from './helpers';
 import { useIntegrationOperation } from './Operations';
 
 test('user acknowledging script was ran when reconfiguring', async () => {
@@ -46,7 +45,6 @@ test('user acknowledging script was ran when reconfiguring', async () => {
           roleArn: 'arn:aws:iam::123456789012:role/johndoe',
         },
         statusCode: IntegrationStatusCode.Running,
-        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       }}
     />
   );
@@ -165,7 +163,6 @@ test('render warning when s3 buckets are present', async () => {
           issuerS3Prefix: 'some-prefix',
         },
         statusCode: IntegrationStatusCode.Running,
-        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       }}
     />
   );
@@ -279,7 +276,6 @@ const integration: IntegrationAwsOidc = {
     issuerS3Prefix: 's3-prefix',
   },
   statusCode: IntegrationStatusCode.Running,
-  tags: integrationKindToTags(IntegrationKind.AwsOidc),
 };
 
 function ComponentWithEditOperation() {

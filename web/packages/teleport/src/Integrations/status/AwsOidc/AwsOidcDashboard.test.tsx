@@ -24,7 +24,6 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { ContextProvider } from 'teleport/index';
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { AwsOidcDashboard } from 'teleport/Integrations/status/AwsOidc/AwsOidcDashboard';
 import { MockAwsOidcStatusProvider } from 'teleport/Integrations/status/AwsOidc/testHelpers/mockAwsOidcStatusProvider';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -53,7 +52,6 @@ test('renders header and stats cards', async () => {
               roleArn: 'arn:aws:iam::111456789011:role/bar',
             },
             statusCode: 1,
-            tags: integrationKindToTags(IntegrationKind.AwsOidc),
           }),
           statsAttempt: makeSuccessAttempt<IntegrationWithSummary>({
             name: 'integration-one',
@@ -187,7 +185,6 @@ test('renders enroll cards', () => {
               roleArn: 'arn:aws:iam::111456789011:role/bar',
             },
             statusCode: 1,
-            tags: integrationKindToTags(IntegrationKind.AwsOidc),
           }),
           statsAttempt: makeSuccessAttempt({
             name: 'integration-one',

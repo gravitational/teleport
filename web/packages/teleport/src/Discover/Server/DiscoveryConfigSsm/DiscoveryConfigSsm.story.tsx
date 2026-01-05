@@ -27,7 +27,6 @@ import {
   resourceSpecAwsEc2Ssm,
 } from 'teleport/Discover/Fixtures/fixtures';
 import { AgentMeta, AutoDiscovery } from 'teleport/Discover/useDiscover';
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import {
   IntegrationKind,
   IntegrationStatusCode,
@@ -147,7 +146,6 @@ const Component = ({
         issuerS3Prefix: '',
       },
       statusCode: IntegrationStatusCode.Running,
-      tags: integrationKindToTags(IntegrationKind.AwsOidc),
     },
     autoDiscovery,
   };

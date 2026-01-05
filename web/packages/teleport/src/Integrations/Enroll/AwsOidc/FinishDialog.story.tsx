@@ -18,7 +18,6 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import {
   IntegrationKind,
   IntegrationStatusCode,
@@ -43,7 +42,6 @@ export const Story = () => (
           issuerS3Bucket: '',
           issuerS3Prefix: '',
         },
-        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       }}
     />
   </MemoryRouter>
@@ -63,7 +61,6 @@ export const FinishDialogueDiscover = () => (
           issuerS3Bucket: '',
           issuerS3Prefix: '',
         },
-        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       }}
     />
   </MemoryRouter>
