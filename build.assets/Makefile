@@ -78,12 +78,15 @@ build: buildbox-centos7 webassets
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
 
 #
-# Build 'teleport' release inside a docker container
+# Build 'teleport' binaries inside a docker container
 #
 .PHONY:build-binaries
 build-binaries: buildbox-centos7 webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
+	$(LOG_GROUP_START)
+	$(REQUIRE_HOST_ARCH)
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
+		/usr/bin/scl enable $(DEVTOOLSET) 'make clean-build full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+	$(LOG_GROUP_END)
 
 #
 # Build 'teleport' Enterprise release inside a docker container
