@@ -111,10 +111,10 @@ func (m *mockAuthServer) VerifySSOMFASession(
 	return &authz.MFAAuthData{
 		Device: ssoDevice,
 		Payload: &mfatypes.SessionIdentifyingPayload{
-			SSHSessionID: []byte("test-payload"),
+			SSHSessionID: []byte("test-session-id"),
 		},
-		SourceCluster: "root",
-		TargetCluster: "root",
+		SourceCluster: "test-cluster",
+		TargetCluster: "test-cluster",
 	}, nil
 }
 

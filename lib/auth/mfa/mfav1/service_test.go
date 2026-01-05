@@ -20,6 +20,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -148,6 +149,44 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.Equal(t, validateEvent.MFADevice.DeviceID, device.MFA.Id)
 	require.Equal(t, validateEvent.MFADevice.DeviceType, device.MFA.MFAType())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, validateEvent.FlowType)
+
+	// Verify stored ValidatedMFAChallenge.
+	gotChallenge, err := authServer.Auth().MFAService.GetValidatedMFAChallenge(
+		t.Context(),
+		user.GetName(),
+		challengeResp.GetMfaChallenge().GetName(),
+	)
+	require.NoError(t, err)
+
+	wantedChallenge := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: "v1",
+		Metadata: &types.Metadata{
+			Name: challengeResp.GetMfaChallenge().GetName(),
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+			SourceCluster: "test-cluster",
+			TargetCluster: "test-cluster",
+		},
+	}
+
+	diff := cmp.Diff(
+		wantedChallenge,
+		gotChallenge,
+		cmp.FilterPath(
+			// Ignore expiration time in comparison.
+			func(p cmp.Path) bool {
+				return p.String() == "Metadata.Expires"
+			},
+			cmp.Ignore(),
+		),
+	)
+	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", user.GetName(), challengeResp.GetMfaChallenge().GetName(), diff)
 }
 
 func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
@@ -263,6 +302,44 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), validateEvent.GetUser())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, validateEvent.FlowType)
+
+	// Verify stored ValidatedMFAChallenge.
+	gotChallenge, err := authServer.Auth().MFAService.GetValidatedMFAChallenge(
+		t.Context(),
+		user.GetName(),
+		challengeResp.GetMfaChallenge().GetName(),
+	)
+	require.NoError(t, err)
+
+	wantedChallenge := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: "v1",
+		Metadata: &types.Metadata{
+			Name: challengeResp.GetMfaChallenge().GetName(),
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+			SourceCluster: "test-cluster",
+			TargetCluster: "test-cluster",
+		},
+	}
+
+	diff := cmp.Diff(
+		wantedChallenge,
+		gotChallenge,
+		cmp.FilterPath(
+			// Ignore expiration time in comparison.
+			func(p cmp.Path) bool {
+				return p.String() == "Metadata.Expires"
+			},
+			cmp.Ignore(),
+		),
+	)
+	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", user.GetName(), challengeResp.GetMfaChallenge().GetName(), diff)
 }
 
 func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
