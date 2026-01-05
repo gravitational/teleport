@@ -353,14 +353,14 @@ func (h *Handler) createDesktopConnection(
 	defer ws.Close()
 	ctx := r.Context()
 
-	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter
-	// - If 'tdpb' query param is present, then we'll need to send an upgrade message to the client,
-	//   then listen for a "CLIENT_HELLO" message (while discarding any TDP messages received).
+	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter.
+	// - If the 'tdpb' query parameter is present, then we'll need to send an upgrade message to the client
+	//   and listen for a client_hello message (while discarding any TDP messages received).
 	//   Note: We *always* upgrade the client connection to TDPB if possible.
 	// - Otherwise fall back to the "legacy" behavior
 	//
-	// After either receiving a CLIENT_HELLO or our initial TDP messages, we can dial the server which
-	// ALSO might speak TDP or TDPB. Unlike the client, the agent only speaks on or the other, so we'll
+	// After either receiving a client_hello or our initial TDP messages, we can dial the server which
+	// *also* might speak TDP or TDPB. Unlike the client, the agent only speaks one or the other so we'll
 	// translate on its behalf if needed.
 	clientProtocol, err := readClientProtocol(r)
 	if err != nil {
