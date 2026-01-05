@@ -37,6 +37,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |gcp|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
 |github|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
 |gitlab|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
+|integration|string|Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.|
 |join_method|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
 |kubernetes|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
 |oracle|[object](#specoracle)|Oracle allows the configuration of options specific to the "oracle" join method.|
