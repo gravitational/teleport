@@ -493,17 +493,24 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case AutoUpdateVersionDeleteEvent:
 		e = &events.AutoUpdateVersionDelete{}
 
+	case AutoUpdateAgentRolloutTriggerEvent:
+		e = &events.AutoUpdateAgentRolloutTrigger{}
+	case AutoUpdateAgentRolloutForceDoneEvent:
+		e = &events.AutoUpdateAgentRolloutForceDone{}
+	case AutoUpdateAgentRolloutRollbackEvent:
+		e = &events.AutoUpdateAgentRolloutRollback{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
+
 	case WorkloadIdentityCreateEvent:
 		e = &events.WorkloadIdentityCreate{}
 	case WorkloadIdentityUpdateEvent:
 		e = &events.WorkloadIdentityUpdate{}
 	case WorkloadIdentityDeleteEvent:
 		e = &events.WorkloadIdentityDelete{}
-
-	case ContactCreateEvent:
-		e = &events.ContactCreate{}
-	case ContactDeleteEvent:
-		e = &events.ContactDelete{}
 
 	case WorkloadIdentityX509RevocationCreateEvent:
 		e = &events.WorkloadIdentityX509RevocationCreate{}
