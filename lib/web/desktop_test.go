@@ -33,14 +33,17 @@ const (
 )
 
 func newWebsocketConn(t *testing.T) (*websocket.Conn, *websocket.Conn) {
-	var serverConn *websocket.Conn
+	serverConn := make(chan *websocket.Conn)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
+		defer close(serverConn)
 		u := websocket.Upgrader{
 			ReadBufferSize:  websocketBufferSize,
 			WriteBufferSize: websocketBufferSize,
 		}
-		serverConn, _ = u.Upgrade(w, r, nil)
+		conn, err := u.Upgrade(w, r, nil)
+		assert.NoError(t, err)
+		serverConn <- conn
 	}))
 
 	clientconn, resp, err := websocket.DefaultDialer.Dial(strings.Replace(server.URL, "http", "ws", 1), nil)
@@ -49,7 +52,7 @@ func newWebsocketConn(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	require.NoError(t, err)
 
 	t.Cleanup(server.Close)
-	return clientconn, serverConn
+	return clientconn, <-serverConn
 }
 
 func TestProxyConnection(t *testing.T) {
