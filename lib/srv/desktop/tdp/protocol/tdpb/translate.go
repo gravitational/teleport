@@ -237,7 +237,7 @@ func TranslateToLegacy(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 	case *Ping:
 		id, err := uuid.FromBytes(m.Uuid)
 		if err != nil {
-			return nil, trace.Errorf("Cannot parse uuid bytes from ping", "error", err)
+			return nil, trace.WrapWithMessage(err, "Cannot parse uuid bytes from ping")
 		}
 		return []tdpRoot.Message{tdp.Ping{UUID: id}}, nil
 	default:

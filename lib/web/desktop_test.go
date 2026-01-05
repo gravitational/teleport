@@ -96,7 +96,7 @@ func TestProxyConnection(t *testing.T) {
 		gotRDP := false
 		gotMouse := false
 		gotLatency := !expectLatency
-		for !(gotRDP && gotMouse && gotLatency) {
+		for !gotRDP || !gotMouse || !gotLatency {
 			msg, err := conn.ReadMessage()
 			if err != nil {
 				return err
@@ -141,7 +141,7 @@ func TestProxyConnection(t *testing.T) {
 		gotRDP := false
 		gotMouse := false
 		gotLatency := !expectLatency
-		for !(gotRDP && gotMouse && gotLatency) {
+		for !gotRDP || !gotMouse || !gotLatency {
 			msg, err := conn.ReadMessage()
 			if err != nil {
 				return err
@@ -244,12 +244,12 @@ func TestProxyConnection(t *testing.T) {
 			_, _, err := clientOut.ReadMessage()
 			var wsErr *websocket.CloseError
 			require.ErrorAs(t, err, &wsErr)
-			require.Equal(t, wsErr.Code, websocket.CloseNormalClosure)
+			require.Equal(t, websocket.CloseNormalClosure, wsErr.Code)
 
 			wg.Wait()
 			require.ErrorIs(t, echoErr, io.EOF)
 			require.ErrorAs(t, proxyErr, &wsErr)
-			require.Equal(t, wsErr.Code, websocket.CloseNormalClosure)
+			require.Equal(t, websocket.CloseNormalClosure, wsErr.Code)
 			_ = serverOut.Close()
 		})
 	}
@@ -386,8 +386,8 @@ func TestTDPBMFAFlow(t *testing.T) {
 	defer clientConn.Close()
 	defer serverConn.Close()
 
-	witheld := []tdp.Message{}
-	promptFn := newTDPBMFAPrompt(serverConn, &witheld, slog.Default())("channel_id")
+	withheld := []tdp.Message{}
+	promptFn := newTDPBMFAPrompt(serverConn, &withheld, slog.Default())("channel_id")
 	requestMsg := &proto.MFAAuthenticateChallenge{
 		WebauthnChallenge: &webauthnpb.CredentialAssertion{
 			PublicKey: &webauthnpb.PublicKeyCredentialRequestOptions{
@@ -446,7 +446,7 @@ func TestTDPBMFAFlow(t *testing.T) {
 	// Response should match what was sent
 	assert.Equal(t, response.GetWebauthn(), res.response.GetWebauthn())
 	// Should still have that alert message in our withheld message slice
-	assert.Len(t, witheld, 1)
+	assert.Len(t, withheld, 1)
 }
 
 func expectTDPBMessage[T any](t *testing.T, c *tdp.Conn) T {

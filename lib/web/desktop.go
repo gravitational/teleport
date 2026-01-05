@@ -126,9 +126,9 @@ type tdpHandshaker struct {
 	keyboardLayout *legacy.ClientKeyboardLayout
 }
 
-func (t *tdpHandshaker) sendError(err error) error {
+func (t *tdpHandshaker) sendError(ctx context.Context, log *slog.Logger, err error) error {
 	if err == nil {
-		slog.Warn("SendError called with empty message")
+		log.WarnContext(ctx, "SendError called with empty message")
 		err = errors.New("")
 	}
 
@@ -214,9 +214,9 @@ type tdpbHandshaker struct {
 	hello      *tdpb.ClientHello
 }
 
-func (t *tdpbHandshaker) sendError(err error) error {
+func (t *tdpbHandshaker) sendError(ctx context.Context, log *slog.Logger, err error) error {
 	if err == nil {
-		slog.Warn("SendTDPError called with empty message")
+		log.WarnContext(ctx, "SendTDPError called with empty message")
 		err = errors.New("")
 	}
 
@@ -288,11 +288,11 @@ func sendAll(w io.Writer, messages []tdp.Message) error {
 }
 
 type handshaker interface {
-	sendError(err error) error
+	sendError(context.Context, *slog.Logger, error) error
 	getPromptBuilder(*slog.Logger) mfaPromptBuilder
-	performInitialHandshake(ctx context.Context, log *slog.Logger) error
-	forwardTDP(w io.Writer, username string, forwardKeyboardLayout bool) error
-	forwardTDPB(w io.Writer, username string, _ bool) error
+	performInitialHandshake(context.Context, *slog.Logger) error
+	forwardTDP(io.Writer, string, bool) error
+	forwardTDPB(io.Writer, string, bool) error
 }
 
 // creates a handshaker instance that interops with either TDP or TDPB clients
@@ -374,41 +374,41 @@ func (h *Handler) createDesktopConnection(
 	// Client Hello message.
 	err = handshaker.performInitialHandshake(ctx, log)
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	username, err := readUsername(r)
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Parse the private key of the user from the session context.
 	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
 	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, cluster, pk.Public(), desktopName, username)
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Issue certificate for the user/desktop combination and perform MFA ceremony if required.
 	certs, err := h.issueCerts(ctx, sctx, mfaRequired, certsReq, handshaker.getPromptBuilder(log))
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	// Create a TLS config for connecting to the Windows Desktop Service.
 	tlsConfig, err := h.createDesktopTLSConfig(ctx, sctx, desktopName, pk, certs)
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	log.DebugContext(ctx, "Attempting to connect to desktop")
@@ -423,14 +423,14 @@ func (h *Handler) createDesktopConnection(
 		ClusterName:    clusterName,
 	})
 	if err != nil {
-		return handshaker.sendError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
+		return handshaker.sendError(ctx, log, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	// ALPN informs us which dialect the server will be using.
@@ -452,7 +452,7 @@ func (h *Handler) createDesktopConnection(
 	log.InfoContext(ctx, "Connected to windows_desktop_service", "server_protocol", serverProtocol)
 
 	if err != nil {
-		return handshaker.sendError(err)
+		return handshaker.sendError(ctx, log, err)
 	}
 
 	// this blocks until the connection is closed
@@ -617,7 +617,7 @@ func (h *Handler) performSessionMFACeremony(
 			}, nil
 		},
 		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
-			return mfa.PromptFunc(promptConstructor(channelID))
+			return promptConstructor(channelID)
 		},
 	}
 
