@@ -169,7 +169,7 @@ func TestMovesCorruptedUploads(t *testing.T) {
 	b := make([]byte, 4096)
 	rand.Read(b)
 	require.NoError(t, os.WriteFile(uploadPath, b, 0o600))
-	require.NoError(t, uploader.writeSessionError(sessionID, errors.New("this is a corrupted upload")))
+	require.NoError(t, uploader.writeCorruptedError(sessionID, errors.New("this is a corrupted upload")))
 
 	// create a file with an invalid name (not a session ID)
 	badFile, err := os.Create(badFilePath)
@@ -519,18 +519,21 @@ func TestUploadMaxAttempts(t *testing.T) {
 				p.emitEvents(ctx, t, inEvents)
 				sessionFile := filepath.Join(p.scanDir, sid+".tar")
 				corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
+				abandonedSessionFile := filepath.Join(p.uploader.cfg.AbandonedDir, sid+".tar")
 				synctest.Wait()
 
 				time.Sleep(p.uploader.backoff.Duration())
 				synctest.Wait()
 				require.FileExists(t, sessionFile)
 				require.NoFileExists(t, corruptedSessionFile)
+				require.NoFileExists(t, abandonedSessionFile)
 
 				// Session should not be marked as corrupted after first attempt.
 				time.Sleep(p.uploader.backoff.Duration())
 				synctest.Wait()
 				require.FileExists(t, sessionFile)
 				require.NoFileExists(t, corruptedSessionFile)
+				require.NoFileExists(t, abandonedSessionFile)
 
 				// If the error allows retries, session should be marked as corrupted
 				// after upload attempts are exhausted.
@@ -538,10 +541,12 @@ func TestUploadMaxAttempts(t *testing.T) {
 				synctest.Wait()
 				if tc.expectMaxRetries {
 					require.NoFileExists(t, sessionFile)
-					require.FileExists(t, corruptedSessionFile)
+					require.NoFileExists(t, corruptedSessionFile)
+					require.FileExists(t, abandonedSessionFile)
 				} else {
 					require.FileExists(t, sessionFile)
 					require.NoFileExists(t, corruptedSessionFile)
+					require.NoFileExists(t, abandonedSessionFile)
 				}
 			})
 		})
@@ -570,7 +575,7 @@ func TestUploadCorruptSession(t *testing.T) {
 		// the error is the problem error
 		event := <-p.eventsC
 		require.Error(t, event.Error)
-		require.True(t, isSessionError(event.Error))
+		require.True(t, isCorruptedError(event.Error))
 
 		stats, err := p.uploader.Scan(ctx)
 		require.NoError(t, err)
@@ -877,7 +882,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 					t.Fatalf("Unexpected upload event")
 				}
 				require.Error(t, event.Error)
-				require.True(t, isSessionError(event.Error))
+				require.True(t, isCorruptedError(event.Error))
 				return
 			case <-ctx.Done():
 				t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
@@ -917,7 +922,7 @@ func TestUploadCorruptEncryptedRecording(t *testing.T) {
 		wrapUploaderFn := func(uploader events.EncryptedRecordingUploader) events.EncryptedRecordingUploader {
 			return encryptedUploaderFn(func(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
 				if sessionID == corruptSessionID {
-					return sessionError{errors.New("corrupted session")}
+					return corruptedError{errors.New("corrupted session")}
 				}
 
 				if sessionID == failedSessionID {
@@ -1030,6 +1035,7 @@ type uploaderPack struct {
 func newUploaderPack(t *testing.T, cfg uploaderPackConfig) uploaderPack {
 	scanDir := t.TempDir()
 	corruptedDir := t.TempDir()
+	abandonedDir := t.TempDir()
 
 	clock := cfg.clock
 	if clock == nil {
@@ -1072,6 +1078,7 @@ func newUploaderPack(t *testing.T, cfg uploaderPackConfig) uploaderPack {
 	uploaderCfg := UploaderConfig{
 		ScanDir:                            pack.scanDir,
 		CorruptedDir:                       corruptedDir,
+		AbandonedDir:                       abandonedDir,
 		InitialScanDelay:                   pack.initialScanDelay,
 		ScanPeriod:                         pack.scanPeriod,
 		Streamer:                           pack.protoStreamer,

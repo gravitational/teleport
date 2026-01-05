@@ -50,6 +50,9 @@ type UploaderConfig struct {
 	ScanDir string
 	// CorruptedDir is the directory to store corrupted uploads in.
 	CorruptedDir string
+	// AbandonedDir is the directory to store abandoned uploads in (uploads that
+	// could not be completed, but not due to corruption).
+	AbandonedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
 	// InitialScanDelay is how long to wait before performing the initial scan.
@@ -92,6 +95,9 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	if cfg.CorruptedDir == "" {
 		return trace.BadParameter("missing parameter CorruptedDir")
 	}
+	if cfg.AbandonedDir == "" {
+		return trace.BadParameter("missing parameter AbandonedDir")
+	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
 	}
@@ -120,6 +126,9 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	if err := os.MkdirAll(cfg.CorruptedDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if err := os.MkdirAll(cfg.AbandonedDir, teleport.SharedDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
@@ -184,19 +193,34 @@ func (u *Uploader) Close() {
 	u.wg.Wait()
 }
 
-func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
-	if sessionID == "" {
-		return trace.BadParameter("missing session ID")
+func (u *Uploader) writeCorruptedError(sessionID session.ID, err error) error {
+	return trace.Wrap(u.writeSessionError(u.corruptedErrorFilePath(sessionID), err))
+}
+
+func (u *Uploader) writeAbandonedError(sessionID session.ID, err error) error {
+	return trace.Wrap(u.writeSessionError(u.abandonedErrorFilePath(sessionID), err))
+}
+
+func (u *Uploader) writeSessionError(path string, err error) error {
+	if path == "" {
+		return trace.BadParameter("missing path")
 	}
-	path := u.sessionErrorFilePath(sessionID)
 	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0o600))
 }
 
-func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
-	if sessionID == "" {
-		return false, trace.BadParameter("missing session ID")
+func (u *Uploader) checkCorruptedError(sessionID session.ID) (bool, error) {
+	return u.checkSessionError(u.corruptedErrorFilePath(sessionID))
+}
+
+func (u *Uploader) checkAbandonedError(sessionID session.ID) (bool, error) {
+	return u.checkSessionError(u.abandonedErrorFilePath(sessionID))
+}
+
+func (u *Uploader) checkSessionError(path string) (bool, error) {
+	if path == "" {
+		return false, trace.BadParameter("missing path")
 	}
-	_, err := os.Stat(u.sessionErrorFilePath(sessionID))
+	_, err := os.Stat(path)
 	if err != nil {
 		err = trace.ConvertSystemError(err)
 		if trace.IsNotFound(err) {
@@ -239,10 +263,16 @@ func (u *Uploader) Serve(ctx context.Context) error {
 			case event.Error == nil:
 				delete(u.uploadAttempts, event.SessionID)
 				u.backoff.ResetToDelay()
-			case isSessionError(event.Error) || (u.cfg.MaxUploadAttempts != 0 && u.uploadAttempts[event.SessionID] >= u.cfg.MaxUploadAttempts):
+			case isCorruptedError(event.Error):
 				delete(u.uploadAttempts, event.SessionID)
 				u.log.WarnContext(ctx, "Failed to read session recording, will skip future uploads.", "session_id", event.SessionID)
-				if err := u.writeSessionError(session.ID(event.SessionID), event.Error); err != nil {
+				if err := u.writeCorruptedError(session.ID(event.SessionID), event.Error); err != nil {
+					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
+				}
+			case u.cfg.MaxUploadAttempts != 0 && u.uploadAttempts[event.SessionID] >= u.cfg.MaxUploadAttempts:
+				delete(u.uploadAttempts, event.SessionID)
+				u.log.WarnContext(ctx, fmt.Sprintf("Failed to upload session after %d attempts, will skip future uploads.", u.uploadAttempts[event.SessionID]), "session_id", event.SessionID)
+				if err := u.writeAbandonedError(session.ID(event.SessionID), event.Error); err != nil {
 					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
 				}
 			default:
@@ -314,7 +344,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 				u.log.ErrorContext(ctx, "Skipped encrypted session recording due to missing uploader", "recording", fi.Name())
 				continue
 			}
-			if isSessionError(err) || trace.IsBadParameter(err) {
+			if isCorruptedError(err) || trace.IsBadParameter(err) {
 				u.log.WarnContext(ctx, "Skipped session recording.", "recording", fi.Name(), "error", err)
 				stats.Corrupted++
 				continue
@@ -334,9 +364,14 @@ func (u *Uploader) checkpointFilePath(sid session.ID) string {
 	return filepath.Join(u.cfg.ScanDir, sid.String()+checkpointExt)
 }
 
-// sessionErrorFilePath returns a path to checkpoint file for a session
-func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
+// corruptedErrorFilePath returns a path to an error file for corrupted sessions.
+func (u *Uploader) corruptedErrorFilePath(sid session.ID) string {
 	return filepath.Join(u.cfg.ScanDir, sid.String()+errorExt)
+}
+
+// abandonedErrorFilePath returns a path to an error file for abandoned session uploads.
+func (u *Uploader) abandonedErrorFilePath(sid session.ID) string {
+	return filepath.Join(u.cfg.ScanDir, sid.String()+abandonedErrorExt)
 }
 
 type upload struct {
@@ -474,7 +509,7 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 		// read the file itself should be treated as a corrupted recording
 		yield := func(b []byte, err error) bool {
 			if err != nil {
-				return yieldFn(b, sessionError{err})
+				return yieldFn(b, corruptedError{err})
 			}
 			return yieldFn(b, nil)
 		}
@@ -535,29 +570,39 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 	sessionFilePath := filepath.Join(u.cfg.ScanDir, fileName)
 	// Corrupted session records can clog the uploader
 	// that will indefinitely try to upload them.
-	isSessionError, err := u.checkSessionError(sessionID)
+	var errorDir string
+	isCorruptedError, err := u.checkCorruptedError(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if isSessionError {
-		errorFilePath := u.sessionErrorFilePath(sessionID)
+	isAbandonedErr, err := u.checkAbandonedError(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isCorruptedError {
+		errorDir = u.cfg.CorruptedDir
+	} else if isAbandonedErr {
+		errorDir = u.cfg.AbandonedDir
+	}
+	if errorDir != "" {
+		errorFilePath := u.corruptedErrorFilePath(sessionID)
 		// move the corrupted recording and the error marker to a separate directory
 		// to prevent the uploader from spinning on the same corrupted upload
 		var moveErrs []error
-		if err := os.Rename(sessionFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(sessionFilePath))); err != nil {
-			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, u.cfg.CorruptedDir))
+		if err := os.Rename(sessionFilePath, filepath.Join(errorDir, filepath.Base(sessionFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, errorDir))
 		}
-		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(errorFilePath))); err != nil {
-			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
+		if err := os.Rename(errorFilePath, filepath.Join(errorDir, filepath.Base(errorFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, errorDir))
 		}
 		if len(moveErrs) > 0 {
 			log.ErrorContext(ctx, "Failed to move corrupted recording", "error", trace.NewAggregate(moveErrs...))
 		}
 
-		return sessionError{
+		return corruptedError{
 			err: trace.BadParameter(
 				"session recording %v; check the %v directory for artifacts",
-				sessionID, u.cfg.CorruptedDir),
+				sessionID, errorDir),
 		}
 	}
 
@@ -661,7 +706,7 @@ func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 		if errors.Is(err, io.EOF) {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(sessionError{err})
+		return trace.Wrap(corruptedError{err})
 	}
 
 	if header.Flags&events.ProtoStreamFlagEncrypted == 0 {
@@ -798,7 +843,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return sessionError{err: trace.Wrap(err)}
+			return corruptedError{err: trace.Wrap(err)}
 		}
 		// skip events that have been already submitted
 		if status != nil && event.GetIndex() <= status.LastEventIndex {
@@ -888,18 +933,18 @@ func (u *Uploader) emitEvent(e events.UploadEvent) {
 	}
 }
 
-func isSessionError(err error) bool {
-	var sessionError sessionError
-	return errors.As(trace.Unwrap(err), &sessionError)
+func isCorruptedError(err error) bool {
+	var corruptedError corruptedError
+	return errors.As(trace.Unwrap(err), &corruptedError)
 }
 
-// sessionError highlights problems with session
+// corruptedError highlights problems with session
 // playback, corrupted files or incompatible disk format
-type sessionError struct {
+type corruptedError struct {
 	err error
 }
 
-func (s sessionError) Error() string {
+func (s corruptedError) Error() string {
 	return fmt.Sprintf(
 		"session file could be corrupted or is using unsupported format: %v", s.err.Error())
 }
