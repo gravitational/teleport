@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
@@ -104,6 +105,7 @@ type AuthService interface {
 	GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator
 	GetSpaceliftIDTokenValidator() spacelift.Validator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
+	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
 }
 
@@ -199,7 +201,6 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 // token expires).
 //
 // Only secret tokens are currently supported.
-// TODO(nklaassen): support all join methods.
 func (s *Server) Join(stream messages.ServerStream) (err error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -296,6 +297,8 @@ func (s *Server) handleJoinMethod(
 	joinMethod types.JoinMethod,
 ) (messages.Response, error) {
 	switch joinMethod {
+	case types.JoinMethodAzure:
+		return s.handleAzureJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodAzureDevops:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateAzureDevopsToken)
 	case types.JoinMethodBitbucket:
@@ -322,15 +325,14 @@ func (s *Server) handleJoinMethod(
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodSpacelift:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
-	case types.JoinMethodTPM:
-		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTerraformCloud:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
 	case types.JoinMethodToken:
 		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodTPM:
+		return s.handleTPMJoin(stream, authCtx, clientInit, token)
 	default:
-		// TODO(nklaassen): implement checks for all join methods.
-		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
+		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
 	}
 }
 

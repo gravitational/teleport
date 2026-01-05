@@ -154,6 +154,8 @@ type Database interface {
 	// IsAutoUsersEnabled returns true if the database has auto user
 	// provisioning enabled.
 	IsAutoUsersEnabled() bool
+	// IsEqual determines if two database resources are equivalent to one another.
+	IsEqual(Database) bool
 }
 
 // NewDatabaseV3 creates a new database resource.

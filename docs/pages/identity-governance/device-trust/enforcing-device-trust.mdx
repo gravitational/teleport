@@ -1,11 +1,13 @@
 ---
 title: Enforce Device Trust
+sidebar_label: Enforcement
 description: Learn how to enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 tags:
  - conceptual
  - identity-governance
  - resiliency
+enterprise: Identity Governance
 ---
 
 <Admonition type="note" title="Supported Resources">
@@ -139,7 +141,7 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 
 <Admonition type="tip" title="Trusted Clusters">
 It is possible to use [trusted
-clusters](../../zero-trust-access/management/admin/trustedclusters.mdx) to limit the impact of
+clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx) to limit the impact of
 device mode `required`. A leaf cluster in mode `required` will enforce access to
 all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce Device Trust on resources in

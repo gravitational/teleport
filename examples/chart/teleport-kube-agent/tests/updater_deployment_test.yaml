@@ -103,7 +103,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--update-group=stable/cloud"
+          content: "--update-group=default"
   - it: uses the update group when set
     set:
       proxyAddr: proxy.teleport.example.com:443
@@ -242,7 +242,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
   - it: sets the updater container extraEnv
     values:
       - ../.lint/updater.yaml

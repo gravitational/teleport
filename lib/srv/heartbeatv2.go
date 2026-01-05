@@ -252,11 +252,6 @@ type HeartbeatV2 struct {
 	// all fields below this point are local variables for the
 	// background goroutine and not safe for access from anywhere
 	// else.
-
-	announceFailed error
-	fallbackFailed error
-	icsUnavailable error
-
 	announce      *interval.Interval
 	poll          *interval.Interval
 	degradedCheck *interval.Interval
@@ -317,17 +312,31 @@ func (c *heartbeatV2Config) SetDefaults() {
 	}
 }
 
-// noSenderErr is used to periodically trigger "degraded state" events when the control
+// noSenderError is used to periodically trigger "degraded state" events when the control
 // stream has no sender available.
-var noSenderErr = trace.Errorf("no control stream sender available")
+type noSenderError struct{}
+
+func (noSenderError) Error() string {
+	return "no control stream sender available"
+}
+
+// announceFailedError is used to periodically trigger "degraded state" events when announcing
+// fails.
+type announceFailedError struct{}
+
+func (e announceFailedError) Error() string {
+	return "control stream heartbeat failed"
+}
+
+// fallbackFailedError is used to periodically trigger "degraded state" events when the
+// fallback upsert failed
+type fallbackFailedError struct{}
+
+func (e fallbackFailedError) Error() string {
+	return "upsert fallback heartbeat failed"
+}
 
 func (h *HeartbeatV2) run() {
-	// note: these errors are never actually displayed, but onHeartbeat expects an error,
-	// so we just allocate something reasonably descriptive once.
-	h.announceFailed = trace.Errorf("control stream heartbeat failed (variant=%T)", h.inner)
-	h.fallbackFailed = trace.Errorf("upsert fallback heartbeat failed (variant=%T)", h.inner)
-	h.icsUnavailable = trace.Errorf("ics unavailable for heartbeat (variant=%T)", h.inner)
-
 	// set up interval for forced announcement (i.e. heartbeat even if state is unchanged).
 	h.announce = interval.New(interval.Config{
 		FirstDuration: retryutils.HalfJitter(h.announceInterval),
@@ -382,7 +391,7 @@ func (h *HeartbeatV2) run() {
 						h.testEvent(hbv2FallbackErr)
 						// announce failed, enter a backoff state.
 						h.fallbackBackoffTime = time.Now().Add(retryutils.SeventhJitter(h.fallbackBackoff))
-						h.onHeartbeat(h.fallbackFailed)
+						h.onHeartbeat(fallbackFailedError{})
 					}
 				} else {
 					h.testEvent(hbv2FallbackBackoff)
@@ -415,7 +424,7 @@ func (h *HeartbeatV2) run() {
 				// if we don't have fallback and/or aren't planning to hit the fallback
 				// soon, then we need to emit a heartbeat error in order to inform the
 				// rest of teleport that we are in a degraded state.
-				h.onHeartbeat(noSenderErr)
+				h.onHeartbeat(noSenderError{})
 			}
 		case ch := <-h.testAnnounce:
 			h.shouldAnnounce = true
@@ -469,7 +478,7 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 				h.announceWaiters = nil
 			} else {
 				h.testEvent(hbv2AnnounceErr)
-				h.onHeartbeat(h.announceFailed)
+				h.onHeartbeat(announceFailedError{})
 			}
 		}
 

@@ -32,32 +32,73 @@ message UserLoginState {
 
 // Spec is the specification for a user login state.
 message Spec {
-  // roles are the user roles attached to the user.
+  // roles are the user roles attached to the user. Basically, [roles] = [original_roles] +
+  // [access_list_roles].
   repeated string roles = 1;
 
-  // traits are the traits attached to the user.
+  // traits are the traits attached to the user. Basically, [roles] = [original_traits] +
+  // [access_list_traits].
   repeated teleport.trait.v1.Trait traits = 2;
 
   // user_type is the type of user this state represents.
   string user_type = 3;
 
-  // original_roles are the user roles that are part of the user's static definition. These roles are
-  // not affected by access granted by access lists and are obtained prior to granting access list access.
+  // original_roles are the user roles that are part of the user's static definition. These roles
+  // are not affected by access granted by access lists and are obtained prior to granting access
+  // list access. Basically, [original_roles] = [roles] - [access_list_roles].
   repeated string original_roles = 4;
 
-  // original_traits are the user traits that are part of the user's static definition. These traits are
-  // not affected by access granted by access lists and are obtained prior to granting access list access.
+  // original_traits are the user traits that are part of the user's static definition. These
+  // traits are not affected by access granted by access lists and are obtained prior to granting
+  // access list access. Basically, [original_traits] = [traits] - [access_list_traits].
   repeated teleport.trait.v1.Trait original_traits = 5;
 
   // GitHubIdentity is the external identity attached to this user state.
   ExternalIdentity git_hub_identity = 6;
+
+  // saml_identities are the identities created from the SAML connectors used to log in by this
+  // user name. They are useful for RBAC calculation when there is a user with same username form
+  // multiple SSO connectors, i.e. having multiple SSO indentities.
+  //
+  // NOTE: There is no mechanism to clean those identities. If the the user is deleted, the
+  // user_login_state and it's saml_identities will not be deleted. Or even if the user still
+  // exists, but it's SAML identity expires it isn't cleared from the user_login_state. This means
+  // the information stored here can be used only as long as there is a background sync running and
+  // making sure the user's info is up-to-date. E.g. Okta assignment creator is using this
+  // information, but it is running only when Okta user sync is active and periodically updates the
+  // user which in turn updates the user_login_state.
+  //
+  // NOTE2: This field isn't currently used. It's introduced so we can resolve the
+  // https://github.com/gravitational/teleport.e/issues/6723 issue in stages.
+  // The STAGE 1 is to introduce this field and give enough time to get existing Teleport
+  // installations to get updated and populate this field.
+  // The STAGE 2 is in the v19 release (or maybe even v20) to deploy the actual fix PR
+  // (https://github.com/gravitational/teleport.e/pull/7168) reading this field and calculating
+  // access to Okta resources. See more details in the description of the fix PR.
+  //
+  // TODO(kopiczko) v19: consider proceeding with the STAGE 2 described above.
+  repeated ExternalIdentity saml_identities = 7;
+
+  // access_list_roles are roles granted to this user by the Access Lists
+  // membership/ownership.  Basically, [access_list_roles] = [roles] - [original_roles].
+  repeated string access_list_roles = 8;
+
+  // access_list_traits are traits granted to this user by the Access Lists membership/ownership.
+  // Basically, [access_list_traits] = [traits] - [original_traits].
+  repeated teleport.trait.v1.Trait access_list_traits = 9;
 }
 
 // ExternalIdentity defines an external identity attached to this user state.
 message ExternalIdentity {
-  // UserId is the unique identifier of the external identity such as GitHub user
+  // UserID is the unique identifier of the external identity such as GitHub user
   // ID.
   string user_id = 1;
   // Username is the username of the external identity.
   string username = 2;
+  // ConnectorID is the connector this identity was created with. It's empty for the local user.
+  string connector_id = 3;
+  // GrantedRoles specific for this identity. E.g.: from connector attributes mapping.
+  repeated string granted_roles = 4;
+  // GrantedTraits specific for this identity. E.g.: from connector roles attributes mapping.
+  repeated teleport.trait.v1.Trait granted_traits = 5;
 }

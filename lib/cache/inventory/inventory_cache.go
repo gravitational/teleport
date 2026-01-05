@@ -19,11 +19,19 @@ package inventory
 import (
 	"context"
 	"encoding/base32"
+	"fmt"
 	"log/slog"
+	"maps"
 	"math"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/charlievieth/strcase"
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
@@ -35,8 +43,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 const (
@@ -45,6 +56,12 @@ const (
 
 	// botInstancePrefix is the backend prefix for bot instances.
 	botInstancePrefix = "bot_instance"
+)
+
+var (
+	// unifiedExpressionParser is a cached unified expression parser
+	unifiedExpressionParser     *typical.Parser[*unifiedFilterEnvironment, bool]
+	unifiedExpressionParserOnce sync.Once
 )
 
 // instanceTypeToKind converts an InstanceType enum to a resource kind string.
@@ -59,6 +76,7 @@ func instanceTypeToKind(instanceType inventoryv1.InstanceType) (string, error) {
 	}
 }
 
+// bytestring contains binary data (encoded keys) and is not intended to be printable.
 type bytestring = string
 
 type inventoryIndex string
@@ -72,6 +90,10 @@ const (
 	// inventoryTypeIndex sorts instances by type, display name
 	// and unique ID.
 	inventoryTypeIndex inventoryIndex = "type"
+
+	// inventoryVersionIndex sorts instances by version, display name
+	// and unique ID.
+	inventoryVersionIndex inventoryIndex = "version"
 
 	// inventoryIDIndex allows lookup by instance ID.
 	// Uses ordered.Encode(bot name, instance ID, kind) where the bot name is "" for regular instances
@@ -140,6 +162,79 @@ func (u *inventoryInstance) getTypeKey() bytestring {
 	}
 
 	return bytestring(ordered.Encode(u.getKind(), name, id))
+}
+
+// getVersionKey returns the composite key for sorting by version using semver ordering.
+func (u *inventoryInstance) getVersionKey() bytestring {
+	var versionStr, name, id string
+	if u.isInstance() {
+		versionStr = u.instance.Spec.Version
+		name = u.instance.GetHostname()
+		id = u.instance.GetName()
+	} else {
+		if u.bot.Status != nil && len(u.bot.Status.LatestHeartbeats) > 0 {
+			versionStr = u.bot.Status.LatestHeartbeats[0].Version
+		}
+		name = u.bot.GetSpec().GetBotName()
+		id = u.bot.GetSpec().GetInstanceId()
+	}
+
+	// If version is empty, treat it as 0.0.0
+	if versionStr == "" {
+		return bytestring(ordered.Encode(uint64(0), uint64(0), uint64(0), ordered.Inf, name, id))
+	}
+
+	// Strip "v" prefix if it's there, eg. v1.2.3 -> 1.2.3
+	versionStr = strings.TrimPrefix(versionStr, "v")
+
+	// Parse as semver
+	v, err := semver.NewVersion(versionStr)
+	if err != nil {
+		// Invalid semvers sort after all other versions
+		return bytestring(ordered.Encode(ordered.Inf, versionStr, name, id))
+	}
+
+	// For releases (ie. anything not a pre-release), we use ordered.Inf before the metadata to ensure it sorts after all prereleases
+	if v.PreRelease == "" {
+		return bytestring(ordered.Encode(v.Major, v.Minor, v.Patch, ordered.Inf, v.Metadata, name, id))
+	}
+
+	// For pre-releases
+
+	parts := strings.Split(string(v.PreRelease), ".")
+
+	// Pre-allocate the slice
+	// The 3 is for major, minor, patch
+	// The len(parts)*2 is for pre-release parts (each one needs 2 for tag+value)
+	// The 4 is for the sentinel value, metadata, name, id
+	encodeArgs := make([]any, 0, 3+len(parts)*2+4)
+	encodeArgs = append(encodeArgs, v.Major, v.Minor, v.Patch)
+
+	// We encode each pre-release part with a tag to ensure correct ordering:
+	// We use 0 for numeric parts (so that they always sort before tag 1)
+	// We use 1 for alphanumeric parts (so that they always sort after tag 0, but before ordered.Inf which we use for releases)
+	for _, part := range parts {
+		// Check if the part is numeric or alphanumeric
+		if num, err := strconv.ParseUint(part, 10, 64); err == nil {
+			encodeArgs = append(encodeArgs, uint64(0), num)
+		} else {
+			encodeArgs = append(encodeArgs, uint64(1), part)
+		}
+	}
+
+	// We use "" as sentinel value to mark the "end" of pre-releases
+	// This way we can make sure that for example, "alpha" < "alpha.1"
+	// "alpha" would be [..., 1, "alpha", ""] and "alpha.1" would be [..., 1, "alpha", 0, 1, ""]
+	// Since it'll compare "" < 0, "alpha" will come first
+	encodeArgs = append(encodeArgs, "")
+
+	// Metadata eg. "+build123" doesn't affect semver ordering, but we add it to ensure that
+	// two versions that differ only in metadata have a consistent order
+	encodeArgs = append(encodeArgs, v.Metadata)
+
+	encodeArgs = append(encodeArgs, name, id)
+
+	return bytestring(ordered.Encode(encodeArgs...))
 }
 
 // getIDKey returns the key for lookup by instance ID.
@@ -225,6 +320,7 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 			Indexes: map[inventoryIndex]func(*inventoryInstance) string{
 				inventoryAlphabeticalIndex: (*inventoryInstance).getAlphabeticalKey,
 				inventoryTypeIndex:         (*inventoryInstance).getTypeKey,
+				inventoryVersionIndex:      (*inventoryInstance).getVersionKey,
 				inventoryIDIndex:           (*inventoryInstance).getIDKey,
 			},
 		}),
@@ -340,6 +436,7 @@ func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
+	ic.cfg.Logger.InfoContext(ctx, "Inventory cache init succeeded")
 
 	// This runs infinitely until the context is canceled.
 	ic.processEvents(ctx, watcher)
@@ -532,10 +629,38 @@ func (ic *InventoryCache) processDeleteEvent(event types.Event) error {
 	return nil
 }
 
+// parsedFilter holds the expression filters.
+type parsedFilter struct {
+	filter                    *inventoryv1.ListUnifiedInstancesFilter
+	unifiedInstanceExpression typical.Expression[*unifiedFilterEnvironment, bool]
+}
+
+// parseFilter returns a parsedFilter given a ListUnifiedInstancesFilter.
+func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFilter) (*parsedFilter, error) {
+	pf := &parsedFilter{
+		filter: filter,
+	}
+
+	if filter == nil || filter.PredicateExpression == "" {
+		return pf, nil
+	}
+
+	parser := getUnifiedExpressionParser()
+
+	expr, err := parser.Parse(filter.PredicateExpression)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pf.unifiedInstanceExpression = expr
+
+	return pf, nil
+}
+
 // ListUnifiedInstances returns a page of instances and bot_instances. This API will refuse any requests when the cache is unhealthy or not yet
 // fully initialized.
 func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
 	if !ic.IsHealthy() {
+		// This returns HTTP error 503. Keep in sync with web/packages/teleport/src/Instances/Instances.tsx (isCacheInitializing)
 		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy")
 	}
 
@@ -553,36 +678,69 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 		startKey = string(decoded)
 	}
 
+	parsed, err := ic.parseFilter(req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var items []*inventoryv1.UnifiedInstanceItem
 	var nextPageToken string
 
-	index := inventoryAlphabeticalIndex
-	var endKey string
-	// Determine if we should use the type index.
-	useTypeIndex := req.GetFilter() != nil && len(req.GetFilter().GetInstanceTypes()) == 1
-	if useTypeIndex {
+	var index inventoryIndex
+
+	switch req.GetSort() {
+	case inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_TYPE:
 		index = inventoryTypeIndex
-		if req.PageToken == "" {
-			kind, err := instanceTypeToKind(req.GetFilter().GetInstanceTypes()[0])
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			startKey = string(ordered.Encode(kind))
-			endKey = string(ordered.Encode(kind, ordered.Inf))
-		}
+	case inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION:
+		index = inventoryVersionIndex
+	case inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_NAME:
+		index = inventoryAlphabeticalIndex
+	default:
+		index = inventoryAlphabeticalIndex
 	}
 
-	for sf := range ic.cache.Ascend(index, startKey, endKey) {
-		if !ic.matchesFilter(sf, req.GetFilter()) {
+	var endKey string
+
+	// Determine sort order (ascending vs descending)
+	isDesc := req.GetOrder() == inventoryv1.SortOrder_SORT_ORDER_DESCENDING
+
+	// For type index with a single instance type filter, set bounds
+	if index == inventoryTypeIndex && req.GetFilter() != nil && len(req.GetFilter().GetInstanceTypes()) == 1 {
+		kind, err := instanceTypeToKind(req.GetFilter().GetInstanceTypes()[0])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		start := string(ordered.Encode(kind))
+		end := string(ordered.Encode(kind, ordered.Inf))
+
+		// If we're going in descending order, the start key becomes the end key, and vice versa
+		if isDesc {
+			start, end = end, start
+		}
+
+		if req.PageToken == "" {
+			startKey = start
+		}
+		endKey = end
+	}
+
+	// Iterate over items in the cache
+	iterator := ic.cache.Ascend
+	if isDesc {
+		iterator = ic.cache.Descend
+	}
+
+	for sf := range iterator(index, startKey, endKey) {
+		if !ic.matchesFilter(sf, parsed) {
 			continue
 		}
 
 		if len(items) == int(req.PageSize) {
-			var rawKey string
-			if index == inventoryAlphabeticalIndex {
-				rawKey = sf.getAlphabeticalKey()
-			} else {
-				rawKey = sf.getTypeKey()
+			// Get the key for the current item based on the index
+			rawKey, err := ic.getKeyForIndex(sf, index)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 			// Encode the next page token to base32hex
 			nextPageToken = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(rawKey))
@@ -600,32 +758,323 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 }
 
 // matchesFilter checks if a unified instance matches the filter criteria.
-func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, filter *inventoryv1.ListUnifiedInstancesFilter) bool {
-	// If no filter is provided, match all instances
-	if filter == nil || len(filter.InstanceTypes) == 0 {
+func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFilter) bool {
+	if parsed == nil || parsed.filter == nil {
 		return true
 	}
 
-	instanceKind := ui.getKind()
-	matched := false
+	filter := parsed.filter
+
+	// Filter by instance types
+	isInstance := ui.isInstance()
+	matchesType := false
 	for _, instanceType := range filter.InstanceTypes {
-		kind, err := instanceTypeToKind(instanceType)
-		if err != nil {
-			// Skip unknown instance types
-			continue
+		if instanceType == inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE && isInstance {
+			matchesType = true
+			break
 		}
-		if kind == instanceKind {
-			matched = true
+		if instanceType == inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE && !isInstance {
+			matchesType = true
 			break
 		}
 	}
-
-	if !matched {
+	if len(filter.InstanceTypes) > 0 && !matchesType {
 		return false
 	}
 
-	// TODO(rudream): implement additional filtering criteria (search, services, etc.)
+	// Basic search
+	if filter.Search != "" {
+		var searchableText string
+		if ui.isInstance() {
+			// For instances, search by hostname or instance ID
+			searchableText = ui.instance.Spec.Hostname + " " + ui.instance.GetName()
+		} else {
+			// For bot instances, search by bot name or instance ID
+			searchableText = ui.bot.Spec.BotName + " " + ui.bot.GetMetadata().GetName()
+		}
+
+		searchTerms := strings.Fields(filter.Search)
+		matchedAll := true
+		for _, term := range searchTerms {
+			if !strcase.Contains(searchableText, term) {
+				matchedAll = false
+				break
+			}
+		}
+
+		if !matchedAll {
+			return false
+		}
+	}
+
+	// Filter by services (only applies to instances)
+	if len(filter.Services) > 0 {
+		// Bot instances don't have services, so exclude them when the services filter is active
+		if !ui.isInstance() {
+			return false
+		}
+		filterServices := set.New(filter.Services...)
+		hasService := false
+		for _, svc := range ui.instance.Spec.Services {
+			if filterServices.Contains(string(svc)) {
+				hasService = true
+				break
+			}
+		}
+		if !hasService {
+			return false
+		}
+	}
+
+	// Filter by updater groups
+	if len(filter.UpdaterGroups) > 0 {
+		var updateGroup string
+		if ui.isInstance() {
+			if ui.instance.Spec.UpdaterInfo != nil {
+				updateGroup = ui.instance.Spec.UpdaterInfo.UpdateGroup
+			}
+		} else {
+			if len(ui.bot.Status.LatestHeartbeats) > 0 && ui.bot.Status.LatestHeartbeats[0].UpdaterInfo != nil {
+				updateGroup = ui.bot.Status.LatestHeartbeats[0].UpdaterInfo.UpdateGroup
+			}
+		}
+		if !slices.Contains(filter.UpdaterGroups, updateGroup) {
+			return false
+		}
+	}
+
+	// Filter by upgraders
+	if len(filter.Upgraders) > 0 {
+		var upgrader string
+		if ui.isInstance() {
+			upgrader = ui.instance.Spec.ExternalUpgrader
+		} else {
+			if len(ui.bot.Status.LatestHeartbeats) > 0 {
+				upgrader = ui.bot.Status.LatestHeartbeats[0].ExternalUpdater
+			}
+		}
+		if !slices.Contains(filter.Upgraders, upgrader) {
+			return false
+		}
+	}
+
+	// Filter with predicate language query
+	if filter.PredicateExpression != "" {
+		match, err := ic.matchSearchKeywords(ui, parsed)
+		if err != nil {
+			ic.cfg.Logger.DebugContext(context.Background(), "Failed to filter instances using predicate expression", "error", err)
+			return false
+		}
+		if !match {
+			return false
+		}
+	}
+
 	return true
+}
+
+// matchSearchKeywords evaluates predicate language expressions against a unified instance.
+func (ic *InventoryCache) matchSearchKeywords(ui *inventoryInstance, parsed *parsedFilter) (bool, error) {
+	if parsed.unifiedInstanceExpression == nil {
+		return true, nil
+	}
+
+	env := &unifiedFilterEnvironment{
+		ui: ui,
+	}
+
+	match, err := parsed.unifiedInstanceExpression.Evaluate(env)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return match, nil
+}
+
+// unifiedFilterEnvironment is the filter environment for evaluating expressions on both instances and bot instances.
+type unifiedFilterEnvironment struct {
+	ui *inventoryInstance
+}
+
+func (e *unifiedFilterEnvironment) GetVersion() string {
+	if e == nil || e.ui == nil {
+		return ""
+	}
+	if e.ui.isInstance() {
+		return e.ui.instance.Spec.Version
+	}
+	// For bot instances, get version from latest heartbeat
+	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
+		return e.ui.bot.Status.LatestHeartbeats[0].Version
+	}
+	return ""
+}
+
+func (e *unifiedFilterEnvironment) GetHostname() string {
+	if e == nil || e.ui == nil {
+		return ""
+	}
+	if e.ui.isInstance() {
+		return e.ui.instance.Spec.Hostname
+	}
+	// For bot instances, get hostname from latest heartbeat
+	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
+		return e.ui.bot.Status.LatestHeartbeats[0].Hostname
+	}
+	return ""
+}
+
+func (e *unifiedFilterEnvironment) GetName() string {
+	if e == nil || e.ui == nil {
+		return ""
+	}
+	if e.ui.isInstance() {
+		return e.ui.instance.GetMetadata().Name
+	}
+	return e.ui.bot.GetMetadata().GetName()
+}
+
+func (e *unifiedFilterEnvironment) GetBotName() string {
+	if e == nil || e.ui == nil || e.ui.isInstance() {
+		return ""
+	}
+	return e.ui.bot.Spec.BotName
+}
+
+func (e *unifiedFilterEnvironment) GetInstanceID() string {
+	if e == nil || e.ui == nil {
+		return ""
+	}
+	if e.ui.isInstance() {
+		return e.ui.instance.GetName()
+	}
+	return e.ui.bot.Spec.InstanceId
+}
+
+func (e *unifiedFilterEnvironment) GetServices() []string {
+	if e == nil || e.ui == nil || !e.ui.isInstance() {
+		return nil
+	}
+	services := e.ui.instance.Spec.Services
+	result := make([]string, len(services))
+	for i, svc := range services {
+		result[i] = string(svc)
+	}
+	return result
+}
+
+func (e *unifiedFilterEnvironment) GetUpdaterGroup() string {
+	if e == nil || e.ui == nil {
+		return ""
+	}
+	if e.ui.isInstance() {
+		if e.ui.instance.Spec.UpdaterInfo != nil {
+			return e.ui.instance.Spec.UpdaterInfo.UpdateGroup
+		}
+		return ""
+	}
+	// For bot instances, get from latest heartbeat
+	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 && e.ui.bot.Status.LatestHeartbeats[0].UpdaterInfo != nil {
+		return e.ui.bot.Status.LatestHeartbeats[0].UpdaterInfo.UpdateGroup
+	}
+	return ""
+}
+
+func (e *unifiedFilterEnvironment) GetExternalUpgrader() string {
+	if e == nil || e.ui == nil {
+		return ""
+	}
+	if e.ui.isInstance() {
+		return e.ui.instance.Spec.ExternalUpgrader
+	}
+	// For bot instances, get from latest heartbeat
+	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
+		return e.ui.bot.Status.LatestHeartbeats[0].ExternalUpdater
+	}
+	return ""
+}
+
+// getUnifiedExpressionParser returns a cached parser instance, initializing it once.
+// Panics if the parser cannot be created, similar to regexp.MustCompile.
+func getUnifiedExpressionParser() *typical.Parser[*unifiedFilterEnvironment, bool] {
+	unifiedExpressionParserOnce.Do(func() {
+		spec := expression.DefaultParserSpec[*unifiedFilterEnvironment]()
+
+		newVariables := map[string]typical.Variable{
+			"version": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetVersion(), nil
+			}),
+			"status.latest_heartbeat.version": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetVersion(), nil
+			}),
+			"hostname": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetHostname(), nil
+			}),
+			"spec.hostname": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetHostname(), nil
+			}),
+			"status.latest_heartbeat.hostname": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetHostname(), nil
+			}),
+			"name": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetName(), nil
+			}),
+			"metadata.name": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetName(), nil
+			}),
+			"spec.bot_name": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetBotName(), nil
+			}),
+			"spec.instance_id": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetInstanceID(), nil
+			}),
+			"spec.services": typical.DynamicVariable(func(env *unifiedFilterEnvironment) ([]string, error) {
+				return env.GetServices(), nil
+			}),
+			"spec.updater_group": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetUpdaterGroup(), nil
+			}),
+			"status.latest_heartbeat.updater_info.update_group": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetUpdaterGroup(), nil
+			}),
+			"spec.external_upgrader": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetExternalUpgrader(), nil
+			}),
+			"status.latest_heartbeat.external_updater": typical.DynamicVariable(func(env *unifiedFilterEnvironment) (string, error) {
+				return env.GetExternalUpgrader(), nil
+			}),
+		}
+
+		if len(spec.Variables) < 1 {
+			spec.Variables = newVariables
+		} else {
+			maps.Copy(spec.Variables, newVariables)
+		}
+
+		var err error
+		unifiedExpressionParser, err = typical.NewParser[*unifiedFilterEnvironment, bool](spec)
+		if err != nil {
+			panic(fmt.Sprintf("failed to initialize unified expression parser: %v", err))
+		}
+	})
+
+	return unifiedExpressionParser
+}
+
+// getKeyForIndex returns the key a the given instance based on the index
+func (ic *InventoryCache) getKeyForIndex(ui *inventoryInstance, index inventoryIndex) (string, error) {
+	switch index {
+	case inventoryAlphabeticalIndex:
+		return ui.getAlphabeticalKey(), nil
+	case inventoryTypeIndex:
+		return ui.getTypeKey(), nil
+	case inventoryVersionIndex:
+		return ui.getVersionKey(), nil
+	case inventoryIDIndex:
+		return ui.getIDKey(), nil
+	default:
+		return "", trace.BadParameter("unknown index: %v", index)
+	}
 }
 
 // unifiedInstanceToProto converts a unified instance to a proto UnifiedInstanceItem.

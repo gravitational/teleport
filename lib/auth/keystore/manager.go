@@ -193,7 +193,7 @@ type Options struct {
 	Logger *slog.Logger
 	// AuthPreferenceGetter provides the current cluster auth preference.
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash

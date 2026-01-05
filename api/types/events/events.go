@@ -757,6 +757,10 @@ func (m *AppSessionChunk) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *AppSessionChunk) GetSessionChunkID() string {
+	return m.SessionChunkID
+}
+
 func (m *AppSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
@@ -2752,4 +2756,16 @@ func (m *AppAuthConfigVerify) TrimToMaxSize(maxSize int) AuditEvent {
 			newGenericTrimmer(&m.Status, &out.Status),
 		}
 	})
+}
+
+func (m *VnetConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *VnetConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
 }

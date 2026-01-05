@@ -1320,6 +1320,22 @@ message UserLogin {
   string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
+// MFAFlowType defines how MFA was enforced for a given authentication event.
+enum MFAFlowType {
+  // MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified. This value is used for
+  // backwards compatibility or when the MFA flow cannot be determined.
+  MFA_FLOW_TYPE_UNSPECIFIED = 0;
+
+  // MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using a per-session certificate during
+  // session establishment. In this flow, a short-lived certificate is issued after successful MFA, which is then used
+  // to authenticate the session.
+  MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE = 1;
+
+  // MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow during session establishment. In this
+  // flow, the target service prompts for and verifies MFA directly as part of session creation.
+  MFA_FLOW_TYPE_IN_BAND = 2;
+}
+
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
 message CreateMFAAuthChallenge {
   // Metadata is a common event metadata.
@@ -1342,6 +1358,9 @@ message CreateMFAAuthChallenge {
 
   // ChallengeAllowReuse defines whether the MFA challenge allows reuse.
   bool ChallengeAllowReuse = 4 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+
+  // FlowType indicates the type of MFA flow used for the challenge.
+  MFAFlowType FlowType = 5 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
@@ -1376,6 +1395,9 @@ message ValidateMFAAuthResponse {
 
   // ChallengeAllowReuse defines whether the MFA challenge used for authentication can be reused.
   bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+
+  // FlowType indicates the type of MFA flow used for the challenge.
+  MFAFlowType FlowType = 7 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -4902,6 +4924,9 @@ message OneOf {
     events.AppAuthConfigUpdate AppAuthConfigUpdate = 229;
     events.AppAuthConfigDelete AppAuthConfigDelete = 230;
     events.AppAuthConfigVerify AppAuthConfigVerify = 231;
+    events.VnetConfigCreate VnetConfigCreate = 232;
+    events.VnetConfigUpdate VnetConfigUpdate = 233;
+    events.VnetConfigDelete VnetConfigDelete = 234;
   }
 }
 
@@ -9332,6 +9357,99 @@ message AppAuthConfigVerify {
   ];
   // Status indicates whether the verification was successful or not.
   Status status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigCreate is emitted when a VnetConfig is created.
+message VnetConfigCreate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigUpdate is emitted when a VnetConfig is updated.
+message VnetConfigUpdate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigDelete is emitted when a VnetConfig is deleted.
+message VnetConfigDelete {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -251,10 +251,6 @@ func (rc *recorderConn) Read(p []byte) (int, error) {
 	return io.MultiReader(rc.recordingReader, rc.Conn).Read(p)
 }
 
-func (rc *recorderConn) WriteTo(w io.Writer) (sum int64, err error) {
-	return io.MultiReader(rc.recordingReader, rc.Conn).(io.WriterTo).WriteTo(w)
-}
-
 func (rc *recorderConn) reset() {
 	const bufferSizeLimit = 1 << 20 // 1MB
 	rc.buf.Reset()

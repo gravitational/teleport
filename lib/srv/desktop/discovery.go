@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -87,14 +87,44 @@ const (
 	readOnlyDomainControllerGroupID = "521"
 )
 
+// currentDesktops returns the set of desktops that exist in the backend which were both:
+// 1. Registered by this agent.
+// 2. Registered with a dynamic origin (either via LDAP discovery or dynamic registration)
+func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.WindowsDesktop {
+	result := make(map[string]types.WindowsDesktop)
+
+	for desktop, err := range clientutils.Resources(
+		ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
+			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
+				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.Desktops, resp.NextKey, nil
+		}) {
+		if err != nil {
+			return result
+		}
+		result[desktop.GetName()] = desktop
+	}
+
+	return result
+}
+
 // startDesktopDiscovery starts fetching desktops from LDAP, periodically
 // registering and unregistering them as necessary.
 func (s *WindowsService) startDesktopDiscovery() error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
-		// Use a matcher that matches all resources, since our desktops are
-		// pre-filtered by nature of using an LDAP search with filters.
-		Matcher:             func(d types.WindowsDesktop) bool { return true },
-		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.lastDiscoveryResults },
+		// Match all desktops with one of our LDAP labels.
+		// This ensures the desktop was discovered via LDAP and not created with dynamic registration.
+		Matcher: func(d types.WindowsDesktop) bool {
+			_, ok := d.GetLabel(types.DiscoveryLabelWindowsOS)
+			return ok
+		},
+		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(s.closeCtx) },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
@@ -165,8 +195,14 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 
 		entries, err := ldapClient.ReadWithFilter(discoveryConfig.BaseDN, filter, attrs)
 		if err != nil {
-			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops", "error", err)
-			return nil
+			s.cfg.Logger.WarnContext(s.closeCtx, "could not discover Windows Desktops, using last known results", "error", err)
+			// Use the last successful discovery results on error.
+			for _, d := range s.lastDiscoveryResults {
+				// The TTL is based on the discovery interval. We want to be able to miss one
+				// discovery attempt and not have the hosts expire.
+				d.SetExpiry(s.cfg.Clock.Now().UTC().Add(s.cfg.DiscoveryInterval * 3))
+			}
+			return s.lastDiscoveryResults
 		}
 
 		s.cfg.Logger.DebugContext(s.closeCtx, "discovered Windows Desktops", "count", len(entries))
@@ -177,6 +213,8 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 				s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
 				continue
 			}
+
+			maps.Copy(desktop.GetMetadata().Labels, discoveryConfig.Labels)
 			result[desktop.GetName()] = desktop
 		}
 	}
@@ -355,10 +393,9 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 		return nil, trace.Wrap(err)
 	}
 
-	// We use a longer TTL for discovered desktops, because the reconciler will manually
-	// purge them if they stop being detected, and discovery of large Windows fleets can
-	// take a long time.
-	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL * 3))
+	// The TTL is based on the discovery interval. We want to be able to miss one
+	// discovery attempt and not have the hosts expire.
+	desktop.SetExpiry(s.cfg.Clock.Now().UTC().Add(s.cfg.DiscoveryInterval * 3))
 
 	description := entry.GetAttributeValue(attrDescription)
 	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]

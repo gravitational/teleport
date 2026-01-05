@@ -28,6 +28,7 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gravitational_teleport_api_constants "github.com/gravitational/teleport/api/constants"
 	_ "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	github_com_gravitational_teleport_api_types "github.com/gravitational/teleport/api/types"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
@@ -36,7 +37,6 @@ import (
 	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
 	_ "google.golang.org/protobuf/types/known/durationpb"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
-	_ "google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1221,6 +1221,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"aws_organization_id": {
+							Description: "AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes must belong to this organization.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"aws_regions": {
 							Description: "AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.",
 							Optional:    true,
@@ -1697,6 +1702,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 					}),
 					Description: "GitLab allows the configuration of options specific to the \"gitlab\" join method.",
 					Optional:    true,
+				},
+				"integration": {
+					Description: "Integration name which provides credentials for validating join attempts. Currently only in use for validating the AWS Organization ID in the IAM Join method.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"join_method": {
 					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm",
@@ -2864,7 +2874,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Computed:      true,
 							Description:   "KubernetesResources is the Kubernetes Resources this Role grants access to.",
 							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{DefaultKubernetesResources()},
 						},
 						"kubernetes_users": {
 							Description: "KubeUsers is an optional kubernetes users to impersonate",
@@ -3910,10 +3920,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`.",
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.",
 			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 7)},
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 8)},
 		},
 	}}, nil
 }
@@ -4530,6 +4540,11 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"include_subject": {
+					Description: "IncludeSubject is a flag that indicates whether the Subject element is included in the SAML authentication request. Defaults to false. Note: Some IdPs will reject requests that contain a Subject.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},
 				"issuer": {
 					Computed:      true,
@@ -15108,6 +15123,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 														}
 													}
 												}
+												{
+													a, ok := tf.Attrs["aws_organization_id"]
+													if !ok {
+														diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID"})
+													} else {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.AWSOrganizationID = t
+														}
+													}
+												}
 											}
 											obj.Allow[k] = t
 										}
@@ -17593,6 +17625,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["integration"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Integration"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+							} else {
+								var t string
+								if !v.Null && !v.Unknown {
+									t = string(v.Value)
+								}
+								obj.Integration = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -18248,6 +18297,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 													v.Value = string(obj.AWSARN)
 													v.Unknown = false
 													tf.Attrs["aws_arn"] = v
+												}
+											}
+											{
+												t, ok := tf.AttrTypes["aws_organization_id"]
+												if !ok {
+													diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID"})
+												} else {
+													v, ok := tf.Attrs["aws_organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+													if !ok {
+														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+														if err != nil {
+															diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID", err})
+														}
+														v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Allow.AWSOrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
+														v.Null = string(obj.AWSOrganizationID) == ""
+													}
+													v.Value = string(obj.AWSOrganizationID)
+													v.Unknown = false
+													tf.Attrs["aws_organization_id"] = v
 												}
 											}
 										}
@@ -22041,6 +22112,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 								v.Unknown = false
 								tf.Attrs["env0"] = v
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["integration"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Integration"})
+						} else {
+							v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Integration", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
+								v.Null = string(obj.Integration) == ""
+							}
+							v.Value = string(obj.Integration)
+							v.Unknown = false
+							tf.Attrs["integration"] = v
 						}
 					}
 				}
@@ -45278,6 +45371,23 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["include_subject"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.IncludeSubject"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.IncludeSubject", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+							} else {
+								var t bool
+								if !v.Null && !v.Unknown {
+									t = bool(v.Value)
+								}
+								obj.IncludeSubject = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -46566,6 +46676,28 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 								c.Unknown = false
 								tf.Attrs["user_matchers"] = c
 							}
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["include_subject"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.IncludeSubject"})
+						} else {
+							v, ok := tf.Attrs["include_subject"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.IncludeSubject", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.IncludeSubject", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+								}
+								v.Null = bool(obj.IncludeSubject) == false
+							}
+							v.Value = bool(obj.IncludeSubject)
+							v.Unknown = false
+							tf.Attrs["include_subject"] = v
 						}
 					}
 				}

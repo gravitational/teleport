@@ -141,6 +141,7 @@ func StatementForEC2SSMAutoDiscover() *Statement {
 	return &Statement{
 		Effect: EffectAllow,
 		Actions: []string{
+			"account:ListRegions",
 			"ec2:DescribeInstances",
 			"ssm:DescribeInstanceInformation",
 			"ssm:GetCommandInvocation",

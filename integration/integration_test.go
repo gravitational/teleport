@@ -1807,7 +1807,6 @@ type disconnectTestCase struct {
 	concurrentConns   int
 	sessCtlTimeout    time.Duration
 	postFunc          func(context.Context, *testing.T, *helpers.TeleInstance)
-	clientConfigOpts  func(*helpers.ClientConfig)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -1949,7 +1948,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
-			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 		},
 		{
 			name:          "expired cert proxy recording",
@@ -1960,7 +1958,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				MaxSessionTTL:         types.NewDuration(2 * time.Second),
 			},
 			disconnectTimeout: 4 * time.Second,
-			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 		},
 		{
 			name:          "concurrent connection limits exceeded node recording",
@@ -1991,7 +1988,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			},
 			disconnectTimeout: time.Second,
 			sessCtlTimeout:    500 * time.Millisecond,
-			clientConfigOpts:  func(cc *helpers.ClientConfig) { cc.DisableSSHResumption = true },
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
 			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
@@ -2077,13 +2073,11 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		openSession := func() {
 			defer cancel()
 			cc := helpers.ClientConfig{
-				Login:   username,
-				Cluster: helpers.Site,
-				Host:    Host,
-				Port:    helpers.Port(t, teleport.SSH),
-			}
-			if tc.clientConfigOpts != nil {
-				tc.clientConfigOpts(&cc)
+				Login:                username,
+				Cluster:              helpers.Site,
+				Host:                 Host,
+				Port:                 helpers.Port(t, teleport.SSH),
+				DisableSSHResumption: true,
 			}
 			cl, err := teleport.NewClient(cc)
 			if err != nil {
@@ -2434,7 +2428,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
 	err = tc.SSH(ctx, cmd)
-	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
+	require.ErrorAs(t, err, new(*trace.ConnectionProblemError))
 
 	// Reset and start "Site-A" again
 	a.Config.FileDescriptors = aFdCache
@@ -5750,7 +5744,7 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *servicecf
 	tconf.PollingPeriod = time.Second
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
-	tconf.MaxRetryPeriod = time.Second
+	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(time.Second)
 	return tconf
 }
 
@@ -7974,18 +7968,19 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// A file not in the request shouldn't be allowed
-			_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
-			require.ErrorContains(t, err, `method get is not allowed`)
+			badFile := filepath.Join(tempDir, "bad-file")
+			_, err = sftpClient.Open(badFile)
+			require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
 			// Since this is a download no files should be allowed to be written to
-			_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_WRONLY)
-			require.ErrorContains(t, err, `method put is not allowed`)
+			_, err = sftpClient.OpenFile(reqFile, os.O_WRONLY)
+			require.ErrorContains(t, err, `writing is not allowed`)
 			// Only stats and reads should be allowed
-			err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
-			require.ErrorContains(t, err, `method mkdir is not allowed`)
+			err = sftpClient.Mkdir(reqFile)
+			require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
 			// Since this is a download no files should be allowed to have
 			// their permissions changed
 			err = sftpClient.Chmod(reqFile, 0o777)
-			require.ErrorContains(t, err, `method setstat is not allowed`)
+			require.ErrorContains(t, err, `writing is not allowed`)
 
 			// Only necessary operations should be allowed
 			_, err = sftpClient.Stat(reqFile)
@@ -8038,14 +8033,14 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// A file not in the request shouldn't be allowed
-			_, err = sftpClient.Open(filepath.Join(tempDir, "bad-file"))
-			require.ErrorContains(t, err, `method get is not allowed`)
+			_, err = sftpClient.Open(badFile)
+			require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
 			// Since this is an upload no files should be allowed to be read from
-			_, err = sftpClient.OpenFile(filepath.Join(tempDir, reqFile), os.O_RDONLY)
-			require.ErrorContains(t, err, `method get is not allowed`)
+			_, err = sftpClient.OpenFile(reqFile, os.O_RDONLY)
+			require.ErrorContains(t, err, `reading is not allowed`)
 			// Only stats, writes, and chmods should be allowed
-			err = sftpClient.Mkdir(filepath.Join(tempDir, "new-dir"))
-			require.ErrorContains(t, err, `method mkdir is not allowed`)
+			err = sftpClient.Mkdir(reqFile)
+			require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
 
 			// Only necessary operations should be allowed
 			_, err = sftpClient.Stat(reqFile)
