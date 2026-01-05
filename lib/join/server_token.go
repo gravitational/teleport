@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 // handleTokenJoin handles join attempts for the token join method.

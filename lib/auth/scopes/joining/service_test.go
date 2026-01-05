@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -80,6 +81,7 @@ func TestScopedJoiningService(t *testing.T) {
 				AssignedScope: "/staging/aa",
 				JoinMethod:    "token",
 				Roles:         []string{"Node"},
+				Mode:          string(jointoken.TokenUsageModeUnlimited),
 			},
 		}
 
@@ -224,6 +226,7 @@ func TestScopedJoiningService(t *testing.T) {
 				AssignedScope: "/staging/aa",
 				JoinMethod:    "token",
 				Roles:         []string{"Node"},
+				Mode:          string(jointoken.TokenUsageModeUnlimited),
 			},
 		}
 

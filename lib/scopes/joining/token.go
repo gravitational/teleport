@@ -273,3 +273,8 @@ func (t *Token) GetAWSIIDTTL() types.Duration {
 func (t *Token) GetSecret() (string, bool) {
 	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
 }
+
+// GetScoped returns the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetScoped() *joiningv1.ScopedToken {
+	return t.scoped
+}

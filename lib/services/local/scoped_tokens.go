@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -71,9 +70,6 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 	if err := joining.StrongValidateToken(req.GetToken()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// status can not be explicitly assigned during creation
-	req.Token.Status = &joiningv1.ScopedTokenStatus{}
 
 	created, err := s.svc.CreateResource(ctx, req.GetToken())
 	return &joiningv1.CreateScopedTokenResponse{

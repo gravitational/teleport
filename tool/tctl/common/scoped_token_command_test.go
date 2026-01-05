@@ -101,8 +101,8 @@ func TestScopedTokens(t *testing.T) {
 	require.Len(t, out.Roles, 1)
 	require.Equal(t, types.KindNode, strings.ToLower(out.Roles[0]))
 
-	// with --max-uses
-	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node", "--format", teleport.JSON, "--max-uses", "10"}, scopeFlags...))
+	// with --mode
+	buf, err = runScopedCommand(t, clt, append([]string{"tokens", "add", "--type=node", "--format", teleport.JSON, "--mode", "single_use"}, scopeFlags...))
 	require.NoError(t, err)
 	out = mustDecodeJSON[addedToken](t, buf)
 
