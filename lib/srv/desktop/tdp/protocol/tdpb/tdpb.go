@@ -6,10 +6,11 @@ import (
 	"errors"
 	"io"
 
-	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 // ErrUnknownMessage is returned when an unknown message is decoded.

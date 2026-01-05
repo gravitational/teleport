@@ -35,6 +35,7 @@ const (
 func newWebsocketConn(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	var serverConn *websocket.Conn
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		u := websocket.Upgrader{
 			ReadBufferSize:  websocketBufferSize,
 			WriteBufferSize: websocketBufferSize,
@@ -42,8 +43,9 @@ func newWebsocketConn(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 		serverConn, _ = u.Upgrade(w, r, nil)
 	}))
 
-	clientconn, body, err := websocket.DefaultDialer.Dial(strings.Replace(server.URL, "http", "ws", 1), nil)
-	_ = body.Close
+	clientconn, resp, err := websocket.DefaultDialer.Dial(strings.Replace(server.URL, "http", "ws", 1), nil)
+	defer resp.Body.Close()
+
 	require.NoError(t, err)
 
 	t.Cleanup(server.Close)
