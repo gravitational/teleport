@@ -58,6 +58,7 @@ jobs:
         access/datadog
         event-handler
         tbot
+        tbot-spiffe-daemon-set
         teleport-cluster
         teleport-cluster/charts/teleport-operator
         teleport-kube-agent
