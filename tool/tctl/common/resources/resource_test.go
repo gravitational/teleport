@@ -20,7 +20,6 @@ package resources
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -34,6 +33,7 @@ import (
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	accessgraphclient "github.com/gravitational/teleport/lib/accessgraph"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -360,7 +360,7 @@ func (m *mockServicesPlugin) RegisterAuthWebHandlers(service any) error {
 	return nil
 }
 
-func (m *mockServicesPlugin) RegisterAuthServices(ctx context.Context, server any, _ func() (*tls.Certificate, error)) error {
+func (m *mockServicesPlugin) RegisterAuthServices(ctx context.Context, server any, _ accessgraphclient.AccessGraphClientGetter) error {
 	authServer, ok := server.(*auth.GRPCServer)
 	if !ok {
 		return trace.BadParameter("expected auth.GRPCServer, got %T", server)

@@ -20,8 +20,6 @@ package discovery
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -37,11 +35,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -59,15 +55,6 @@ const (
 	batchSize = 500
 	// defaultPollInterval is the default interval between polling for access graph resources
 	defaultPollInterval = 15 * time.Minute
-	// Configure health check service to monitor access graph service and
-	// automatically reconnect if the connection is lost without
-	// relying on new events from the auth server to trigger a reconnect.
-	serviceConfig = `{
-		 "loadBalancingConfig": [{"round_robin": {}}],
-		 "healthCheckConfig": {
-			 "serviceName": ""
-		 }
-	 }`
 )
 
 // errNoAccessGraphFetchers is returned when there are no TAG fetchers.
@@ -304,32 +291,6 @@ func push(
 	return trace.Wrap(err)
 }
 
-// NewAccessGraphClient returns a new access graph service client.
-func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate, error), config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentials(config, getCert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Set the maximum message size to 50MB because we wan't to forward the raw
-	// gzip compressed S3 object to the access graph service.
-	// AWS splits the files uncompressed into 50MB chunks, so we need to be able
-	// to send the whole file in one go. Usually the files are smaller than
-	// 10MB compressed, but we want to be able to send the whole file in one go.
-	const maxMessageSize = 50 * 1024 * 1024 // 50MB
-	opts = append(opts,
-		opt,
-		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
-		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(maxMessageSize),
-			grpc.MaxCallSendMsgSize(maxMessageSize),
-		),
-	)
-
-	conn, err := grpc.DialContext(ctx, config.Addr, opts...)
-	return conn, trace.Wrap(err)
-}
-
 // errTAGFeatureNotEnabled is returned when the TAG feature is not enabled
 // in the cluster features.
 var errTAGFeatureNotEnabled = errors.New("TAG feature is not enabled")
@@ -398,17 +359,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 
 	config := s.Config.AccessGraphConfig
 
-	accessGraphConn, err := newAccessGraphClient(
+	accessGraphConn, err := config.GetAccessGraphClient(
 		ctx,
-		s.GetClientCert,
-		config,
-		grpc.WithDefaultServiceConfig(serviceConfig),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Close the connection when the function returns.
-	defer accessGraphConn.Close()
 	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
 
 	stream, err := client.AWSEventsStream(ctx)
@@ -490,32 +446,6 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 		case <-reloadCh:
 		}
 	}
-}
-
-// grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate, error)) (grpc.DialOption, error) {
-	var pool *x509.CertPool
-	if len(config.CA) > 0 {
-		pool = x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(config.CA) {
-			return nil, trace.BadParameter("failed to append CA certificate to pool")
-		}
-	}
-
-	// TODO(espadolini): this doesn't honor the process' configured ciphersuites
-	tlsConfig := &tls.Config{
-		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			tlsCert, err := getCert()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return tlsCert, nil
-		},
-		MinVersion:         tls.VersionTLS13,
-		InsecureSkipVerify: config.Insecure,
-		RootCAs:            pool,
-	}
-	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
 }
 
 func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
@@ -698,17 +628,13 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 
 	config := s.Config.AccessGraphConfig
 
-	accessGraphConn, err := newAccessGraphClient(
+	accessGraphConn, err := config.GetAccessGraphClient(
 		ctx,
-		s.GetClientCert,
-		config,
-		grpc.WithDefaultServiceConfig(serviceConfig),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Close the connection when the function returns.
-	defer accessGraphConn.Close()
+
 	client := accessgraphv1alpha.NewAccessGraphServiceClient(accessGraphConn)
 
 	stream, err := client.AWSCloudTrailStream(ctx)
