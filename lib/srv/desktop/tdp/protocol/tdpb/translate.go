@@ -5,11 +5,12 @@ import (
 	"image/png"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	tdpRoot "github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/utils/slices"
-	"github.com/gravitational/trace"
 )
 
 func translateFso(fso *tdpbv1.FileSystemObject) tdp.FileSystemObject {
