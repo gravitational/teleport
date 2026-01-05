@@ -216,9 +216,9 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			_, err := svc.CreateValidatedMFAChallenge(t.Context(), *testCase.username, testCase.chal)
 			if testCase.wantErr != nil {
-				require.ErrorContains(t, err, testCase.wantErr.Error())
+				assert.ErrorContains(t, err, testCase.wantErr.Error())
 			} else {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}
 		})
 	}

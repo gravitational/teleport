@@ -2757,3 +2757,15 @@ func (m *AppAuthConfigVerify) TrimToMaxSize(maxSize int) AuditEvent {
 		}
 	})
 }
+
+func (m *VnetConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *VnetConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}

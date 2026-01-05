@@ -103,6 +103,7 @@ func TestReflectLegacy(t *testing.T) {
 						),
 					),
 					attribute("suggested_agent_matcher_labels", mapVal(nil)),
+					attribute("integration", stringVal("")),
 				),
 			),
 		},
