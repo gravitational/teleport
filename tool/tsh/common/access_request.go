@@ -59,7 +59,7 @@ func onRequestList(cf *CLIConf) error {
 
 	var reqs []types.AccessRequest
 
-	// TODO: consider useing the AccessRequestFilter below to filter server side rather than client side.
+	// TODO: consider using the AccessRequestFilter below to filter server side rather than client side.
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		reqs, err = clt.GetAccessRequests(cf.Context, types.AccessRequestFilter{})
 		return trace.Wrap(err)
