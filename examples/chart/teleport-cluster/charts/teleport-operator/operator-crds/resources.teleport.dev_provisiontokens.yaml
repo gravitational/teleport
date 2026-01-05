@@ -418,6 +418,11 @@ spec:
                       are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
+              integration:
+                description: Integration name which provides credentials for validating
+                  join attempts. Currently only in use for validating the AWS Organization
+                  ID in the IAM Join method.
+                type: string
               join_method:
                 description: 'JoinMethod is the joining method required in order to
                   use this token. Supported joining methods include: azure, circleci,

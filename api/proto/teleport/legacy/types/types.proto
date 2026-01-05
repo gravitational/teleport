@@ -1573,6 +1573,9 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2AzureDevops AzureDevops = 20 [(gogoproto.jsontag) = "azure_devops,omitempty"];
   // Env0 allows the configuration of options specific to the "env0" join method.
   ProvisionTokenSpecV2Env0 Env0 = 21 [(gogoproto.jsontag) = "env0,omitempty"];
+  // Integration name which provides credentials for validating join attempts.
+  // Currently only in use for validating the AWS Organization ID in the IAM Join method.
+  string Integration = 22 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // ProvisionTokenSpecV2AzureDevops contains the Azure Devops-specific
