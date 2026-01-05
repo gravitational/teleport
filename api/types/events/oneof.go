@@ -944,6 +944,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppAuthConfigVerify{
 			AppAuthConfigVerify: e,
 		}
+	case *VnetConfigCreate:
+		out.Event = &OneOf_VnetConfigCreate{
+			VnetConfigCreate: e,
+		}
+	case *VnetConfigUpdate:
+		out.Event = &OneOf_VnetConfigUpdate{
+			VnetConfigUpdate: e,
+		}
+	case *VnetConfigDelete:
+		out.Event = &OneOf_VnetConfigDelete{
+			VnetConfigDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

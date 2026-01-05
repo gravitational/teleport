@@ -202,6 +202,8 @@ type KeystoreConfig struct {
 	GCPKMS GCPKMSConfig
 	// AWSKMS holds configuration parameter specific to AWS KMS keystores.
 	AWSKMS *AWSKMSConfig
+	// HealthCheck holds configuration parameters for keystore health checking.
+	HealthCheck *KeystoreHealthCheck
 }
 
 // CheckAndSetDefaults checks that required parameters of the config are
@@ -333,4 +335,16 @@ type MultiRegionKeyStore struct {
 	PrimaryRegion string `yaml:"primary_region"`
 	// ReplicaRegions is a list of regions keys will be replicated to.
 	ReplicaRegions []string `yaml:"replica_regions"`
+}
+
+// KeystoreHealthCheck contains configuration for keystore health checking.
+type KeystoreHealthCheck struct {
+	// Active configures active health checking for a keystore.
+	Active *KeystoreActiveHealthCheck `yaml:"active"`
+}
+
+// KeystoreActiveHealthCheck contains configuration for keystore active health checking.
+type KeystoreActiveHealthCheck struct {
+	// Enabled enables active health checking.
+	Enabled bool `yaml:"enabled"`
 }
