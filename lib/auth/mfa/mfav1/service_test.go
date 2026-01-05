@@ -37,6 +37,8 @@ import (
 )
 
 func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
+	t.Parallel()
+
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
@@ -149,6 +151,8 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 }
 
 func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
+	t.Parallel()
+
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
@@ -262,6 +266,8 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 }
 
 func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
+	t.Parallel()
+
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir: t.TempDir(),
@@ -299,6 +305,8 @@ func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 }
 
 func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			ClusterName: "test-cluster",
@@ -389,7 +397,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				},
 				TargetCluster: "non-existent-cluster", // does not exist
 			},
-			expectedError: "cluster \"non-existent-cluster\" does not exist",
+			expectedError: `cluster "non-existent-cluster" does not exist`,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -402,6 +410,8 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 }
 
 func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
+	t.Parallel()
+
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir: t.TempDir(),
@@ -446,6 +456,8 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
+	t.Parallel()
+
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir: t.TempDir(),
@@ -483,6 +495,8 @@ func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir: t.TempDir(),
@@ -536,6 +550,8 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
+	t.Parallel()
+
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
@@ -629,6 +645,8 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
+	t.Parallel()
+
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
@@ -729,6 +747,8 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
+	t.Parallel()
+
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{

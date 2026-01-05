@@ -313,7 +313,7 @@ func (s *Service) ValidateSessionChallenge(
 	}
 
 	var (
-		details     *authDetails
+		details     *authz.MFAAuthData
 		validateErr error
 		createErr   error
 	)
@@ -519,18 +519,11 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 	return nil
 }
 
-type authDetails struct {
-	Device        *types.MFADevice
-	Payload       *mfatypes.SessionIdentifyingPayload
-	SourceCluster string
-	TargetCluster string
-}
-
 func (s *Service) validateWebauthnResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Webauthn,
-) (*authDetails, error) {
+) (*authz.MFAAuthData, error) {
 	pref, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -557,8 +550,11 @@ func (s *Service) validateWebauthnResponse(
 		return nil, trace.AccessDenied("validate Webauthn response: %v", err)
 	}
 
-	return &authDetails{
+	// Convert to authz.MFAAuthData so that both validate functions return the same type for easier handling.
+	return &authz.MFAAuthData{
 		Device:        loginData.Device,
+		User:          username,
+		AllowReuse:    loginData.AllowReuse,
 		Payload:       loginData.Payload,
 		SourceCluster: loginData.SourceCluster,
 		TargetCluster: loginData.TargetCluster,
@@ -569,7 +565,7 @@ func (s *Service) validateSSOResponse(
 	ctx context.Context,
 	username string,
 	resp *mfav1.AuthenticateResponse_Sso,
-) (*authDetails, error) {
+) (*authz.MFAAuthData, error) {
 	authData, err := s.authServer.VerifySSOMFASession(
 		ctx,
 		username,
@@ -581,12 +577,7 @@ func (s *Service) validateSSOResponse(
 		return nil, trace.AccessDenied("validate SSO response: %v", err)
 	}
 
-	return &authDetails{
-		Device:        authData.Device,
-		Payload:       authData.Payload,
-		SourceCluster: authData.SourceCluster,
-		TargetCluster: authData.TargetCluster,
-	}, nil
+	return authData, nil
 }
 
 func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, error) {

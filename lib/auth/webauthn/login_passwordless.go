@@ -64,7 +64,7 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 	}
 	return lf.begin(ctx, BeginParams{
-		User:                "", /* user */
+		User:                "",
 		ChallengeExtensions: chalExt,
 	})
 }
