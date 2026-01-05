@@ -11,18 +11,14 @@ force: ;
 fmt:
 	terraform fmt -recursive .
 
-SUBDIRS := $(shell find . -type f -name '*.tf' -exec dirname {} \; 2>/dev/null | sort -u)
-README_FILES := $(addsuffix /README.md,$(SUBDIRS))
+MODULE_DIRS := $(shell find . -type f -name '*.tf' -exec dirname {} \; 2>/dev/null | sort -u)
+README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
 .PHONY: docs
 docs: $(README_FILES) ;
 
 %/README.md: force
-	terraform-docs markdown table \
-		--lockfile=false \
-		--output-file=README.md \
-		--output-mode=inject \
-		$*
+	terraform-docs markdown table --config .terraform-docs.yml $*
 
 .PHONY: check
 check:
