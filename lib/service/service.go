@@ -3813,6 +3813,7 @@ func (process *TeleportProcess) initUploaderService() error {
 		events.Streamer
 		events.AuditLogSessionStreamer
 		services.SessionTrackerService
+		filesessions.AlertHandler
 	}
 
 	// use the local auth server for uploads if auth happens to be
@@ -3886,8 +3887,12 @@ func (process *TeleportProcess) initUploaderService() error {
 
 	uploadsDir := filepath.Join(paths[0]...)
 	corruptedDir := filepath.Join(paths[1]...)
-
-	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
+	hostUUID, err := process.storage.ReadOrGenerateHostID(process.ExitContext(), process.Config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	systemRoles := process.getInstanceRoles()
+	uploaderCfg := filesessions.UploaderConfig{
 		Streamer:                        uploaderClient,
 		ScanDir:                         uploadsDir,
 		CorruptedDir:                    corruptedDir,
@@ -3895,7 +3900,18 @@ func (process *TeleportProcess) initUploaderService() error {
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
-	})
+		ServerID:                        hostUUID,
+		Hostname:                        process.Config.Hostname,
+		SystemRoles:                     systemRoles,
+	}
+	isAuth := slices.Contains(systemRoles, types.RoleAuth)
+	isProxy := slices.Contains(systemRoles, types.RoleProxy)
+	// Don't send alerts for auth/proxy in cloud.
+	if !(process.GetClusterFeatures().Cloud && (isAuth || isProxy)) {
+		uploaderCfg.AlertHandler = uploaderClient
+	}
+
+	fileUploader, err := filesessions.NewUploader(uploaderCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
