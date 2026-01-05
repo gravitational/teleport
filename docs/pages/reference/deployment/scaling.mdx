@@ -173,7 +173,7 @@ There are three primary factors that influence resource utilization by the SSH S
   The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
 </Admonition>
 
-### Long Lived Sessions
+### Long lived sessions
 
 | concurrent sessions | RAM usage (MiB)  |
 | ------------------ | ---------------- |
@@ -188,7 +188,7 @@ There are three primary factors that influence resource utilization by the SSH S
 
 For a typical agent RAM usage increases linearly with the number of concurrent sessions.
 
-### New Session Requests
+### New session requests
 
 | sessions per second |  CPU peak (millicores) |
 | ------------------ |  -------------------- |
@@ -201,7 +201,7 @@ For a typical agent RAM usage increases linearly with the number of concurrent s
 
 The primary driver of CPU usage by the SSH Service is the burst usage when new sessions are established.
 
-### Estimating Resource Requirements
+### Estimating resource requirements
 
 To estimate the resource requirements for the SSH Service:
 1. Determine the worst case resource requirements of a typical user workload.
