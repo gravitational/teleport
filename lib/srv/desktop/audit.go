@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -201,7 +201,7 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 // In the happy path, no event is emitted here, but details from the announcement
 // are cached for future audit events. An event is returned only if there was
 // an error.
-func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m legacy.SharedDirectoryAnnounce) *events.DesktopSharedDirectoryStart {
+func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryAnnounce) *events.DesktopSharedDirectoryStart {
 	err := d.auditCache.SetName(directoryID(m.DirectoryID), directoryName(m.Name))
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -234,7 +234,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m legacy.SharedDirecto
 }
 
 // makeSharedDirectoryStart creates a DesktopSharedDirectoryStart event.
-func (d *desktopSessionAuditor) makeSharedDirectoryStart(m legacy.SharedDirectoryAcknowledge) *events.DesktopSharedDirectoryStart {
+func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAcknowledge) *events.DesktopSharedDirectoryStart {
 	code := libevents.DesktopSharedDirectoryStartCode
 	name, ok := d.auditCache.GetName(directoryID(m.DirectoryID))
 	if !ok {
@@ -242,7 +242,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m legacy.SharedDirector
 		name = "unknown"
 	}
 
-	if m.ErrCode != legacy.ErrCodeNil {
+	if m.ErrCode != tdp.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryStartFailureCode
 	}
 
@@ -268,7 +268,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m legacy.SharedDirector
 // In the happy path, no event is emitted here, but details from the operation
 // are cached for future audit events. An event is returned only if there was
 // an error.
-func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m legacy.SharedDirectoryReadRequest) *events.DesktopSharedDirectoryRead {
+func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirectoryReadRequest) *events.DesktopSharedDirectoryRead {
 	did := directoryID(m.DirectoryID)
 	path := m.Path
 	offset := m.Offset
@@ -314,7 +314,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m legacy.SharedDire
 }
 
 // makeSharedDirectoryReadResponse creates a DesktopSharedDirectoryRead audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m legacy.SharedDirectoryReadResponse) *events.DesktopSharedDirectoryRead {
+func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDirectoryReadResponse) *events.DesktopSharedDirectoryRead {
 	var did directoryID
 	var name directoryName
 
@@ -341,7 +341,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m legacy.SharedD
 		name = "unknown"
 	}
 
-	if m.ErrCode != legacy.ErrCodeNil {
+	if m.ErrCode != tdp.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
@@ -370,7 +370,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m legacy.SharedD
 // In the happy path, no event is emitted here, but details from the operation
 // are cached for future audit events. An event is returned only if there was
 // an error.
-func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m legacy.SharedDirectoryWriteRequest) *events.DesktopSharedDirectoryWrite {
+func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirectoryWriteRequest) *events.DesktopSharedDirectoryWrite {
 	did := directoryID(m.DirectoryID)
 	path := m.Path
 	offset := m.Offset
@@ -418,7 +418,7 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m legacy.SharedDir
 }
 
 // makeSharedDirectoryWriteResponse creates a DesktopSharedDirectoryWrite audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m legacy.SharedDirectoryWriteResponse) *events.DesktopSharedDirectoryWrite {
+func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDirectoryWriteResponse) *events.DesktopSharedDirectoryWrite {
 	var did directoryID
 	var name directoryName
 
@@ -444,7 +444,7 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m legacy.Shared
 		name = "unknown"
 	}
 
-	if m.ErrCode != legacy.ErrCodeNil {
+	if m.ErrCode != tdp.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
@@ -482,7 +482,7 @@ func (s *WindowsService) record(ctx context.Context, recorder libevents.SessionP
 }
 
 func statusFromErrCode(errCode uint32) events.Status {
-	success := errCode == legacy.ErrCodeNil
+	success := errCode == tdp.ErrCodeNil
 
 	// early return for most common case
 	if success {
@@ -493,11 +493,11 @@ func statusFromErrCode(errCode uint32) events.Status {
 
 	msg := unknownErrStatusMsg
 	switch errCode {
-	case legacy.ErrCodeFailed:
+	case tdp.ErrCodeFailed:
 		msg = failedStatusMessage
-	case legacy.ErrCodeDoesNotExist:
+	case tdp.ErrCodeDoesNotExist:
 		msg = doesNotExistStatusMessage
-	case legacy.ErrCodeAlreadyExists:
+	case tdp.ErrCodeAlreadyExists:
 		msg = alreadyExistsStatusMessage
 	}
 

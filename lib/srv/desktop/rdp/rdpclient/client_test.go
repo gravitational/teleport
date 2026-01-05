@@ -26,8 +26,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	tdpCore "github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
 
 type fakeConn struct {
@@ -43,7 +43,7 @@ func (f *fakeConn) Close() error {
 	return nil
 }
 
-func (f *fakeConn) AddMessage(message tdp.Message) error {
+func (f *fakeConn) AddMessage(message tdpCore.Message) error {
 	msg, err := message.Encode()
 	if err != nil {
 		return err
@@ -54,9 +54,9 @@ func (f *fakeConn) AddMessage(message tdp.Message) error {
 
 func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
+	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdpCore.NewConn(&f, tdp.Decode)
 
 	_, err = New(createConfig(conn))
 	require.EqualError(t, err, "EOF")
@@ -64,20 +64,20 @@ func TestClientNew_EOF(t *testing.T) {
 
 func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
+	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
+	err = f.AddMessage(tdp.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
+	err = f.AddMessage(tdp.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdpCore.NewConn(&f, tdp.Decode)
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
@@ -85,28 +85,28 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 
 func TestClientNew_KeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(legacy.ClientUsername{Username: "user"})
+	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
 	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
+	err = f.AddMessage(tdp.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientKeyboardLayout{})
+	err = f.AddMessage(tdp.ClientKeyboardLayout{})
 	require.NoError(t, err)
-	err = f.AddMessage(legacy.ClientScreenSpec{
+	err = f.AddMessage(tdp.ClientScreenSpec{
 		Width:  100,
 		Height: 100,
 	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, legacy.Decode)
+	conn := tdpCore.NewConn(&f, tdp.Decode)
 
 	_, err = New(createConfig(conn))
 	require.NoError(t, err)
 }
 
-func createConfig(conn *tdp.Conn) Config {
+func createConfig(conn *tdpCore.Conn) Config {
 	return Config{
 		Addr:        "example.com",
 		AuthorizeFn: func(login string) error { return nil },

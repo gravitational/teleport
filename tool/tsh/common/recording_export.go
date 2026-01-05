@@ -36,8 +36,8 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	tdpCore "github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -137,16 +137,16 @@ loop:
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
-				msg, err := legacy.Decode(bytes.NewBuffer(evt.Message))
+				msg, err := tdp.Decode(bytes.NewBuffer(evt.Message))
 				if err != nil {
 					logger.WarnContext(ctx, "failed to decode desktop recording message", "error", err)
 					break loop
 				}
 
 				switch msg := msg.(type) {
-				case legacy.RDPFastPathPDU:
+				case tdp.RDPFastPathPDU:
 					fastPathReceived = true
-				case legacy.ClientScreenSpec:
+				case tdp.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
 					}
@@ -167,7 +167,7 @@ loop:
 						return frameCount, trace.Wrap(err)
 					}
 
-				case legacy.PNGFrame, legacy.PNG2Frame:
+				case tdp.PNGFrame, tdp.PNG2Frame:
 					if screen == nil {
 						return frameCount, trace.BadParameter("this session is missing required start metadata")
 					}
@@ -255,11 +255,11 @@ loop:
 	return frameCount, trace.Wrap(err)
 }
 
-func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
+func imgFromPNGMessage(msg tdpCore.Message) (image.Image, error) {
 	switch msg := msg.(type) {
-	case legacy.PNG2Frame:
+	case tdp.PNG2Frame:
 		return png.Decode(bytes.NewReader(msg.Data()))
-	case legacy.PNGFrame:
+	case tdp.PNGFrame:
 		return msg.Img, nil
 	default:
 		// this should never happen based on what we pass at the call site
@@ -267,16 +267,16 @@ func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
 	}
 }
 
-func rectFromPNGMessage(msg tdp.Message) image.Rectangle {
+func rectFromPNGMessage(msg tdpCore.Message) image.Rectangle {
 	switch msg := msg.(type) {
-	case legacy.PNG2Frame:
+	case tdp.PNG2Frame:
 		return image.Rect(
 			// add one to bottom and right dimension, as RDP
 			// bounds are inclusive
 			int(msg.Left()), int(msg.Top()),
 			int(msg.Right()+1), int(msg.Bottom()+1),
 		)
-	case legacy.PNGFrame:
+	case tdp.PNGFrame:
 		return msg.Img.Bounds()
 	default:
 		// this should never happen based on what we pass at the call site

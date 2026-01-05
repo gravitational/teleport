@@ -87,8 +87,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	tdpCore "github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -235,13 +235,13 @@ func (c *Client) GetClientUsername() string {
 
 // ReadClientScreenSpec reads the next message from the connection, expecting
 // it to be a ClientScreenSpec. If it is not, an error is returned.
-func (c *Client) ReadClientScreenSpec() (*legacy.ClientScreenSpec, error) {
+func (c *Client) ReadClientScreenSpec() (*tdp.ClientScreenSpec, error) {
 	m, err := c.cfg.Conn.ReadMessage()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	spec, ok := m.(legacy.ClientScreenSpec)
+	spec, ok := m.(tdp.ClientScreenSpec)
 	if !ok {
 		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
 	}
@@ -250,8 +250,8 @@ func (c *Client) ReadClientScreenSpec() (*legacy.ClientScreenSpec, error) {
 }
 
 // SendNotification is a convenience function for sending a Notification message.
-func (c *Client) SendNotification(message string, severity legacy.Severity) error {
-	return c.cfg.Conn.WriteMessage(legacy.Alert{Message: message, Severity: severity})
+func (c *Client) SendNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
 }
 
 func (c *Client) readClientUsername() error {
@@ -260,7 +260,7 @@ func (c *Client) readClientUsername() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		u, ok := msg.(legacy.ClientUsername)
+		u, ok := msg.(tdp.ClientUsername)
 		if !ok {
 			c.cfg.Logger.DebugContext(context.Background(), "Received unexpected ClientUsername message", "message_type", logutils.TypeAttr(msg))
 			continue
@@ -302,7 +302,7 @@ func (c *Client) readClientSize() error {
 				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 			)
-			if err := c.sendTDPAlert(err.Error(), legacy.SeverityError); err != nil {
+			if err := c.sendTDPAlert(err.Error(), tdp.SeverityError); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(err)
@@ -317,7 +317,7 @@ func (c *Client) readClientKeyboardLayout() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if legacy.MessageType(msgType) != legacy.TypeClientKeyboardLayout {
+	if tdp.MessageType(msgType) != tdp.TypeClientKeyboardLayout {
 		c.cfg.Logger.DebugContext(context.Background(), "Client did not send keyboard layout")
 		return nil
 	}
@@ -325,7 +325,7 @@ func (c *Client) readClientKeyboardLayout() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	k, ok := msg.(legacy.ClientKeyboardLayout)
+	k, ok := msg.(tdp.ClientKeyboardLayout)
 	if !ok {
 		return trace.BadParameter("Unexpected message %T", msg)
 	}
@@ -334,8 +334,8 @@ func (c *Client) readClientKeyboardLayout() error {
 	return nil
 }
 
-func (c *Client) sendTDPAlert(message string, severity legacy.Severity) error {
-	return c.cfg.Conn.WriteMessage(legacy.Alert{Message: message, Severity: severity})
+func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
@@ -434,7 +434,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDPAlert(err.Error(), legacy.SeverityError)
+		c.sendTDPAlert(err.Error(), tdp.SeverityError)
 		return err
 	}
 
@@ -446,7 +446,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	c.sendTDPAlert(message, legacy.SeverityError)
+	c.sendTDPAlert(message, tdp.SeverityError)
 
 	return nil
 }
@@ -467,7 +467,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 	// we will disable ping only if the env var is truthy
 	disableDesktopPing, _ := strconv.ParseBool(os.Getenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING"))
 
-	var withheldResize *legacy.ClientScreenSpec
+	var withheldResize *tdp.ClientScreenSpec
 	for {
 		select {
 		case <-stopCh:
@@ -478,14 +478,14 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		msg, err := c.cfg.Conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
 			return nil
-		} else if legacy.IsNonFatalErr(err) {
-			c.SendNotification(err.Error(), legacy.SeverityWarning)
+		} else if tdp.IsNonFatalErr(err) {
+			c.SendNotification(err.Error(), tdp.SeverityWarning)
 			continue
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDP input message", "error", err)
 			return err
 		}
-		if m, ok := msg.(legacy.Ping); ok {
+		if m, ok := msg.(tdp.Ping); ok {
 			go func() {
 				// Upon receiving a ping message, we make a connection
 				// to the host and send the same message back to the proxy.
@@ -505,7 +505,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 
 		if atomic.LoadUint32(&c.readyForInput) == 0 {
 			switch m := msg.(type) {
-			case legacy.ClientScreenSpec:
+			case tdp.ClientScreenSpec:
 				// Withhold the latest screen size until the client is ready for input. This ensures
 				// that the client receives the correct screen size when it is ready.
 				withheldResize = &m
@@ -525,9 +525,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		// because we don't want a session to be closed due to inactivity during a large
 		// file transfer.
 		switch msg.(type) {
-		case legacy.KeyboardButton, legacy.MouseMove, legacy.MouseButton, legacy.MouseWheel,
-			legacy.SharedDirectoryAnnounce, legacy.SharedDirectoryInfoResponse,
-			legacy.SharedDirectoryReadResponse, legacy.SharedDirectoryWriteResponse:
+		case tdp.KeyboardButton, tdp.MouseMove, tdp.MouseButton, tdp.MouseWheel,
+			tdp.SharedDirectoryAnnounce, tdp.SharedDirectoryInfoResponse,
+			tdp.SharedDirectoryReadResponse, tdp.SharedDirectoryWriteResponse:
 
 			c.UpdateClientActivity()
 		}
@@ -547,9 +547,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 }
 
 // handleTDPInput handles a single TDP message sent to us from the browser.
-func (c *Client) handleTDPInput(msg tdp.Message) error {
+func (c *Client) handleTDPInput(msg tdpCore.Message) error {
 	switch m := msg.(type) {
-	case legacy.ClientScreenSpec:
+	case tdp.ClientScreenSpec:
 		// If the client has specified a fixed screen size, we don't
 		// need to send a screen resize event.
 		if c.cfg.hasSizeOverride() {
@@ -564,7 +564,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("ClientScreenSpec: client_write_screen_resize: %v", errCode)
 		}
-	case legacy.MouseMove:
+	case tdp.MouseMove:
 		c.mouseX, c.mouseY = m.X, m.Y
 		if errCode := C.client_write_rdp_pointer(
 			C.uintptr_t(c.handle),
@@ -577,15 +577,15 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("MouseMove: client_write_rdp_pointer: %v", errCode)
 		}
-	case legacy.MouseButton:
+	case tdp.MouseButton:
 		// Map the button to a C enum value.
 		var button C.CGOPointerButton
 		switch m.Button {
-		case legacy.LeftMouseButton:
+		case tdp.LeftMouseButton:
 			button = C.PointerButtonLeft
-		case legacy.RightMouseButton:
+		case tdp.RightMouseButton:
 			button = C.PointerButtonRight
-		case legacy.MiddleMouseButton:
+		case tdp.MiddleMouseButton:
 			button = C.PointerButtonMiddle
 		default:
 			button = C.PointerButtonNone
@@ -596,18 +596,18 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				x:      C.uint16_t(c.mouseX),
 				y:      C.uint16_t(c.mouseY),
 				button: uint32(button),
-				down:   m.State == legacy.ButtonPressed,
+				down:   m.State == tdp.ButtonPressed,
 				wheel:  C.PointerWheelNone,
 			},
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("MouseButton: client_write_rdp_pointer: %v", errCode)
 		}
-	case legacy.MouseWheel:
+	case tdp.MouseWheel:
 		var wheel C.CGOPointerWheel
 		switch m.Axis {
-		case legacy.VerticalWheelAxis:
+		case tdp.VerticalWheelAxis:
 			wheel = C.PointerWheelVertical
-		case legacy.HorizontalWheelAxis:
+		case tdp.HorizontalWheelAxis:
 			wheel = C.PointerWheelHorizontal
 			// TDP positive scroll deltas move towards top-left.
 			// RDP positive scroll deltas move towards top-right.
@@ -630,27 +630,27 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("MouseWheel: client_write_rdp_pointer: %v", errCode)
 		}
-	case legacy.KeyboardButton:
+	case tdp.KeyboardButton:
 		if errCode := C.client_write_rdp_keyboard(
 			C.uintptr_t(c.handle),
 			C.CGOKeyboardEvent{
 				code: C.uint16_t(m.KeyCode),
-				down: m.State == legacy.ButtonPressed,
+				down: m.State == tdp.ButtonPressed,
 			},
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("KeyboardButton: client_write_rdp_keyboard: %v", errCode)
 		}
-	case legacy.SyncKeys:
+	case tdp.SyncKeys:
 		if errCode := C.client_write_rdp_sync_keys(C.uintptr_t(c.handle),
 			C.CGOSyncKeys{
-				scroll_lock_down: m.ScrollLockState == legacy.ButtonPressed,
-				num_lock_down:    m.NumLockState == legacy.ButtonPressed,
-				caps_lock_down:   m.CapsLockState == legacy.ButtonPressed,
-				kana_lock_down:   m.KanaLockState == legacy.ButtonPressed,
+				scroll_lock_down: m.ScrollLockState == tdp.ButtonPressed,
+				num_lock_down:    m.NumLockState == tdp.ButtonPressed,
+				caps_lock_down:   m.CapsLockState == tdp.ButtonPressed,
+				kana_lock_down:   m.KanaLockState == tdp.ButtonPressed,
 			}); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("SyncKeys: client_write_rdp_sync_keys: %v", errCode)
 		}
-	case legacy.ClipboardData:
+	case tdp.ClipboardData:
 		if !c.cfg.AllowClipboard {
 			c.cfg.Logger.DebugContext(context.Background(), "Received clipboard data, but clipboard is disabled")
 			return nil
@@ -666,7 +666,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		} else {
 			c.cfg.Logger.WarnContext(context.Background(), "Received an empty clipboard message")
 		}
-	case legacy.SharedDirectoryAnnounce:
+	case tdp.SharedDirectoryAnnounce:
 		if c.cfg.AllowDirectorySharing {
 			driveName := C.CString(m.Name)
 			defer C.free(unsafe.Pointer(driveName))
@@ -677,7 +677,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryInfoResponse:
+	case tdp.SharedDirectoryInfoResponse:
 		if c.cfg.AllowDirectorySharing {
 			path := C.CString(m.Fso.Path)
 			defer C.free(unsafe.Pointer(path))
@@ -695,7 +695,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryInfoResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryCreateResponse:
+	case tdp.SharedDirectoryCreateResponse:
 		if c.cfg.AllowDirectorySharing {
 			path := C.CString(m.Fso.Path)
 			defer C.free(unsafe.Pointer(path))
@@ -713,7 +713,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryCreateResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryDeleteResponse:
+	case tdp.SharedDirectoryDeleteResponse:
 		if c.cfg.AllowDirectorySharing {
 			if errCode := C.client_handle_tdp_sd_delete_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryDeleteResponse{
 				completion_id: C.uint32_t(m.CompletionID),
@@ -722,7 +722,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryListResponse:
+	case tdp.SharedDirectoryListResponse:
 		if c.cfg.AllowDirectorySharing {
 			fsoList := make([]C.CGOFileSystemObject, 0, len(m.FsoList))
 
@@ -757,7 +757,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryListResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryReadResponse:
+	case tdp.SharedDirectoryReadResponse:
 		if c.cfg.AllowDirectorySharing {
 			var readData *C.uint8_t
 			if m.ReadDataLength > 0 {
@@ -775,7 +775,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryReadResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryWriteResponse:
+	case tdp.SharedDirectoryWriteResponse:
 		if c.cfg.AllowDirectorySharing {
 			if errCode := C.client_handle_tdp_sd_write_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryWriteResponse{
 				completion_id: C.uint32_t(m.CompletionID),
@@ -785,7 +785,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryWriteResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryMoveResponse:
+	case tdp.SharedDirectoryMoveResponse:
 		if c.cfg.AllowDirectorySharing {
 			if errCode := C.client_handle_tdp_sd_move_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryMoveResponse{
 				completion_id: C.uint32_t(m.CompletionID),
@@ -794,7 +794,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
 			}
 		}
-	case legacy.SharedDirectoryTruncateResponse:
+	case tdp.SharedDirectoryTruncateResponse:
 		if c.cfg.AllowDirectorySharing {
 			if errCode := C.client_handle_tdp_sd_truncate_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryTruncateResponse{
 				completion_id: C.uint32_t(m.CompletionID),
@@ -803,7 +803,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				return trace.Errorf("SharedDirectoryTruncateResponse failed: %v", errCode)
 			}
 		}
-	case legacy.RDPResponsePDU:
+	case tdp.RDPResponsePDU:
 		pduLen := uint32(len(m))
 		if pduLen == 0 {
 			c.cfg.Logger.ErrorContext(context.Background(), "response PDU empty")
@@ -963,7 +963,7 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	// from the fact that a fast path pdu was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	if err := c.cfg.Conn.WriteMessage(legacy.RDPFastPathPDU(data)); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.RDPFastPathPDU(data)); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling RDPFastPathPDU", "error", err)
 		return C.ErrCodeFailure
 	}
@@ -992,7 +992,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Logger.DebugContext(context.Background(), "RDP server provided resolution", "width", screenWidth, "height", screenHeight)
 
-	if err := c.cfg.Conn.WriteMessage(legacy.ConnectionActivated{
+	if err := c.cfg.Conn.WriteMessage(tdp.ConnectionActivated{
 		IOChannelID:   uint16(ioChannelID),
 		UserChannelID: uint16(userChannelID),
 		ScreenWidth:   uint16(screenWidth),
@@ -1026,7 +1026,7 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 
 	c.cfg.Logger.DebugContext(context.Background(), "Received clipboard data from Windows desktop", "len", len(data))
 
-	if err := c.cfg.Conn.WriteMessage(legacy.ClipboardData(data)); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.ClipboardData(data)); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling remote copy", "error", err)
 		return C.ErrCodeFailure
 	}
@@ -1039,7 +1039,7 @@ func cgo_tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowl
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryAcknowledge(legacy.SharedDirectoryAcknowledge{
+	return client.sharedDirectoryAcknowledge(tdp.SharedDirectoryAcknowledge{
 		//nolint:unconvert // Avoid hard dependencies on C types
 		ErrCode:     uint32(ack.err_code),
 		DirectoryID: uint32(ack.directory_id),
@@ -1048,7 +1048,7 @@ func cgo_tdp_sd_acknowledge(handle C.uintptr_t, ack *C.CGOSharedDirectoryAcknowl
 
 // sharedDirectoryAcknowledge is sent by the TDP server to the client
 // to acknowledge that a SharedDirectoryAnnounce was received.
-func (c *Client) sharedDirectoryAcknowledge(ack legacy.SharedDirectoryAcknowledge) C.CGOErrCode {
+func (c *Client) sharedDirectoryAcknowledge(ack tdp.SharedDirectoryAcknowledge) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1066,7 +1066,7 @@ func cgo_tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRe
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryInfoRequest(legacy.SharedDirectoryInfoRequest{
+	return client.sharedDirectoryInfoRequest(tdp.SharedDirectoryInfoRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -1075,7 +1075,7 @@ func cgo_tdp_sd_info_request(handle C.uintptr_t, req *C.CGOSharedDirectoryInfoRe
 
 // sharedDirectoryInfoRequest is sent from the TDP server to the client
 // to request information about a file or directory at a given path.
-func (c *Client) sharedDirectoryInfoRequest(req legacy.SharedDirectoryInfoRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryInfoRequest(req tdp.SharedDirectoryInfoRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1093,7 +1093,7 @@ func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCrea
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryCreateRequest(legacy.SharedDirectoryCreateRequest{
+	return client.sharedDirectoryCreateRequest(tdp.SharedDirectoryCreateRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		//nolint:unconvert // Avoid hard dependencies on C types.
@@ -1104,7 +1104,7 @@ func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCrea
 
 // sharedDirectoryCreateRequest is sent by the TDP server to
 // the client to request the creation of a new file or directory.
-func (c *Client) sharedDirectoryCreateRequest(req legacy.SharedDirectoryCreateRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryCreateRequest(req tdp.SharedDirectoryCreateRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1122,7 +1122,7 @@ func cgo_tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDele
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryDeleteRequest(legacy.SharedDirectoryDeleteRequest{
+	return client.sharedDirectoryDeleteRequest(tdp.SharedDirectoryDeleteRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -1131,7 +1131,7 @@ func cgo_tdp_sd_delete_request(handle C.uintptr_t, req *C.CGOSharedDirectoryDele
 
 // sharedDirectoryDeleteRequest is sent by the TDP server to the client
 // to request the deletion of a file or directory at path.
-func (c *Client) sharedDirectoryDeleteRequest(req legacy.SharedDirectoryDeleteRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryDeleteRequest(req tdp.SharedDirectoryDeleteRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1149,7 +1149,7 @@ func cgo_tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRe
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryListRequest(legacy.SharedDirectoryListRequest{
+	return client.sharedDirectoryListRequest(tdp.SharedDirectoryListRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -1158,7 +1158,7 @@ func cgo_tdp_sd_list_request(handle C.uintptr_t, req *C.CGOSharedDirectoryListRe
 
 // sharedDirectoryListRequest is sent by the TDP server to the client
 // to request the contents of a directory.
-func (c *Client) sharedDirectoryListRequest(req legacy.SharedDirectoryListRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryListRequest(req tdp.SharedDirectoryListRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1176,7 +1176,7 @@ func cgo_tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRe
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryReadRequest(legacy.SharedDirectoryReadRequest{
+	return client.sharedDirectoryReadRequest(tdp.SharedDirectoryReadRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -1187,7 +1187,7 @@ func cgo_tdp_sd_read_request(handle C.uintptr_t, req *C.CGOSharedDirectoryReadRe
 
 // SharedDirectoryReadRequest is sent by the TDP server to the client
 // to request the contents of a file.
-func (c *Client) sharedDirectoryReadRequest(req legacy.SharedDirectoryReadRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryReadRequest(req tdp.SharedDirectoryReadRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1205,7 +1205,7 @@ func cgo_tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWrite
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryWriteRequest(legacy.SharedDirectoryWriteRequest{
+	return client.sharedDirectoryWriteRequest(tdp.SharedDirectoryWriteRequest{
 		CompletionID:    uint32(req.completion_id),
 		DirectoryID:     uint32(req.directory_id),
 		Offset:          uint64(req.offset),
@@ -1217,7 +1217,7 @@ func cgo_tdp_sd_write_request(handle C.uintptr_t, req *C.CGOSharedDirectoryWrite
 
 // SharedDirectoryWriteRequest is sent by the TDP server to the client
 // to write to a file.
-func (c *Client) sharedDirectoryWriteRequest(req legacy.SharedDirectoryWriteRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryWriteRequest(req tdp.SharedDirectoryWriteRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1235,7 +1235,7 @@ func cgo_tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRe
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryMoveRequest(legacy.SharedDirectoryMoveRequest{
+	return client.sharedDirectoryMoveRequest(tdp.SharedDirectoryMoveRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		OriginalPath: C.GoString(req.original_path),
@@ -1243,7 +1243,7 @@ func cgo_tdp_sd_move_request(handle C.uintptr_t, req *C.CGOSharedDirectoryMoveRe
 	})
 }
 
-func (c *Client) sharedDirectoryMoveRequest(req legacy.SharedDirectoryMoveRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryMoveRequest(req tdp.SharedDirectoryMoveRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
@@ -1261,7 +1261,7 @@ func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTr
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.sharedDirectoryTruncateRequest(legacy.SharedDirectoryTruncateRequest{
+	return client.sharedDirectoryTruncateRequest(tdp.SharedDirectoryTruncateRequest{
 		CompletionID: uint32(req.completion_id),
 		DirectoryID:  uint32(req.directory_id),
 		Path:         C.GoString(req.path),
@@ -1269,7 +1269,7 @@ func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTr
 	})
 }
 
-func (c *Client) sharedDirectoryTruncateRequest(req legacy.SharedDirectoryTruncateRequest) C.CGOErrCode {
+func (c *Client) sharedDirectoryTruncateRequest(req tdp.SharedDirectoryTruncateRequest) C.CGOErrCode {
 	if !c.cfg.AllowDirectorySharing {
 		return C.ErrCodeFailure
 	}
