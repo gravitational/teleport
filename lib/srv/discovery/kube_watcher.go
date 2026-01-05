@@ -112,6 +112,10 @@ func (s *Server) startKubeWatchers() error {
 					s.Log.WarnContext(s.ctx, "Unable to reconcile resources", "error", err)
 				}
 
+				if s.onKubernetesClusterReconcile != nil {
+					s.onKubernetesClusterReconcile()
+				}
+
 			case <-s.ctx.Done():
 				return
 			}
