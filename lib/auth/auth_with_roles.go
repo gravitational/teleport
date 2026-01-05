@@ -25,6 +25,7 @@ import (
 	"iter"
 	"log/slog"
 	"maps"
+	"net"
 	"net/url"
 	"os"
 	"slices"
@@ -8103,6 +8104,40 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			err = trace.BadParameter("expected MFA auth challenge response")
 			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
 			return err
+		}
+
+		// If the type of this request is 'browser' or 'session' check that the IP
+		// address of the tsh client and the approving browser match
+		if headlessAuthn.Type == types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_BROWSER ||
+			headlessAuthn.Type == types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_SESSION {
+
+			browserAddr, err := authz.ClientSrcAddrFromContext(ctx)
+			if err != nil {
+				err = trace.Wrap(err, "failed to get client address from context")
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				return err
+			}
+
+			browserHost, _, err := net.SplitHostPort(browserAddr.String())
+			if err != nil {
+				err = trace.Wrap(err, "failed to parse browser address")
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				return err
+			}
+
+			clientHost, _, err := net.SplitHostPort(headlessAuthn.ClientIpAddress)
+			if err != nil {
+				err = trace.Wrap(err, "failed to parse browser address")
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				return err
+			}
+
+			// Compare browser and client hosts, treating local addresses as equal
+			if !(browserHost == clientHost || (utils.IsLocalhost(browserHost) && utils.IsLocalhost(clientHost))) {
+				err = trace.AccessDenied("approver IP address %s does not match the headless authentication request IP %s", browserHost, clientHost)
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				return err
+			}
 		}
 
 		// Only WebAuthn and SSO are supported in headless login flow for superior phishing prevention.
