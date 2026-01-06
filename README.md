@@ -133,19 +133,18 @@ by AI agents.
 
 ## Supporting & Contributing
 
-We offer a few different options for support. First of all, we try to provide
-clear and comprehensive documentation. The docs are also in GitHub, so feel
-free to create a PR or file an issue if you have ideas for improvements. If
-you still have questions after reviewing our docs, you can also:
+We aim to make Teleport easy to adopt and contribute to, starting with clear and comprehensive [documentation](https://goteleport.com/docs/). 
 
-- Join [Teleport Discussions](https://github.com/gravitational/teleport/discussions)
-  to ask questions. Our engineers are available there to help you.
-- If you want to contribute to Teleport or file a bug report/issue, you can
-  create an issue here in GitHub.
-- If you are interested in Teleport Enterprise or more responsive support
-  during a POC, we can also create a dedicated Slack channel for you during
-  your POC. You can [reach out to us through our
-  website](https://goteleport.com/contact-sales/) to arrange for a POC.
+If you have questions, are exploring ideas, or want to sanity-check something, please start with a GitHub Discussion. Discussions help us answer questions, explore use cases, and decide together whether something should become a bug report or feature request.
+
+- Start a conversation in [Teleport Discussions](https://github.com/gravitational/teleport/discussions)  
+  This is the best place to ask questions, share ideas, and get help. Our engineers actively participate there, and discussions can be promoted to issues when there is a clear, actionable next step.
+
+- Issues are for confirmed bugs and well-defined feature requests  
+  If something has already been validated as a bug or an enhancement, feel free to open an issue. When in doubt, start a discussion and we will help guide it.
+
+- Enterprise and POC support  
+  If you are evaluating Teleport Enterprise or need more responsive support during a POC, we can set up a dedicated Slack channel. You can [reach out to us through our website](https://goteleport.com/contact-sales/) to get started.
 
 ## Installing and Running
 
