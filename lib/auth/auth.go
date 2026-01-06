@@ -6908,8 +6908,31 @@ const (
 	accessListReminderSemaphoreMaxLeases = 1
 )
 
+// createAccessListReminderNotificationsOptions defines the optional parameters for CreateAccessListReminderNotifications.
+type createAccessListReminderNotificationsOptions struct {
+	createNotificationInterval time.Duration
+}
+
+// CreateAccessListReminderNotificationsOptions is a functional option for CreateAccessListReminderNotifications.
+type CreateAccessListReminderNotificationsOptions func(*createAccessListReminderNotificationsOptions)
+
+// WithCreateNotificationInterval sets the interval between creating notifications.
+func WithCreateNotificationInterval(d time.Duration) CreateAccessListReminderNotificationsOptions {
+	return func(o *createAccessListReminderNotificationsOptions) {
+		o.createNotificationInterval = d
+	}
+}
+
 // CreateAccessListReminderNotifications checks if there are any access lists expiring soon and creates notifications to remind their owners if so.
-func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
+func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts ...CreateAccessListReminderNotificationsOptions) {
+	opt := &createAccessListReminderNotificationsOptions{
+		// defaults to notificationsWriteInterval aka 40ms
+		createNotificationInterval: notificationsWriteInterval,
+	}
+	for _, o := range opts {
+		o(opt)
+	}
+
 	// Ensure only one auth server is running this check at a time.
 	lease, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: a,
@@ -6942,35 +6965,21 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
-	var accessListsPageKey string
-	accessListsReadLimiter := time.NewTicker(accessListsPageReadInterval)
-	defer accessListsReadLimiter.Stop()
-	for {
-		select {
-		case <-accessListsReadLimiter.C:
-		case <-ctx.Done():
-			return
-		}
-		response, nextKey, err := a.Cache.ListAccessLists(ctx, accessListsPageSize, accessListsPageKey)
-		if err != nil {
-			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
+	err = clientutils.IterateResources(ctx, a.Cache.ListAccessLists, func(al *accesslist.AccessList) error {
+		if !al.IsReviewable() {
+			return nil
 		}
 
-		for _, al := range response {
-			if !al.IsReviewable() {
-				continue
-			}
-
-			// Only keep access lists that fall within our thresholds in memory
-			if al.Spec.Audit.NextAuditDate.Sub(now) <= 15*24*time.Hour {
-				accessLists = append(accessLists, al)
-			}
+		// Only keep access lists that fall within our thresholds in memory
+		if al.Spec.Audit.NextAuditDate.Sub(now) <= 15*24*time.Hour {
+			accessLists = append(accessLists, al)
 		}
-
-		if nextKey == "" {
-			break
-		}
-		accessListsPageKey = nextKey
+		return nil
+	})
+	if err != nil {
+		a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check",
+			"error", err)
+		return
 	}
 
 	reminderThresholds := []struct {
@@ -7008,18 +7017,16 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 		// Fetch all identifiers for this treshold prefix.
 		var identifiers []*notificationsv1.UniqueNotificationIdentifier
-		var notificationsPageKey string
-		for {
-			identifiersResp, nextKey, err := a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, 0, notificationsPageKey)
+		iterator := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+			return a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, pageSize, pageKey)
+		})
+
+		for identifiersResp, err := range iterator {
 			if err != nil {
 				a.logger.WarnContext(ctx, "failed to list notification identifiers", "error", err, "prefix", threshold.prefix)
 				break
 			}
-			identifiers = append(identifiers, identifiersResp...)
-			if nextKey == "" {
-				break
-			}
-			notificationsPageKey = nextKey
+			identifiers = append(identifiers, identifiersResp)
 		}
 
 		accessListIDs := set.New[string]()
@@ -7034,7 +7041,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		// Check for access lists which haven't already been accounted for in a notification
 		var needsNotification bool
 
-		writeLimiter := time.NewTicker(notificationsWriteInterval)
+		writeLimiter := time.NewTicker(opt.createNotificationInterval)
 		for _, accessList := range relevantLists {
 			select {
 			case <-writeLimiter.C:
