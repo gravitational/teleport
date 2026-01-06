@@ -23,6 +23,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -147,9 +148,14 @@ func TestCompleteUpload(t *testing.T) {
 
 			err = handler.CompleteUpload(ctx, *upload, parts)
 			require.NoError(t, err)
+			version, err := handler.GetRecordingVersion(ctx, upload.SessionID, "")
+			require.NoError(t, err)
+			require.NotEmpty(t, version)
 
 			// Check upload contents
-			uploadPath := handler.recordingPath(upload.SessionID)
+			uploadPath := handler.recordingPath(events.StreamUpload{
+				SessionID: upload.SessionID,
+			})
 			f, err := os.Open(uploadPath)
 			require.NoError(t, err)
 
@@ -160,6 +166,90 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoDirExists(t, handler.uploadRootPath(*upload))
 		})
 	}
+}
+
+func TestCompleteTemporaryUpload(t *testing.T) {
+	ctx := t.Context()
+	handler, err := NewHandler(Config{
+		Directory: t.TempDir(),
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	// Create the upload.
+	upload, err := handler.CreateUpload(ctx, session.NewID(), events.WithUploadTemporary())
+	require.NoError(t, err)
+	uploads, err := handler.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Len(t, uploads, 1)
+	upload.Initiated = uploads[0].Initiated
+	require.Equal(t, *upload, uploads[0])
+
+	// Create some upload parts using reserve + write.
+	createPart := func(partNumber int64, content []byte) events.StreamPart {
+		err := handler.ReserveUploadPart(ctx, *upload, partNumber)
+		require.NoError(t, err)
+
+		if len(content) > 0 {
+			part, err := handler.UploadPart(ctx, *upload, partNumber, bytes.NewReader(content))
+			require.NoError(t, err)
+			return *part
+		}
+
+		return events.StreamPart{Number: partNumber}
+	}
+	parts := []events.StreamPart{
+		createPart(0, []byte("hello ")),
+		createPart(1, []byte("world")),
+		createPart(2, []byte("!")),
+	}
+	// Complete the upload. Verify that the recording was written to the temporary
+	// upload location and not the final location.
+	require.NoError(t, handler.CompleteUpload(ctx, *upload, parts))
+	require.NoFileExists(t, handler.recordingPath(events.StreamUpload{
+		SessionID: upload.SessionID,
+	}))
+	require.FileExists(t, handler.recordingPath(*upload))
+	// Verify that completing the upload with no parts deletes the temp recording.
+	require.NoError(t, handler.CompleteUpload(ctx, *upload, nil))
+	require.NoFileExists(t, handler.recordingPath(*upload))
+}
+
+func TestRejectVersionMismatch(t *testing.T) {
+	t.Parallel()
+	handler, err := NewHandler(Config{Directory: t.TempDir()})
+	require.NoError(t, err)
+
+	createPart := func(upload events.StreamUpload, content string) events.StreamPart {
+		err := handler.ReserveUploadPart(t.Context(), upload, 1)
+		require.NoError(t, err)
+		part, err := handler.UploadPart(t.Context(), upload, 1, strings.NewReader(content))
+		require.NoError(t, err)
+		return *part
+	}
+
+	// Create initial upload.
+	sessionID := session.NewID()
+	initialUpload, err := handler.CreateUpload(t.Context(), sessionID)
+	require.NoError(t, err)
+	part := createPart(*initialUpload, "foo")
+	require.NoError(t, handler.CompleteUpload(t.Context(), *initialUpload, []events.StreamPart{part}))
+	version, err := handler.GetRecordingVersion(t.Context(), sessionID, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, version)
+
+	// Create two uploads targeting the same version.
+	firstReupload, err := handler.CreateUpload(t.Context(), sessionID, events.WithUploadReplace(version))
+	require.NoError(t, err)
+	secondReupload, err := handler.CreateUpload(t.Context(), sessionID, events.WithUploadReplace(version))
+	require.NoError(t, err)
+	firstPart := createPart(*firstReupload, "bar")
+	secondPart := createPart(*secondReupload, "baz")
+
+	// Verify that the first upload succeeds, but the second upload fails because
+	// the version has changed.
+	require.NoError(t, handler.CompleteUpload(t.Context(), *firstReupload, []events.StreamPart{firstPart}))
+	require.Error(t, handler.CompleteUpload(t.Context(), *secondReupload, []events.StreamPart{secondPart}))
 }
 
 func TestCleanupEmptyUpload(t *testing.T) {
@@ -195,7 +285,9 @@ func TestCleanupEmptyUpload(t *testing.T) {
 	require.NoError(t, err)
 
 	// The empty upload should be cleaned up without impacting the original completed upload.
-	uploadPath := handler.recordingPath(upload.SessionID)
+	uploadPath := handler.recordingPath(events.StreamUpload{
+		SessionID: upload.SessionID,
+	})
 	f, err := os.Open(uploadPath)
 	require.NoError(t, err)
 

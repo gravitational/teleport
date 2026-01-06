@@ -57,7 +57,7 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
 	require.Error(t, err)
 
-	rc, err := handler.StreamSessionRecording(ctx, id)
+	rc, err := handler.StreamSessionRecording(ctx, id, "" /* upload ID */)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -160,7 +160,7 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	_, err := handler.StreamSessionRecording(t.Context(), id)
+	_, err := handler.StreamSessionRecording(t.Context(), id, "" /* upload ID */)
 	require.True(t, trace.IsNotFound(err))
 }
 
