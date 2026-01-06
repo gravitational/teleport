@@ -4856,34 +4856,34 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	// Run CreateAccessListReminderNotifications()
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
-	identifiers := collectAllUniqueNotificationIdentifiers(t, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
+	identifiers := collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
 	require.Len(t, identifiers, numAccessLists,
 		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
 
 	// Run CreateAccessListReminderNotifications() again to verify it can read multiple pages of identifiers without memory leak
 	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
-	identifiers = collectAllUniqueNotificationIdentifiers(t, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
+	identifiers = collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
 	require.Len(t, identifiers, numAccessLists,
 		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
-
 }
 
-func collectAllUniqueNotificationIdentifiers(t *testing.T, authServer *auth.Server, prefix string) []*notificationsv1.UniqueNotificationIdentifier {
+func collectAllUniqueNotificationIdentifiers(t *testing.T, ctx context.Context, authServer *auth.Server, prefix string) []*notificationsv1.UniqueNotificationIdentifier {
 	t.Helper()
-	var allIdentifiers []*notificationsv1.UniqueNotificationIdentifier
-	var nextKey string
 
-	for {
-		identifiers, next, err := authServer.ListUniqueNotificationIdentifiersForPrefix(t.Context(), prefix, 100, nextKey)
-		require.NoError(t, err)
-		allIdentifiers = append(allIdentifiers, identifiers...)
-		if next == "" {
-			break
+	var identifiers []*notificationsv1.UniqueNotificationIdentifier
+	iterator := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+		return authServer.ListUniqueNotificationIdentifiersForPrefix(ctx, prefix, pageSize, pageKey)
+	})
+
+	for identifiersResp, err := range iterator {
+		if err != nil {
+			require.NoError(t, err, "listing unique notification identifiers for prefix %q", prefix)
 		}
-		nextKey = next
+		identifiers = append(identifiers, identifiersResp)
 	}
-	return allIdentifiers
+
+	return identifiers
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
