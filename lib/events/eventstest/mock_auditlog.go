@@ -41,10 +41,12 @@ func (m *MockAuditLog) StreamSessionEvents(ctx context.Context, sid session.ID, 
 		defer close(events)
 
 		for _, event := range m.SessionEvents {
-			select {
-			case <-ctx.Done():
-				return
-			case events <- event:
+			if event.GetIndex() >= startIndex {
+				select {
+				case <-ctx.Done():
+					return
+				case events <- event:
+				}
 			}
 		}
 	}()

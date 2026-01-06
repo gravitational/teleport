@@ -1437,3 +1437,88 @@ func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, erro
 func isReserveUploadPartError(err error) bool {
 	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }
+
+type MergeStreamer struct {
+	Streamers []SessionStreamer
+}
+
+func (m MergeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	events := make(chan apievents.AuditEvent)
+	errors := make(chan error, len(m.Streamers))
+	go func() {
+		defer close(events)
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		streams := make([]chan apievents.AuditEvent, 0, len(m.Streamers))
+		currentEvents := make([]apievents.AuditEvent, len(m.Streamers))
+		wg := &sync.WaitGroup{}
+		for i, streamer := range m.Streamers {
+			stream, errCh := streamer.StreamSessionEvents(ctx, sessionID, startIndex)
+			streams = append(streams, stream)
+			// Forward errors.
+			go func() {
+				var err error
+				select {
+				case err = <-errCh:
+				case <-ctx.Done():
+					return
+				}
+				select {
+				case errors <- err:
+				case <-ctx.Done():
+				}
+			}()
+			// Collect first event from each stream.
+			wg.Go(func() {
+				select {
+				case firstEvent := <-stream:
+					currentEvents[i] = firstEvent
+				case <-ctx.Done():
+				}
+			})
+		}
+		wg.Wait()
+
+		for {
+			// Find next event by index.
+			var nextEventIndex int64 = -1
+			for _, event := range currentEvents {
+				if event == nil {
+					continue
+				}
+				if nextEventIndex == -1 || event.GetIndex() < nextEventIndex {
+					nextEventIndex = event.GetIndex()
+				}
+			}
+			if nextEventIndex == -1 {
+				// All events sent.
+				return
+			}
+
+			seen := false
+			for i, event := range currentEvents {
+				if event == nil || event.GetIndex() != nextEventIndex {
+					continue
+				}
+				if !seen {
+					seen = true
+					wg.Go(func() {
+						select {
+						case events <- event:
+						case <-ctx.Done():
+						}
+					})
+				}
+				wg.Go(func() {
+					select {
+					case currentEvents[i] = <-streams[i]:
+					case <-ctx.Done():
+					}
+				})
+			}
+			wg.Wait()
+		}
+	}()
+	return events, errors
+}

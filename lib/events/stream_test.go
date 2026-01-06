@@ -23,14 +23,17 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -698,4 +701,132 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
+}
+
+type testEvent struct {
+	apievents.AuditEvent
+	index int64
+	code  string
+}
+
+func (t testEvent) GetIndex() int64 {
+	return t.index
+}
+
+func (t testEvent) GetCode() string {
+	return t.code
+}
+
+type errorSessionStreamer struct{}
+
+func (e errorSessionStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	events := make(chan apievents.AuditEvent)
+	errors := make(chan error, 1)
+	errors <- fmt.Errorf("test error")
+	return events, errors
+}
+
+func TestMergeStreamer(t *testing.T) {
+	t.Parallel()
+	mkEvent := func(index int64, code string) apievents.AuditEvent {
+		return testEvent{index: index, code: code}
+	}
+	tests := []struct {
+		name           string
+		events         [][]apievents.AuditEvent
+		startIndex     int64
+		expectedEvents []apievents.AuditEvent
+	}{
+		{
+			name: "empty stream",
+			events: [][]apievents.AuditEvent{
+				{},
+			},
+			expectedEvents: []apievents.AuditEvent{},
+		},
+		{
+			name: "single stream",
+			events: [][]apievents.AuditEvent{
+				{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
+			},
+			expectedEvents: []apievents.AuditEvent{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
+		},
+		{
+			name: "multiple streams",
+			events: [][]apievents.AuditEvent{
+				{mkEvent(2, "b"), mkEvent(6, "f"), mkEvent(9, "i")},
+				{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e")},
+				{mkEvent(3, "c"), mkEvent(7, "g"), mkEvent(8, "h")},
+			},
+			expectedEvents: []apievents.AuditEvent{
+				mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c"),
+				mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
+				mkEvent(7, "g"), mkEvent(8, "h"), mkEvent(9, "i"),
+			},
+		},
+		{
+			name: "prioritize events from earlier streams",
+			events: [][]apievents.AuditEvent{
+				{mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(4, "d1")},
+				{mkEvent(1, "a2"), mkEvent(3, "c2"), mkEvent(4, "d2")},
+				{mkEvent(2, "b3"), mkEvent(3, "c3"), mkEvent(5, "e3")},
+			},
+			expectedEvents: []apievents.AuditEvent{
+				mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(3, "c2"),
+				mkEvent(4, "d1"), mkEvent(5, "e3"),
+			},
+		},
+		{
+			name: "nonzero start index",
+			events: [][]apievents.AuditEvent{
+				{mkEvent(2, "b"), mkEvent(6, "f"), mkEvent(9, "i")},
+				{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e")},
+				{mkEvent(3, "c"), mkEvent(7, "g"), mkEvent(8, "h")},
+			},
+			startIndex: 4,
+			expectedEvents: []apievents.AuditEvent{
+				mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
+				mkEvent(7, "g"), mkEvent(8, "h"), mkEvent(9, "i"),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			auditLogs := make([]events.SessionStreamer, 0, len(tc.events))
+			for _, events := range tc.events {
+				auditLogs = append(auditLogs, &eventstest.MockAuditLog{SessionEvents: events})
+			}
+			streamer := events.MergeStreamer{Streamers: auditLogs}
+			events, errors := streamer.StreamSessionEvents(t.Context(), "", tc.startIndex)
+			gotEvents := make([]apievents.AuditEvent, 0, len(tc.expectedEvents))
+			for event := range events {
+				gotEvents = append(gotEvents, event)
+			}
+
+			assert.Equal(t, tc.expectedEvents, gotEvents)
+			select {
+			case err := <-errors:
+				assert.Fail(t, "unexpected error from channel:", err)
+			default:
+			}
+		})
+	}
+
+	t.Run("propagate errors", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			streamer := events.MergeStreamer{Streamers: []events.SessionStreamer{
+				&eventstest.MockAuditLog{SessionEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c")}},
+				errorSessionStreamer{},
+				&eventstest.MockAuditLog{SessionEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c")}},
+			}}
+			_, errors := streamer.StreamSessionEvents(t.Context(), "", 0)
+			synctest.Wait()
+			select {
+			case err := <-errors:
+				require.Error(t, err)
+			default:
+				require.Fail(t, "expected error on channel")
+			}
+		})
+	})
 }
