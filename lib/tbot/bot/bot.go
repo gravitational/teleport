@@ -20,6 +20,7 @@ package bot
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -49,6 +50,12 @@ var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/bot")
 type Bot struct {
 	cfg     Config
 	started atomic.Bool
+
+	ending atomic.Bool
+
+	dynamicServiceMu           sync.Mutex
+	dynamicServiceDependencies *dynamicServiceDependencies
+	dynamicServices            []*dynamicService
 }
 
 // New creates a Bot with the given configuration. Call Run to run the bot in
@@ -80,6 +87,15 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Keep this context available for dynamic services.
+	b.dynamicServiceMu.Lock()
+	b.dynamicServiceDependencies.context = ctx
+	b.dynamicServiceMu.Unlock()
+
+	// if b.cfg.DynamicServiceCh != nil {
+	// 	go b.handleDynamicServiceRequests(ctx, b.cfg.DynamicServiceCh)
+	// }
+
 	for _, handle := range services {
 		// If the service builder called ServiceDependencies.GetStatusReporter,
 		// we take that as a promise that the service's Run method will report
@@ -110,7 +126,30 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			return nil
 		})
 	}
-	return group.Wait()
+
+	err = group.Wait()
+
+	b.ending.Store(true)
+	b.cfg.Logger.InfoContext(ctx, "waiting for dynamic services to exit")
+
+	// Collect errors from dynamic services.
+	// TODO: presumably to reach this point a cancel signal must have been sent,
+	// which should have propagated to dynamic services since they are derived
+	// from the same cancel context. Still, this is probably not a great
+	// assumption to make and something smarter should be done.
+	b.dynamicServiceMu.Lock()
+	defer b.dynamicServiceMu.Unlock()
+	errors := []error{err}
+	for _, d := range b.dynamicServices {
+		<-d.done
+
+		errors = append(
+			errors,
+			trace.Wrap(d.error(), "error in dynamic service: %s (%s)", d.name, d.serviceType),
+		)
+	}
+
+	return trace.NewAggregate(errors...)
 }
 
 // OneShot runs the bot in "one shot" mode to generate outputs once and then exits.
@@ -171,6 +210,101 @@ func (b *Bot) OneShot(ctx context.Context) (err error) {
 		})
 	}
 	return group.Wait()
+}
+
+type readyEvent struct {
+	status readyz.Status
+	reason string
+}
+
+func (b *Bot) SpawnDynamicService(builder ServiceBuilder) error {
+	// TODO: this doesn't create destinations in the same way that traditional
+	// startup does, and requires them to be created in advance. Not ideal.
+	handle, err := b.buildSingleService(builder)
+	if err != nil {
+		return trace.Wrap(err, "spawning new dynamic service")
+	}
+
+	b.dynamicServiceMu.Lock()
+	defer b.dynamicServiceMu.Unlock()
+
+	stype, sname := builder.GetTypeAndName()
+	b.cfg.Logger.DebugContext(context.Background(), "spawning new dynamic service", "type", stype, "name", sname)
+
+	if b.ending.Load() {
+		return trace.BadParameter("services cannot be spawned when the bot is exiting")
+	}
+
+	if b.dynamicServiceDependencies == nil {
+		return trace.BadParameter("service dependencies not initialized")
+	}
+
+	b.cfg.Logger.InfoContext(b.dynamicServiceDependencies.context, "built service successfully")
+
+	doneCh := make(chan struct{})
+	svc := &dynamicService{
+		name:        handle.name,
+		serviceType: handle.serviceType,
+		done:        doneCh,
+	}
+	b.dynamicServices = append(b.dynamicServices, svc)
+
+	// If the service builder called ServiceDependencies.GetStatusReporter,
+	// we take that as a promise that the service's Run method will report
+	// statuses. Otherwise we will not include the service in heartbeats or
+	// the `/readyz` endpoint.
+	readyCh := make(chan readyEvent)
+	if handle.statusReporter.used {
+		handle.statusReporter.reporter = b.dynamicServiceDependencies.statusRegistry.AddServiceWithCallback(
+			handle.serviceType,
+			handle.name,
+			func(name string, status readyz.Status, reason string) {
+				readyCh <- readyEvent{
+					status: status,
+					reason: reason,
+				}
+				close(readyCh)
+			},
+		)
+	} else {
+		close(readyCh)
+	}
+
+	ctx := b.dynamicServiceDependencies.context
+	go func() {
+		log := b.cfg.Logger.With("dynamic", true, "service", handle.name)
+
+		log.InfoContext(ctx, "Starting dynamic service")
+		err := handle.service.Run(ctx)
+		if err != nil {
+			log.ErrorContext(ctx, "Dynamic service exited with error", "error", err)
+		} else {
+			log.InfoContext(ctx, "Dynamic service exited")
+		}
+
+		svc.mu.Lock()
+		defer svc.mu.Unlock()
+		svc.err = err
+
+		close(doneCh)
+	}()
+
+	select {
+	case event, ok := <-readyCh:
+		if ok && event.status != readyz.Healthy {
+			return trace.Errorf("dynamic service did not become ready: %s (%s)", event.status, event.reason)
+		}
+
+		return nil
+	case <-doneCh:
+		// If the service encounters a hard error and just quits, it won't ever
+		// send a ready signal, so we'll also accept a done.
+		svc.mu.Lock()
+		defer svc.mu.Unlock()
+
+		return trace.Wrap(svc.err, "spawning dynamic service")
+	}
+
 }
 
 func (b *Bot) checkStarted() error {
@@ -280,7 +414,66 @@ func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*
 
 		handles = append(handles, handle)
 	}
+
+	b.dynamicServiceMu.Lock()
+	defer b.dynamicServiceMu.Unlock()
+
+	b.dynamicServiceDependencies = &dynamicServiceDependencies{
+		identityService:   identityService,
+		resolver:          resolver,
+		clientBuilder:     clientBuilder,
+		proxyPinger:       proxyPinger,
+		reloadBroadcaster: reloadBroadcaster,
+		statusRegistry:    registry,
+	}
+
 	return handles, closeFn, nil
+}
+
+func (b *Bot) buildSingleService(builder ServiceBuilder) (*serviceHandle, error) {
+	b.dynamicServiceMu.Lock()
+	defer b.dynamicServiceMu.Unlock()
+
+	if b.dynamicServiceDependencies == nil {
+		return nil, trace.BadParameter("main bot services must be initialized first")
+	}
+
+	reloadCh, unsubscribe := b.dynamicServiceDependencies.reloadBroadcaster.Subscribe()
+
+	handle := &serviceHandle{
+		closeFn:        unsubscribe,
+		statusReporter: &statusReporter{},
+	}
+
+	identityGenerator, err := b.dynamicServiceDependencies.identityService.GetGenerator()
+	if err != nil {
+		return nil, trace.Wrap(err, "building identity generator")
+	}
+
+	handle.service, err = builder.Build(ServiceDependencies{
+		Client:             b.dynamicServiceDependencies.identityService.GetClient(),
+		Resolver:           b.dynamicServiceDependencies.resolver,
+		ClientBuilder:      b.dynamicServiceDependencies.clientBuilder,
+		IdentityGenerator:  identityGenerator,
+		ProxyPinger:        b.dynamicServiceDependencies.proxyPinger,
+		BotIdentity:        b.dynamicServiceDependencies.identityService.GetIdentity,
+		BotIdentityReadyCh: b.dynamicServiceDependencies.identityService.Ready(),
+		ReloadCh:           reloadCh,
+		StatusRegistry:     b.dynamicServiceDependencies.statusRegistry,
+		GetStatusReporter: func() readyz.Reporter {
+			handle.statusReporter.used = true
+			return handle.statusReporter
+		},
+		Logger: b.cfg.Logger.With(
+			teleport.ComponentKey,
+			teleport.Component(teleport.ComponentTBot, "svc", handle.name),
+		),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "building dynamic service")
+	}
+
+	return handle, nil
 }
 
 func (b *Bot) buildReloadBroadcaster(ctx context.Context) *internal.ChannelBroadcaster {
