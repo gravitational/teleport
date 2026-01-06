@@ -84,4 +84,4 @@ clean: tfclean
 
 .PHONY: tfclean
 tfclean:
-	find . \( -name '.terraform*' -or -name 'terraform.tfstate*' \) -exec rm -rf {} \+
+	find . \( -name '.terraform' -or -name '.terraform.lock.hcl' -or -name 'terraform.tfstate*' \) -exec rm -rf {} \+
