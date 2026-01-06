@@ -25,7 +25,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -43,15 +45,9 @@ func TestMFAService_CRUD(t *testing.T) {
 
 	username, chal := "alice", newValidatedMFAChallenge()
 
-	t.Run("get non-existent", func(t *testing.T) {
-		t.Parallel()
-
-		_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
-
-		var notFoundErr *trace.NotFoundError
-
-		assert.ErrorAs(t, err, &notFoundErr, "error type mismatch")
-	})
+	_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
+	var notFoundErr *trace.NotFoundError
+	assert.ErrorAs(t, err, &notFoundErr, "error type mismatch")
 
 	startTime := time.Now()
 
@@ -60,19 +56,17 @@ func TestMFAService_CRUD(t *testing.T) {
 
 	want := proto.Clone(chal).(*mfav1.ValidatedMFAChallenge)
 
-	if diff := cmp.Diff(
-		want,
-		created,
-		// Ignore expiration time in comparison.
-		cmp.FilterPath(
-			func(p cmp.Path) bool {
-				return p.String() == "Metadata.Expires"
-			},
-			cmp.Ignore(),
+	require.Empty(
+		t,
+		cmp.Diff(
+			want,
+			created,
+			// Ignore expiration time in comparison.
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "expires"),
 		),
-	); diff != "" {
-		t.Errorf("CreateValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
-	}
+		"CreateValidatedMFAChallenge mismatch (-want +got)",
+	)
 
 	// Expiration time should be roughly 5 minutes from creation.
 	require.WithinDuration(t, startTime.Add(5*time.Minute), *created.Metadata.Expires, time.Second)
@@ -80,9 +74,11 @@ func TestMFAService_CRUD(t *testing.T) {
 	got, err := svc.GetValidatedMFAChallenge(t.Context(), username, chal.Metadata.Name)
 	require.NoError(t, err)
 
-	if diff := cmp.Diff(created, got); diff != "" {
-		t.Errorf("GetValidatedMFAChallenge mismatch (-want +got):\n%s", diff)
-	}
+	require.Empty(
+		t,
+		cmp.Diff(created, got),
+		"GetValidatedMFAChallenge mismatch (-want +got)",
+	)
 }
 
 func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
