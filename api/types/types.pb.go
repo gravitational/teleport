@@ -3935,12 +3935,12 @@ type AppSpecV3 struct {
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	Integration string `protobuf:"bytes,9,opt,name=Integration,proto3" json:"integration,omitempty"`
 	// RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
-	// be part of the authentication redirect flow and authenticate along side this app.
+	// be part of the authentication redirect flow and authenticate alongside this app.
 	RequiredAppNames []string `protobuf:"bytes,10,rep,name=RequiredAppNames,proto3" json:"required_app_names,omitempty"`
 	// CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
 	CORS *CORSPolicy `protobuf:"bytes,11,opt,name=CORS,proto3" json:"cors,omitempty"`
-	// IdentityCenter encasulates AWS identity-center specific information. Only
-	// valid for Identity Center account apps.
+	// IdentityCenter encapsulates information specific to AWS IAM Identity
+	// Center. Only valid for Identity Center account apps.
 	IdentityCenter *AppIdentityCenter `protobuf:"bytes,12,opt,name=IdentityCenter,proto3" json:"identity_center,omitempty"`
 	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
 	// Only applicable to TCP App Access.
@@ -4087,7 +4087,7 @@ func (m *Rewrite) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Rewrite proto.InternalMessageInfo
 
-// Header represents a single http header passed over to the proxied application.
+// Header represents a single HTTP header passed over to the proxied application.
 type Header struct {
 	// Name is the http header name.
 	Name string `protobuf:"bytes,1,opt,name=Name,proto3" json:"name"`
@@ -4277,7 +4277,7 @@ type AppAWSRolesAnywhereProfile struct {
 	// Whether this Roles Anywhere Profile accepts a custom role session name.
 	// When not supported, the AWS Session Name will be the X.509 certificate's serial number.
 	// When supported, the AWS Session Name will be the identity's username.
-	// This values comes from:
+	// This value comes from:
 	// https://docs.aws.amazon.com/rolesanywhere/latest/APIReference/API_ProfileDetail.html / acceptRoleSessionName
 	AcceptRoleSessionName bool     `protobuf:"varint,2,opt,name=AcceptRoleSessionName,proto3" json:"accept_role_session_name"`
 	XXX_NoUnkeyedLiteral  struct{} `json:"-"`
