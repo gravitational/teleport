@@ -157,6 +157,13 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
+	// If a target cluster is specified, ensure that it exists as either the current cluster or a remote cluster.
+	if req.TargetCluster != "" {
+		if err := s.clusterExists(ctx, req.TargetCluster); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	pref, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -196,7 +203,11 @@ func (s *Service) CreateSessionChallenge(
 	// Create the MFA challenge response with a randomly generated UUID for its name. This name is used to track the
 	// status of the MFA challenge throughout its lifecycle by the service that the user is authenticating to. The name
 	// is scoped to the user and the actual challenge has a short TTL, so collisions are extremely unlikely.
-	challenge := &mfav1.CreateSessionChallengeResponse{MfaChallenge: &mfav1.AuthenticateChallenge{Name: uuid.NewString()}}
+	challenge := &mfav1.CreateSessionChallengeResponse{
+		MfaChallenge: &mfav1.AuthenticateChallenge{
+			Name: uuid.NewString(),
+		},
+	}
 
 	currentCluster, err := s.cache.GetClusterName(ctx)
 	if err != nil {
@@ -420,13 +431,7 @@ func (s *Service) validateCreateSessionChallengeRequest(
 		return trace.BadParameter("missing SsoClientRedirectUrl for SSO challenge")
 	}
 
-	// Target cluster is not set, so no further validation is needed.
-	if req.TargetCluster == "" {
-		return nil
-	}
-
-	// Ensure that the target cluster exists as either the current cluster or a remote cluster.
-	return s.clusterExists(ctx, req.TargetCluster)
+	return nil
 }
 
 func (s *Service) clusterExists(ctx context.Context, clusterName string) error {
@@ -512,8 +517,19 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 		return trace.BadParameter("nil ValidateSessionChallengeRequest.mfa_response.response")
 	}
 
-	if mfaResp.GetWebauthn() == nil && mfaResp.GetSso() == nil {
-		return trace.BadParameter("one of WebauthnResponse or SSOResponse must be provided")
+	switch resp := resp.(type) {
+	case *mfav1.AuthenticateResponse_Webauthn:
+		if resp.Webauthn == nil {
+			return trace.BadParameter("nil WebauthnResponse in AuthenticateResponse")
+		}
+
+	case *mfav1.AuthenticateResponse_Sso:
+		if resp.Sso == nil {
+			return trace.BadParameter("nil SSOResponse in AuthenticateResponse")
+		}
+
+	default:
+		return trace.BadParameter("unknown MFA response type %T", resp)
 	}
 
 	return nil
