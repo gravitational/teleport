@@ -346,14 +346,25 @@ describe('update an access list', () => {
       constructed: madeForAccessListUpdate,
     },
     {
-      case: 'modify title but cannot change description',
+      case: 'modify title and description',
       reqToUpdate: {
         title: 'some other title',
-        description: 'cannot change description',
+        description: 'some other description',
       },
       constructed: {
         ...madeForAccessListUpdate,
         title: 'some other title',
+        description: 'some other description',
+      },
+    },
+    {
+      case: 'modify description into empty',
+      reqToUpdate: {
+        description: '',
+      },
+      constructed: {
+        ...madeForAccessListUpdate,
+        description: '',
       },
     },
     {

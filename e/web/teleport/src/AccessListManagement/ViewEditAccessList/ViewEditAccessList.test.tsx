@@ -295,6 +295,16 @@ async function testAccessToEditHeaderContents({ as }: { as: TestAs }) {
     expect(screen.getByTestId('btn-title')).toBeDisabled();
   }
 
+  // can user edit description
+  if (as === 'admin') {
+    await userEvent.click(screen.getByTestId('btn-description'));
+    const targetText = screen.queryAllByText(/edit description/i);
+    expect(targetText.length).toBeGreaterThan(0);
+    await userEvent.click(screen.getByText(/cancel/i));
+  } else {
+    expect(screen.getByTestId('btn-description')).toBeDisabled();
+  }
+
   // can user delete
   const withinHeader = within(screen.getByTestId('header'));
   if (as === 'admin' || as === 'admin-okta-bidirectionalsync') {

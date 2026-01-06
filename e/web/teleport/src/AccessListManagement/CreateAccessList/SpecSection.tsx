@@ -1,6 +1,10 @@
 import { Box } from 'design';
 import FieldInput from 'shared/components/FieldInput';
-import { requiredField } from 'shared/components/Validation/rules';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
+import {
+  requiredField,
+  requiredMaxLength,
+} from 'shared/components/Validation/rules';
 
 import {
   CalendarDateSelect,
@@ -24,8 +28,12 @@ export const SpecSection = () => {
         value={spec.title}
         onChange={e => setSpec({ ...spec, title: e.target.value })}
       />
-      <FieldInput
+      <FieldTextArea
         label="Description (Optional)"
+        rule={requiredMaxLength(
+          'Description must be 2048 characters or shorter',
+          2048
+        )}
         placeholder="Description"
         value={spec.description}
         onChange={e => setSpec({ ...spec, description: e.target.value })}

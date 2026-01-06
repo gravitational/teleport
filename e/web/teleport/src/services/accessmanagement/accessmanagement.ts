@@ -185,7 +185,8 @@ export const accessManagementService = {
     const madeReq: UpsertAccessListRequest = {
       type: req.type || original.type,
       title: req.title || original.title,
-      description: original.description, // cannot be edited.
+      description:
+        req.description !== undefined ? req.description : original.description,
       audit: req.audit
         ? {
             next_audit_date: req.audit.nextDate,

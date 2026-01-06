@@ -8,10 +8,15 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 import FieldInput from 'shared/components/FieldInput';
+import { FieldTextArea } from 'shared/components/FieldTextArea';
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredMaxLength,
+} from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { TextEditKind } from 'e-teleport/AccessListManagement/Shared/Shared';
 import {
   AccessList,
   accessManagementService,
@@ -19,30 +24,38 @@ import {
 
 import { AccessListModified } from '../Shared';
 
-export function EditTitle({
+export function EditTitleOrDescription({
   onClose,
   accessList,
   updateAccessList,
+  kind,
 }: {
   onClose(): void;
   accessList: AccessListModified;
   updateAccessList(accessList: AccessList): void;
+  kind: TextEditKind;
 }) {
-  const { title: originalTitle } = accessList;
+  const originalText =
+    kind === 'Title' ? accessList.title : accessList.description;
+
   const { attempt, setAttempt } = useAttempt('');
-  const [newTitle, setNewTitle] = useState(originalTitle);
+  const [newText, setNewText] = useState(originalText);
 
   function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
       return;
     }
+
+    const req: Partial<AccessList> =
+      kind === 'Title' ? { title: newText } : { description: newText };
+
     // We don't need to setAttempt to "success"
     // since we are unmounting this after a successful
     // update.
     setAttempt({ status: 'processing' });
     accessManagementService
       .updateAccessList({
-        req: { title: newTitle },
+        req,
         original: accessList,
       })
       .then(resp => {
@@ -67,23 +80,38 @@ export function EditTitle({
           open={true}
         >
           <DialogHeader>
-            <DialogTitle>Edit Title</DialogTitle>
+            <DialogTitle>Edit {kind}</DialogTitle>
           </DialogHeader>
           <DialogContent>
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}
             <Box>
-              <FieldInput
-                mr={2}
-                label="Title"
-                rule={requiredField('Title is required')}
-                placeholder="title"
-                autoFocus
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                disabled={attempt.status === 'processing'}
-              />
+              {kind === 'Title' ? (
+                <FieldInput
+                  mr={2}
+                  label="Title"
+                  rule={requiredField('Title is required')}
+                  placeholder="title"
+                  autoFocus
+                  value={newText}
+                  onChange={e => setNewText(e.target.value)}
+                  disabled={attempt.status === 'processing'}
+                />
+              ) : (
+                <FieldTextArea
+                  label={'Description'}
+                  rule={requiredMaxLength(
+                    'Description must be 2048 characters or shorter.',
+                    2048
+                  )}
+                  placeholder={'description'}
+                  autoFocus
+                  value={newText}
+                  onChange={e => setNewText(e.target.value)}
+                  disabled={attempt.status === 'processing'}
+                />
+              )}
             </Box>
           </DialogContent>
           <DialogFooter>
@@ -92,7 +120,7 @@ export function EditTitle({
               disabled={attempt.status === 'processing'}
               onClick={() => handleOnCreate(validator)}
             >
-              Edit Title
+              Edit {kind}
             </ButtonPrimary>
             <ButtonSecondary
               disabled={attempt.status === 'processing'}

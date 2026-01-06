@@ -16,10 +16,10 @@ describe('isEditDisabled', () => {
     ${'EditOwners+Default'}               | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditOwners+Scim'}                  | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditOwners+Static'}                | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
-    ${'EditTitle+undefined'}              | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
-    ${'EditTitle+Default'}                | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
-    ${'EditTitle+Scim'}                   | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
-    ${'EditTitle+Static'}                 | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
+    ${'EditTitleOrDescription+undefined'} | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
+    ${'EditTitleOrDescription+Default'}   | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
+    ${'EditTitleOrDescription+Scim'}      | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
+    ${'EditTitleOrDescription+Static'}    | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
     ${'EditMembersEligibility+undefined'} | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditMembersEligibility+Default'}   | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditMembersEligibility+Scim'}      | ${false}      | ${true}   | ${true}  | ${false}           | ${true}

@@ -16,7 +16,7 @@ type AccessProps = {
 export enum Action {
   EditMembers,
   EditOwners,
-  EditTitle,
+  EditTitleOrDescription,
   EditMembersEligibility,
   EditOwnersEligibility,
   EditMembersGrants,
@@ -97,7 +97,7 @@ function getEditAccess({
   // For Okta lists title and grants can be defined only in Okta.
   if (isOktaList) {
     switch (action) {
-      case Action.EditTitle:
+      case Action.EditTitleOrDescription:
         return EditAccess.ForbiddenOkta;
       case Action.EditMembersGrants:
         return EditAccess.ForbiddenOkta;
@@ -137,8 +137,8 @@ function readOnlyMsg({
       return `Editing members is disabled; ${extraInfo}`;
     case Action.EditOwners:
       return `Editing owners is disabled; ${extraInfo}`;
-    case Action.EditTitle:
-      return `Editing title is disabled; ${extraInfo}`;
+    case Action.EditTitleOrDescription:
+      return `Editing title or description is disabled; ${extraInfo}`;
     case Action.EditMembersEligibility:
       return `Editing members is disabled; ${extraInfo}`;
     case Action.EditOwnersEligibility:

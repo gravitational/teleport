@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type ComponentProps,
   type Dispatch,
   type SetStateAction,
 } from 'react';
@@ -343,6 +344,18 @@ function MainContent({
   );
 }
 
+const NumCell = ({ children, ...props }: ComponentProps<typeof Cell>) => (
+  <Cell
+    {...props}
+    css={{
+      width: 1,
+      textAlign: 'right',
+    }}
+  >
+    <Text>{children || '–'}</Text>
+  </Cell>
+);
+
 const AccessListTable = ({
   accessLists,
   history,
@@ -363,18 +376,18 @@ const AccessListTable = ({
         key: 'title',
         render: acl => {
           const desc = acl.description?.trim();
-          const descTruncated =
-            desc?.length > 80 ? `${desc.slice(0, 77)}...` : desc;
-          const titleTruncated =
-            acl.title.length > 40 ? `${acl.title.slice(0, 37)}...` : acl.title;
 
           return (
-            <Cell>
+            <Cell css={{ maxWidth: '20vw', whiteSpace: 'nowrap' }}>
               <Flex flexDirection="column" gap={1}>
-                <Text>{titleTruncated}</Text>
+                <Text title={acl.title}>{acl.title}</Text>
                 {desc?.length ? (
-                  <Text typography="body4" color="text.slightlyMuted">
-                    {descTruncated}
+                  <Text
+                    title={desc}
+                    typography="body4"
+                    color="text.slightlyMuted"
+                  >
+                    {desc}
                   </Text>
                 ) : null}
               </Flex>
@@ -400,7 +413,7 @@ const AccessListTable = ({
       {
         // TODO(kiosion): Modify Table to accept icons for header cols so we can use User/UserList here
         // and save on some space/verbosity.
-        headerText: 'Member Users',
+        headerText: 'Users',
         key: 'membersCount',
         onSort: (a, b) => {
           if (a.membersCount === b.membersCount) {
@@ -409,20 +422,12 @@ const AccessListTable = ({
 
           return a.membersCount > b.membersCount ? 1 : -1;
         },
-        render: acl => (
-          <Cell>
-            <Text>{acl.membersCount || '–'}</Text>
-          </Cell>
-        ),
+        render: acl => <NumCell>{acl.membersCount}</NumCell>,
       },
       {
-        headerText: 'Member Access Lists',
+        headerText: 'Lists',
         key: 'memberListCount',
-        render: acl => (
-          <Cell>
-            <Text>{acl.memberListCount || '–'}</Text>
-          </Cell>
-        ),
+        render: acl => <NumCell>{acl.memberListCount}</NumCell>,
       },
       {
         headerText: 'Roles',

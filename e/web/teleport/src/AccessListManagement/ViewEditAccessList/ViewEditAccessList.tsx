@@ -34,6 +34,7 @@ import {
 import useTeleport from 'e-teleport/useTeleportE';
 import { FeatureBox } from 'teleport/components/Layout';
 
+import { TextEditKind } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
 import { Action, getActionForbiddenInfo, isActionForbidden } from './access';
 import { AuditAndReviews } from './AuditAndReviews/AuditAndReviews';
@@ -49,7 +50,7 @@ import {
   type AccessListModified,
   type Perms,
 } from './Shared';
-import { EditTitle } from './Specs/EditTitle';
+import { EditTitleOrDescription } from './Specs/EditTitleOrDescription';
 
 enum Tab {
   ListMembers = 'tab-members',
@@ -73,7 +74,7 @@ export function ViewEditAccessList() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [accessList, setAccessList] = useState<AccessListModified>();
 
-  const [showEditTitle, setShowEditTitle] = useState(false);
+  const [editKind, setEditKind] = useState<TextEditKind>();
 
   const isOktaList = accessList?.origin === AccessListOrigin.Okta;
 
@@ -205,7 +206,7 @@ export function ViewEditAccessList() {
             perms={perms}
             attempt={fetchViewingAccessListAttempt}
             accessList={accessList}
-            setShowEditTitle={setShowEditTitle}
+            setEditKind={setEditKind}
           />
         </Flex>
         {accessList && (
@@ -261,11 +262,12 @@ export function ViewEditAccessList() {
           onClose={() => setDeleteConfirm(false)}
         />
       )}
-      {showEditTitle && (
-        <EditTitle
-          onClose={() => setShowEditTitle(false)}
+      {editKind && (
+        <EditTitleOrDescription
+          onClose={() => setEditKind(null)}
           updateAccessList={updateAccessList}
           accessList={accessList}
+          kind={editKind}
         />
       )}
     </FeatureBox>
@@ -276,17 +278,27 @@ const FeatureTitle = ({
   perms,
   attempt,
   accessList,
-  setShowEditTitle,
+  setEditKind,
 }: {
   accessList: AccessListModified;
   attempt: ReturnType<typeof useAttempt>['attempt'];
   perms: Perms;
-  setShowEditTitle: (value: boolean) => void;
+  setEditKind: (kind: TextEditKind) => void;
 }) => {
   switch (attempt.status) {
     case 'failed':
       return <>Access List</>;
     case 'success':
+      const editForbiddenInfo = getActionForbiddenInfo({
+        accessList,
+        action: Action.EditTitleOrDescription,
+        perms,
+      });
+      const isEditButtonDisabled = isActionForbidden({
+        accessList,
+        action: Action.EditTitleOrDescription,
+        perms,
+      });
       return (
         <Flex flexDirection="column">
           <Flex alignItems="center" mr={3} gap={1}>
@@ -294,29 +306,39 @@ const FeatureTitle = ({
             {accessList.origin !== AccessListOrigin.Unspecified && (
               <TypeBadge type={accessList.origin} />
             )}
-            <HoverTooltip
-              tipContent={getActionForbiddenInfo({
-                accessList,
-                action: Action.EditTitle,
-                perms,
-              })}
-              placement="right"
-            >
-              <ButtonPencil
-                onClick={() => setShowEditTitle(true)}
-                disabled={isActionForbidden({
-                  accessList,
-                  action: Action.EditTitle,
-                  perms,
-                })}
-                dataTestId="btn-title"
-              />
-            </HoverTooltip>
+            <FeatureTitleEditButton
+              tipContent={editForbiddenInfo}
+              isDisabled={isEditButtonDisabled}
+              onClick={() => setEditKind('Title')}
+              dataTestId="btn-title"
+            />
           </Flex>
-          {accessList.description && (
-            <Text fontSize={3} color="text.slightlyMuted">
-              {accessList.description}
-            </Text>
+          {(accessList.description || !isEditButtonDisabled) && (
+            <Flex alignItems="center">
+              {accessList.description ? (
+                <Text
+                  fontSize={3}
+                  color="text.slightlyMuted"
+                  style={{ whiteSpace: 'pre-wrap' }}
+                >
+                  {accessList.description}
+                </Text>
+              ) : (
+                <Text
+                  fontSize={3}
+                  color="text.muted"
+                  style={{ fontStyle: 'italic' }}
+                >
+                  Add a description...
+                </Text>
+              )}
+              <FeatureTitleEditButton
+                tipContent={editForbiddenInfo}
+                isDisabled={isEditButtonDisabled}
+                onClick={() => setEditKind('Description')}
+                dataTestId="btn-description"
+              />
+            </Flex>
           )}
         </Flex>
       );
@@ -324,6 +346,26 @@ const FeatureTitle = ({
       return null;
   }
 };
+
+const FeatureTitleEditButton = ({
+  tipContent,
+  isDisabled,
+  onClick,
+  dataTestId,
+}: {
+  tipContent: string | undefined;
+  isDisabled: boolean;
+  onClick: () => void;
+  dataTestId: string;
+}) => (
+  <HoverTooltip tipContent={tipContent} placement="right">
+    <ButtonPencil
+      onClick={onClick}
+      disabled={isDisabled}
+      dataTestId={dataTestId}
+    />
+  </HoverTooltip>
+);
 
 const MainContent = ({
   perms,

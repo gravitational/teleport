@@ -35,6 +35,7 @@ import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 export type HybridUserOption = Option<User | MemberSelection>;
 export type UserOption = Option<User>;
 export type EditKind = 'Member' | 'Owner' | 'Grants' | 'OwnerGrants';
+export type TextEditKind = 'Title' | 'Description';
 
 export type MemberSelection = {
   name: string;
