@@ -248,31 +248,32 @@ func TestCreateAppSession_DeviceTrust(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err), "Expected AccessDenied error, got %v", err)
-	require.Contains(t, err.Error(), "requires a trusted device")
+	assert.True(t, trace.IsAccessDenied(err), "Expected AccessDenied error, got %v", err)
+	assert.Contains(t, err.Error(), "requires a trusted device")
 
 	logEntries, _, err := testAuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
 		From:  time.Now().Add(-1 * time.Minute),
 		To:    time.Now().Add(1 * time.Minute),
 		Limit: 10,
 	})
-	foundSuccess := false
-	foundFailure := false
+	require.NoError(t, err)
 
+	var authFailureFound bool
 	for _, event := range logEntries {
-		if event.GetType() == events.AppSessionStartEvent {
-			foundSuccess = true
-		}
+		switch event.GetType() {
+		case events.AppSessionStartEvent:
+			assert.Fail(t, "BUG: 'app.session.start' was emitted despite device trust rejection")
 
-		if event.GetType() == events.AuthAttemptEvent && event.GetCode() == events.AuthAttemptFailureCode {
-			if authEvent, ok := event.(*apievents.AuthAttempt); ok {
-				if authEvent.AppMetadata.AppPublicAddr == "www.example.com" {
-					foundFailure = true
+		case events.AuthAttemptEvent:
+			if event.GetCode() == events.AuthAttemptFailureCode {
+				if authEvent, ok := event.(*apievents.AuthAttempt); ok && authEvent.AppMetadata.AppPublicAddr == "www.example.com" {
+					authFailureFound = true
 				}
 			}
 		}
 	}
 
-	require.False(t, foundSuccess, "BUG: 'app.session.start' was emitted.")
-	require.True(t, foundFailure, "Missing 'auth.fail' (AuthAttempt) event for device trust rejection.")
+	if !authFailureFound {
+		t.Error("Missing 'auth.fail' (AuthAttempt) event for device trust rejection.")
+	}
 }

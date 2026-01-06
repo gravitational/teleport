@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -556,53 +555,43 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	// Check if any role requires device trust
-	deviceTrustRequired := false
-	for _, role := range checker.Roles() {
-		mode := role.GetOptions().DeviceTrustMode
-
-		if mode == constants.DeviceTrustModeRequired ||
-			mode == constants.DeviceTrustModeRequiredForHumans {
-			deviceTrustRequired = true
-			break
-		}
-	}
-
-	// Validate that the request has the deviceID extension; non-empty value means user authenticated with that device with CA
-	if deviceTrustRequired {
-		if req.DeviceExtensions.DeviceID == "" {
-			errMsg := fmt.Sprintf("access to application %s requires a trusted device", req.AppName)
-			a.emitter.EmitAuditEvent(ctx, &apievents.AuthAttempt{
-				Metadata: apievents.Metadata{
-					Type:        events.AuthAttemptEvent,
-					Code:        events.AuthAttemptFailureCode,
-					ClusterName: req.ClusterName,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerVersion:   teleport.Version,
-					ServerID:        a.ServerID,
-					ServerNamespace: apidefaults.Namespace,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User: req.User,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: req.ClientAddr,
-				},
-				Status: apievents.Status{
-					Success:     false,
-					Error:       errMsg,
-					UserMessage: errMsg,
-				},
-				AppMetadata: apievents.AppMetadata{
-					AppURI:        req.AppURI,
-					AppPublicAddr: req.PublicAddr,
-					AppName:       req.AppName,
-					AppTargetPort: uint32(req.AppTargetPort),
-				},
-			})
-			return nil, trace.AccessDenied("%s", errMsg)
-		}
+	// Enforce device trust early via the AccessChecker.
+	if err = checker.CheckDeviceAccess(services.AccessState{
+		DeviceVerified:           req.DeviceExtensions.DeviceID != "",
+		EnableDeviceVerification: true,
+		IsBot:                    req.Identity.IsBot(),
+	}); err != nil {
+		errMsg := fmt.Sprintf("access to application %s requires a trusted device", req.AppName)
+		a.emitter.EmitAuditEvent(ctx, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type:        events.AuthAttemptEvent,
+				Code:        events.AuthAttemptFailureCode,
+				ClusterName: req.ClusterName,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        a.ServerID,
+				ServerNamespace: apidefaults.Namespace,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User: req.User,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: req.ClientAddr,
+			},
+			Status: apievents.Status{
+				Success:     false,
+				Error:       errMsg,
+				UserMessage: errMsg,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        req.AppURI,
+				AppPublicAddr: req.PublicAddr,
+				AppName:       req.AppName,
+				AppTargetPort: uint32(req.AppTargetPort),
+			},
+		})
+		return nil, trace.AccessDenied("%s", errMsg)
 	}
 
 	// Create services.WebSession for this session.
