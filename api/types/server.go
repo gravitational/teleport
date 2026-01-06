@@ -353,7 +353,7 @@ func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
 func (s *ServerV2) GetLabels() map[string]string {
-	return s.Metadata.Labels
+	return s.GetStaticLabels()
 }
 
 // GetStaticLabels returns the server static labels.
@@ -361,7 +361,7 @@ func (s *ServerV2) GetLabels() map[string]string {
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
 func (s *ServerV2) GetStaticLabels() map[string]string {
-	return s.Metadata.Labels
+	return CombineLabels(s.Spec.ImmutableLabels, s.Metadata.Labels, nil)
 }
 
 // SetStaticLabels sets the server static labels.
