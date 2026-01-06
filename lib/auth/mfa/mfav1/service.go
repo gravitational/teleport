@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
-	"slices"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -60,7 +59,7 @@ type AuthServer interface {
 type Cache interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
-	GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error)
+	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
 // Emitter defines the subset of event emitter methods used by the MFA service.
@@ -157,7 +156,7 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	// If a target cluster is specified, ensure that it exists as either the current cluster or a remote cluster.
+	// If a target cluster is specified, ensure that it is a valid cluster that exists.
 	if req.TargetCluster != "" {
 		if err := s.clusterExists(ctx, req.TargetCluster); err != nil {
 			return nil, trace.Wrap(err)
@@ -409,15 +408,8 @@ func (s *Service) clusterExists(ctx context.Context, clusterName string) error {
 		return nil
 	}
 
-	remoteClusters, err := s.cache.GetRemoteClusters(ctx)
-	if err != nil {
+	if _, err := s.cache.GetRemoteCluster(ctx, clusterName); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if !slices.ContainsFunc(remoteClusters, func(rc types.RemoteCluster) bool {
-		return rc.GetName() == clusterName
-	}) {
-		return trace.BadParameter("cluster %q does not exist", clusterName)
 	}
 
 	return nil

@@ -358,18 +358,6 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 			},
 			expectedError: "missing ProxyAddressForSso for SSO challenge",
 		},
-		{
-			name: "target cluster specified but does not exist",
-			req: &mfav1.CreateSessionChallengeRequest{
-				Payload: &mfav1.SessionIdentifyingPayload{
-					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
-						SshSessionId: []byte("test-session-id"),
-					},
-				},
-				TargetCluster: "non-existent-cluster", // does not exist
-			},
-			expectedError: `cluster "non-existent-cluster" does not exist`,
-		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			resp, err := service.CreateSessionChallenge(ctx, testCase.req)
@@ -378,6 +366,28 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 			require.Nil(t, resp)
 		})
 	}
+}
+
+func TestCreateSessionChallenge_TargetClusterDoesNotExist(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, user := setupAuthServer(t, nil)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	resp, err := service.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+			TargetCluster: "non-existent-cluster",
+		})
+	require.True(t, trace.IsNotFound(err))
+	require.ErrorContains(t, err, `remote cluster "non-existent-cluster" is not found`)
+	require.Nil(t, resp)
 }
 
 func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
