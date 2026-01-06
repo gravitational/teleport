@@ -153,7 +153,7 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.AccessDenied("only local or remote users can create MFA session challenges")
 	}
 
-	if err := s.validateCreateSessionChallengeRequest(ctx, req); err != nil {
+	if err := s.validateCreateSessionChallengeRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -323,97 +323,62 @@ func (s *Service) ValidateSessionChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	var (
-		details     *authz.MFAAuthData
-		validateErr error
-		createErr   error
-	)
+	var details *authz.MFAAuthData
 
-	// Validate the challenge response. Error is captured and handled later.
+	// Validate the challenge response.
 	switch resp := req.MfaResponse.GetResponse().(type) {
 	case *mfav1.AuthenticateResponse_Webauthn:
-		details, validateErr = s.validateWebauthnResponse(ctx, username, resp)
+		details, err = s.validateWebauthnResponse(ctx, username, resp)
 
 	case *mfav1.AuthenticateResponse_Sso:
-		details, validateErr = s.validateSSOResponse(ctx, username, resp)
+		details, err = s.validateSSOResponse(ctx, username, resp)
 
 	default:
 		return nil, trace.BadParameter("unknown MFA response type %T", resp)
 	}
 
-	// Only store the validated challenge resource if validation succeeded. Error is captured and handled later.
-	if validateErr == nil {
-		if _, createErr = s.storage.CreateValidatedMFAChallenge(
-			ctx,
-			username,
-			&mfav1.ValidatedMFAChallenge{
-				Kind:    types.KindValidatedMFAChallenge,
-				Version: "v1",
-				Metadata: &types.Metadata{
-					Name: req.GetMfaResponse().GetName(),
-				},
-				Spec: &mfav1.ValidatedMFAChallengeSpec{
-					Payload: &mfav1.SessionIdentifyingPayload{
-						Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
-							SshSessionId: details.Payload.SSHSessionID,
-						},
-					},
-					SourceCluster: details.SourceCluster,
-					TargetCluster: details.TargetCluster,
-				},
+	if err != nil {
+		// Emit failure event before returning.
+		s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, nil, err)
+
+		return nil, trace.AccessDenied("validate MFA challenge response: %v", err)
+	}
+
+	// Store the validated challenge resource.
+	_, err = s.storage.CreateValidatedMFAChallenge(
+		ctx,
+		username,
+		&mfav1.ValidatedMFAChallenge{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: "v1",
+			Metadata: &types.Metadata{
+				Name: req.GetMfaResponse().GetName(),
 			},
-		); createErr != nil {
-			s.logger.ErrorContext(
-				ctx,
-				"Failed to create validated MFA challenge resource after successful validation",
-				"user", username,
-				"challenge_name", req.GetMfaResponse().GetName(),
-				"error", createErr,
-			)
-		}
-	}
-
-	event := &apievents.ValidateMFAAuthResponse{
-		Metadata: apievents.Metadata{
-			Type:        events.ValidateMFAAuthResponseEvent,
-			ClusterName: currentCluster.GetClusterName(),
+			Spec: &mfav1.ValidatedMFAChallengeSpec{
+				Payload: &mfav1.SessionIdentifyingPayload{
+					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+						SshSessionId: details.Payload.SSHSessionID,
+					},
+				},
+				SourceCluster: details.SourceCluster,
+				TargetCluster: details.TargetCluster,
+			},
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
-		FlowType:     apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND,
+	)
+	if err != nil {
+		// Emit failure event before returning.
+		s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, nil, err)
+
+		return nil, trace.AccessDenied("validate MFA challenge response: %v", err)
 	}
 
-	// If either validation or creation failed, mark the event as a failure.
-	if validateErr != nil || createErr != nil {
-		event.Code = events.ValidateMFAAuthResponseFailureCode
-		event.Success = false
-		event.UserMessage = cmp.Or(validateErr, createErr).Error()
-		event.Error = cmp.Or(validateErr, createErr).Error()
-	} else {
-		event.Code = events.ValidateMFAAuthResponseCode
-		event.Success = true
-		event.MFADevice = &apievents.MFADeviceMetadata{
-			DeviceName: details.Device.GetName(),
-			DeviceID:   details.Device.Id,
-			DeviceType: details.Device.MFAType(),
-		}
-	}
-
-	if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
-		s.logger.WarnContext(ctx, "Failed to emit ValidateMFAAuthResponse event", "error", err)
-	}
-
-	// Finally, handle any validation or creation errors.
-	if validateErr != nil || createErr != nil {
-		return nil, trace.AccessDenied("validate MFA challenge response: %v", cmp.Or(validateErr, createErr))
-	}
+	// Emit success event.
+	s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, details.Device, nil)
 
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
 
-func (s *Service) validateCreateSessionChallengeRequest(
-	ctx context.Context,
-	req *mfav1.CreateSessionChallengeRequest,
-) error {
+func (s *Service) validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
 	payload := req.GetPayload()
 	if payload == nil {
 		return trace.BadParameter("missing CreateSessionChallengeRequest payload")
@@ -594,6 +559,43 @@ func (s *Service) validateSSOResponse(
 	}
 
 	return authData, nil
+}
+
+func (s *Service) emitValidationEvent(
+	ctx context.Context,
+	cluster string,
+	username string,
+	device *types.MFADevice,
+	validateErr error,
+) {
+	event := &apievents.ValidateMFAAuthResponse{
+		Metadata: apievents.Metadata{
+			Type:        events.ValidateMFAAuthResponseEvent,
+			ClusterName: cluster,
+		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
+		FlowType:     apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND,
+	}
+
+	if validateErr != nil {
+		event.Code = events.ValidateMFAAuthResponseFailureCode
+		event.Success = false
+		event.UserMessage = validateErr.Error()
+		event.Error = validateErr.Error()
+	} else {
+		event.Code = events.ValidateMFAAuthResponseCode
+		event.Success = true
+		event.MFADevice = &apievents.MFADeviceMetadata{
+			DeviceName: device.GetName(),
+			DeviceID:   device.Id,
+			DeviceType: device.MFAType(),
+		}
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to emit ValidateMFAAuthResponse event", "error", err)
+		return
+	}
 }
 
 func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, error) {
