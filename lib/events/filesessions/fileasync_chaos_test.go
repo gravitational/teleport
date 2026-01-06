@@ -104,6 +104,7 @@ func TestChaosUpload(t *testing.T) {
 	uploader, err := NewUploader(UploaderConfig{
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
+		AbandonedDir: t.TempDir(),
 		ScanPeriod:   100 * time.Millisecond,
 		Streamer:     faultyStreamer,
 		Clock:        clockwork.NewRealClock(),

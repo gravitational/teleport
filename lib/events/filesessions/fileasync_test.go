@@ -44,6 +44,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
@@ -157,6 +158,7 @@ func TestMovesCorruptedUploads(t *testing.T) {
 		Streamer:     events.NewDiscardStreamer(),
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
+		AbandonedDir: t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -509,27 +511,30 @@ func TestUploadMaxAttempts(t *testing.T) {
 					},
 					maxUploadAttempts: 1,
 				})
-				// Unset jitter so Duration() calls are consistent.
-				p.uploader.backoff.Jitter = func(d time.Duration) time.Duration { return d }
+				backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
+					First: time.Second,
+					Step:  time.Second,
+					Max:   time.Second,
+				})
+				require.NoError(t, err)
+				p.uploader.backoff = backoff
 				go p.Serve(ctx)
 
-				synctest.Wait()
 				inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
 				sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
 				p.emitEvents(ctx, t, inEvents)
 				sessionFile := filepath.Join(p.scanDir, sid+".tar")
 				corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
 				abandonedSessionFile := filepath.Join(p.uploader.cfg.AbandonedDir, sid+".tar")
-				synctest.Wait()
 
-				time.Sleep(p.uploader.backoff.Duration())
+				time.Sleep(time.Second)
 				synctest.Wait()
 				require.FileExists(t, sessionFile)
 				require.NoFileExists(t, corruptedSessionFile)
 				require.NoFileExists(t, abandonedSessionFile)
 
 				// Session should not be marked as corrupted after first attempt.
-				time.Sleep(p.uploader.backoff.Duration())
+				time.Sleep(time.Second)
 				synctest.Wait()
 				require.FileExists(t, sessionFile)
 				require.NoFileExists(t, corruptedSessionFile)
@@ -537,7 +542,7 @@ func TestUploadMaxAttempts(t *testing.T) {
 
 				// If the error allows retries, session should be marked as corrupted
 				// after upload attempts are exhausted.
-				time.Sleep(p.uploader.backoff.Duration())
+				time.Sleep(time.Second)
 				synctest.Wait()
 				if tc.expectMaxRetries {
 					require.NoFileExists(t, sessionFile)
@@ -1143,6 +1148,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		EventsC:          eventsC,
 		ScanDir:          scanDir,
 		CorruptedDir:     corruptedDir,
+		AbandonedDir:     t.TempDir(),
 		InitialScanDelay: 10 * time.Millisecond,
 		ScanPeriod:       scanPeriod,
 		Streamer:         test.streamer,

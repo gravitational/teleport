@@ -271,7 +271,8 @@ func (u *Uploader) Serve(ctx context.Context) error {
 				}
 			case u.cfg.MaxUploadAttempts != 0 && u.uploadAttempts[event.SessionID] >= u.cfg.MaxUploadAttempts:
 				delete(u.uploadAttempts, event.SessionID)
-				u.log.WarnContext(ctx, fmt.Sprintf("Failed to upload session after %d attempts, will skip future uploads.", u.uploadAttempts[event.SessionID]), "session_id", event.SessionID)
+				u.log.WarnContext(ctx, "Failed to upload session, will skip future uploads.",
+					"session_id", event.SessionID, "error", event.Error, "attempts", u.uploadAttempts[event.SessionID])
 				if err := u.writeAbandonedError(session.ID(event.SessionID), event.Error); err != nil {
 					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
 				}
