@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client/browser"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/services"
@@ -124,7 +125,7 @@ func (tc *TeleportClient) BrowserMFALogin(ctx context.Context, keyRing *KeyRing)
 	}
 
 	// Open the browser and display the URL to the user
-	_ = sso.OpenURLInBrowser(tc.Browser, webUILink)
+	_ = browser.OpenURLInBrowser(tc.Browser, webUILink)
 	fmt.Fprintf(tc.Stderr, "Complete MFA authentication in your web browser:\n\n%s\n", webUILink)
 
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()

@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/browser"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -4301,7 +4302,7 @@ func (tc *TeleportClient) browserLogin(ctx context.Context, keyRing *KeyRing) (*
 	}
 	webUILink := u.String()
 
-	_ = sso.OpenURLInBrowser(tc.Browser, webUILink)
+	_ = browser.OpenURLInBrowser(tc.Browser, webUILink)
 	fmt.Fprintf(tc.Stderr, "Complete browser authentication in your web browser:\n\n%s\n", webUILink)
 
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
@@ -4396,7 +4397,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = browser.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
