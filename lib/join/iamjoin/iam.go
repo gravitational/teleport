@@ -68,6 +68,14 @@ const (
 // off an attacker-controlled URL as the STS endpoint, the entire security
 // mechanism of the IAM join method would be compromised.
 func validateSTSHost(ctx context.Context, stsHost string, requireFIPS bool) error {
+	// The global endpoint is allowed unless FIPS is required.
+	if stsHost == "sts.amazonaws.com" {
+		if requireFIPS {
+			return trace.AccessDenied("client selected global AWS STS endpoint but server requires FIPS")
+		}
+		return nil
+	}
+
 	// Valid hosts look like sts(-fips)?.<region>.<suffix>
 	parts := strings.SplitN(stsHost, ".", 3)
 	if len(parts) < 3 {
@@ -85,15 +93,15 @@ func validateSTSHost(ctx context.Context, stsHost string, requireFIPS bool) erro
 		// All STS endpoints in us-gov- regions are FIPS compliant but use just
 		// "sts" as the prefix.
 		endpointIsFIPS = strings.HasPrefix(region, "us-gov-")
-		if requireFIPS && !endpointIsFIPS {
-			return trace.AccessDenied("node selected non-FIPS AWS STS endpoint while the Auth service is in FIPS mode")
-		}
 	case "sts-fips":
 		// sts-fips is accepted as a prefix in any region, whether or not this
 		// auth service is in FIPS mode.
 		endpointIsFIPS = true
 	default:
 		return trace.AccessDenied("invalid AWS STS host prefix")
+	}
+	if requireFIPS && !endpointIsFIPS {
+		return trace.AccessDenied("node selected non-FIPS AWS STS endpoint while the Auth service is in FIPS mode")
 	}
 
 	// To validate the rest of the host suffix, generate the full expected STS
