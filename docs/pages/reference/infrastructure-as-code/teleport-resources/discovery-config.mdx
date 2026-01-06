@@ -601,6 +601,27 @@ http_proxy_settings: # [...]
 |suffix|Indicates the installation suffix for the teleport installation. Set this value if you want multiple installations of Teleport. See --install-suffix flag in teleport-update program. Note: only supported for Amazon EC2. Suffix name can only contain alphanumeric characters and hyphens.|string|
 |update_group|Indicates the update group for the teleport installation. This value is used to group installations in order to update them in batches. See --group flag in teleport-update program. Note: only supported for Amazon EC2. Group name can only contain alphanumeric characters and hyphens.|string|
 
+## Integration Discovered Summary
+
+Contains the a summary for each resource type that was discovered.
+
+
+Example:
+
+```yaml
+aws_ec2: # [...]
+aws_rds: # [...]
+aws_eks: # [...]
+azure_vms: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws_ec2|AWSEC2 contains the summary for the AWS EC2 discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
+|aws_eks|AWSEKS contains the summary for the AWS EKS discovered clusters.|[Resources Discovered Summary](#resources-discovered-summary)|
+|aws_rds|AWSRDS contains the summary for the AWS RDS discovered databases.|[Resources Discovered Summary](#resources-discovered-summary)|
+|azure_vms|The summary for the Azure VM discovered instances.|[Resources Discovered Summary](#resources-discovered-summary)|
+
 ## Join Method
 
 The method used for new nodes to join the cluster.
@@ -662,6 +683,25 @@ revision: "string"
 |name|An object name|string|
 |revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
 
+## Resources Discovered Summary
+
+Represents the AWS resources that were discovered.
+
+
+Example:
+
+```yaml
+found: 1
+enrolled: 1
+failed: 1
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|enrolled|Holds the count of the resources that were successfully enrolled.|number|
+|failed|Holds the count of the resources that failed to enroll.|number|
+|found|Holds the count of resources found. After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.|number|
+
 ## Spec
 
 The specification for a discovery config.
@@ -712,16 +752,16 @@ error_message: "string"
 discovered_resources: 1
 last_sync_time: # See description
 integration_discovered_resources: 
-  "string": # See description
-  "string": # See description
-  "string": # See description
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |discovered_resources|Holds the count of the discovered resources in the previous iteration.|number|
 |error_message|Holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.|string|
-|integration_discovered_resources|Maps an integration to a summary of resources that were found using that integration.|map[string]|
+|integration_discovered_resources|Maps an integration to a summary of resources that were found using that integration.|map[string][Integration Discovered Summary](#integration-discovered-summary)|
 |last_sync_time|The timestamp when the Discovery Config was last sync.||
 |state|The current state of the discovery config.|string|
 
