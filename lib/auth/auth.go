@@ -192,9 +192,6 @@ const (
 const (
 	notificationsPageReadInterval = 5 * time.Millisecond
 	notificationsWriteInterval    = 40 * time.Millisecond
-
-	accessListsPageReadInterval = 5 * time.Millisecond
-	accessListsPageSize         = 20
 )
 
 const (
