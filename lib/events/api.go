@@ -965,6 +965,13 @@ const (
 
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
+	VnetConfigCreateEvent = "vnet.config.create"
+	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
+	VnetConfigUpdateEvent = "vnet.config.update"
+	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
+	VnetConfigDeleteEvent = "vnet.config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

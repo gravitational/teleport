@@ -4898,6 +4898,9 @@ message OneOf {
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
     events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
+    events.VnetConfigCreate VnetConfigCreate = 232;
+    events.VnetConfigUpdate VnetConfigUpdate = 233;
+    events.VnetConfigDelete VnetConfigDelete = 234;
   }
 }
 
@@ -9202,4 +9205,97 @@ message ClientIPRestrictionsUpdate {
 
   // ClientIPRestrictions is the new Client IP Restrictions allowlist.
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
+}
+
+// VnetConfigCreate is emitted when a VnetConfig is created.
+message VnetConfigCreate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigUpdate is emitted when a VnetConfig is updated.
+message VnetConfigUpdate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigDelete is emitted when a VnetConfig is deleted.
+message VnetConfigDelete {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
