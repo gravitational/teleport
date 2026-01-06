@@ -223,6 +223,9 @@ const StyledTooltip = styled.div`
   pointer-events: none;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
   backdrop-filter: blur(2px);
+  a {
+    color: ${props => props.theme.colors.tooltip.inverseLinkDefault};
+  }
 `;
 
 const StyledContent = styled(Text)`
