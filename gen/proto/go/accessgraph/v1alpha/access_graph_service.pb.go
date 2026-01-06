@@ -1507,11 +1507,21 @@ func (x *BulkResumeDate) GetChunkCursors() map[string]string {
 
 // RegisterRequest is the request for Register.
 type RegisterRequest struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	HostCaPem []byte                 `protobuf:"bytes,1,opt,name=host_ca_pem,json=hostCaPem,proto3" json:"host_ca_pem,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// host_ca_pem is deprecated. Use host_ca_pems instead.
+	//
+	// Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
+	HostCaPem []byte `protobuf:"bytes,1,opt,name=host_ca_pem,json=hostCaPem,proto3" json:"host_ca_pem,omitempty"`
 	// ClusterName is the self-submitted name of the Teleport cluster (usually a FQDN).
 	// This may not uniquely identify the cluster, and is only used to make identification easier for debugging purposes.
-	ClusterName   string `protobuf:"bytes,2,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	ClusterName string `protobuf:"bytes,2,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	// host_ca_pems contains one or more Teleport Host CA certificates in PEM format that will be used to authenticate
+	// this Teleport cluster (tenant) with the Access Graph service. During normal operation, this contains a single
+	// Host CA certificate. During Host CA rotation or if the cluster uses HSM with single key per auth, this may contain
+	// multiple certificates (e.g., both the active and additional/incoming CA). These certificates are used to verify
+	// client authentication for all subsequent RPC calls to the Access Graph service after registration. To update the
+	// set of trusted Host CAs after registration, use the ReplaceCAs RPC method instead.
+	HostCaPems    [][]byte `protobuf:"bytes,3,rep,name=host_ca_pems,json=hostCaPems,proto3" json:"host_ca_pems,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1546,6 +1556,7 @@ func (*RegisterRequest) Descriptor() ([]byte, []int) {
 	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{19}
 }
 
+// Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
 func (x *RegisterRequest) GetHostCaPem() []byte {
 	if x != nil {
 		return x.HostCaPem
@@ -1558,6 +1569,13 @@ func (x *RegisterRequest) GetClusterName() string {
 		return x.ClusterName
 	}
 	return ""
+}
+
+func (x *RegisterRequest) GetHostCaPems() [][]byte {
+	if x != nil {
+		return x.HostCaPems
+	}
+	return nil
 }
 
 // RegisterResponse is the response for Register.
@@ -4053,10 +4071,12 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\rchunk_cursors\x18\x03 \x03(\v25.accessgraph.v1alpha.BulkResumeDate.ChunkCursorsEntryR\fchunkCursors\x1a?\n" +
 	"\x11ChunkCursorsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"T\n" +
-	"\x0fRegisterRequest\x12\x1e\n" +
-	"\vhost_ca_pem\x18\x01 \x01(\fR\thostCaPem\x12!\n" +
-	"\fcluster_name\x18\x02 \x01(\tR\vclusterName\"\x12\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"z\n" +
+	"\x0fRegisterRequest\x12\"\n" +
+	"\vhost_ca_pem\x18\x01 \x01(\fB\x02\x18\x01R\thostCaPem\x12!\n" +
+	"\fcluster_name\x18\x02 \x01(\tR\vclusterName\x12 \n" +
+	"\fhost_ca_pems\x18\x03 \x03(\fR\n" +
+	"hostCaPems\"\x12\n" +
 	"\x10RegisterResponse\"3\n" +
 	"\x11ReplaceCAsRequest\x12\x1e\n" +
 	"\vhost_ca_pem\x18\x01 \x03(\fR\thostCaPem\"\x14\n" +
