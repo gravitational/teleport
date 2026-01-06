@@ -3,7 +3,7 @@ locals {
     "teleport.dev/cluster"     = local.teleport_cluster_name
     "teleport.dev/integration" = local.teleport_integration_name
     # this is the origin we set for resources created by the AWS OIDC integration web UI wizard.
-    "teleport.dev/iac" = "terraform"
+    "teleport.dev/iac-tool" = "terraform"
   }
   apply_aws_tags                 = merge(local.default_tags, var.apply_aws_tags)
   apply_teleport_resource_labels = merge(local.default_tags, var.apply_teleport_resource_labels)
