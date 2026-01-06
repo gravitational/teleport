@@ -274,7 +274,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ServerID")
 	}
 	if a.UploadHandler == nil {
-		return trace.BadParameter("missing parameter DownloadHandler")
+		return trace.BadParameter("missing parameter UploadHandler")
 	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
@@ -546,6 +546,16 @@ func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.Get
 // StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID))
+	return l.streamEvents(ctx, sessionID, "", startIndex)
+}
+
+// StreamTempSessionEvents streams events from a temporary recording associated with the uploadID.
+func (l *AuditLog) StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	l.log.DebugContext(ctx, "StreamTempSessionEvents", "session_id", string(sessionID), "upload_id", uploadID)
+	return l.streamEvents(ctx, sessionID, uploadID, startIndex)
+}
+
+func (l *AuditLog) streamEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
@@ -561,7 +571,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
-	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
+	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID, uploadID)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)

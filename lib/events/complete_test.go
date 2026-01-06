@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -365,6 +367,152 @@ func TestCheckUploadsContinuesOnError(t *testing.T) {
 	clock.Advance(1 * time.Hour)
 	uc.CheckUploads(context.Background())
 	require.ElementsMatch(t, completedUploads, []session.ID{session.ID(sessionTrackers[1].GetSessionID())})
+}
+
+func TestUploadCompleterMergesRecordings(t *testing.T) {
+	t.Parallel()
+	mkEvent := func(index int64, data string) apievents.AuditEvent {
+		return &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Index: index,
+			},
+			Data: []byte(data),
+		}
+	}
+	// The upload initiation time is determined from the file modification time.
+	// The synctest time needs to be advanced so that upload grace periods can
+	// pass.
+	realNow := time.Now()
+	synctest.Test(t, func(t *testing.T) {
+		time.Sleep(time.Until(realNow))
+		handler, err := filesessions.NewHandler(filesessions.Config{
+			Directory: t.TempDir(),
+		})
+		require.NoError(t, err)
+
+		log, err := events.NewAuditLog(events.AuditLogConfig{
+			DataDir:       t.TempDir(),
+			ServerID:      "foo",
+			UploadHandler: handler,
+			Context:       t.Context(),
+		})
+		require.NoError(t, err)
+
+		const checkPeriod = time.Minute
+		const gracePeriod = 2 * time.Minute
+		err = events.StartNewUploadCompleter(t.Context(), events.UploadCompleterConfig{
+			Uploader:       handler,
+			AuditLog:       log,
+			SessionTracker: &mockSessionTrackerService{},
+			ClusterName:    "teleport-cluster",
+			GracePeriod:    gracePeriod,
+			CheckPeriod:    checkPeriod,
+		})
+		require.NoError(t, err)
+
+		streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+			Uploader:       handler,
+			MinUploadBytes: events.MinUploadPartSizeBytes,
+		})
+		require.NoError(t, err)
+		sessionID := session.NewID()
+		downloadEvents := func(uploadID string) []apievents.AuditEvent {
+			reader, err := handler.StreamSessionRecording(t.Context(), sessionID, uploadID)
+			require.NoError(t, err)
+			recording, err := events.NewProtoReader(reader, nil).ReadAll(t.Context())
+			require.NoError(t, err)
+			return recording
+		}
+		sessionEvents := []apievents.AuditEvent{
+			&apievents.SessionStart{
+				Metadata: apievents.Metadata{
+					Index: 0,
+				},
+			},
+			mkEvent(1, "a"),
+			mkEvent(2, "b"),
+			mkEvent(3, "c"),
+			mkEvent(4, "d"),
+			mkEvent(5, "e"),
+			&apievents.SessionEnd{
+				Metadata: apievents.Metadata{
+					Index: 6,
+				},
+			},
+		}
+		prep := &events.NoOpPreparer{}
+		// Start event upload.
+		firstStream, err := streamer.CreateAuditStream(t.Context(), sessionID)
+		require.NoError(t, err)
+		status := <-firstStream.Status()
+		require.NotNil(t, status)
+		firstUploadID := status.UploadID
+
+		// Upload some events, then abandon the stream.
+		for _, event := range sessionEvents[:4] {
+			preparedEvent, _ := prep.PrepareSessionEvent(event)
+			require.NoError(t, firstStream.RecordEvent(t.Context(), preparedEvent))
+		}
+		require.NoError(t, firstStream.Close(t.Context()))
+
+		assertRecordingExists := func(sessionID session.ID, uploadID string) string {
+			version, err := handler.GetRecordingVersion(t.Context(), sessionID, uploadID)
+			require.NoError(t, err)
+			require.NotEmpty(t, version)
+			return version
+		}
+		assertRecordingNotExists := func(sessionID session.ID, uploadID string) {
+			version, err := handler.GetRecordingVersion(t.Context(), sessionID, uploadID)
+			require.NoError(t, err)
+			require.Empty(t, version)
+		}
+
+		// Let the upload completer complete the abandoned upload.
+		time.Sleep(gracePeriod + checkPeriod)
+		synctest.Wait()
+		initialVersion := assertRecordingExists(sessionID, "")
+		assertRecordingNotExists(sessionID, firstUploadID)
+
+		firstRecording := downloadEvents("")
+		require.Equal(t, sessionEvents[:4], firstRecording)
+		// log.SetSessionEvents(sessionEvents[:4])
+
+		// Resume the stream. Since the original upload was already completed, this
+		// will create a temporary upload.
+		secondStream, err := streamer.ResumeAuditStream(t.Context(), sessionID, firstUploadID)
+		require.NoError(t, err)
+		status = <-secondStream.Status()
+		secondUploadID := status.UploadID
+
+		// Upload remaining events.
+		for _, event := range sessionEvents[4:] {
+			preparedEvent, _ := prep.PrepareSessionEvent(event)
+			require.NoError(t, secondStream.RecordEvent(t.Context(), preparedEvent))
+		}
+		require.NoError(t, secondStream.Complete(t.Context()))
+
+		// Check that temporary recording was uploaded to the right place.
+		synctest.Wait()
+		assertRecordingNotExists(sessionID, firstUploadID)
+		_ = assertRecordingExists(sessionID, secondUploadID)
+		secondRecording := downloadEvents(secondUploadID)
+		require.Equal(t, sessionEvents[4:], secondRecording)
+		// log.SetTempSessionEvents(sessionEvents[4:])
+		// Final recording should be unchanged for now.
+		secondVersion := assertRecordingExists(sessionID, "")
+		require.Equal(t, initialVersion, secondVersion)
+		firstRecording = downloadEvents("")
+		require.Equal(t, sessionEvents[:4], firstRecording)
+
+		// Check that upload completer performs the merge.
+		time.Sleep(checkPeriod)
+		synctest.Wait()
+		assertRecordingNotExists(sessionID, secondUploadID)
+		finalVersion := assertRecordingExists(sessionID, "")
+		finalRecording := downloadEvents("")
+		require.Equal(t, sessionEvents, finalRecording)
+		require.NotEqual(t, initialVersion, finalVersion)
+	})
 }
 
 type mockSessionTrackerService struct {

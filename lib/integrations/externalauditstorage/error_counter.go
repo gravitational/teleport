@@ -410,8 +410,8 @@ func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessi
 }
 
 // StreamSessionRecording calls [c.wrapped.StreamSessionRecording] and counts the error or success.
-func (c *ErrorCountingSessionHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.StreamSessionRecording(ctx, sessionID)
+func (c *ErrorCountingSessionHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamSessionRecording(ctx, sessionID, uploadID)
 	if err != nil {
 		c.downloads.observe(err)
 		return nil, err
@@ -449,9 +449,14 @@ func (c *ErrorCountingSessionHandler) StreamSessionThumbnail(ctx context.Context
 	return newErrorReportReader(rc, c.downloads), nil
 }
 
+func (c *ErrorCountingSessionHandler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	version, err := c.wrapped.GetRecordingVersion(ctx, sessionID, uploadID)
+	return version, trace.Wrap(err)
+}
+
 // CreateUpload calls [c.wrapped.CreateUpload] and counts the error or success.
-func (c *ErrorCountingSessionHandler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
-	res, err := c.wrapped.CreateUpload(ctx, sessionID)
+func (c *ErrorCountingSessionHandler) CreateUpload(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
+	res, err := c.wrapped.CreateUpload(ctx, sessionID, opts...)
 	c.uploads.observe(err)
 	return res, err
 }
@@ -492,8 +497,8 @@ func (c *ErrorCountingSessionHandler) ListUploads(ctx context.Context) ([]events
 }
 
 // GetUploadMetadata calls [c.wrapped.GetUploadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
-	return c.wrapped.GetUploadMetadata(sessionID)
+func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
+	return c.wrapped.GetUploadMetadata(sessionID, uploadID)
 }
 
 func sanitizeErrForAlert(err error) string {

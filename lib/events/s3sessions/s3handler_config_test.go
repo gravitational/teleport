@@ -182,7 +182,7 @@ func TestUploadMetadata(t *testing.T) {
 	require.NoError(t, err)
 	defer handler.Close()
 
-	meta := handler.GetUploadMetadata("test-session-id")
+	meta := handler.GetUploadMetadata("test-session-id", "" /* upload ID */)
 	require.Equal(t, "s3://teleport-unit-tests/test/test-session-id", meta.URL)
 }
 

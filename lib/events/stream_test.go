@@ -29,10 +29,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -42,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -362,7 +365,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	case <-doneC:
 	}
 
-	rc, err := uploader.StreamSessionRecording(ctx, sid)
+	rc, err := uploader.StreamSessionRecording(ctx, sid, "")
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -685,4 +688,192 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
+}
+
+func TestResumeAuditStream(t *testing.T) {
+	t.Parallel()
+	assertUploadNotCreated := func(t *testing.T, _ session.ID, _ events.CreateUploadOptions) {
+		require.Fail(t, "CreateUpload should not be called")
+	}
+	sessionID := session.NewID()
+	uploadID := uuid.NewString()
+	tests := []struct {
+		name                 string
+		recordingVersion     string
+		tempRecordingVersion string
+		uploadMetadata       events.StreamUpload
+		existingParts        []events.StreamPart
+		assertCreateUpload   func(t *testing.T, sid session.ID, options events.CreateUploadOptions)
+	}{
+		{
+			name: "upload resumed",
+			existingParts: []events.StreamPart{
+				{Number: 1},
+				{Number: 2},
+				{Number: 3},
+			},
+			assertCreateUpload: assertUploadNotCreated,
+		},
+		{
+			name: "create upload with zero existing parts",
+			assertCreateUpload: func(t *testing.T, sid session.ID, options events.CreateUploadOptions) {
+				require.Equal(t, sessionID, sid)
+				require.Empty(t, options)
+			},
+		},
+		{
+			name:             "create temp upload for existing recording",
+			recordingVersion: "foo",
+			assertCreateUpload: func(t *testing.T, sid session.ID, options events.CreateUploadOptions) {
+				require.Equal(t, sessionID, sid)
+				require.True(t, options.Temporary)
+				require.Empty(t, options.ReplaceVersion)
+			},
+		},
+		{
+			name:             "resume temp upload",
+			recordingVersion: "foo",
+			existingParts: []events.StreamPart{
+				{Number: 1},
+				{Number: 2},
+				{Number: 3},
+			},
+			uploadMetadata: events.StreamUpload{
+				ID:        uploadID,
+				SessionID: sessionID,
+				Temporary: true,
+			},
+			assertCreateUpload: assertUploadNotCreated,
+		},
+		{
+			name:                 "create merge recording for existing temp recording",
+			recordingVersion:     "foo",
+			tempRecordingVersion: "bar",
+			assertCreateUpload: func(t *testing.T, sid session.ID, options events.CreateUploadOptions) {
+				require.Equal(t, sessionID, sid)
+				require.False(t, options.Temporary)
+				require.Equal(t, "foo", options.ReplaceVersion)
+			},
+		},
+		{
+			name:                 "resume merge upload",
+			recordingVersion:     "foo",
+			tempRecordingVersion: "bar",
+			existingParts: []events.StreamPart{
+				{Number: 1},
+				{Number: 2},
+				{Number: 3},
+			},
+			uploadMetadata: events.StreamUpload{
+				ID:             uploadID,
+				SessionID:      sessionID,
+				ReplaceVersion: "foo",
+			},
+			assertCreateUpload: assertUploadNotCreated,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader: &eventstest.MockUploader{
+					MockListParts: func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+						return tc.existingParts, nil
+					},
+					MockCreateUpload: func(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
+						var options events.CreateUploadOptions
+						for _, opt := range opts {
+							opt(&options)
+						}
+						tc.assertCreateUpload(t, sessionID, options)
+						return &events.StreamUpload{
+							SessionID: sessionID,
+							ID:        uploadID,
+						}, nil
+					},
+					RecordingVersion:     tc.recordingVersion,
+					TempRecordingVersion: tc.tempRecordingVersion,
+					ExistingUpload:       tc.uploadMetadata,
+				},
+			})
+			require.NoError(t, err)
+
+			stream, err := streamer.ResumeAuditStream(t.Context(), sessionID, uploadID)
+			require.NoError(t, err)
+			require.NoError(t, stream.Close(t.Context()))
+		})
+	}
+}
+
+func TestMergeStreams(t *testing.T) {
+	t.Parallel()
+	mkEvent := func(index int64, data string) apievents.AuditEvent {
+		return &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Index: index,
+			},
+			Data: []byte(data),
+		}
+	}
+	sessionID := session.NewID()
+	uploader, err := filesessions.NewHandler(filesessions.Config{
+		Directory: t.TempDir(),
+	})
+	require.NoError(t, err)
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+
+	currentEvents := []apievents.AuditEvent{mkEvent(2, "b"), mkEvent(3, "c"), mkEvent(6, "f"), mkEvent(7, "g"), mkEvent(9, "i")}
+
+	// Upload initial recording.
+	firstStream, err := streamer.CreateAuditStream(t.Context(), sessionID)
+	require.NoError(t, err)
+	firstUploadID := (<-firstStream.Status()).UploadID
+	nopPreparer := events.NoOpPreparer{}
+	for _, event := range currentEvents {
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
+		require.NoError(t, firstStream.RecordEvent(t.Context(), preparedEvent))
+	}
+	require.NoError(t, firstStream.Complete(t.Context()))
+
+	incomingEvents := []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(7, "this event will be overridden"), mkEvent(8, "h")}
+
+	// Upload updated recording. Node assumes it is resuming the original upload;
+	// it will be redirected to a new temporary upload.
+	secondStream, err := streamer.ResumeAuditStream(t.Context(), sessionID, firstUploadID)
+	require.NoError(t, err)
+	secondUploadID := (<-secondStream.Status()).UploadID
+	require.NotEqual(t, firstUploadID, secondUploadID, "temporary upload did not get a new upload ID")
+	for _, event := range incomingEvents {
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
+		require.NoError(t, secondStream.RecordEvent(t.Context(), preparedEvent))
+	}
+	require.NoError(t, secondStream.Complete(t.Context()))
+
+	// Merge both recordings.
+	log, err := events.NewAuditLog(events.AuditLogConfig{
+		DataDir:       t.TempDir(),
+		ServerID:      "foo",
+		UploadHandler: uploader,
+		Context:       t.Context(),
+	})
+	require.NoError(t, err)
+	require.NoError(t, events.MergeUpload(t.Context(), log, streamer, events.StreamUpload{
+		ID:        secondUploadID,
+		SessionID: sessionID,
+	}))
+
+	// Check the merged recording.
+	reader, err := uploader.StreamSessionRecording(t.Context(), sessionID, "")
+	require.NoError(t, err)
+	gotEvents, err := events.NewProtoReader(reader, nil).ReadAll(t.Context())
+	require.NoError(t, err)
+
+	expectedEvents := []apievents.AuditEvent{
+		mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c"),
+		mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
+		mkEvent(7, "g"), mkEvent(8, "h"), mkEvent(9, "i"),
+	}
+	require.Empty(t, cmp.Diff(expectedEvents, gotEvents, protocmp.Transform()))
 }
