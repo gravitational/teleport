@@ -252,6 +252,7 @@ func (u *UserV2) SetStaticLabels(sl map[string]string) {
 // match against the list of search values.
 func (u *UserV2) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(u.Metadata.Labels), u.GetName())
+	fieldVals = append(fieldVals, u.GetRoles()...)
 	return MatchSearch(fieldVals, values, nil)
 }
 
