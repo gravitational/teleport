@@ -6966,17 +6966,18 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 		// Fetch all identifiers for this treshold prefix.
 		var identifiers []*notificationsv1.UniqueNotificationIdentifier
-		var nextKey string
+		var notificationsPageKey string
 		for {
-			identifiersResp, nextKey, err := a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, 0, nextKey)
+			identifiersResp, nextKey, err := a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, 0, notificationsPageKey)
 			if err != nil {
 				a.logger.WarnContext(ctx, "failed to list notification identifiers", "error", err, "prefix", threshold.prefix)
-				continue
+				break
 			}
 			identifiers = append(identifiers, identifiersResp...)
 			if nextKey == "" {
 				break
 			}
+			notificationsPageKey = nextKey
 		}
 
 		// Create a map of identifiers for quick lookup
