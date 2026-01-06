@@ -8648,6 +8648,18 @@ message AWSOIDCIntegrationSpecV1 {
   // such as preventing integration from update or deletion. Empty audience value
   // should be treated as a default and backward-compatible behavior of the integration.
   string audience = 3 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // Tags is used to configure AWS IAM session tags when using AssumeRoleWithWebIdentity with OIDC Provider
+  // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_adding-assume-role-idp
+  AWSOIDCIntegrationTagsSpecV1 tags = 4 [(gogoproto.jsontag) = "https://aws.amazon.com/tags,omitempty"];
+}
+
+// AWSOIDCIntegrationTagsSpecV1 represents the AWS OIDC session tags configuration
+message AWSOIDCIntegrationTagsSpecV1 {
+  map<string, wrappers.StringValues> PrincipalTags = 1 [(gogoproto.jsontag) = "principal_tags,omitempty"];
+
+  // transitive_tag_keys lists tag keys that should be marked as transitive.
+  repeated string TransitiveTagKeys = 2 [(gogoproto.jsontag) = "transitive_tag_keys,omitempty"];
 }
 
 // AzureOIDCIntegrationSpecV1 contains the spec properties for the Azure OIDC SubKind Integration.

@@ -246,6 +246,15 @@ type awsOIDCCustomClaims struct {
 
 	// OnBehalfOf identifies the user that is started the request.
 	OnBehalfOf string `json:"obo,omitempty"`
+	// AWSOIDCCustomClaimTags allows setting AWS IAM Session Tags in OIDC token.
+	AWSOIDCCustomClaimTags AWSOIDCCustomClaimTags `json:"https://aws.amazon.com/tags,omitempty"`
+}
+
+// AWSOIDCCustomClaimTags represents "https://aws.amazon.com/tags" key of AWS IAM Session Tags in OIDC token.
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_adding-assume-role-idp
+type AWSOIDCCustomClaimTags struct {
+	PrincipalTags     map[string][]string `json:"principal_tags,omitempty"`
+	TransitiveTagKeys []string            `json:"transitive_tag_keys,omitempty"`
 }
 
 // SignAWSOIDC signs a JWT with claims specific to AWS OIDC Integration.
