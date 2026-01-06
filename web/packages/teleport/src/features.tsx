@@ -42,6 +42,7 @@ import {
 
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
+import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -819,6 +820,20 @@ class FeatureIntegrationStatus implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrationOverview implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Overview',
+    path: cfg.routes.integrationOverview,
+    component: IaCIntegrationOverview,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -904,6 +919,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
+    new FeatureIntegrationOverview(),
 
     // - Identity
     new AccessRequests(),
