@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/stats"
 
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -57,6 +58,16 @@ type GRPCClientConnInterface interface {
 	grpc.ClientConnInterface
 	WaitForStateChange(ctx context.Context, sourceState connectivity.State) bool
 }
+
+type Connector interface {
+	Role() types.SystemRole
+	ClientGetCertificate() (*tls.Certificate, error)
+}
+
+// AccessGraphClientGetterForEvent is a function that returns an AccessGraphClientGetter for a given event.
+// This allows different parts of the system to get access graph clients with different certificates based on the event
+// associated with the connector.
+type AccessGraphClientGetterForConnector = func(connector Connector) AccessGraphClientGetter
 
 // AccessGraphClientGetter is a function that returns a new access graph service client connection.
 type AccessGraphClientGetter = func(ctx context.Context) (GRPCClientConnInterface, error)

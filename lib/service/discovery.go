@@ -66,7 +66,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	} else {
 		discoveryAccessGraphCfg = discovery.AccessGraphConfig{
 			Enabled:              accessGraphCfg.Enabled,
-			GetAccessGraphClient: process.GetAccessGraphConnection,
+			GetAccessGraphClient: process.GetAccessGraphConnectionForConnector(conn),
 		}
 	}
 
