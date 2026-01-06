@@ -54,6 +54,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 import {
+  compareByTags,
   getIntegrationTagLabel,
   IntegrationLike,
   IntegrationTag,
@@ -150,7 +151,7 @@ export function IntegrationList(props: Props) {
           isNonRender: true,
         },
         {
-          key: 'kind',
+          key: 'name',
           headerText: 'Name',
           isSortable: true,
           render: item => <IconCell item={item} />,
@@ -159,6 +160,7 @@ export function IntegrationList(props: Props) {
           key: 'tags',
           headerText: 'Type',
           isSortable: true,
+          onSort: compareByTags,
           render: item => (
             <Cell>
               <Flex gap={1}>
