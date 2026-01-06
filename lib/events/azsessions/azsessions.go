@@ -383,7 +383,10 @@ func (h *Handler) uploadBlob(
 }
 
 // StreamSessionRecording implements [events.UploadHandler] and downloads a session recording.
-func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
+	if uploadID != "" {
+		return nil, trace.NotImplemented("")
+	}
 	return h.blobRetrier(ctx, sessionID, h.sessionBlob(sessionID))
 }
 
@@ -472,8 +475,12 @@ func (h *Handler) blobRetrier(ctx context.Context, sessionID session.ID, blobCli
 	}), nil
 }
 
+func (h *Handler) GetRecordingVersion(ctx context.Context, sessionID session.ID, uploadID string) (string, error) {
+	return "", trace.NotImplemented("")
+}
+
 // CreateUpload implements [events.MultipartUploader].
-func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
 	upload := events.StreamUpload{
 		ID:        uuid.NewString(),
 		SessionID: sessionID,
@@ -741,9 +748,12 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 }
 
 // GetUploadMetadata implements [events.MultipartUploader].
-func (h *Handler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
+func (h *Handler) GetUploadMetadata(sessionID session.ID, uploadID string) events.UploadMetadata {
 	return events.UploadMetadata{
-		URL:       h.sessionBlob(sessionID).URL(),
-		SessionID: sessionID,
+		URL: h.sessionBlob(sessionID).URL(),
+		StreamUpload: events.StreamUpload{
+			ID:        uploadID,
+			SessionID: sessionID,
+		},
 	}
 }
