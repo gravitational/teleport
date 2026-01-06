@@ -63,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
@@ -4710,7 +4711,7 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	// Run CreateAccessListReminderNotifications()
-	authServer.CreateAccessListReminderNotifications(ctx)
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	reminderNotificationSubKind := func(n *notificationsv1.Notification) string { return n.GetSubKind() }
 	expectedSubKinds := []string{
@@ -4728,13 +4729,155 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
 
 	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
-	authServer.CreateAccessListReminderNotifications(ctx)
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	// Check notifications again, counts should remain the same.
 	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
 	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
 		"notifications should not have changed after second reconciliation")
+}
+
+type createAccessListOptions struct {
+	typ           accesslist.Type
+	nextAuditDate time.Time
+	owners        []accesslist.Owner
+}
+
+type createAccessListOpt func(*createAccessListOptions)
+
+func withType(typ accesslist.Type) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.typ = typ
+	}
+}
+
+func withNextAuditDate(nextAuditDate time.Time) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.nextAuditDate = nextAuditDate
+	}
+}
+
+func withOwners(owners []accesslist.Owner) createAccessListOpt {
+	return func(o *createAccessListOptions) {
+		o.owners = owners
+	}
+}
+
+func createAccessList(t *testing.T, authServer *auth.Server, name string, opts ...createAccessListOpt) {
+	t.Helper()
+	ctx := t.Context()
+
+	options := createAccessListOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: name,
+	}, accesslist.Spec{
+		Type:        options.typ,
+		Title:       fmt.Sprintf("Test Access List %s", name),
+		Description: fmt.Sprintf("Test Access List %s description", name),
+		Owners:      options.owners,
+		Audit: accesslist.Audit{
+			NextAuditDate: options.nextAuditDate,
+			Recurrence:    accesslist.Recurrence{},
+			Notifications: accesslist.Notifications{},
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+}
+
+func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
+	ctx := t.Context()
+
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Setup test auth server
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	testRole, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:         []string{"user"},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, testRole)
+	require.NoError(t, err)
+
+	testUsername := "user1"
+	user, err := types.NewUser(testUsername)
+	require.NoError(t, err)
+	user.SetRoles([]string{"test"})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Create 2001overdue access lists
+	// All are overdue by 10 days, which should trigger "overdue by more than 7 days" notification
+	const numAccessLists = 2001
+	overdueBy := -10 // 10 days overdue
+	nextAuditDate := authServer.GetClock().Now().Add(time.Duration(overdueBy) * 24 * time.Hour)
+
+	for i := range numAccessLists {
+		createAccessList(t, authServer, fmt.Sprintf("al-overdue-%d", i),
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(nextAuditDate),
+		)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		lists, err := testServer.Auth().Cache.GetAccessLists(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, lists, numAccessLists, "should have created all %d overdue access lists", numAccessLists)
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// Run CreateAccessListReminderNotifications()
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
+
+	identifiers := collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
+	require.Len(t, identifiers, numAccessLists,
+		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
+
+	// Run CreateAccessListReminderNotifications() again to verify it can read multiple pages of identifiers without memory leak
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
+
+	identifiers = collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
+	require.Len(t, identifiers, numAccessLists,
+		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
+}
+
+func collectAllUniqueNotificationIdentifiers(t *testing.T, ctx context.Context, authServer *auth.Server, prefix string) []*notificationsv1.UniqueNotificationIdentifier {
+	t.Helper()
+
+	var identifiers []*notificationsv1.UniqueNotificationIdentifier
+	iterator := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+		return authServer.ListUniqueNotificationIdentifiersForPrefix(ctx, prefix, pageSize, pageKey)
+	})
+
+	for identifiersResp, err := range iterator {
+		if err != nil {
+			require.NoError(t, err, "listing unique notification identifiers for prefix %q", prefix)
+		}
+		identifiers = append(identifiers, identifiersResp)
+	}
+
+	return identifiers
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
