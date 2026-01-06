@@ -311,9 +311,10 @@ There are a few key improvements here:
 The GitHub Actions example maps well onto other CI providers, or any CLI:
 
 ```code
-$ tbot start bot-api --listen unix:///path/to/api.sock ...
-$ tbot api spawn db-tunnel --listen unix:///path/to/api.sock --service postgres --database postgres
-$ tbot api spawn app-tunnel --listen unix:///path/to/api.sock --app example
+$ export TBOT_API_SOCKET=unix:///path/to/api.sock
+$ tbot start bot-api ... &
+$ tbot api spawn db-tunnel --service postgres --database postgres
+$ tbot api spawn app-tunnel --app example
 ```
 
 A minimal [proof of concept implementation][poc] was made to validate this
@@ -321,12 +322,52 @@ concept. If desired, you can build the `tbot` client from the linked PR to try
 out the CLI flow described here. A [recorded demo][demo] is also available
 internally.
 
+This new CLI functionality can help users explore `tbot` interactively. Consider
+this session:
+```code
+# Start the bot with a snippet explicitly provided by the Teleport UI
+$ export TBOT_API_SOCKET=unix:///tmp/bot-api.sock
+$ tbot start bot-api --join-uri=tbot+bound-keypair://...
+
+# Full functionality can be seen with `--help`
+$ tbot api --help
+$ tbot api start --help
+
+# With the bot running, the user can now try out some functionality
+$ tbot api start identity --destination ./ssh ...
+Started service: identity-1
+$ ssh -F ./ssh/ssh_config user@host hostname
+
+# Fallible services will report errors immediately; users can try again and fix
+# the issue.
+$ tbot api start app-tunnel --app invalid --listen tcp://127.0.0.1:1234
+Error: [...snip...]
+  app "invalid" not found
+
+$ tbot api start app-tunnel --app dumper --listen tcp://127.0.0.1:1234
+Started service: app-tunnel-1
+$ curl http://localhost:1234
+
+# Once happy with the bot's configuration, it can be saved to a config file
+$ tbot api config > /etc/tbot.yaml
+```
+
+Note that in the MVP implementation we aren't guaranteeing the ability to stop
+individual services (feasibility not yet determined; may require significant
+refactoring beyond what spawning requires). This does mean that if a service is
+started such that it starts successfully but with undesirable configuration
+(e.g. wrong but writable output path, wrong but valid app name, etc), it can't
+be stopped without stopping the outright. We will want to support killing
+services eventually.
+
 #### The bot API service
 
 The primary new feature is a new bot API service that exposes a machine-friendly
 API for interacting with a running `tbot` process. Users will start this new
 bot API service using `tbot start bot-api ...` or by running `tbot` with a YAML
-config file that starts it similar to any of our existing service types.
+config file that starts it similar to any of our existing service types. This
+service is entirely optional and available only when explicitly enabled by
+users, either via `tbot.yaml` or `tbot start bot-api`.
 
 The API itself will expose just two RPCs or endpoints for this MVP: `spawn` and
 `config`. It will be exposed over an arbitrary listening socket; we'll strongly
@@ -343,6 +384,46 @@ If we decide to further develop the local bot API, we should consider revisiting
 this and switching to a protobuf source of truth for bot configuration. Future
 API iterations could additionally accept fully structured input when we are
 prepared to accept it.
+
+##### Security considerations
+
+The bot API service introduces new ways to interact with a running `tbot`
+process, and by its nature can be used to gain access to Teleport resources that
+were not explicitly configured by the user. It will be disabled by default and
+must be explicitly enabled by users, after which the user is expected to ensure
+the socket is adequately protected.
+
+The bot API service should not be enabled in situations where access to the
+socket cannot be adequately restricted, or where there is no tolerance for
+changes in bot behavior at runtime.
+
+As a quick reference, consider these examples:
+| Use case | Good fit? |
+|-|-|
+| Traditional systemd deployment with read-only `/etc/tbot.yaml` | ❌ |
+| New user onboarding and experimentation | ✅ |
+| Ephemeral use cases including CI/CD workflows | ✅ |
+
+The bot API should not meaningfully represent a change in effective permissions
+given common ways in which bots are deployed today, particularly in ephemeral
+environments. As a rough rule, any deployment where the bot configuration can be
+modified or otherwise overridden by the bot's own Unix user will need to deal
+with the same security pitfalls exposed by the bot API - at least assuming the
+socket itself is secured properly.
+
+By default, the bot API's Unix socket will be configured with restrictive (0600)
+permissions to ensure only the bot's own Unix user can interact with it. We will
+provide documentation stating that this socket should be adequately secured and
+should not be e.g. shared via Docker mount.
+
+If adequately protected, all an attacker with access to the API socket can
+feasibly do is have the bot write credentials to the filesystem at arbitrary
+paths to which its Unix user has access - but if they have RCE as the bot's Unix
+user, they could do that anyway.
+
+And as always, Teleport RBAC permissions should also be limited such that bots
+are only able to access the minimal set of resources needed to accomplish their
+intended function.
 
 ##### The `SpawnService` RPC
 
@@ -395,7 +476,7 @@ service BotAPIService {
   // rpc GetServiceStatus(GetServiceStatusRequest) returns (GetServiceStatusResponse);
 }
 
-// Requests
+// Request for a new service to be started.
 message SpawnServiceRequest {
   // A YAML document containing a list of services to spawn.
   string configuration = 1;
@@ -439,7 +520,7 @@ extensibility, and ease of integration requiring a native client.
 
 #### The CLI
 
-We will introduce a new family of CLI commands: `tbot api`:
+We will introduce a new family of CLI commands: `tbot api`
 
 * `tbot api spawn`: Spawns a service. Fully reuses our existing CLI and inherits
   all flags and service subcommands, exactly like `tbot start` and
@@ -637,6 +718,34 @@ We could feasibly allow AI agents to interact with the `tbot` client and request
 access to new services on demand. We would want to establish some real use cases
 before pursuing this properly, but some variety of machine-usable API is a
 necessary prerequisite.
+
+#### Remote configuration
+
+We've discussed remote (or "server-driven") bot configuration internally as an
+additional tool for admins to provision bots with IaC. For example, this could
+let admins configure bot services via Teleport's Terraform provider and tweak
+the behavior of running bots on the fly.
+
+This isn't something we can realistically pursue without a very clear use case
+in mind, or without customer interest. Nevertheless, the backend work to enable
+dynamic service management in `tbot` is a necessary prerequisite if we ever did
+decide to implement remote configuration.
+
+#### Interactive onboarding
+
+We could use this new functionality (bot API, dynamic services, or both) to
+provide an interactive local onboarding experience. This could take many forms,
+including a configuration TUI, an LLM-backed config wizard, or full integration
+into Teleport's UI. Whichever path we pick (if any), this would walk users
+interactively through starting all bot services and committing the configuration
+when finished.
+
+Alongside other recent improvements, we should have all the building blocks
+needed to create a high-quality interactive configuration flow. We can provide
+users with a command that requires zero parameters tweaks to start the
+interactive flow on any given client system, provide live feedback as they
+configure services, and then commit the configuration to disk, even creating a
+systemd unit file automatically if needed.
 
 [poc]: https://github.com/gravitational/teleport/pull/62020
 [demo]: https://goteleport.zoom.us/clips/share/b6Qniz7qSjmeXviwZPSFYg
