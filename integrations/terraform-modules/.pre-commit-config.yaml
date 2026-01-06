@@ -3,8 +3,8 @@ repos:
     rev: v1.103.0
     hooks:
       - id: terraform_fmt
-      - id: terraform_validate
-      - id: terraform_tflint
       - id: terraform_docs
         args:
-          - '--args=--lockfile=false' # avoid pinning provider version in README
+          - '--args=--config=integrations/terraform-modules/.terraform-docs.yml'
+      - id: terraform_tflint
+      - id: terraform_validate

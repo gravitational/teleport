@@ -1,5 +1,5 @@
-content: ""
-footer-from: ""
+content: ''
+footer-from: ''
 formatter: markdown table
 header-from: main.tf
 output:
@@ -7,7 +7,7 @@ output:
   mode: inject
 output-values:
   enabled: false
-  from: ""
+  from: ''
 recursive:
   enabled: false
   path: modules
@@ -24,7 +24,7 @@ settings:
   hide-empty: false
   html: true
   indent: 2
-  lockfile: false
+  lockfile: false # avoid pinning provider version in README
   read-comments: true
   required: true
   sensitive: true
@@ -32,4 +32,4 @@ settings:
 sort:
   enabled: true
   by: name
-version: ""
+version: ''
