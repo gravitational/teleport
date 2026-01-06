@@ -152,7 +152,7 @@ func (s *Service) CreateSessionChallenge(
 		return nil, trace.AccessDenied("only local or remote users can create MFA session challenges")
 	}
 
-	if err := s.validateCreateSessionChallengeRequest(req); err != nil {
+	if err := validateCreateSessionChallengeRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -377,7 +377,7 @@ func (s *Service) ValidateSessionChallenge(
 	return &mfav1.ValidateSessionChallengeResponse{}, nil
 }
 
-func (s *Service) validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
+func validateCreateSessionChallengeRequest(req *mfav1.CreateSessionChallengeRequest) error {
 	payload := req.GetPayload()
 	if payload == nil {
 		return trace.BadParameter("missing CreateSessionChallengeRequest payload")
@@ -474,14 +474,14 @@ func validateValidateSessionChallengeRequest(req *mfav1.ValidateSessionChallenge
 		return trace.BadParameter("nil ValidateSessionChallengeRequest.mfa_response.response")
 	}
 
-	switch resp := resp.(type) {
+	switch r := resp.(type) {
 	case *mfav1.AuthenticateResponse_Webauthn:
-		if resp.Webauthn == nil {
+		if r.Webauthn == nil {
 			return trace.BadParameter("nil WebauthnResponse in AuthenticateResponse")
 		}
 
 	case *mfav1.AuthenticateResponse_Sso:
-		if resp.Sso == nil {
+		if r.Sso == nil {
 			return trace.BadParameter("nil SSOResponse in AuthenticateResponse")
 		}
 

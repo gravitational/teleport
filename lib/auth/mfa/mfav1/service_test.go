@@ -139,18 +139,21 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 		},
 	}
 
-	diff := cmp.Diff(
-		wantedChallenge,
-		gotChallenge,
-		cmp.FilterPath(
-			// Ignore expiration time in comparison.
-			func(p cmp.Path) bool {
-				return p.String() == "Metadata.Expires"
-			},
-			cmp.Ignore(),
+	require.Empty(
+		t,
+		cmp.Diff(
+			wantedChallenge,
+			gotChallenge,
+			cmp.FilterPath(
+				// Ignore expiration time in comparison.
+				func(p cmp.Path) bool {
+					return p.String() == "Metadata.Expires"
+				},
+				cmp.Ignore(),
+			),
 		),
+		"GetValidatedMFAChallenge(%s, %s) mismatch (-want +got)", user.GetName(), challengeResp.GetMfaChallenge().GetName(),
 	)
-	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", user.GetName(), challengeResp.GetMfaChallenge().GetName(), diff)
 }
 
 func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
@@ -713,7 +716,6 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	require.Contains(t, e.Error, "MOCKED TEST ERROR FROM STORAGE LAYER")
 }
 
-// setupAuthServer returns a mock auth server, mfav1 service, event emitter, and test user.
 func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav1impl.Service, *eventstest.MockRecorderEmitter, types.User) {
 	t.Helper()
 

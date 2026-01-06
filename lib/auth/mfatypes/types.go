@@ -18,9 +18,7 @@
 
 package mfatypes
 
-import (
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-)
+import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 
 // ChallengeExtensions is a json struct for [mfav1.ChallengeExtensions].
 type ChallengeExtensions struct {
