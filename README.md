@@ -408,86 +408,98 @@ license](./build.assets/LICENSE-community).
 
 ## FAQ
 
-**Is Teleport production-ready?**
-> Yes, Teleport is production-ready and used to protect and facilitate
-> access to the most precious and mission-critical applications at many of
-> today's leading companies. You can learn more about the companies using
-> Teleport in production [on our website](https://goteleport.com/case-study/).
+### Is Teleport production-ready?
 
-**Is Teleport secure?**
-> Yes, Teleport has completed several security audits from nationally and
-> internationally recognized technology security companies. We publicize
-> audit results, our security philosophy, and related information on our
-> [trust page](https://trust.goteleport.com/).
+Yes, Teleport is production-ready and used to protect and facilitate
+access to the most precious and mission-critical applications at many of
+today's leading companies. You can learn more about the companies using
+Teleport in production [on our website](https://goteleport.com/case-study/).
 
-**What resources does Teleport support?**
-> Teleport secures access to a [broad set of infrastructure
-> resources](https://goteleport.com/docs/enroll-resources), including Linux
-> servers, Windows desktops, Kubernetes clusters, databases, internal web
-> applications, cloud provider APIs and consoles (such as AWS, Azure, and
-> GCP), and Model Context Protocol (MCP) servers used by AI agents.
+### Is Teleport secure?
 
-**How is Teleport deployed?**
-> Teleport can be [deployed to fit most
-> environments](https://goteleport.com/docs/feature-matrix/#platform-integrations-management-licensing-and-deployment),
-> either as a self-hosted cluster on Linux or Kubernetes or using Teleport
-> Enterprise Cloud. In all cases, Teleport agents run close to your
-> resources and connect through an Auth Service and Proxy Service that
-> enforces identity, access control, and audit.
+Yes, Teleport has completed several security audits from nationally and
+internationally recognized technology security companies. We publicize
+audit results, our security philosophy, and related information on our
+[trust page](https://trust.goteleport.com/).
 
-**Is Teleport an identity provider (IdP)?**
-> Teleport uses existing IdPs (Okta, Google Workspace, Microsoft Entra ID,
-> or GitHub) to issue short-lived certificates and apply access policies.
-> Teleport can also be [configured to act as a SAML
-> IdP](https://goteleport.com/docs/identity-governance/idps/) to authenticate
-> users into applications when needed.
+### What resources does Teleport support?
 
-**Does Teleport require credential handling or secrets management?**
-> Teleport eliminates long-lived passwords, SSH keys, database credentials,
-> credential rotations, and vault processes by issuing [short-lived,
-> auto-expiring mTLS and SSH
-> certificates](https://goteleport.com/docs/reference/architecture/authentication/#short-lived-certificates)
-> bound to human or non-human identity.
+Teleport secures access to a [broad set of infrastructure
+resources](https://goteleport.com/docs/enroll-resources), including Linux
+servers, Windows desktops, Kubernetes clusters, databases, internal web
+applications, cloud provider APIs and consoles (such as AWS, Azure, and
+GCP), and Model Context Protocol (MCP) servers used by AI agents.
 
-**Is Teleport a Privileged Access Management (PAM) solution?**
-> Teleport provides modern PAM software capabilities like strong
-> authentication, session recording, policy-based access, and JIT elevation
-> without secrets, credential rotation, or vault dependencies. This enables
-> controlled, audited access to servers, Kubernetes, databases, cloud
-> consoles, and other privileged environments using short-lived certificates
-> and role-based policies.
+### How is Teleport deployed?
 
-**Is Teleport a Just-in-Time (JIT) access solution?**
-> Teleport enables [JIT access through time-bound Access
-> Requests](https://goteleport.com/docs/identity-governance/access-requests/).
-> Users request the roles or resources they temporarily need, policies decide
-> whether approval is required, and privileges automatically expire. This
-> approach maintains least privilege while keeping access workflows
-> efficient and predictable.
+Teleport can be [deployed to fit most
+environments](https://goteleport.com/docs/feature-matrix/#platform-integrations-management-licensing-and-deployment),
+either as a self-hosted cluster on Linux or Kubernetes or using Teleport
+Enterprise Cloud. In all cases, Teleport agents run close to your
+resources and connect through an Auth Service and Proxy Service that
+enforces identity, access control, and audit.
 
-**Does Teleport secure access to Kubernetes?**
-> Teleport can [proxy and secure Kubernetes
-> access](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
-> with identity-based authentication, role-based access controls, and
-> detailed auditing of kubectl activity.
+### Is Teleport an identity provider (IdP)?
 
-**Does Teleport support SPIFFE?**
-> Teleport supports [SPIFFE-compatible identities for
-> workloads](https://goteleport.com/docs/machine-workload-identity/workload-identity/spiffe/),
-> allowing it to participate in SPIFFE ecosystems and federation.
-> Teleport issues short-lived SVIDs and can integrate with external PKI
-> hierarchies.
+Teleport uses existing IdPs (Okta, Google Workspace, Microsoft Entra ID,
+or GitHub) to issue short-lived certificates and apply access policies.
+Teleport can also be [configured to act as a SAML
+IdP](https://goteleport.com/docs/identity-governance/idps/) to authenticate
+users into applications when needed.
 
-**Is Teleport an alternative for VPNs or bastion hosts?**
-> Yes. Teleport is frequently used as an alternative to traditional VPNs
-> and bastion hosts, enabling [direct, identity-based access to
-> resources](https://goteleport.com/docs/core-concepts/#teleport-proxy-service)
-> instead of broad network access.
+### Does Teleport require credential handling or secrets management?
 
-**Does Teleport secure the Model Context Protocol (MCP) and AI agents?**
-> Teleport [secures MCP
-> connections](https://goteleport.com/docs/connect-your-client/model-context-protocol/)
-> by placing identity-aware policy enforcement between MCP clients and
-> servers. This ensures all tool invocations are authenticated, authorized,
-> and audited without custom authorization code and that sensitive systems
-> are protected from overly broad access.
+Teleport eliminates long-lived passwords, SSH keys, database credentials,
+credential rotations, and vault processes by issuing [short-lived,
+auto-expiring mTLS and SSH
+certificates](https://goteleport.com/docs/reference/architecture/authentication/#short-lived-certificates)
+bound to human or non-human identity.
+
+### Is Teleport a Privileged Access Management (PAM) solution?
+
+Teleport provides modern PAM software capabilities like strong
+authentication, session recording, policy-based access, and JIT elevation
+without secrets, credential rotation, or vault dependencies. This enables
+controlled, audited access to servers, Kubernetes, databases, cloud
+consoles, and other privileged environments using short-lived certificates
+and role-based policies.
+
+### Is Teleport a Just-in-Time (JIT) access solution?
+
+Teleport enables [JIT access through time-bound Access
+Requests](https://goteleport.com/docs/identity-governance/access-requests/).
+Users request the roles or resources they temporarily need, policies decide
+whether approval is required, and privileges automatically expire. This
+approach maintains least privilege while keeping access workflows
+efficient and predictable.
+
+### Does Teleport secure access to Kubernetes?
+
+Teleport can [proxy and secure Kubernetes
+access](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
+with identity-based authentication, role-based access controls, and
+detailed auditing of kubectl activity.
+
+### Does Teleport support SPIFFE?
+
+Teleport supports [SPIFFE-compatible identities for
+workloads](https://goteleport.com/docs/machine-workload-identity/workload-identity/spiffe/),
+allowing it to participate in SPIFFE ecosystems and federation.
+Teleport issues short-lived SVIDs and can integrate with external PKI
+hierarchies.
+
+### Is Teleport an alternative for VPNs or bastion hosts?
+
+Yes. Teleport is frequently used as an alternative to traditional VPNs
+and bastion hosts, enabling [direct, identity-based access to
+resources](https://goteleport.com/docs/core-concepts/#teleport-proxy-service)
+instead of broad network access.
+
+### Does Teleport secure the Model Context Protocol (MCP) and AI agents?
+
+Teleport [secures MCP
+connections](https://goteleport.com/docs/connect-your-client/model-context-protocol/)
+by placing identity-aware policy enforcement between MCP clients and
+servers. This ensures all tool invocations are authenticated, authorized,
+and audited without custom authorization code and that sensitive systems
+are protected from overly broad access.
