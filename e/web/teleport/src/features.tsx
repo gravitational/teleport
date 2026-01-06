@@ -670,6 +670,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureIntegrationStatus(),
+    new OSS.FeatureIntegrationOverview(),
 
     // - Permissions
     new OSS.FeatureClusters(),
