@@ -22,7 +22,8 @@ docs: $(README_FILES) ;
 
 .PHONY: check
 check:
-	git ls-files -- . | xargs pre-commit run --files
+	git ls-files -- . \
+	| xargs pre-commit run --hook-stage=manual --verbose --files
 
 .PHONY: install-pre-commit
 install-pre-commit:
@@ -84,4 +85,8 @@ clean: tfclean
 
 .PHONY: tfclean
 tfclean:
-	find . \( -name '.terraform' -or -name '.terraform.lock.hcl' -or -name 'terraform.tfstate*' \) -exec rm -rf {} \+
+	find . \( \
+		-name '.terraform' \
+		-or -name '.terraform.lock.hcl' \
+		-or -name 'terraform.tfstate*' \
+	\) -exec rm -rf {} \+
