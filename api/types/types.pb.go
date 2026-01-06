@@ -120,6 +120,10 @@ func (DatabaseTLSMode) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_9198ee693835762e, []int{1}
 }
 
+// UpdaterStatus indicates the status of automatic updates as determined by an
+// agent. 1: The updater status is okay. 2: Automatic updates appear disabled or
+// paused. 3: A specific version is pinned. 4: The agent failed to read its
+// update status.
 type UpdaterStatus int32
 
 const (

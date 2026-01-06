@@ -8,6 +8,10 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: app
     yaml_version: v3
+  - type: BotInstance
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
+    yaml_kind: bot_instance
+    yaml_version: v1
   - type: DatabaseServerV3
     package: github.com/gravitational/teleport/api/types
     yaml_kind: db_server
@@ -41,6 +45,8 @@ camel_case_exceptions:
   - EKS
   - ElastiCache
   - GCP
+  - GitHub
+  - GitLab
   - HTTP
   - IAM
   - ID
@@ -55,3 +61,4 @@ camel_case_exceptions:
   - SQL
   - SSO
   - TLS
+  - TPM
