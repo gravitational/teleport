@@ -128,6 +128,9 @@ const ToolTipIcon = ({
 const StyledOnHover = styled(Text)<{ $maxWidth: number }>`
   color: ${props => props.theme.colors.text.primaryInverse};
   max-width: ${p => p.$maxWidth}px;
+  a {
+    color: ${props => props.theme.colors.tooltip.inverseLinkDefault};
+  }
 `;
 
 const InfoIcon = styled(Icons.Info)<{ $muteIconColor?: boolean }>`
