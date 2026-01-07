@@ -282,6 +282,7 @@ func TestBasicFunctionality(t *testing.T) {
 	clientDialRandomNode := func() (net.Conn, error) {
 		return client.Dial(
 			uuid.NewString()+".testcluster",
+			"/example/scope",
 			&utils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
@@ -337,6 +338,7 @@ func TestBasicFunctionality(t *testing.T) {
 
 		conn, err := client.Dial(
 			"echo.echo",
+			"",
 			&utils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
