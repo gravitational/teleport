@@ -39,17 +39,18 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     return labelIconValue as ResourceIconName;
   }
 
+  const app = {
+    name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),
+    friendlyName: withoutWhiteSpaces(friendlyName)?.toLocaleLowerCase(),
+  };
+
   if (awsConsole) {
+    if (match('quicksight', app)) return 'awsquicksight';
     return 'awsidentityandaccessmanagementiam';
   }
   if (subKind === AppSubKind.AwsIcAccount) {
     return 'awsaccount';
   }
-
-  const app = {
-    name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),
-    friendlyName: withoutWhiteSpaces(friendlyName)?.toLocaleLowerCase(),
-  };
 
   // Try a direct lookup first.
   if (resourceIconSpecs[app.name]) {
