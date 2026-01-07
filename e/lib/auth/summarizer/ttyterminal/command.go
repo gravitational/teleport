@@ -17,6 +17,20 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
+// Command represents a terminal command execution with methods to retrieve
+// the number of output chunks and generate prompts for each chunk.
+type Command interface {
+	// ChunkCount returns the number of output chunks for the command.
+	ChunkCount() int
+	// PromptForChunk generates a prompt string for the specified output chunk index,
+	// including the reconstructed input and output for that chunk.
+	PromptForChunk(index int) string
+	// StartOffset returns the start time of the command, relative to the start of the session.
+	StartOffset() time.Duration
+	// EndOffset returns the end time of the command, relative to the start of the session.
+	EndOffset() time.Duration
+}
+
 // ReconstructedCommand represents the reconstructed terminal input and output
 // for a single command execution.
 type ReconstructedCommand struct {
@@ -24,13 +38,13 @@ type ReconstructedCommand struct {
 	output *reconstructedCommandData
 }
 
-// StartTime returns the start time of the command.
-func (r *ReconstructedCommand) StartTime() time.Duration {
+// StartOffset returns the start time of the command, relative to the start of the session.
+func (r *ReconstructedCommand) StartOffset() time.Duration {
 	return r.input.startTime
 }
 
-// EndTime returns the end time of the command.
-func (r *ReconstructedCommand) EndTime() time.Duration {
+// EndOffset returns the end time of the command, relative to the start of the session.
+func (r *ReconstructedCommand) EndOffset() time.Duration {
 	return r.output.endTime
 }
 

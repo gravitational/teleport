@@ -37,7 +37,7 @@ func analyzeSessionCommands(
 	sessionID session.ID,
 	provider sessionInferenceProvider,
 	pool *workerPool,
-	commands <-chan command,
+	commands <-chan ttyterminal.Command,
 	username,
 	loginName string,
 ) (*schema.SessionAnalysis, []*schema.CommandAnalysis, error) {
@@ -65,7 +65,7 @@ type commandChunk struct {
 
 func (s *sessionAnalyzer) analyzeCommands(
 	ctx context.Context,
-	commands <-chan command,
+	commands <-chan ttyterminal.Command,
 ) (*schema.SessionAnalysis, []*schema.CommandAnalysis, error) {
 	var chunks []*commandChunk
 	currentChunk := &commandChunk{}
@@ -89,6 +89,9 @@ func (s *sessionAnalyzer) analyzeCommands(
 			shortDescription: result.ShortDescription,
 			analysis:         result,
 		}
+
+		result.StartOffset = cmd.StartOffset()
+		result.EndOffset = cmd.EndOffset()
 
 		commandAnalyses = append(commandAnalyses, result)
 

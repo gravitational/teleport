@@ -51,6 +51,8 @@ type CommandAnalysis struct {
 	PrivilegeEscalation bool     `json:"privilegeEscalation,omitempty"`
 	DataExfiltration    bool     `json:"dataExfiltration,omitempty"`
 	Persistence         bool     `json:"persistence,omitempty"`
+	StartOffset         int64    `json:"startOffset,omitempty"`
+	EndOffset           int64    `json:"endOffset,omitempty"`
 }
 
 func asOptionalTime(ts *timestamppb.Timestamp) *time.Time {
@@ -134,5 +136,7 @@ func makeCommandAnalysis(cmd *summarizerv1.CommandAnalysis) CommandAnalysis {
 		PrivilegeEscalation: cmd.GetPrivilegeEscalation(),
 		DataExfiltration:    cmd.GetDataExfiltration(),
 		Persistence:         cmd.GetPersistence(),
+		StartOffset:         cmd.GetStartOffset().AsDuration().Milliseconds(),
+		EndOffset:           cmd.GetEndOffset().AsDuration().Milliseconds(),
 	}
 }

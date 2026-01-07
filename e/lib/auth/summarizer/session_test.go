@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -17,7 +18,7 @@ func TestAnalyseSessionCommands_NoCommands(t *testing.T) {
 
 	sessionID := session.ID("test-session-empty")
 
-	commands := make(chan command)
+	commands := make(chan ttyterminal.Command)
 	close(commands)
 
 	var provider mockSessionInferenceProvider
@@ -36,7 +37,7 @@ func TestAnalyseSessionCommands_SingleCommand(t *testing.T) {
 
 	sessionID := session.ID("test-session-single")
 
-	commands := make(chan command, 1)
+	commands := make(chan ttyterminal.Command, 1)
 	commands <- &mockCommand{[]string{"ls -la"}}
 	close(commands)
 
@@ -61,7 +62,7 @@ func TestAnalyseSessionCommands_MultipleCommands(t *testing.T) {
 
 	sessionID := session.ID("test-session-multiple")
 
-	commands := make(chan command, 3)
+	commands := make(chan ttyterminal.Command, 3)
 	commands <- &mockCommand{[]string{"ls -la"}}
 	commands <- &mockCommand{[]string{"cat /etc/passwd"}}
 	commands <- &mockCommand{[]string{"exit"}}
@@ -83,7 +84,7 @@ func TestAnalyseSessionCommands_ErrorFromProvider(t *testing.T) {
 
 	sessionID := session.ID("test-session-error")
 
-	commands := make(chan command, 1)
+	commands := make(chan ttyterminal.Command, 1)
 	commands <- &mockCommand{[]string{"error command"}}
 	close(commands)
 

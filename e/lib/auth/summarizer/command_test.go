@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -113,6 +114,14 @@ func (m *mockCommand) PromptForChunk(index int) string {
 	}
 
 	return m.chunks[index]
+}
+
+func (m *mockCommand) StartOffset() time.Duration {
+	return 0
+}
+
+func (m *mockCommand) EndOffset() time.Duration {
+	return 0
 }
 
 type mockInferenceProvider struct{}

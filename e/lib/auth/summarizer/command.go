@@ -10,13 +10,9 @@ import (
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
 	"github.com/gravitational/teleport/lib/session"
 )
-
-type command interface {
-	ChunkCount() int
-	PromptForChunk(index int) string
-}
 
 type commandInferenceProvider interface {
 	SummarizeCommand(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.CommandAnalysis, error)
@@ -27,7 +23,7 @@ func summarizeReconstructedCommand(
 	sessionID session.ID,
 	provider commandInferenceProvider,
 	pool *workerPool,
-	cmd command,
+	cmd ttyterminal.Command,
 	username,
 	loginName string,
 ) (*schema.CommandAnalysis, error) {
@@ -65,7 +61,7 @@ func summarizeReconstructedCommand(
 }
 
 type commandSummarizer struct {
-	cmd       command
+	cmd       ttyterminal.Command
 	pool      *workerPool
 	provider  commandInferenceProvider
 	sessionID session.ID
