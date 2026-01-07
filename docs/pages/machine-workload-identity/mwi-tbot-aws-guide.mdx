@@ -97,23 +97,17 @@ Create `/etc/tbot.yaml`:
 
 ```yaml
 version: v2
-
 # Teleport proxy server address
 proxy_server: example.teleport.sh:443
-
 # Onboarding configuration
 onboarding:
   join_method: token
   token: example-bot
-
 # Storage configuration for tbot state
 storage:
   type: directory
   path: /var/lib/teleport/bot
-
 # Services section - configures the workload-identity-api service
-services:
-  - type: workload-identity-api
 services:
   - type: workload-identity-api
     listen: unix:///opt/machine-id/workload.sock
@@ -122,22 +116,6 @@ services:
     attestors:
       systemd:
         enabled: true
-    
-# Example of resulting Workload 
-kind: workload_identity
-version: v1
-metadata:
-  name: example-workload-identity
-  labels:
-    example: getting-started
-spec:
-  spiffe:
-    id: "/svc/{{workload.systemd.service}}"
-
-    # Specifies which WorkloadIdentity resource will be used to issue credentials
-    selector:
-      # Replace with the actual name of your Workload Identity resource
-      name: example-workload-identity
 ```
 
 Replace:
