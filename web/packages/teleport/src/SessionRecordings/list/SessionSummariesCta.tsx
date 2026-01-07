@@ -19,7 +19,7 @@
 import { useCallback, type MouseEvent } from 'react';
 import styled from 'styled-components';
 
-import { ChatCircleSparkle, Cross } from 'design/Icon';
+import { Cross, Sparkle } from 'design/Icon';
 import Text from 'design/Text';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
@@ -85,7 +85,7 @@ export function SessionSummariesCta() {
       href="https://goteleport.com/docs/identity-security/session-summaries/"
       target="_blank"
     >
-      <ChatCircleSparkle size="small" />
+      <Sparkle size="small" />
 
       <Text>Summarize session recordings with AI</Text>
 
