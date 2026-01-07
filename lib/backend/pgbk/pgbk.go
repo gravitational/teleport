@@ -152,12 +152,8 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ClientCertReloadInterval != 0 {
-		if err := pgcommon.CreateClientCertReloader(ctx,
-			"crdbclient",
-			cfg.ConnString,
-			poolConfig.ConnConfig,
-			time.Duration(cfg.ClientCertReloadInterval),
-			nil); err != nil {
+		err := pgcommon.CreateClientCertReloader(ctx, "crdbclient", cfg.ConnString, poolConfig.ConnConfig, cfg.ClientCertReloadInterval.Value(), nil)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
