@@ -41,7 +41,7 @@ import (
 // waitFetch fetches a status report from the given endpoint using the provided
 // client. It only returns without an error if the endpoint returns a valid
 // and healthy status report.
-func waitFetch(ctx context.Context, l *slog.Logger, client *http.Client, endpoint *url.URL) error {
+func waitFetch(ctx context.Context, l *slog.Logger, client *http.Client, service string, endpoint *url.URL) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return trace.Wrap(err, "could not build wait request")
@@ -58,15 +58,31 @@ func waitFetch(ctx context.Context, l *slog.Logger, client *http.Client, endpoin
 		return trace.Wrap(err)
 	}
 
-	// If the status doesn't appear to be OK, log some additional info if
+	// If the status doesn't appear to be OK, try to parse out service status if
 	// possible. 404 is ignored because the JSON structure is different.
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		if service == "" {
+			// No service was specified, so produce logs/errors specific to
+			// overall status
+			var status readyz.OverallStatus
+			if err := json.Unmarshal(bytes, &status); err == nil {
+				l.WarnContext(ctx, "bot is not yet ready", "status", status.Status)
+				return trace.ConnectionProblem(nil, "bot is not yet ready: %s", status.Status)
+			}
+		}
+
 		var status readyz.ServiceStatus
 		if err := json.Unmarshal(bytes, &status); err == nil {
 			l.WarnContext(ctx, "service is not yet ready", "status", status.Status, "reason", status.Reason)
+			return trace.ConnectionProblem(nil, "service is not yet ready: %s", status.Reason)
 		}
+
+		// Note: `trace.ReadError()` doesn't provide any useful info for 5xx
+		// errors, so return something sane if it failed to parse above.
+		return trace.ConnectionProblem(nil, "unexpected response from server: %s", string(bytes))
 	}
 
+	// Given the above check, `trace.ReadError` just handles 404s.
 	return trace.Wrap(trace.ReadError(resp.StatusCode, bytes), "response from wait API")
 }
 
@@ -141,7 +157,7 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 		i += 1
 		l := l.With("attempt", i)
 
-		err = waitFetch(ctx, l, client, endpoint)
+		err = waitFetch(ctx, l, client, cmd.Service, endpoint)
 		if err == nil {
 			break
 		} else {
@@ -151,7 +167,7 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 		retry.Inc()
 		select {
 		case <-ctx.Done():
-			l.WarnContext(ctx, "bot did not become ready in time", "timeout", cmd.Timeout)
+			l.WarnContext(ctx, "bot did not become ready in time", "timeout", cmd.Timeout, "last_error", err)
 			return ctx.Err()
 		case <-retry.After():
 		}
