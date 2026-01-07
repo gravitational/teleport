@@ -216,7 +216,7 @@ type tdpbHandshaker struct {
 
 func (t *tdpbHandshaker) sendError(ctx context.Context, log *slog.Logger, err error) error {
 	if err == nil {
-		log.WarnContext(ctx, "SendTDPError called with empty message")
+		log.WarnContext(ctx, "sendError called with empty message")
 		err = errors.New("")
 	}
 
@@ -300,7 +300,7 @@ func newHandshaker(ctx context.Context, protocol string, ws *websocket.Conn) han
 	if protocol == protocolTDPB {
 		adapter := &wsAdapter{Conn: ws, Decoder: func(r *websocket.Conn) (tdp.Message, error) {
 			for {
-				data, err := readWebSocketMessage(ws)
+				data, err := readWebSocketMessage(r)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -359,7 +359,7 @@ func (h *Handler) createDesktopConnection(
 	//   Note: We *always* upgrade the client connection to TDPB if possible.
 	// - Otherwise fall back to the "legacy" behavior
 	//
-	// After either receiving a client_hello or our initial TDP messages, we can dial the server which
+	// After either receiving a client_hello or our initial TDP messages, we can dial the agent which
 	// *also* might speak TDP or TDPB. Unlike the client, the agent only speaks one or the other so we'll
 	// translate on its behalf if needed.
 	clientProtocol, err := readClientProtocol(r)
@@ -411,7 +411,7 @@ func (h *Handler) createDesktopConnection(
 		return handshaker.sendError(ctx, log, err)
 	}
 
-	log.DebugContext(ctx, "Attempting to connect to desktop")
+	log.DebugContext(ctx, "Attempting to connect to agent")
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
 	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
 		Log:            log,
@@ -447,9 +447,9 @@ func (h *Handler) createDesktopConnection(
 	case protocolTDPB:
 		err = handshaker.forwardTDPB(serviceConnTLS, username, true /* unused */)
 	default:
-		err = trace.Errorf("Unknown desktop agent protocol")
+		err = trace.BadParameter("Unknown desktop agent protocol %v", serverProtocol)
 	}
-	log.InfoContext(ctx, "Connected to windows_desktop_service", "server_protocol", serverProtocol)
+	log.InfoContext(ctx, "Connected to windows_desktop_service", "agent_protocol", serverProtocol)
 
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
@@ -656,7 +656,7 @@ func readClientProtocol(r *http.Request) (string, error) {
 	case protocolTDPB:
 		return protocolTDPB, nil
 	default:
-		return "", trace.Errorf("unknown TDPB version '%s'", tdpbVersion)
+		return "", trace.BadParameter("unknown TDPB version '%s'", tdpbVersion)
 	}
 }
 
@@ -788,7 +788,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToLegacy)
 		} else {
 			log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", protocolTDPB)
-			// Server speaks TDP
+			// Agent speaks TDP
 			// Translate to TDPB when reading from this connection.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToLegacy)
 			// The client speaks TDPB

@@ -68,7 +68,7 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
-// ReporterFunc type is an adapter to allow the use of
+// PingerFunc type is an adapter to allow the use of
 // ordinary functions as a Pinger. If p is a function
 // with the appropriate signature, PingerFunc(p) is a
 // Pinger that calls p.

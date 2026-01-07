@@ -195,7 +195,7 @@ func TranslateToLegacy(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 				EndOfFile:    op.Truncate.EndOfFile,
 			}}, nil
 		default:
-			return nil, trace.Errorf("Unknown shared directory operation")
+			return nil, trace.BadParameter("Unknown shared directory operation")
 		}
 	case *SharedDirectoryResponse:
 		switch op := m.Operation.(type) {
