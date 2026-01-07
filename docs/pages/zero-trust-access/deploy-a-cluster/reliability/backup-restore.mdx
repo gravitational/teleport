@@ -24,7 +24,7 @@ You must back up data that the Auth Service manages across its three backends:
 - Audit event backend
 - Session recording backend
 
-See [Storage Backends](../../reference/deployment/backends.mdx) for more information on
+See [Storage Backends](../../../reference/deployment/backends.mdx) for more information on
 Teleport backends.
 
 The following table summarizes the kinds of backend data the Auth Service
@@ -54,7 +54,7 @@ listed here, consult the documentation for your backend:
 For the most part, you can use the same solution for both cluster state and
 audit events, setting aside a separate table for each kind of backend. The
 exception is etcd, which can only function as a cluster state backend. (See a
-full explanation in [Storage Backends](../../reference/deployment/backends.mdx#etcd).)
+full explanation in [Storage Backends](../../../reference/deployment/backends.mdx#etcd).)
 
 | Backend | Recommended backup strategy |
 | - | - |
@@ -77,7 +77,7 @@ full explanation in [Storage Backends](../../reference/deployment/backends.mdx#e
 ## Versioning dynamic resources with infrastructure as code
 
 Teleport uses [dynamic
-resources](../infrastructure-as-code/infrastructure-as-code.mdx) for roles,
+resources](../../infrastructure-as-code/infrastructure-as-code.mdx) for roles,
 local users, authentication connectors, and other configurations, and stores
 dynamic resource data on the cluster state backend. Backing up the cluster
 state backend protects your cluster against the loss of dynamic resource data.
@@ -96,9 +96,9 @@ Teleport provides the following infrastructure as code tools for managing
 dynamic resources:
 
 - [Terraform
-  provider](../infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+  provider](../../infrastructure-as-code/terraform-provider/terraform-provider.mdx)
 - [Kubernetes
-  operator](../infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+  operator](../../infrastructure-as-code/teleport-operator/teleport-operator.mdx)
 
 ## Cloning a backend
 
@@ -138,7 +138,7 @@ Kubernetes pod that usually runs the Teleport Auth Service, you can expect the
    include information about the source and destination backends. Possible
    values of `src` and `dst` are the same as the `teleport.storage` section in
    the Teleport configuration file. See the [Storage
-   Backends](../../reference/deployment/backends.mdx) reference for the configuration
+   Backends](../../../reference/deployment/backends.mdx) reference for the configuration
    fields to assign for each backend.
 
 1. Run the following command on an Auth Service instance to execute the clone
@@ -162,7 +162,7 @@ Rollbacks can be performed without any backend corruption or data loss by levera
 to upgrading a cluster from Teleport v18 to v19 the following clone configuration can
 be used to make a full clone of the Teleport backend state to a different key range of
 the same etcd cluster using the `prefix` field. See the etcd storage backend
-[configuration reference](../../reference/deployment/backends.mdx#etcd) for an explanation:
+[configuration reference](../../../reference/deployment/backends.mdx#etcd) for an explanation:
 
 ```yaml
 src:

@@ -1,5 +1,6 @@
 ---
-title: Configuring break-glass SSH Access for Disaster Recovery
+title: Configuring Break-Glass SSH Access for Disaster Recovery
+sidebar_label: Break-Glass Access
 description: Guide to set up break-glass emergency SSH access for critical systems if Teleport becomes unavailable.
 ---
 
@@ -160,11 +161,11 @@ tctl create -f breakglass-role.yaml
 
 **This step is completed on the machine where you will make use of the certificates for break-glass access.**
 
-This step will configure and start a [Teleport Machine ID bot](../../machine-workload-identity/deployment/deployment.mdx) as a background
+This step will configure and start a [Teleport Machine ID bot](../../../machine-workload-identity/deployment/deployment.mdx) as a background
 daemon (managed by `systemd`), which will continually generate and refresh a short-lived key and certificate for break-glass access on the machine
 where it runs.
 
-This guide will join the Teleport Machine ID bot to the cluster using a [bound keypair](../../reference/machine-workload-identity/bound-keypair/concepts.mdx)
+This guide will join the Teleport Machine ID bot to the cluster using a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx)
 which is a secure, optionally single-use join method based on public key cryptography, providing a strong guarantee of security and protection against
 credential theft.
 
@@ -194,7 +195,7 @@ spec:
 tctl create -f breakglass-bot.yaml
 ```
 
-3. Create a [bound keypair](../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx) to use as a join method for running instances of the bot:
+3. Create a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx) to use as a join method for running instances of the bot:
 
 Define the join method in a file named `breakglass-token.yaml`:
 

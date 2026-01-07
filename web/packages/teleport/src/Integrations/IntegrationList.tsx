@@ -72,13 +72,25 @@ export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
+    // TODO (avatus) enable this feature by checking isManagedByTerraform.
+    // Leaving commented until IaC form and settings page are implemented
+
+    // if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
+    //   history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+    //   return;
+    // }
+
     if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (!statusKinds.includes(row.kind)) return;
-    return { cursor: 'pointer' };
+    if (
+      ('isManagedByTerraform' in row && row.isManagedByTerraform) ||
+      statusKinds.includes(row.kind)
+    ) {
+      return { cursor: 'pointer' };
+    }
   }
 
   const [downloadAttempt, download] = useAsync(

@@ -212,6 +212,7 @@ func tokenInitToMessage(req *joinv1.TokenInit) (*messages.TokenInit, error) {
 	}
 	return &messages.TokenInit{
 		ClientParams: clientParams,
+		Secret:       req.GetSecret(),
 	}, nil
 }
 
@@ -222,6 +223,7 @@ func tokenInitFromMessage(msg *messages.TokenInit) (*joinv1.TokenInit, error) {
 	}
 	return &joinv1.TokenInit{
 		ClientParams: clientParams,
+		Secret:       msg.Secret,
 	}, nil
 }
 
