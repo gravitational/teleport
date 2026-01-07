@@ -397,6 +397,7 @@
     "centralus",
     "certificatekey",
     "certificatesigningrequest",
+    "certlm",
     "certutil",
     "cfpassword",
     "cfsdf",
