@@ -123,9 +123,7 @@ func ResourceIDsToResourceAccessIDs(ids []ResourceID) []ResourceAccessID {
 func CombineAsResourceAccessIDs(ids []ResourceID, accessIDs []ResourceAccessID) []ResourceAccessID {
 	totalLen := len(ids) + len(accessIDs)
 	zipped := make([]ResourceAccessID, 0, totalLen)
-	for _, id := range ids {
-		zipped = append(zipped, ResourceAccessID{Id: id})
-	}
+	zipped = append(zipped, ResourceIDsToResourceAccessIDs(ids)...)
 	zipped = append(zipped, accessIDs...)
 	return zipped
 }

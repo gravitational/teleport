@@ -153,7 +153,7 @@ type AuthProxyServersLister interface {
 }
 
 // GetClusterAuthProxyServerFeatures fetches all Auth and Proxy servers in the cluster and returns
-// the intersectioin of their supported ComponentFeatures.
+// the intersection of their supported ComponentFeatures.
 func GetClusterAuthProxyServerFeatures(ctx context.Context, clt AuthProxyServersLister, logger *slog.Logger) *componentfeaturesv1.ComponentFeatures {
 	features := make([]*componentfeaturesv1.ComponentFeatures, 0)
 

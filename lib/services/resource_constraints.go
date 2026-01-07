@@ -19,8 +19,6 @@
 package services
 
 import (
-	"slices"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -46,25 +44,28 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 		return func(m RoleMatcher) RoleMatcher { return m }
 	}
 
-	switch d := rc.Details; d.(type) {
+	switch d := rc.Details.(type) {
 	case *types.ResourceConstraints_AwsConsole:
-		ac := rc.GetAwsConsole()
-		if ac == nil || len(ac.RoleArns) == 0 {
+		if err := d.Validate(); err != nil {
 			return func(m RoleMatcher) RoleMatcher {
-				return RoleMatcherFunc(func(_ types.Role, _ types.RoleConditionType) (bool, error) {
-					// This should never happen as constraints are validated at resource creation time
-					// and checking against an empty list would always fail closed, but better to be explicit.
-					return false, trace.BadParameter("aws_console constraints require role_arns, none provided")
+				return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
+					return false, trace.Wrap(err)
 				})
 			}
 		}
+
+		allowedSet := make(map[string]struct{}, len(d.AwsConsole.RoleArns))
+		for _, arn := range d.AwsConsole.RoleArns {
+			allowedSet[arn] = struct{}{}
+		}
+
 		return func(m RoleMatcher) RoleMatcher {
 			lm, ok := m.(*awsAppLoginMatcher)
 			if !ok {
 				return m
 			}
 			return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
-				if !slices.Contains(ac.RoleArns, lm.awsRole) {
+				if _, ok := allowedSet[lm.awsRole]; !ok {
 					return false, nil
 				}
 				return m.Match(role, cond)
@@ -94,14 +95,13 @@ func MatcherFromConstraints(rc *types.ResourceConstraints) (RoleMatcher, error) 
 		return nil, nil
 	}
 
-	switch d := rc.Details; d.(type) {
+	switch d := rc.Details.(type) {
 	case *types.ResourceConstraints_AwsConsole:
-		ac := rc.GetAwsConsole()
-		if ac == nil || len(ac.RoleArns) == 0 {
-			return nil, trace.BadParameter("aws_console constraints require role_arns, none provided")
+		if err := d.Validate(); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		matchers := make([]RoleMatcher, 0, len(ac.RoleArns))
-		for _, arn := range ac.RoleArns {
+		matchers := make([]RoleMatcher, 0, len(d.AwsConsole.RoleArns))
+		for _, arn := range d.AwsConsole.RoleArns {
 			matchers = append(matchers, &AWSRoleARNMatcher{RoleARN: arn})
 		}
 		return RoleMatchers(matchers).AnyOf(), nil
