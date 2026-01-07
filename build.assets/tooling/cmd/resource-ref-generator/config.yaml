@@ -23,4 +23,8 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: saml
     yaml_version: v2
+  - type: ServerV2
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: node
+    yaml_version: v2
 
