@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// package tdpb implements Teleport Desktop Protocol via protobuf,
+// a replacement for the original hand-written protocol.
 package tdpb
 
 import (
@@ -48,7 +50,8 @@ const (
 	tdpbHeaderLength = 4 // sizeof(uint32)
 )
 
-// ClientHello message.
+// ClientHello is the first message sent by the client, and advertises
+// client capabilities and connection properties.
 type ClientHello tdpbv1.ClientHello
 
 // Encode encodes a ClientHello message.
@@ -60,7 +63,9 @@ func (c *ClientHello) Encode() ([]byte, error) {
 	})
 }
 
-// ServerHello message.
+// ServerHello is the first message sent by the server *after* receiving
+// the ClientHello. It selects and advertises server capabilities and
+// connection properties.
 type ServerHello tdpbv1.ServerHello
 
 // Encode encodes a ServerHello message.
@@ -72,7 +77,9 @@ func (S *ServerHello) Encode() ([]byte, error) {
 	})
 }
 
-// PNGFrame message.
+// PNGFrame carries screen data in PNG format. It is required
+// for interop with older session recordings that came before
+// desktop access adopted the RemoteFX codec.
 type PNGFrame tdpbv1.PNGFrame
 
 // Encode encodes a PNGFrame message.
@@ -84,7 +91,7 @@ func (p *PNGFrame) Encode() ([]byte, error) {
 	})
 }
 
-// FastPathPDU message.
+// FastPathPDU is a raw RDP Fast-Path Protocol Data Unit (PDU).
 type FastPathPDU tdpbv1.FastPathPDU
 
 // Encode encodes a FastPathPDU message.
@@ -96,7 +103,7 @@ func (f *FastPathPDU) Encode() ([]byte, error) {
 	})
 }
 
-// RDPResponsePDU message.
+// RDPResponsePDU is a raw RDP response PDU.
 type RDPResponsePDU tdpbv1.RDPResponsePDU
 
 // Encode encodes a RDPResponsePDU message.
@@ -108,7 +115,8 @@ func (f *RDPResponsePDU) Encode() ([]byte, error) {
 	})
 }
 
-// SyncKeys message.
+// SyncKeys message is sent from the client to the server to
+// synchronize the state of keyboard's modifier keys.
 type SyncKeys tdpbv1.SyncKeys
 
 // Encode encodes a SyncKeys message.
@@ -120,7 +128,7 @@ func (s *SyncKeys) Encode() ([]byte, error) {
 	})
 }
 
-// MouseMove message.
+// MouseMove contains mouse coordinates.
 type MouseMove tdpbv1.MouseMove
 
 // Encode encodes a MouseMove message.
@@ -132,7 +140,7 @@ func (m *MouseMove) Encode() ([]byte, error) {
 	})
 }
 
-// MouseButton message.
+// MouseButton contains mouse button state.
 type MouseButton tdpbv1.MouseButton
 
 // Encode encodes a MouseButton message.
@@ -144,7 +152,7 @@ func (m *MouseButton) Encode() ([]byte, error) {
 	})
 }
 
-// KeyboardButton message.
+// KeyboardButton encodes a keyboard button update.
 type KeyboardButton tdpbv1.KeyboardButton
 
 // Encode encodes a KeyboardButton message.
@@ -156,7 +164,9 @@ func (k *KeyboardButton) Encode() ([]byte, error) {
 	})
 }
 
-// ClientScreenSpec message.
+// ClientScreenSpec contains the dimensions of the client view.
+// It is included in the ClientHello at the start of the session, and
+// is also sent when the client resizes its window.
 type ClientScreenSpec tdpbv1.ClientScreenSpec
 
 // Encode encodes a ClientScreenSpec message.
@@ -168,7 +178,8 @@ func (c *ClientScreenSpec) Encode() ([]byte, error) {
 	})
 }
 
-// Alert message.
+// Alert encodes an error/warning/informational message and severity code.
+// Sent by the server to the client for display.
 type Alert tdpbv1.Alert
 
 // Encode encodes a Alert message.
@@ -180,7 +191,7 @@ func (a *Alert) Encode() ([]byte, error) {
 	})
 }
 
-// MouseWheel message.
+// MouseWheel contains a mousewheel update.
 type MouseWheel tdpbv1.MouseWheel
 
 // Encode encodes a MouseWheel message.
@@ -192,7 +203,8 @@ func (m *MouseWheel) Encode() ([]byte, error) {
 	})
 }
 
-// ClipboardData message.
+// ClipboardData carries clipboard data to support copy/paste
+// operations between the client and target desktop.
 type ClipboardData tdpbv1.ClipboardData
 
 // Encode encodes a ClipboardData message.
@@ -204,7 +216,8 @@ func (c *ClipboardData) Encode() ([]byte, error) {
 	})
 }
 
-// MFA message.
+// MFA encodes the MFA challenge and response when per-session
+// MFA is enabled.
 type MFA tdpbv1.MFA
 
 // Encode encodes a MFA message.
@@ -216,7 +229,7 @@ func (m *MFA) Encode() ([]byte, error) {
 	})
 }
 
-// SharedDirectoryAnnounce message.
+// SharedDirectoryAnnounce is sent by the client to begin sharing a directory.
 type SharedDirectoryAnnounce tdpbv1.SharedDirectoryAnnounce
 
 // Encode encodes a SharedDirectoryAnnounce message.
@@ -228,7 +241,8 @@ func (s *SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	})
 }
 
-// SharedDirectoryAcknowledge message.
+// SharedDirectoryAcknowledge is sent by the server to acknowledge a
+// new shared directory.
 type SharedDirectoryAcknowledge tdpbv1.SharedDirectoryAcknowledge
 
 // Encode encodes a SharedDirectoryAcknowledge message.
@@ -240,7 +254,8 @@ func (s *SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	})
 }
 
-// SharedDirectoryRequest message.
+// SharedDirectoryRequest encodes various directory operation requests
+// such as Info, Create, Delete, List, Read, Write, Move, or Truncate.
 type SharedDirectoryRequest tdpbv1.SharedDirectoryRequest
 
 // Encode encodes a SharedDirectoryRequest message.
@@ -252,7 +267,7 @@ func (s *SharedDirectoryRequest) Encode() ([]byte, error) {
 	})
 }
 
-// SharedDirectoryResponse message.
+// SharedDirectoryResponse encodes a response to a previous SharedDirectoryRequest.
 type SharedDirectoryResponse tdpbv1.SharedDirectoryResponse
 
 // Encode encodes a SharedDirectoryResponse message.
@@ -264,7 +279,9 @@ func (s *SharedDirectoryResponse) Encode() ([]byte, error) {
 	})
 }
 
-// LatencyStats message.
+// LatencyStats are sent to the client to display connection
+// latency between both the user and Teleport, as well as
+// between Teleport and the target desktop.
 type LatencyStats tdpbv1.LatencyStats
 
 // Encode encodes a LatencyStats message.
@@ -276,7 +293,8 @@ func (l *LatencyStats) Encode() ([]byte, error) {
 	})
 }
 
-// Ping message.
+// Ping is used to measure latency between the Proxy and
+// target desktop.
 type Ping tdpbv1.Ping
 
 // Encodes a ping message.
