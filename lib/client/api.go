@@ -33,7 +33,6 @@ import (
 	"net/url"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -4282,46 +4281,6 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 		User:                     tc.Username,
 		RemoteAuthenticationType: types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_HEADLESS,
 		HeadlessAuthenticationID: headlessAuthenticationID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-func (tc *TeleportClient) browserLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-	browserAuthenticationID := services.NewHeadlessAuthenticationID(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
-
-	u := &url.URL{
-		Scheme: "https",
-		Host:   tc.WebProxyAddr,
-		Path:   path.Join("web", "headless", browserAuthenticationID),
-	}
-	if tc.Username != "" {
-		u.RawQuery = url.Values{"user": []string{tc.Username}}.Encode()
-	}
-	webUILink := u.String()
-
-	_ = browser.OpenURLInBrowser(tc.Browser, webUILink)
-	fmt.Fprintf(tc.Stderr, "Complete browser authentication in your web browser:\n\n%s\n", webUILink)
-
-	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
-		SSHLogin: SSHLogin{
-			ProxyAddr:         tc.WebProxyAddr,
-			SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-			TLSPubKey:         tlsPub,
-			TTL:               tc.KeyTTL,
-			Insecure:          tc.InsecureSkipVerify,
-			Compatibility:     tc.CertificateFormat,
-			KubernetesCluster: tc.KubernetesCluster,
-		},
-		User:                     tc.Username,
-		RemoteAuthenticationType: types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_BROWSER,
-		HeadlessAuthenticationID: browserAuthenticationID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
