@@ -24,6 +24,8 @@ import (
 )
 
 func TestSCIMPatch(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -50,6 +52,7 @@ func TestSCIMPatch(t *testing.T) {
 	scimClient := createPluginSCIMClient(t, sut, scimToken, "generic")
 
 	t.Run("PATCH Unauthorized", func(t *testing.T) {
+		t.Parallel()
 		patchOps := map[string]any{
 			"schemas":    []string{scimsdk.PatchOpSchema},
 			"Operations": "{}",
@@ -71,6 +74,7 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH group with replace displayName", func(t *testing.T) {
+		t.Parallel()
 		groupName := "patch-group-001"
 		acl := common.CreateAccessList(t, sut,
 			common.WithName(groupName),
@@ -95,6 +99,7 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH group add members", func(t *testing.T) {
+		t.Parallel()
 		groupName := "patch-group-002"
 		common.CreateAccessList(t, sut,
 			common.WithName(groupName),
@@ -125,6 +130,7 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH group remove members", func(t *testing.T) {
+		t.Parallel()
 		groupName := "patch-group-003"
 		common.CreateAccessList(t, sut,
 			common.WithName(groupName),
@@ -159,6 +165,7 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH group replace all members", func(t *testing.T) {
+		t.Parallel()
 		groupName := "patch-group-004"
 		// Create access list
 		common.CreateAccessList(t, sut,
@@ -202,6 +209,7 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH userName attribute should fail", func(t *testing.T) {
+		t.Parallel()
 		scimUser := &scimsdk.User{
 			ExternalID: "patch-user-004",
 			UserName:   "patch-user-004@example.com",
@@ -221,6 +229,7 @@ func TestSCIMPatch(t *testing.T) {
 	})
 
 	t.Run("PATCH group concurrent add and remove members", func(t *testing.T) {
+		t.Parallel()
 		groupName := "patch-group-005"
 		common.CreateAccessList(t, sut,
 			common.WithName(groupName),

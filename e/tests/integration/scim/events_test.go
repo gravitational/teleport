@@ -18,7 +18,9 @@ import (
 )
 
 func TestAuditEvents(t *testing.T) {
-	logger := slog.Default().With("test", t.Name())
+	t.Parallel()
+
+	logger := slog.With("test", t.Name())
 	ctx := t.Context()
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
@@ -50,7 +52,8 @@ func TestAuditEvents(t *testing.T) {
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				goodScimClient.ListUsers(ctx)
+				_, err := goodScimClient.ListUsers(ctx)
+				require.NoError(t, err)
 				eventLog.requireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
 						withEventCode(events.SCIMListResourcesSuccessCode)),
@@ -66,7 +69,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnAccessDenied", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				badScimClient.ListUsers(ctx)
+				_, err := badScimClient.ListUsers(ctx)
+				require.Error(t, err)
 				eventLog.requireNoEvent(t, events.SCIMListingEvent)
 			})
 		})
@@ -74,7 +78,8 @@ func TestAuditEvents(t *testing.T) {
 		t.Run("Groups", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				goodScimClient.ListGroups(ctx)
+				_, err := goodScimClient.ListGroups(ctx)
+				require.NoError(t, err)
 				eventLog.requireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
 						withEventCode(events.SCIMListResourcesSuccessCode)),
@@ -91,8 +96,9 @@ func TestAuditEvents(t *testing.T) {
 	})
 
 	t.Run("FilteredList", func(t *testing.T) {
-		var users []types.User
-		for n := range 4 {
+		const userCount = 4
+		users := make([]types.User, 0, userCount)
+		for n := range userCount {
 			users = append(users, mustCreateSCIMUser(t, sut, fmt.Sprintf("user-%03d", n)))
 		}
 
@@ -107,7 +113,8 @@ func TestAuditEvents(t *testing.T) {
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "user-003"`))
+				_, err := goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "user-003"`))
+				require.NoError(t, err)
 				eventLog.requireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
 						withEventCode(events.SCIMListResourcesSuccessCode)),
@@ -123,7 +130,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnEmptyResponse", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "no-such-user"`))
+				_, err := goodScimClient.ListUsers(ctx, scimsdk.WithFilter(`userName eq "no-such-user"`))
+				require.NoError(t, err)
 				eventLog.requireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
 						withEventCode(events.SCIMListResourcesSuccessCode)),
@@ -139,13 +147,15 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnBadFilter", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				goodScimClient.ListUsers(ctx, scimsdk.WithFilter("i'm a potato"))
+				_, err := goodScimClient.ListUsers(ctx, scimsdk.WithFilter("i'm a potato"))
+				require.Error(t, err)
 				eventLog.requireNoEvent(t, events.SCIMListingEvent)
 			})
 
 			t.Run("OnAccessDenied", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				badScimClient.GetUserByUserName(ctx, "user-003")
+				_, err := badScimClient.GetUserByUserName(ctx, "user-003")
+				require.Error(t, err)
 				eventLog.requireNoEvent(t, events.SCIMListingEvent)
 			})
 		})
@@ -153,7 +163,8 @@ func TestAuditEvents(t *testing.T) {
 		t.Run("Groups", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				eventLog := newLogScope[*apievents.SCIMListingEvent](sut)
-				goodScimClient.ListGroups(ctx, scimsdk.WithFilter(`displayName eq "test-group-001"`))
+				_, err := goodScimClient.ListGroups(ctx, scimsdk.WithFilter(`displayName eq "test-group-001"`))
+				require.NoError(t, err)
 				eventLog.requireEvent(t, events.SCIMListingEvent,
 					withListingMetadata(
 						withEventCode(events.SCIMListResourcesSuccessCode)),
@@ -174,7 +185,8 @@ func TestAuditEvents(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := newSCIMUser("create-test-user")
-				goodScimClient.CreateUser(ctx, scimUser)
+				_, err := goodScimClient.CreateUser(ctx, scimUser)
+				require.NoError(t, err)
 				t.Cleanup(func() {
 					require.NoError(t, auth.DeleteUser(ctx, scimUser.UserName))
 				})
@@ -194,7 +206,8 @@ func TestAuditEvents(t *testing.T) {
 			t.Run("OnInvalidUsername", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := newSCIMUser("Gráinne-O'Malley")
-				goodScimClient.CreateUser(ctx, scimUser)
+				_, err := goodScimClient.CreateUser(ctx, scimUser)
+				require.Error(t, err)
 				auditLog.requireEvent(t, events.SCIMCreateEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceCreateFailureCode)),
@@ -208,7 +221,8 @@ func TestAuditEvents(t *testing.T) {
 			t.Run("OnAccessDenied", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := newSCIMUser("create-test-user")
-				badScimClient.CreateUser(ctx, scimUser)
+				_, err := badScimClient.CreateUser(ctx, scimUser)
+				require.Error(t, err)
 				auditLog.requireNoEvent(t, events.SCIMCreateEvent)
 			})
 		})
@@ -250,9 +264,10 @@ func TestAuditEvents(t *testing.T) {
 
 				// When I try to create a group that does not have a pre-existing
 				// Access List to back it...
-				goodScimClient.CreateGroup(ctx, &scimsdk.Group{
+				_, err := goodScimClient.CreateGroup(ctx, &scimsdk.Group{
 					DisplayName: "No Such Group",
 				})
+				require.Error(t, err)
 
 				auditLog.requireEvent(t, events.SCIMCreateEvent,
 					withResourceMetadata(
@@ -288,7 +303,8 @@ func TestAuditEvents(t *testing.T) {
 		t.Run("Users", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.GetUser(ctx, "user-002")
+				_, err := goodScimClient.GetUser(ctx, "user-002")
+				require.NoError(t, err)
 				auditLog.requireEvent(t, events.SCIMGetEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMGetResourceSuccessCode)),
@@ -304,7 +320,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.GetUser(ctx, "no-such-user")
+				_, err := goodScimClient.GetUser(ctx, "no-such-user")
+				require.Error(t, err)
 				auditLog.requireEvent(t, events.SCIMGetEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMGetResourceFailureCode)),
@@ -320,7 +337,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				badScimClient.GetUser(ctx, "no-such-user")
+				_, err := badScimClient.GetUser(ctx, "no-such-user")
+				require.Error(t, err)
 				auditLog.requireNoEvent(t, events.SCIMGetEvent)
 			})
 		})
@@ -328,7 +346,8 @@ func TestAuditEvents(t *testing.T) {
 		t.Run("Groups", func(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.GetGroup(ctx, accessList.GetName())
+				_, err := goodScimClient.GetGroup(ctx, accessList.GetName())
+				require.NoError(t, err)
 				auditLog.requireEvent(t, events.SCIMGetEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMGetResourceSuccessCode)),
@@ -351,12 +370,13 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.UpdateUser(ctx, &scimsdk.User{
+				_, err := goodScimClient.UpdateUser(ctx, &scimsdk.User{
 					ID:         "update-test-user",
 					ExternalID: "update-test-user-external-id",
 					UserName:   "update-test-user",
 					Active:     false,
 				})
+				require.NoError(t, err)
 				auditLog.requireEvent(t, events.SCIMUpdateEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceUpdateSuccessCode)),
@@ -372,12 +392,13 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.UpdateUser(ctx, &scimsdk.User{
+				_, err := goodScimClient.UpdateUser(ctx, &scimsdk.User{
 					ID:         "no-such-user-to-update",
 					ExternalID: "no-such-user-to-update-external-id",
 					UserName:   "no-such-user-to-update",
 					Active:     true,
 				})
+				require.Error(t, err)
 				auditLog.requireEvent(t, events.SCIMUpdateEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceUpdateFailureCode)),
@@ -393,12 +414,13 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				badScimClient.UpdateUser(ctx, &scimsdk.User{
+				_, err := badScimClient.UpdateUser(ctx, &scimsdk.User{
 					ID:         "update-test-user",
 					ExternalID: "update-test-user-external-id",
 					UserName:   "update-test-user",
 					Active:     false,
 				})
+				require.Error(t, err)
 				auditLog.requireNoEvent(t, events.SCIMUpdateEvent)
 			})
 		})
@@ -414,10 +436,11 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.UpdateGroup(ctx, &scimsdk.Group{
+				_, err := goodScimClient.UpdateGroup(ctx, &scimsdk.Group{
 					ID:          accessList.GetName(),
 					DisplayName: "Updated Access List!",
 				})
+				require.NoError(t, err)
 				auditLog.requireEvent(t, events.SCIMUpdateEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceUpdateSuccessCode)),
@@ -439,7 +462,8 @@ func TestAuditEvents(t *testing.T) {
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
 				scimUser := mustCreateSCIMUser(t, sut, "delete-test-user")
-				goodScimClient.DeleteUser(ctx, scimUser.GetName())
+				err := goodScimClient.DeleteUser(ctx, scimUser.GetName())
+				require.NoError(t, err)
 				auditLog.requireEvent(t, events.SCIMDeleteEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceDeleteSuccessCode)),
@@ -455,7 +479,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnNoSuchResource", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.DeleteUser(ctx, "no-such-user")
+				err := goodScimClient.DeleteUser(ctx, "no-such-user")
+				require.Error(t, err)
 				auditLog.requireEvent(t, events.SCIMDeleteEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceDeleteFailureCode)),
@@ -471,7 +496,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnUnauthorized", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				badScimClient.DeleteUser(ctx, "delete-test-user")
+				err := badScimClient.DeleteUser(ctx, "delete-test-user")
+				require.Error(t, err)
 				auditLog.requireNoEvent(t, events.SCIMDeleteEvent)
 			})
 		})
@@ -487,7 +513,8 @@ func TestAuditEvents(t *testing.T) {
 
 			t.Run("OnSuccess", func(t *testing.T) {
 				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
-				goodScimClient.DeleteGroup(ctx, accessList.GetName())
+				err := goodScimClient.DeleteGroup(ctx, accessList.GetName())
+				require.NoError(t, err)
 				auditLog.requireEvent(t, events.SCIMDeleteEvent,
 					withResourceMetadata(
 						withEventCode(events.SCIMResourceDeleteSuccessCode)),

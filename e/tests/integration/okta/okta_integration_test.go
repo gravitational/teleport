@@ -23,6 +23,8 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestBasicAssignmentFlow tests the basic assignment flow.
@@ -191,7 +193,7 @@ func TestNestedAclAssignment(t *testing.T) {
 // by Okta integration where the okta-requester role is used and the access list owner is able to review
 // the access request and approve it.
 func TestAccessRequest(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
 
@@ -200,6 +202,8 @@ func TestAccessRequest(t *testing.T) {
 	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
 	reviewer := oktaInfra.Users[5]
 	requester := oktaInfra.Users[4]
+
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),

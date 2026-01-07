@@ -16,6 +16,8 @@ import (
 )
 
 func TestOauthToken(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClock()
 
 	sut := common.InitSUT(t,

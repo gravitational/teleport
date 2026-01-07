@@ -27,6 +27,8 @@ func getSCIMUserName(u *scimsdk.User) string {
 }
 
 func TestSCIMGeneric(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -216,6 +218,8 @@ func TestSCIMGeneric(t *testing.T) {
 }
 
 func TestOIDCConnector(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
@@ -268,6 +272,8 @@ func asMember(user *scimsdk.User) *scimsdk.GroupMember {
 // TestOverlappedGroupUpdates asserts that updates based on an old revision of a
 // Group are considered and error.
 func TestOverlappedGroupUpdates(t *testing.T) {
+	t.Parallel()
+
 	const groupName = "test-group-001"
 
 	sut := common.InitSUT(t,
@@ -325,6 +331,8 @@ func TestOverlappedGroupUpdates(t *testing.T) {
 // version specified still succeed. This behavior is for backwards
 // compatibility with previous releases of Teleport.
 func TestUnversionedOverlappedGroupUpdates(t *testing.T) {
+	t.Parallel()
+
 	const groupName = "test-group-001"
 
 	sut := common.InitSUT(t,
@@ -380,6 +388,8 @@ func TestUnversionedOverlappedGroupUpdates(t *testing.T) {
 // TestOverlappedGroupUpdates asserts that updates based on an old revision of a
 // User are considered and error.
 func TestOverlappedUserUpdates(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -416,6 +426,8 @@ func TestOverlappedUserUpdates(t *testing.T) {
 // version specified still succeed. This behavior is for backwards
 // compatibility with previous releases of Teleport.
 func TestUnversionedOverlappedUserUpdates(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),

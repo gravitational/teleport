@@ -25,6 +25,8 @@ import (
 )
 
 func TestSCIMDiscovery(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
@@ -190,6 +192,8 @@ func TestSCIMDiscovery(t *testing.T) {
 }
 
 func TestSCIMPluginWebHandler(t *testing.T) {
+	t.Parallel()
+
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.SAMLConnector),
 		common.WithResources(createOIDConnector(t, "oidc-connector-for-scim")),

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -68,13 +67,6 @@ func WithMembers(members ...string) AccessListOption {
 	}
 }
 
-// WithKind sets the kind.
-func WithKind(kind string) AccessListOption {
-	return func(cfg *AccessListConfig) {
-		cfg.Kind = kind
-	}
-}
-
 // WithAccessListType sets the access list type.
 func WithAccessListType(t accesslist.Type) AccessListOption {
 	return func(cfg *AccessListConfig) {
@@ -82,14 +74,7 @@ func WithAccessListType(t accesslist.Type) AccessListOption {
 	}
 }
 
-// WithAuditDate sets a custom audit date.
-func WithAuditDate(date time.Time) AccessListOption {
-	return func(cfg *AccessListConfig) {
-		cfg.AuditDate = date
-	}
-}
-
-// WithCleanu adds a cleanup hook to the current test that will automatically
+// WithCleanup adds a cleanup hook to the current test that will automatically
 // delete the Access List at the end of the test.
 func WithCleanup(cfg *AccessListConfig) {
 	cfg.Cleanup = true
@@ -135,7 +120,7 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 	accessList.Kind = cfg.Kind
 	accessList.SubKind = cfg.SubKind
 
-	var accessListMembers []*accesslist.AccessListMember
+	accessListMembers := make([]*accesslist.AccessListMember, 0, len(cfg.Members))
 	for _, member := range cfg.Members {
 		accessListMembers = append(accessListMembers, NewAccessListMember(t, accessList.GetName(), member, accesslist.MembershipKindUser))
 	}
@@ -156,7 +141,6 @@ func CreateAccessList(t *testing.T, sut *SUT, opts ...AccessListOption) *accessl
 func NewAccessListMember(t *testing.T, aclName, memberName string, memberType string) *accesslist.AccessListMember {
 	t.Helper()
 
-	clock := clockwork.NewRealClock()
 	member, err := accesslist.NewAccessListMember(
 		header.Metadata{
 			Name: memberName,
@@ -164,9 +148,9 @@ func NewAccessListMember(t *testing.T, aclName, memberName string, memberType st
 		accesslist.AccessListMemberSpec{
 			AccessList:     aclName,
 			Name:           memberName,
-			Joined:         clock.Now(),
+			Joined:         time.Now(),
 			AddedBy:        "added by",
-			Expires:        clock.Now().Add(24 * time.Hour).UTC(),
+			Expires:        time.Now().Add(24 * time.Hour).UTC(),
 			MembershipKind: memberType,
 		},
 	)

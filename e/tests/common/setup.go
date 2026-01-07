@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,18 +14,17 @@ import (
 	"google.golang.org/grpc"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/common/tctl"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -50,15 +50,6 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 		opt(options)
 	}
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DeviceTrust: {Enabled: true},
-			},
-		},
-	})
-
 	cfg := newInstanceConfig(t)
 	cfg.Clock = options.clock
 	if options.clusterName != "" {
@@ -70,7 +61,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 
 	teleport.ProcessProvider = &entProcessProvider{}
 
-	serviceConfig := newTeleportConfig()
+	serviceConfig := newTeleportConfig(t)
 
 	serviceConfig.Auth.BootstrapResources = options.resources
 	if options.license != "" {
@@ -93,7 +84,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	})
 
 	auth := teleport.Process.GetAuthServer()
-	_, err = auth.GetAccessLists(context.Background())
+	_, err = auth.GetAccessLists(t.Context())
 	require.NoError(t, err)
 
 	sut := SUT{
@@ -105,7 +96,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	}
 
 	if options.samlConnector != "" {
-		_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(context.Background(), mustUnmarshalSAMLConnector(t, options.samlConnector))
+		_, err := sut.Teleport.Process.GetAuthServer().CreateSAMLConnector(t.Context(), mustUnmarshalSAMLConnector(t, options.samlConnector))
 		require.NoError(t, err)
 	}
 	return &sut
@@ -183,11 +174,16 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 	}
 }
 
-func newTeleportConfig() *servicecfg.Config {
+func newTeleportConfig(t *testing.T) *servicecfg.Config {
 	serviceConfig := servicecfg.MakeDefaultConfig()
-	// Replace the default auth and proxy listeners with the ones so we can
-	// run multiple tests in parallel.
+	serviceConfig.DataDir = t.TempDir()
+	serviceConfig.Auth.StorageConfig.Params["path"] = filepath.Join(serviceConfig.DataDir, defaults.BackendDir)
 	serviceConfig.Proxy.DisableWebInterface = true
+	serviceConfig.Proxy.DisableDatabaseProxy = true
+	serviceConfig.SSH.Enabled = false
+	serviceConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	serviceConfig.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	serviceConfig.DebugService.Enabled = false
 	serviceConfig.PollingPeriod = 500 * time.Millisecond
 	serviceConfig.Testing.ClientTimeout = time.Second
 	serviceConfig.Testing.ShutdownTimeout = 2 * serviceConfig.Testing.ClientTimeout
