@@ -192,6 +192,9 @@ const (
 const (
 	notificationsPageReadInterval = 5 * time.Millisecond
 	notificationsWriteInterval    = 40 * time.Millisecond
+
+	accessListsPageReadInterval = 5 * time.Millisecond
+	accessListsPageSize         = 20
 )
 
 const (
@@ -6907,7 +6910,8 @@ const (
 
 // createAccessListReminderNotificationsOptions defines the optional parameters for CreateAccessListReminderNotifications.
 type createAccessListReminderNotificationsOptions struct {
-	createNotificationInterval time.Duration
+	createNotificationInterval  time.Duration
+	accessListsPageReadInterval time.Duration
 }
 
 // CreateAccessListReminderNotificationsOptions is a functional option for CreateAccessListReminderNotifications.
@@ -6920,11 +6924,19 @@ func WithCreateNotificationInterval(d time.Duration) CreateAccessListReminderNot
 	}
 }
 
+// WithAccessListsPageReadInterval sets the interval between reading pages of access lists.
+func WithAccessListsPageReadInterval(d time.Duration) CreateAccessListReminderNotificationsOptions {
+	return func(o *createAccessListReminderNotificationsOptions) {
+		o.accessListsPageReadInterval = d
+	}
+}
+
 // CreateAccessListReminderNotifications checks if there are any access lists expiring soon and creates notifications to remind their owners if so.
 func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts ...CreateAccessListReminderNotificationsOptions) {
 	opt := &createAccessListReminderNotificationsOptions{
 		// defaults to notificationsWriteInterval aka 40ms
-		createNotificationInterval: notificationsWriteInterval,
+		createNotificationInterval:  notificationsWriteInterval,
+		accessListsPageReadInterval: accessListsPageReadInterval,
 	}
 	for _, o := range opts {
 		o(opt)
@@ -6962,21 +6974,36 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
-	err = clientutils.IterateResources(ctx, a.Cache.ListAccessLists, func(al *accesslist.AccessList) error {
-		if !al.IsReviewable() {
-			return nil
+	var accessListsPageKey string
+	accessListsReadLimiter := time.NewTicker(opt.accessListsPageReadInterval)
+	defer accessListsReadLimiter.Stop()
+	for {
+		select {
+		case <-accessListsReadLimiter.C:
+		case <-ctx.Done():
+			return
 		}
 
-		// Only keep access lists that fall within our thresholds in memory
-		if al.Spec.Audit.NextAuditDate.Sub(now) <= 15*24*time.Hour {
-			accessLists = append(accessLists, al)
+		response, nextKey, err := a.Cache.ListAccessLists(ctx, accessListsPageSize, accessListsPageKey)
+		if err != nil {
+			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
 		}
-		return nil
-	})
-	if err != nil {
-		a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check",
-			"error", err)
-		return
+
+		for _, al := range response {
+			if !al.IsReviewable() {
+				continue
+			}
+
+			// Only keep access lists that fall within our thresholds in memory
+			if al.Spec.Audit.NextAuditDate.Sub(now) <= 15*24*time.Hour {
+				accessLists = append(accessLists, al)
+			}
+		}
+
+		if nextKey == "" {
+			break
+		}
+		accessListsPageKey = nextKey
 	}
 
 	reminderThresholds := []struct {

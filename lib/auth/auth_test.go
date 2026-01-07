@@ -4854,7 +4854,7 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	_, err = authServer.UpsertUser(ctx, user)
 	require.NoError(t, err)
 
-	// Create 2001overdue access lists
+	// Create 2001 overdue access lists
 	// All are overdue by 10 days, which should trigger "overdue by more than 7 days" notification
 	const numAccessLists = 2001
 	overdueBy := -10 // 10 days overdue
@@ -4874,14 +4874,14 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	}, 3*time.Second, 100*time.Millisecond)
 
 	// Run CreateAccessListReminderNotifications()
-	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond), auth.WithAccessListsPageReadInterval(time.Nanosecond))
 
 	identifiers := collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
 	require.Len(t, identifiers, numAccessLists,
 		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
 
 	// Run CreateAccessListReminderNotifications() again to verify it can read multiple pages of identifiers without memory leak
-	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond), auth.WithAccessListsPageReadInterval(time.Nanosecond))
 
 	identifiers = collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
 	require.Len(t, identifiers, numAccessLists,
@@ -4891,17 +4891,10 @@ func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 func collectAllUniqueNotificationIdentifiers(t *testing.T, ctx context.Context, authServer *auth.Server, prefix string) []*notificationsv1.UniqueNotificationIdentifier {
 	t.Helper()
 
-	var identifiers []*notificationsv1.UniqueNotificationIdentifier
-	iterator := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+	identifiers, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
 		return authServer.ListUniqueNotificationIdentifiersForPrefix(ctx, prefix, pageSize, pageKey)
-	})
-
-	for identifiersResp, err := range iterator {
-		if err != nil {
-			require.NoError(t, err, "listing unique notification identifiers for prefix %q", prefix)
-		}
-		identifiers = append(identifiers, identifiersResp)
-	}
+	}))
+	require.NoError(t, err, "listing unique notification identifiers for prefix %q", prefix)
 
 	return identifiers
 }
