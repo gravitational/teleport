@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
-func translateFso(fso *tdpbv1.FileSystemObject) tdp.FileSystemObject {
+func translateFSO(fso *tdpbv1.FileSystemObject) tdp.FileSystemObject {
 	isEmpty := uint8(0)
 	if !fso.IsEmpty {
 		isEmpty = 1
@@ -45,7 +45,7 @@ func translateFso(fso *tdpbv1.FileSystemObject) tdp.FileSystemObject {
 	}
 }
 
-func translateFsoToModern(fso tdp.FileSystemObject) *tdpbv1.FileSystemObject {
+func translateFSOToModern(fso tdp.FileSystemObject) *tdpbv1.FileSystemObject {
 	return &tdpbv1.FileSystemObject{
 		LastModified: fso.LastModified,
 		Size:         fso.Size,
@@ -203,13 +203,13 @@ func TranslateToLegacy(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 			return []tdpRoot.Message{tdp.SharedDirectoryInfoResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				Fso:          translateFso(op.Info.Fso),
+				Fso:          translateFSO(op.Info.Fso),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Create_:
 			return []tdpRoot.Message{tdp.SharedDirectoryCreateResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				Fso:          translateFso(op.Create.Fso),
+				Fso:          translateFSO(op.Create.Fso),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Delete_:
 			return []tdpRoot.Message{tdp.SharedDirectoryDeleteResponse{
@@ -220,7 +220,7 @@ func TranslateToLegacy(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 			return []tdpRoot.Message{tdp.SharedDirectoryListResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				FsoList:      slices.Map(op.List.FsoList, translateFso),
+				FsoList:      slices.Map(op.List.FsoList, translateFSO),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Read_:
 			return []tdpRoot.Message{tdp.SharedDirectoryReadResponse{
@@ -402,7 +402,7 @@ func TranslateToModern(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
 				Info: &tdpbv1.SharedDirectoryResponse_Info{
-					Fso: translateFsoToModern(m.Fso),
+					Fso: translateFSOToModern(m.Fso),
 				},
 			},
 		}}, nil
@@ -422,7 +422,7 @@ func TranslateToModern(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryResponse_Create_{
 				Create: &tdpbv1.SharedDirectoryResponse_Create{
-					Fso: translateFsoToModern(m.Fso),
+					Fso: translateFSOToModern(m.Fso),
 				},
 			},
 		}}, nil
@@ -518,7 +518,7 @@ func TranslateToModern(msg tdpRoot.Message) ([]tdpRoot.Message, error) {
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_List_{
 				List: &tdpbv1.SharedDirectoryResponse_List{
-					FsoList: slices.Map(m.FsoList, translateFsoToModern),
+					FsoList: slices.Map(m.FsoList, translateFSOToModern),
 				},
 			},
 		}}, nil

@@ -253,7 +253,7 @@ func TestProxyConnection(t *testing.T) {
 			wg := sync.WaitGroup{}
 			var proxyErr, echoErr error
 			wg.Go(func() {
-				proxyErr = proxyWebsocketConn(t.Context(), clientIn, serverIn, test.version, test.clientProtocol, test.serverProtocol, slog.Default())
+				proxyErr = desktopWebsocketProxy{clientIn, serverIn, test.version, test.clientProtocol, test.serverProtocol, slog.Default()}.run(t.Context())
 			})
 			wg.Go(func() {
 				echoErr = test.echoFn(serverOut)

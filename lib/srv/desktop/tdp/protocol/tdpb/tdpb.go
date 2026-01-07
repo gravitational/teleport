@@ -346,7 +346,7 @@ func DecodePermissive(rdr io.Reader) (tdp.Message, error) {
 func DecodeWithTDPDiscard(data []byte) (tdp.Message, error) {
 	switch {
 	case len(data) < 1:
-		return nil, trace.Errorf("message is empty")
+		return nil, trace.BadParameter("message is empty")
 	case data[0] != 0:
 		// "Legacy" TDP messages begin with non-zero first byte
 		// discard any legacy TDP messages received

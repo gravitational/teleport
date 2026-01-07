@@ -140,6 +140,7 @@ func (w *desktopWebsocketAdapter) WriteMessage(m tdp.Message) error {
 }
 
 // implements handshaker for legacy TDP clients
+// TODO(rhammonds) DELETE IN v20.0.0
 type tdpHandshaker struct {
 	connection tdp.MessageReadWriter
 	withheld   []tdp.Message
@@ -445,11 +446,17 @@ func (h *Handler) createDesktopConnection(
 	if err != nil {
 		return handshaker.sendError(ctx, log, err)
 	}
-
 	// this blocks until the connection is closed
-	handleProxyWebsocketConnErr(
+	handleDesktopWebsocketProxyErr(
 		ctx,
-		proxyWebsocketConn(ctx, ws, serviceConnTLS, version, clientProtocol, serverProtocol, log),
+		desktopWebsocketProxy{
+			ws,
+			serviceConnTLS,
+			version,
+			clientProtocol,
+			serverProtocol,
+			log,
+		}.run(ctx),
 		log,
 	)
 
@@ -681,7 +688,6 @@ func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
 	d.ch <- uuid
 	// We've handled the ping. Do not pass it along to the proxy.
 	return nil, nil
-
 }
 
 func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
@@ -732,26 +738,40 @@ func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	return tdp.NewConn(rwc, legacy.Decode)
 }
 
-// proxyWebsocketConn does a bidrectional copy between the websocket
+type desktopWebsocketProxy struct {
+	// Client websocket connection
+	ws *websocket.Conn
+	// Desktop agent connection
+	wds net.Conn
+	// Version of the Desktop Agent
+	version string
+	// Client protocol (TDP/TDPB)
+	clientProtocol string
+	// Server protocol (TDP/TDPB)
+	serverProtocol string
+	log            *slog.Logger
+}
+
+// run does a bidrectional copy between the websocket
 // connection to the browser (ws) and the mTLS connection to Windows
 // Desktop Serivce (wds)
-func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, version string, clientProtocol, serverProtocol string, log *slog.Logger) error {
+func (p desktopWebsocketProxy) run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
-		ws.Close()
-		wds.Close()
+		p.ws.Close()
+		p.wds.Close()
 	}()
 
-	latencySupported, err := utils.MinVerWithoutPreRelease(version, "17.5.0")
+	latencySupported, err := utils.MinVerWithoutPreRelease(p.version, "17.5.0")
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Create a single pair of legacy.Conn instances. legacy.Conn protects the underlying
 	// streams with a mutex to allow for concurrent writes.
-	serverConn := tdp.MessageReadWriteCloser(newConn(wds, serverProtocol))
-	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: ws}, clientProtocol))
+	serverConn := tdp.MessageReadWriteCloser(newConn(p.wds, p.serverProtocol))
+	clientConn := tdp.MessageReadWriteCloser(newConn(&WebsocketIO{Conn: p.ws}, p.clientProtocol))
 
 	pinger := desktopPinger{
 		// The pinger handles translation internally.
@@ -766,11 +786,11 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 	serverConn = tdp.NewReadWriteInterceptor(serverConn, pinger.intercept, nil)
 
 	// Translation interceptors will be (optionally) installed in the *write* paths of each connection.
-	needTranslation := clientProtocol != serverProtocol
+	needTranslation := p.clientProtocol != p.serverProtocol
 	if needTranslation {
 		// Translation is needed
-		if serverProtocol == protocolTDPB {
-			log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDPB, "client_dialect", protocolTDP)
+		if p.serverProtocol == protocolTDPB {
+			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDPB, "client_dialect", protocolTDP)
 			// Server speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToModern)
@@ -778,7 +798,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 			// Translate to TDP (legacy) when writing to this connection
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToLegacy)
 		} else {
-			log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", protocolTDPB)
+			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", protocolTDPB)
 			// Agent speaks TDP
 			// Translate to TDPB when reading from this connection.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToLegacy)
@@ -787,7 +807,7 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToModern)
 		}
 	} else {
-		log.InfoContext(ctx, "Proxying desktop connection without translation", "dialect", serverProtocol)
+		p.log.InfoContext(ctx, "Proxying desktop connection without translation", "dialect", p.serverProtocol)
 	}
 
 	proxy := tdp.NewConnProxy(clientConn, serverConn)
@@ -797,17 +817,17 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 		pingerFunc := pinger.pingTDPB
 		reportFunc := pinger.reportTDPB
 		// Optionally use TDP versions
-		if serverProtocol == protocolTDP {
+		if p.serverProtocol == protocolTDP {
 			pingerFunc = pinger.pingTDP
 		}
-		if clientProtocol == protocolTDP {
+		if p.clientProtocol == protocolTDP {
 			reportFunc = pinger.reportTDP
 		}
 
 		go monitorLatency(
 			ctx,
 			clockwork.NewRealClock(),
-			ws,
+			p.ws,
 			latency.PingerFunc(pingerFunc),
 			latency.ReporterFunc(reportFunc),
 		)
@@ -824,11 +844,11 @@ func proxyWebsocketConn(ctx context.Context, ws *websocket.Conn, wds net.Conn, v
 	return trace.Wrap(err)
 }
 
-// handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
+// handleDesktopWebsocketProxyErr handles the error returned by desktopWebsocketProxy by
 // unwrapping it and determining whether to log an error.
-func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log *slog.Logger) {
+func handleDesktopWebsocketProxyErr(ctx context.Context, proxyWsConnErr error, log *slog.Logger) {
 	if proxyWsConnErr == nil {
-		log.DebugContext(ctx, "proxyWebsocketConn returned with no error")
+		log.DebugContext(ctx, "desktopWebsocketProxy returned with no error")
 		return
 	}
 

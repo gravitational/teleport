@@ -21,9 +21,6 @@
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 package legacy
 
-// TODO(zmb3): complete the implementation of all messages, even if we don't
-// use them yet.
-
 import (
 	"bytes"
 	"encoding/binary"
