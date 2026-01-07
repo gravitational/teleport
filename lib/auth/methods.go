@@ -58,6 +58,58 @@ const (
 	maxUserAgentLen = 2048
 )
 
+func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState) (*services.SplitAccessChecker, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped and unscoped logins use different access checkers and different underlying role types. the scope
+	// parameter is untrusted user input, but we reject attempts to login to a scope for which a user has no
+	// assigned privileges.
+	if scope == "" {
+		// this is an unscoped login attempt, so the user's capabilities are determined solely by their user state.
+		accessInfo := services.AccessInfoFromUserState(userState)
+
+		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return services.NewUnscopedSplitAccessChecker(unscopedChecker), nil
+	}
+
+	// req.Scope is untrusted user input, so perform strong validation before proceeding.
+	if err := scopes.StrongValidate(scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// set up scope pin (invalid until populated)
+	scopePin := &scopesv1.Pin{
+		Scope: scope,
+	}
+
+	// populate the scope pin with the user's assigned scoped roles
+	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// build the user's access info based on the scope pin and userState
+	accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
+
+	// create a scoped access checker "at" the requested scope. Note that this is not what is typically done for
+	// ordinary access checks. Ordinary access checks should always start with an access checker at the root scope
+	// and descend to the resource scope iteratively. In the case of login/cert-gen however, we want to bring all
+	// scoped roles into the access checker that apply to all possible resources the resulting identity may have
+	// access to.
+	scopedChecker, err := services.RiskyNewScopedAccessCheckerAtScope(ctx, scope, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return services.NewScopedSplitAccessChecker(scopedChecker), nil
+}
+
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
@@ -109,55 +161,9 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
+	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
-	}
-
-	var checker *services.SplitAccessChecker
-	// scoped and unscoped logins use different access checkers and different underlying role types. the scope
-	// parameter is untrusted user input, but we reject attempts to login to a scope for which a user has no
-	// assigned privileges.
-	if req.Scope != "" {
-		// req.Scope is untrusted user input, so perform strong validation before proceeding.
-		if err := scopes.StrongValidate(req.Scope); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		// set up scope pin (invalid until populated)
-		scopePin := &scopesv1.Pin{
-			Scope: req.Scope,
-		}
-
-		// populate the scope pin with the user's assigned scoped roles
-		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, user.GetName(), scopePin); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		// build the user's access info based on the scope pin and userState
-		accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
-
-		// create a scoped access checker "at" the requested scope. Note that this is not what is typically done for
-		// ordinary access checks. Ordinary access checks should always start with an access checker at the root scope
-		// and descend to the resource scope iteratively. In the case of login/cert-gen however, we want to bring all
-		// scoped roles into the access checker that apply to all possible resources the resulting identity may have
-		// access to.
-		scopedChecker, err := services.RiskyNewScopedAccessCheckerAtScope(ctx, req.Scope, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		checker = services.NewScopedSplitAccessChecker(scopedChecker)
-	} else {
-		// this is an unscoped login attempt, so the user's capabilities are determined solely by their user state.
-		accessInfo := services.AccessInfoFromUserState(userState)
-
-		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 	}
 
 	// Verify if the MFA device is locked.
@@ -718,6 +724,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		LoginTime:            a.clock.Now().UTC(),
 		AttestWebSession:     true,
 		CreateDeviceWebToken: true,
+		Scope:                req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
