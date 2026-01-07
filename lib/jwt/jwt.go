@@ -246,15 +246,6 @@ type awsOIDCCustomClaims struct {
 
 	// OnBehalfOf identifies the user that is started the request.
 	OnBehalfOf string `json:"obo,omitempty"`
-	// SessionTags allows setting AWS IAM Session Tags in OIDC token.
-	SessionTags AWSOIDCCustomClaimTags `json:"https://aws.amazon.com/tags,omitempty"`
-}
-
-// AWSOIDCCustomClaimTags represents "https://aws.amazon.com/tags" key of AWS IAM Session Tags in OIDC token.
-// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_session-tags.html#id_session-tags_adding-assume-role-idp
-type AWSOIDCCustomClaimTags struct {
-	PrincipalTags     map[string][]string `json:"principal_tags,omitempty"`
-	TransitiveTagKeys []string            `json:"transitive_tag_keys,omitempty"`
 }
 
 // SignAWSOIDC signs a JWT with claims specific to AWS OIDC Integration.
@@ -277,7 +268,6 @@ func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 			Expiry:    jwt.NewNumericDate(p.Expires),
 			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 		},
-		SessionTags: AWSOIDCCustomClaimTags{},
 	}
 
 	// AWS does not require `kid` claim in the JWT per se,
