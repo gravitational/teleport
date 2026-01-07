@@ -1075,7 +1075,6 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 }
 
 type mockQuery struct {
-	query
 	responses map[EventKey]mockResponse
 }
 
