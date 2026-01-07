@@ -21,7 +21,6 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/accesslist/v1/accesslist.proto";
-//import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -1722,9 +1721,6 @@ message AWSConsoleConstraints {
 
   // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
   repeated string role_arns_preview = 2;
-
-  // role_arns_truncated indicates whether role_arns_preview omits some entries.
-  bool role_arns_truncated = 3;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
