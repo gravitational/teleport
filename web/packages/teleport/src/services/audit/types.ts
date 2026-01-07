@@ -357,6 +357,9 @@ export const eventCodes = {
   SCIM_RESOURCE_LIST: 'TSCIM005I',
   SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
+  VNET_CONFIG_CREATE: 'TVNET001I',
+  VNET_CONFIG_UPDATE: 'TVNET002I',
+  VNET_CONFIG_DELETE: 'TVNET003I',
 } as const;
 
 /**
@@ -2106,6 +2109,18 @@ export type RawEvents = {
       client_ip_restrictions: string[];
       success: boolean;
     }
+  >;
+  [eventCodes.VNET_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
   >;
 };
 

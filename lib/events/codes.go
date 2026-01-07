@@ -812,6 +812,13 @@ const (
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
 
+	// VnetConfigCreateCode is the Vnet config create event code.
+	VnetConfigCreateCode = "TVNET001I"
+	// VnetConfigUpdateCode is the Vnet config update event code.
+	VnetConfigUpdateCode = "TVNET002I"
+	// VnetConfigDeleteCode is the Vnet config delete event code.
+	VnetConfigDeleteCode = "TVNET003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

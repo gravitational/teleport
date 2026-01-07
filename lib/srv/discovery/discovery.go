@@ -152,6 +152,8 @@ type Config struct {
 	ServerID string
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
+	// onKubernetesClusterReconcile is called after each Kubernetes cluster resource reconciliation.
+	onKubernetesClusterReconcile func()
 	// protocolChecker is used by Kubernetes fetchers to check port's protocol if needed.
 	protocolChecker fetchers.ProtocolChecker
 	// DiscoveryGroup is the name of the discovery group that the current

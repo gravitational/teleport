@@ -2372,6 +2372,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		RouteToCluster:          req.RouteToCluster,
 		KubernetesCluster:       req.KubernetesCluster,
 		ClientLoginIP:           remoteAddr,
+		Scope:                   req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)

@@ -2737,3 +2737,15 @@ func (m *SCIMListingEvent) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *ClientIPRestrictionsUpdate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *VnetConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *VnetConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
