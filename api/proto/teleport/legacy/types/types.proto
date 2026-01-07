@@ -837,6 +837,10 @@ message UpdaterV2Info {
   UpdaterStatus UpdaterStatus = 3;
 }
 
+// UpdaterStatus indicates the status of automatic updates as determined by an
+// agent. 1: The updater status is okay. 2: Automatic updates appear disabled or
+// paused. 3: A specific version is pinned. 4: The agent failed to read its
+// update status.
 enum UpdaterStatus {
   // UPDATER_STATUS_UNSPECIFIED is the zero value.
   UPDATER_STATUS_UNSPECIFIED = 0;

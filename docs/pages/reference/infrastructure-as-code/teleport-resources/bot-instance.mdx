@@ -1,0 +1,746 @@
+---
+title: Bot Instance Reference
+description: Provides a reference of fields within the Bot Instance resource, which you can manage with tctl.
+sidebar_label: Bot Instance
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: gen/proto/go/teleport/machineid/v1/bot_instance.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `bot_instance`<br/>
+**Version**: `v1`
+
+A BotInstance
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The kind of resource represented.|string|
+|metadata|Common metadata that all resources share.|[Metadata](#metadata)|
+|spec|The configured properties of a BotInstance.|[Bot Instance Spec](#bot-instance-spec)|
+|status|Fields that are set by the server as results of operations. These should not be modified by users.|[Bot Instance Status](#bot-instance-status)|
+|sub_kind|Differentiates variations of the same kind. All resources should contain one, even if it is never populated.|string|
+|version|The version of the resource being represented.|string|
+
+## Bot Instance Health Status
+
+Describes the healthiness of a `tbot` service.
+
+
+## Bot Instance Service Health
+
+A snapshot of a `tbot` service's health.
+
+
+Example:
+
+```yaml
+service: # [...]
+status: # [...]
+reason: "string"
+updated_at: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|reason|A human-readable explanation for the service's status. It might include an error message.|string|
+|service|Identifies the service.|[Bot Instance Service Identifier](#bot-instance-service-identifier)|
+|status|Describes the service's healthiness.|[Bot Instance Health Status](#bot-instance-health-status)|
+|updated_at|The time at which the service's health last changed.||
+
+## Bot Instance Service Identifier
+
+Uniquely identifies a `tbot` service.
+
+
+Example:
+
+```yaml
+type: "string"
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Of the service, either given by the user or auto-generated.|string|
+|type|Of service (e.g. database-tunnel, ssh-multiplexer).|string|
+
+## Bot Instance Spec
+
+Contains fields
+
+
+Example:
+
+```yaml
+bot_name: "string"
+instance_id: "string"
+previous_instance_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|bot_name|The name of the bot associated with this instance.|string|
+|instance_id|The unique identifier for this instance.|string|
+|previous_instance_id|The previous instance ID, if any, set when a bot reauthenticates after the previous identity has expired. Currently only set during bound-keypair rejoining.|string|
+
+## Bot Instance Status
+
+Holds the status of a BotInstance.
+
+
+Example:
+
+```yaml
+initial_authentication: # [...]
+latest_authentications: 
+  - # [...]
+  - # [...]
+  - # [...]
+initial_heartbeat: # [...]
+latest_heartbeats: 
+  - # [...]
+  - # [...]
+  - # [...]
+service_health: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|initial_authentication|The initial authentication status for this bot instance.|[Bot Instance Status Authentication](#bot-instance-status-authentication)|
+|initial_heartbeat|The initial heartbeat status for this bot instance.|[Bot Instance Status Heartbeat](#bot-instance-status-heartbeat)|
+|latest_authentications|The N most recent authentication status records for this bot instance.|[][Bot Instance Status Authentication](#bot-instance-status-authentication)|
+|latest_heartbeats|The N most recent heartbeats for this bot instance.|[][Bot Instance Status Heartbeat](#bot-instance-status-heartbeat)|
+|service_health|The health of the services/output `tbot` is running.|[][Bot Instance Service Health](#bot-instance-service-health)|
+
+## Bot Instance Status Authentication
+
+Contains information about a join or renewal. Ths information is entirely sourced by the Auth Server and can be trusted.
+
+
+Example:
+
+```yaml
+authenticated_at: # See description
+join_method: "string"
+join_token: "string"
+metadata: # See description
+generation: 1
+public_key: BASE64_STRING
+join_attrs: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|authenticated_at|The timestamp that the join or renewal was authenticated by the Auth Server.||
+|generation|On each renewal, this generation is incremented. For delegated join methods, this counter is not checked during renewal. For the `token` join method, this counter is checked during renewal and the Bot is locked out if the counter in the certificate does not match the counter of the last authentication.|number|
+|join_attrs|The attributes generated during the join process. Typically, this is information from the join attestation process itself. This field will eventually replace the `metadata` field, which is structureless.|[Join Attrs](#join-attrs)|
+|join_method|The join method used for this join or renewal. Deprecated: prefer using join_attrs.meta.join_method|string|
+|join_token|The join token used for this join or renewal. This is only populated for delegated join methods as the value for `token` join methods is sensitive. Deprecated: prefer using join_attrs.meta.join_token_name|string|
+|metadata|The metadata sourced from the join method. Deprecated: prefer using join_attrs.||
+|public_key|The public key of the Bot instance. This must be a PEM wrapped, PKIX DER encoded public key. This provides consistency and supports multiple types of public key algorithm.|base64-encoded string|
+
+## Bot Instance Status Heartbeat
+
+Contains information self-reported by an instance of a Bot. This information is not verified by the server and should not be trusted.
+
+
+Example:
+
+```yaml
+recorded_at: # See description
+is_startup: true
+version: "string"
+hostname: "string"
+uptime: # See description
+join_method: "string"
+one_shot: true
+architecture: "string"
+os: "string"
+external_updater: "string"
+external_updater_version: "string"
+updater_info: # [...]
+kind: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|architecture|The architecture of the host that `tbot` is running on, determined by runtime.GOARCH.|string|
+|external_updater|Identifies the external updater process.|string|
+|external_updater_version|Identifies the external updated version. Empty if no updater is configured.|string|
+|hostname|The hostname of the host that `tbot` is running on.|string|
+|is_startup|Indicates whether this is the heartbeat submitted by `tbot` on startup.|Boolean|
+|join_method|The currently configured join_method.|string|
+|kind|Identifies whether the bot is running in the tbot binary or embedded in another component.|[Bot Kind](#bot-kind)|
+|one_shot|Indicates whether `tbot` is running in one-shot mode.|Boolean|
+|os|The OS of the host that `tbot` is running on, determined by runtime.GOOS.|string|
+|recorded_at|The timestamp that the heartbeat was recorded by the Auth Server. Any value submitted by `tbot` for this field will be ignored.||
+|updater_info|Information provided by the external updater, including the update group and updater status.|[Updater V2Info](#updater-v2info)|
+|uptime|The duration that `tbot` has been running for when it submitted this heartbeat.||
+|version|The version of `tbot` that submitted this heartbeat.|string|
+
+## Bot Kind
+
+Identifies whether the bot is the tbot binary or embedded in another component.
+
+
+## Join Attrs
+
+The collection of attributes that result from the join process.
+
+
+Example:
+
+```yaml
+meta: # [...]
+gitlab: # [...]
+github: # [...]
+iam: # [...]
+tpm: # [...]
+azure: # [...]
+circleci: # [...]
+bitbucket: # [...]
+terraform_cloud: # [...]
+spacelift: # [...]
+gcp: # [...]
+kubernetes: # [...]
+oracle: # [...]
+azure_devops: # [...]
+env0: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|azure|Attributes that are specific to the Azure (`azure`) join method.|[Join Attrs Azure](#join-attrs-azure)|
+|azure_devops|Attributes that are specific to the Azure Devops (`azure_devops`) join method.|[Join Attrs Azure Devops](#join-attrs-azure-devops)|
+|bitbucket|Attributes that are specific to the Bitbucket (`bitbucket`) join method.|[Join Attrs Bitbucket](#join-attrs-bitbucket)|
+|circleci|Attributes that are specific to the CircleCI (`circleci`) join method.|[Join Attrs Circle CI](#join-attrs-circle-ci)|
+|env0|Attributes that are specific to the Env0 (`env0`) join method.|[Join Attrs Env0](#join-attrs-env0)|
+|gcp|Attributes that are specific to the GCP (`gcp`) join method.|[Join Attrs GCP](#join-attrs-gcp)|
+|github|Attributes that are specific to the GitHub (`github`) join method.|[Join Attrs Git Hub](#join-attrs-git-hub)|
+|gitlab|Attributes that are specific to the GitLab (`gitlab`) join method.|[Join Attrs Git Lab](#join-attrs-git-lab)|
+|iam|Attributes that are specific to the AWS IAM (`iam`) join method.|[Join Attrs AWSIAM](#join-attrs-awsiam)|
+|kubernetes|Attributes that are specific to the Kubernetes (`kubernetes`) join method.|[Join Attrs Kubernetes](#join-attrs-kubernetes)|
+|meta|The collection of attributes that result from the join process but are not specific to any particular join method.|[Join Attrs Meta](#join-attrs-meta)|
+|oracle|Attributes that are specific to the Oracle (`oracle`) join method.|[Join Attrs Oracle](#join-attrs-oracle)|
+|spacelift|Attributes that are specific to the Spacelift (`spacelift`) join method.|[Join Attrs Spacelift](#join-attrs-spacelift)|
+|terraform_cloud|Attributes that are specific to the Terraform Cloud (`terraform_cloud`) join method.|[Join Attrs Terraform Cloud](#join-attrs-terraform-cloud)|
+|tpm|Attributes that are specific to the TPM (`tpm`) join method.|[Join Attrs TPM](#join-attrs-tpm)|
+
+## Join Attrs AWSIAM
+
+Attributes that are specific to the AWS IAM (`iam`) join method.  Typically, these are mapped directly from the results of the STS GetCallerIdentity call that is made as part of the join process.
+
+
+Example:
+
+```yaml
+account: "string"
+arn: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|account|The identifier of the account that the joining entity is a part of. For example: `123456789012`|string|
+|arn|The AWS ARN of the joining entity. For example: `arn:aws:sts::123456789012:assumed-role/my-role-name/my-role-session-name`|string|
+
+## Join Attrs Azure
+
+Attributes that are specific to the Azure (`azure`) join method.
+
+
+Example:
+
+```yaml
+subscription: "string"
+resource_group: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|resource_group|The resource group of the Azure account that the joining entity is a part of.|string|
+|subscription|The subscription ID of the Azure account that the joining entity is a part of.|string|
+
+## Join Attrs Azure Devops
+
+Attributes that are specific to the Azure Devops (`azure_devops`) join method.
+
+
+Example:
+
+```yaml
+pipeline: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|pipeline|Attributes specific to joins that occur with the pipeline ID token.|[Join Attrs Azure Devops Pipeline](#join-attrs-azure-devops-pipeline)|
+
+## Join Attrs Azure Devops Pipeline
+
+Attributes that are specific to the Azure DevOps join method when the pipeline ID token is used for authentication
+
+
+Example:
+
+```yaml
+sub: "string"
+organization_name: "string"
+project_name: "string"
+pipeline_name: "string"
+organization_id: "string"
+project_id: "string"
+definition_id: "string"
+repository_id: "string"
+repository_version: "string"
+repository_ref: "string"
+run_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|definition_id|The ID of the pipeline that is running.|string|
+|organization_id|The ID of the organization that the pipeline is running within.|string|
+|organization_name|The name of the organization that the pipeline is running within.|string|
+|pipeline_name|The name of the pipeline that is running.|string|
+|project_id|The ID of the project that the pipeline is running within.|string|
+|project_name|The name of the project that the pipeline is running within.|string|
+|repository_id|The ID of the repository that the pipeline is running within.|string|
+|repository_ref|The ref of the repository that the pipeline is running against.|string|
+|repository_version|The version of the repository that the pipeline is running against. For Git this will be the commit SHA.|string|
+|run_id|The ID of the run that is being executed.|string|
+|sub|The `sub` claim of the Azure DevOps pipeline ID token that was used to join.|string|
+
+## Join Attrs Bitbucket
+
+Attributes that are specific to the Bitbucket (`bitbucket`) join method. These are mapped from the claims of the JWT issued by BitBucket to runs, which is documented at: https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
+
+
+Example:
+
+```yaml
+sub: "string"
+step_uuid: "string"
+repository_uuid: "string"
+pipeline_uuid: "string"
+workspace_uuid: "string"
+deployment_environment_uuid: "string"
+branch_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|branch_name|The name of the branch the pipeline is running against.|string|
+|deployment_environment_uuid|The UUID of the deployment environment the pipeline is running against.|string|
+|pipeline_uuid|The UUID of the pipeline the step is running within.|string|
+|repository_uuid|The UUID of the repository the pipeline step is running within.|string|
+|step_uuid|The UUID of the pipeline step.|string|
+|sub|The `sub` claim of the Bitbucket JWT that was used to join.|string|
+|workspace_uuid|The UUID of the workspace the pipeline belongs to.|string|
+
+## Join Attrs Circle CI
+
+Attributes that are specific to the CircleCI (`circleci`) join method. These are mapped from the claims of the JWT issued by CircleCI to runs, which is documented at: https://circleci.com/docs/openid-connect-tokens/
+
+
+Example:
+
+```yaml
+sub: "string"
+context_ids: 
+  - "string"
+  - "string"
+  - "string"
+project_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|context_ids|The UUIDs of the contexts used in the job.|[]string|
+|project_id|The UUID of the project in which the job is running.|string|
+|sub|The `sub` claim of the CircleCI JWT that was used to join. For example: `org/ORGANIZATION_ID/project/PROJECT_ID/user/USER_ID`|string|
+
+## Join Attrs Env0
+
+Attributes that are specific to the Env0 (`env0`) join method.
+
+
+Example:
+
+```yaml
+sub: "string"
+organization_id: "string"
+project_id: "string"
+project_name: "string"
+template_id: "string"
+template_name: "string"
+environment_id: "string"
+environment_name: "string"
+workspace_name: "string"
+deployment_log_id: "string"
+deployment_type: "string"
+deployer_email: "string"
+env0_tag: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|deployer_email|The email of the person that triggered the deployment, corresponding to `deployerEmail` in an Env0 OIDC token.|string|
+|deployment_log_id|A unique ID for this deployment, corresponding to `deploymentLogId` in an Env0 OIDC token.|string|
+|deployment_type|The env0 deployment type, such as "deploy", "destroy", etc. Corresponds to `deploymentType` in an Env0 OIDC token.|string|
+|env0_tag|A custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.|string|
+|environment_id|The unique identifier of the Env0 environment, corresponding to `environmentId` in an Env0 OIDC token.|string|
+|environment_name|The name of the Env0 environment, corresponding to `environmentName` in an Env0 OIDC token.|string|
+|organization_id|The unique organization identifier, corresponding to `organizationId` in an Env0 OIDC token.|string|
+|project_id|The unique project identifier, corresponding to `projectId` in an Env0 OIDC token.|string|
+|project_name|The name of the project under which the job was run corresponding to `projectName` in an Env0 OIDC token.|string|
+|sub|The `sub` claim of an Env0 OIDC token.|string|
+|template_id|The unique identifier of the Env0 template, corresponding to `templateId` in an Env0 OIDC token.|string|
+|template_name|The name of the Env0 template, corresponding to `templateName` in an Env0 OIDC token.|string|
+|workspace_name|The name of the Env0 workspace, corresponding to `workspaceName` in an Env0 OIDC token.|string|
+
+## Join Attrs GCP
+
+Attributes that are specific to the GCP (`gcp`) join method. These are mapped from the claims of the JWT instance identity token, which is documented at: https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload
+
+
+Example:
+
+```yaml
+service_account: "string"
+gce: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|gce|Attributes specific to the GCP join method when the joining entity is on a GCE instance. This may not be present if the joining entity is not on GCE.|[Join Attrs GCPGCE](#join-attrs-gcpgce)|
+|service_account|The service account email of the service account that the instance is running as.|string|
+
+## Join Attrs GCPGCE
+
+Attributes specific to the GCP join method when the joining entity is on a GCE instance.
+
+
+Example:
+
+```yaml
+name: "string"
+zone: "string"
+id: "string"
+project: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|id|The ID of the GCE instance that the joining entity is running on.|string|
+|name|The name of the GCE instance that the joining entity is running on.|string|
+|project|The project ID of the GCP project that the instance is running within.|string|
+|zone|The zone of the GCE instance that the joining entity is running on.|string|
+
+## Join Attrs Git Hub
+
+Attributes that are specific to the GitHub (`github`) join method.  Typically, these are mapped directly from the claims of the GitHub JWT that was used to join. You can view the documentation for those claims at: https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
+
+
+Example:
+
+```yaml
+sub: "string"
+actor: "string"
+environment: "string"
+ref: "string"
+ref_type: "string"
+repository: "string"
+repository_owner: "string"
+workflow: "string"
+event_name: "string"
+sha: "string"
+run_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|actor|The username of the actor that initiated the workflow run.|string|
+|environment|The name of the environment that the workflow is running against, if any.|string|
+|event_name|The name of the event that triggered the workflow run.|string|
+|ref|The ref that the workflow is running against.|string|
+|ref_type|The type of ref that the workflow is running against. For example, `branch`.|string|
+|repository|The name of the repository that the workflow is running within.|string|
+|repository_owner|The name of the owner of the repository that the workflow is running within.|string|
+|run_id|The ID of this GitHub actions workflow run.|string|
+|sha|The SHA of the commit that triggered the workflow run.|string|
+|sub|The `sub` claim of the GitHub JWT that was used to join.|string|
+|workflow|The name of the workflow that is running.|string|
+
+## Join Attrs Git Lab
+
+Attributes that are specific to the GitLab join method.  Typically, these are mapped directly from the claims of the GitLab JWT that was used to join. You can view the documentation for those claims at: https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#token-payload
+
+
+Example:
+
+```yaml
+sub: "string"
+ref: "string"
+ref_type: "string"
+ref_protected: true
+namespace_path: "string"
+project_path: "string"
+user_login: "string"
+user_email: "string"
+pipeline_id: "string"
+pipeline_source: "string"
+environment: "string"
+environment_protected: true
+runner_id: 1
+runner_environment: "string"
+sha: "string"
+ci_config_ref_uri: "string"
+ci_config_sha: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ci_config_ref_uri|The ref URI of the CI config configuring the pipeline.|string|
+|ci_config_sha|The Git SHA of the CI config ref configuring the pipeline.|string|
+|environment|The environment the pipeline is running against, if any.|string|
+|environment_protected|Whether or not the pipeline is running against a protected environment. If there is no configured environment, this field is false.|Boolean|
+|namespace_path|The path of the namespace of the project that the pipeline is running within. For example: `mygroup`|string|
+|pipeline_id|The ID of the pipeline.|string|
+|pipeline_source|The source of the pipeline. For example: `push` or `web`|string|
+|project_path|The full qualified path of the project that the pipeline is running within. This includes the namespace path. For example: `mygroup/my-project`|string|
+|ref|The ref that the pipeline is running against. For example: `main`|string|
+|ref_protected|Whether or not the ref that the pipeline is running against is protected.|Boolean|
+|ref_type|The type of ref that the pipeline is running against. This is typically `branch` or `tag`.|string|
+|runner_environment|The type of runner that is processing the pipeline. Either `gitlab-hosted` or `self-hosted`.|string|
+|runner_id|The ID of the runner that this pipeline is running on.|number|
+|sha|The SHA of the commit that triggered the pipeline run.|string|
+|sub|The `sub` claim of the GitLab JWT that was used to join. For example: `project_path:mygroup/my-project:ref_type:branch:ref:main`|string|
+|user_email|The email of the user that triggered the pipeline run.|string|
+|user_login|The name of the user that triggered the pipeline run.|string|
+
+## Join Attrs Kubernetes
+
+Attributes that are specific to the Kubernetes (`kubernetes`) join method.
+
+
+Example:
+
+```yaml
+subject: "string"
+service_account: # [...]
+pod: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|pod|Attributes specific to the Kubernetes join method when the joining entity is a pod-bound service account token. This will only be present if the joining entity is a service account, and, the token has been bound to a pod.|[Join Attrs Kubernetes Pod](#join-attrs-kubernetes-pod)|
+|service_account|Attributes specific to the Kubernetes join method when the joining entity is a service account token. This will only be present if the joining entity is a service account (as opposed to a human user or similar).|[Join Attrs Kubernetes Service Account](#join-attrs-kubernetes-service-account)|
+|subject|The fully qualified identifier of the entity based on the Kubernetes token. For a service account, this takes the form of `system:serviceaccount:\<namespace\>:\<service-account-name\>`.|string|
+
+## Join Attrs Kubernetes Pod
+
+Attributes that are specific to the Kubernetes (`kubernetes`) join method when a pod-bound service account token is used.
+
+
+Example:
+
+```yaml
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The name of the service account that the joining entity is running as.|string|
+
+## Join Attrs Kubernetes Service Account
+
+Attributes that are specific to the Kubernetes (`kubernetes`) join method when a service account token is used.
+
+
+Example:
+
+```yaml
+name: "string"
+namespace: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The name of the service account that the joining entity is running as.|string|
+|namespace|The namespace of the service account that the joining entity is running as.|string|
+
+## Join Attrs Meta
+
+The collection of attributes that result from the join process but are not specific to any particular join method.
+
+
+Example:
+
+```yaml
+join_token_name: "string"
+join_method: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|join_method|The name of the join method that was used to join.  Example: `gitlab`|string|
+|join_token_name|The name of the join token that was used to join.  This field is omitted if the join token that was used to join was of the `token` method as in this case, the name of the join token is sensitive.  Example: `my-gitlab-join-token`|string|
+
+## Join Attrs Oracle
+
+Attributes that are specific to the Oracle (`oracle`) join method.
+
+
+Example:
+
+```yaml
+tenancy_id: "string"
+compartment_id: "string"
+instance_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|compartment_id|The ID of the instance's compartment.|string|
+|instance_id|The ID of the instance.|string|
+|tenancy_id|The ID of the instance's tenant.|string|
+
+## Join Attrs Spacelift
+
+Attributes that are specific to the Spacelift (`spacelift`) join method. These are mapped from the claims of the JWT issued by Spacelift to runs, which is documented at: https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
+
+
+Example:
+
+```yaml
+sub: "string"
+space_id: "string"
+caller_type: "string"
+caller_id: "string"
+run_type: "string"
+run_id: "string"
+scope: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|caller_id|The ID of the caller that generated the run.|string|
+|caller_type|The type of the caller that owns the run, either `stack` or `module`.|string|
+|run_id|The ID of the run.|string|
+|run_type|The type of the run, either `PROPOSED`, `TRACKED`, `TASK`, `TESTING` or `DESTROY`.|string|
+|scope|The configured scope of the token, either `read` or `write`.|string|
+|space_id|The ID of the space in which the run is executing.|string|
+|sub|The `sub` claim of the Spacelift JWT that was used to join.|string|
+
+## Join Attrs TPM
+
+Attributes that are specific to the TPM (`tpm`) join method.
+
+
+Example:
+
+```yaml
+ek_pub_hash: "string"
+ek_cert_serial: "string"
+ek_cert_verified: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ek_cert_serial|The serial number of the EK certificate, if present.|string|
+|ek_cert_verified|Whether or not the EK certificate was verified against a certificate authority.|Boolean|
+|ek_pub_hash|The SHA256 hash of the PKIX formatted EK public key, encoded in hex. This effectively identifies a specific TPM.|string|
+
+## Join Attrs Terraform Cloud
+
+Attributes that are specific to the Terraform Cloud (`terraform_cloud`) join method. These are mapped from the claims of the JWT issued by Terraform Cloud to runs, which is documented at: https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
+
+
+Example:
+
+```yaml
+sub: "string"
+organization_name: "string"
+project_name: "string"
+workspace_name: "string"
+full_workspace: "string"
+run_id: "string"
+run_phase: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|full_workspace|The fully qualified workspace path, including the organization and project name. For example: `organization:\<name\>:project:\<name\>:workspace:\<name\>`|string|
+|organization_name|The name of the organization the project and workspace belong to.|string|
+|project_name|The name of the project the workspace belongs to.|string|
+|run_id|The ID of the run that is being executed.|string|
+|run_phase|The phase of the run that is being executed, either `plan` or `apply`.|string|
+|sub|The `sub` claim of the Terraform Cloud JWT that was used to join.|string|
+|workspace_name|The name of the workspace that the plan/apply is running within.|string|
+
+## Metadata
+
+Resource metadata.
+
+
+Example:
+
+```yaml
+name: "string"
+namespace: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Description is object description.|string|
+|expires|Expires is a global expiry time header can be set on any resource in the system.||
+|labels|Labels is a set of labels.|map[string]string|
+|name|Name is an object name.|string|
+|namespace|Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.|string|
+|revision|Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+
+## Updater Status
+
+Indicates the status of automatic updates as determined by an agent. 1: The updater status is okay. 2: Automatic updates appear disabled or paused. 3: A specific version is pinned. 4: The agent failed to read its update status.
+
+
+## Updater V2Info
+
+Used by Teleport to send information about how the Teleport updater is doing.
+
+
+Example:
+
+```yaml
+UpdateGroup: "string"
+UpdateUUID: BASE64_STRING
+UpdaterStatus: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|UpdateGroup|The update group the agent's updater is part of. The autoupdate_agent_rollout resource controls when different groups update. Reporting the update group in the Hello allows us to track the update progress per group. See RFD 184 for more details.|string|
+|UpdateUUID|The agent's updater UUID. Each updater has a UUID, this can be used in two cases: - To update individual agents when doing canary updates - To track the lowest non-updated agent to avoid a deadlock when doing a progressive rollout|base64-encoded string|
+|UpdaterStatus|Represents any updater-related status information that the Teleport cluster should be aware of. For example, the fact the updater got disabled, the version pinned, or that the updater seems to not be running.|[Updater Status](#updater-status)|
+

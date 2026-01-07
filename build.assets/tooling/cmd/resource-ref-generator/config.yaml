@@ -7,6 +7,10 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: app
     yaml_version: v3
+  - type: BotInstance
+    package: github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1
+    yaml_kind: bot_instance
+    yaml_version: v1
   - type: DiscoveryConfig
     package: github.com/gravitational/teleport/api/types/discoveryconfig
     yaml_kind: discovery_config
