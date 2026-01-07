@@ -275,4 +275,11 @@ describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same res
     });
     expect(deepLink).toEqual(input);
   });
+
+  it.only('URLSearchParams works properly', () => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('foo', 'bar');
+    searchParams.set('baz', 'quux');
+    expect(searchParams.size).toEqual(2);
+  });
 });
