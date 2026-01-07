@@ -47,10 +47,34 @@ const (
 	defaultUsernameClaim = "email"
 )
 
+// CreateAppSessionForAppAuthRequest defines the request params for `CreateAppSessionForAppAuth`.
+type CreateAppSessionForAppAuthRequest struct {
+	// ClusterName is cluster within which the application is running.
+	ClusterName string
+	// Username is the identity of the user requesting the session.
+	Username string
+	// LoginIP is an observed IP of the client, it will be embedded into certificates.
+	LoginIP string
+	// Roles optionally lists additional user roles
+	Roles []string
+	// Traits optionally lists role traits
+	Traits map[string][]string
+	// TTL is the session validity period.
+	TTL time.Duration
+	// SuggestedSessionID is the session ID suggested by the requester.
+	SuggestedSessionID string
+	// AppName is the name of the app.
+	AppName string
+	// AppURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	AppURI string
+	// AppPublicAddr is the application public address.
+	AppPublicAddr string
+}
+
 // AppSessionCreator creates new app sessions.
 type AppSessionCreator interface {
 	// CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.SessionTTLAdjuster) (types.WebSession, error)
-	CreateAppSessionForAppAuth(ctx context.Context, req *types.CreateAppSessionForAppAuthRequest) (types.WebSession, error)
+	CreateAppSessionForAppAuth(ctx context.Context, req *CreateAppSessionForAppAuthRequest) (types.WebSession, error)
 }
 
 // Service implements the teleport.appauthconfig.v1.AppAuthConfigSessionsServiceServer
@@ -120,8 +144,9 @@ func NewSessionsService(cfg SessionsServiceConfig) (*SessionsService, error) {
 
 // CreateAppSessionWithJwt implements appauthconfigv1.AppAuthConfigSessionsServiceServer.
 func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (_ *appauthconfigv1.CreateAppSessionWithJWTResponse, err error) {
+	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
 	defer func() {
-		if emitErr := s.emitter.EmitAuditEvent(ctx, newVerifyJWTAuditEvent(ctx, req, err)); emitErr != nil {
+		if emitErr := s.emitter.EmitAuditEvent(ctx, newVerifyJWTAuditEvent(ctx, req, "", err)); emitErr != nil {
 			s.logger.ErrorContext(ctx, "failed to emit jwt verification audit event", "error", emitErr)
 		}
 	}()
@@ -164,7 +189,7 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		return nil, trace.Wrap(err)
 	}
 
-	ws, err := s.sessions.CreateAppSessionForAppAuth(ctx, &types.CreateAppSessionForAppAuthRequest{
+	ws, err := s.sessions.CreateAppSessionForAppAuth(ctx, &CreateAppSessionForAppAuthRequest{
 		Username:           username,
 		ClusterName:        req.App.ClusterName,
 		AppName:            req.App.AppName,
@@ -174,7 +199,7 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		Roles:              user.GetRoles(),
 		Traits:             user.GetTraits(),
 		TTL:                time.Until(tokenTTL),
-		SuggestedSessionID: req.SessionId,
+		SuggestedSessionID: sid,
 	})
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to create a web session from jwt token", "error", err)
@@ -292,8 +317,6 @@ func validateCreateAppSessionWithJWTRequest(req *appauthconfigv1.CreateAppSessio
 		return trace.BadParameter("create app session request requires app public address")
 	case req.App.Uri == "":
 		return trace.BadParameter("create app session request requires app uri")
-	case req.SessionId == "":
-		return trace.BadParameter("create app session request requires a session ID")
 	}
 
 	return nil

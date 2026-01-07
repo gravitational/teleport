@@ -472,7 +472,6 @@ func TestCreateAppSessionWithJWT(t *testing.T) {
 
 			_, err = svc.CreateAppSessionWithJWT(t.Context(), &appauthconfigv1.CreateAppSessionWithJWTRequest{
 				ConfigName: "app-config-example",
-				SessionId:  "requested-session-id",
 				Jwt:        tc.token,
 				App: &appauthconfigv1.App{
 					AppName:     "mcp-app",
@@ -503,7 +502,7 @@ type mockSessionsCreator struct {
 	sessionErr error
 }
 
-func (m *mockSessionsCreator) CreateAppSessionForAppAuth(ctx context.Context, req *types.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
+func (m *mockSessionsCreator) CreateAppSessionForAppAuth(ctx context.Context, req *CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
 	return m.session, m.sessionErr
 }
 

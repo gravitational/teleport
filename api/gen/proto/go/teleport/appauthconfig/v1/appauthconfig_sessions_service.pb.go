@@ -114,14 +114,12 @@ type CreateAppSessionWithJWTRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// ConfigName is the app auth config name used to create the app session.
 	ConfigName string `protobuf:"bytes,1,opt,name=config_name,json=configName,proto3" json:"config_name,omitempty"`
-	// SessionId is ID the new app session will use.
-	SessionId string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// App is application the session will access.
-	App *App `protobuf:"bytes,3,opt,name=app,proto3" json:"app,omitempty"`
+	App *App `protobuf:"bytes,2,opt,name=app,proto3" json:"app,omitempty"`
 	// Jwt is the JWT token used to create the app session.
-	Jwt string `protobuf:"bytes,4,opt,name=jwt,proto3" json:"jwt,omitempty"`
+	Jwt string `protobuf:"bytes,3,opt,name=jwt,proto3" json:"jwt,omitempty"`
 	// RemoteAddr is a client (user's) address.
-	RemoteAddr    string `protobuf:"bytes,5,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`
+	RemoteAddr    string `protobuf:"bytes,4,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -159,13 +157,6 @@ func (*CreateAppSessionWithJWTRequest) Descriptor() ([]byte, []int) {
 func (x *CreateAppSessionWithJWTRequest) GetConfigName() string {
 	if x != nil {
 		return x.ConfigName
-	}
-	return ""
-}
-
-func (x *CreateAppSessionWithJWTRequest) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
 	}
 	return ""
 }
@@ -247,15 +238,13 @@ const file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDes
 	"\bapp_name\x18\x02 \x01(\tR\aappName\x12\x10\n" +
 	"\x03uri\x18\x03 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vpublic_addr\x18\x04 \x01(\tR\n" +
-	"publicAddr\"\xc5\x01\n" +
+	"publicAddr\"\xa6\x01\n" +
 	"\x1eCreateAppSessionWithJWTRequest\x12\x1f\n" +
 	"\vconfig_name\x18\x01 \x01(\tR\n" +
-	"configName\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x02 \x01(\tR\tsessionId\x120\n" +
-	"\x03app\x18\x03 \x01(\v2\x1e.teleport.appauthconfig.v1.AppR\x03app\x12\x10\n" +
-	"\x03jwt\x18\x04 \x01(\tR\x03jwt\x12\x1f\n" +
-	"\vremote_addr\x18\x05 \x01(\tR\n" +
+	"configName\x120\n" +
+	"\x03app\x18\x02 \x01(\v2\x1e.teleport.appauthconfig.v1.AppR\x03app\x12\x10\n" +
+	"\x03jwt\x18\x03 \x01(\tR\x03jwt\x12\x1f\n" +
+	"\vremote_addr\x18\x04 \x01(\tR\n" +
 	"remoteAddr\"P\n" +
 	"\x1fCreateAppSessionWithJWTResponse\x12-\n" +
 	"\asession\x18\x01 \x01(\v2\x13.types.WebSessionV2R\asession2\xb1\x01\n" +

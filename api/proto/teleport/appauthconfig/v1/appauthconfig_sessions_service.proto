@@ -43,14 +43,12 @@ message App {
 message CreateAppSessionWithJWTRequest {
   // ConfigName is the app auth config name used to create the app session.
   string config_name = 1;
-  // SessionId is ID the new app session will use.
-  string session_id = 2;
   // App is application the session will access.
-  App app = 3;
+  App app = 2;
   // Jwt is the JWT token used to create the app session.
-  string jwt = 4;
+  string jwt = 3;
   // RemoteAddr is a client (user's) address.
-  string remote_addr = 5;
+  string remote_addr = 4;
 }
 
 // Response for CreateAppSessionWithJWT.

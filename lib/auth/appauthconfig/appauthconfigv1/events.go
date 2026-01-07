@@ -67,7 +67,7 @@ func newDeleteAuditEvent(ctx context.Context, deletedName string) apievents.Audi
 	}
 }
 
-func newVerifyJWTAuditEvent(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest, err error) apievents.AuditEvent {
+func newVerifyJWTAuditEvent(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest, sid string, err error) apievents.AuditEvent {
 	evt := &apievents.AppAuthConfigVerify{
 		Metadata: apievents.Metadata{
 			Code: events.AppAuthConfigVerifySuccessCode,
@@ -75,7 +75,7 @@ func newVerifyJWTAuditEvent(ctx context.Context, req *appauthconfigv1.CreateAppS
 		},
 		AppAuthConfig:   req.ConfigName,
 		UserMetadata:    authz.ClientUserMetadata(ctx),
-		SessionMetadata: apievents.SessionMetadata{SessionID: req.SessionId},
+		SessionMetadata: apievents.SessionMetadata{SessionID: sid},
 		AppMetadata: apievents.AppMetadata{
 			AppName: req.App.AppName,
 			AppURI:  req.App.Uri,

@@ -20,6 +20,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/gravitational/trace"
 
@@ -103,4 +105,10 @@ func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	}
 
 	return nil
+}
+
+// GenerateAppSessionIDFromJWT generates a app session id based on JWT token.
+func GenerateAppSessionIDFromJWT(jwtToken string) string {
+	jwtHash := sha256.Sum256([]byte(jwtToken))
+	return hex.EncodeToString(jwtHash[:])
 }
