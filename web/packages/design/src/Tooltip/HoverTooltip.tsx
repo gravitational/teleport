@@ -33,7 +33,7 @@ import {
   useTransitionStyles,
   type Placement,
 } from '@floating-ui/react';
-import React, { PropsWithChildren, useRef, useState } from 'react';
+import React, { PropsWithChildren, useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Flex from 'design/Flex';
@@ -44,6 +44,10 @@ type HoverTooltipProps = {
    * String or ReactNode to display in tooltip.
    */
   tipContent?: React.ReactNode;
+  /**
+   * Prevent the tooltip from opening. If the tooltip is already open, it will close.
+   */
+  disabled?: boolean;
   /**
    * Only show tooltip if trigger content is overflowing its container.
    */
@@ -87,6 +91,7 @@ type HoverTooltipProps = {
 export const HoverTooltip = ({
   tipContent,
   children,
+  disabled = false,
   showOnlyOnOverflow = false,
   className,
   placement = 'top',
@@ -106,10 +111,30 @@ export const HoverTooltip = ({
     placement = position;
   }
 
+  // Close the tooltip when disabled changes to true.
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setOpen(false);
+      return;
+    }
+
+    if (disabled) {
+      return;
+    }
+
+    setOpen(true);
+  };
+
   const { x, y, strategy, refs, context } = useFloating({
     placement,
     open,
-    onOpenChange: setOpen,
+    onOpenChange: handleOpenChange,
     middleware: [
       offset(offsetDistance),
       !disableFlip && flip(),
