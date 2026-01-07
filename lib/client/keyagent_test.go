@@ -893,51 +893,63 @@ func TestAgentSupportsSSHCertificates(t *testing.T) {
 	tests := []struct {
 		name         string
 		sshAuthSock  string
+		goos         string
 		wantSupports bool
-		onlyOnGOOS   string // only run test if runtime.GOOS matches this value
 	}{
 		{
 			name:         "empty socket path",
 			sshAuthSock:  "",
+			goos:         "os does not matter",
 			wantSupports: true,
 		},
 		{
 			name:         "standard ssh-agent",
 			sshAuthSock:  "/tmp/ssh-XXXXXX/agent.12345",
+			goos:         "os does not matter",
 			wantSupports: true,
 		},
 		{
 			name:         "gpg-agent",
 			sshAuthSock:  "/run/user/1000/gnupg/S.gpg-agent.ssh",
+			goos:         "os does not matter",
 			wantSupports: false,
 		},
 		{
 			name:         "gpg-agent in home",
 			sshAuthSock:  "/home/user/.gnupg/gpg-agent.sock",
+			goos:         "os does not matter",
 			wantSupports: false,
 		},
 		{
 			name:         "1password agent on linux",
 			sshAuthSock:  "/home/user/.1password/agent.sock",
+			goos:         "linux",
 			wantSupports: false,
-			onlyOnGOOS:   "linux",
+		},
+		{
+			name:         "1password linux path ignored on darwin",
+			sshAuthSock:  "/home/user/.1password/agent.sock",
+			goos:         "darwin",
+			wantSupports: true,
 		},
 		{
 			name:         "1password agent on darwin",
 			sshAuthSock:  "/Users/user/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock",
+			goos:         "darwin",
 			wantSupports: false,
-			onlyOnGOOS:   "darwin",
+		},
+		{
+			name:         "1password darwin path ignored on linux",
+			sshAuthSock:  "/Users/user/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock",
+			goos:         "linux",
+			wantSupports: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.onlyOnGOOS != "" && runtime.GOOS != tt.onlyOnGOOS {
-				t.Skipf("test only runs on %s, current GOOS is %s", tt.onlyOnGOOS, runtime.GOOS)
-			}
-
 			t.Setenv(teleport.SSHAuthSock, tt.sshAuthSock)
-			got := agentSupportsSSHCertificates()
+			got := agentSupportsSSHCertificates(tt.goos)
 			assert.Equal(t, tt.wantSupports, got)
 		})
 	}
