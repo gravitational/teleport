@@ -89,10 +89,25 @@ func agentIsPresent() bool {
 
 // agentSupportsSSHCertificates checks if the running agent supports SSH certificates.
 // This detection implementation is as described in RFD 18 and works by simply checking for
-// presence of gpg-agent which is a common agent known to not support SSH certificates.
+// presence of gpg-agent or 1password which are common agents known to not support SSH certificates.
 func agentSupportsSSHCertificates() bool {
 	agent := os.Getenv(teleport.SSHAuthSock)
-	return !strings.Contains(agent, "gpg-agent")
+
+	if strings.Contains(agent, "gpg-agent") {
+		return false
+	}
+
+	// Platform specific socket locations for 1Password  are described here:
+	// https://developer.1password.com/docs/ssh/agent/compatibility/#working-with-ssh-clients
+	if runtime.GOOS == "linux" && strings.Contains(agent, ".1password/agent.sock") {
+		return false
+	}
+
+	if runtime.GOOS == "darwin" && strings.Contains(agent, "Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock") {
+		return false
+	}
+
+	return true
 }
 
 func shouldAddKeysToAgent(addKeysToAgent string) bool {
