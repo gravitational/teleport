@@ -19,55 +19,15 @@
 package main
 
 import (
-	"errors"
-	"log/slog"
-	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
-
-func testDefaultClient(t *testing.T) *http.Client {
-	t.Helper()
-
-	client, err := defaults.HTTPClient()
-	require.NoError(t, err)
-
-	client.Timeout = time.Second
-
-	return client
-}
-
-// errorTransport is a mock roundtripper that just returns an error
-type errorTransport struct{}
-
-func (c *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return nil, errors.New("error")
-}
-
-func testDummyClient() *http.Client {
-	return &http.Client{
-		Transport: &errorTransport{},
-		Timeout:   time.Second * 1,
-	}
-}
-
-func testWaitFetch(t *testing.T, client *http.Client, service string, endpoint *url.URL) error {
-	t.Helper()
-
-	if service != "" {
-		endpoint = endpoint.JoinPath(service)
-	}
-
-	return waitFetch(t.Context(), slog.Default(), client, service, endpoint)
-}
 
 func TestWaitTimeoutExceeded(t *testing.T) {
 	t.Parallel()
