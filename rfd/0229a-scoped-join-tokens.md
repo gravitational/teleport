@@ -199,13 +199,15 @@ Scoped tokens should also support automatic assignment of immutable labels to
 any provisioned Teleport SSH agents. This document only proposes support for
 Teleport SSH agents as applying them to other scoped Teleport services (i.e.
 Application, Database, etc.) introduces significant complexity. However the
-proposed message structure allows for easy extension for more agent types.
-The `immutable_labels` field of a `ScopedToken` will be encoded into the
-resulting host certificates in much the same way as the `assigned_scope`. These
-labels will be extracted while registering the inventory control stream and
-applied as a new `token_labels` field stored in `ServerSpecV2`. Future
-heartbeats will verify `token_labels` just as they do for static labels and
-command labels.
+proposed message structure allows for easy extension into more agent types.
+The `immutable_labels` field of a `ScopedToken` will be deterministically
+sorted, hashed, and encoded into the resulting host certificates in much the
+same way as the `assigned_scope`. These labels will be returned in the result
+of a successful join, stored in proc state, and included while registering the
+inventory control stream. The call to register the control stream will also
+verify that the labels' hashed representation matches the certificate. A new
+`immutable_labels` field will be added to `ServerSpecV2` and future heartbeats
+will verify `immutable_labels` just as they do for static and command labels.
 
 Merging token-assigned labels with static labels was also considered as a way
 to more easily integrate with existing flows surrounding labels, but ultimately
@@ -216,11 +218,9 @@ combined with static labels in contexts that call for it (e.g.
 `ServerV2.GetAllLabels()`). In these cases, the token labels will take ultimate
 precedence and cannot be overridden by either static or dynamic labels.
 
-In order to prevent inflating the weight of the resulting host certificates,
-the `token_labels` will initially be limited to a total size of 2kb. This limit
-will only be enforced during token creation in order to allow easy adjustments
-to sizing without creating consistency issues if the entire control plane is
-not upgraded at the same time.
+Storing the hash on the certificate instead of the labels prevents exposing
+a host's labels in an effectively public way and allows for the labels to be
+arbitrarily sized without inflating the certificate weight.
 
 ### Single use tokens
 
