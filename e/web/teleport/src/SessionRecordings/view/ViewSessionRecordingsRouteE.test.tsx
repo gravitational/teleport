@@ -3,11 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import { MemoryRouter, Route } from 'react-router-dom';
 
-import {
-  createDeferredResponse,
-  render,
-  testQueryClient,
-} from 'design/utils/testing';
+import { render, testQueryClient } from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import {
@@ -132,6 +128,19 @@ test('does not attempt to load the summary if the feature is disabled', async ()
 });
 
 test('shows the summary if enabled and it exists', async () => {
+  server.use(createMetadataHandler(mockMetadata, []));
+
+  server.use(
+    http.get(cfg.api.sessionRecordingSummary, () =>
+      HttpResponse.json({
+        state: RecordingSummaryState.Success,
+        content: 'This is a summary.',
+        inferenceStartedAt: new Date().toISOString(),
+        inferenceFinishedAt: new Date().toISOString(),
+      })
+    )
+  );
+
   setupTest(
     cfg.oss.getPlayerRoute(
       {
@@ -145,42 +154,11 @@ test('shows the summary if enabled and it exists', async () => {
     ),
     true /* summarizerEnabled */
   );
-
-  server.use(createMetadataHandler(mockMetadata, []));
-
-  const deferred = createDeferredResponse({
-    state: RecordingSummaryState.Success,
-    content: 'This is a summary.',
-    inferenceStartedAt: new Date().toISOString(),
-    inferenceFinishedAt: new Date().toISOString(),
-  });
-
-  server.use(http.get(cfg.api.sessionRecordingSummary, deferred.handler));
-
-  expect(
-    await screen.findByText('Loading session summary...')
-  ).toBeInTheDocument();
-
-  deferred.resolve();
 
   expect(await screen.findByText('This is a summary.')).toBeInTheDocument();
 });
 
 test('shows the pending state', async () => {
-  setupTest(
-    cfg.oss.getPlayerRoute(
-      {
-        clusterId: 'test-cluster',
-        sid: 'test-session',
-      },
-      {
-        recordingType: 'ssh',
-        durationMs: 3600000,
-      }
-    ),
-    true /* summarizerEnabled */
-  );
-
   server.use(createMetadataHandler(mockMetadata, []));
 
   server.use(
@@ -190,6 +168,20 @@ test('shows the pending state', async () => {
         inferenceStartedAt: new Date(Date.now() - 90 * 1000).toISOString(),
       })
     )
+  );
+
+  setupTest(
+    cfg.oss.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    ),
+    true /* summarizerEnabled */
   );
 
   expect(
@@ -202,20 +194,6 @@ test('shows the pending state', async () => {
 });
 
 test('shows the error whilst generating state', async () => {
-  setupTest(
-    cfg.oss.getPlayerRoute(
-      {
-        clusterId: 'test-cluster',
-        sid: 'test-session',
-      },
-      {
-        recordingType: 'ssh',
-        durationMs: 3600000,
-      }
-    ),
-    true /* summarizerEnabled */
-  );
-
   server.use(createMetadataHandler(mockMetadata, []));
 
   server.use(
@@ -226,6 +204,20 @@ test('shows the error whilst generating state', async () => {
     })
   );
 
+  setupTest(
+    cfg.oss.getPlayerRoute(
+      {
+        clusterId: 'test-cluster',
+        sid: 'test-session',
+      },
+      {
+        recordingType: 'ssh',
+        durationMs: 3600000,
+      }
+    ),
+    true /* summarizerEnabled */
+  );
+
   expect(
     await screen.findByText('There was an error generating the session summary')
   ).toBeInTheDocument();
@@ -233,8 +225,12 @@ test('shows the error whilst generating state', async () => {
   expect(screen.getByText('Some error message')).toBeInTheDocument();
 });
 
-test('shows an error state if fetching the summary fails', async () => {
+test('falls back to showing no summary if fetching the summary fails', async () => {
   jest.spyOn(console, 'error').mockImplementation(() => {});
+
+  server.use(createMetadataHandler(mockMetadata, []));
+
+  server.use(withSummaryError('Failed to fetch'));
 
   setupTest(
     cfg.oss.getPlayerRoute(
@@ -250,15 +246,13 @@ test('shows an error state if fetching the summary fails', async () => {
     true /* summarizerEnabled */
   );
 
-  server.use(createMetadataHandler(mockMetadata, []));
+  // When the summary fails to load, the page renders normally but without the summary section
+  expect(await screen.findByText('test-server')).toBeInTheDocument();
 
-  server.use(withSummaryError('Failed to fetch'));
-
+  // The error message is not displayed - instead the summary section is simply not shown
   expect(
-    await screen.findByText('Error loading session summary')
-  ).toBeInTheDocument();
-
-  expect(screen.getByText('Failed to fetch')).toBeInTheDocument();
+    screen.queryByText('Error loading session summary')
+  ).not.toBeInTheDocument();
 });
 
 function withSummary(summary: SessionRecordingSummary) {

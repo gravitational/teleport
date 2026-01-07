@@ -8,27 +8,30 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
-import { ButtonText } from 'design/Button';
+import { Button, ButtonText } from 'design/Button';
 import Flex from 'design/Flex';
-import { ChevronRight } from 'design/Icon';
+import { ChevronRight, Cross } from 'design/Icon';
 import Modal from 'design/Modal';
 import { StyledPopover } from 'design/Popover';
 import { Markdown } from 'shared/components/Markdown/Markdown';
 
+import { type CommandAnalysis } from 'e-teleport/services/recordings/types';
 import {
+  getRiskColor,
   RiskLevel,
-  type CommandAnalysis,
-} from 'e-teleport/services/recordings/types';
+} from 'e-teleport/SessionRecordings/summary/RiskLevel';
+import { RiskLevel as RiskLevelValue } from 'teleport/services/recordings/types';
 
 interface TimelineItemProps {
   command: CommandAnalysis;
   selected: boolean;
   onOpenChange: (open: boolean) => void;
-  onPlay: () => void;
+  onPlay?: () => void;
+  nextRiskLevel?: RiskLevelValue;
 }
 
 export function TimelineItem({
@@ -36,6 +39,7 @@ export function TimelineItem({
   selected,
   onOpenChange,
   onPlay,
+  nextRiskLevel,
 }: TimelineItemProps) {
   const [arrowEl, setArrowEl] = useState<HTMLDivElement>(null);
 
@@ -66,54 +70,55 @@ export function TimelineItem({
 
   const dismiss = useDismiss(context);
 
+  const handlePlay = useCallback(() => {
+    if (onPlay) {
+      onOpenChange(false);
+      onPlay();
+    }
+  }, [onPlay, onOpenChange]);
+
   const { getReferenceProps, getFloatingProps } = useInteractions([dismiss]);
 
   const theme = useTheme();
 
-  const riskLevelColor = useMemo(() => {
-    switch (command.riskLevel) {
-      case RiskLevel.Low:
-        return theme.colors.success.main;
-      case RiskLevel.Medium:
-        return theme.colors.warning.main;
-      case RiskLevel.High:
-        return theme.colors.error.main;
-      case RiskLevel.Critical:
-        return theme.colors.error.main;
-      default:
-        return theme.colors.text.muted;
-    }
-  }, [command.riskLevel, theme]);
+  const riskLevelColor = getRiskColor(theme, command.riskLevel);
+  const nextColor = getRiskColor(theme, nextRiskLevel);
 
   return (
     <>
-      <Flex alignItems="center" position="relative" zIndex={2}>
+      <Flex alignItems="flex-start" position="relative" zIndex={2}>
         <Flex
-          width="60px"
+          fontFamily="mono"
+          fontSize="11px"
+          color="text.muted"
+          fontWeight="100"
+          width="30px"
+          flexShrink={0}
+          ml={3}
+          pt="6px"
+        >
+          {formatOffset(command.startOffset ?? 0)}
+        </Flex>
+
+        <Box
+          position="absolute"
+          top="22px"
+          bottom="-28px"
+          left="61px"
+          width="2px"
+          backgroundImage={`linear-gradient(to bottom, ${riskLevelColor}, ${nextColor})`}
+          zIndex={1}
+        />
+
+        <Flex
+          width="32px"
           alignItems="center"
           justifyContent="center"
           position="relative"
+          flexShrink={0}
+          mt="12px"
+          zIndex={2}
         >
-          <Box
-            position="absolute"
-            top="-30px"
-            height="30px"
-            left="50%"
-            style={{ transform: 'translateX(-50%)' }}
-            width="2px"
-            backgroundImage={`linear-gradient(to top, ${riskLevelColor}, transparent)`}
-          />
-
-          <Box
-            position="absolute"
-            bottom="-30px"
-            height="30px"
-            left="50%"
-            style={{ transform: 'translateX(-50%)' }}
-            width="2px"
-            backgroundImage={`linear-gradient(to bottom, ${riskLevelColor}, transparent)`}
-          />
-
           <Box
             backgroundColor={riskLevelColor}
             borderRadius="50%"
@@ -124,7 +129,7 @@ export function TimelineItem({
         </Flex>
 
         <StyledBox
-          bg="spotBackground.0"
+          backgroundColor={selected ? 'spotBackground.1' : null}
           px={2}
           py={1}
           borderRadius="8px"
@@ -133,20 +138,11 @@ export function TimelineItem({
           borderColor={selected ? 'brand' : 'spotBackground.2'}
           onClick={() => onOpenChange(!selected)}
           ref={refs.setReference}
+          width="fit-content"
           {...getReferenceProps()}
         >
           <Markdown text={command.timelineTitle} />
         </StyledBox>
-
-        <Box
-          fontFamily="mono"
-          fontSize="11px"
-          color="text.muted"
-          fontWeight="100"
-          ml={2}
-        >
-          {formatOffset(command.startOffset)}
-        </Box>
       </Flex>
 
       {selected && (
@@ -165,6 +161,19 @@ export function TimelineItem({
               }}
             />
 
+            <Box position="absolute" top={3} right={3}>
+              <Button
+                width="24px"
+                size="small"
+                padding="0"
+                intent="neutral"
+                aria-label="Close"
+                onClick={() => onOpenChange(false)}
+              >
+                <Cross size="small" />
+              </Button>
+            </Box>
+
             <Box
               px={3}
               py={3}
@@ -174,20 +183,7 @@ export function TimelineItem({
               data-scrollbar="default"
             >
               <Flex alignItems="center" mb={3} mt={1} gap={2}>
-                <Flex
-                  alignItems="center"
-                  border="1px solid"
-                  borderColor={riskLevelColor}
-                  color={riskLevelColor}
-                  fontWeight="500"
-                  lineHeight={1}
-                  height="24px"
-                  px={2}
-                  fontSize="small"
-                  borderRadius="8px"
-                >
-                  {getRiskLevelLabel(command.riskLevel)}
-                </Flex>
+                <RiskLevel riskLevel={command.riskLevel} inPopover={true} />
               </Flex>
               <Box
                 fontFamily="mono"
@@ -203,33 +199,20 @@ export function TimelineItem({
 
               <Markdown text={command.detailedDescription} />
 
-              <Flex justifyContent="flex-end" mt={3}>
-                <ButtonText px={2} onClick={onPlay}>
-                  Play in recording
-                  <ChevronRight size="small" ml={1} />
-                </ButtonText>
-              </Flex>
+              {onPlay && (
+                <Flex justifyContent="flex-end" mt={3}>
+                  <ButtonText px={2} onClick={handlePlay}>
+                    Play in recording
+                    <ChevronRight size="small" ml={1} />
+                  </ButtonText>
+                </Flex>
+              )}
             </Box>
           </StyledPopover>
         </Modal>
       )}
     </>
   );
-}
-
-function getRiskLevelLabel(riskLevel: RiskLevel) {
-  switch (riskLevel) {
-    case RiskLevel.Low:
-      return 'Low';
-    case RiskLevel.Medium:
-      return 'Medium';
-    case RiskLevel.High:
-      return 'High';
-    case RiskLevel.Critical:
-      return 'Critical';
-    default:
-      return 'Unknown';
-  }
 }
 
 const StyledBox = styled(Box)`
@@ -242,6 +225,13 @@ const StyledBox = styled(Box)`
 
   p {
     margin: 0;
+  }
+
+  code {
+    font-size: 0.9rem;
+    background-color: ${p => p.theme.colors.spotBackground[1]};
+    padding: 2px ${p => p.theme.space[1]}px;
+    border-radius: 4px;
   }
 `;
 
@@ -259,7 +249,7 @@ const Arrow = styled.div`
   border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
 `;
 
-function formatOffset(offset: number) {
+export function formatOffset(offset: number) {
   const totalSeconds = Math.floor(offset / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);

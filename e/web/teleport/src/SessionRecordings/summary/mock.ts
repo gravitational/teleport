@@ -1,9 +1,9 @@
 import {
   CommandCategory,
-  RiskLevel,
   ThreatCategory,
   type CommandAnalysis,
 } from 'e-teleport/services/recordings/types';
+import { RiskLevel } from 'teleport/services/recordings';
 
 export const MOCK_COMMANDS: CommandAnalysis[] = [
   {
@@ -28,6 +28,7 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     dataExfiltration: false,
     persistence: false,
     startOffset: 1000,
+    endOffset: 2000,
   },
   {
     command: 'cat /etc/shadow',
@@ -50,6 +51,7 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     dataExfiltration: false,
     persistence: false,
     startOffset: 2500,
+    endOffset: 3000,
   },
   {
     command: 'echo "* * * * * /tmp/.hidden/beacon.sh" | crontab -',
@@ -77,5 +79,6 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     dataExfiltration: false,
     persistence: true,
     startOffset: 4000,
+    endOffset: 4500,
   },
 ];

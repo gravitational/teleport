@@ -1,3 +1,5 @@
+import { RiskLevel } from 'teleport/services/recordings';
+
 export enum RecordingSummaryState {
   Pending = 'SUMMARY_STATE_PENDING',
   Success = 'SUMMARY_STATE_SUCCESS',
@@ -30,13 +32,6 @@ export type SessionRecordingSummary =
   | RecordingSummaryPending
   | RecordingSummarySuccess
   | RecordingSummaryError;
-
-export enum RiskLevel {
-  Low = 'Low',
-  Medium = 'Medium',
-  High = 'High',
-  Critical = 'Critical',
-}
 
 export interface EnhancedSummary {
   shortDescription: string;
@@ -93,4 +88,5 @@ export interface CommandAnalysis {
   dataExfiltration: boolean;
   persistence: boolean;
   startOffset: number;
+  endOffset: number;
 }

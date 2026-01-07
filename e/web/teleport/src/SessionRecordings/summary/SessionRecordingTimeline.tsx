@@ -1,32 +1,67 @@
-import { useCallback, useMemo, useState, type PropsWithChildren } from 'react';
+import { formatDuration, type Duration } from 'date-fns';
+import { useMemo, useState, type PropsWithChildren } from 'react';
+import { useTheme } from 'styled-components';
 
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 
-import type { CommandAnalysis } from 'e-teleport/services/recordings/types';
-import { TimelineItem } from 'e-teleport/SessionRecordings/summary/TimelineItem';
+import { type CommandAnalysis } from 'e-teleport/services/recordings/types';
+import { getRiskColor } from 'e-teleport/SessionRecordings/summary/RiskLevel';
+import {
+  formatOffset,
+  TimelineItem,
+} from 'e-teleport/SessionRecordings/summary/TimelineItem';
+import { RiskLevel } from 'teleport/services/recordings/types';
 
 interface SessionRecordingTimelineProps {
   commands: CommandAnalysis[];
-  onPlay: (timestamp: number) => void;
+  onPlay?: (timestamp: number) => void;
+  inferenceDuration: Duration | null;
+  sessionDuration: number | null;
 }
 
 export function SessionRecordingTimeline({
   commands,
   onPlay,
+  inferenceDuration,
+  sessionDuration,
 }: SessionRecordingTimelineProps) {
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(-1);
 
-  const playCommand = useCallback(
-    (commandIndex: number) => {
-      const command = commands[commandIndex];
-
-      if (command) {
-        onPlay(command.startOffset);
-      }
-    },
-    [commands, onPlay]
-  );
+  for (const [index, command] of commands.entries()) {
+    switch (index) {
+      case 1:
+        {
+          command.startOffset = 4000;
+          command.endOffset = 8000;
+        }
+        break;
+      case 2:
+        {
+          command.startOffset = 8000;
+          command.endOffset = 12000;
+        }
+        break;
+      case 3:
+        {
+          command.startOffset = 13000;
+          command.endOffset = 14000;
+        }
+        break;
+      case 4:
+        {
+          command.startOffset = 18000;
+          command.endOffset = 21000;
+        }
+        break;
+      case 5:
+        {
+          command.startOffset = 28000;
+          command.endOffset = 18000;
+        }
+        break;
+    }
+  }
 
   const items = useMemo(
     () =>
@@ -38,51 +73,123 @@ export function SessionRecordingTimeline({
           onOpenChange={(open: boolean) =>
             setSelectedCommandIndex(open ? index : -1)
           }
-          onPlay={() => playCommand(index)}
+          onPlay={onPlay ? () => onPlay(command.startOffset ?? 0) : undefined}
+          nextRiskLevel={commands[index + 1]?.riskLevel}
         />
       )),
-    [commands, playCommand, selectedCommandIndex]
+    [commands, onPlay, selectedCommandIndex]
   );
 
+  const lastTimestamp = sessionDuration
+    ? sessionDuration
+    : commands.length > 0
+      ? commands[commands.length - 1].endOffset
+      : 0;
+
   return (
-    <Flex flexDirection="column" gap={3} position="relative">
-      <Box
-        position="absolute"
-        top={0}
-        left={0}
-        bottom={0}
-        width="60px"
-        zIndex={1}
-      >
+    <Box>
+      <Flex flexDirection="column" gap={3} position="relative" pr={3}>
         <Box
           position="absolute"
-          top="10px"
-          bottom="10px"
-          left="50%"
-          style={{ transform: 'translateX(-50%)' }}
-          width="2px"
-          backgroundColor="spotBackground.2"
-        />
-      </Box>
+          top={0}
+          left="30px"
+          bottom={0}
+          width="40px"
+          zIndex={2}
+        >
+          <Box
+            position="absolute"
+            top="12px"
+            bottom="12px"
+            left="31px"
+            width="2px"
+            backgroundColor="spotBackground.2"
+          />
+        </Box>
 
-      <StartEndMarker>Session started</StartEndMarker>
+        <StartMarker firstRiskLevel={commands[0]?.riskLevel}>
+          Session started
+        </StartMarker>
 
-      {items}
+        <Flex flexDirection="column" gap={3} my={0}>
+          {items}
+        </Flex>
 
-      <StartEndMarker>Session ended</StartEndMarker>
-    </Flex>
+        <StartEndMarker offset={lastTimestamp}>Session ended</StartEndMarker>
+      </Flex>
+
+      {inferenceDuration && (
+        <Box color="text.disabled" fontSize="small" mt={2} pl="10px">
+          <strong>AI can make mistakes.</strong> Summarization took{' '}
+          {formatDuration(inferenceDuration)}.
+        </Box>
+      )}
+    </Box>
   );
 }
 
-function StartEndMarker({ children }: PropsWithChildren) {
+interface StartMarkerProps {
+  firstRiskLevel: RiskLevel | undefined;
+}
+
+function StartMarker({
+  children,
+  firstRiskLevel,
+}: PropsWithChildren<StartMarkerProps>) {
+  const theme = useTheme();
+
+  const noneColor = getRiskColor(theme, RiskLevel.None);
+  const riskLevelColor = getRiskColor(theme, firstRiskLevel);
+
+  return (
+    <StartEndMarker offset={0}>
+      <Box
+        position="absolute"
+        top="14px"
+        bottom="-28px"
+        left="61px"
+        width="2px"
+        backgroundImage={`linear-gradient(to bottom, ${noneColor}, ${riskLevelColor})`}
+        zIndex={1}
+      />
+
+      {children}
+    </StartEndMarker>
+  );
+}
+
+interface StartEndMarkerProps {
+  offset: number | undefined;
+}
+
+function StartEndMarker({
+  children,
+  offset,
+}: PropsWithChildren<StartEndMarkerProps>) {
+  const noneColor = getRiskColor(useTheme(), RiskLevel.None);
+  const timestamp = typeof offset !== 'undefined' ? formatOffset(offset) : '';
+
   return (
     <Flex alignItems="center" position="relative" zIndex={2}>
-      <Flex width="60px" alignItems="center" justifyContent="center">
+      <Flex
+        fontFamily="mono"
+        fontSize="11px"
+        color="text.muted"
+        fontWeight="100"
+        width="30px"
+        flexShrink={0}
+        ml={3}
+        pt="2px"
+      >
+        {timestamp}
+      </Flex>
+
+      <Flex width="32px" alignItems="center" justifyContent="center">
         <Box
-          width="6px"
-          height="6px"
+          width="8px"
+          height="8px"
           borderRadius="100%"
-          backgroundColor="text.muted"
+          backgroundColor={noneColor}
         />
       </Flex>
 

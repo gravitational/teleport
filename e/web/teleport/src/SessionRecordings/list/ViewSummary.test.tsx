@@ -67,7 +67,14 @@ function setupTest() {
   return render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <ViewSummary sessionId={mockSessionId} />
+        <ViewSummary
+          durationMs={10000}
+          recordingType="ssh"
+          username="test"
+          hostname="test-server"
+          createdDate={new Date()}
+          sessionId={mockSessionId}
+        />
       </ContextProvider>
     </MemoryRouter>
   );
@@ -132,8 +139,8 @@ describe('popover behavior', () => {
     });
     await userEvent.click(button);
 
-    expect(await screen.findByText('Session Summary')).toBeInTheDocument();
-    expect(screen.getByText('Test content')).toBeInTheDocument();
+    expect(await screen.findByText('Test content')).toBeInTheDocument();
+    expect(screen.getByText(/AI can make mistakes/)).toBeInTheDocument();
   });
 
   it('closes popover when clicking outside', async () => {
@@ -152,12 +159,12 @@ describe('popover behavior', () => {
     });
     await userEvent.click(button);
 
-    expect(await screen.findByText('Session Summary')).toBeInTheDocument();
+    expect(await screen.findByText('Test content')).toBeInTheDocument();
 
     await userEvent.click(document.body);
 
     await waitFor(() => {
-      expect(screen.queryByText('Session Summary')).not.toBeInTheDocument();
+      expect(screen.queryByText('Test content')).not.toBeInTheDocument();
     });
   });
 
@@ -177,12 +184,12 @@ describe('popover behavior', () => {
     });
     await userEvent.click(button);
 
-    expect(await screen.findByText('Session Summary')).toBeInTheDocument();
+    expect(await screen.findByText('Test content')).toBeInTheDocument();
 
     await userEvent.keyboard('{Escape}');
 
     await waitFor(() => {
-      expect(screen.queryByText('Session Summary')).not.toBeInTheDocument();
+      expect(screen.queryByText('Test content')).not.toBeInTheDocument();
     });
   });
 });
@@ -206,17 +213,12 @@ describe('summary states', () => {
     });
     await userEvent.click(button);
 
-    expect(screen.getByText('Loading session summary...')).toBeInTheDocument();
+    // While loading, the popover is not shown yet (only shows when data or error is available)
+    expect(screen.queryByText('Test content')).not.toBeInTheDocument();
 
     deferred.resolve();
 
-    await waitFor(() => {
-      expect(
-        screen.queryByText('Loading session summary...')
-      ).not.toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Session Summary')).toBeInTheDocument();
+    expect(await screen.findByText('Test content')).toBeInTheDocument();
   });
 
   it('displays pending state when summary is being generated', async () => {

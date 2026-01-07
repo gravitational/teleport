@@ -1,6 +1,7 @@
 import {
   arrow,
   autoUpdate,
+  flip,
   offset,
   shift,
   size,
@@ -9,69 +10,112 @@ import {
   useInteractions,
 } from '@floating-ui/react';
 import {
+  format,
   formatDistanceToNow,
   formatDuration,
   intervalToDuration,
   isValid,
+  type Duration,
 } from 'date-fns';
 import { useCallback, useState, type MouseEvent, type ReactNode } from 'react';
-import type { FallbackProps } from 'react-error-boundary';
-import styled from 'styled-components';
+import { Link } from 'react-router-dom';
+import styled, { keyframes } from 'styled-components';
 
 import Box from 'design/Box';
-import { ButtonBorder, ButtonSecondary } from 'design/Button';
+import { Button, ButtonBorder, ButtonSecondary } from 'design/Button';
 import Flex from 'design/Flex';
-import { ChatCircleSparkle } from 'design/Icon';
-import { Indicator } from 'design/Indicator';
+import { ArrowRight, ChevronRight, Sparkle, Spinner, User } from 'design/Icon';
 import Modal from 'design/Modal';
 import { StyledPopover } from 'design/Popover';
-import Text, { H3 } from 'design/Text';
+import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip';
-import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { Markdown } from 'shared/components/Markdown/Markdown';
-import { getErrorMessage } from 'shared/utils/error';
 
-import { useSuspenseGetRecordingSummary } from 'e-teleport/services/recordings/hooks';
-import { RecordingSummaryState } from 'e-teleport/services/recordings/types';
+import { useGetRecordingSummary } from 'e-teleport/services/recordings/hooks';
+import { RECORDING_TYPES_WITH_SUMMARIES } from 'e-teleport/services/recordings/recordings';
+import {
+  RecordingSummaryState,
+  type SessionRecordingSummary,
+} from 'e-teleport/services/recordings/types';
+import { SessionRecordingTimeline } from 'e-teleport/SessionRecordings/summary/SessionRecordingTimeline';
+import {
+  MarkdownContainer,
+  SummaryInfo,
+} from 'e-teleport/SessionRecordings/summary/SessionSummary';
+import cfg from 'teleport/config';
+import {
+  formatSessionRecordingDuration,
+  getRecordingTypeInfo,
+  type RecordingActionProps,
+} from 'teleport/SessionRecordings/list/RecordingItem';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-
-interface ViewSummaryProps {
-  sessionId: string;
-}
 
 const Arrow = styled.div<{ placement: string }>`
   position: absolute;
   width: 8px;
   height: 8px;
-  background: ${p => p.theme.colors.levels.elevated};
+  background: ${p => p.theme.colors.levels.surface};
   transform: rotate(45deg);
   z-index: -1;
-  right: -4px;
-  border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
-  border-top: 1px solid ${p => p.theme.colors.spotBackground[1]};
+
+  ${p =>
+    p.placement.startsWith('left')
+      ? `
+    right: -4px;
+    border-right: 1px solid ${p.theme.colors.spotBackground[1]};
+    border-top: 1px solid ${p.theme.colors.spotBackground[1]};
+  `
+      : `
+    left: -4px;
+    border-left: 1px solid ${p.theme.colors.spotBackground[1]};
+    border-bottom: 1px solid ${p.theme.colors.spotBackground[1]};
+  `}
 `;
 
-export function ViewSummary({ sessionId }: ViewSummaryProps) {
+export function ViewSummary(props: RecordingActionProps) {
   const [open, setOpen] = useState(false);
-
   const [arrowEl, setArrowEl] = useState<HTMLDivElement>(null);
+  const { clusterId } = useStickyClusterId();
 
-  const handleClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const { data, error, isError, isFetching, isRefetching, refetch } =
+    useGetRecordingSummary(
+      {
+        clusterId,
+        sessionId: props.sessionId,
+      },
+      { enabled: false }
+    );
 
-    setOpen(true);
-  }, []);
+  const handleClick = useCallback(
+    async (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      try {
+        await refetch();
+      } catch {
+        // Ignore errors here; they are handled in the UI.
+      }
+
+      setOpen(true);
+    },
+    [refetch]
+  );
 
   const { context, floatingStyles, middlewareData, refs } = useFloating({
     open,
     onOpenChange: setOpen,
     middleware: [
       offset(8),
+      flip({
+        mainAxis: true,
+        crossAxis: false,
+        fallbackAxisSideDirection: 'none',
+      }),
       shift({ padding: 8 }),
       size({
         apply({ availableWidth, availableHeight, elements }) {
-          elements.floating.style.maxWidth = `${Math.min(500, availableWidth)}px`;
+          elements.floating.style.maxWidth = `${Math.min(900, availableWidth)}px`;
           elements.floating.style.maxHeight = `${Math.min(
             700,
             availableHeight
@@ -92,10 +136,20 @@ export function ViewSummary({ sessionId }: ViewSummaryProps) {
 
   const { getReferenceProps, getFloatingProps } = useInteractions([dismiss]);
 
+  if (!RECORDING_TYPES_WITH_SUMMARIES.includes(props.recordingType)) {
+    return null;
+  }
+
   return (
     <>
-      <HoverTooltip tipContent="View session summary">
+      <HoverTooltip
+        tipContent={
+          isFetching ? 'Loading session summary…' : 'View session summary'
+        }
+        disabled={open || isFetching}
+      >
         <ButtonBorder
+          intent={open ? 'primary' : 'neutral'}
           width="32px"
           padding="0"
           aria-label="View session summary"
@@ -103,13 +157,17 @@ export function ViewSummary({ sessionId }: ViewSummaryProps) {
           ref={refs.setReference}
           {...getReferenceProps()}
         >
-          <ChatCircleSparkle size="small" />
+          {isFetching ? (
+            <RotatingSpinner size="small" />
+          ) : (
+            <Sparkle size="small" />
+          )}
         </ButtonBorder>
       </HoverTooltip>
 
-      {open && (
+      {open && (data || isError) && (
         <Modal open={true} BackdropProps={{ invisible: true }}>
-          <StyledPopover
+          <MoreRoundedPopover
             shadow={true}
             ref={refs.setFloating}
             style={{ ...floatingStyles, overflow: 'visible' }}
@@ -124,128 +182,56 @@ export function ViewSummary({ sessionId }: ViewSummaryProps) {
               }}
             />
 
-            <Box
-              px={3}
-              py={3}
-              style={{ overflowY: 'auto' }}
-              maxHeight="700px"
-              width="500px"
-              data-scrollbar="default"
-            >
-              <ErrorSuspenseWrapper
-                errorComponent={SummaryErrorWrapper}
-                loadingComponent={SummaryLoadingWrapper}
-              >
-                <SessionSummary sessionId={sessionId} />
-              </ErrorSuspenseWrapper>
-            </Box>
-          </StyledPopover>
+            {isError ? (
+              <SessionSummaryContainer>
+                <Text color="error.main" fontWeight="bold">
+                  Error loading session summary
+                </Text>
+
+                <Text>{error.message}</Text>
+
+                <ButtonSecondary onClick={() => refetch()} mt={1}>
+                  Retry
+                </ButtonSecondary>
+              </SessionSummaryContainer>
+            ) : (
+              <SessionSummaryContent
+                data={data}
+                isRefetching={isRefetching}
+                onRefetch={refetch}
+                {...props}
+              />
+            )}
+          </MoreRoundedPopover>
         </Modal>
       )}
     </>
   );
 }
 
-const SessionSummaryContainer = styled(Flex)`
-  align-items: center;
-  flex-direction: column;
-  justify-content: center;
-  width: 100%;
-  gap: ${p => p.theme.space[2]}px;
-`;
-
-function SummaryErrorWrapper({ error, resetErrorBoundary }: FallbackProps) {
-  return (
-    <SessionSummaryContainer>
-      <SessionSummaryError
-        error={error}
-        resetErrorBoundary={resetErrorBoundary}
-      />
-    </SessionSummaryContainer>
-  );
-}
-
-function SummaryLoadingWrapper() {
-  return (
-    <SessionSummaryContainer>
-      <SessionSummaryLoading />
-    </SessionSummaryContainer>
-  );
-}
-
-export function SessionSummaryError({
-  error,
-  resetErrorBoundary,
-}: FallbackProps) {
-  const errorMessage = getErrorMessage(error);
-
-  if (errorMessage.includes('not found')) {
-    return <Text>Could not find a summary for this session.</Text>;
-  }
-
-  return (
-    <>
-      <Text color="error.main">Error loading session summary</Text>
-
-      <Text>{errorMessage}</Text>
-
-      <Flex justifyContent="center">
-        <ButtonSecondary onClick={resetErrorBoundary}>Retry</ButtonSecondary>
-      </Flex>
-    </>
-  );
-}
-
-export function SessionSummaryLoading() {
-  return (
-    <>
-      <Text color="text.slightlyMuted">Loading session summary...</Text>
-
-      <Indicator delay="none" />
-    </>
-  );
-}
-
-interface SessionSummaryProps {
-  sessionId: string;
-}
-
-const MarkdownContainer = styled.div`
-  h1 {
-    font-size: 20px;
-  }
-
-  h2 {
-    font-size: 18px;
-  }
-
-  h3 {
-    font-size: 16px;
-  }
-`;
-
-const SummaryInfo = styled(Box)`
-  background: ${p => p.theme.colors.levels.elevated};
+const MoreRoundedPopover = styled(StyledPopover)`
+  background: ${p => p.theme.colors.levels.surface};
   border-radius: ${p => p.theme.radii[3]}px;
-  color: ${p => p.theme.colors.text.slightlyMuted};
-  font-size: 13px;
-  padding: ${p => p.theme.space[2]}px;
-  margin-bottom: ${p => p.theme.space[3]}px;
-  line-height: 1.4;
-  border: 1px solid ${p => p.theme.colors.spotBackground[1]};
 `;
 
-export function SessionSummary({ sessionId }: SessionSummaryProps) {
+interface SessionSummaryContentProps extends RecordingActionProps {
+  data: SessionRecordingSummary;
+  isRefetching: boolean;
+  onRefetch: () => void;
+}
+
+function SessionSummaryContent({
+  createdDate,
+  data,
+  durationMs,
+  isRefetching,
+  onRefetch,
+  recordingType,
+  sessionId,
+  hostname,
+  username,
+}: SessionSummaryContentProps) {
   const { clusterId } = useStickyClusterId();
-
-  const { data, isRefetching, refetch } = useSuspenseGetRecordingSummary({
-    clusterId,
-    sessionId,
-  });
-
-  const handleRefetch = useCallback(() => {
-    void refetch();
-  }, [refetch]);
 
   if (data.state === RecordingSummaryState.Pending) {
     const inferenceStartedAt = new Date(data.inferenceStartedAt);
@@ -268,7 +254,7 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
 
         {content}
 
-        <ButtonSecondary onClick={handleRefetch} disabled={isRefetching} mt={1}>
+        <ButtonSecondary onClick={onRefetch} disabled={isRefetching} mt={1}>
           {isRefetching ? 'Reloading...' : 'Reload'}
         </ButtonSecondary>
       </SessionSummaryContainer>
@@ -303,9 +289,10 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
     const inferenceStartedAt = new Date(data.inferenceStartedAt);
     const inferenceFinishedAt = new Date(data.inferenceFinishedAt);
 
+    let duration: Duration | null = null;
     let content: ReactNode | null = null;
     if (isValid(inferenceStartedAt) && isValid(inferenceFinishedAt)) {
-      const duration = intervalToDuration({
+      duration = intervalToDuration({
         start: inferenceStartedAt,
         end: inferenceFinishedAt,
       });
@@ -313,18 +300,166 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
       content = <>Summarization took {formatDuration(duration)}.</>;
     }
 
+    if (data.enhancedSummary) {
+      const { icon: Icon, label } = getRecordingTypeInfo(recordingType);
+
+      const url = cfg.getPlayerRoute(
+        { clusterId, sid: sessionId },
+        {
+          recordingType,
+          durationMs,
+        }
+      );
+
+      return (
+        <Flex
+          borderRadius={3}
+          flexDirection="column"
+          width="900px"
+          maxHeight="700px"
+        >
+          <Flex
+            alignItems="center"
+            justifyContent="space-between"
+            borderBottom="1px solid"
+            borderColor="spotBackground.1"
+            pr={2}
+            pl={3}
+            py={2}
+          >
+            <Box>
+              <Flex gap={2}>
+                <Icon size="small" />
+
+                <Text fontWeight="500" mr={2}>
+                  {label}
+                </Text>
+
+                <ItemSpan>
+                  <User size="small" color="sessionRecording.user" />
+
+                  <Text>{username}</Text>
+                </ItemSpan>
+
+                <ArrowRight size="small" color="text.slightlyMuted" />
+
+                <ItemSpan>
+                  <Icon size="small" color="sessionRecording.resource" />
+
+                  <Text>{hostname}</Text>
+                </ItemSpan>
+
+                <Text
+                  color="text.slightlyMuted"
+                  fontSize="small"
+                  fontWeight="400"
+                >
+                  {format(createdDate, 'MMM dd, yyyy HH:mm')} for{' '}
+                  <strong>{formatSessionRecordingDuration(durationMs)}</strong>
+                </Text>
+              </Flex>
+            </Box>
+
+            <Button
+              as={Link}
+              to={url}
+              compact
+              fill="minimal"
+              intent="neutral"
+              pr={1}
+              pl={2}
+            >
+              View session recording <ChevronRight size="small" ml={1} />
+            </Button>
+          </Flex>
+
+          <Flex minHeight={0} height="100%">
+            <Box
+              flex="2"
+              borderRight="1px solid"
+              borderColor="spotBackground.1"
+              pr={4}
+              px={1}
+              py={2}
+              style={{ overflowY: 'auto' }}
+              data-scrollbar="default"
+            >
+              <SessionRecordingTimeline
+                commands={data.enhancedSummary.commands}
+                onPlay={null}
+                sessionDuration={durationMs}
+                inferenceDuration={duration}
+              />
+            </Box>
+
+            <Box
+              flex="3"
+              px={3}
+              py={3}
+              style={{ overflowY: 'auto' }}
+              data-scrollbar="default"
+            >
+              <MarkdownContainer>
+                <Markdown text={data.enhancedSummary.detailedDescription} />
+              </MarkdownContainer>
+            </Box>
+          </Flex>
+        </Flex>
+      );
+    }
+
     return (
-      <MarkdownContainer>
-        <H3>Session Summary</H3>
+      <Box
+        width="500px"
+        p={3}
+        style={{ overflowY: 'auto' }}
+        data-scrollbar="default"
+      >
+        <MarkdownContainer>
+          <Markdown text={data.content} />
 
-        <Markdown text={data.content} />
-
-        <SummaryInfo>
-          <strong>AI can make mistakes.</strong> {content}
-        </SummaryInfo>
-      </MarkdownContainer>
+          <SummaryInfo>
+            <strong>AI can make mistakes.</strong> {content}
+          </SummaryInfo>
+        </MarkdownContainer>
+      </Box>
     );
   }
 
   return null;
 }
+
+const SessionSummaryContainer = styled(Flex)`
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 400px;
+  max-width: 600px;
+  min-height: 150px;
+  gap: ${p => p.theme.space[2]}px;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+`;
+
+const ItemSpan = styled.span`
+  background: ${p => p.theme.colors.spotBackground[0]};
+  line-height: 1;
+  padding: ${p => p.theme.space[1]}px ${p => p.theme.space[1]}px;
+  border-radius: ${p => p.theme.radii[3]}px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  gap: ${p => p.theme.space[1]}px;
+`;
+
+const rotate = keyframes`
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+`;
+
+const RotatingSpinner = styled(Spinner)`
+  animation: ${rotate} 1s linear infinite;
+`;
