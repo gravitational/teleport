@@ -31,52 +31,52 @@ import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
 import { getActionFromAuthType, getHeadlessAuthTypeLabel, HeadlessAuthenticationType } from './types';
 import { capitalizeFirstLetter } from 'shared/utils/text';
+import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
 
   const [state, setState] = useState({
     ipAddress: '',
-    status: 'pending',
+    requestStatus: 'pending',
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
     authType: HeadlessAuthenticationType.UNSPECIFIED,
+    state: HeadlessAuthenticationState.UNSPECIFIED,
   });
-
+  const [loading, setLoading] = useState(true);
   const [browserIpAddress, setBrowserIpAddress] = useState('');
 
   useEffect(() => {
-    const setIpAddress = (response: { clientIpAddress: string, authType: number }) => {
+    const setAuthState = (response: { clientIpAddress: string, authType: number, state: number }) => {
+      console.log(response);
       setState({
         ...state,
-        status: 'loaded',
+        requestStatus: 'loaded',
         ipAddress: response.clientIpAddress,
         authType: response.authType,
+        state: response.state
       });
     };
 
     auth
       .headlessSsoGet(requestId)
-      .then(setIpAddress)
+      .then(setAuthState)
       .catch(e => {
         setState({
           ...state,
-          status: 'error',
           errorText: e.toString(),
         });
-      });
+      })
+      .finally(() => setLoading(false));;
   }, [requestId]);
 
   useEffect(() => {
-    const setIpAddress = (browserIpAddress) => {
-      setBrowserIpAddress(browserIpAddress);
-    };
-
     if (
       state.authType === HeadlessAuthenticationType.BROWSER ||
       state.authType === HeadlessAuthenticationType.SESSION
     ) {
-      auth.getClientIp().then(setIpAddress).catch((err) => {
+      auth.getClientIp().then(setBrowserIpAddress).catch((err) => {
         console.error('Failed to fetch browser IP address:', err);
       });
     }
@@ -90,14 +90,14 @@ export function HeadlessRequest() {
   });
 
   const setSuccess = () => {
-    setState({ ...state, status: 'success' });
+    setState({ ...state, state: HeadlessAuthenticationState.APPROVED });
   };
 
   const setRejected = () => {
-    setState({ ...state, status: 'rejected' });
+    setState({ ...state, state: HeadlessAuthenticationState.DENIED });
   };
 
-  if (state.status == 'pending') {
+  if (loading) {
     return (
       <Flex
         css={`
@@ -114,7 +114,7 @@ export function HeadlessRequest() {
     );
   }
 
-  if (state.status == 'success') {
+  if (state.state == HeadlessAuthenticationState.APPROVED) {
     return (
       <CardAccept title={`${capitalizeFirstLetter(getActionFromAuthType(state.authType))} has been approved`}>
         You can now return to your terminal.
@@ -122,7 +122,7 @@ export function HeadlessRequest() {
     );
   }
 
-  if (state.status == 'rejected') {
+  if (state.state == HeadlessAuthenticationState.DENIED) {
     return (
       <CardDenied title="Request has been rejected">
         The request has been rejected.
@@ -141,29 +141,23 @@ export function HeadlessRequest() {
             ipAddress={state.ipAddress}
             browserIpAddress={browserIpAddress}
             onAccept={() => {
-              setState({ ...state, status: 'in-progress' });
-
               auth
                 .headlessSsoAccept(mfa, requestId)
                 .then(setSuccess)
                 .catch(e => {
                   setState({
                     ...state,
-                    status: 'error',
                     errorText: e.toString(),
                   });
                 });
             }}
             onReject={() => {
-              setState({ ...state, status: 'in-progress' });
-
               auth
                 .headlessSSOReject(requestId)
                 .then(setRejected)
                 .catch(e => {
                   setState({
                     ...state,
-                    status: 'error',
                     errorText: e.toString(),
                   });
                 });

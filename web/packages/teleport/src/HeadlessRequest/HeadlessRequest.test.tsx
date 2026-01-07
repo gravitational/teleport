@@ -42,6 +42,7 @@ function setup({
   path = '/web/headless/123',
   authType = HeadlessAuthenticationType.HEADLESS,
   browserIpAddress = '1.2.3.4',
+  state = HeadlessAuthenticationType.UNSPECIFIED,
 } = {}) {
   (shouldShowMfaPrompt as jest.Mock).mockReturnValue(mfaPrompt);
 
@@ -49,7 +50,7 @@ function setup({
 
   jest
     .spyOn(auth, 'headlessSsoGet')
-    .mockResolvedValue({ clientIpAddress: '1.2.3.4', authType });
+    .mockResolvedValue({ clientIpAddress: '1.2.3.4', authType, state });
 
   jest
     .spyOn(auth, 'getClientIp')
