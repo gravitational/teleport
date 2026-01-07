@@ -1,0 +1,137 @@
+---
+title: Plugin V1 Reference
+description: Provides a reference of fields within the Plugin V1 resource, which you can manage with tctl.
+sidebar_label: Plugin V1
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: types/types.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `plugin`<br/>
+**Version**: `v1`
+
+Plugin describes a single instance of a Teleport Plugin
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+credentials: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|credentials|Credentials are "live" credentials to the 3rd party API. These are considered secrets.|[Plugin Credentials V1](#plugin-credentials-v1)|
+|kind|Kind is the plugin resource kind.|string|
+|metadata|Metadata is the resource metadata.|[Metadata](#metadata)|
+|spec||[Plugin Spec V1](#plugin-spec-v1)|
+|status||[Plugin Status V1](#plugin-status-v1)|
+|sub_kind|Sub_kind is an optional resource subkind.|string|
+|version|Version is the resource version.|string|
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+
+## Plugin Credentials V1
+
+Represents "live" credentials that are used by the plugin to authenticate to the 3rd party API.
+
+
+Example:
+
+```yaml
+: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Credentials|Types that are valid to be assigned to Credentials:  	*PluginCredentialsV1_Oauth2AccessToken 	*PluginCredentialsV1_BearerToken 	*PluginCredentialsV1_IdSecret 	*PluginCredentialsV1_StaticCredentialsRef|[is Plugin Credentials V1_Credentials](#is-plugin-credentials-v1_credentials)|
+
+## Plugin Spec V1
+
+
+
+
+Example:
+
+```yaml
+: # [...]
+generation: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Settings|Settings contain provider-specific plugin options.  Types that are valid to be assigned to Settings: 	*PluginSpecV1_SlackAccessPlugin 	*PluginSpecV1_Opsgenie 	*PluginSpecV1_Openai 	*PluginSpecV1_Okta 	*PluginSpecV1_Jamf 	*PluginSpecV1_PagerDuty 	*PluginSpecV1_Mattermost 	*PluginSpecV1_Jira 	*PluginSpecV1_Discord 	*PluginSpecV1_ServiceNow 	*PluginSpecV1_Gitlab 	*PluginSpecV1_EntraId 	*PluginSpecV1_Scim 	*PluginSpecV1_Datadog 	*PluginSpecV1_AwsIc 	*PluginSpecV1_Email 	*PluginSpecV1_Msteams 	*PluginSpecV1_NetIq 	*PluginSpecV1_Github 	*PluginSpecV1_Intune|[is Plugin Spec V1_Settings](#is-plugin-spec-v1_settings)|
+|generation|Generation contains a unique ID that should: - Be created by the backend on plugin creation. - Be updated by the backend if the plugin is updated in any way.  For older plugins, it's possible for this to be empty.|string|
+
+## Plugin Status Code
+
+
+
+
+## Plugin Status V1
+
+PluginStatus is the user-facing status for the plugin instance.
+
+
+Example:
+
+```yaml
+code: # [...]
+error_message: "string"
+last_sync_time: # See description
+: # [...]
+last_raw_error: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|Details|Details contains provider-specific plugin status details.  Types that are valid to be assigned to Details:  	*PluginStatusV1_Gitlab 	*PluginStatusV1_EntraId 	*PluginStatusV1_Okta 	*PluginStatusV1_AwsIc 	*PluginStatusV1_NetIq|[is Plugin Status V1_Details](#is-plugin-status-v1_details)|
+|code||[Plugin Status Code](#plugin-status-code)|
+|error_message|Error_message is a human-readable error message that can be displayed to the user.|string|
+|last_raw_error|Last_raw_error variable stores the most recent raw error message received from an API or service. It is intended to capture the original error message without any modifications or formatting. This can be useful for debugging purposes, providing detailed information about what went wrong in the interaction with the external service.|string|
+|last_sync_time|Last_sync_time is the last time the plugin was run.||
+
+## is Plugin Credentials V1_Credentials
+
+
+
+
+## is Plugin Spec V1_Settings
+
+
+
+
+## is Plugin Status V1_Details
+
+
+
+

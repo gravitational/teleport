@@ -19,6 +19,10 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: oidc
     yaml_version: v3
+  - type: PluginV1
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: plugin
+    yaml_version: v1
   - type: SAMLConnectorV2
     package: github.com/gravitational/teleport/api/types
     yaml_kind: saml
