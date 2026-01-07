@@ -487,12 +487,12 @@ const colors: ThemeColors = {
   },
 
   editor: {
-    abbey: dataVisualisationColors.primary.abbey,
-    purple: dataVisualisationColors.primary.purple,
-    cyan: dataVisualisationColors.primary.cyan,
-    picton: dataVisualisationColors.primary.picton,
-    sunflower: dataVisualisationColors.primary.sunflower,
-    caribbean: dataVisualisationColors.primary.caribbean,
+    abbey: dataVisualisationColors.tertiary.abbey,
+    purple: dataVisualisationColors.tertiary.purple,
+    cyan: dataVisualisationColors.tertiary.cyan,
+    picton: dataVisualisationColors.tertiary.picton,
+    sunflower: dataVisualisationColors.tertiary.sunflower,
+    caribbean: dataVisualisationColors.tertiary.caribbean,
   },
 
   sessionRecording: {
