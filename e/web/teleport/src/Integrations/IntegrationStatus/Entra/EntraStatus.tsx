@@ -1,14 +1,21 @@
-import { Box, ButtonWarning, Flex, Text } from 'design';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
+
+import { Alert, Box, ButtonWarning, Flex, Text } from 'design';
 import { Trash } from 'design/Icon';
 
 import { EditGroupsImport } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/GroupsImport';
 import { SettingsType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/types';
-import { Route, Switch } from 'teleport/components/Router';
+import { pluginsService } from 'e-teleport/services/plugins';
+import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
+import { entraPluginUpdate } from 'e-teleport/services/plugins/types';
+import { Redirect, Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import {
   Plugin,
   PluginEntraIdSpec,
   PluginEntraIDStatusDetails,
+  type Filters,
 } from 'teleport/services/integrations';
 
 import { AccessGraphSyncDetails } from './AccessGraphSync';
@@ -38,12 +45,80 @@ export function EntraStatusRoutes({
           SettingsType.GroupImport
         )}
       >
-        <EditGroupsImport plugin={plugin} />
+        <GroupsImport existingPlugin={plugin} />
       </Route>
       <Route path={cfg.getIntegrationStatusRoute('entra-id', plugin.name)}>
-        <StatusDetails plugin={plugin} onDelete={deletePlugin} />
+        <StatusDetails onDelete={deletePlugin} plugin={plugin} />
       </Route>
     </Switch>
+  );
+}
+
+function GroupsImport({
+  existingPlugin,
+}: {
+  existingPlugin: Plugin<PluginEntraIdSpec, PluginEntraIDStatusDetails>;
+}) {
+  const queryClient = useQueryClient();
+
+  const updatePlugin = useMutation({
+    mutationFn: (req: entraPluginUpdate) =>
+      pluginsService
+        .updatePlugin({
+          plugin: 'entra-id',
+          entra: { ...req },
+        })
+        .catch(err => {
+          throw err;
+        }),
+    onSuccess: data =>
+      queryClient.setQueryData(
+        createFetchPluginQueryKey(existingPlugin.name),
+        data
+      ),
+  });
+
+  const memoizedUpdatePlugin = useCallback(
+    (req: entraPluginUpdate) => {
+      if (updatePlugin.isPending) {
+        return;
+      }
+
+      updatePlugin.mutate(req);
+    },
+    [updatePlugin]
+  );
+
+  if (updatePlugin.isSuccess) {
+    return (
+      <Redirect
+        to={cfg.getIntegrationStatusRoute('entra-id', existingPlugin.name)}
+      />
+    );
+  }
+
+  function onSave(filters: Filters, owners: string[]) {
+    const req: entraPluginUpdate = {
+      name: existingPlugin.name,
+      defaultOwners: owners,
+      groupFilters: filters,
+    };
+    memoizedUpdatePlugin(req);
+  }
+
+  return (
+    <>
+      {updatePlugin.isError && (
+        <Box mt={2}>
+          <Alert>{updatePlugin.error.message}</Alert>
+        </Box>
+      )}
+      <EditGroupsImport
+        plugin={existingPlugin}
+        onSave={onSave}
+        disabled={updatePlugin.isPending}
+      />
+    </>
   );
 }
 

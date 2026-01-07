@@ -28,7 +28,7 @@ export const Default = () => {
   return (
     <MemoryRouter>
       <ContextProvider ctx={createTeleportContextE()}>
-        <EditGroupsImport />
+        <EditGroupsImport disabled={false} onSave={() => null} />
       </ContextProvider>
     </MemoryRouter>
   );
@@ -48,7 +48,11 @@ export const PrefillFromPluginSpec = () => {
   return (
     <MemoryRouter>
       <ContextProvider ctx={createTeleportContextE()}>
-        <EditGroupsImport plugin={plugin} />
+        <EditGroupsImport
+          plugin={plugin}
+          disabled={false}
+          onSave={() => null}
+        />
       </ContextProvider>
     </MemoryRouter>
   );

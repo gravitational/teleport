@@ -13,9 +13,11 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -223,6 +225,159 @@ func TestEntraIDValidatePlugin(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEntraIDUpdatePlugin(t *testing.T) {
+	env := createEntraIDTEnv(t)
+	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole())
+	require.NoError(t, err)
+
+	installPluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugins", "staticauth")
+	resp, err := env.pack.clt.PostForm(t.Context(), installPluginEndPoint, entraInstallRequestURLValues(t))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	updatePluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugin")
+	testCases := []struct {
+		name         string
+		req          *ui.PluginUpdateRequest
+		errAssertion require.ErrorAssertionFunc
+		statusCode   int
+	}{
+		{
+			name: "missing name",
+			req: &ui.PluginUpdateRequest{
+				Plugin: types.PluginTypeEntraID,
+				EntraID: &ui.EntraIDPluginUpdate{
+					DefaultOwners: []string{"user1", "user2"},
+					GroupFilters: filter.Inputs{
+						ID: []string{"c8d8f374-1072-4adf-aa5e-75036e8ccc41"},
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "name is required")
+			},
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			name: "empty default owners",
+			req: &ui.PluginUpdateRequest{
+				Plugin: types.PluginTypeEntraID,
+				EntraID: &ui.EntraIDPluginUpdate{
+					Name:          types.PluginTypeEntraID,
+					DefaultOwners: []string{},
+					GroupFilters: filter.Inputs{
+						ID: []string{"c8d8f374-1072-4adf-aa5e-75036e8ccc41"},
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "owners cannot be empty")
+			},
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			name: "invalid group filters",
+			req: &ui.PluginUpdateRequest{
+				Plugin: types.PluginTypeEntraID,
+				EntraID: &ui.EntraIDPluginUpdate{
+					Name:          types.PluginTypeEntraID,
+					DefaultOwners: []string{"user1", "user2"},
+					GroupFilters: filter.Inputs{
+						ID:        []string{"c8d8f374-1072-4adf-aa5e-75036e8ccc41"},
+						NameRegex: []string{"^[)$"},
+					},
+				},
+			},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid group filter")
+			},
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			name: "valid",
+			req: &ui.PluginUpdateRequest{
+				Plugin: types.PluginTypeEntraID,
+				EntraID: &ui.EntraIDPluginUpdate{
+					Name:          types.PluginTypeEntraID,
+					DefaultOwners: []string{"user3"},
+					GroupFilters: filter.Inputs{
+						ID: []string{"abc-id"},
+					},
+				},
+			},
+			errAssertion: require.NoError,
+			statusCode:   http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err = env.pack.clt.PutJSON(t.Context(), updatePluginEndPoint, tc.req)
+			tc.errAssertion(t, err)
+			require.Equal(t, tc.statusCode, resp.Code())
+		})
+	}
+}
+
+func TestEntraIDPluginUpdatePreservesStatus(t *testing.T) {
+	env := createEntraIDTEnv(t)
+	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole())
+	require.NoError(t, err)
+
+	// install plugin
+	installPluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugins", "staticauth")
+	resp, err := env.pack.clt.PostForm(t.Context(), installPluginEndPoint, entraInstallRequestURLValues(t))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	existingPlugin, err := env.s.testAuthServer.AuthServer.AuthServer.Plugins.GetPlugin(t.Context(), types.PluginTypeEntraID, false)
+	require.NoError(t, err)
+	require.NotNil(t, existingPlugin)
+	require.Nil(t, existingPlugin.GetStatus().GetEntraId())
+
+	// update plugin with status
+	existingPlugin.SetStatus(&types.PluginStatusV1{
+		Code: types.PluginStatusCode_RUNNING,
+		Details: &types.PluginStatusV1_EntraId{
+			EntraId: &types.PluginEntraIDStatusV1{
+				ImportedUsers:  10,
+				ImportedGroups: 12,
+			},
+		},
+	})
+	pluginWithStatus, err := env.s.testAuthServer.AuthServer.AuthServer.Plugins.UpdatePlugin(t.Context(), existingPlugin)
+	require.NoError(t, err)
+
+	// update plugin settings
+	updateluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugin")
+	resp, err = env.pack.clt.PutJSON(t.Context(), updateluginEndPoint, &ui.PluginUpdateRequest{
+		Plugin: types.PluginTypeEntraID,
+		EntraID: &ui.EntraIDPluginUpdate{
+			Name:          types.PluginTypeEntraID,
+			DefaultOwners: []string{"user3"}, // new owner
+			GroupFilters:  filter.Inputs{},   // empty filters
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// check settings update does not override plugin status
+	updatedPlugin, err := env.s.testAuthServer.AuthServer.AuthServer.Plugins.GetPlugin(t.Context(), types.PluginTypeEntraID, false)
+	require.NoError(t, err)
+
+	updatedPluginV1, ok := updatedPlugin.(*types.PluginV1)
+	require.True(t, ok, "expected plugin type to be PluginV1")
+
+	expectedSettings := updatedPluginV1.Spec.GetEntraId().SyncSettings
+	require.ElementsMatch(t, expectedSettings.DefaultOwners, []string{"user3"})
+	require.Equal(t, filter.ToInputs(expectedSettings.GroupFilters), filter.ToInputs([]*types.PluginSyncFilter{}))
+
+	expectedStatus := pluginWithStatus.GetStatus().GetEntraId()
+	wantStatus := updatedPluginV1.GetStatus().GetEntraId()
+	require.Equal(t, expectedStatus.ImportedUsers, wantStatus.ImportedUsers)
+	require.Equal(t, expectedStatus.ImportedGroups, wantStatus.ImportedGroups)
 }
 
 func createEntraConnector(t *testing.T, s *webSuite) string {

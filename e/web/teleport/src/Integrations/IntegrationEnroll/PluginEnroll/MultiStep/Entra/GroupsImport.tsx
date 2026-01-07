@@ -30,9 +30,11 @@ import { Filters } from './types';
 export function EditGroupsImport({
   plugin,
   onSave,
+  disabled,
 }: {
   plugin?: Plugin;
-  onSave?: (filters: Filters, owners: string) => void;
+  onSave: (filters: Filters, owners: string[]) => void;
+  disabled: boolean;
 }) {
   const history = useHistory();
   const location = useLocation();
@@ -62,8 +64,10 @@ export function EditGroupsImport({
       filterValue = filters;
     }
 
-    onSave(filterValue, JSON.stringify(selectedOwners.map(o => o.label)));
-    // TODO(sshah): handle group update
+    onSave(
+      filterValue,
+      selectedOwners.map(o => o.label)
+    );
   }
 
   function goBack() {
@@ -96,6 +100,7 @@ export function EditGroupsImport({
                 filters={filters}
                 onFilterChange={setFilters}
                 validator={validator}
+                disabled={disabled}
               />
             </StyledBox>
 
@@ -104,6 +109,7 @@ export function EditGroupsImport({
                 loadOptions={loadOptions}
                 selectedOptions={selectedOwners}
                 onOptionChange={setSelectedOwners}
+                disabled={disabled}
               />
             </StyledBox>
             <Box mt={6} mb={6}>
@@ -123,10 +129,12 @@ function DefaultOwners({
   loadOptions,
   selectedOptions,
   onOptionChange,
+  disabled,
 }: {
   loadOptions: (input: string) => Promise<UserOption[]>;
   selectedOptions: UserOption[];
   onOptionChange: (UserOption) => void;
+  disabled: boolean;
 }) {
   return (
     <Box>
@@ -151,6 +159,7 @@ function DefaultOwners({
         noOptionsMessage={() => 'Type a username and press enter'}
         label="Add Default List Owner(s)"
         rule={requiredField('At least 1 default owner is required')}
+        isDisabled={disabled}
       />
     </Box>
   );
@@ -162,12 +171,14 @@ function ConfigureFilters({
   filters,
   onFilterChange,
   validator,
+  disabled,
 }: {
   enabled: boolean;
   setEnabled: (boolean) => void;
   filters: Filters;
   onFilterChange: (Filters) => void;
   validator: Validator;
+  disabled: boolean;
 }) {
   return (
     <Box>
@@ -193,6 +204,7 @@ function ConfigureFilters({
           setEnabled(!enabled);
         }}
         size="small"
+        disabled={disabled}
       >
         <Text ml={2}>Import All Groups</Text>
       </Toggle>
@@ -213,6 +225,7 @@ function ConfigureFilters({
               }}
               placeholder={f.placeholder}
               autoFocus={f.name == 'id' ? true : false}
+              isDisabled={disabled}
             />
           ))}
         </Box>
@@ -268,16 +281,17 @@ export const filterCollection: filter[] = [
   },
 ];
 
-function hasZeroFilters(filters: Filters): boolean {
+export function hasZeroFilters(filters: Filters): boolean {
   if (!filters) {
     return true;
   }
-  return (
-    filters.id.length === 0 &&
-    filters.nameRegex.length === 0 &&
-    filters.excludeId.length === 0 &&
-    filters.excludeNameRegex.length === 0
-  );
+  const hasFilters =
+    filters.id?.length > 0 ||
+    filters.nameRegex?.length > 0 ||
+    filters.excludeId?.length > 0 ||
+    filters.excludeNameRegex?.length > 0;
+
+  return !hasFilters;
 }
 
 type UserOption = Option<string, string>;

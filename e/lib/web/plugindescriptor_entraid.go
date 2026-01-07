@@ -205,6 +205,57 @@ func (e entraIDPluginDescriptor) HandleValidateConfigRequest(ctx context.Context
 	return nil
 }
 
+// HandleUpdateRequest updates the Entra ID plugin.
+func (entraIDPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx *web.SessionContext, req *ui.PluginUpdateRequest) (*ui.Plugin, error) {
+	if req.EntraID == nil {
+		return nil, trace.BadParameter("missing Entra plugin update params")
+	}
+	if req.EntraID.Name == "" {
+		return nil, trace.BadParameter("plugin name is required")
+	}
+	if len(req.EntraID.DefaultOwners) == 0 {
+		return nil, trace.BadParameter("default owners cannot be empty")
+	}
+	filters, err := filter.NewFromInputs(req.EntraID.GroupFilters)
+	if err != nil {
+		return nil, trace.Wrap(err, "invalid group filter")
+	}
+
+	client, err := sessCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	existingPlugin, err := client.PluginsClient().GetPlugin(ctx,
+		&pluginsv1.GetPluginRequest{
+			Name: req.EntraID.Name,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed getting existing plugin")
+	}
+
+	newPlugin, ok := existingPlugin.Clone().(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("expected *PluginV1 while cloning existing plugin for update, got %T", newPlugin)
+	}
+	settings := newPlugin.Spec.GetEntraId()
+	settings.SyncSettings.DefaultOwners = req.EntraID.DefaultOwners
+	settings.SyncSettings.GroupFilters = filters
+	newPlugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: settings,
+	}
+
+	resp, err := client.PluginsClient().UpdatePlugin(ctx,
+		&pluginsv1.UpdatePluginRequest{
+			Plugin: newPlugin,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewPlugin(resp)
+}
+
 // TranslateCallbackCookie implements pluginDescriptor.
 func (entraIDPluginDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *pluginOnboardingCookie) error {
 	// This always returns not implemented, since Entra ID plugin onboarding does not use the OAuth2 web flow.

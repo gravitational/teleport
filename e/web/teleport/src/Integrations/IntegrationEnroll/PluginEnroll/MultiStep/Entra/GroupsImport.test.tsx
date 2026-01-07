@@ -17,6 +17,7 @@ import {
   EditGroupsImport,
   emptyFilter,
   filterCollection,
+  hasZeroFilters,
 } from './GroupsImport';
 import { Filters } from './types';
 
@@ -64,7 +65,7 @@ test('edit page default', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
-  expect(onSave).toHaveBeenCalledWith(filters, '["alice"]');
+  expect(onSave).toHaveBeenCalledWith(filters, ['alice']);
 });
 
 test('import all toogle on', async () => {
@@ -100,7 +101,7 @@ test('import all toogle on', async () => {
 
   expect(onSave).toHaveBeenCalledWith(
     plugin.spec.groupFilters,
-    JSON.stringify(plugin.spec.defaultOwners)
+    plugin.spec.defaultOwners
   );
 
   onSave.mockReset();
@@ -110,10 +111,7 @@ test('import all toogle on', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
 
-  expect(onSave).toHaveBeenCalledWith(
-    emptyFilter,
-    JSON.stringify(plugin.spec.defaultOwners)
-  );
+  expect(onSave).toHaveBeenCalledWith(emptyFilter, plugin.spec.defaultOwners);
 });
 
 test('default owner validation', async () => {
@@ -165,18 +163,18 @@ test('prefill values from plugin spec', async () => {
 
   expect(onSave).toHaveBeenCalledWith(
     plugin.spec.groupFilters,
-    JSON.stringify(plugin.spec.defaultOwners)
+    plugin.spec.defaultOwners
   );
 });
 
 function renderGroupsImport(
   plugin?: Plugin,
-  onSave?: (filters: Filters, owners: string) => void
+  onSave?: (filters: Filters, owners: string[]) => void
 ) {
   render(
     <MemoryRouter>
       <ContextProvider ctx={createTeleportContextE()}>
-        <EditGroupsImport plugin={plugin} onSave={onSave} />
+        <EditGroupsImport plugin={plugin} onSave={onSave} disabled={false} />
       </ContextProvider>
     </MemoryRouter>
   );
@@ -208,3 +206,50 @@ function setFilterInputs(filter: Filters) {
   });
   fireEvent.keyDown(excludeNameRegex, { key: 'Enter' });
 }
+
+describe('hasZeroFilters', () => {
+  const predicates: {
+    name: string;
+    filters: any;
+    expected: boolean;
+  }[] = [
+    {
+      name: 'with all filters',
+      filters: {
+        id: ['g1', 'g2'],
+        nameRegex: ['admin-*'],
+        excludeId: ['g2'],
+        excludeNameRegex: ['hr*'],
+      },
+      expected: false,
+    },
+    {
+      name: 'partial filters',
+      filters: {
+        id: ['g1', 'g2'],
+        nameRegex: [],
+        excludeId: ['g2'],
+        excludeNameRegex: ['hr*'],
+      },
+      expected: false,
+    },
+    {
+      name: 'empty filters',
+      filters: {
+        id: [],
+        nameRegex: [],
+        excludeId: [],
+        excludeNameRegex: [],
+      },
+      expected: true,
+    },
+    {
+      name: 'empty',
+      filters: {},
+      expected: true,
+    },
+  ];
+  test.each(predicates)('$name', ({ filters, expected }) => {
+    expect(hasZeroFilters(filters)).toBe(expected);
+  });
+});

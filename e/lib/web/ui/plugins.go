@@ -398,9 +398,10 @@ func toCredentialInfo(info *types.PluginOktaCredentialsInfo) *OktaCredentialInfo
 
 // PluginUpdateRequest is the request to update a plugin's configuration.
 type PluginUpdateRequest struct {
-	// Plugin is the name of the plugin to update
-	Plugin string            `json:"plugin,omitempty"`
-	Okta   *OktaPluginUpdate `json:"okta,omitempty"`
+	// Plugin is the type of the plugin to update.
+	Plugin  string               `json:"plugin,omitempty"`
+	Okta    *OktaPluginUpdate    `json:"okta,omitempty"`
+	EntraID *EntraIDPluginUpdate `json:"entra,omitempty"`
 }
 
 // OktaPluginUpdate contains the fields that can be updated in the Okta plugin.
@@ -442,4 +443,14 @@ type OAuthCredentials struct {
 	ClientID string `json:"client_id,omitempty"`
 	// ClientSecret is the OAuth client secret.
 	ClientSecret string `json:"client_secret,omitempty"`
+}
+
+// EntraIDPluginUpdate defines fields that can be updated in the Entra ID plugin.
+type EntraIDPluginUpdate struct {
+	// Name of the Entra ID plugin to update.
+	Name string `json:"name,omitempty"`
+	// DefaultOwners is the list of default owners for synced Access Lists.
+	DefaultOwners []string `json:"defaultOwners,omitempty"`
+	// GroupFilters is the group filter inputs.
+	GroupFilters filter.Inputs `json:"groupFilters"`
 }

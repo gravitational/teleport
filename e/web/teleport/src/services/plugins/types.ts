@@ -5,7 +5,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { BaseView } from 'teleport/components/Wizard/flow';
 import { IntegrationTag } from 'teleport/Integrations/Enroll/Shared';
-import { PluginKind } from 'teleport/services/integrations';
+import { Filters, PluginKind } from 'teleport/services/integrations';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
 /**
@@ -291,7 +291,18 @@ export type oktaPluginUpdate = {
   appFilters?: string[];
 };
 
+/**
+ * entraPluginUpdate defines fields that can
+ * be updated in the Entra ID plugin.
+ */
+export type entraPluginUpdate = {
+  name: string;
+  defaultOwners: string[];
+  groupFilters: Filters;
+};
+
 export type PluginUpdateRequest<T extends string = ''> = {
   plugin: T;
   okta?: oktaPluginUpdate;
+  entra?: entraPluginUpdate;
 };
