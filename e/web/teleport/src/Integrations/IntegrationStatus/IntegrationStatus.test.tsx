@@ -232,7 +232,6 @@ test.each`
   ${'opsgenie'}
   ${'servicenow'}
   ${'jamf'}
-  ${'entra-id'}
   ${'datadog'}
   ${'aws-identity-center'}
 `('unsupported plugin kind $type', async ({ type }) => {

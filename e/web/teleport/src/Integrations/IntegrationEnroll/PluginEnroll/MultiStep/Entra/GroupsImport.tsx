@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
 import {
   Box,
@@ -19,6 +20,7 @@ import {
   CreateFilters,
   FilterOption,
 } from 'e-teleport/Integrations/shared/CreateFilters';
+import cfg from 'teleport/config';
 import { StyledBox } from 'teleport/Discover/Shared';
 import { Plugin } from 'teleport/services/integrations';
 import { type User } from 'teleport/services/user';
@@ -32,6 +34,9 @@ export function EditGroupsImport({
   plugin?: Plugin;
   onSave?: (filters: Filters, owners: string) => void;
 }) {
+  const history = useHistory();
+  const location = useLocation();
+
   const {
     filters,
     setFilters,
@@ -59,6 +64,14 @@ export function EditGroupsImport({
 
     onSave(filterValue, JSON.stringify(selectedOwners.map(o => o.label)));
     // TODO(sshah): handle group update
+  }
+
+  function goBack() {
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getIntegrationStatusRoute('entra-id', plugin.name));
+    } else {
+      history.goBack();
+    }
   }
 
   return (
@@ -97,13 +110,7 @@ export function EditGroupsImport({
               <ButtonPrimary onClick={() => save(validator)} mr={3}>
                 Save
               </ButtonPrimary>
-              <ButtonSecondary
-                onClick={
-                  () => null /** TODO(sshah): redirect user to status page */
-                }
-              >
-                Back
-              </ButtonSecondary>
+              <ButtonSecondary onClick={goBack}>Back</ButtonSecondary>
             </Box>
           </>
         )}

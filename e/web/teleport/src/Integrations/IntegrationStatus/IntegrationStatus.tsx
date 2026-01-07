@@ -22,6 +22,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { PluginDelete } from '../PluginDelete';
+import { EntraStatusRoutes } from './Entra/EntraStatus';
 import { OktaStatusDetails } from './OktaStatusDetails/OktaStatusDetails';
 import { OverallStatus } from './Shared';
 
@@ -33,7 +34,7 @@ export function IntegrationStatus() {
     name: string;
   }>();
 
-  const shouldFetchPlugin = type === 'okta';
+  const shouldFetchPlugin = type === 'okta' || type === 'entra-id';
 
   const plugin = useFetchPlugin(name, {
     enabled: shouldFetchPlugin,
@@ -88,6 +89,24 @@ export function IntegrationStatus() {
       return (
         <FeatureContainer {...props}>
           <OktaStatusDetails
+            plugin={plugin.data}
+            deletePlugin={() => setShowDeleteDialog(true)}
+          />
+          {showDeleteDialog && (
+            <PluginDelete
+              onClose={() => setShowDeleteDialog(false)}
+              onDelete={onDelete}
+              pluginKind={plugin.data.kind}
+            />
+          )}
+        </FeatureContainer>
+      );
+    }
+
+    if (plugin.isSuccess && plugin.data?.kind === 'entra-id') {
+      return (
+        <FeatureContainer {...props}>
+          <EntraStatusRoutes
             plugin={plugin.data}
             deletePlugin={() => setShowDeleteDialog(true)}
           />

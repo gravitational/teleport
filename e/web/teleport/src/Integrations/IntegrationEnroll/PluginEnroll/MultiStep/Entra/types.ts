@@ -20,3 +20,11 @@ export type Filters = {
   excludeId: string[];
   excludeNameRegex: string[];
 };
+
+/**
+ * SettingsType defines plugin configuration
+ * type related to the Entra ID plugin UI.
+ */
+export enum SettingsType {
+  GroupImport = 'groups-import',
+}

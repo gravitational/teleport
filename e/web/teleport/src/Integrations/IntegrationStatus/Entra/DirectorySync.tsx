@@ -7,6 +7,7 @@ import { Edit, UserList, Users } from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
+import { SettingsType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/types';
 import { StatusAndOptions } from 'e-teleport/Integrations/IntegrationStatus/Shared';
 import {
   IntegrationStatusCode,
@@ -21,9 +22,11 @@ import {
  * sync status.
  */
 export function DirectorySyncDetails({
+  name,
   spec,
   status,
 }: {
+  name: string;
   spec: PluginEntraIdSpec;
   status: PluginStatus<PluginEntraIDStatusDetails>;
 }) {
@@ -39,8 +42,14 @@ export function DirectorySyncDetails({
           options={[
             {
               label: 'Edit Configuration',
-              //   TODO(sshah): redirect user to group import setting page.
-              onClick: () => null,
+              onClick: () =>
+                history.push(
+                  cfg.oss.getIntegrationStatusRoute(
+                    'entra-id',
+                    name,
+                    SettingsType.GroupImport
+                  )
+                ),
               Icon: Edit,
             },
             {

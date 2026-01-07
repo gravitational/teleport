@@ -1,3 +1,5 @@
+import { MemoryRouter } from 'react-router';
+
 import {
   fireEvent,
   render,
@@ -172,9 +174,11 @@ function renderGroupsImport(
   onSave?: (filters: Filters, owners: string) => void
 ) {
   render(
-    <ContextProvider ctx={createTeleportContextE()}>
-      <EditGroupsImport plugin={plugin} onSave={onSave} />
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={createTeleportContextE()}>
+        <EditGroupsImport plugin={plugin} onSave={onSave} />
+      </ContextProvider>
+    </MemoryRouter>
   );
 }
 

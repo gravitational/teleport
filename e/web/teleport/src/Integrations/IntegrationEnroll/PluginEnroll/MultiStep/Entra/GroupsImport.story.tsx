@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
@@ -25,9 +26,11 @@ export default {
 
 export const Default = () => {
   return (
-    <ContextProvider ctx={createTeleportContextE()}>
-      <EditGroupsImport />
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={createTeleportContextE()}>
+        <EditGroupsImport />
+      </ContextProvider>
+    </MemoryRouter>
   );
 };
 
@@ -43,8 +46,10 @@ export const PrefillFromPluginSpec = () => {
     },
   };
   return (
-    <ContextProvider ctx={createTeleportContextE()}>
-      <EditGroupsImport plugin={plugin} />
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={createTeleportContextE()}>
+        <EditGroupsImport plugin={plugin} />
+      </ContextProvider>
+    </MemoryRouter>
   );
 };

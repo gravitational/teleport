@@ -71,7 +71,11 @@ const render = (
   cfg.isPolicyEnabled = true;
   return (
     <ContextProvider ctx={ctx}>
-      <DirectorySyncDetails spec={spec} status={status} />
+      <DirectorySyncDetails
+        name="entra-id-default"
+        spec={spec}
+        status={status}
+      />
     </ContextProvider>
   );
 };
