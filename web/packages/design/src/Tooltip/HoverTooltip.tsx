@@ -38,6 +38,7 @@ import React, {
   cloneElement,
   ReactElement,
   Ref,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -52,6 +53,10 @@ type HoverTooltipProps = {
    * String or ReactNode to display in tooltip.
    */
   tipContent?: React.ReactNode;
+  /**
+   * Prevent the tooltip from opening. If the tooltip is already open, it will close.
+   */
+  disabled?: boolean;
   /**
    * Only show tooltip if trigger content is overflowing its container.
    */
@@ -101,6 +106,7 @@ type HoverTooltipProps = {
 export const HoverTooltip = ({
   tipContent,
   children,
+  disabled = false,
   showOnlyOnOverflow = false,
   placement = 'top',
   position,
@@ -118,9 +124,20 @@ export const HoverTooltip = ({
     placement = position;
   }
 
+  // Close the tooltip when disabled changes to true.
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
+
   const handleOpenChange = (open: boolean, event?: Event) => {
     if (!open) {
       setOpen(false);
+      return;
+    }
+
+    if (disabled) {
       return;
     }
 
