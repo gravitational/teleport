@@ -61,7 +61,12 @@ export type IntegrationLike =
   | ExternalAuditStorageIntegration;
 
 // statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
-const statusKinds = ['okta', IntegrationKind.AwsOidc, IntegrationKind.AwsRa];
+const statusKinds = [
+  'okta',
+  'entra-id',
+  IntegrationKind.AwsOidc,
+  IntegrationKind.AwsRa,
+];
 
 export function IntegrationList(props: Props) {
   const history = useHistory();
@@ -123,10 +128,10 @@ export function IntegrationList(props: Props) {
           render: item => {
             if (
               item.kind === IntegrationKind.AwsOidc ||
-              item.kind === IntegrationKind.AwsRa
+              item.kind === IntegrationKind.AwsRa ||
+              item.kind === 'entra-id'
             ) {
-              // do not show any action menu for aws oidc or roles anywhere;
-              // settings are available on the dashboard
+              // action menu for these integrations are available on the status page dashboard.
               return;
             }
 
