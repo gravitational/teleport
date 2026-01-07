@@ -5,12 +5,13 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTDPBMFAFlow(t *testing.T) {

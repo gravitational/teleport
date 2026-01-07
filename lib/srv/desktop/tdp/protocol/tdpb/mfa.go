@@ -4,12 +4,13 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/trace"
 )
 
 // NewTDPBMFAPrompt constructs an mfa.PromptFunc that handles the MFA ceremony

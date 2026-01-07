@@ -44,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	tdpCore "github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	tdp "github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -247,7 +247,7 @@ func TestEmitsRecordingEventsOnSend(t *testing.T) {
 	emitterPreparer := libevents.WithNoOpPreparer(emitter)
 
 	// a fake PNG Frame message
-	encoded := []byte{byte(tdp.TypePNGFrame), 0x01, 0x02}
+	encoded := []byte{byte(legacy.TypePNGFrame), 0x01, 0x02}
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
@@ -277,14 +277,14 @@ func TestSkipsExtremelyLargePNGs(t *testing.T) {
 	// a fake PNG Frame message, which is way too big to be legitimate
 	maliciousPNG := make([]byte, libevents.MaxProtoMessageSizeBytes+1)
 	rand.Read(maliciousPNG)
-	maliciousPNG[0] = byte(tdp.TypePNGFrame)
+	maliciousPNG[0] = byte(legacy.TypePNGFrame)
 
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPSendHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
 	// the handler accepts both the message structure and its encoded form,
 	// but our logic only depends on the encoded form, so pass a nil message
-	var msg tdpCore.Message
+	var msg tdp.Message
 	handler(msg, maliciousPNG)
 
 	require.Nil(t, emitter.LastEvent())
@@ -303,9 +303,9 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	delay := func() int64 { return 0 }
 	handler := s.makeTDPReceiveHandler(context.Background(), emitterPreparer, delay, nil /* conn */, nil /* auditor */)
 
-	msg := tdp.MouseButton{
-		Button: tdp.LeftMouseButton,
-		State:  tdp.ButtonPressed,
+	msg := legacy.MouseButton{
+		Button: legacy.LeftMouseButton,
+		State:  legacy.ButtonPressed,
 	}
 	handler(msg)
 
@@ -313,7 +313,7 @@ func TestEmitsRecordingEventsOnReceive(t *testing.T) {
 	require.NotNil(t, e)
 	dr, ok := e.(*events.DesktopRecording)
 	require.True(t, ok)
-	decoded, err := tdp.Decode(bytes.NewBuffer(dr.Message))
+	decoded, err := legacy.Decode(bytes.NewBuffer(dr.Message))
 	require.NoError(t, err)
 	require.Equal(t, msg, decoded)
 }
@@ -332,7 +332,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 		context.Background(),
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdpCore.Conn{},
+		&tdp.Conn{},
 		audit,
 	)
 
@@ -340,7 +340,7 @@ func TestEmitsClipboardSendEvents(t *testing.T) {
 	rand.Read(fakeClipboardData)
 
 	start := s.cfg.Clock.Now().UTC()
-	msg := tdp.ClipboardData(fakeClipboardData)
+	msg := legacy.ClipboardData(fakeClipboardData)
 	handler(msg)
 
 	e := emitter.LastEvent()
@@ -368,7 +368,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 		context.Background(),
 		libevents.WithNoOpPreparer(&libevents.DiscardRecorder{}),
 		func() int64 { return 0 },
-		&tdpCore.Conn{},
+		&tdp.Conn{},
 		audit,
 	)
 
@@ -376,7 +376,7 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	rand.Read(fakeClipboardData)
 
 	start := s.cfg.Clock.Now().UTC()
-	msg := tdp.ClipboardData(fakeClipboardData)
+	msg := legacy.ClipboardData(fakeClipboardData)
 	encoded, err := msg.Encode()
 	require.NoError(t, err)
 	handler(msg, encoded)

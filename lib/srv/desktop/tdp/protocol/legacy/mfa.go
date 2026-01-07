@@ -3,15 +3,15 @@ package legacy
 import (
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/trace"
-
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
 // NewTDPMFAPrompt constructs an mfa.PromptFunc that handles the MFA ceremony

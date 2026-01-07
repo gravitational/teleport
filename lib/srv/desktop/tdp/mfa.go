@@ -5,9 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/trace"
 )
 
 var (
