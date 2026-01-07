@@ -180,6 +180,17 @@ func (m *fakeClient) Converse(
 	default:
 		systemPrompt := params.System[0].(*bedrocktypes.SystemContentBlockMemberText).Value
 
+		// Handle structured responses for command analysis.
+		if strings.Contains(systemPrompt, "analyzing a single command from a session recording") {
+			return handleBedrockCommandAnalysis(content)
+		}
+
+		// Handle structured responses for session analysis.
+		if strings.Contains(systemPrompt, "preparing a summary") && strings.Contains(systemPrompt, "terminal session") {
+			return handleBedrockSessionAnalysis(content)
+		}
+
+		// Handle simple summarization (legacy path).
 		var responsePrefix string
 		switch {
 		case strings.Contains(systemPrompt, "Analyze this terminal session"):
@@ -203,4 +214,86 @@ func (m *fakeClient) Converse(
 			StopReason: bedrocktypes.StopReasonEndTurn,
 		}, nil
 	}
+}
+
+func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutput, error) {
+	// Check for error trigger in content.
+	if strings.Contains(content, "trigger enhanced error") {
+		return nil, &smithy.OperationError{
+			ServiceID:     "Bedrock Runtime",
+			OperationName: "Converse",
+			Err:           &smithy.GenericAPIError{Code: "enhanced_error", Message: "enhanced command analysis error"},
+		}
+	}
+
+	ca := &schema.CommandAnalysis{
+		Command:          "test-command",
+		RiskLevel:        "low",
+		RiskScore:        10,
+		Category:         "other",
+		TimelineTitle:    "Executed test command",
+		TimelineSubtitle: "",
+		ShortDescription: "Test command executed",
+		Description:      "A test command was executed during the session.",
+		ThreatCategory:   "none",
+		Success:          true,
+	}
+
+	jsonStr, err := json.Marshal(ca)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bedrockruntime.ConverseOutput{
+		Output: &bedrocktypes.ConverseOutputMemberMessage{
+			Value: bedrocktypes.Message{
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{
+						Value: string(jsonStr),
+					},
+				},
+			},
+		},
+		StopReason: bedrocktypes.StopReasonEndTurn,
+	}, nil
+}
+
+func handleBedrockSessionAnalysis(content string) (*bedrockruntime.ConverseOutput, error) {
+	// Check for error trigger in content.
+	if strings.Contains(content, "trigger enhanced error") {
+		return nil, &smithy.OperationError{
+			ServiceID:     "Bedrock Runtime",
+			OperationName: "Converse",
+			Err:           &smithy.GenericAPIError{Code: "enhanced_error", Message: "enhanced session analysis error"},
+		}
+	}
+
+	sa := &schema.SessionAnalysis{
+		ShortDescription:     "Test session with commands",
+		SessionDescription:   "The user executed test commands during this session.",
+		SuspiciousActivities: []string{},
+		SecurityIncidents:    []string{},
+		CompromiseIndicators: false,
+		RiskLevel:            "low",
+		RiskScore:            15,
+		TooLarge:             false,
+	}
+
+	jsonStr, err := json.Marshal(sa)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bedrockruntime.ConverseOutput{
+		Output: &bedrocktypes.ConverseOutputMemberMessage{
+			Value: bedrocktypes.Message{
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{
+						Value: string(jsonStr),
+					},
+				},
+			},
+		},
+		StopReason: bedrocktypes.StopReasonEndTurn,
+	}, nil
 }

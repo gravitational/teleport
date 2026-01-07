@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +34,7 @@ import (
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	summopenai "github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -266,6 +268,19 @@ func (m fakeOpenAIClient) NewChatCompletion(
 	m.clock.Advance(10 * time.Second)
 
 	systemPrompt := body.Messages[0].OfSystem.Content.OfString.Value
+	content := body.Messages[1].OfUser.Content.OfString.Value
+
+	// Handle structured responses for command analysis.
+	if strings.Contains(systemPrompt, "analyzing a single command from a session recording") {
+		return m.handleCommandAnalysis(content)
+	}
+
+	// Handle structured responses for session analysis.
+	if strings.Contains(systemPrompt, "You are preparing a summary") {
+		return m.handleSessionAnalysis(content)
+	}
+
+	// Handle simple summarization.
 	var responsePrefix string
 	switch {
 	case strings.Contains(systemPrompt, "Analyze this terminal session"):
@@ -273,10 +288,9 @@ func (m fakeOpenAIClient) NewChatCompletion(
 	case strings.Contains(systemPrompt, "Analyze this database session"):
 		responsePrefix = "The user queried: "
 	default:
-		return nil, errors.New("Unrecognized prompt")
+		return nil, errors.New("unrecognized prompt")
 	}
 
-	content := body.Messages[1].OfUser.Content.OfString.Value
 	switch content {
 	case "cause an error":
 		return nil, errors.New("OpenAI error")
@@ -301,6 +315,66 @@ func (m fakeOpenAIClient) NewChatCompletion(
 			}},
 		}, nil
 	}
+}
+
+func (m fakeOpenAIClient) handleCommandAnalysis(content string) (*openai.ChatCompletion, error) {
+	if strings.Contains(content, "trigger enhanced error") {
+		return nil, errors.New("enhanced command analysis error")
+	}
+
+	response := schema.CommandAnalysis{
+		Command:          "test-command",
+		Category:         "other",
+		Success:          true,
+		RiskLevel:        "low",
+		RiskScore:        10,
+		ThreatCategory:   "none",
+		TimelineTitle:    "Executed test command",
+		ShortDescription: "Test command executed",
+		Description:      "A test command was executed during the session.",
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &openai.ChatCompletion{
+		Choices: []openai.ChatCompletionChoice{{
+			Message: openai.ChatCompletionMessage{
+				Content: string(resp),
+			},
+			FinishReason: "stop",
+		}},
+	}, nil
+}
+
+func (m fakeOpenAIClient) handleSessionAnalysis(content string) (*openai.ChatCompletion, error) {
+	if strings.Contains(content, "trigger enhanced error") {
+		return nil, errors.New("enhanced session analysis error")
+	}
+
+	response := schema.SessionAnalysis{
+		ShortDescription:      "Test session with commands",
+		SessionDescription:    "The user executed test commands during this session.",
+		NotableCommandIndexes: []int{0},
+		RiskLevel:             "low",
+		RiskScore:             15,
+	}
+
+	resp, err := json.Marshal(response)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &openai.ChatCompletion{
+		Choices: []openai.ChatCompletionChoice{{
+			Message: openai.ChatCompletionMessage{
+				Content: string(resp),
+			},
+			FinishReason: "stop",
+		}},
+	}, nil
 }
 
 func waitForSummary(
@@ -682,6 +756,79 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 		summary,
 		protocmp.Transform(),
 	))
+}
+
+func TestSummarizerEnhancedSession(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:      eventstest.NewMemoryUploader(),
+		enableBedrock: true,
+	})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+	createSummarizerConfig(t, ctx, sclt)
+
+	ingestEnhancedSession := func(t *testing.T, clusterName, command string) *summarizerv1pb.Summary {
+		ctx := t.Context()
+		sessionID := uuid.NewString()
+		sessEvents := generateEnhancedTestSession(clusterName, "alice", sessionID, command)
+
+		stream, err := srv.Auth().CreateAuditStream(ctx, session.ID(sessionID))
+		require.NoError(t, err)
+		for _, event := range sessEvents {
+			require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
+		}
+		require.NoError(t, stream.Complete(ctx))
+
+		return waitForSummary(t, ctx, sclt, sessionID)
+	}
+
+	for _, providerName := range []string{"openai", "bedrock"} {
+		t.Run(providerName+" provider success", func(t *testing.T) {
+			summary := ingestEnhancedSession(t, providerName+"-cluster", "ls -la")
+
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
+			require.Equal(t, providerName+"-model", summary.ModelName)
+			require.Empty(t, summary.Content)
+			require.NotNil(t, summary.EnhancedSummary)
+			require.Equal(t, "Test session with commands", summary.EnhancedSummary.ShortDescription)
+			require.Equal(t, summarizerv1pb.RiskLevel_RISK_LEVEL_LOW, summary.EnhancedSummary.RiskLevel)
+		})
+
+		t.Run(providerName+" provider error", func(t *testing.T) {
+			summary := ingestEnhancedSession(t, providerName+"-cluster", "trigger enhanced error")
+
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR, summary.State)
+			require.Equal(t, providerName+"-model", summary.ModelName)
+			require.Contains(t, summary.ErrorMessage, "enhanced command analysis error")
+			require.Empty(t, summary.Content)
+			require.Nil(t, summary.EnhancedSummary)
+		})
+	}
+}
+
+// generateEnhancedTestSession creates session events with bracketed paste mode
+// escape sequences to trigger the enhanced summarization path.
+func generateEnhancedTestSession(clusterName, userName, sessionID, command string) []apievents.AuditEvent {
+	params := eventstest.SessionParams{
+		ClusterName: clusterName,
+		UserName:    userName,
+		SessionID:   sessionID,
+		ServerID:    "9d68b09f-8c0c-49a3-b54d-f8791f0c3941",
+		PrintData: []string{
+			"\x1b[?2004h",         // Enable bracketed paste mode
+			command,               // Command input
+			"\x1b[?2004l",         // Disable bracketed paste mode
+			"\r\n",                // Enter key
+			"total 0\ndrwxr-xr-x", // Command output
+		},
+	}
+	return eventstest.GenerateTestSession(params)
 }
 
 // encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex

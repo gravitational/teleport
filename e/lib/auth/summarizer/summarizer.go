@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -37,11 +39,9 @@ import (
 )
 
 const (
-	defaultTimeout = 180 * time.Second
-	// Maximum number of concurrent summarization jobs. Currently estimated from
-	// the lowest OpenAI tier, which is 500 RPM. Assuming about 30s per request,
-	// this gives maximum concurrency of 250; we arbitrarily dial it down to 150.
-	concurrencyLimit = 150
+	defaultTimeout = 10 * time.Minute
+	// Maximum number of concurrent summarization jobs.
+	concurrencyLimit = 25
 	// Number of workers in the worker pool for summarization.
 	workerCount = 10
 )
@@ -159,6 +159,17 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	}, nil
 }
 
+// sessionDetails contains details about the session to be summarized,
+// including any pending summarization result.
+type sessionDetails struct {
+	sessionID session.ID
+	username  string
+	loginName string
+	kind      types.SessionKind
+	summary   *summarizerv1pb.Summary
+	provider  InferenceProvider
+}
+
 // TODO(bl-nero): rename SummarizeSSH to SummarizePTYSession.
 
 // SummarizeSSH summarizes the SSH (or kubectl exec) session recording
@@ -169,7 +180,9 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 	}
 
 	sessionID := session.ID(sessionEndEvent.SessionID)
-	userName := sessionEndEvent.User
+	username := sessionEndEvent.User
+	loginName := sessionEndEvent.Login
+
 	var kind types.SessionKind
 	switch sessionEndEvent.Protocol {
 	case events.EventProtocolSSH:
@@ -180,11 +193,28 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 		return trace.BadParameter("unsupported session protocol %s", sessionEndEvent.Protocol)
 	}
 
+	start := time.Now()
 	s.logger.DebugContext(
-		ctx, "Summarizing session", "session_id", sessionID, "user", userName, "kind", kind,
+		ctx, "Starting session summarization", "session_id", sessionID, "user", username, "kind", kind,
 	)
 
-	return trace.Wrap(s.summarize(ctx, sessionID, kind, sessionEndEvent, userName))
+	details := sessionDetails{
+		sessionID: sessionID,
+		username:  username,
+		loginName: loginName,
+		kind:      kind,
+	}
+
+	if err := s.summarize(ctx, details, sessionEndEvent); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.logger.DebugContext(
+		ctx, "Completed session summarization", "session_id", sessionID, "user", username,
+		"duration", time.Since(start).String(),
+	)
+
+	return nil
 }
 
 // SummarizeDatabase summarizes the database session recording associated with
@@ -195,33 +225,33 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 	}
 
 	sessionID := session.ID(sessionEndEvent.SessionID)
-	userName := sessionEndEvent.User
+	username := sessionEndEvent.User
 	kind := types.DatabaseSessionKind
 
 	s.logger.DebugContext(
-		ctx, "Summarizing a database session", "session_id", sessionID, "user", userName,
+		ctx, "Summarizing a database session", "session_id", sessionID, "user", username,
 	)
 
-	return trace.Wrap(s.summarize(ctx, sessionID, kind, sessionEndEvent, userName))
+	details := sessionDetails{
+		sessionID: sessionID,
+		username:  username,
+		kind:      kind,
+	}
+
+	return trace.Wrap(s.summarize(ctx, details, sessionEndEvent))
 }
 
 // summarize picks the appropriate inference provider and launches a
 // summarization goroutine.
-func (s *SessionSummarizer) summarize(
-	ctx context.Context,
-	sessionID session.ID,
-	kind types.SessionKind,
-	sessionEndEvent apievents.AuditEvent,
-	userName string,
-) error {
-	var systemPrompt string
-	switch kind {
-	case types.SSHSessionKind, types.KubernetesSessionKind:
-		systemPrompt = prompts.SSHPrompt
-	case types.DatabaseSessionKind:
-		systemPrompt = prompts.DatabasePrompt
-	default:
-		return trace.BadParameter("unsupported session kind: %v", kind)
+func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails, sessionEndEvent apievents.AuditEvent) error {
+	var supportedSessionKinds = [3]types.SessionKind{
+		types.SSHSessionKind,
+		types.KubernetesSessionKind,
+		types.DatabaseSessionKind,
+	}
+
+	if !slices.Contains(supportedSessionKinds[:], details.kind) {
+		return trace.BadParameter("unsupported session kind: %v", details.kind)
 	}
 
 	user, err := buildUserFromEvent(sessionEndEvent)
@@ -234,7 +264,7 @@ func (s *SessionSummarizer) summarize(
 	}
 	matchingCtx.ExtendWithSessionEnd(sessionEndEvent)
 
-	policy, err := s.matchPolicy(ctx, kind, matchingCtx)
+	policy, err := s.matchPolicy(ctx, details.kind, matchingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -242,12 +272,12 @@ func (s *SessionSummarizer) summarize(
 	if policy == nil {
 		s.logger.DebugContext(ctx,
 			"No matching summary inference policy found, session will not be summarized",
-			"session_id", sessionID,
+			"session_id", details.sessionID,
 		)
 		return nil
 	}
 	s.logger.DebugContext(
-		ctx, "Matched summary inference policy", "session_id", sessionID, "policy", policy.Metadata.Name,
+		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.Metadata.Name,
 	)
 
 	endEventFields, err := events.ToEventFields(sessionEndEvent)
@@ -264,20 +294,21 @@ func (s *SessionSummarizer) summarize(
 		return trace.Wrap(err)
 	}
 
-	pendingResult := &summarizerv1pb.Summary{
-		SessionId:          sessionID.String(),
+	details.provider = provider
+	details.summary = &summarizerv1pb.Summary{
+		SessionId:          details.sessionID.String(),
 		State:              summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING,
 		InferenceStartedAt: timestamppb.New(s.clock.Now().UTC()),
 		ModelName:          policy.Spec.Model,
 		SessionEndEvent:    endEventStruct,
 	}
 
-	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(pendingResult)
+	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(details.summary)
 	if err != nil {
 		return trace.Wrap(err, "failed to marshal pending summary result")
 	}
 	s.logger.DebugContext(ctx, "Uploading pending session summary")
-	_, err = s.summaryUploader.UploadPendingSummary(ctx, sessionID, bytes.NewReader(rBytes))
+	_, err = s.summaryUploader.UploadPendingSummary(ctx, details.sessionID, bytes.NewReader(rBytes))
 	if err != nil {
 		return trace.Wrap(err, "failed to upload pending summary result")
 	}
@@ -287,22 +318,16 @@ func (s *SessionSummarizer) summarize(
 	// wildly inconsistent behavior when overwriting existing files, so we can
 	// only save the terminal state. Fix this and then enable the pending state.
 
-	go s.summarizeNowAndReportMetrics(ctx, sessionID, provider, systemPrompt, pendingResult)
+	go s.summarizeNowAndReportMetrics(ctx, details)
 	return nil
 }
 
-func (s *SessionSummarizer) summarizeNowAndReportMetrics(
-	ctx context.Context,
-	sessionID session.ID,
-	provider InferenceProvider,
-	systemPrompt string,
-	pendingResult *summarizerv1pb.Summary,
-) {
-	metrics.SummarizationsTotal.WithLabelValues(pendingResult.ModelName).Inc()
-	err := s.summarizeNow(ctx, sessionID, provider, systemPrompt, pendingResult)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", sessionID, "error", err)
-		metrics.SummarizationErrors.WithLabelValues(pendingResult.ModelName).Inc()
+func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, details sessionDetails) {
+	metrics.SummarizationsTotal.WithLabelValues(details.summary.ModelName).Inc()
+
+	if err := s.summarizeNow(ctx, details); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", details.sessionID, "kind", details.kind, "error", err)
+		metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
 	}
 }
 
@@ -315,76 +340,143 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(
 // The provided context is only used to create a new one with appropriate
 // timeout and can be canceled at any time without affecting the summarization
 // process.
-func (s *SessionSummarizer) summarizeNow(
-	ctx context.Context,
-	sessionID session.ID,
-	provider InferenceProvider,
-	systemPrompt string,
-	pendingResult *summarizerv1pb.Summary,
-) error {
+func (s *SessionSummarizer) summarizeNow(ctx context.Context, details sessionDetails) error {
 	// TODO(bl-nero): Make the timeout configurable, or at least depend on the
 	// provider.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultTimeout)
 	defer cancel()
 
 	// Clone the pending result to avoid modifying the original one.
-	result := proto.CloneOf(pendingResult)
+	result := proto.CloneOf(details.summary)
 
-	log := s.logger.With("session_id", sessionID)
-	reader := newSessionReader(ctx, s.streamer, sessionID)
-	defer reader.Close()
+	log := s.logger.With("session_id", details.sessionID)
 
-	metrics.SummarizationsPending.WithLabelValues(pendingResult.ModelName).Inc()
+	modelName := details.summary.ModelName
+
+	metrics.SummarizationsPending.WithLabelValues(modelName).Inc()
 	// sumErr is a summarization error that can be saved into the summary state
 	// and needs to be returned regardless of the state of other operations.
 	sumErr := s.concurrencyLimiter.Acquire(ctx, 1)
-	metrics.SummarizationsPending.WithLabelValues(pendingResult.ModelName).Dec()
-	metrics.SummarizationsRunning.WithLabelValues(pendingResult.ModelName).Inc()
-	defer metrics.SummarizationsRunning.WithLabelValues(pendingResult.ModelName).Dec()
+	metrics.SummarizationsPending.WithLabelValues(modelName).Dec()
+
 	if sumErr != nil {
 		sumErr = trace.Wrap(sumErr, "Failed to acquire the concurrency limiter semaphore")
-		// log.ErrorContext(ctx, "Failed to acquire the concurrency limiter semaphore", "error", sumErr)
 		result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
 		result.ErrorMessage = sumErr.Error()
 	} else {
+		metrics.SummarizationsRunning.WithLabelValues(modelName).Inc()
+
+		defer metrics.SummarizationsRunning.WithLabelValues(modelName).Dec()
 		defer s.concurrencyLimiter.Release(1)
-		var summaryContent string // Need to declare it here to prevent shadowing sumErr
-		summaryContent, sumErr = provider.Summarize(ctx, sessionID, systemPrompt, reader)
-		if sumErr != nil {
-			sumErr = trace.Wrap(sumErr)
-			// log.ErrorContext(ctx, "Failed to summarize session", "error", sumErr)
+
+		switch details.kind {
+		case types.SSHSessionKind:
+			sumErr = s.summarizeSession(ctx, log, result, details)
+		case types.DatabaseSessionKind, types.KubernetesSessionKind:
+			sumErr = s.summarizeSimple(ctx, log, result, details)
+		// This should be unreachable due to checks in the caller.
+		default:
+			sumErr = trace.BadParameter("unsupported session kind: %v", details.kind)
 			result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
 			result.ErrorMessage = sumErr.Error()
-		} else {
-			result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
-			result.Content = summaryContent
 		}
 	}
 
 	result.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
+
+	return s.uploadSummary(ctx, log, details.sessionID, result, sumErr)
+}
+
+// summarizeSession performs the actual summarization of the session recording.
+// It chooses between simple summarization and command analysis based on the
+// session kind, and if SSH, whether the session contains bracketed paste sequences.
+func (s *SessionSummarizer) summarizeSession(
+	ctx context.Context,
+	log *slog.Logger,
+	result *summarizerv1pb.Summary,
+	details sessionDetails,
+) error {
+	eventsCh, errCh := s.streamer.StreamSessionEvents(ctx, details.sessionID, 0)
+	stream, err := ttyterminal.StreamTTYRecording(ctx, eventsCh, errCh)
+	if err != nil {
+		return handleError(ctx, log, result, err, "Failed to create session recording stream")
+	}
+
+	closeOnce := sync.OnceValue(stream.Close)
+	defer closeOnce()
+
+	if !stream.HasCommands() {
+		return s.summarizeSimple(ctx, log, result, details)
+	}
+
+	analysis, commands, err := analyzeSessionCommands(ctx, details.sessionID, details.provider, s.pool, stream.Commands(), details.username, details.loginName)
+	if err != nil {
+		return handleError(ctx, log, result, err, "Failed to analyze session commands")
+	}
+
+	if err := closeOnce(); err != nil {
+		return handleError(ctx, log, result, err, "Failed to process session recording stream")
+	}
+
+	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
+	result.EnhancedSummary = schema.SessionAnalysisToProto(analysis, commands)
+
+	return nil
+}
+
+// summarizeSimple performs a simple summarization of the session without
+// command analysis. This is used for non-SSH sessions or SSH sessions that
+// don't have bracketed paste sequences.
+func (s *SessionSummarizer) summarizeSimple(
+	ctx context.Context,
+	log *slog.Logger,
+	result *summarizerv1pb.Summary,
+	details sessionDetails,
+) error {
+	reader := newSessionReader(ctx, s.streamer, details.sessionID)
+	defer reader.Close()
+
+	var systemPrompt string
+	switch details.kind {
+	case types.SSHSessionKind, types.KubernetesSessionKind:
+		systemPrompt = prompts.SSHPrompt
+	case types.DatabaseSessionKind:
+		systemPrompt = prompts.DatabasePrompt
+	// This should be unreachable due to checks in the caller.
+	default:
+		return handleError(ctx, log, result, trace.BadParameter("unsupported session kind: %v", details.kind), "Failed to summarize session")
+	}
+
+	content, err := details.provider.Summarize(ctx, details.sessionID, systemPrompt, reader)
+	if err != nil {
+		return handleError(ctx, log, result, err, "Failed to summarize session")
+	}
+
+	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
+	result.Content = content
+
+	return nil
+}
+
+func (s *SessionSummarizer) uploadSummary(
+	ctx context.Context,
+	log *slog.Logger,
+	sessionID session.ID,
+	result *summarizerv1pb.Summary,
+	sumErr error,
+) error {
 	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
 	if err != nil {
 		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to marshal summary result"))
 	}
 
 	if s.encrypter != nil {
-		writeBuffer := bytes.NewBuffer(nil)
-		encryptedWriter, err := s.encrypter.WithEncryption(ctx, &nopCloser{writeBuffer})
-		switch {
-		case err == nil:
-			_, err = encryptedWriter.Write(rBytes)
-			if err != nil {
-				_ = encryptedWriter.Close()
-				return trace.Wrap(err)
-			}
-			if err := encryptedWriter.Close(); err != nil {
-				return trace.Wrap(err)
-			}
-			rBytes = writeBuffer.Bytes()
-		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
-			// if encryption isn't enabled, do nothing
-		default:
-			return trace.Wrap(err, "starting recording encrypter")
+		encrypted, err := s.encryptBytes(ctx, rBytes)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(encrypted) > 0 {
+			rBytes = encrypted
 		}
 	}
 
@@ -396,6 +488,42 @@ func (s *SessionSummarizer) summarizeNow(
 
 	log.DebugContext(ctx, "Session summary uploaded", "path", path)
 	return sumErr
+}
+
+func (s *SessionSummarizer) encryptBytes(ctx context.Context, data []byte) ([]byte, error) {
+	buf := bytes.NewBuffer(nil)
+	w, err := s.encrypter.WithEncryption(ctx, &nopCloser{buf})
+	if errors.Is(err, recordingencryption.ErrEncryptionDisabled) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "starting recording encrypter")
+	}
+	if _, err = w.Write(data); err != nil {
+		_ = w.Close()
+		return nil, trace.Wrap(err)
+	}
+	if err := w.Close(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func handleError(
+	ctx context.Context,
+	log *slog.Logger,
+	result *summarizerv1pb.Summary,
+	err error,
+	msg string,
+) error {
+	err = trace.Wrap(err)
+	//nolint:sloglint // msg is not a string literal or constant
+	log.ErrorContext(ctx, msg, "error", err)
+
+	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
+	result.ErrorMessage = err.Error()
+
+	return err
 }
 
 type nopCloser struct {
