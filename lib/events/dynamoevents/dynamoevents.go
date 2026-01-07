@@ -1624,21 +1624,19 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		// create a checkpoint from the last processed event.
 		// This overrides LastEvaluatedKey to resume processing from this checkpoint.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			if len(out) > 0 {
-				lastEvent := out[len(out)-1]
-				iterator, err := lastEvent.toIterator()
-				if err != nil {
-					return nil, false, trace.Wrap(err)
-				}
-
-				// If we stopped because of the size limit, we know that at least one event has to be fetched from the
-				// current date, so we must set it to true independently of the hasLeftFun.
-				l.checkpoint.Iterator = iterator
-				l.hasLeft = true
-
-				l.log.DebugContext(context.Background(), "fetcher's total size exceeds response size limit (sub-page break), creating new checkpoint", "iterator", iterator)
-				return out, true, nil
+			lastEvent := out[len(out)-1]
+			iterator, err := lastEvent.toIterator()
+			if err != nil {
+				return nil, false, trace.Wrap(err)
 			}
+
+			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
+			// current date, so we must set it to true independently of the hasLeftFun.
+			l.checkpoint.Iterator = iterator
+			l.hasLeft = true
+
+			l.log.DebugContext(context.Background(), "fetcher's total size exceeds response size limit (sub-page break), creating new checkpoint", "iterator", iterator)
+			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
