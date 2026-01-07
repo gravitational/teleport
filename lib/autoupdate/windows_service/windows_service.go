@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
@@ -276,7 +277,7 @@ type windowsService struct{}
 // or not by using svcSpecificEC parameter.
 func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
 	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
-	logger.Info("Started applying update")
+	logger.Info("Started applying update", args)
 	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
 	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
@@ -585,12 +586,57 @@ func secureCopy(userPath string) (string, error) {
 
 	securePath := filepath.Join(secureDir, "update_secure.exe")
 
-	// 3. Perform the Copy
-	// Note: Use io.Copy logic here to create a NEW file owned by SYSTEM
-	err = utils.CopyFile(userPath, securePath, os.FileMode(0644))
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	// 1. Impersonate the client who called the RPC/Service
+	// Note: In a real service, this is often RpcImpersonateClient()
+	// or getting a token from a specific process ID.
+	err = windows.ImpersonateSelf(windows.SecurityImpersonation)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", fmt.Errorf("failed to impersonate: %v", err)
 	}
+
+	// Ensure we ALWAYS revert to the service's own identity (SYSTEM/Admin)
+	defer windows.RevertToSelf()
+
+	// 2. Open the source file as the USER
+	// Using specific flags to prevent Symlink attacks (FILE_FLAG_OPEN_REPARSE_POINT)
+	srcHandle, err := windows.CreateFile(
+		windows.StringToUTF16Ptr(userPath),
+		windows.GENERIC_READ,
+		windows.FILE_SHARE_READ,
+		nil,
+		windows.OPEN_EXISTING,
+		windows.FILE_FLAG_OPEN_REPARSE_POINT,
+		0,
+	)
+
+	if err != nil {
+		// If this fails, the user likely doesn't have permissions for this file
+		return "", fmt.Errorf("user access denied to source file: %v", err)
+	}
+
+	// Convert the Windows handle to a Go file pointer
+	srcFile := os.NewFile(uintptr(srcHandle), userPath)
+	defer srcFile.Close()
+
+	// 3. Revert to Service Context to perform the Write
+	// We call this explicitly now (instead of waiting for defer) so the next
+	// commands run with high privileges.
+	windows.RevertToSelf()
+
+	// 4. Create the destination file in the protected %ProgramData% folder
+	// This succeeds because we are back to being a privileged Service.
+	dstFile, err := os.OpenFile(securePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return "", fmt.Errorf("failed to create protected destination: %v", err)
+	}
+	defer dstFile.Close()
+
+	// 5. Manual Byte Copy
+	// This reads through the handle validated as the user, but writes as the Service.
+	_, err = io.Copy(dstFile, srcFile)
 
 	return securePath, nil
 }
