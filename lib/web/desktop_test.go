@@ -413,7 +413,7 @@ func TestDesktopWebsocketAdapter(t *testing.T) {
 	tdpAlert, err := legacy.Alert{Message: "tdp!", Severity: legacy.SeverityWarning}.Encode()
 	require.NoError(t, err)
 
-	tdpbAlert, err := ((*tdpb.Alert)(&tdpb.Alert{Message: "tdpb!", Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING})).Encode()
+	tdpbAlert, err := (&tdpb.Alert{Message: "tdpb!", Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}).Encode()
 	require.NoError(t, err)
 	// Send a TDP message followed by TDPB
 	require.NoError(t, test.WriteMessage(websocket.BinaryMessage, tdpAlert))
