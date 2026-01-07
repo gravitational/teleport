@@ -216,13 +216,13 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err, "registering prometheus collectors")
 	}
 
+	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if cfg.EventsCertReloadInterval != 0 {
-		if err := pgcommon.CreateClientCertReloader(ctx,
-			"pgevents",
-			cfg.PoolConfig.ConnString(),
-			cfg.PoolConfig.ConnConfig,
-			cfg.EventsCertReloadInterval,
-			nil); err != nil {
+		err := pgcommon.CreateClientCertReloader(ctx, "pgevents", cfg.PoolConfig.ConnString(), cfg.PoolConfig.ConnConfig, cfg.EventsCertReloadInterval, nil)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

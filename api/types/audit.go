@@ -78,8 +78,8 @@ type ClusterAuditConfig interface {
 	RetentionPeriod() *Duration
 	// Clone performs a deep copy.
 	Clone() ClusterAuditConfig
-	// CertRotationInterval gives the reload duration for certificate auth
-	CertRotationInterval() Duration
+	// CertReloadInterval gives the reload duration for certificate auth
+	CertReloadInterval() Duration
 }
 
 // NewClusterAuditConfig is a convenience method to to create ClusterAuditConfigV2.
@@ -259,7 +259,7 @@ func (c *ClusterAuditConfigV2) Clone() ClusterAuditConfig {
 	return utils.CloneProtoMsg(c)
 }
 
-func (c *ClusterAuditConfigV2) CertRotationInterval() Duration {
+func (c *ClusterAuditConfigV2) CertReloadInterval() Duration {
 	return c.Spec.CertReloadInterval
 }
 
