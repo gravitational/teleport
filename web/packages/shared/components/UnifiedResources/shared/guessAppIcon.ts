@@ -45,7 +45,9 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   };
 
   if (awsConsole) {
-    if (match('quicksight', app)) return 'awsquicksight';
+    if (match('quick', app) && (
+      match('sight', app) || match('suite', app)
+    )) return 'awsquicksight';
     return 'awsidentityandaccessmanagementiam';
   }
   if (subKind === AppSubKind.AwsIcAccount) {
