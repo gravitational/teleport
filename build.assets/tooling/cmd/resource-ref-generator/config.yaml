@@ -68,6 +68,10 @@ resources:
     package: github.com/gravitational/teleport/api/types
     yaml_kind: saml_idp_service_provider
     yaml_version: v1
+  - type: ServerV2
+    package: github.com/gravitational/teleport/api/types
+    yaml_kind: node
+    yaml_version: v2
 
 camel_case_exceptions:
   - AWS
@@ -77,6 +81,7 @@ camel_case_exceptions:
   - EKS
   - ElastiCache
   - GCP
+  - GitHub
   - HTTP
   - IAM
   - ID
