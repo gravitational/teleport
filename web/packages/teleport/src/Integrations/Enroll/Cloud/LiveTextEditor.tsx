@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Component, createRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import TextEditor from 'shared/components/TextEditor';
 
@@ -27,22 +27,18 @@ type LiveTextEditorProps = Omit<
   data: [{ content: string; type?: 'terraform' | 'json' | 'yaml' }];
 };
 
-export default class LiveTextEditor extends Component<LiveTextEditorProps> {
-  private editorRef = createRef<TextEditor>();
+export default function LiveTextEditor(props: LiveTextEditorProps) {
+  const editorRef = useRef<TextEditor>(null);
 
-  componentDidUpdate(prevProps: LiveTextEditorProps) {
-    const prevContent = prevProps.data?.[0]?.content;
-    const currentContent = this.props.data?.[0]?.content;
-    const contentChanged = prevContent !== currentContent;
+  useEffect(() => {
+    const currentContent = props.data[0].content;
 
-    if (contentChanged && currentContent && this.editorRef.current?.editor) {
-      this.editorRef.current.setActiveSession(0);
-      this.editorRef.current.editor.session.setValue(currentContent);
-      this.editorRef.current.editor.session.getUndoManager().markClean();
+    if (currentContent && editorRef.current?.editor) {
+      editorRef.current.setActiveSession(0);
+      editorRef.current.editor.session.setValue(currentContent);
+      editorRef.current.editor.session.getUndoManager().markClean();
     }
-  }
+  }, [props.data[0].content]);
 
-  render() {
-    return <TextEditor ref={this.editorRef} readOnly={true} {...this.props} />;
-  }
+  return <TextEditor ref={editorRef} readOnly={true} {...props} />;
 }
