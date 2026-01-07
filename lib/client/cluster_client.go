@@ -804,7 +804,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	} else if err != nil {
 		// Check if we should use Browser MFA either because user explicitly requested it
-		// or as a fallback. This respects priority: WebAuthn > SSO > Browser MFA > OTP
+		// or as a fallback.
 		userPreferredBrowserMFA := errors.Is(err, libmfa.ErrBrowserMFAPreferred)
 
 		teleportClientAvailable := params.tc != nil
@@ -818,7 +818,6 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		}
 
 		// Get authentication settings, [Ping] returns cached response if available
-		// TODO: Ask scale team about scaling this call for auth preferences
 		params.tc.Ping(ctx)
 		browserMFAAvailable := params.tc.lastPing.Auth.AllowBrowserMFA
 
@@ -830,7 +829,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 				fmt.Fprintf(params.tc.Stderr, "Local MFA attempts failed, attempting Browser MFA\n")
 			}
 
-			result, browserErr := performBrowserMFA(ctx, params.tc, params.KeyRing)
+			result, browserErr := params.tc.browserMFA(ctx, params.KeyRing)
 			if browserErr != nil {
 				if userPreferredBrowserMFA {
 					return nil, trace.Wrap(browserErr, "failed to perform Browser MFA")
@@ -930,21 +929,5 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		KeyRing:             keyRing,
 		NewCerts:            newCerts,
 		ReusableMFAResponse: reusableMFAResponse,
-	}, nil
-}
-
-// performBrowserMFA attempts to perform Browser MFA authentication and returns the ceremony result.
-func performBrowserMFA(ctx context.Context, tc *TeleportClient, keyRing *KeyRing) (*PerformSessionMFACeremonyResult, error) {
-	certs, err := tc.BrowserMFALogin(ctx, keyRing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keyRing.Cert = certs.SSH
-	keyRing.TLSCert = certs.TLS
-
-	return &PerformSessionMFACeremonyResult{
-		KeyRing:  keyRing,
-		NewCerts: certs,
 	}, nil
 }
