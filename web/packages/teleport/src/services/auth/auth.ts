@@ -238,6 +238,7 @@ const auth = {
       return {
         clientIpAddress: json.client_ip_address,
         authType: json.type,
+        state: json.state,
       };
     });
   },

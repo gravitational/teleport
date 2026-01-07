@@ -38,11 +38,26 @@ export default function HeadlessRequestDialog({
   const isDisabled =
     browserIpAddress && !addressesMatch(ipAddress, browserIpAddress);
   
+  const approveButton = (
+    <ButtonPrimary
+      onClick={onAccept}
+      autoFocus
+      mr={3}
+      width="130px"
+      disabled={isDisabled}
+    >
+      Approve
+    </ButtonPrimary>
+  );
+
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
         <DialogTitle textAlign="center">
-          Host {ipAddress} has initiated a {action}
+          {ipAddress && action
+            ? `Host ${ipAddress} has initiated a ${action}`
+            : 'Headless Authentication Request'
+          }
         </DialogTitle>
       </DialogHeader>
       <DialogContent mb={6}>
@@ -77,25 +92,13 @@ export default function HeadlessRequestDialog({
         {!errorText && (
           <>
             {isDisabled ? (
-              <HoverTooltip tipContent={`The IP address of your browser (${browserIpAddress}) and the source of the headless request (${extractHost(ipAddress)}) don't match.`}>
-                <ButtonPrimary
-                  onClick={onAccept}
-                  autoFocus mr={3}
-                  width="130px"
-                  disabled={isDisabled}
-                >
-                  Approve
-                </ButtonPrimary>
+              <HoverTooltip
+                tipContent={`The IP address of your browser (${browserIpAddress}) and the source of the headless request (${extractHost(ipAddress)}) don't match.`}
+              >
+                {approveButton}
               </HoverTooltip>
             ) : (
-              <ButtonPrimary
-                onClick={onAccept}
-                autoFocus mr={3}
-                width="130px"
-                disabled={isDisabled}
-              >
-                Approve
-              </ButtonPrimary>
+              approveButton
             )}
             <ButtonSecondary onClick={onReject}>Reject</ButtonSecondary>
           </>
