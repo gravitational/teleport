@@ -67,25 +67,23 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 		return out
 	}
 
-	switch details.(type) {
+	switch d := details.(type) {
 	// AWS Console constraints variant
 	case *types.ResourceConstraints_AwsConsole:
-		aws := c.GetAwsConsole()
-		if aws == nil {
+		if d.AwsConsole == nil {
 			// If payload is missing treat as unknown/unsupported
 			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 			break
 		}
 
-		roleARNs := aws.RoleArns
+		roleARNs := d.AwsConsole.RoleArns
 		count := len(roleARNs)
-		preview, truncated := previewStrings(roleARNs, MaxAuditRoleARNPreview)
+		preview := previewStrings(roleARNs, MaxAuditRoleARNPreview)
 
 		out.Constraints = &ResourceAccessID_AwsConsole{
 			AwsConsole: &AWSConsoleConstraints{
-				RoleArnsCount:     uint32(count),
-				RoleArnsPreview:   preview,
-				RoleArnsTruncated: truncated,
+				RoleArnsCount:   uint32(count),
+				RoleArnsPreview: preview,
 			},
 		}
 	// Unknown/unsupported constraint variant
@@ -97,12 +95,12 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 }
 
 // previewStrings returns up to limit elements from in, and a truncation flag
-func previewStrings(in []string, limit int) (preview []string, truncated bool) {
+func previewStrings(in []string, limit int) []string {
 	if limit <= 0 || len(in) == 0 {
-		return nil, false
+		return nil
 	}
 	if len(in) <= limit {
-		return append([]string(nil), in...), false
+		return append([]string(nil), in...)
 	}
-	return append([]string(nil), in[:limit]...), false
+	return append([]string(nil), in[:limit]...)
 }
