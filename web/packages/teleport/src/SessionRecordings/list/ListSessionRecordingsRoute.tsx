@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import { type FallbackProps } from 'react-error-boundary';
 
 import { Danger } from 'design/Alert';
@@ -42,27 +48,22 @@ import { SessionSummariesCta } from 'teleport/SessionRecordings/list/SessionSumm
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
-import type { ActionSlot } from './RecordingItem';
+import type { RecordingActionProps } from './RecordingItem';
 import { RecordingsList } from './RecordingsList';
 import { useRecordingsListState, type RecordingsListFilterKey } from './state';
 
 interface ListSessionRecordingsRouteProps {
-  actionSlot?: ActionSlot;
-  headerSlot?: ReactNode;
+  actionComponent?: ComponentType<RecordingActionProps>;
+  headerElement?: ReactNode;
 }
 
 export function ListSessionRecordingsRoute() {
-  return (
-    <ListSessionRecordings
-      actionSlot={null}
-      headerSlot={<SessionSummariesCta />}
-    />
-  );
+  return <ListSessionRecordings headerElement={<SessionSummariesCta />} />;
 }
 
 export function ListSessionRecordings({
-  actionSlot,
-  headerSlot,
+  actionComponent,
+  headerElement,
 }: ListSessionRecordingsRouteProps) {
   const ranges = useMemo(() => getRangeOptions(), []);
 
@@ -117,7 +118,7 @@ export function ListSessionRecordings({
         <FeatureHeaderTitle mr="8">Session Recordings</FeatureHeaderTitle>
 
         <Flex alignItems="center" gap={3}>
-          {headerSlot}
+          {headerElement}
 
           <RangePicker
             ml="auto"
@@ -136,7 +137,7 @@ export function ListSessionRecordings({
           loadingComponent={RecordingsListLoading}
         >
           <RecordingsList
-            actionSlot={actionSlot}
+            actionComponent={actionComponent}
             onFilterChange={handleFilterChange}
             onPageChange={handlePageChange}
             onSearchChange={handleSearchChange}

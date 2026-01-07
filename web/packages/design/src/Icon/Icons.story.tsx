@@ -212,6 +212,7 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.SlidersVertical} text="SlidersVertical" />
     <IconBox IconCmpt={Icon.SortAscending} text="SortAscending" />
     <IconBox IconCmpt={Icon.SortDescending} text="SortDescending" />
+    <IconBox IconCmpt={Icon.Sparkle} text="Sparkle" />
     <IconBox IconCmpt={Icon.Speed} text="Speed" />
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
     <IconBox IconCmpt={Icon.SquaresFour} text="SquaresFour" />

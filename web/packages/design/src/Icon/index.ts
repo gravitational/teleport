@@ -201,6 +201,7 @@ export { Sliders } from './Icons/Sliders';
 export { SlidersVertical } from './Icons/SlidersVertical';
 export { SortAscending } from './Icons/SortAscending';
 export { SortDescending } from './Icons/SortDescending';
+export { Sparkle } from './Icons/Sparkle';
 export { Speed } from './Icons/Speed';
 export { Spinner } from './Icons/Spinner';
 export { SquaresFour } from './Icons/SquaresFour';
