@@ -83,6 +83,7 @@ import (
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -919,6 +920,11 @@ func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)
 }
 
+// InventoryServiceClient returns an unadorned client for the inventory service.
+func (c *Client) InventoryServiceClient() inventoryv1.InventoryServiceClient {
+	return inventoryv1.NewInventoryServiceClient(c.conn)
+}
+
 // NotificationServiceClient returns a notification service client that can be used to fetch notifications.
 func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServiceClient {
 	return notificationsv1pb.NewNotificationServiceClient(c.conn)
@@ -1699,11 +1705,12 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		}
 	}
 	resp, err := c.grpc.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
-		Username: req.Username,
-		Roles:    req.Roles,
-		Traits:   traits,
-		URI:      req.URI,
-		Expires:  req.Expires,
+		Username:      req.Username,
+		Roles:         req.Roles,
+		Traits:        traits,
+		URI:           req.URI,
+		Expires:       req.Expires,
+		AuthorityType: string(req.AuthorityType),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

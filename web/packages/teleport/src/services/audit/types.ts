@@ -364,6 +364,9 @@ export const eventCodes = {
   APPAUTHCONFIG_DELETE: 'TAAC003I',
   APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
   APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
+  VNET_CONFIG_CREATE: 'TVNET001I',
+  VNET_CONFIG_UPDATE: 'TVNET002I',
+  VNET_CONFIG_DELETE: 'TVNET003I',
 } as const;
 
 /**
@@ -2139,6 +2142,18 @@ export type RawEvents = {
       app_auth_config: string;
       error: string;
     }
+  >;
+  [eventCodes.VNET_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
   >;
 };
 

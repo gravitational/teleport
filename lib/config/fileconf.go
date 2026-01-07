@@ -503,9 +503,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string           `yaml:"token_name"`
-	Method    types.JoinMethod `yaml:"method"`
-	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName   string           `yaml:"token_name"`
+	TokenSecret string           `yaml:"token_secret,omitempty"`
+	Method      types.JoinMethod `yaml:"method"`
+	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -2807,6 +2808,9 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// Labels are static labels applied to all hosts discovered via
+	// this policy.
+	Labels map[string]string `yaml:"labels,omitempty"`
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in

@@ -379,9 +379,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if cfg.LDAPConfig.Enabled() {
 		var err error
 		sidCache, err = utils.NewFnCache(utils.FnCacheConfig{
-			TTL:     4 * time.Hour,
-			Clock:   cfg.Clock,
-			Context: ctx,
+			TTL:         4 * time.Hour,
+			Clock:       cfg.Clock,
+			Context:     ctx,
+			ReloadOnErr: true, // don't cache the error state
 		})
 		if err != nil {
 			close()
@@ -1286,7 +1287,6 @@ type generateCredentialsRequest struct {
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return winpki.GenerateWindowsDesktopCredentials(ctx, s.cfg.AuthClient, &winpki.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
 		PKIDomain:          s.cfg.PKIDomain,

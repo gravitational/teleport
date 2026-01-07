@@ -143,6 +143,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("token",
 		"Invitation token or path to file with token value. Used to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
+	start.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").
+		StringVar(&ccf.TokenSecret)
 	start.Flag("ca-pin",
 		"CA pin to validate the Auth Server (can be repeated for multiple pins)").
 		StringsVar(&ccf.CAPins)
@@ -617,6 +619,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
 	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
+	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
+	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")
 
 	selinuxCmd := app.Command("selinux-ssh", "Commands related to SSH SELinux module.").Hidden()
 	selinuxCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
@@ -810,6 +814,10 @@ Examples:
 		err = onGetLogLevel(ccf.ConfigFile)
 	case collectProfilesCmd.FullCommand():
 		err = onCollectProfiles(ccf.ConfigFile, ccf.Profiles, ccf.ProfileSeconds)
+	case readyzCmd.FullCommand():
+		err = onReadyz(ctx, ccf.ConfigFile)
+	case metricsCmd.FullCommand():
+		err = onMetrics(ctx, ccf.ConfigFile)
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break

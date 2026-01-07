@@ -577,6 +577,7 @@
     "grav",
     "groupclaim",
     "gserviceaccount",
+    "goexit",
     "gslb",
     "gsutil",
     "gworkspace",
@@ -1144,6 +1145,7 @@
     "**/includes/reference/code-blocks-no-cspell/**",
     "**/reference/infrastructure-as-code/operator-resources/**",
     "**/reference/infrastructure-as-code/teleport-resources/**",
-    "**/reference/infrastructure-as-code/terraform-provider/**"
+    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "../CHANGELOG.md"
   ]
 }

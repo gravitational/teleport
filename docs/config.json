@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.4.1",
+      "version": "18.6.2",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -202,7 +202,7 @@
     },
     {
       "source": "/enterprise/sso/google-workspace/",
-      "destination": "/zero-trust-access/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/integrate-idp/google-workspace/",
       "permanent": true
     },
     {
@@ -242,7 +242,7 @@
     },
     {
       "source": "/setup/admin/github-sso/",
-      "destination": "/zero-trust-access/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/integrate-idp/github-sso/",
       "permanent": true
     },
     {
@@ -897,7 +897,7 @@
     },
     {
       "source": "/reference/architecture/proxy-peering/",
-      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     },
     {
@@ -917,47 +917,47 @@
     },
     {
       "source": "/admin-guides/access-controls/sso/adfs/",
-      "destination": "/zero-trust-access/sso/adfs/",
+      "destination": "/zero-trust-access/sso/integrate-idp/adfs/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/azuread/",
-      "destination": "/zero-trust-access/sso/entra-id/",
+      "destination": "/zero-trust-access/sso/integrate-idp/entra-id/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/github-sso/",
-      "destination": "/zero-trust-access/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/integrate-idp/github-sso/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/gitlab/",
-      "destination": "/zero-trust-access/sso/gitlab/",
+      "destination": "/zero-trust-access/sso/integrate-idp/gitlab/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/google-workspace/",
-      "destination": "/zero-trust-access/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/integrate-idp/google-workspace/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/keycloak/",
-      "destination": "/zero-trust-access/sso/keycloak/",
+      "destination": "/zero-trust-access/sso/integrate-idp/keycloak/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/oidc/",
-      "destination": "/zero-trust-access/sso/oidc/",
+      "destination": "/zero-trust-access/sso/integrate-idp/oidc/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/okta/",
-      "destination": "/zero-trust-access/sso/okta/",
+      "destination": "/zero-trust-access/sso/integrate-idp/okta/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/sso/one-login/",
-      "destination": "/zero-trust-access/sso/one-login/",
+      "destination": "/zero-trust-access/sso/integrate-idp/one-login/",
       "permanent": true
     },
     {
@@ -1217,12 +1217,12 @@
     },
     {
       "source": "/admin-guides/access-controls/login-rules/guide/",
-      "destination": "/zero-trust-access/authentication/login-rules/guide/",
+      "destination": "/zero-trust-access/sso/login-rules/guide/",
       "permanent": true
     },
     {
       "source": "/admin-guides/access-controls/login-rules/",
-      "destination": "/zero-trust-access/authentication/login-rules/",
+      "destination": "/zero-trust-access/sso/login-rules/",
       "permanent": true
     },
     {
@@ -1327,7 +1327,7 @@
     },
     {
       "source": "/admin-guides/deploy-a-cluster/hsm/",
-      "destination": "/zero-trust-access/deploy-a-cluster/hsm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/hsm/",
       "permanent": true
     },
     {
@@ -1532,12 +1532,12 @@
     },
     {
       "source": "/admin-guides/management/operations/backup-restore/",
-      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/backup-restore/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/management/operations/breakglass-access/",
-      "destination": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/breakglass-access/",
       "permanent": true
     },
     {
@@ -1557,7 +1557,7 @@
     },
     {
       "source": "/admin-guides/management/operations/proxy-peering/",
-      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     },
     {
@@ -1682,12 +1682,12 @@
     },
     {
       "source": "/zero-trust-access/access-controls/login-rules/guide/",
-      "destination": "/zero-trust-access/authentication/login-rules/guide/",
+      "destination": "/zero-trust-access/sso/login-rules/guide/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/access-controls/login-rules/",
-      "destination": "/zero-trust-access/authentication/login-rules/",
+      "destination": "/zero-trust-access/sso/login-rules/",
       "permanent": true
     },
     {
@@ -1717,7 +1717,7 @@
     },
     {
       "source": "/zero-trust-access/sso/azuread/",
-      "destination": "/zero-trust-access/sso/entra-id/",
+      "destination": "/zero-trust-access/sso/integrate-idp/entra-id/",
       "permanent": true
     },
     {
@@ -2903,6 +2903,63 @@
     {
       "source": "/enroll-resources/application-access/introduction/",
       "destination": "/enroll-resources/application-access/",
+      "source": "/zero-trust-access/sso/adfs/",
+      "destination": "/zero-trust-access/sso/integrate-idp/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/entra-id-oidc/",
+      "destination": "/zero-trust-access/sso/integrate-idp/entra-id-oidc/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/entra-id/",
+      "destination": "/zero-trust-access/sso/integrate-idp/entra-id/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/github-sso/",
+      "destination": "/zero-trust-access/sso/integrate-idp/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/gitlab/",
+      "destination": "/zero-trust-access/sso/integrate-idp/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/google-workspace/",
+      "destination": "/zero-trust-access/sso/integrate-idp/google-workspace/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/keycloak/",
+      "destination": "/zero-trust-access/sso/integrate-idp/keycloak/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/oidc/",
+      "destination": "/zero-trust-access/sso/integrate-idp/oidc/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/okta/",
+      "destination": "/zero-trust-access/sso/integrate-idp/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/sso/one-login/",
+      "destination": "/zero-trust-access/sso/integrate-idp/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/authentication/login-rules/guide/",
+      "destination": "/zero-trust-access/sso/login-rules/guide/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/authentication/login-rules/",
+      "destination": "/zero-trust-access/sso/login-rules/",
       "permanent": true
     },
     {
@@ -3362,7 +3419,7 @@
     },
     {
       "source": "/zero-trust-access/management/operations/backup-restore/",
-      "destination": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/backup-restore/",
       "permanent": true
     },
     {
@@ -3372,7 +3429,7 @@
     },
     {
       "source": "/zero-trust-access/management/operations/proxy-peering/",
-      "destination": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     },
     {
@@ -3393,6 +3450,26 @@
     {
       "source": "/zero-trust-access/management/guides/",
       "destination": "/zero-trust-access/management/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/hsm/",
+      "destination": "/zero-trust-access/deploy-a-cluster/private-keys/hsm/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/backup-restore/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/backup-restore/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/breakglass-access/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/breakglass-access/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
+      "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
     }
   ]

@@ -1,0 +1,127 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "teleport/legacy/types/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// MFADevice is a multi-factor authentication device, such as a security key or
+// an OTP app.
+message MFADevice {
+  // Boilerplate for implementing the Resource interface.
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  Metadata metadata = 4 [(gogoproto.nullable) = false];
+
+  // ID is a UUID of this device.
+  string id = 5;
+
+  google.protobuf.Timestamp added_at = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp last_used = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+
+  oneof device {
+    TOTPDevice totp = 8;
+    U2FDevice u2f = 9;
+    WebauthnDevice webauthn = 10;
+    SSOMFADevice sso = 11;
+  }
+}
+
+// TOTPDevice holds the TOTP-specific fields of MFADevice.
+message TOTPDevice {
+  string key = 1;
+}
+
+// U2FDevice holds the U2F-specific fields of MFADevice.
+message U2FDevice {
+  // KeyHandle uniquely identifies a key on a device
+  bytes key_handle = 1;
+  // PubKey is an DER encoded ecdsa public key
+  bytes pub_key = 2;
+  // Counter is the latest seen value of the U2F usage counter.
+  uint32 counter = 3;
+}
+
+// WebauthnDevice holds Webauthn-specific fields of MFADevice.
+message WebauthnDevice {
+  // Credential ID for the authenticator.
+  bytes credential_id = 1;
+  // Public key encoded in CBOR format.
+  // Webauthn support various key algorithms; CBOR encoding is used to reflect
+  // those choices.
+  // See https://w3c.github.io/webauthn/#sctn-alg-identifier for a starter
+  // reference.
+  bytes public_key_cbor = 2;
+  // Attestation format used by the authenticator, if any.
+  string attestation_type = 3;
+  // AAGUID is the globally unique identifier of the authenticator model.
+  // Zeroed for U2F devices.
+  bytes aaguid = 4;
+  // Signature counter for login operations.
+  // Actual counter values received from the authenticator are expected to be
+  // higher than the previously-stored value.
+  uint32 signature_counter = 5;
+  // Raw attestation object, as returned by the authentication during
+  // registration.
+  // Absent for legacy entries (Teleport 8.x).
+  bytes attestation_object = 6;
+  // True if a resident key was requested during registration.
+  // Marks passwordless-capable devices.
+  // (Note that resident_key=true represents the server-side / Relying Party
+  // view of the registration process; the authenticator alone can determine
+  // if a key is truly resident.)
+  bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
+  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-be
+  google.protobuf.BoolValue credential_backup_eligible = 9;
+  // Authenticator Backup State (BS) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-bs
+  google.protobuf.BoolValue credential_backed_up = 10;
+}
+
+// SSOMFADevice contains details of an SSO MFA method.
+message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
+  string connector_id = 1;
+  // connector_type is the type of the SSO connector.
+  string connector_type = 2;
+  // display_name is the display name of the SSO connector
+  string display_name = 3;
+}

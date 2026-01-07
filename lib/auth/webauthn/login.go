@@ -78,7 +78,7 @@ func isReuseAllowedForScope(scope mfav1.ChallengeScope) bool {
 	}
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
+func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload) (*wantypes.CredentialAssertion, error) {
 	if challengeExtensions == nil {
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
@@ -205,6 +205,13 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 		Scope:                       challengeExtensions.Scope,
 		AllowReuse:                  challengeExtensions.AllowReuse,
 		UserVerificationRequirement: challengeExtensions.UserVerificationRequirement,
+	}
+
+	// Attach SIP if provided.
+	if sip != nil {
+		sd.Payload = &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: sip.GetSshSessionId(),
+		}
 	}
 
 	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {

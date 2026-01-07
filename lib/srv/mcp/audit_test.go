@@ -80,7 +80,7 @@ func Test_guessEgressAuthType(t *testing.T) {
 	}{
 		{
 			name:   "no header or rewrite",
-			expect: "unknown",
+			expect: egressAuthTypeUnknown,
 		},
 		{
 			name: "user defined",
@@ -93,7 +93,7 @@ func Test_guessEgressAuthType(t *testing.T) {
 					Value: "some-other-value",
 				}},
 			},
-			expect: "user-defined",
+			expect: egressAuthTypeUserDefined,
 		},
 		{
 			name: "app defined",
@@ -103,7 +103,7 @@ func Test_guessEgressAuthType(t *testing.T) {
 					Value: "Bearer abcdef",
 				}},
 			},
-			expect: "app-defined",
+			expect: egressAuthTypeAppDefined,
 		},
 		{
 			name: "app defined with Teleport JWT",
@@ -113,7 +113,17 @@ func Test_guessEgressAuthType(t *testing.T) {
 					Value: "Bearer {{internal.jwt}}",
 				}},
 			},
-			expect: "app-jwt",
+			expect: egressAuthTypeAppJWT,
+		},
+		{
+			name: "app defined with Teleport OIDC token",
+			inputRewrite: &types.Rewrite{
+				Headers: []*types.Header{{
+					Name:  "Authorization",
+					Value: "Bearer {{internal.id_token}}",
+				}},
+			},
+			expect: egressAuthTypeAppIDToken,
 		},
 	}
 	for _, tt := range tests {

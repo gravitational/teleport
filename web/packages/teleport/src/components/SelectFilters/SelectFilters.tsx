@@ -21,13 +21,13 @@ import { components } from 'react-select';
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
+import { makeLabelTag } from 'design/formatters';
 import { Add, Cross } from 'design/Icon';
 import Select, {
   ActionMeta,
   Option as BaseOption,
 } from 'shared/components/Select';
 
-import { makeLabelTag } from 'teleport/components/formatters';
 import { Filter } from 'teleport/types';
 
 import Pager from './Pager';

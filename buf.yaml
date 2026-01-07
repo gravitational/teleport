@@ -31,6 +31,8 @@ lint:
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
+    - api/proto/teleport/legacy/types/metadata.proto
+    - api/proto/teleport/legacy/types/mfa_device.proto
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
     - proto/teleport/lib/web/terminal/envelope.proto

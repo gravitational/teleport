@@ -188,6 +188,7 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
+    instances: '/web/instances',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -216,6 +217,7 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
+    integrationOverview: '/web/integrations/overview/:type/:name',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -293,6 +295,8 @@ const cfg = {
     databaseServer: {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
+
+    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
 
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -759,6 +763,10 @@ const cfg = {
     return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
   },
 
+  getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
   getIntegrationStatusResourcesRoute(
     type: PluginKind | IntegrationKind,
     name: string,
@@ -893,6 +901,10 @@ const cfg = {
       search.set('tab', options.activeTab);
     }
     return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
+  },
+
+  getInstancesRoute() {
+    return generatePath(cfg.routes.instances);
   },
 
   getWorkloadIdentitiesRoute() {
@@ -1166,6 +1178,13 @@ const cfg = {
 
   getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databaseServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.instancesPath, {
       clusterId,
       ...params,
     });

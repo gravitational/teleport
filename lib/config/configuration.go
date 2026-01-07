@@ -84,6 +84,8 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
+	// --token-secret flag
+	TokenSecret string
 	// --join-method flag
 	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -2229,6 +2231,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 			}
 		}
+		for k := range discoveryConfig.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies label %q which is not a valid label key", k)
+			}
+		}
+		for _, attributeName := range discoveryConfig.LabelAttributes {
+			if !types.IsValidLabelKey(attributeName) {
+				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+			}
+		}
+		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
+			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
+		}
 	}
 
 	// append the old (singular) discovery config to the new format that supports multiple configs
@@ -2245,6 +2260,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			servicecfg.LDAPDiscoveryConfig{
 				BaseDN:          dc.BaseDN,
 				Filters:         dc.Filters,
+				Labels:          dc.Labels,
 				LabelAttributes: dc.LabelAttributes,
 				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
@@ -2781,6 +2797,11 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.SetToken(clf.AuthToken)
 	}
 
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
+	}
+
 	// Apply flags used for the node to validate the Auth Server.
 	if err = cfg.ApplyCAPins(clf.CAPins); err != nil {
 		return trace.Wrap(err)
@@ -2879,6 +2900,11 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
 		cfg.SetToken(clf.AuthToken)
+	}
+
+	if clf.TokenSecret != "" {
+		// store the value of the --token-secret flag:
+		cfg.SetTokenSecret(clf.TokenSecret)
 	}
 
 	slog.DebugContext(context.Background(), "Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
@@ -3073,6 +3099,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.JoinParams != (JoinParams{}) {
 		cfg.SetToken(fc.JoinParams.TokenName)
+		cfg.SetTokenSecret(fc.JoinParams.TokenSecret)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
 			return trace.Wrap(err)

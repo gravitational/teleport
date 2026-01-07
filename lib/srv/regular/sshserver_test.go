@@ -1802,6 +1802,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -1945,6 +1946,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -2621,6 +2623,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			LockWatcher:           lockWatcher,
 			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+			AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 			EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
 				return nil, errors.New("eice disabled in tests")
@@ -2881,6 +2884,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
 			return nil, errors.New("eice disabled in tests")
@@ -3230,7 +3234,8 @@ func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.C
 }
 
 func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Events) *services.CertAuthorityWatcher {
-	caWatcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
+	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
 			Client:    client,
@@ -3240,6 +3245,21 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 	require.NoError(t, err)
 	t.Cleanup(caWatcher.Close)
 	return caWatcher
+}
+
+func newAppServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.AppServer, readonly.AppServer] {
+	t.Helper()
+
+	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(appServerWatcher.Close)
+	return appServerWatcher
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.
@@ -3311,6 +3331,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		LockWatcher:           lockWatcher,
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
