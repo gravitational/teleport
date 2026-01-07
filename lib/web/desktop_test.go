@@ -288,7 +288,7 @@ func TestHandshaker(t *testing.T) {
 		defer handshaker.Close()
 		defer client.Close()
 
-		shaker := newHandshaker(t.Context(), protocolTDP, handshaker)
+		shaker := newHandshaker(protocolTDP, handshaker)
 
 		done := make(chan error)
 		go func() {
@@ -342,7 +342,7 @@ func TestHandshaker(t *testing.T) {
 		defer handshaker.Close()
 		defer client.Close()
 
-		shaker := newHandshaker(t.Context(), protocolTDPB, handshaker)
+		shaker := newHandshaker(protocolTDPB, handshaker)
 
 		done := make(chan error)
 		go func() {
@@ -472,6 +472,32 @@ func TestTDPBMFAFlow(t *testing.T) {
 	assert.Equal(t, response.GetWebauthn(), res.response.GetWebauthn())
 	// Should still have that alert message in our withheld message slice
 	assert.Len(t, withheld, 1)
+}
+
+func TestDesktopWebsocketAdapter(t *testing.T) {
+	test, adapted := newWebsocketConn(t)
+	defer test.Close()
+	defer adapted.Close()
+
+	adapter := &desktopWebsocketAdapter{
+		conn: adapted,
+	}
+
+	tdpAlert, err := legacy.Alert{Message: "tdp!", Severity: legacy.SeverityWarning}.Encode()
+	require.NoError(t, err)
+
+	tdpbAlert, err := ((*tdpb.Alert)(&tdpb.Alert{Message: "tdpb!", Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING})).Encode()
+	require.NoError(t, err)
+	// Send a TDP message followed by TDPB
+	require.NoError(t, test.WriteMessage(websocket.BinaryMessage, tdpAlert))
+	require.NoError(t, test.WriteMessage(websocket.BinaryMessage, tdpbAlert))
+
+	// TDP message should be discarded and only the TDPB
+	// alert should be read from the websocket.
+	msg, err := adapter.ReadMessage()
+	require.NoError(t, err)
+	require.IsType(t, &tdpb.Alert{}, msg)
+	assert.Equal(t, "tdpb!", msg.(*tdpb.Alert).Message)
 }
 
 func expectTDPBMessage[T any](t *testing.T, c *tdp.Conn) T {

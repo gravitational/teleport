@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"encoding/hex"
 	"errors"
 	"io"
 	"log/slog"
@@ -97,24 +96,51 @@ func (h *Handler) desktopConnectHandle(
 	return nil, nil
 }
 
-// Implements tdp.MessageReadWriter for websocket connections.
-type wsAdapter struct {
-	Conn *websocket.Conn
-	// Determines how ReadMessage will interpret incoming datagrams
-	// (TDP or TDPB)
-	Decoder func(*websocket.Conn) (tdp.Message, error)
+// Adapts a websocket to a tdp.MessageReadWriter.
+// Quietly discards TDP messages.
+type desktopWebsocketAdapter struct {
+	conn *websocket.Conn
+	// Avoid allocating a new byte slice with each received message
+	// be re-using a buffer.
+	buf bytes.Buffer
 }
 
-func (w *wsAdapter) ReadMessage() (tdp.Message, error) {
-	return w.Decoder(w.Conn)
+// ReadMessage returns a new Message read from the underlying websocket.
+func (w *desktopWebsocketAdapter) ReadMessage() (tdp.Message, error) {
+	for {
+		w.buf.Reset()
+
+		mType, rdr, err := w.conn.NextReader()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if mType != websocket.BinaryMessage {
+			return nil, trace.Errorf("expected binary message, got: %d", mType)
+		}
+
+		if _, err := io.Copy(&w.buf, rdr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		msg, err := tdpb.DecodeWithTDPDiscard(w.buf.Bytes())
+		if err != nil {
+			if errors.Is(err, tdpb.ErrIsTDP) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		return msg, nil
+	}
 }
 
-func (w *wsAdapter) WriteMessage(msg tdp.Message) error {
-	data, err := msg.Encode()
+// WriteMessage writes a new Message to the underlying websocket.
+func (w *desktopWebsocketAdapter) WriteMessage(m tdp.Message) error {
+	data, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return w.Conn.WriteMessage(websocket.BinaryMessage, data)
+	return trace.Wrap(w.conn.WriteMessage(websocket.BinaryMessage, data))
 }
 
 // implements handshaker for legacy TDP clients
@@ -296,29 +322,10 @@ type handshaker interface {
 }
 
 // creates a handshaker instance that interops with either TDP or TDPB clients
-func newHandshaker(ctx context.Context, protocol string, ws *websocket.Conn) handshaker {
+func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 	if protocol == protocolTDPB {
-		adapter := &wsAdapter{Conn: ws, Decoder: func(r *websocket.Conn) (tdp.Message, error) {
-			for {
-				data, err := readWebSocketMessage(r)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				// Discard any legacy TDP messages encountered
-				msg, err := tdpb.DecodeWithTDPDiscard(data)
-				if err != nil {
-					if errors.Is(err, tdpb.ErrIsTDP) {
-						// Log message data for troubleshooting
-						slog.DebugContext(ctx, "Dropped TDP message", "message", hex.EncodeToString(data))
-						continue
-					}
-					return nil, trace.Wrap(err)
-				}
-				return msg, nil
-			}
-		}}
 		return &tdpbHandshaker{
-			connection: adapter,
+			connection: &desktopWebsocketAdapter{conn: ws},
 		}
 	}
 	// Default to TDP
@@ -328,18 +335,6 @@ func newHandshaker(ctx context.Context, protocol string, ws *websocket.Conn) han
 }
 
 type mfaPromptBuilder func(string) mfa.PromptFunc
-
-func readWebSocketMessage(ws *websocket.Conn) ([]byte, error) {
-	mType, data, err := ws.ReadMessage()
-	if err != nil {
-		return nil, err
-	}
-
-	if mType != websocket.BinaryMessage {
-		return nil, trace.BadParameter("received unexpected web socket message type %d", mType)
-	}
-	return data, nil
-}
 
 func (h *Handler) createDesktopConnection(
 	r *http.Request,
@@ -369,7 +364,7 @@ func (h *Handler) createDesktopConnection(
 	}
 	log.InfoContext(ctx, "Creating Desktop connection", "client_protocol", clientProtocol)
 
-	handshaker := newHandshaker(ctx, clientProtocol, ws)
+	handshaker := newHandshaker(clientProtocol, ws)
 	// Read the initial set of TDP messages, or handle TDP upgrade and subsequent
 	// Client Hello message.
 	err = handshaker.performInitialHandshake(ctx, log)
