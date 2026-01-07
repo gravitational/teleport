@@ -149,7 +149,7 @@ func TestWaitEventualSuccess(t *testing.T) {
 
 			// More generous timeout since this will depend on exponential
 			// backoff (with configured worst case of 2 seconds)
-			Timeout:  time.Second * 5,
+			Timeout: time.Second * 5,
 		})
 	}()
 
