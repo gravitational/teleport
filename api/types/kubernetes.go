@@ -80,6 +80,10 @@ type KubeCluster interface {
 	GetCloud() string
 	// IsEqual determines if two Kubernetes cluster resources are equivalent.
 	IsEqual(KubeCluster) bool
+	// GetStatus gets the kube cluster status.
+	GetStatus() *KubernetesClusterStatus
+	// SetStatus sets the kube cluster status.
+	SetStatus(*KubernetesClusterStatus)
 }
 
 // DiscoveredEKSCluster represents a server discovered by EKS discovery fetchers.
@@ -341,6 +345,19 @@ func (k *KubernetesClusterV3) String() string {
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
 	return utils.CloneProtoMsg(k)
+}
+
+// GetStatus gets the kube cluster status.
+func (k *KubernetesClusterV3) GetStatus() *KubernetesClusterStatus {
+	if k == nil {
+		return nil
+	}
+	return k.Status
+}
+
+// SetStatus sets the kube cluster status.
+func (k *KubernetesClusterV3) SetStatus(status *KubernetesClusterStatus) {
+	k.Status = status
 }
 
 // MatchSearch goes through select field values and tries to
@@ -754,4 +771,9 @@ func (k KubeResources) AsResources() ResourcesWithLabels {
 		resources = append(resources, ResourceWithLabels(resource))
 	}
 	return resources
+}
+
+// IsEqual determines if two KubernetesClusterStatus are equivalent.
+func (c *KubernetesClusterStatus) IsEqual(other *KubernetesClusterStatus) bool {
+	return deriveTeleportEqualKubernetesClusterStatus(c, other)
 }
