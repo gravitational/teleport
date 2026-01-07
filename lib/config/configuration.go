@@ -2215,6 +2215,19 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 			}
 		}
+		for k := range discoveryConfig.Labels {
+			if !types.IsValidLabelKey(k) {
+				return trace.BadParameter("WindowsDesktopService specifies label %q which is not a valid label key", k)
+			}
+		}
+		for _, attributeName := range discoveryConfig.LabelAttributes {
+			if !types.IsValidLabelKey(attributeName) {
+				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
+			}
+		}
+		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
+			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
+		}
 	}
 
 	// append the old (singular) discovery config to the new format that supports multiple configs
@@ -2231,6 +2244,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			servicecfg.LDAPDiscoveryConfig{
 				BaseDN:          dc.BaseDN,
 				Filters:         dc.Filters,
+				Labels:          dc.Labels,
 				LabelAttributes: dc.LabelAttributes,
 				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
