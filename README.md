@@ -133,6 +133,9 @@ that docker is installed and running, and execute:
 make -C build.assets build-binaries
 ```
 
+This command will build Linux binaries matching the host architecture.
+It is not possible to cross-compile to a different target architecture.
+
 ### Local Build
 
 #### Dependencies
