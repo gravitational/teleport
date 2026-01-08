@@ -366,7 +366,7 @@ func (s *Service) ValidateSessionChallenge(
 	)
 	if err != nil {
 		// Emit failure event before returning.
-		s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, nil, err)
+		s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, nil /* device */, err)
 
 		return nil, trace.AccessDenied("validate MFA challenge response: %v", err)
 	}
