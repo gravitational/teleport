@@ -153,14 +153,14 @@ describe('useGitHubK8sFlow', () => {
     expect(result.current.state).toStrictEqual(
       withDefaultState({
         branch: 'release-*',
-        ref: 'release-*',
+        ref: 'refs/heads/release-*',
       })
     );
 
     await waitForAPI(result.current);
 
     expect(result.current.template.terraform.data).toContain(
-      '"ref":"release-*"'
+      '"ref":"refs/heads/release-*"'
     );
     expect(result.current.template.terraform.data).toContain(
       '"ref_type":"branch"'

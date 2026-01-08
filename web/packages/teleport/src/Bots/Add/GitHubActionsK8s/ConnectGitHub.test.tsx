@@ -72,7 +72,7 @@ describe('ConnectGitHub', () => {
         environment: 'production',
         gitHubUrl: 'https://github.com/gravitational/teleport',
         isBranchDisabled: false,
-        ref: 'main',
+        ref: 'refs/heads/main',
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
@@ -89,9 +89,7 @@ describe('ConnectGitHub', () => {
       screen.getByPlaceholderText('https://github.com/gravitational/teleport')
     ).toHaveValue('https://github.com/gravitational/teleport');
 
-    expect(screen.getAllByPlaceholderText('refs/heads/main')[0]).toHaveValue(
-      'main'
-    );
+    expect(screen.getByPlaceholderText('main')).toHaveValue('main');
 
     expect(screen.getByPlaceholderText('my-workflow')).toHaveValue(
       'my-workflow'
@@ -99,8 +97,8 @@ describe('ConnectGitHub', () => {
 
     expect(screen.getByPlaceholderText('production')).toHaveValue('production');
 
-    expect(screen.getAllByPlaceholderText('refs/heads/main')[1]).toHaveValue(
-      'main'
+    expect(screen.getByPlaceholderText('refs/heads/main')).toHaveValue(
+      'refs/heads/main'
     );
 
     expect(screen.getByPlaceholderText('octo-enterprise')).toHaveValue(
@@ -122,7 +120,7 @@ describe('ConnectGitHub', () => {
         environment: 'production',
         gitHubUrl: 'https://github.com/gravitational/teleport',
         isBranchDisabled: false,
-        ref: 'main',
+        ref: 'refs/heads/main',
         refType: 'branch',
         workflow: 'my-workflow',
         kubernetesGroups: [],
@@ -171,7 +169,7 @@ describe('ConnectGitHub', () => {
     await user.type(input, 'main');
 
     expect(input).toHaveValue('main');
-    expect(screen.getByLabelText('Git Ref')).toHaveValue('main');
+    expect(screen.getByLabelText('Git Ref')).toHaveValue('refs/heads/main');
 
     // Skip start event
     tracking.skip();

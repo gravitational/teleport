@@ -75,6 +75,8 @@ export function ConnectGitHub(props: FlowStepProps) {
 
   const refTypeValue: RefTypeOption =
     refTypeOptions.find(o => o.value === state.refType) ?? refTypeOptions[0];
+  const refPlaceholder =
+    refTypeValue.value === 'tag' ? 'refs/tags/release-v1' : 'refs/heads/main';
 
   const hasGHEHost = !!state.info?.host && state.info.host !== GITHUB_HOST;
 
@@ -120,7 +122,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 disabled={state.isBranchDisabled}
                 label="Branch"
-                placeholder="refs/heads/main"
+                placeholder="main"
                 value={state.branch}
                 onChange={e => {
                   dispatch({
@@ -220,7 +222,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                   <FieldInput
                     flex={1}
                     label={'Git Ref'}
-                    placeholder="refs/heads/main"
+                    placeholder={refPlaceholder}
                     value={state.ref}
                     onChange={e => {
                       dispatch({
