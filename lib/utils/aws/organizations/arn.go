@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// organizationIDFromAccountARN extracts the organization ID from an account ARN.
+// OrganizationIDFromAccountARN extracts the organization ID from an account ARN.
 // Example ARN: arn:aws:organizations::<org-master-account-id>:account/<org-id>/<account-id>
-func organizationIDFromAccountARN(accountARN string) (string, error) {
+func OrganizationIDFromAccountARN(accountARN string) (string, error) {
 	return organizationIDFromARN(accountARN, "account")
 }
 
