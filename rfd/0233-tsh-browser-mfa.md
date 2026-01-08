@@ -305,4 +305,5 @@ Events will be logged when:
     - Request type
     - Request outcome
     - User
+    - Request ID
 1. a certificate is generated upon a approval
