@@ -18,6 +18,7 @@
 
 import styled, { useTheme } from 'styled-components';
 
+import { Info } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
 import { ButtonPrimary } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
@@ -74,21 +75,33 @@ export function Welcome(props: FlowStepProps) {
           <li>Access rules for your workflow</li>
         </ul>
 
-        <P2>
-          See the{' '}
-          <Link
-            target="_blank"
-            href={IAC_LINK}
-            onClick={() => {
-              tracking.link(IntegrationEnrollStep.MWIGHAK8SWelcome, IAC_LINK);
-            }}
-          >
-            Infrastructure as Code
-          </Link>{' '}
-          docs for information about setting up and using IaC with Teleport.
-        </P2>
+        <Info
+          alignItems="flex-start"
+          mt={4}
+          details={
+            <>
+              This guide uses Infrastructure as Code (IaC) to create the
+              resources required to complete the setup. See the{' '}
+              <Link
+                target="_blank"
+                href={IAC_LINK}
+                onClick={() => {
+                  tracking.link(
+                    IntegrationEnrollStep.MWIGHAK8SWelcome,
+                    IAC_LINK
+                  );
+                }}
+              >
+                Infrastructure as Code
+              </Link>{' '}
+              docs for information about setting up and using IaC with Teleport.
+            </>
+          }
+        >
+          Infrastructure as Code required
+        </Info>
 
-        <Flex gap={2} pt={5}>
+        <Flex gap={2} pt={1}>
           <ButtonPrimary onClick={handleNext}>Start</ButtonPrimary>
         </Flex>
       </Box>
