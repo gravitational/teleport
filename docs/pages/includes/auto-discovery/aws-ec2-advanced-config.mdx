@@ -17,8 +17,8 @@ However, if you need to customize the installation process for your environment,
 The custom document's parameters must include `env`, `scriptName` and `token`.
 
 The recommended approach is to use the following document,
-set the <Var name="teleport.example.com:443" /> with the host and port of your Teleport Proxy Service or Enterprise Cloud site, 
-and customize it as needed:
+setting <Var name="teleport.example.com:443" /> to the host and port of your Teleport Proxy Service or Enterprise Cloud site, 
+and customizing it as needed:
 
 ```yaml
 schemaVersion: '2.2'
@@ -98,7 +98,7 @@ Add the necessary IAM permissions to allow the Discovery Service to list regions
 
 The Discovery Service can be configured to discover EC2 instances across multiple AWS accounts within the same AWS Organization.
 
-Some additional configurations are required:
+Some additional configurations are required, and this section explains them in further detail below:
 - update invite token to allow instances belonging to the organization to join the cluster
 - allow the Discovery Service to list accounts in the organization and assume roles in the target accounts
 - create an IAM role in each target account that the Discovery Service can assume
@@ -126,7 +126,7 @@ spec:
 + - aws_account: "account-number-3"
 ```
 
-#### Allow Discovery Service to list accounts and assume the discovery role in those accounts
+#### Allow the Discovery Service to list accounts and assume the discovery role in those accounts
 
 The Discovery Service must be able to list all the accounts in the AWS Organization.
 
@@ -198,7 +198,7 @@ And the following trust relationship, which allows the <Var name="Discovery Serv
 }
 ```
 
-#### Configure Discovery Service to enable account discovery
+#### Configure the Discovery Service to enable account discovery
 
 Navigate to AWS Organizations and note the Organization ID: <Var name="o-org-id" />.
 
