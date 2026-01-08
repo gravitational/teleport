@@ -1849,6 +1849,55 @@ init-submodules-e:
 	git submodule init e
 	git submodule update
 
+# update-e updates the e submodule, creates a branch, and opens a PR.
+# It requires a clean worktree and the GitHub CLI (gh) to be installed.
+# You can use BRANCH=branch/v18 to update e on a release branch
+.PHONY: update-e
+update-e:
+	@set -eu; \
+	base_branch="$${BRANCH:-master}"; \
+	remote="$${REMOTE:-origin}"; \
+	repo_root="$$(git rev-parse --show-toplevel)"; \
+	if [ -n "$$(git status --porcelain)" ]; then \
+		echo "Worktree is dirty; commit or stash first."; \
+		exit 1; \
+	fi; \
+	git checkout "$$base_branch"; \
+	git pull --ff-only "$$remote" "$$base_branch"; \
+	git -C "$$repo_root/e" checkout "$$base_branch"; \
+	git -C "$$repo_root/e" pull --ff-only "$$remote" "$$base_branch"; \
+	user="$$(gh api user -q .login)"; \
+	if [ -z "$$user" ]; then \
+		echo "Failed to determine GitHub username via gh."; \
+		exit 1; \
+	fi; \
+	if [ "$$base_branch" = "master" ]; then \
+		suffix="updatee"; \
+	elif [ "$${base_branch#branch/}" != "$$base_branch" ]; then \
+		suffix="$${base_branch#branch/}/updatee"; \
+	else \
+		suffix="$$base_branch/updatee"; \
+	fi; \
+	branch="$$user/$$suffix"; \
+	if git show-ref --verify --quiet "refs/heads/$$branch"; then \
+		printf "%s already exists, delete? [y/N] " "$$branch"; \
+		read -r ans; \
+		case "$$ans" in \
+			[Yy]|[Yy][Ee][Ss]) git branch -D "$$branch" ;; \
+			*) echo "Aborted."; exit 1 ;; \
+		esac; \
+	fi; \
+	git checkout -b "$$branch"; \
+	if git diff --quiet -- e; then \
+		echo "No /e submodule changes to commit."; \
+		exit 1; \
+	fi; \
+	git add e; \
+	git commit -m "Update e"; \
+	git push -u --force-with-lease "$$remote" "$$branch"; \
+	gh pr create --base "$$base_branch" --head "$$branch" --title "Update e" --body "" --label "no-changelog"; \
+	gh pr view --web
+
 # backport will automatically create backports for a given PR as long as you have the "gh" tool
 # installed locally. To backport, type "make backport PR=1234 TO=branch/1,branch/2".
 .PHONY: backport
