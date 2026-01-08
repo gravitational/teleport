@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -313,6 +314,10 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer

@@ -30,16 +30,20 @@ import (
 	"slices"
 	"strings"
 
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
+	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
@@ -199,8 +203,9 @@ func parseSTSRequest(req []byte) (*http.Request, error) {
 
 // AWSIdentity holds aws Account and Arn, used for JSON parsing
 type AWSIdentity struct {
-	Account string `json:"Account"`
-	Arn     string `json:"Arn"`
+	Account        string `json:"Account"`
+	Arn            string `json:"Arn"`
+	OrganizationID string `json:"OrganizationId,omitempty"`
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.
@@ -275,17 +280,17 @@ func arnMatches(pattern, arn string) (bool, error) {
 
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
-func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule) error {
+func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, allowRules []*types.TokenRule, organizationIDFetcher *organizationsIDFetcher) error {
 	for _, rule := range allowRules {
 		// if this rule specifies an AWS account, the identity must match
-		if len(rule.AWSAccount) > 0 {
+		if rule.AWSAccount != "" {
 			if rule.AWSAccount != identity.Account {
 				// account doesn't match, continue to check the next rule
 				continue
 			}
 		}
 		// if this rule specifies an AWS ARN, the identity must match
-		if len(rule.AWSARN) > 0 {
+		if rule.AWSARN != "" {
 			matches, err := arnMatches(rule.AWSARN, identity.Arn)
 			if err != nil {
 				return trace.Wrap(err)
@@ -295,10 +300,33 @@ func checkIAMAllowRules(identity *AWSIdentity, allowRules []*types.TokenRule) er
 				continue
 			}
 		}
+
+		if rule.AWSOrganizationID != "" {
+			organizationID, err := organizationIDFetcher.fetch(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if organizationID != rule.AWSOrganizationID {
+				// organization ID doesn't match, continue to check the next rule
+				continue
+			}
+		}
+
 		// node identity matches this allow rule
 		return nil
 	}
 	return trace.AccessDenied("instance %v did not match any allow rules", identity.Arn)
+}
+
+// OrganizationsAPI defines the subset of the AWS Organizations APIs used for IAM join.
+type OrganizationsAPI interface {
+	DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error)
+}
+
+// OrganizationsAPIGetter defines an interface for getting an OrganizationsAPI.
+type OrganizationsAPIGetter interface {
+	Get(ctx context.Context) (OrganizationsAPI, error)
 }
 
 // CheckIAMRequestParams holds parameters for checking an IAM-method join request.
@@ -313,6 +341,8 @@ type CheckIAMRequestParams struct {
 	// HTTPClient is an optional HTTP client to use for sending
 	// STSIdentityRequest to AWS, if nil a default client will be used.
 	HTTPClient utils.HTTPDoClient
+	// OrganizationsAPIGetter returns an AWS Organizations client with a subset of the APIs required for validating whether an identity belongs to an Organization.
+	OrganizationsAPIGetter OrganizationsAPIGetter
 	// FIPS must be true if the server is in FIPS mode.
 	FIPS bool
 }
@@ -348,12 +378,21 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 		return nil, trace.Wrap(err, "executing STS request")
 	}
 
+	organizationsIDFetcher := &organizationsIDFetcher{
+		organizationsAPIGetter: params.OrganizationsAPIGetter,
+		accountID:              identity.Account,
+	}
+
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(identity, params.ProvisionToken.GetAllowRules()); err != nil {
+	if err := checkIAMAllowRules(ctx, identity, params.ProvisionToken.GetAllowRules(), organizationsIDFetcher); err != nil {
 		// We return the identity since it's "validated" but does not match the
 		// rules. This allows us to include it in a failed join audit event
 		// as additional context to help the user understand why the join failed.
 		return identity, trace.Wrap(err, "checking allow rules")
+	}
+
+	if organizationsIDFetcher.fetchedOrganizationID != "" {
+		identity.OrganizationID = organizationsIDFetcher.fetchedOrganizationID
 	}
 
 	return identity, nil
@@ -363,4 +402,40 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 func GenerateIAMChallenge() (string, error) {
 	challenge, err := joinutils.GenerateChallenge(base64.RawStdEncoding, 32)
 	return challenge, trace.Wrap(err)
+}
+
+type organizationsIDFetcher struct {
+	accountID              string
+	organizationsAPIGetter OrganizationsAPIGetter
+	fetchedOrganizationID  string
+}
+
+func (f *organizationsIDFetcher) fetch(ctx context.Context) (string, error) {
+	if f.fetchedOrganizationID != "" {
+		return f.fetchedOrganizationID, nil
+	}
+
+	organizationsClient, err := f.organizationsAPIGetter.Get(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	accountDetail, err := organizationsClient.DescribeAccount(ctx, &organizations.DescribeAccountInput{
+		AccountId: awssdk.String(f.accountID),
+	})
+	if err != nil {
+		convertedError := libcloudaws.ConvertRequestFailureError(err)
+		if trace.IsAccessDenied(convertedError) {
+			return "", trace.BadParameter("IAM Join attempt using an Organization requires access to 'organizations:DescribeAccount' API in the assigned IAM Role. Allow the Auth Service access to that permission.")
+		}
+
+		return "", trace.Wrap(convertedError)
+	}
+
+	organizationID, err := liborganizations.OrganizationIDFromAccountARN(awssdk.ToString(accountDetail.Account.Arn))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return organizationID, nil
 }
