@@ -19,9 +19,8 @@
 package cli
 
 import (
+	"net/http"
 	"time"
-
-	"github.com/jonboulle/clockwork"
 )
 
 // WaitCommand supports `tbot wait`
@@ -32,9 +31,9 @@ type WaitCommand struct {
 	Service  string
 	Timeout  time.Duration
 
-	// Clock is an optional clock which may be overridden in tests. It cannot be
-	// specified via the CLI.
-	Clock clockwork.Clock
+	// Client is an optional alternative HTTP client implementation for use in
+	// tests. If unspecified, a standard client is used.
+	Client *http.Client
 }
 
 // NewWaitCommand initializes the subcommand for `tbot wait`

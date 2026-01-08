@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -206,6 +207,40 @@ func testDefaultClient(t *testing.T) *http.Client {
 	return client
 }
 
+type inMemoryTransport struct {
+	handler http.Handler
+}
+
+func (c *inMemoryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	done := make(chan struct{})
+	rr := httptest.NewRecorder()
+
+	// We can't just naively return the result of ServeHTTP since it doesn't
+	// return errors when the context is cancelled. To fix that, wrap it in
+	// another goroutine and manually return an error if the context is
+	// cancelled.
+	go func() {
+		c.handler.ServeHTTP(rr, r)
+		close(done)
+	}()
+
+	select {
+	case <-r.Context().Done():
+		<-done
+		return nil, r.Context().Err()
+	case <-done:
+		return rr.Result(), nil
+	}
+}
+
+func createInMemoryWaitClient(handler http.Handler) *http.Client {
+	return &http.Client{
+		Transport: &inMemoryTransport{
+			handler: handler,
+		},
+	}
+}
+
 // errorTransport is a mock roundtripper that just returns an error
 type errorTransport struct{}
 
@@ -378,34 +413,6 @@ func TestWaitAPI(t *testing.T) {
 				require.Equal(t, 200, code)
 			},
 		},
-		{
-			name: "ongoing waiter receives status",
-			exec: func(t *testing.T, reg *readyz.Registry, endpoint *url.URL) {
-				a := reg.AddService("svc", "a")
-
-				// Start waiting
-				ch := make(chan error)
-				go func() {
-					code, err := testWaitFetch(t, testDefaultClient(t), "", endpoint)
-					if err != nil && code != 200 {
-						err = fmt.Errorf("error: %d", code)
-					}
-
-					ch <- err
-				}()
-
-				// Sleep a bit so we actually wait
-				time.Sleep(time.Millisecond * 100)
-				a.Report(readyz.Healthy)
-
-				select {
-				case res := <-ch:
-					require.NoError(t, res, "overall status should report healthy")
-				case <-time.After(100 * time.Millisecond):
-					require.Fail(t, "timed out waiting for waiter to receive ready status")
-				}
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -424,4 +431,45 @@ func TestWaitAPI(t *testing.T) {
 			tt.exec(t, reg, u)
 		})
 	}
+}
+
+func TestWaitAPIOngoingWaiter(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		reg := readyz.NewRegistry()
+
+		handler := readyz.HTTPWaitHandler(reg)
+
+		u, err := url.Parse("http://invalid/wait")
+		require.NoError(t, err)
+
+		a := reg.AddService("svc", "a")
+
+		// Start waiting
+		ch := make(chan error)
+		go func() {
+			code, err := testWaitFetch(t, createInMemoryWaitClient(handler), "", u)
+			if err != nil && code != 200 {
+				err = fmt.Errorf("error: %d", code)
+			}
+
+			ch <- err
+		}()
+		synctest.Wait()
+
+		// Delay a bit before reporting status
+		time.Sleep(time.Millisecond * 100)
+		synctest.Wait()
+
+		a.Report(readyz.Healthy)
+		synctest.Wait()
+
+		select {
+		case res := <-ch:
+			require.NoError(t, res, "overall status should report healthy")
+		case <-time.After(100 * time.Millisecond):
+			require.Fail(t, "timed out waiting for waiter to receive ready status")
+		}
+	})
 }
