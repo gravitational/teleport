@@ -73,7 +73,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -5267,7 +5266,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string, immutableLabels *joiningv1.ImmutableLabels) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string, labelHash []byte) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5398,11 +5397,11 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		HostID:        req.HostID,
 		NodeName:      req.NodeName,
 		Identity: sshca.Identity{
-			ClusterName:     clusterName.GetClusterName(),
-			SystemRole:      req.Role,
-			Principals:      req.AdditionalPrincipals,
-			AgentScope:      scope,
-			ImmutableLabels: immutableLabels,
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         req.Role,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         scope,
+			ImmutableLabelHash: labelHash,
 		},
 	})
 	if err != nil {
@@ -5420,12 +5419,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username:        utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:          []string{req.Role.String()},
-		TeleportCluster: clusterName.GetClusterName(),
-		SystemRoles:     systemRoles,
-		AgentScope:      scope,
-		ImmutableLabels: immutableLabels,
+		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Groups:             []string{req.Role.String()},
+		TeleportCluster:    clusterName.GetClusterName(),
+		SystemRoles:        systemRoles,
+		AgentScope:         scope,
+		ImmutableLabelHash: labelHash,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5483,7 +5482,7 @@ func (a *Server) GetSystemRoleAssertions(ctx context.Context, serverID string, a
 	return set, trace.Wrap(err)
 }
 
-func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, cfg inventory.UpstreamHandleConfig) error {
+func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello) error {
 	// upstream hello is pulled and checked at rbac layer. we wait to send the downstream hello until we get here
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
 	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
@@ -5506,7 +5505,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
 		return trace.Wrap(err)
 	}
-	a.inventory.RegisterControlStream(ics, cfg)
+	a.inventory.RegisterControlStream(ics, hello)
 	return nil
 }
 
@@ -5522,7 +5521,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
 				return
 			}
-			if err := a.RegisterInventoryControlStream(upstream, inventory.UpstreamHandleConfig{Hello: hello}); err != nil {
+			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
 				upstream.CloseWithError(err)
 				return
 			}
