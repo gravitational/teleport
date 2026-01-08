@@ -345,6 +345,7 @@ export function ConnectGitHub(props: FlowStepProps) {
       <CodeContainer>
         <CodePanel
           trackingStep={IntegrationEnrollStep.MWIGHAK8SConnectGitHub}
+          inProgress
         />
       </CodeContainer>
     </Container>
