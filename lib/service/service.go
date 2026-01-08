@@ -7522,6 +7522,10 @@ func (process *TeleportProcess) createAccessGraphConnection(ctx context.Context,
 	}
 }`
 
+	if settings.Insecure {
+		process.logger.WarnContext(ctx, "Access Graph connection using insecure mode, do not use in production", "addr", settings.Addr)
+	}
+
 	conn, err := accessgraph.NewAccessGraphClient(ctx,
 		accessgraph.AccessGraphClientConfig{
 			Addr:              settings.Addr,

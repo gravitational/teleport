@@ -64,9 +64,8 @@ type Connector interface {
 	ClientGetCertificate() (*tls.Certificate, error)
 }
 
-// AccessGraphClientGetterForEvent is a function that returns an AccessGraphClientGetter for a given event.
-// This allows different parts of the system to get access graph clients with different certificates based on the event
-// associated with the connector.
+// AccessGraphClientGetterForConnector is a function that returns an AccessGraphClientGetter for a given connector.
+// This allows different parts of the system to get access graph clients with different certificates based on the connector.
 type AccessGraphClientGetterForConnector = func(connector Connector) AccessGraphClientGetter
 
 // AccessGraphClientGetter is a function that returns a new access graph service client connection.
