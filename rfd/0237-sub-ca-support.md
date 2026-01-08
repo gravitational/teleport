@@ -577,6 +577,11 @@ For example:
 |  1y            |  92d               | medium      |
 |  1y            |  46d               | high        |
 
+Alerts target users that have either "cert_authority:update" or "token:create"
+permissions. The "token:create" permission is used as a proxy for a powerful
+user, for example someone with the "editor" role (which lacks direct
+cert_authority permissions).
+
 ### Auth service changes
 
 A new Auth-bound gRPC service is responsible for managing
