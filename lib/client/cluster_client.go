@@ -819,7 +819,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 
 		// Get authentication settings, [Ping] returns cached response if available
 		params.tc.Ping(ctx)
-		browserMFAAvailable := params.tc.lastPing.Auth.AllowBrowserMFA
+		browserMFAAvailable := params.tc.lastPing.Auth.AllowBrowser
 
 		if userPreferredBrowserMFA || browserMFAAvailable {
 			if userPreferredBrowserMFA {
