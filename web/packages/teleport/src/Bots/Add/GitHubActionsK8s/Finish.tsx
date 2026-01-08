@@ -77,10 +77,11 @@ export function Finish(props: FlowStepProps) {
         <P2>
           <strong>To complete the setup</strong>;
         </P2>
-        <ul>
+        <ol>
           <li>Use the Infrastructure as Code templates to create resources</li>
           <li>Copy the workflow template and add it to your repository</li>
-        </ul>
+          <li>Run the workflow</li>
+        </ol>
 
         <P2>
           See the{' '}
@@ -118,7 +119,7 @@ export function Finish(props: FlowStepProps) {
 
         <Flex gap={2} pt={5}>
           <ButtonPrimary onClick={() => setShowFinishCheck(true)}>
-            Finish
+            Close
           </ButtonPrimary>
           <ButtonSecondary onClick={prevStep}>Back</ButtonSecondary>
         </Flex>
