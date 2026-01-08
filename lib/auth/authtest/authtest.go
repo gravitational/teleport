@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -100,6 +101,9 @@ type AuthServerConfig struct {
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider allows a test to configure its own recording
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -342,26 +346,27 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
-		DataDir:                   cfg.Dir,
-		Backend:                   srv.Backend,
-		VersionStorage:            NewFakeTeleportVersion(),
-		Authority:                 authority,
-		Access:                    access,
-		Identity:                  identity,
-		AuditLog:                  srv.AuditLog,
-		Streamer:                  cfg.Streamer,
-		SkipPeriodicOperations:    true,
-		Emitter:                   emitter,
-		TraceClient:               cfg.TraceClient,
-		Clock:                     cfg.Clock,
-		ClusterName:               clusterName,
-		HostUUID:                  uuid.New().String(),
-		AccessLists:               accessLists,
-		FIPS:                      cfg.FIPS,
-		KeyStoreConfig:            cfg.KeystoreConfig,
-		MultipartHandler:          cfg.UploadHandler,
-		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
-		RecordingMetadataProvider: cfg.RecordingMetadataProvider,
+		DataDir:                      cfg.Dir,
+		Backend:                      srv.Backend,
+		VersionStorage:               NewFakeTeleportVersion(),
+		Authority:                    authority,
+		Access:                       access,
+		Identity:                     identity,
+		AuditLog:                     srv.AuditLog,
+		Streamer:                     cfg.Streamer,
+		SkipPeriodicOperations:       true,
+		Emitter:                      emitter,
+		TraceClient:                  cfg.TraceClient,
+		Clock:                        cfg.Clock,
+		ClusterName:                  clusterName,
+		HostUUID:                     uuid.New().String(),
+		AccessLists:                  accessLists,
+		FIPS:                         cfg.FIPS,
+		KeyStoreConfig:               cfg.KeystoreConfig,
+		MultipartHandler:             cfg.UploadHandler,
+		SessionSummarizerProvider:    cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider:    cfg.RecordingMetadataProvider,
+		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.

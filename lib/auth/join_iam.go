@@ -44,6 +44,11 @@ func (a *Server) GetHTTPClientForAWSSTS() utils.HTTPDoClient {
 	return a.httpClientForAWSSTS
 }
 
+// GetAWSOrganizationsClientGetter returns client getter which is capable of describing accounts in AWS Organizations.
+func (a *Server) GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter {
+	return a.awsOrganizationsClientGetter
+}
+
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
@@ -95,11 +100,12 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
-		Challenge:          challenge,
-		ProvisionToken:     provisionToken,
-		STSIdentityRequest: req.StsIdentityRequest,
-		HTTPClient:         a.GetHTTPClientForAWSSTS(),
-		FIPS:               a.fips,
+		Challenge:              challenge,
+		ProvisionToken:         provisionToken,
+		STSIdentityRequest:     req.StsIdentityRequest,
+		HTTPClient:             a.GetHTTPClientForAWSSTS(),
+		FIPS:                   a.fips,
+		OrganizationsAPIGetter: a.GetAWSOrganizationsClientGetter(),
 	})
 	if verifiedIdentity != nil {
 		joinFailureMetadata = verifiedIdentity
