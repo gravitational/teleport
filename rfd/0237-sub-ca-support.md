@@ -796,11 +796,11 @@ how to mint certificates from the CSR.
 - [ ] Verify overridden CA certificates using `tctl auth export`
 - [ ] Perform a CA rotation, reconfigure trust roots if necessary, and re-verify
       access.
-- [ ] Testplan executed against software keys
-- [ ] Testplan executed against PKCS#11 HSM
-- [ ] Testplan executed against AWS KMS
-- [ ] Testplan executed against AWS KMS (multi-region)
-- [ ] Testplan executed against GCP KMS
+- [ ] Test plan executed against software keys
+- [ ] Test plan executed against PKCS#11 HSM
+- [ ] Test plan executed against AWS KMS
+- [ ] Test plan executed against AWS KMS (multi-region)
+- [ ] Test plan executed against GCP KMS
 - [ ] Verify that expiration alerts fire appropriately
 - [ ] Exercise tctl commands, verify that audit events are issued
   - [ ] `tctl auth create-override`
