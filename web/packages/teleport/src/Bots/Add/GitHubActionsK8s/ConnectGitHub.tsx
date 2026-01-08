@@ -146,10 +146,16 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 size="small"
               />
-              <Text mb={3}>
-                Specifying a branch is recommended to prevent workflows running
-                from any branch to access your Teleport resources.
-              </Text>
+              {state.allowAnyBranch && (
+                <Info
+                  mt={3}
+                  mb={3}
+                  alignItems="flex-start"
+                  details="Specifying a branch is recommended to prevent workflows running from unintended branches (such as PR branches) from accessing your Teleport resources."
+                >
+                  Recommended restriction
+                </Info>
+              )}
 
               {/* TODO(nicholasmarais1158): Make SectionBox a component instead of reusing it from Roles */}
               <SectionBox
