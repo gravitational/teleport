@@ -30,7 +30,7 @@ simple and effective solution.
 As Teleport's customer base grows it becomes more common to encounter
 corporations that want a larger degree of control over those CAs. The sub CA
 feature addresses internal security policies and allows organizations to chain
-the more "visible" Teleport CAs to their own self-managed roots.
+Teleport CAs to their own self-managed roots.
 
 ## UX
 
