@@ -62,7 +62,8 @@ override, in case a Teleport downgrade is ever required.
    trusted.
 
 1. Alice writes the certificates back to Teleport. The new certificates take
-   effect immediately.
+   effect immediately (certificates issued from this moment onwards are chained
+   to the overridden certificate).
 
     `tctl auth create-override --type=db_client cert.pem [chain.pem...]`
 
