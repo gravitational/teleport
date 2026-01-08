@@ -1,5 +1,13 @@
 # Changelog
 
+## 18.6.3 (01/07/26)
+
+This is a follow up to the private security release. Changelog will be publicly announced in a later version.
+
+In addition to the previous release it includes the following bug fixes:
+
+* Fixed a memory leak in access list reminder notifications affecting clusters with more than 1000 pending Access List reviews. [#62663](https://github.com/gravitational/teleport/pull/62663)
+
 ## 18.6.2 (12/26/25)
 
 This is a private security release. Changelog will be publicly announced in a later version.
