@@ -46,8 +46,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	username, chal := "alice", newValidatedMFAChallenge()
 
 	_, err = svc.GetValidatedMFAChallenge(t.Context(), username, "does-not-exist")
-	var notFoundErr *trace.NotFoundError
-	assert.ErrorAs(t, err, &notFoundErr, "error type mismatch")
+	require.ErrorIs(t, err, trace.NotFound(`validated_mfa_challenge "does-not-exist" doesn't exist`))
 
 	startTime := time.Now()
 
