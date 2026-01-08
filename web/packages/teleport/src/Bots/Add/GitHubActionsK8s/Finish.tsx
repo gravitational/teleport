@@ -63,6 +63,12 @@ export function Finish(props: FlowStepProps) {
 
   return (
     <Container>
+      <CodeContainer>
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SSetupWorkflow}
+        />
+      </CodeContainer>
+
       <Box flex={4}>
         <H2 mb={3} mt={3}>
           Setup Workflow
@@ -117,12 +123,6 @@ export function Finish(props: FlowStepProps) {
           <ButtonSecondary onClick={prevStep}>Back</ButtonSecondary>
         </Flex>
       </Box>
-
-      <CodeContainer>
-        <CodePanel
-          trackingStep={IntegrationEnrollStep.MWIGHAK8SSetupWorkflow}
-        />
-      </CodeContainer>
 
       <Dialog open={showFinishCheck} onClose={() => setShowFinishCheck(false)}>
         <DialogHeader mb={4}>
