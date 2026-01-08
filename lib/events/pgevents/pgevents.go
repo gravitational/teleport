@@ -54,8 +54,9 @@ const (
 )
 
 const (
-	defaultRetentionPeriod = 8766 * time.Hour // 365.25 days, i.e. one year
-	defaultCleanupInterval = time.Hour
+	defaultRetentionPeriod    = 8766 * time.Hour // 365.25 days, i.e. one year
+	defaultCleanupInterval    = time.Hour
+	defaultCertReloadInterval = 0
 )
 
 // URL parameters for configuration.
@@ -67,6 +68,7 @@ const (
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
 	retentionPeriodParam = "retention_period"
+	certReloadParam      = "cert_reload_interval"
 )
 
 const (
@@ -168,6 +170,14 @@ func (c *Config) SetFromURL(u *url.URL) error {
 			return trace.Wrap(err)
 		}
 		c.RetentionPeriod = d
+	}
+
+	if s := params.Get(certReloadParam); s != "" {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.EventsCertReloadInterval = d
 	}
 
 	return nil
