@@ -160,7 +160,7 @@ Registry Paths:
 |--------------------------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ToolsVersion             | REG_SZ       | Pins the application to a specific `X.Y.Z` version or disables updates entirely (`off`). Replaces `TELEPORT_TOOLS_VERSION`.                                                                |
 | CdnBaseUrl               | REG_SZ       | Specifies a custom build source or CDN mirror in a private network. Replaces  `TELEPORT_CDN_BASE_URL`.                                                                                     | 
-| AuthorizedUpdateClusters | REG_MULTI_SZ | A list of Teleport cluster hostanmes (e.g., `teleport.example.com`) authorized to provide per-machine updates. This is exclusive to per-machine installations and must be defined in HKLM. |
+| AuthorizedUpdateClusters | REG_MULTI_SZ | A list of Teleport cluster hostnames (e.g., `teleport.example.com`) authorized to provide per-machine updates. This is exclusive to per-machine installations and must be defined in HKLM. |
 
 ## Alternatives
 
