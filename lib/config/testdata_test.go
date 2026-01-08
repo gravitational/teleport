@@ -181,6 +181,7 @@ db_service:
       resource_groups: ["group1", "group2"]
       types: ["postgres", "mysql"]
       regions: ["eastus", "centralus"]
+      integration: integration123
       tags:
         "a": "b"
     - types: ["postgres", "mysql"]

@@ -42,6 +42,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -58,19 +59,20 @@ type passwordSuite struct {
 	bk          backend.Backend
 	a           *auth.Server
 	mockEmitter *eventstest.MockRecorderEmitter
+	clock       *clockwork.FakeClock
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
-	s := passwordSuite{}
+	s := passwordSuite{
+		clock: clockwork.NewFakeClock(),
+	}
 
-	ctx := context.Background()
-	clock := clockwork.NewFakeClockAt(time.Now())
+	ctx := t.Context()
 
 	var err error
-
 	s.bk, err = memory.New(memory.Config{
 		Context: ctx,
-		Clock:   clock,
+		Clock:   s.clock,
 	})
 	require.NoError(t, err)
 
@@ -90,6 +92,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
+		Clock:                  s.clock,
 	}
 	s.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -169,14 +172,12 @@ func TestPasswordLengthChange(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abcdef123456"), constants.SecondFactorOff)
 	require.NoError(t, err)
 
-	fakeClock := clockwork.NewFakeClock()
-	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("defceba654321")
 
 	err = s.a.ChangePassword(ctx, req)
@@ -186,7 +187,7 @@ func TestChangePassword(t *testing.T) {
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
-	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
+	s.clock.Advance(defaults.AccountLockInterval + time.Second)
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("123456abcdef")
 	err = s.a.ChangePassword(ctx, req)
@@ -200,11 +201,8 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	req, err := s.prepareForPasswordChange("user2", []byte("abcdef123456"), constants.SecondFactorOTP)
 	require.NoError(t, err)
 
-	fakeClock := clockwork.NewFakeClock()
-	s.a.SetClock(fakeClock)
-
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	dev, err := services.NewTOTPDevice("otp", otpSecret, fakeClock.Now())
+	dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
 	require.NoError(t, err)
 	ctx := context.Background()
 	err = s.a.UpsertMFADevice(ctx, req.User, dev)
@@ -222,7 +220,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	s.shouldLockAfterFailedAttempts(t, req)
 
 	// advance time and make sure we can login again
-	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
+	s.clock.Advance(defaults.AccountLockInterval + time.Second)
 
 	validToken, _ = totp.GenerateCode(otpSecret, s.a.GetClock().Now())
 	req.OldPassword = req.NewPassword
@@ -909,14 +907,20 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "me.localhost"))
+	userCA, err := authcatest.NewCA(types.UserCA, "me.localhost")
 	if err != nil {
-		return req, err
+		return nil, trace.Wrap(err)
+	}
+	if err := s.a.UpsertCertAuthority(ctx, userCA); err != nil {
+		return nil, err
 	}
 
-	err = s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "me.localhost"))
+	hostCA, err := authcatest.NewCA(types.HostCA, "me.localhost")
 	if err != nil {
-		return req, err
+		return nil, err
+	}
+	if err := s.a.UpsertCertAuthority(ctx, hostCA); err != nil {
+		return nil, err
 	}
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -924,21 +928,18 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		SecondFactor: secondFactorType,
 	})
 	if err != nil {
-		return req, err
+		return nil, err
 	}
 
-	_, err = s.a.UpsertAuthPreference(ctx, ap)
-	if err != nil {
-		return req, err
+	if _, err := s.a.UpsertAuthPreference(ctx, ap); err != nil {
+		return nil, err
 	}
 
-	_, _, err = authtest.CreateUserAndRole(s.a, user, []string{user}, nil)
-	if err != nil {
-		return req, err
+	if _, _, err := authtest.CreateUserAndRole(s.a, user, []string{user}, nil); err != nil {
+		return nil, err
 	}
-	err = s.a.UpsertPassword(user, pass)
-	if err != nil {
-		return req, err
+	if err := s.a.UpsertPassword(user, pass); err != nil {
+		return nil, err
 	}
 
 	return req, nil

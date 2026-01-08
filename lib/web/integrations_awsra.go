@@ -156,7 +156,7 @@ func (h *Handler) validateAWSRolesAnywhereIntegration(w http.ResponseWriter, r *
 	}
 
 	// validate integration name.
-	if err := awscommon.ValidIntegratioName(integrationName); err != nil {
+	if err := awscommon.ValidIntegrationName(integrationName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

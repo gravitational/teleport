@@ -7,6 +7,7 @@ tags:
  - identity-security
  - aws
  - access-risks
+enterprise: Identity Security
 ---
 
 In this guide, you will set up the infrastructure required
@@ -117,7 +118,9 @@ for transient and long-term storage, and AWS Glue table and database.
 
 `policy.tf` includes the declaration of the AWS IAM policy that must
 be attached to the AWS identity that the Identity Security service runs as,
-enabling it to access the resources and execute queries.
+enabling it to access the resources and execute queries. If using an E2 instance
+for Identity Security, attach the policy to the instance role. If using ECS or EKS,
+attach the policy to the task or pod role.
 
 ```hcl
 (!examples/identity-activity-center/policy.tf!)
@@ -179,7 +182,10 @@ To configure it for self-hosted clusters, update the Identity Security configura
 append the following section:
 
 ```yaml
-
+# Configuration for Teleport Access Graph service.
+# Example: /etc/access_graph/config.yaml
+# Add the following section to enable Identity Activity Center.
+# ...
 identity_activity_center:
   region: <Var name="eu-central-1"/>
   database: <Var name="example-db"/>
@@ -187,9 +193,10 @@ identity_activity_center:
   s3: s3://<Var name="example-long-term-bucket"/>/data/
   s3_results: s3://<Var name="example-transient-bucket"/>/results/
   s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
+  workgroup: <Var name="example-workgroup"/>
   sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
   maxmind_geoip_city_db_path: /path/to/geoIp-city.mmdb # optional
-
+# ...
 ```
 
 </TabItem>
@@ -222,6 +229,7 @@ identity_activity_center:
   s3: s3://<Var name="example-long-term-bucket"/>/data/
   s3_results: s3://<Var name="example-transient-bucket"/>/results/
   s3_large_files: s3://<Var name="example-transient-bucket"/>/large_files
+  workgroup: <Var name="example-workgroup"/>
   sqs_queue_url: https://sqs.<Var name="eu-central-1"/>.amazonaws.com/<Var name="aws-account-id"/>/<Var name="example-sqs-queue"/>
   maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb" # optional
 ```

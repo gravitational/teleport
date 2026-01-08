@@ -25,7 +25,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -136,7 +135,22 @@ func compareServers(a, b types.Server) int {
 		return Different
 	}
 
-	if !cmp.Equal(a.GetGitHub(), b.GetGitHub()) {
+	if (a.GetGitHub() == nil && b.GetGitHub() != nil) ||
+		(a.GetGitHub() != nil && b.GetGitHub() == nil) {
+		return Different
+	}
+
+	if a.GetGitHub() != nil && b.GetGitHub() != nil {
+		if a.GetGitHub().Integration != b.GetGitHub().Integration {
+			return Different
+		}
+
+		if a.GetGitHub().Organization != b.GetGitHub().Organization {
+			return Different
+		}
+	}
+
+	if a.GetScope() != b.GetScope() {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -163,7 +177,7 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetApp(), b.GetApp()) {
+	if !a.GetApp().IsEqual(b.GetApp()) {
 		return Different
 	}
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
@@ -173,6 +187,9 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -225,7 +242,7 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetCluster(), b.GetCluster()) {
+	if !a.GetCluster().IsEqual(b.GetCluster()) {
 		return Different
 	}
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
@@ -235,6 +252,9 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 		return Different
 	}
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -261,7 +281,7 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
+	if !a.GetDatabase().IsEqual(b.GetDatabase()) {
 		return Different
 	}
 	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
@@ -271,6 +291,9 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 		return Different
 	}
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.

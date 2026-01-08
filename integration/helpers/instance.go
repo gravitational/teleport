@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
@@ -369,7 +370,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	sshSigner, err := ssh.NewSignerFromSigner(key)
 	fatalIf(err)
 
-	keygen := keygen.New(context.TODO())
+	keygen := keygen.New(t.Context(), keygen.SetClock(cfg.Clock))
 	hostCert, err := keygen.GenerateHostCert(sshca.HostCertificateRequest{
 		CASigner:      sshSigner,
 		PublicHostKey: cfg.Pub,
@@ -383,10 +384,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	clock := cfg.Clock
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
+	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
 
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
@@ -395,15 +393,23 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	subject, err := identity.Subject()
 	fatalIf(err)
 
-	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
+	tlsCAHostCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{
+			CommonName:   cfg.ClusterName,
+			Organization: []string{cfg.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
 	fatalIf(err)
+
 	tlsHostCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
+
 	hostCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)
+
 	tlsHostCert, err := tlsHostCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
 		PublicKey: hostCryptoPubKey,
@@ -412,11 +418,17 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	})
 	fatalIf(err)
 
-	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithSigner(key, pkix.Name{
-		CommonName:   cfg.ClusterName,
-		Organization: []string{cfg.ClusterName},
-	}, nil, defaults.CATTL)
+	tlsCAUserCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: key,
+		Entity: pkix.Name{
+			CommonName:   cfg.ClusterName,
+			Organization: []string{cfg.ClusterName},
+		},
+		TTL:   defaults.CATTL,
+		Clock: clock,
+	})
 	fatalIf(err)
+
 	tlsUserCA, err := tlsca.FromKeys(tlsCAHostCert, cfg.Priv)
 	fatalIf(err)
 	userCryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
@@ -622,7 +634,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Kube.CheckImpersonationPermissions = nullImpersonationCheck
 
 	tconf.Keygen = testauthority.New()
-	tconf.MaxRetryPeriod = defaults.HighResPollingPeriod
+	tconf.AuthConnectionConfig = *servicecfg.DefaultRatioAuthConnectionConfig(defaults.HighResPollingPeriod)
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.FileDescriptors = append(tconf.FileDescriptors, i.Fds...)
 
@@ -660,7 +672,7 @@ func (i *TeleInstance) createTeleportProcess(tconf *servicecfg.Config) (*service
 }
 
 // CreateWithConf creates a new instance of Teleport using the supplied config
-func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
+func (i *TeleInstance) CreateWithConf(t *testing.T, tconf *servicecfg.Config) error {
 	i.Config = tconf
 	var err error
 	i.Process, err = i.createTeleportProcess(tconf)
@@ -677,7 +689,7 @@ func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) er
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
 	auth := i.Process.GetAuthServer()
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := types.NewUser(user.Username)
@@ -1367,6 +1379,18 @@ func (i *TeleInstance) Start() error {
 		"received_events_count", len(receivedEvents),
 	)
 
+	// Wait for any SSH instances to be visible in the inventory before returning
+	// to prevent any immediate connection attempts from failing because the host
+	// has not yet been propagated to the caches.
+	expectedNodes := len(i.Nodes)
+	if i.Config.SSH.Enabled {
+		expectedNodes++
+	}
+
+	if err := i.WaitForNodeCount(context.Background(), i.Secrets.SiteName, expectedNodes); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -1689,6 +1713,59 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*terminal.Stream, error) {
 	return terminal.NewStream(context.Background(), terminal.StreamConfig{WS: ws}), nil
 }
 
+func (w *WebClient) SFTP(path string, upload []byte) ([]byte, error) {
+	u := &url.URL{
+		Host:   w.i.Web,
+		Scheme: client.HTTPS,
+		Path: fmt.Sprintf(
+			"/v1/webapi/sites/%s/nodes/%s/%s/scp",
+			w.i.Config.Auth.ClusterName.GetClusterName(),
+			w.tc.Host,
+			w.tc.HostLogin,
+		),
+	}
+
+	q := u.Query()
+	q.Set("location", path)
+	q.Set("filename", "foo.txt")
+	u.RawQuery = q.Encode()
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+	header.Set("Authorization", "Bearer "+w.token)
+
+	ctx := w.i.Process.GracefulExitContext()
+	method := http.MethodGet
+	if upload != nil {
+		method = http.MethodPost
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(upload))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header = header
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	transport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	clt := &http.Client{Transport: transport}
+	resp, err := clt.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return body, trace.ReadError(resp.StatusCode, body)
+}
+
 func (w *WebClient) JoinKubernetesSession(id string, mode types.SessionParticipantMode) (*terminal.Stream, error) {
 	u := url.URL{
 		Host:   w.i.Web,
@@ -1891,6 +1968,10 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		deadline     = time.Second * 30
 		iterWaitTime = time.Second
 	)
+
+	if count <= 0 || i.Config == nil || !i.Config.Auth.Enabled || !i.Config.Proxy.Enabled {
+		return nil
+	}
 
 	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		cluster, err := i.Tunnel.Cluster(ctx, clusterName)

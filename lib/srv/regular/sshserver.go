@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -62,9 +63,11 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -165,7 +168,7 @@ type Server struct {
 	// requesting connections to it come over a reverse tunnel.
 	useTunnel bool
 
-	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// fips means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	fips bool
 
@@ -251,6 +254,12 @@ type Server struct {
 
 	// enableSELinux configures whether SELinux support is enable or not.
 	enableSELinux bool
+
+	// scope is the scope the server is constrained to
+	scope string
+
+	// childLogConfig is the log config for child processes.
+	childLogConfig *srv.ChildLogConfig
 }
 
 // EventMetadata returns metadata about the server.
@@ -291,8 +300,8 @@ func (s *Server) GetUserAccountingPaths() (utmp string, wtmp string, btmp string
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
-	return s.pamConfig, nil
+func (s *Server) GetPAM() *servicecfg.PAMConfig {
+	return s.pamConfig
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -342,6 +351,26 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 // support or not.
 func (s *Server) GetSELinuxEnabled() bool {
 	return s.enableSELinux
+}
+
+// GetProxyMode returns whether the server is started in SSH proxying mode.
+func (s *Server) GetProxyMode() bool {
+	return s.proxyMode
+}
+
+// ChildLogConfig returns the child log config.
+func (s *Server) ChildLogConfig() srv.ChildLogConfig {
+	if s.childLogConfig != nil {
+		return *s.childLogConfig
+	}
+
+	// return a noop log configuration
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // ServerOption is a functional option passed to the server
@@ -758,6 +787,40 @@ func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
 	}
 }
 
+// SetScope sets the server's scope.
+func SetScope(scope string) ServerOption {
+	return func(s *Server) error {
+		if scope == "" {
+			s.scope = ""
+			return nil
+		}
+
+		if err := scopes.WeakValidate(scope); err != nil {
+			return trace.Wrap(err)
+		}
+		s.scope = scope
+		return nil
+	}
+}
+
+// SetChildLogConfig sets the config that will be used to handle logs
+// from child processes.
+func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
+	return func(s *Server) error {
+		s.childLogConfig = &srv.ChildLogConfig{
+			ExecLogConfig: srv.ExecLogConfig{
+				Level:        cfg.LoggerLevel,
+				Format:       strings.ToLower(cfg.LogConfig.Format),
+				ExtraFields:  cfg.LogConfig.ExtraFields,
+				EnableColors: cfg.LogConfig.EnableColors,
+				Padding:      cfg.LogConfig.Padding,
+			},
+			Writer: cfg.LogWriter,
+		}
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -1112,6 +1175,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
+		Scope:   s.scope,
 		Metadata: types.Metadata{
 			Name:      s.ID(),
 			Namespace: s.getNamespace(),
@@ -1129,6 +1193,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		},
 	}
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+	srv.SetComponentFeatures(componentfeatures.ForSSHServer(s))
 
 	return srv
 }
@@ -1274,17 +1339,30 @@ func (s *Server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionCont
 			}
 		}
 	case teleport.SessionIDQueryRequest:
+		// TODO(Joerger): DELETE IN v20.0.0
+		// All v17+ servers set the session ID. v19+ clients stop checking.
+
 		// Reply true to session ID query requests, we will set new
-		// session IDs for new sessions
+		// session IDs for new sessions during the shel/exec channel
+		// request.
+		if err := r.Reply(true, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
+		}
+		return
+	case teleport.SessionIDQueryRequestV2:
+		// TODO(Joerger): DELETE IN v21.0.0
+		// clients should stop checking in v21, and servers should stop responding to the query in v22.
+
+		// Reply true to session ID query requests, we will set new
+		// session IDs for new sessions directly after accepting the
+		// session channel request.
 		if err := r.Reply(true, nil); err != nil {
 			s.logger.WarnContext(ctx, "Failed to reply to session ID query request", "error", err)
 		}
 		return
 	default:
-		if r.WantReply {
-			if err := r.Reply(false, nil); err != nil {
-				s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
-			}
+		if err := r.Reply(false, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
 		}
 		s.logger.DebugContext(ctx, "Discarding global request", "request_type", r.Type)
 	}
@@ -1623,6 +1701,27 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	defer scx.Close()
 
 	trackingChan := scx.TrackActivity(ch)
+
+	// If we are creating a new session (not joining a session), prepare a new session
+	// ID and inform the client.
+	//
+	// Note: If this is an old client (<v19), the join sid has not yet propagated
+	// from env vars. There is no harm in sending the ephemeral session ID anyways
+	// as clients should ignore the reported session ID when joining a session.
+	if scx.GetSessionParams().JoinSessionID == "" {
+		sid := session.NewID()
+		scx.SetNewSessionID(ctx, sid)
+
+		// inform the client of the session ID that is going to be used in a new
+		// goroutine to reduce latency.
+		go func() {
+			s.logger.DebugContext(ctx, "Sending current session ID", "sid", sid)
+			_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sid))
+			if err != nil {
+				s.logger.DebugContext(ctx, "Failed to send the current session ID", "error", err)
+			}
+		}()
+	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the

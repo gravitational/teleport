@@ -92,20 +92,12 @@ func TestStdioHelpers(t *testing.T) {
 
 	clientMessageReader, err := NewForwardMessageReader(slog.Default(), NewStdioReader(readFromClient), serverMessageWriter)
 	require.NoError(t, err)
-	clientMessageReaderClosed := make(chan struct{})
-	go func() {
-		clientMessageReader.Run(ctx)
-		close(clientMessageReaderClosed)
-	}()
+	go clientMessageReader.Run(ctx)
 
 	serverMessageReader, err := NewForwardMessageReader(slog.Default(), NewStdioReader(readFromServer), clientMessageWriter)
 	require.NoError(t, err)
-	serverMessageReaderClosed := make(chan struct{})
 	serverMessageReaderCtx, serverMessageReaderCtxCancel := context.WithCancel(ctx)
-	go func() {
-		serverMessageReader.Run(serverMessageReaderCtx)
-		close(serverMessageReaderClosed)
-	}()
+	go serverMessageReader.Run(serverMessageReaderCtx)
 
 	// Make "high-level" MCP client and server with stdio transport as the two
 	// ends.
@@ -127,7 +119,7 @@ func TestStdioHelpers(t *testing.T) {
 	t.Run("reader closed by closing stdin", func(t *testing.T) {
 		readFromClient.Close()
 		select {
-		case <-clientMessageReaderClosed:
+		case <-clientMessageReader.Done():
 		case <-time.After(time.Second * 2):
 			require.Fail(t, "timeout waiting for reader closed by closing stdin")
 		}
@@ -136,7 +128,7 @@ func TestStdioHelpers(t *testing.T) {
 	t.Run("reader closed by canceling context", func(t *testing.T) {
 		serverMessageReaderCtxCancel()
 		select {
-		case <-serverMessageReaderClosed:
+		case <-serverMessageReader.Done():
 		case <-time.After(time.Second * 2):
 			require.Fail(t, "timeout waiting for reader closed by canceling context")
 		}

@@ -17,11 +17,13 @@
 package join
 
 import (
+	"crypto/subtle"
+
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleTokenJoin handles join attempts for the token join method.
@@ -29,7 +31,7 @@ func (s *Server) handleTokenJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 ) (messages.Response, error) {
 	// Receive the TokenInit message from the client.
 	tokenInit, err := messages.RecvRequest[*messages.TokenInit](stream)
@@ -39,15 +41,20 @@ func (s *Server) handleTokenJoin(
 	// Set any diagnostic info from the ClientParams.
 	setDiagnosticClientParams(stream.Diagnostic(), &tokenInit.ClientParams)
 
-	// There are no additional checks for the token join method, just make the
-	// result message and return it.
+	// verify the secret provided in TokenInit for token's that have a secret
+	if tokenSecret, tokenHasSecret := token.GetSecret(); tokenHasSecret {
+		if subtle.ConstantTimeCompare([]byte(tokenSecret), []byte(tokenInit.Secret)) != 1 {
+			return nil, trace.BadParameter("invalid token secret")
+		}
+	}
+
 	result, err := s.makeResult(
 		stream.Context(),
 		stream.Diagnostic(),
 		authCtx,
 		clientInit,
 		&tokenInit.ClientParams,
-		provisionToken,
+		token,
 		nil, /*rawClaims*/
 		nil, /*attrs*/
 	)

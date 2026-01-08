@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // NewWebSessionRequest defines a request to create a new user
@@ -58,6 +60,13 @@ type NewWebSessionRequest struct {
 	// LoginUserAgent is the user agent of the client's browser, as captured by
 	// the Proxy.
 	LoginUserAgent string
+	// LoginMaxTouchPoints indicates whether the client device supports touch controls. It is sent by
+	// the frontend app to the proxy service and then forwarded to the auth service. It differentiates
+	// iPadOS from macOS since they both use the same user agent otherwise. This information is needed
+	// to decide whether to show the Device Trust prompt in the Web UI after a successful login.
+	LoginMaxTouchPoints int
+	// ProxyGroupID is the proxy group id where request is generated.
+	ProxyGroupID string
 	// Roles optionally lists additional user roles
 	Roles []string
 	// Traits optionally lists role traits
@@ -92,6 +101,10 @@ type NewWebSessionRequest struct {
 	// May only be set internally by Auth (and Auth-related logic), not allowed
 	// for external requests.
 	CreateDeviceWebToken bool
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -112,6 +125,11 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 }
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
+	if req.Scope != "" {
+		// TODO(fspmarshall/scopes): add scoping support for web sessions
+		return nil, trace.BadParameter("web sessions cannot be pinned to a scope")
+	}
+
 	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,7 +143,7 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 	// Issue and assign the DeviceWebToken, but never persist it with the
 	// session.
 	if req.CreateDeviceWebToken {
-		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent); err != nil {
+		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent, req.LoginMaxTouchPoints); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -137,6 +155,7 @@ func (a *Server) augmentSessionForDeviceTrust(
 	ctx context.Context,
 	session types.WebSession,
 	loginIP, userAgent string,
+	maxTouchPoints int,
 ) error {
 	// IP and user agent are mandatory for device web authentication.
 	if loginIP == "" || userAgent == "" {
@@ -147,10 +166,11 @@ func (a *Server) augmentSessionForDeviceTrust(
 	// We only get a token if the server is enabled for Device Trust and the user
 	// has a suitable trusted device.
 	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-		WebSessionId:     session.GetName(),
-		BrowserUserAgent: userAgent,
-		BrowserIp:        loginIP,
-		User:             session.GetUser(),
+		WebSessionId:          session.GetName(),
+		BrowserMaxTouchPoints: uint32(maxTouchPoints),
+		BrowserUserAgent:      userAgent,
+		BrowserIp:             loginIP,
+		User:                  session.GetUser(),
 	})
 	switch {
 	case err != nil:
@@ -344,7 +364,13 @@ func (a *Server) newWebSession(
 		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
 	}
+
 	UserLoginCount.Inc()
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: "web",
+		tagVersion:       teleport.Version,
+		tagProxyGroupID:  req.ProxyGroupID,
+	}).Inc()
 
 	sess, err := types.NewWebSession(token, types.KindWebSession, sessionSpec)
 	if err != nil {
@@ -609,7 +635,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 	a.logger.DebugContext(ctx, "Generated application web session", "user", req.User, "ttl", req.SessionTTL)
+
 	UserLoginCount.Inc()
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: "web",
+		tagVersion:       teleport.Version,
+		tagProxyGroupID:  req.ProxyGroupID,
+	}).Inc()
 
 	// Do not send app session start for MCP. They have their own events on
 	// connections.
@@ -668,14 +700,23 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (a *Server) generateAppToken(ctx context.Context, username string, roles []string, traits map[string][]string, uri string, expires time.Time) (string, error) {
+func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	switch req.AuthorityType {
+	case "":
+		req.AuthorityType = types.JWTSigner
+	case types.JWTSigner, types.OIDCIdPCA:
+	default:
+		return "", trace.BadParameter("unsupported authority %q for signing app token", req.AuthorityType)
+	}
+
 	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.JWTSigner,
+		Type:       req.AuthorityType,
 		DomainName: clusterName,
 	}, true)
 	if err != nil {
@@ -685,7 +726,7 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	// Filter out empty traits so the resulting JWT doesn't have a bunch of
 	// entries with nil values.
 	filteredTraits := map[string][]string{}
-	for trait, values := range traits {
+	for trait, values := range req.Traits {
 		if len(values) > 0 {
 			filteredTraits[trait] = values
 		}
@@ -700,12 +741,21 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	issuer := ca.GetClusterName()
+	if req.AuthorityType == types.OIDCIdPCA {
+		if issuer, err = oidc.IssuerForCluster(ctx, a); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
 	token, err := privateKey.Sign(jwt.SignParams{
-		Username: username,
-		Roles:    roles,
+		Issuer:   issuer,
+		Username: req.Username,
+		Roles:    req.Roles,
 		Traits:   filteredTraits,
-		URI:      uri,
-		Expires:  expires,
+		URI:      req.URI,
+		Expires:  req.Expires,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -726,6 +776,7 @@ type SessionCertsRequest struct {
 	RouteToCluster          string
 	KubernetesCluster       string
 	LoginIP                 string
+	Scope                   string
 }
 
 // CreateSessionCerts returns new user certs. The user must already be
@@ -734,15 +785,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	// It's safe to extract the access info directly from services.User because
-	// this occurs during the initial login before the first certs have been
-	// generated, so there's no possibility of any active access requests.
-	accessInfo := services.AccessInfoFromUserState(req.UserState)
-	clusterName, err := a.GetClusterName(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	checker, err := a.accessCheckerForScope(ctx, req.Scope, req.UserState)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -755,7 +798,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		compatibility:                    req.Compatibility,
-		checker:                          services.NewUnscopedSplitAccessChecker(checker), // TODO(fspmarshall/scopes): add scoping support to CreateSessionCerts.
+		checker:                          checker,
 		traits:                           req.UserState.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

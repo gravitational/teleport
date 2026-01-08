@@ -6,6 +6,7 @@ tags:
  - how-to
  - identity-security
  - access-risks
+enterprise: Identity Security
 ---
 
 This guide shows you how to set up Teleport Access Graph in a self-hosted
@@ -77,6 +78,8 @@ $ tctl get cert_authorities --format=json \
 Then, on the same machine, create a configuration file for the Access Graph service, similar to this:
 
 ```yaml
+# Configuration for Teleport Access Graph service.
+# Example: /etc/access_graph/config.yaml
 backend:
   postgres:
     # This uses the PostgreSQL connection URI format, see https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING-URIS
@@ -92,6 +95,18 @@ backend:
 # IP address (optional) and port for the Access Graph service to listen to.
 # This is the default value. This key can be omitted to listen on port 50051 on all interfaces.
 address: ":50051"
+
+# Example Identity Activity Center configuration.
+# identity_activity_center:
+#   region: eu-central-1
+#   database: example-db
+#   table: example-table
+#   s3: s3://example-long-term-bucket/data/
+#   s3_results: s3://example-transient-bucket/results/
+#   s3_large_files: s3://example-transient-bucket/large_files
+#   workgroup: example-workgroup
+#   sqs_queue_url: https://sqs.eu-central-1.amazonaws.com/aws-account-id/example-sqs-queue
+#   maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb" # optional
 
 tls:
   # File paths of PEM-encoded TLS certificate and private key for the Access Graph server.

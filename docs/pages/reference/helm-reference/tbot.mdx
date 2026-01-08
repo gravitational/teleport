@@ -8,15 +8,15 @@ tags:
  - infrastructure-identity
 ---
 
-This chart deploys an instance of the [MachineID](../../machine-workload-identity/machine-id/introduction.mdx) agent,
+This chart deploys an instance of the [Machine & Workload Identity](../../machine-workload-identity/introduction.mdx) agent,
 TBot, into your Kubernetes cluster.
 
 To use it, you will need to know:
 
 - The address of your Teleport Proxy Service or Auth Service
 - The name of your Teleport cluster
-- The name of a join token configured for Machine ID and your Kubernetes cluster
-  as described in the [Machine ID on Kubernetes guide](../../machine-workload-identity/machine-id/deployment/kubernetes.mdx)
+- The name of a join token configured for Machine & Workload Identity and your Kubernetes cluster
+  as described in the [Machine & Workload Identity on Kubernetes guide](../../machine-workload-identity/deployment/kubernetes.mdx)
 
 By default, this chart is designed to use the `kubernetes` join method but it
 can be customized to use any delegated join method. We do not recommend that

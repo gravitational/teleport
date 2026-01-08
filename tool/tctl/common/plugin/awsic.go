@@ -55,6 +55,7 @@ type awsICInstallArgs struct {
 	region                    string
 	arn                       string
 	useSystemCredentials      bool
+	oidcIntegration           string
 	assumeRoleARN             string
 	userOrigins               []string
 	userLabels                []string
@@ -67,7 +68,7 @@ type awsICInstallArgs struct {
 	excludeAccountIDFilters   []string
 }
 
-func (a *awsICInstallArgs) validate(ctx context.Context, log *slog.Logger) error {
+func (a *awsICInstallArgs) validate(ctx context.Context, auth authClient, log *slog.Logger) error {
 	if !awsregion.IsKnownRegion(a.region) {
 		return trace.BadParameter("unknown AWS region: %s", a.region)
 	}
@@ -76,7 +77,7 @@ func (a *awsICInstallArgs) validate(ctx context.Context, log *slog.Logger) error
 		return trace.BadParameter("SCIM token must not be empty")
 	}
 
-	if err := a.validateSystemCredentialInput(); err != nil {
+	if err := a.validateCredentialInput(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -87,17 +88,28 @@ func (a *awsICInstallArgs) validate(ctx context.Context, log *slog.Logger) error
 	return nil
 }
 
-func (a *awsICInstallArgs) validateSystemCredentialInput() error {
-	if !a.useSystemCredentials {
-		return trace.BadParameter("--use-system-credentials must be set. The tctl-based AWS IAM Identity Center plugin installation only supports AWS local system credentials")
+func (a *awsICInstallArgs) validateCredentialInput() error {
+	if a.useSystemCredentials {
+		if a.assumeRoleARN == "" {
+			return trace.BadParameter("--assume-role-arn must be set when --use-system-credentials is configured")
+		}
+
+		if a.oidcIntegration != "" {
+			return trace.BadParameter("--oidc-integration must not be set when --use-system-credentials is configured")
+		}
+
+		if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
 	}
 
-	if a.assumeRoleARN == "" {
-		return trace.BadParameter("--assume-role-arn must be set when --use-system-credentials is configured")
+	if a.oidcIntegration == "" {
+		return trace.BadParameter("--oidc-integration must be set when --no-use-system-credentials is configured")
 	}
 
-	if _, err := awsutils.ParseRoleARN(a.assumeRoleARN); err != nil {
-		return trace.Wrap(err)
+	if a.assumeRoleARN != "" {
+		return trace.BadParameter("--assume-role-arn must not be set when --no-use-system-credentials is configured")
 	}
 
 	return nil
@@ -108,7 +120,6 @@ func (a *awsICInstallArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Lo
 	if err == nil {
 		a.scimURL = validatedBaseUrl
 		return nil
-
 	}
 
 	if a.forceSCIMURL {
@@ -216,6 +227,8 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 		BoolVar(&p.install.awsIC.useSystemCredentials)
 	cmd.Flag("assume-role-arn", "ARN of a role that the system credential should assume.").
 		StringVar(&p.install.awsIC.assumeRoleARN)
+	cmd.Flag("oidc-integration", "Name of the Teleport OIDC integration to use when authenticating with AWS. Must be supplied when --no-use-system-credentials is set.").
+		StringVar(&p.install.awsIC.oidcIntegration)
 
 	cmd.Flag("user-origin", fmt.Sprintf(`Shorthand for "--user-label %s=ORIGIN"`, types.OriginLabel)).
 		PlaceHolder("ORIGIN").
@@ -246,7 +259,7 @@ func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 // InstallAWSIC installs AWS Identity Center plugin.
 func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) error {
 	awsICArgs := p.install.awsIC
-	if err := awsICArgs.validate(ctx, p.config.Logger); err != nil {
+	if err := awsICArgs.validate(ctx, args.authClient, p.config.Logger); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -299,6 +312,14 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) 
 		// Set the deprecated CredentialsSource to the legacy value to allow old
 		// versions of Teleport to handle the record. DELETE in Teleport 19
 		settings.CredentialsSource = types.AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM
+	} else {
+		settings.Credentials = &types.AWSICCredentials{
+			Source: &types.AWSICCredentials_Oidc{
+				Oidc: &types.AWSICCredentialSourceOIDC{
+					IntegrationName: awsICArgs.oidcIntegration,
+				},
+			},
+		}
 	}
 
 	req := &pluginspb.CreatePluginRequest{

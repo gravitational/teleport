@@ -1,0 +1,26 @@
+source: "../../../../api"
+destination: "../../../../docs/pages/reference/infrastructure-as-code/teleport-resources"
+
+# Please alphabetize the resource list by type name.
+resources:
+  - type: AppV3
+    package: types
+    yaml_kind: app
+    yaml_version: v3
+  - type: DiscoveryConfig
+    package: discoveryconfig
+    yaml_kind: discovery_config
+    yaml_version: v1
+  - type: InstallerV1
+    package: types
+    yaml_kind: installer
+    yaml_version: v1
+  - type: OIDCConnectorV3
+    package: types
+    yaml_kind: oidc
+    yaml_version: v3
+  - type: SAMLConnectorV2
+    package: types
+    yaml_kind: saml
+    yaml_version: v2
+

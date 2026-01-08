@@ -34,6 +34,7 @@ import {
   Question,
   Server,
   SlidersVertical,
+  Stack,
   Terminal,
   UserCircleGear,
   User as UserIcon,
@@ -41,6 +42,7 @@ import {
 
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
+import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -59,6 +61,7 @@ import { BotDetails } from './Bots/Details/BotDetails';
 import { Clusters } from './Clusters';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { Discover } from './Discover';
+import { Instances } from './Instances/Instances';
 import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
@@ -307,6 +310,40 @@ export class FeatureBotInstances implements TeleportFeature {
 export class FeatureBotInstanceDetails implements TeleportFeature {
   hasAccess() {
     return false;
+  }
+}
+
+export class FeatureInstances implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  route = {
+    title: 'Instance Inventory',
+    path: cfg.routes.instances,
+    exact: true,
+    component: Instances,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    // if feature hiding is enabled, only show
+    // if the user has access
+    if (shouldHideFromNavigation(cfg)) {
+      return flags.listInstances || flags.listBotInstances;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.InstanceInventory,
+    icon: Stack,
+    exact: true,
+    getLink() {
+      return cfg.getInstancesRoute();
+    },
+    searchableTags: ['instances', 'instance', 'agents', 'inventory'],
+  };
+
+  getRoute() {
+    return this.route;
   }
 }
 
@@ -783,6 +820,20 @@ class FeatureIntegrationStatus implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrationOverview implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Overview',
+    path: cfg.routes.integrationOverview,
+    component: IaCIntegrationOverview,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -859,6 +910,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureBots(),
     new FeatureBotDetails(),
     new FeatureBotInstances(),
+    new FeatureInstances(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
@@ -867,6 +919,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
+    new FeatureIntegrationOverview(),
 
     // - Identity
     new AccessRequests(),

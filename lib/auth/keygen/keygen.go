@@ -55,11 +55,13 @@ func SetClock(clock clockwork.Clock) Option {
 
 // New returns a new key generator.
 func New(_ context.Context, opts ...Option) *Keygen {
-	k := &Keygen{
-		clock: clockwork.NewRealClock(),
-	}
+	k := &Keygen{}
 	for _, opt := range opts {
 		opt(k)
+	}
+
+	if k.clock == nil {
+		k.clock = clockwork.NewRealClock()
 	}
 
 	return k

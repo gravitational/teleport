@@ -20,14 +20,17 @@ import (
 	"cmp"
 	"slices"
 	"testing"
+	"time"
 
 	gocmp "github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -38,9 +41,14 @@ import (
 )
 
 func TestScopedTokenService(t *testing.T) {
-	bk, err := memory.New(memory.Config{})
+	clock := clockwork.NewFakeClock()
+	clock.Advance(-30 * time.Hour)
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	// service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(bk)
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -49,14 +57,16 @@ func TestScopedTokenService(t *testing.T) {
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:      "testtoken",
-			Namespace: defaults.Namespace,
+			Name: "testtoken",
 		},
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 
@@ -75,6 +85,54 @@ func TestScopedTokenService(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Empty(t, gocmp.Diff(created.Token, fetched.Token, cmpOpts...))
+
+	_, err = service.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+		Name: fetched.Token.Metadata.Name,
+	})
+	require.NoError(t, err)
+	_, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name: fetched.Token.Metadata.Name,
+	})
+	require.True(t, trace.IsNotFound(err))
+
+	expiredToken := proto.CloneOf(token)
+	expiredToken.Metadata.Name = "expiredtoken"
+	expiredToken.Metadata.Expires = timestamppb.New(time.Now().UTC().Add(-25 * time.Hour))
+
+	activeToken := proto.CloneOf(token)
+	activeToken.Metadata.Name = "activetoken"
+	activeToken.Metadata.Expires = timestamppb.New(time.Now().UTC().Add(25 * time.Hour))
+
+	expiredRes, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: expiredToken,
+	})
+	require.NoError(t, err)
+
+	activeRes, err := service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: activeToken,
+	})
+	require.NoError(t, err)
+
+	// expired tokens should error and delete the token
+	expiredToken, err = service.UseScopedToken(ctx, expiredRes.Token.Metadata.Name)
+	require.True(t, trace.IsLimitExceeded(err))
+	require.Nil(t, expiredToken)
+
+	_, err = service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name: expiredRes.Token.Metadata.Name,
+	})
+	require.True(t, trace.IsNotFound(err))
+
+	// active tokens should function like a get
+	activeToken, err = service.UseScopedToken(ctx, activeToken.Metadata.Name)
+	require.NoError(t, err)
+	assert.Empty(t, gocmp.Diff(activeToken, activeRes.Token, cmpOpts...))
+
+	fetchedActive, err := service.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		Name: activeRes.Token.Metadata.Name,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, gocmp.Diff(activeRes.Token, fetchedActive.Token, cmpOpts...))
 }
 
 func TestScopedTokenList(t *testing.T) {
@@ -89,8 +147,7 @@ func TestScopedTokenList(t *testing.T) {
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name:      "test",
-			Namespace: defaults.Namespace,
+			Name: "test",
 		},
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
@@ -99,6 +156,9 @@ func TestScopedTokenList(t *testing.T) {
 			Roles: []string{
 				types.RoleNode.String(),
 			},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
 		},
 	}
 

@@ -649,7 +649,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
       - matchSnapshot:
           path: spec.template.spec
 
@@ -675,7 +675,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
+            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
       - contains:
           path: spec.template.spec.containers[0].env
           content:
@@ -855,6 +855,52 @@ tests:
             name: TELEPORT_EXT_UPGRADER_VERSION
             value: 13.4.5
 
+  - it: should mount the update.yaml configmap when updater is enabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/updater.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_UPDATE_CONFIG_FILE
+            value: /etc/updater-config/update.yaml
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/updater-config
+            name: updater-config
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: updater-config
+            configMap:
+              name: RELEASE-NAME-updater
+
+  - it: should not mount the update.yaml configmap when updater is disabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_UPDATE_CONFIG_FILE
+            value: /etc/updater-config/update.yaml
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/updater-config
+            name: updater-config
+            readOnly: true
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: updater-config
+            configMap:
+              name: RELEASE-NAME-updater
+
   - it: should set the installation method environment variable
     template: statefulset.yaml
     values:
@@ -951,3 +997,102 @@ tests:
           content:
             name: KUBERNETES_TOKEN_PATH
             value: /var/run/secrets/tokens/join-sa-token
+
+  - it: sets GOMEMLIMIT by default (SI unit)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5G"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: sets GOMEMLIMIT by default (IEC unit)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5Gi"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "10146860237"
+
+  - it: sets GOMEMLIMIT by default (scientific notation)
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5e9"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: honours existing GOMEMLIMIT
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5G"
+      extraEnv:
+        - name: FOO
+          value: bar
+        - name: GOMEMLIMIT
+          value: "5GB"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "5GB"
+
+  - it: does not set GOMEMLIMIT if ratio is 0
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+      resources:
+        limits:
+          memory: "10.5G"
+      goMemLimitRatio: 0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: does not set GOMEMLIMIT if resources are not set
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    set:
+      teleportClusterName: teleport.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+          any: true

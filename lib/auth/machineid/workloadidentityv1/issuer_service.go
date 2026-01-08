@@ -82,7 +82,11 @@ func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []stri
 
 type issuerCache interface {
 	workloadIdentityReader
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
 

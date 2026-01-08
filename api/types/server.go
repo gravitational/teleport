@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 )
@@ -112,6 +113,13 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *GitHubServerMetadata
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
+
+	// GetComponentFeatures returns the supported features for the server.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the supported features for the server.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
 // NewServer creates an instance of Server.
@@ -191,6 +199,16 @@ func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Serv
 		return nil, trace.Wrap(err)
 	}
 	return server, nil
+}
+
+// GetComponentFeatures returns the supported features for the server.
+func (s *ServerV2) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the supported features for the server.
+func (s *ServerV2) SetComponentFeatures(features *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = features
 }
 
 // GetVersion returns resource version
@@ -747,6 +765,11 @@ func (s *ServerV2) GetAWSInfo() *AWSInfo {
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *ServerV2) GetScope() string {
+	return s.Scope
 }
 
 // CommandLabel is a label that has a value as a result of the

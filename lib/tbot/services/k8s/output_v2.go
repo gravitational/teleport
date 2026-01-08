@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
@@ -41,6 +42,7 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -220,12 +222,23 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 	}
 
 	status := &kubernetesStatusV2{
-		clusterAddr:            clusterAddr,
-		tlsServerName:          tlsServerName,
 		credentials:            keyRing,
 		teleportClusterName:    proxyPong.ClusterName,
 		kubernetesClusterNames: clusterNames,
 		defaultNamespaces:      defaultNamespaces,
+	}
+
+	if s.cfg.RelayAddress == "" {
+		status.clusterAddr = clusterAddr
+		status.tlsServerNameFunc = func(teleportClusterName, kubeClusterName string) string {
+			return tlsServerName
+		}
+	} else {
+		status.clusterAddr = (&url.URL{
+			Scheme: "https",
+			Host:   s.cfg.RelayAddress,
+		}).String()
+		status.tlsServerNameFunc = kuberelay.FullSNIForKubeCluster
 	}
 
 	return trace.Wrap(s.render(ctx, status, id.Get(), hostCAs))
@@ -236,12 +249,20 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 type kubernetesStatusV2 struct {
 	clusterAddr            string
 	teleportClusterName    string
-	tlsServerName          string
+	tlsServerNameFunc      func(teleportClusterName, kubeClusterName string) string
 	credentials            *libclient.KeyRing
 	kubernetesClusterNames []string
 	// defaultNamespace is map of the cluster name to the default namespace
 	// which should be used for that cluster.
 	defaultNamespaces map[string]string
+}
+
+func (s kubernetesStatusV2) tlsServerName(teleportClusterName, kubeClusterName string) string {
+	if s.tlsServerNameFunc == nil {
+		return ""
+	}
+
+	return s.tlsServerNameFunc(teleportClusterName, kubeClusterName)
 }
 
 // queryKubeClustersByLabels fetches a list of Kubernetes clusters matching the
@@ -451,7 +472,7 @@ func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2,
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			Server:        ks.clusterAddr + suffix,
-			TLSServerName: ks.tlsServerName,
+			TLSServerName: ks.tlsServerName(ks.teleportClusterName, cluster),
 
 			// TODO: consider using CertificateAuthority (path) here to avoid
 			// duplication. This branch (with plugin) already requires a file
@@ -508,7 +529,7 @@ func (o *OutputV2Service) generateKubeConfigV2WithoutPlugin(ks *kubernetesStatus
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			Server:                   ks.clusterAddr + suffix,
-			TLSServerName:            ks.tlsServerName,
+			TLSServerName:            ks.tlsServerName(ks.teleportClusterName, cluster),
 			CertificateAuthorityData: cas,
 		}
 

@@ -80,6 +80,14 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}, nil
 }
 
+func (f *fakeAuthorizer) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	authzCtx, err := f.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authz.ScopedContextFromUnscopedContext(authzCtx), nil
+}
+
 type fakeAuthServer struct {
 	clusterName          types.ClusterName
 	generateHostCertData map[string]struct {
@@ -266,6 +274,26 @@ func TestRBAC(t *testing.T) {
 				},
 			},
 			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbList}, // scoped access-checker interface halts on first disallowed verb
+			},
+		},
+		{
+			desc: "get authorities no read access",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+					Type: string(ca.GetType()),
+				})
+
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbList}: true,
+					},
+				},
+			},
+			expectChecks: []check{
 				{types.KindCertAuthority, types.VerbList},
 				{types.KindCertAuthority, types.VerbReadNoSecrets},
 			},
@@ -429,10 +457,11 @@ func TestRBAC(t *testing.T) {
 
 			trust := local.NewCAService(p.mem)
 			cfg := &ServiceConfig{
-				Cache:      trust,
-				Backend:    trust,
-				Authorizer: &test.authorizer,
-				AuthServer: &fakeAuthServer{},
+				Cache:            trust,
+				Backend:          trust,
+				Authorizer:       &test.authorizer,
+				ScopedAuthorizer: &test.authorizer,
+				AuthServer:       &fakeAuthServer{},
 			}
 
 			service, err := NewService(cfg)
@@ -463,10 +492,11 @@ func TestGetCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: &fakeAuthServer{},
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -561,10 +591,11 @@ func TestGetCertAuthorities(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: &fakeAuthServer{},
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -666,10 +697,11 @@ func TestDeleteCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: &fakeAuthServer{},
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -740,10 +772,11 @@ func TestUpsertCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: &fakeAuthServer{},
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -825,10 +858,11 @@ func TestRotateCertAuthority(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: authServer,
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       authServer,
 	}
 
 	tests := []struct {
@@ -982,6 +1016,9 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 				Authorizer: &fakeAuthorizer{
 					authzCtx: test.authzCtx,
 				},
+				ScopedAuthorizer: &fakeAuthorizer{
+					authzCtx: test.authzCtx,
+				},
 				AuthServer: &fakeAuthServer{
 					clusterName: &types.ClusterNameV2{
 						Spec: types.ClusterNameSpecV2{
@@ -1032,10 +1069,11 @@ func TestGenerateHostCert(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: authorizer,
-		AuthServer: hostCertSigner,
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       authorizer,
+		ScopedAuthorizer: authorizer,
+		AuthServer:       hostCertSigner,
 	}
 
 	tests := []struct {

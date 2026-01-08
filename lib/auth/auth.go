@@ -94,33 +94,39 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/azuredevops"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/bitbucket"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/circleci"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/gcp"
-	"github.com/gravitational/teleport/lib/githubactions"
-	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/azurejoin"
+	"github.com/gravitational/teleport/lib/join/bitbucket"
 	joinboundkeypair "github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
+	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/loginrule"
@@ -135,11 +141,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
-	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -189,7 +192,16 @@ const (
 const (
 	notificationsPageReadInterval = 5 * time.Millisecond
 	notificationsWriteInterval    = 40 * time.Millisecond
-	accessListsPageReadInterval   = 5 * time.Millisecond
+)
+
+const (
+	// tagUserAgentType is a prometheus label for identifying user agent type
+	// of Teleport client (e.g. web or api).
+	tagUserAgentType = "user_agent_type"
+	// tagProxyGroupID is a prometheus label for identifying the proxy group ID.
+	tagProxyGroupID = "proxy_group_id"
+	// tagVersion is a prometheus label for version of Teleport built.
+	tagVersion = "version"
 )
 
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
@@ -248,6 +260,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			ClusterName:          cfg.ClusterName,
 			AuthPreferenceGetter: cfg.ClusterConfiguration,
 			FIPS:                 cfg.FIPS,
+			Clock:                cfg.Clock,
 		}
 		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -504,6 +517,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.SessionSummarizerProvider == nil {
 		cfg.SessionSummarizerProvider = summarizer.NewSessionSummarizerProvider()
 	}
+	if cfg.RecordingMetadataProvider == nil {
+		cfg.RecordingMetadataProvider = recordingmetadata.NewProvider()
+	}
 	if cfg.WorkloadIdentityX509Revocations == nil {
 		cfg.WorkloadIdentityX509Revocations, err = local.NewWorkloadIdentityX509RevocationService(cfg.Backend)
 		if err != nil {
@@ -583,6 +599,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.AppAuthConfig == nil {
+		cfg.AppAuthConfig, err = local.NewAppAuthConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating AppAuthConfig service")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -617,7 +640,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		UserTasks:                       cfg.UserTasks,
 		DiscoveryConfigs:                cfg.DiscoveryConfigs,
 		Okta:                            cfg.Okta,
-		AccessLists:                     cfg.AccessLists,
+		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
 		DatabaseObjects:                 cfg.DatabaseObjects,
 		SecReports:                      cfg.SecReports,
@@ -650,6 +673,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
+		AppAuthConfig:                   cfg.AppAuthConfig,
 	}
 
 	as = &Server{
@@ -676,6 +700,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		accessMonitoringEnabled:   cfg.AccessMonitoringEnabled,
 		logger:                    cfg.Logger,
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		recordingMetadataProvider: cfg.RecordingMetadataProvider,
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -760,13 +785,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.azureDevopsIDTokenValidator = azuredevops.NewIDTokenValidator()
 	}
 	if as.circleCITokenValidate == nil {
-		as.circleCITokenValidate = func(
-			ctx context.Context, organizationID, token string,
-		) (*circleci.IDTokenClaims, error) {
-			return circleci.ValidateToken(
-				ctx, circleci.IssuerURLTemplate, organizationID, token,
-			)
-		}
+		as.circleCITokenValidate = circleci.ValidateToken
 	}
 	if as.tpmValidator == nil {
 		as.tpmValidator = tpm.Validate
@@ -890,7 +909,7 @@ type Services struct {
 	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
-	services.AccessLists
+	services.AccessListsInternal
 	services.DatabaseObjectImportRules
 	services.DatabaseObjects
 	services.UserLoginStates
@@ -922,6 +941,7 @@ type Services struct {
 	services.WorkloadIdentityX509Overrides
 	services.SigstorePolicies
 	services.HealthCheckConfig
+	services.AppAuthConfig
 	services.BackendInfoService
 	services.VnetConfigService
 	RecordingEncryptionManager
@@ -979,6 +999,19 @@ var (
 		prometheus.CounterOpts{
 			Name: teleport.MetricUserLoginCount,
 			Help: "Number of times there was a user login",
+		},
+	)
+	userLoginCountPerClient = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:      "user_login_per_client",
+			Namespace: teleport.MetricNamespace,
+			Help: "The number of successful user authentications by client tool (tsh, tctl, etc.), client tool version, " +
+				"and proxy that handled the request. The metric is reset hourly. ",
+		},
+		[]string{
+			tagUserAgentType,
+			tagProxyGroupID,
+			tagVersion,
 		},
 	)
 
@@ -1089,7 +1122,7 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, heartbeatsMissedByAuth,
+		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, userLoginCountPerClient, heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
@@ -1221,6 +1254,9 @@ type Server struct {
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
 
+	// inventoryCache is a cache of unified instances (teleport instances and bot instances).
+	inventoryCache *inventorycache.InventoryCache
+
 	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
 	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
 	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
@@ -1240,62 +1276,62 @@ type Server struct {
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
 
-	// fips means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// fips means FedRAMP/FIPS compliant configuration was requested.
 	fips bool
 
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
-	ghaIDTokenValidator ghaIDTokenValidator
+	ghaIDTokenValidator githubactions.GithubIDTokenValidator
 	// ghaIDTokenJWKSValidator allows ID tokens from GitHub Actions to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
-	ghaIDTokenJWKSValidator ghaIDTokenJWKSValidator
+	ghaIDTokenJWKSValidator githubactions.GithubIDTokenJWKSValidator
 
 	// spaceliftIDTokenValidator allows ID tokens from Spacelift to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
-	spaceliftIDTokenValidator spaceliftIDTokenValidator
+	spaceliftIDTokenValidator spacelift.Validator
 
 	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	gitlabIDTokenValidator gitlabIDTokenValidator
+	gitlabIDTokenValidator gitlab.Validator
 
 	// azureDevopsIDTokenValidator allows ID tokens from Azure DevOps to be
 	// validated by the auth server. It can be overridden for the purpose of
 	// tests.
-	azureDevopsIDTokenValidator azureDevopsIDTokenValidator
+	azureDevopsIDTokenValidator azuredevops.Validator
 
 	// tpmValidator allows TPMs to be validated by the auth server. It can be
 	// overridden for the purpose of tests.
-	tpmValidator func(
-		ctx context.Context, log *slog.Logger, params tpm.ValidateParams,
-	) (*tpm.ValidatedTPM, error)
+	tpmValidator tpmjoin.TPMValidator
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
-	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
+	circleCITokenValidate circleci.Validator
 
 	// k8sTokenReviewValidator allows tokens from Kubernetes to be validated
 	// by the auth server using k8s Token Review API. It can be overridden for
 	// the purpose of tests.
-	k8sTokenReviewValidator k8sTokenReviewValidator
+	k8sTokenReviewValidator kubetoken.InClusterValidator
 	// k8sJWKSValidator allows tokens from Kubernetes to be validated
 	// by the auth server using a known JWKS. It can be overridden for the
 	// purpose of tests.
-	k8sJWKSValidator k8sJWKSValidator
+	k8sJWKSValidator kubetoken.JWKSValidator
 	// k8sOIDCValidator allows tokens from Kubernetes to be validated by the
 	// auth server using a known OIDC endpoint. It can be overridden in tests.
 	k8sOIDCValidator *kubetoken.KubernetesOIDCTokenValidator
 
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
-	gcpIDTokenValidator gcpIDTokenValidator
+	gcpIDTokenValidator gcp.Validator
 
 	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
-	terraformIDTokenValidator terraformCloudIDTokenValidator
+	terraformIDTokenValidator terraformcloud.Validator
 
-	bitbucketIDTokenValidator bitbucketIDTokenValidator
+	// bitbucketIDTokenValidator allows JWTs from Bitbucket to be validated by
+	// the auth server.
+	bitbucketIDTokenValidator bitbucket.Validator
 
 	// createBoundKeypairValidator is a helper to create new bound keypair
 	// challenge validators. Used to override the implementation used in tests.
@@ -1304,6 +1340,9 @@ type Server struct {
 	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
 	// override the implementation used in tests.
 	env0IDTokenValidator join.Env0TokenValidator
+
+	// azureJoinConfig holds configuration for the Azure join method.
+	azureJoinConfig *azurejoin.AzureJoinConfig
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1371,9 +1410,16 @@ type Server struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	sessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
+	// recordingMetadataProvider provides recording metadata for session recordings.
+	recordingMetadataProvider *recordingmetadata.Provider
+
 	// BotInstanceVersionReporter is called periodically to generate a report of
 	// the number of bot instances by version and update group.
 	BotInstanceVersionReporter *machineidv1.AutoUpdateVersionReporter
+
+	// EncryptedIO provides encryption for session related data such as
+	// recordings, thumbnails, and metadata.
+	EncryptedIO *recordingencryption.EncryptedIO
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1410,6 +1456,13 @@ func (a *Server) ScopedAccess() services.ScopedAccess {
 		ScopedAccessReader: a.ScopedAccessCache,
 		ScopedAccessWriter: a.scopedAccessBackend,
 	}
+}
+
+// ScopedRoleReader returns a read-only scoped role client. This is here to satisfy interfaces
+// used by agent-side logic, which only has access to the ScopedRoleReader subset of the
+// broader ScopedAccess interface.
+func (a *Server) ScopedRoleReader() services.ScopedRoleReader {
+	return a.ScopedAccessCache
 }
 
 // SetUpgradeWindowStartHourGetter sets the getter used to sync the ClusterMaintenanceConfig resource
@@ -1524,6 +1577,20 @@ func (a *Server) SetGlobalNotificationCache(globalNotificationCache *services.Gl
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.GlobalNotificationCache = globalNotificationCache
+}
+
+// SetInventoryCache sets the inventory cache.
+func (a *Server) SetInventoryCache(inventoryCache *inventorycache.InventoryCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.inventoryCache = inventoryCache
+}
+
+// GetInventoryCache returns the inventory cache.
+func (a *Server) GetInventoryCache() *inventorycache.InventoryCache {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	return a.inventoryCache
 }
 
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
@@ -1655,6 +1722,7 @@ const (
 	autoUpdateAgentReportKey
 	autoUpdateBotInstanceReportKey
 	autoUpdateBotInstanceMetricsKey
+	hourlyCleanUpKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1707,6 +1775,12 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           accessListReminderNotificationsKey,
 			Duration:      8 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           hourlyCleanUpKey,
+			Duration:      time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
@@ -1892,6 +1966,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.BotInstanceVersionReporter.Report(a.closeCtx)
 			case autoUpdateBotInstanceMetricsKey:
 				go a.updateBotInstanceMetrics()
+			case hourlyCleanUpKey:
+				userLoginCountPerClient.Reset()
 			}
 		}
 	}
@@ -2276,6 +2352,12 @@ func (a *Server) Close() error {
 		errs = append(errs, err)
 	}
 
+	if inventoryCache := a.GetInventoryCache(); inventoryCache != nil {
+		if err := inventoryCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if a.Services.AuditLogSessionStreamer != nil {
 		if err := a.Services.AuditLogSessionStreamer.Close(); err != nil {
 			errs = append(errs, err)
@@ -2316,16 +2398,7 @@ func (a *Server) Close() error {
 }
 
 func (a *Server) GetClock() clockwork.Clock {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
 	return a.clock
-}
-
-// SetClock sets clock, used in tests
-func (a *Server) SetClock(clock clockwork.Clock) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.clock = clock
 }
 
 // SetBcryptCost sets bcryptCostOverride, used in tests
@@ -2642,6 +2715,8 @@ type certRequest struct {
 	// joinAttributes holds attributes derived from attested metadata from the
 	// join process, should any exist.
 	joinAttributes *workloadidentityv1pb.JoinAttrs
+	// requesterName is the name of the service that sent the request.
+	requesterName proto.UserCertsRequest_Requester
 }
 
 // check verifies the cert request is valid.
@@ -2685,7 +2760,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-// GetUserOrLoginState will return the given user or the login state associated with the user.
+// GetUserOrLoginState will return the given user login state or if not found, the user itself.
 func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (services.UserState, error) {
 	// use Services (real backend instead of cache) to make sure that the GetUserOrLoginState function
 	// return always the up-to-date user state.
@@ -3778,6 +3853,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	awsCredentialProcessCredentials, err := generateAWSClientSideCredentials(ctx, a, req, notAfter)
 	switch {
 	case errors.Is(err, errAppWithoutAWSClientSideCredentials):
+		// Requesting AWS credential_process credentials for Apps without AWS client side credentials is a client error.
+		if req.requesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS {
+			return nil, trace.BadParameter("client requested aws credentials for an invalid resource")
+		}
+
 	case err != nil:
 		return nil, trace.Wrap(err)
 	}
@@ -4125,38 +4205,39 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
-	fnErr := authenticateFn()
-	if fnErr == nil {
+
+	authErr := authenticateFn()
+	if authErr == nil {
 		// upon successful login, reset the failed attempt counter
 		err = a.DeleteUserLoginAttempts(username)
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
 		return nil
 	}
+
 	// do not lock user in case if DB is flaky or down
-	if trace.IsConnectionProblem(err) {
-		return trace.Wrap(fnErr)
+	if trace.IsConnectionProblem(authErr) {
+		return trace.Wrap(authErr)
 	}
 	// log failed attempt and possibly lock user
 	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
 	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to persist failed login attempt", "error", err)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	loginAttempts, err := a.GetUserLoginAttempts(username)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to retrieve user login attempts", "error", err)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
 		a.logger.DebugContext(ctx, "user has less than the failed login attempt limit",
 			"user", username,
 			"failed_attempt_limit", defaults.MaxLoginAttempts,
 		)
-		return trace.Wrap(fnErr)
+		return trace.Wrap(authErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	a.logger.DebugContext(ctx, "Locking user that exceeded the failed login attempt limit",
@@ -4167,8 +4248,8 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "failed to persist user record", "error", err)
-		return trace.Wrap(fnErr)
+		a.logger.ErrorContext(ctx, "user exceeded max login attempts, but failed to persist user record", "error", err)
+		return trace.Wrap(authErr)
 	}
 
 	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
@@ -4375,7 +4456,7 @@ func (a *Server) createTOTPPrivilegeToken(ctx context.Context, username string) 
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := a.newUserToken(tokenReq)
+	token, err := a.newUserToken(ctx, tokenReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4414,7 +4495,7 @@ func (a *Server) createRegisterChallenge(ctx context.Context, req *newRegisterCh
 			return nil, trace.BadParameter("all TOTP registrations require a privilege token")
 		}
 
-		otpKey, otpOpts, err := a.newTOTPKey(req.username)
+		otpKey, otpOpts, err := a.newTOTPKey(ctx, req.username)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5128,7 +5209,7 @@ func ExtractHostID(hostName string, clusterName string) (string, error) {
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest, scope string) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5262,6 +5343,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 			ClusterName: clusterName.GetClusterName(),
 			SystemRole:  req.Role,
 			Principals:  req.AdditionalPrincipals,
+			AgentScope:  scope,
 		},
 	})
 	if err != nil {
@@ -5283,6 +5365,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		Groups:          []string{req.Role.String()},
 		TeleportCluster: clusterName.GetClusterName(),
 		SystemRoles:     systemRoles,
+		AgentScope:      scope,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5315,6 +5398,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &proto.Certs{
 		SSH:        hostSSHCert,
 		TLS:        hostTLSCert,
@@ -5739,7 +5823,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		// NOTE: Some dry-run options are set in [services.ValidateAccessRequestForUser].
 		_, promotions := a.generateAccessRequestPromotions(ctx, req, allAccessLists)
 		// TODO(kiosion): if long-term, skip promotion generation, and instead, use info from LongTermResourceGrouping to add additional reviewers.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListsInternal, promotions)
 
 		if req.GetRequestKind().IsLongTerm() {
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)
@@ -6494,6 +6578,24 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return lease, nil
 }
 
+// UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
+// by delegating to [Server.Services] and then potentially emitting a
+// [usagereporter] event.
+func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
+	server, err := a.Services.UnconditionalUpdateApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return server, nil
+}
+
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
@@ -6803,8 +6905,31 @@ const (
 	accessListReminderSemaphoreMaxLeases = 1
 )
 
+// createAccessListReminderNotificationsOptions defines the optional parameters for CreateAccessListReminderNotifications.
+type createAccessListReminderNotificationsOptions struct {
+	createNotificationInterval time.Duration
+}
+
+// CreateAccessListReminderNotificationsOptions is a functional option for CreateAccessListReminderNotifications.
+type CreateAccessListReminderNotificationsOptions func(*createAccessListReminderNotificationsOptions)
+
+// WithCreateNotificationInterval sets the interval between creating notifications.
+func WithCreateNotificationInterval(d time.Duration) CreateAccessListReminderNotificationsOptions {
+	return func(o *createAccessListReminderNotificationsOptions) {
+		o.createNotificationInterval = d
+	}
+}
+
 // CreateAccessListReminderNotifications checks if there are any access lists expiring soon and creates notifications to remind their owners if so.
-func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
+func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts ...CreateAccessListReminderNotificationsOptions) {
+	opt := &createAccessListReminderNotificationsOptions{
+		// defaults to notificationsWriteInterval aka 40ms
+		createNotificationInterval: notificationsWriteInterval,
+	}
+	for _, o := range opts {
+		o(opt)
+	}
+
 	// Ensure only one auth server is running this check at a time.
 	lease, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: a,
@@ -6837,35 +6962,21 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 	// Fetch all access lists
 	var accessLists []*accesslist.AccessList
-	var accessListsPageKey string
-	accessListsReadLimiter := time.NewTicker(accessListsPageReadInterval)
-	defer accessListsReadLimiter.Stop()
-	for {
-		select {
-		case <-accessListsReadLimiter.C:
-		case <-ctx.Done():
-			return
-		}
-		response, nextKey, err := a.Cache.ListAccessLists(ctx, 20, accessListsPageKey)
-		if err != nil {
-			a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check", "error", err)
+	err = clientutils.IterateResources(ctx, a.Cache.ListAccessLists, func(al *accesslist.AccessList) error {
+		if !al.IsReviewable() {
+			return nil
 		}
 
-		for _, al := range response {
-			if !al.IsReviewable() {
-				continue
-			}
-			daysDiff := int(al.Spec.Audit.NextAuditDate.Sub(now).Hours() / 24)
-			// Only keep access lists that fall within our thresholds in memory
-			if daysDiff <= 15 {
-				accessLists = append(accessLists, al)
-			}
+		// Only keep access lists that fall within our thresholds in memory
+		if al.Spec.Audit.NextAuditDate.Sub(now) <= 15*24*time.Hour {
+			accessLists = append(accessLists, al)
 		}
-
-		if nextKey == "" {
-			break
-		}
-		accessListsPageKey = nextKey
+		return nil
+	})
+	if err != nil {
+		a.logger.WarnContext(ctx, "failed to list access lists for periodic reminder notification check",
+			"error", err)
+		return
 	}
 
 	reminderThresholds := []struct {
@@ -6888,16 +6999,12 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		for _, al := range accessLists {
 			dueDate := al.Spec.Audit.NextAuditDate
 			timeDiff := dueDate.Sub(now)
-			daysDiff := int(timeDiff.Hours() / 24)
+			threshold := time.Hour * 24 * time.Duration(threshold.days)
 
-			if threshold.days < 0 {
-				if daysDiff <= threshold.days {
-					relevantLists = append(relevantLists, al)
-				}
-			} else {
-				if daysDiff >= 0 && daysDiff <= threshold.days {
-					relevantLists = append(relevantLists, al)
-				}
+			if threshold < 0 && timeDiff <= threshold {
+				relevantLists = append(relevantLists, al)
+			} else if timeDiff >= 0 && timeDiff <= threshold {
+				relevantLists = append(relevantLists, al)
 			}
 		}
 
@@ -6907,17 +7014,16 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 
 		// Fetch all identifiers for this treshold prefix.
 		var identifiers []*notificationsv1.UniqueNotificationIdentifier
-		var nextKey string
-		for {
-			identifiersResp, nextKey, err := a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, 0, nextKey)
+		iterator := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+			return a.ListUniqueNotificationIdentifiersForPrefix(ctx, threshold.prefix, pageSize, pageKey)
+		})
+
+		for identifiersResp, err := range iterator {
 			if err != nil {
 				a.logger.WarnContext(ctx, "failed to list notification identifiers", "error", err, "prefix", threshold.prefix)
-				continue
-			}
-			identifiers = append(identifiers, identifiersResp...)
-			if nextKey == "" {
 				break
 			}
+			identifiers = append(identifiers, identifiersResp)
 		}
 
 		accessListIDs := set.New[string]()
@@ -6932,7 +7038,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context) {
 		// Check for access lists which haven't already been accounted for in a notification
 		var needsNotification bool
 
-		writeLimiter := time.NewTicker(notificationsWriteInterval)
+		writeLimiter := time.NewTicker(opt.createNotificationInterval)
 		for _, accessList := range relevantLists {
 			select {
 			case <-writeLimiter.C:
@@ -7440,7 +7546,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
-		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		ProxyPublicAddr:         a.getProxyPublicAddr(ctx),
 		IsBoring:                modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
@@ -7683,25 +7789,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
 		}
 
-		autoCreate, err := checker.DatabaseAutoUserMode(db)
-		switch {
-		case errors.Is(err, services.ErrSessionMFARequired):
-			noMFAAccessErr = err
-		case err != nil:
-			return nil, trace.Wrap(err)
-		default:
-			dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
-				Database:       db,
-				DatabaseUser:   t.Database.Username,
-				DatabaseName:   t.Database.GetDatabase(),
-				AutoCreateUser: autoCreate.IsEnabled(),
-			})
-			noMFAAccessErr = checker.CheckAccess(
-				db,
-				services.AccessState{},
-				dbRoleMatchers...,
-			)
-		}
+		// Note that we are not checking RoleMatchers for db user/name/roles.
+		// Per-session MFA requirement is only tested on the resource itself by
+		// db_labels/db_labels_expression, so db user/name/roles are irrelevant.
+		// Those will be enforced at protocol level on the database service.
+		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
 		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
@@ -7833,6 +7925,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
 			ChallengeScope:      challengeExtensions.Scope.String(),
 			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 		}); err != nil {
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
@@ -7866,7 +7959,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user, challengeExtensions)
+		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{User: user, ChallengeExtensions: challengeExtensions})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -7876,7 +7969,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
+		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions, nil); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -7895,6 +7988,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope:      challengeExtensions.Scope.String(),
 		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
@@ -8013,6 +8107,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		},
 		UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope: requiredExtensions.Scope.String(),
+		FlowType:       apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}
 	if validateErr != nil {
 		auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
@@ -8133,7 +8228,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}, nil
 
 	case *proto.MFAAuthenticateResponse_SSO:
-		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
@@ -8181,8 +8276,28 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/services/suite/suite.go:NewTestCAWithConfig().
+// Keep this function in sync with lib/auth/authcatest.NewTestCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
+	switch caID.Type {
+	case
+		types.HostCA,
+		types.UserCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.OpenSSHCA,
+		types.JWTSigner,
+		types.SAMLIDPCA,
+		types.OIDCIdPCA,
+		types.SPIFFECA,
+		types.OktaCA,
+		types.AWSRACA,
+		types.BoundKeypairCA:
+		// OK, known CA type.
+	default:
+		return types.CAKeySet{}, trace.BadParameter(
+			"cannot generate new key set for unknown CA type %q", caID.Type)
+	}
+
 	var keySet types.CAKeySet
 
 	// Add SSH keys if necessary.
@@ -8213,6 +8328,11 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	}
+
+	// Sanity check that the key set has at least one key.
+	if len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0 {
+		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
 	}
 
 	return keySet, nil
@@ -8378,8 +8498,10 @@ func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
-func (a *Server) getProxyPublicAddr() string {
-	if proxies, err := a.GetProxies(); err == nil {
+func (a *Server) getProxyPublicAddr(ctx context.Context) string {
+	if proxies, err := iterstream.Collect(
+		clientutils.Resources(ctx, a.ListProxyServers),
+	); err == nil {
 		for _, p := range proxies {
 			addr := p.GetPublicAddr()
 			if addr == "" {

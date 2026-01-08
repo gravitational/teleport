@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -64,6 +65,7 @@ func TestReadyz(t *testing.T) {
 					"a": {Status: readyz.Initializing},
 					"b": {Status: readyz.Initializing},
 				},
+				PID: os.Getpid(),
 			},
 			response,
 		)
@@ -113,6 +115,7 @@ func TestReadyz(t *testing.T) {
 					"a": {Status: readyz.Healthy, UpdatedAt: &now},
 					"b": {Status: readyz.Unhealthy, Reason: "database is down", UpdatedAt: &now},
 				},
+				PID: os.Getpid(),
 			},
 			response,
 		)
@@ -139,6 +142,7 @@ func TestReadyz(t *testing.T) {
 					"a": {Status: readyz.Healthy, UpdatedAt: &now},
 					"b": {Status: readyz.Healthy, UpdatedAt: &now},
 				},
+				PID: os.Getpid(),
 			},
 			response,
 		)

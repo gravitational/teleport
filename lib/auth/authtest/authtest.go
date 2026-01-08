@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"net"
 	"strings"
 	"testing"
@@ -41,13 +40,14 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -55,11 +55,11 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -96,6 +96,8 @@ type AuthServerConfig struct {
 	// SessionSummarizerProvider allows a test to configure its own session
 	// summarizer provider.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider allows a test to configure its own recording
+	RecordingMetadataProvider *recordingmetadata.Provider
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -174,6 +176,9 @@ func NewTestServer(cfg ServerConfig) (*Server, error) {
 	if tlsCfg.APIConfig.Authorizer == nil {
 		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
 	}
+	if tlsCfg.APIConfig.ScopedAuthorizer == nil {
+		tlsCfg.APIConfig.ScopedAuthorizer = authServer.ScopedAuthorizer
+	}
 	if tlsCfg.APIConfig.AuditLog == nil {
 		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
 	}
@@ -207,20 +212,20 @@ func (a *Server) ClusterName() string {
 	return a.TLS.ClusterName()
 }
 
+// Close stops this server immediately.
+func (a *Server) Close() error {
+	return trace.NewAggregate(
+		a.TLS.Close(),
+		a.AuthServer.Close(),
+	)
+}
+
 // Shutdown stops this server instance gracefully
 func (a *Server) Shutdown(ctx context.Context) error {
 	return trace.NewAggregate(
 		a.TLS.Shutdown(ctx),
 		a.AuthServer.Close(),
 	)
-}
-
-// WithClock is a functional server option that sets the server's clock
-func WithClock(clock clockwork.Clock) auth.ServerOption {
-	return func(s *auth.Server) error {
-		s.SetClock(clock)
-		return nil
-	}
 }
 
 // WithBcryptCost is a functional server option that sets the server's bcrypt cost.
@@ -245,11 +250,14 @@ type AuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer authz.Authorizer
+	// ScopedAuthorizer is a scoped authorizer used in tests.
+	ScopedAuthorizer authz.ScopedAuthorizer
 	// LockWatcher is a lock watcher used in tests.
 	LockWatcher *services.LockWatcher
 }
 
-// NewAuthServer returns new instances of Auth server
+// NewAuthServer returns a new test auth server.
+// The caller should close the server when it is no longer needed.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
@@ -333,8 +341,8 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		KeyStoreConfig:            cfg.KeystoreConfig,
 		MultipartHandler:          cfg.UploadHandler,
 		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: cfg.RecordingMetadataProvider,
 	},
-		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
 	)
@@ -415,11 +423,15 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	// Setup certificate and signing authorities.
 	for _, caType := range types.CertAuthTypes {
-		if err = srv.AuthServer.UpsertCertAuthority(ctx, NewTestCAWithConfig(TestCAConfig{
+		ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
 			Clock:       cfg.Clock,
-		})); err != nil {
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err = srv.AuthServer.UpsertCertAuthority(ctx, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -473,17 +485,24 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
-	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
+	authorizerOpts := authz.AuthorizerOpts{
 		ClusterName:         srv.ClusterName,
 		AccessPoint:         srv.AuthServer,
 		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
+		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
 		LockWatcher:         srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
 			DisableRoleMode:   true,
 		},
-	})
+	}
+	srv.Authorizer, err = authz.NewAuthorizer(authorizerOpts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	srv.ScopedAuthorizer, err = authz.NewScopedAuthorizer(authorizerOpts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -532,7 +551,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		Unstarted:    p.Unstarted,
 
 		Access:                  p.AuthServer.Services.Access,
-		AccessLists:             p.AuthServer.Services.AccessLists,
+		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.Identity,
 		Applications:            p.AuthServer.Services.Applications,
@@ -576,11 +595,25 @@ func InitAuthCache(p AuthCacheParams) error {
 		BotInstance:             p.AuthServer.Services.BotInstance,
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
+		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	p.AuthServer.Cache = c
+
+	// Create and set the inventory cache
+	invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+		PrimaryCache:       c,
+		Events:             p.AuthServer.Services,
+		Inventory:          p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.AuthServer.SetInventoryCache(invCache)
+
 	return nil
 }
 
@@ -684,7 +717,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			})
+			}, "")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -697,7 +730,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			})
+			}, "")
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -789,10 +822,11 @@ func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap type
 // NewTestTLSServer returns new test TLS server
 func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
-		AuthServer: a.AuthServer,
-		Authorizer: a.Authorizer,
-		AuditLog:   a.AuditLog,
-		Emitter:    a.AuthServer,
+		AuthServer:       a.AuthServer,
+		Authorizer:       a.Authorizer,
+		ScopedAuthorizer: a.ScopedAuthorizer,
+		AuditLog:         a.AuditLog,
+		Emitter:          a.AuthServer,
 	}
 	cfg := TLSServerConfig{
 		APIConfig:     apiConfig,
@@ -1031,6 +1065,24 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 	}
 }
 
+// TestScopedHost returns TestIdentity for a scoped host
+func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
+	username := hostID
+	if clusterName != "" {
+		username = utils.HostFQDN(hostID, clusterName)
+	}
+	return TestIdentity{
+		I: authz.BuiltinRole{
+			Role:                  types.RoleInstance,
+			Username:              username,
+			AdditionalSystemRoles: types.SystemRoles{role},
+			Identity: tlsca.Identity{
+				AgentScope: scope,
+			},
+		},
+	}
+}
+
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
@@ -1212,11 +1264,10 @@ func (t *TLSServer) Close() error {
 		errs = append(errs, err)
 	}
 
-	if t.AuthServer.Backend != nil {
-		if err := t.AuthServer.Backend.Close(); err != nil {
-			errs = append(errs, err)
-		}
+	if err := t.AuthServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -1231,13 +1282,12 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
 			errs = append(errs, err)
 		}
+	}
 
+	if err := t.AuthServer.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	if t.AuthServer.Backend != nil {
-		if err := t.AuthServer.Backend.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -1308,7 +1358,7 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1577,138 +1627,4 @@ func FlushCache(t *testing.T, clt Flusher) {
 			t.Fatal("Time out waiting for role to be replicated")
 		}
 	}
-}
-
-// TestCAConfig defines the configuration for generating
-// a test certificate authority
-type TestCAConfig struct {
-	Type        types.CertAuthType
-	PrivateKeys [][]byte
-	Clock       clockwork.Clock
-	ClusterName string
-	// the below string fields default to ClusterName if left empty
-	ResourceName        string
-	SubjectOrganization string
-}
-
-// NewTestCA returns new test authority with a test key as a public and
-// signing key
-func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
-	return NewTestCAWithConfig(TestCAConfig{
-		Type:        caType,
-		ClusterName: clusterName,
-		PrivateKeys: privateKeys,
-		Clock:       clockwork.NewRealClock(),
-	})
-}
-
-// NewTestCAWithConfig generates a new certificate authority with the specified
-// configuration
-// Keep this function in-sync with lib/auth/auth.go:newKeySet().
-// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
-func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
-	var keyPEM []byte
-	var key *keys.PrivateKey
-
-	if config.ResourceName == "" {
-		config.ResourceName = config.ClusterName
-	}
-	if config.SubjectOrganization == "" {
-		config.SubjectOrganization = config.ClusterName
-	}
-
-	switch config.Type {
-	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
-		// These CAs only support RSA.
-		keyPEM = fixtures.PEMBytes["rsa"]
-	case types.DatabaseClientCA:
-		// The db client CA also only supports RSA, but some tests rely on it
-		// being different than the DB CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
-	}
-	if len(config.PrivateKeys) > 0 {
-		// Allow test to override the private key.
-		keyPEM = config.PrivateKeys[0]
-	}
-
-	if keyPEM != nil {
-		var err error
-		key, err = keys.ParsePrivateKey(keyPEM)
-		if err != nil {
-			panic(err)
-		}
-	} else {
-		// If config.PrivateKeys was not set and this CA does not exclusively
-		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
-		// RSA and generating a new key is actually faster than parsing a PEM
-		// fixture.
-		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-		if err != nil {
-			panic(err)
-		}
-		key, err = keys.NewPrivateKey(signer)
-		if err != nil {
-			panic(err)
-		}
-		keyPEM = key.PrivateKeyPEM()
-	}
-
-	ca := &types.CertAuthorityV2{
-		Kind:    types.KindCertAuthority,
-		SubKind: string(config.Type),
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name:      config.ResourceName,
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.CertAuthoritySpecV2{
-			Type:        config.Type,
-			ClusterName: config.ClusterName,
-		},
-	}
-
-	// Add SSH keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.OpenSSHCA:
-		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  key.MarshalSSHPublicKey(),
-		}}
-	}
-
-	// Add TLS keys if necessary.
-	switch config.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
-		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-			Signer: key.Signer,
-			Entity: pkix.Name{
-				CommonName:   config.ClusterName,
-				Organization: []string{config.SubjectOrganization},
-			},
-			TTL:   defaults.CATTL,
-			Clock: config.Clock,
-		})
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
-			Key:  keyPEM,
-			Cert: cert,
-		}}
-	}
-
-	// Add JWT keys if necessary.
-	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
-		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
-		if err != nil {
-			panic(err)
-		}
-		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
-			PrivateKey: keyPEM,
-			PublicKey:  pubKeyPEM,
-		}}
-	}
-
-	return ca
 }

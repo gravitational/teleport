@@ -282,6 +282,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
 	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
 	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
+	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
+	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
+	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
 
 	// SCIM events contain a protobuf struct, which will cause the default data
 	// generator to infinitely recurse while trying to populate an infinitely
@@ -715,7 +718,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "failed auth attempt",
-			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
+			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","server_id":"","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
 			event: apievents.AuthAttempt{
 				Metadata: apievents.Metadata{
 					ID:          "ebac95ca-8673-44af-b2cf-65f517acf35a",
@@ -1108,6 +1111,75 @@ func TestJSON(t *testing.T) {
 				TeleportID: "root@localhost",
 				ExternalID: "1234",
 				Display:    "root user",
+			},
+		},
+		{
+			name: "VNetConfig Create",
+			json: `{"ei":0,"event":"vnet.config.create","uid":"vnet-create-id","success":true,"code":"TVNET001I","time":"2022-02-22T22:22:22.222Z","cluster_name":"test-cluster","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigCreate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-create-id",
+					Type:        VnetConfigCreateEvent,
+					Code:        VnetConfigCreateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Update",
+			json: `{"ei":0,"event":"vnet.config.update","uid":"vnet-update-id","success":true,"code":"TVNET002I","time":"2022-02-22T22:22:22.222Z","cluster_name":"root","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigUpdate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-update-id",
+					Type:        VnetConfigUpdateEvent,
+					Code:        VnetConfigUpdateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "root",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Delete",
+			json: `{"ei":0,"event":"vnet.config.delete","uid":"vnet-delete-id","success":true,"code":"TVNET003I","time":"2022-02-22T22:22:22.222Z","cluster_name":"leaf","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigDelete{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-delete-id",
+					Type:        VnetConfigDeleteEvent,
+					Code:        VnetConfigDeleteCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "leaf",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
 			},
 		},
 	}

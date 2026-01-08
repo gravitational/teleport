@@ -20,11 +20,11 @@ import (
 	"github.com/gravitational/trace"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/diagnostic"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // handleIAMJoin handles join attempts for the IAM join method.
@@ -45,7 +45,7 @@ func (s *Server) handleIAMJoin(
 	stream messages.ServerStream,
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 ) (messages.Response, error) {
 	// Receive the IAMInit message from the client.
 	iamInit, err := messages.RecvRequest[*messages.IAMInit](stream)
@@ -76,7 +76,7 @@ func (s *Server) handleIAMJoin(
 	// the verified identity matches allow rules in the provision token.
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(stream.Context(), &iamjoin.CheckIAMRequestParams{
 		Challenge:          challenge,
-		ProvisionToken:     provisionToken,
+		ProvisionToken:     token,
 		STSIdentityRequest: solution.STSIdentityRequest,
 		HTTPClient:         s.cfg.AuthService.GetHTTPClientForAWSSTS(),
 		FIPS:               s.cfg.FIPS,
@@ -98,7 +98,7 @@ func (s *Server) handleIAMJoin(
 		authCtx,
 		clientInit,
 		&iamInit.ClientParams,
-		provisionToken,
+		token,
 		verifiedIdentity,
 		&workloadidentityv1pb.JoinAttrs{
 			Iam: verifiedIdentity.JoinAttrs(),

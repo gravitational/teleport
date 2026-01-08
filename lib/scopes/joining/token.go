@@ -17,6 +17,8 @@
 package joining
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -76,6 +78,10 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 		return trace.BadParameter("join method %q does not support scoping", spec.JoinMethod)
 	}
 
+	if token.GetStatus().GetSecret() == "" && types.JoinMethod(spec.JoinMethod) == types.JoinMethodToken {
+		return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
+	}
+
 	if len(spec.Roles) == 0 {
 		return trace.BadParameter("scoped token must have at least one role")
 	}
@@ -122,4 +128,123 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	return nil
+}
+
+// ValidateTokenForUse checks if a given scoped token can be used for
+// provisioning.
+func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
+	if err := WeakValidateToken(token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ttl := token.GetMetadata().GetExpires()
+	if ttl == nil || ttl.AsTime().IsZero() {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	if ttl.AsTime().Before(now) {
+		return trace.LimitExceeded("scoped token is expired")
+	}
+
+	return nil
+}
+
+// Token wraps a [joiningv1.ScopedToken] such that it can be used to provision
+// resources.
+type Token struct {
+	scoped     *joiningv1.ScopedToken
+	joinMethod types.JoinMethod
+	roles      types.SystemRoles
+}
+
+// NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
+// It will return an error if the configured join method is not a valid
+// [types.JoinMethod] or if any of the configured roles are not a valid
+// [types.SystemRole]. The validated join method and roles are cached on the
+// [Scoped] wrapper itself so they can be read without repeating validation.
+func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
+	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
+	if err := types.ValidateJoinMethod(joinMethod); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Token{scoped: token, joinMethod: joinMethod, roles: roles}, nil
+}
+
+// GetName returns the name of a [joiningv1.ScopedToken].
+func (t *Token) GetName() string {
+	if t == nil {
+		return ""
+	}
+
+	return t.scoped.GetMetadata().GetName()
+}
+
+// GetJoinMethod returns the cached [types.JoinMethod] generated when the
+// [joiningv1.ScopedToken] was wrapped.
+func (t *Token) GetJoinMethod() types.JoinMethod {
+	if t == nil {
+		return types.JoinMethodUnspecified
+	}
+
+	return t.joinMethod
+}
+
+// GetRoles returns the cached [types.SystemRoles] generated when the
+// [joiningv1.ScopedToken] was wrapped.
+func (t *Token) GetRoles() types.SystemRoles {
+	if t == nil {
+		return nil
+	}
+	return t.roles
+}
+
+// GetSafeName returns the name the santiized name of the scoped token. Because
+// scoped token names are not secret, this is just an alias for [GetName].
+func (t *Token) GetSafeName() string {
+	return t.GetName()
+}
+
+// Expiry returns the [time.Time] representing when the wrapped
+// [joiningv1.ScopedToken] will expire.
+func (t *Token) Expiry() time.Time {
+	expiry := t.scoped.GetMetadata().GetExpires()
+	if expiry == nil {
+		return time.Time{}
+	}
+
+	return expiry.AsTime()
+}
+
+// GetBotName returns an empty string because scoped tokens do not currently
+// support configuring a bot name.
+func (t *Token) GetBotName() string {
+	return ""
+}
+
+// GetAssignedScope returns the scope that will be assigned to resources
+// provisioned using the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetAssignedScope() string {
+	return t.scoped.GetSpec().GetAssignedScope()
+}
+
+// GetAllowRules returns the list of allow rules.
+func (t *Token) GetAllowRules() []*types.TokenRule {
+	return nil
+}
+
+// GetAWSIIDTTL returns the TTL of EC2 IIDs
+func (t *Token) GetAWSIIDTTL() types.Duration {
+	return types.NewDuration(0)
+}
+
+// GetSecret returns the token's secret value.
+func (t *Token) GetSecret() (string, bool) {
+	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
 }

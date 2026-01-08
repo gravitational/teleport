@@ -1320,6 +1320,22 @@ message UserLogin {
   string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
+// MFAFlowType defines how MFA was enforced for a given authentication event.
+enum MFAFlowType {
+  // MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified. This value is used for
+  // backwards compatibility or when the MFA flow cannot be determined.
+  MFA_FLOW_TYPE_UNSPECIFIED = 0;
+
+  // MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using a per-session certificate during
+  // session establishment. In this flow, a short-lived certificate is issued after successful MFA, which is then used
+  // to authenticate the session.
+  MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE = 1;
+
+  // MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow during session establishment. In this
+  // flow, the target service prompts for and verifies MFA directly as part of session creation.
+  MFA_FLOW_TYPE_IN_BAND = 2;
+}
+
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
 message CreateMFAAuthChallenge {
   // Metadata is a common event metadata.
@@ -1342,6 +1358,9 @@ message CreateMFAAuthChallenge {
 
   // ChallengeAllowReuse defines whether the MFA challenge allows reuse.
   bool ChallengeAllowReuse = 4 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+
+  // FlowType indicates the type of MFA flow used for the challenge.
+  MFAFlowType FlowType = 5 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
@@ -1376,6 +1395,9 @@ message ValidateMFAAuthResponse {
 
   // ChallengeAllowReuse defines whether the MFA challenge used for authentication can be reused.
   bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
+
+  // FlowType indicates the type of MFA flow used for the challenge.
+  MFAFlowType FlowType = 7 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -2154,6 +2176,13 @@ message AuthAttempt {
 
   // Status contains common command or operation status fields
   Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata holds information about the target host server
+  ServerMetadata Server = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -4891,6 +4920,13 @@ message OneOf {
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
     events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
+    events.AppAuthConfigCreate AppAuthConfigCreate = 228;
+    events.AppAuthConfigUpdate AppAuthConfigUpdate = 229;
+    events.AppAuthConfigDelete AppAuthConfigDelete = 230;
+    events.AppAuthConfigVerify AppAuthConfigVerify = 231;
+    events.VnetConfigCreate VnetConfigCreate = 232;
+    events.VnetConfigUpdate VnetConfigUpdate = 233;
+    events.VnetConfigDelete VnetConfigDelete = 234;
   }
 }
 
@@ -8680,6 +8716,14 @@ message MCPSessionStart {
   string mcp_session_id = 7;
   // ClientInfo stores reported client agent information, e.g. "claude-ai/0.1.0".
   string client_info = 8;
+  // ServerInfo stores reported MCP server information, e.g. "teleport-mcp-demo/18.3.0".
+  string server_info = 9;
+  // ProtocolVersion is the MCP protocol version like "2025-06-18".
+  string protocol_version = 10;
+  // IngressAuthType indicates how the MCP session is authorized between MCP client and Teleport.
+  string ingress_auth_type = 11;
+  // EgressAuthType indicates how the MCP session is authorized between Teleport and remote MCP server.
+  string egress_auth_type = 12;
 }
 
 // MCPSessionEnd is emitted when an MCP session ends.
@@ -8729,6 +8773,12 @@ message MCPSessionEnd {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
 }
 
@@ -8785,6 +8835,12 @@ message MCPSessionRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "message,omitempty"
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPSessionNotification is emitted when a notification is sent by client
@@ -8825,6 +8881,12 @@ message MCPSessionNotification {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // MCPSessionListenSSEStream is emitted when client sends a GET request to a
@@ -8860,6 +8922,12 @@ message MCPSessionListenSSEStream {
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
+  ];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues headers = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
 }
 
@@ -9163,4 +9231,227 @@ message ClientIPRestrictionsUpdate {
 
   // ClientIPRestrictions is the new Client IP Restrictions allowlist.
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
+}
+
+// AppAuthConfigCreate is emitted when a AppAuthConfig is created.
+message AppAuthConfigCreate {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is a common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AppAuthConfigUpdate is emitted when a AppAuthConfig is updated.
+message AppAuthConfigUpdate {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is a common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AppAuthConfigDelete is emitted when a AppAuthConfig is deleted.
+message AppAuthConfigDelete {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Resource is a common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// AppAuthConfigVerify is emitted when an app auth verification happens.
+message AppAuthConfigVerify {
+  // Metadata is a common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // AppAuthConfig is the app auth config resource name used on the
+  // verification.
+  string app_auth_config = 2 [(gogoproto.jsontag) = "app_auth_config"];
+  // User is a common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata
+  SessionMetadata session = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata app = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Status indicates whether the verification was successful or not.
+  Status status = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigCreate is emitted when a VnetConfig is created.
+message VnetConfigCreate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigUpdate is emitted when a VnetConfig is updated.
+message VnetConfigUpdate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// VnetConfigDelete is emitted when a VnetConfig is deleted.
+message VnetConfigDelete {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

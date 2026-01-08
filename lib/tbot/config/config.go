@@ -99,6 +99,13 @@ type BotConfig struct {
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
 
+	// DiagSocketForUpdater specifies the path to the diagnostics http service socket that
+	// should be exposed to the updater.
+	DiagSocketForUpdater string `yaml:"-"`
+
+	// PIDFile is the path to the PID file that should be created by the bot.
+	PIDFile string `yaml:"-"`
+
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`

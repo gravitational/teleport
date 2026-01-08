@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/services"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
@@ -157,7 +159,7 @@ func parseAndVerifyIID(iidBytes []byte) (*imds.InstanceIdentityDocument, error) 
 	return &iid, nil
 }
 
-func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken types.ProvisionToken, clock clockwork.Clock) error {
+func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken provision.Token, clock clockwork.Clock) error {
 	timeSinceInstanceStart := clock.Since(iid.PendingTime)
 	// Sanity check IID is not from the future. Allow 1 minute of clock drift.
 	if timeSinceInstanceStart < -1*time.Minute {
@@ -182,8 +184,11 @@ func nodeExists(ctx context.Context, presence services.Presence, hostID string) 
 	}
 }
 
-func proxyExists(_ context.Context, presence services.Presence, hostID string) (bool, error) {
-	proxies, err := presence.GetProxies()
+func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
+	proxies, err := clientutils.CollectWithFallback(ctx, presence.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return presence.GetProxies()
+	})
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -342,7 +347,7 @@ func tryToDetectIdentityReuse(ctx context.Context, params *CheckEC2RequestParams
 // CheckEC2RequestParams holds parameters for checking an EC2-method join request.
 type CheckEC2RequestParams struct {
 	// ProvisionToken is the provision token being used.
-	ProvisionToken types.ProvisionToken
+	ProvisionToken provision.Token
 	// Role is the system role being requested.
 	Role types.SystemRole
 	// Document is a signed EC2 Instance Identity Document.

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -265,7 +266,7 @@ type CheckIAMRequestParams struct {
 	// Challenge is the challenge that was sent to the client.
 	Challenge string
 	// ProvisionToken is the provision token being used.
-	ProvisionToken types.ProvisionToken
+	ProvisionToken provision.Token
 	// STSIdentityRequest is the signed sts:GetCallerIdentity request sent by
 	// the client in response to the challenge.
 	STSIdentityRequest []byte

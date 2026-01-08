@@ -92,7 +92,7 @@ func TestGenericListerPageClipEnd(t *testing.T) {
 func TestGenericListerRangeWithFallback(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
+	p, err := newPack(t, ForProxy)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 

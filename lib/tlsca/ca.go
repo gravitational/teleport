@@ -124,6 +124,8 @@ type Identity struct {
 	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
 	// set, the Groups field must not be set.
 	ScopePin *scopesv1.Pin
+	// AgentScope is the scope this identity belongs to.
+	AgentScope string
 	// Impersonator is a username of a user impersonating this user
 	Impersonator string
 	// Groups is a list of groups (Teleport roles) encoded in the identity
@@ -611,6 +613,9 @@ var (
 	// ScopePinASN1ExtensionOID is an extension OID that contains the scope pin
 	// used to tie the certificate to a specific scope and set of scoped roles.
 	ScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 24}
+	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
+	// used to tie the certificate to a spec
+	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
 )
 
 // Device Trust OIDs.
@@ -938,6 +943,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.AgentScope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AgentScopeASN1ExtensionOID,
+				Value: id.AgentScope,
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1239,6 +1252,9 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				id.ScopePin = &pin
 			}
+		case attr.Type.Equal(AgentScopeASN1ExtensionOID):
+			id.AgentScope = attr.Value.(string)
+
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {

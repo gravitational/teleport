@@ -28,6 +28,7 @@ import {
 } from 'teleport/services/mfa';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
+import { defaultHeaders } from '../api/api';
 import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
@@ -122,7 +123,13 @@ const auth = {
       second_factor_token: otpCode,
     };
 
-    return api.post(cfg.api.webSessionPath, data);
+    return api.postWithOptions(cfg.api.webSessionPath, {
+      data,
+      headers: {
+        ...defaultHeaders,
+        [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
+      },
+    });
   },
 
   loginWithWebauthn(creds?: UserCredentials) {
@@ -141,7 +148,13 @@ const auth = {
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
         };
 
-        return api.post(cfg.api.mfaLoginFinish, request);
+        return api.postWithOptions(cfg.api.mfaLoginFinish, {
+          data: request,
+          headers: {
+            ...defaultHeaders,
+            [HEADER_MAX_TOUCH_POINTS]: navigator.maxTouchPoints?.toString(10),
+          },
+        });
       });
   },
 
@@ -356,8 +369,8 @@ const auth = {
     abortController?: AbortController
   ) {
     // try to center the screen
-    const width = 1045;
-    const height = 550;
+    const width = 1024;
+    const height = 768;
     const left = (screen.width - width) / 2;
     const top = (screen.height - height) / 2;
 
@@ -530,3 +543,9 @@ export enum MfaChallengeScope {
   ADMIN_ACTION = 7,
   CHANGE_PASSWORD = 8,
 }
+
+/**
+ * Header which reports navigator.maxTouchPoints to the proxy service. This piece of information is
+ * later used by the Device Trust service.
+ */
+const HEADER_MAX_TOUCH_POINTS = 'Max-Touch-Points';

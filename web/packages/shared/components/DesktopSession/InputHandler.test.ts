@@ -188,5 +188,141 @@ describe('InputHandler', () => {
       );
       expect(shiftCalls).toHaveLength(0);
     });
+
+    it('Control and Alt are not synchronized when AltGr pressed', () => {
+      // First, set Control and Alt to DOWN to mimick the what happens when a
+      // user presses AltGraph in a browser.
+      const ctrlDownEvent = new KeyboardEvent('keydown', {
+        code: 'ControlLeft',
+      });
+      inputHandler.handleInputEvent({
+        e: ctrlDownEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      const altDownEvent = new KeyboardEvent('keydown', { code: 'AltRight' });
+      inputHandler.handleInputEvent({
+        e: altDownEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      // Clear these events so they're not counted below
+      mockTdpClient.sendKeyboardInput.mockClear();
+
+      const altGrEvent = new KeyboardEvent('keydown', {
+        code: 'KeyQ',
+        ctrlKey: false,
+        altKey: false,
+      });
+
+      // There isn't a key code for AltGraph, so instead mock the
+      // getModifierState to return true for AltGraph
+      Object.defineProperty(altGrEvent, 'getModifierState', {
+        value: (key: string) => key === 'AltGraph',
+      });
+
+      inputHandler.handleInputEvent({
+        e: altGrEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      // Check that synchronizeModifierState doesn't try to set the remote state
+      // (down) to that of the local state (up)
+      const controlCalls = mockTdpClient.sendKeyboardInput.mock.calls.filter(
+        call => call[0].includes('Control')
+      );
+      const altCalls = mockTdpClient.sendKeyboardInput.mock.calls.filter(call =>
+        call[0].includes('Alt')
+      );
+
+      expect(controlCalls).toHaveLength(0);
+      expect(altCalls).toHaveLength(0);
+    });
+
+    it('Shift and Meta are still synchronized when AltGr is active', () => {
+      const shiftDownEvent = new KeyboardEvent('keydown', {
+        code: 'ShiftLeft',
+      });
+      inputHandler.handleInputEvent({
+        e: shiftDownEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      const metaDownEvent = new KeyboardEvent('keydown', { code: 'MetaLeft' });
+      inputHandler.handleInputEvent({
+        e: metaDownEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      mockTdpClient.sendKeyboardInput.mockClear();
+
+      // Press AltGr key with Shift and Meta released
+      const altGrEvent = new KeyboardEvent('keydown', {
+        code: 'KeyA',
+        shiftKey: false,
+        ctrlKey: false,
+        altKey: false,
+        metaKey: false,
+      });
+
+      Object.defineProperty(altGrEvent, 'getModifierState', {
+        value: (key: string) => key === 'AltGraph',
+      });
+
+      inputHandler.handleInputEvent({
+        e: altGrEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      // Shift & Meta should still be synchronized to UP even with AltGr active
+      expect(mockTdpClient.sendKeyboardInput).toHaveBeenCalledWith(
+        'ShiftLeft',
+        ButtonState.UP
+      );
+      expect(mockTdpClient.sendKeyboardInput).toHaveBeenCalledWith(
+        'MetaLeft',
+        ButtonState.UP
+      );
+    });
+
+    it('handles AltGr + Shift combination correctly', () => {
+      const altGrShiftEvent = new KeyboardEvent('keydown', {
+        code: 'KeyA',
+        shiftKey: true,
+        ctrlKey: false,
+        altKey: false,
+      });
+
+      Object.defineProperty(altGrShiftEvent, 'getModifierState', {
+        value: (key: string) => key === 'AltGraph' || key === 'Shift',
+      });
+
+      inputHandler.handleInputEvent({
+        e: altGrShiftEvent,
+        state: ButtonState.DOWN,
+        cli: mockTdpClient,
+      });
+
+      // Shift should be synchronized, but not Control/Alt
+      const shiftCalls = mockTdpClient.sendKeyboardInput.mock.calls.filter(
+        call => call[0].includes('Shift')
+      );
+      const controlCalls = mockTdpClient.sendKeyboardInput.mock.calls.filter(
+        call => call[0].includes('Control')
+      );
+      const altCalls = mockTdpClient.sendKeyboardInput.mock.calls.filter(call =>
+        call[0].includes('Alt')
+      );
+
+      expect(shiftCalls.length).toBeGreaterThan(0);
+      expect(controlCalls).toHaveLength(0);
+      expect(altCalls).toHaveLength(0);
+    });
   });
 });

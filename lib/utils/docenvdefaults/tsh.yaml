@@ -1,0 +1,74 @@
+TELEPORT_AUTH:
+  description: "Any defined authentication connector, including `passwordless` and `local` (i.e., no authentication connector)"
+  default: "none"
+  type: "string"
+
+TELEPORT_CLUSTER:
+  description: "Name of a Teleport root or leaf cluster"
+  default: "none"
+  type: "string"
+
+TELEPORT_LOGIN:
+  description: "Login name to be used by default on the remote host"
+  default: "none"
+  type: "string"
+
+TELEPORT_LOGIN_BIND_ADDR:
+  description: "Address in the form of host:port to bind to for login command webhook"
+  default: "none"
+  type: "string"
+
+TELEPORT_LOGIN_BROWSER:
+  description: "Set to `none` to stop the system default browser from opening for SSO logins. If the value is not `none`, `tsh` will open the system default browser."
+  default: "none"
+  type: "string"
+
+TELEPORT_PROXY:
+  description: "Address of the Teleport proxy server"
+  default: "none"
+  type: "string"
+
+TELEPORT_RELAY:
+  description: "Address of the Teleport relay server to use, \"none\" to disable the use of a relay, or \"default\" to use the default address specified by the control plane at login time. Defaults to port 443."
+  default: "none"
+  type: "string"
+
+TELEPORT_HEADLESS:
+  description: "Use headless authentication"
+  default: false
+  type: "bool"
+
+TELEPORT_HOME:
+  description: "Home location for tsh configuration and data"
+  default: "none"
+  type: "string"
+
+TELEPORT_USER:
+  description: "A Teleport user name"
+  default: "none"
+  type: "string"
+
+TELEPORT_ADD_KEYS_TO_AGENT:
+  description: "Specifies if the user certificate should be stored on the running SSH agent"
+  default: "auto"
+  type: "string"
+
+TELEPORT_USE_LOCAL_SSH_AGENT:
+  description: "Disable or enable local SSH agent integration"
+  default: "none"
+  type: "string"
+
+TELEPORT_GLOBAL_TSH_CONFIG:
+  description: "Override location of global `tsh` config file from default `/etc/tsh.yaml`"
+  default: "none"
+  type: "string"
+
+TELEPORT_MFA_MODE:
+  description: "Preferred mode for MFA and Passwordless assertions"
+  default: "auto"
+  type: "string"
+
+TELEPORT_IDENTITY_FILE:
+  description: "File path to identity file"
+  default: "none"
+  type: "string"

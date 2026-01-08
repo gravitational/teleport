@@ -84,6 +84,24 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
 }
 
+// UseScopedToken fetches a scoped join token by unique name and checks if it
+// can be used for provisioning. Expired tokens will be deleted.
+func (s *ScopedTokenService) UseScopedToken(ctx context.Context, name string) (*joiningv1.ScopedToken, error) {
+	token, err := s.svc.GetResource(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := joining.ValidateTokenForUse(token); err != nil {
+		if trace.IsLimitExceeded(err) {
+			if err := s.svc.DeleteResource(ctx, name); err != nil {
+				return nil, trace.LimitExceeded("cleaning up expired token: %v", err)
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+	return token, nil
+}
+
 func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
 	if filter == nil {
 		return true

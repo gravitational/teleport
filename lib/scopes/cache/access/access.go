@@ -34,6 +34,7 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/cache/roles"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -82,6 +83,8 @@ type Cache struct {
 	state    state
 	ok       bool
 	closed   bool
+	init     chan struct{}
+	initOnce sync.Once
 	cancel   context.CancelFunc
 	ttlCache *utils.FnCache
 	done     chan struct{}
@@ -119,12 +122,21 @@ func NewCache(cfg CacheConfig) (*Cache, error) {
 		cfg:      cfg,
 		ttlCache: ttlCache,
 		cancel:   cancel,
+		init:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}
 
 	go cache.update(closeContext, retry)
 
 	return cache, nil
+}
+
+// Init returns a channel that is closed when the cache has completed its first init. Used in tests that
+// want to wait for cache readiness. commonly this avoids the effect of the read state apparently
+// "skipping" back in time slightly early in the test if cache init happens after one or more pre-init
+// reads.
+func (c *Cache) Init() <-chan struct{} {
+	return c.init
 }
 
 // GetScopedRole retrieves a scoped role by name.
@@ -147,6 +159,17 @@ func (c *Cache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSco
 	return state.roles.ListScopedRoles(ctx, req)
 }
 
+// ListScopedRolesWithFilter returns a paginated list of scoped roles filtered by the provided filter function. This
+// method is used internally to implement access-controls on the ListScopedRoles grpc method.
+func (c *Cache) ListScopedRolesWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest, filter func(*scopedaccessv1.ScopedRole) bool) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.roles.ListScopedRolesWithFilter(ctx, req, filter)
+}
+
 // GetScopedRoleAssignment retrieves a scoped role assignment by name.
 func (c *Cache) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
 	state, err := c.read(ctx)
@@ -165,6 +188,18 @@ func (c *Cache) ListScopedRoleAssignments(ctx context.Context, req *scopedaccess
 	}
 
 	return state.assignments.ListScopedRoleAssignments(ctx, req)
+}
+
+// ListScopedRoleAssignmentsWithFilter returns a paginated list of scoped role assignments filtered by the provided
+// filter function. This method is used internally to implement access-controls on the ListScopedRoleAssignments grpc
+// method.
+func (c *Cache) ListScopedRoleAssignmentsWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRoleAssignmentsRequest, filter func(*scopedaccessv1.ScopedRoleAssignment) bool) (*scopedaccessv1.ListScopedRoleAssignmentsResponse, error) {
+	state, err := c.read(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.assignments.ListScopedRoleAssignmentsWithFilter(ctx, req, filter)
 }
 
 // PopulatePinnedAssignmentsForUser populates the provided scope pin with all relevant assignments related to the
@@ -270,6 +305,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 	slog.InfoContext(ctx, "scoped access cache successfully initialized")
 	retry.Reset()
 
+	// signal that init has completed
+	c.initOnce.Do(func() {
+		close(c.init)
+	})
+
 	// start processing and applying changes
 	for {
 		select {
@@ -360,7 +400,7 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 func (c *Cache) fetch(ctx context.Context) (state, error) {
 	roleCache := roles.NewRoleCache()
 
-	for role, err := range StreamRoles(ctx, c.cfg.Reader) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRolesRequest{}) {
 		if err != nil {
 			return state{}, trace.Wrap(err)
 		}
@@ -372,7 +412,7 @@ func (c *Cache) fetch(ctx context.Context) (state, error) {
 
 	assignmentCache := assignments.NewAssignmentCache()
 
-	for assignment, err := range StreamAssignments(ctx, c.cfg.Reader) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
 		if err != nil {
 			return state{}, trace.Wrap(err)
 		}

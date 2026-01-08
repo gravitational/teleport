@@ -24,13 +24,13 @@ import (
 )
 
 func ec2InitToMessage(req *joinv1.EC2Init) (*messages.EC2Init, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &messages.EC2Init{
 		ClientParams: clientParams,
-		Document:     req.Document,
+		Document:     req.GetDocument(),
 	}, nil
 }
 

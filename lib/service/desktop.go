@@ -117,16 +117,17 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:            teleport.ComponentWindowsDesktop,
-				HostUUID:             conn.HostID(),
-				Resolver:             conn.TunnelProxyResolver(),
-				Client:               conn.Client,
-				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              conn.ClusterName(),
-				Server:               shtl,
-				FIPS:                 process.Config.FIPS,
-				ConnectedProxyGetter: proxyGetter,
+				Component:                teleport.ComponentWindowsDesktop,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 conn.TunnelProxyResolver(),
+				Client:                   conn.Client,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
+				Cluster:                  conn.ClusterName(),
+				Server:                   shtl,
+				FIPS:                     process.Config.FIPS,
+				ConnectedProxyGetter:     proxyGetter,
+				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -171,7 +172,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

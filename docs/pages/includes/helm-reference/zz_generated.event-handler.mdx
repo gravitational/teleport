@@ -1,0 +1,618 @@
+
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `teleport`
+
+`teleport` contains the configuration describing how the plugin connects to
+your Teleport cluster.
+
+### `teleport.address`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleport.address` is the address of the Teleport cluster the plugin
+connects to. The address must contain both the domain name and the port of
+the Teleport cluster. It can be either the address of the auth servers or the
+proxy servers.
+
+For example:
+  - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
+  - joining an Auth: `teleport-auth.example.com:3025`
+
+When the address is empty, `tbot.teleportProxyAddress`
+or `tbot.teleportAuthAddress` will be used if they are set.
+
+### `teleport.identitySecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`teleport.identitySecretName` is the name of the Kubernetes secret
+that contains the credentials for the connection to your Teleport cluster.
+
+The secret should be in the following format:
+
+```yaml
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: teleport-plugin-event-handler-identity
+data:
+  auth_id: #...
+```
+
+Check out the [Export Events with Fluentd]
+(../../zero-trust-access/export-audit-events/fluentd.mdx) guide
+for more information about how to acquire these credentials.
+
+### `teleport.identitySecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"auth_id"` |
+
+`teleport.identitySecretPath` is the key in the Kubernetes secret
+specified by `teleport.identitySecretName` that holds the credentials for
+the connection to your Teleport cluster. If the secret has the path,
+`"auth_id"`, you can omit this field.
+
+## `eventHandler`
+
+`eventHandler` contains the configuration used by the plugin to forward Teleport events.
+
+### `eventHandler.storagePath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"/var/lib/teleport/plugins/event-handler/storage"` |
+
+`eventHandler.storagePath` is the storage directory for the event handler.
+
+### `eventHandler.timeout`
+
+| Type | Default |
+|------|---------|
+| `string` | `"10s"` |
+
+`eventHandler.timeout` is the polling timeout.
+
+### `eventHandler.batch`
+
+| Type | Default |
+|------|---------|
+| `int` | `20` |
+
+`eventHandler.batch` is the fetch batch size.
+
+### `eventHandler.windowSize`
+
+| Type | Default |
+|------|---------|
+| `string` | `"24h"` |
+
+`eventHandler.windowSize` configures the duration of the time window for the event handler
+to request events from Teleport. By default, this is set to 24 hours.
+Reduce the window size if the events backend cannot manage the event volume
+for the default window size.
+The window size should be specified as a duration string, parsed by Go's time.ParseDuration.
+
+### `eventHandler.debug`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`eventHandler.debug` enables debug logging.
+
+### `eventHandler.types`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`eventHandler.types` is the list of event types to forward.
+When unset, the event handler forwards all events.
+
+### `eventHandler.skipEventTypes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`eventHandler.skipEventTypes` is the list of audit event types to skip.
+
+### `eventHandler.skipSessionTypes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`eventHandler.skipSessionTypes` is the list of session recording event types to skip.
+When unset, the event handler skips noisy and binary events.
+
+See the [Teleport-event-handler README](https://github.com/gravitational/teleport/blob/1d2bd5eb8fc3500deb7d7108f6835efde98b7b24/integrations/event-handler/README.md)
+for a list of default skipped events.
+
+### `eventHandler.startTime`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`eventHandler.startTime` is the start time to start ingestion from (RFC3339 format).
+
+### `eventHandler.dryRun`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`eventHandler.dryRun` enables dry run without sending events to fluentd.
+
+### `eventHandler.concurrency`
+
+| Type | Default |
+|------|---------|
+| `int` | `5` |
+
+`eventHandler.concurrency` is the number of concurrent sessions to process. By default, this is set to 5.
+
+#### `eventHandler.lock.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`eventHandler.lock.enabled` controls whether user auto-locking is enabled.
+
+#### `eventHandler.lock.failedAttemptsCount`
+
+| Type | Default |
+|------|---------|
+| `int` | `3` |
+
+`eventHandler.lock.failedAttemptsCount` is the number of failed attempts in the `lockPeriod` which
+triggers locking. By default, this is set to 3.
+
+#### `eventHandler.lock.period`
+
+| Type | Default |
+|------|---------|
+| `string` | `"1m"` |
+
+`eventHandler.lock.period` is the time period where `lock-failed-attempts-count` failed attempts
+will trigger locking. By default, this is set to 1 minute.
+
+#### `eventHandler.lock.for`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`eventHandler.lock.for` is the time period for which user gets lock.
+
+## `fluentd`
+
+`fluentd` contains the configuration for the fluentd forwarder.
+
+### `fluentd.url`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`fluentd.url` is the Fluentd URL where the events will be sent.
+
+### `fluentd.sessionUrl`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`fluentd.sessionUrl` is the Fluentd URL where the session logs will be sent.
+
+#### `fluentd.certificate.secretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`fluentd.certificate.secretName` is the secret containing the credentials to connect to Fluentd.
+It must contain the CA certificate, the client key and the client certificate.
+
+#### `fluentd.certificate.caPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.crt"` |
+
+`fluentd.certificate.caPath` is the name of the key which contains the CA certificate inside the secret.
+
+#### `fluentd.certificate.certPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"client.crt"` |
+
+`fluentd.certificate.certPath` is the name of the key which contains the client's certificate inside the secret.
+
+#### `fluentd.certificate.keyPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"client.key"` |
+
+`fluentd.certificate.keyPath` is the name of the key which contains the client's private key inside the secret.
+
+### `fluentd.maxConnections`
+
+| Type | Default |
+|------|---------|
+| `int` | `0` |
+
+`fluentd.maxConnections` is the maximum number of connections to Fluentd. By default, or when set to 0,
+this becomes `eventHandler.concurrency` * 2.
+
+## `tbot`
+
+`tbot` controls the optional tbot deployment that obtains and renews
+credentials for the plugin to connect to Teleport.
+Only default and mandatory values are described here, see the tbot chart reference
+for the full list of supported values.
+
+### `tbot.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`tbot.enabled` controls if tbot should be deployed with the event handler plugin.
+
+### `tbot.clusterName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tbot.clusterName` is the name of the Teleport cluster tbot and the event handler plugin will join.
+Setting this value is mandatory when tbot is enabled.
+
+### `tbot.teleportProxyAddress`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tbot.teleportProxyAddress` is the teleport Proxy Service address the bot will connect to.
+This must contain the port number, usually 443 or 3080 for Proxy Service.
+Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
+This is mandatory to connect to Teleport Enterprise (Cloud).
+
+This setting is mutually exclusive with `teleportAuthAddress`.
+
+For example:
+```yaml
+tbot:
+  teleportProxyAddress: "test.teleport.sh:443"
+```
+
+### `tbot.teleportAuthAddress`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tbot.teleportAuthAddress` is the teleport Auth Service address the bot will connect to.
+This must contain the port number, usually 3025 for Auth Service. Direct Auth Service connection
+should be used when you are deploying the bot in the same Kubernetes cluster than your `teleport-cluster`
+Helm release and have direct access to the Auth Service.
+Else, you should prefer connecting via the Proxy Service.
+
+This setting is mutually exclusive with `teleportProxyAddress`.
+
+For example:
+```yaml
+teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
+```
+
+### `tbot.joinMethod`
+
+| Type | Default |
+|------|---------|
+| `string` | `"kubernetes"` |
+
+`tbot.joinMethod` describes how tbot joins the Teleport cluster.
+See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
+
+## `annotations`
+
+`annotations` contains annotations to apply to the different Kubernetes
+objects created by the chart. See [the Kubernetes annotation
+documentation](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
+for more details.
+
+### `annotations.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.config` are annotations to set on the ConfigMap.
+
+### `annotations.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.deployment` are annotations to set on the Deployment.
+
+### `annotations.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.pod` are annotations to set on the Pods.
+
+## `extraLabels`
+
+`extraLabels` contains additional Kubernetes labels to apply on the resources
+created by the chart. See [the Kubernetes label documentation
+](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)
+for more information.
+
+### `extraLabels.config`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.config` are labels to set on the ConfigMap.
+
+### `extraLabels.deployment`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.deployment` are labels to set on the Deployment.
+
+### `extraLabels.pod`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.pod` are labels to set on the Pods.
+
+## `image`
+
+`image` sets the container image used for plugin pods created by the chart.
+
+You can override this to use your own plugin image rather than a Teleport-published image.
+
+### `image.repository`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-plugin-event-handler"` |
+
+`image.repository` is the image repository.
+
+### `image.pullPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"IfNotPresent"` |
+
+`image.pullPolicy` is the [Kubernetes image pull policy](https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy).
+
+### `image.tag`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`image.tag` Overrides the image tag whose default is the chart appVersion.
+
+Normally, the version of the Teleport plugin matches the
+version of the chart. If you install chart version 15.0.0, you'll use
+the plugin version 15.0.0. Upgrading the plugin is done by upgrading the chart.
+
+<Admonition type="warning">
+`image.tag` is intended for development and custom tags. This MUST NOT be
+used to control the plugin version in a typical deployment. This
+chart is designed to run a specific plugin version. You will face
+compatibility issues trying to run a different version with it.
+
+If you want to run the Teleport plugin version `X.Y.Z`, you should use
+`helm install --version X.Y.Z` instead.
+</Admonition>
+
+## `imagePullSecrets`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`imagePullSecrets` is a list of secrets containing authorization tokens
+which can be optionally used to access a private Docker registry.
+
+See the [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod) for more details.
+
+## `nameOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`nameOverride` optionally overrides the name of the chart, used
+together with the release name when giving a name to resources.
+
+## `fullnameOverride`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`fullnameOverride` optionally overrides the full name of resources.
+
+## `podSecurityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`podSecurityContext` sets the pod security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `securityContext`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`securityContext` sets the container security context for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container)
+for more details.
+
+To unset the security context, set it to `null` or `~`.
+
+## `resources`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`resources` sets the resource requests/limits for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+for more details.
+
+## `nodeSelector`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`nodeSelector` sets the node selector for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+for more details.
+
+## `tls`
+
+`tls` contains settings for mounting your own TLS material in the event-handler pod.
+The event-handler does not expose a TLS server, so this is only used to trust CAs.
+
+### `tls.existingCASecretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`tls.existingCASecretName` sets the `SSL_CERT_FILE` environment
+variable to load a trusted CA or bundle in PEM format into Teleport pods.
+The injected CA will be used to validate TLS communications with the Proxy
+Service.
+
+You must create a secret containing the CA certs in the same namespace as Teleport using a command like:
+
+```code
+$ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
+```
+
+### `tls.existingCASecretKeyName`
+
+| Type | Default |
+|------|---------|
+| `string` | `"ca.pem"` |
+
+`tls.existingCASecretKeyName` determines which key in the CA secret
+will be used as a trusted CA bundle file.
+
+## `tolerations`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`tolerations` sets the tolerations for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
+for more details.
+
+## `affinity`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`affinity` sets the affinities for any pods created by the chart.
+See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
+for more details.
+
+## `volumes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`volumes` sets the volumes mounted into the main event-handler pod.
+See [the Kubernetes volume
+documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+details.
+
+For example:
+```yaml
+- name: storage
+  persistentVolumeClaim:
+    claimName: teleport-plugin-event-handler
+```
+
+## `volumeMounts`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`volumeMounts` sets the volume mounts for the main event-handler container.
+See [the Kubernetes volume
+documentation](https://kubernetes.io/docs/concepts/storage/volumes/) for more
+details.
+
+For example:
+```yaml
+- name: storage
+  mountPath: "/var/lib/teleport/plugins/event-handler/storage"
+```
+
+## `extraArgs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraArgs` contains extra arguments to pass to `teleport-plugin start` for
+the main event-handler container.
+
+## `extraEnv`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraEnv` contains extra environment variables to set in the main
+event-handler container.
+
+For example:
+```yaml
+extraEnv:
+  - name: HTTPS_PROXY
+    value: "http://username:password@my.proxy.host:3128"
+```

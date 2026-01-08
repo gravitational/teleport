@@ -1,8 +1,7 @@
 ---
 title: Managed Updates v2 in EC2 Agents
 description: Describes how to set up EC2 instance by cloud-init script and install Teleport with "teleport-update enable"
-labels:
- - get-started
+tags:
  - how-to
 ---
 
@@ -207,63 +206,68 @@ To create required IAM role, instance profile and launch EC2 instance, follow th
 
 1. Create an IAM role with a trust policy that allows EC2 to assume it:
 
-```code
-$ cat > trust-policy.json <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": { "Service": "ec2.amazonaws.com" },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-$ aws iam create-role \
-  --role-name EC2TeleportRole \
-  --assume-role-policy-document file://trust-policy.json
+   ```code
+   $ cat > trust-policy.json <<EOF
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": { "Service": "ec2.amazonaws.com" },
+         "Action": "sts:AssumeRole"
+       }
+     ]
+   }
+   EOF
+   $ aws iam create-role \
+     --role-name EC2TeleportRole \
+     --assume-role-policy-document file://trust-policy.json
    ```
 
 1. Create an EC2 instance profile to use the role:
 
-```code
-$ aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
-$ aws iam add-role-to-instance-profile \
-  --instance-profile-name EC2TeleportInstanceProfile \
-  --role-name EC2TeleportRole
+   ```code
+   $ aws iam create-instance-profile --instance-profile-name EC2TeleportInstanceProfile
+   $ aws iam add-role-to-instance-profile \
+     --instance-profile-name EC2TeleportInstanceProfile \
+     --role-name EC2TeleportRole
    ```
 
 1. Create `cloud-init.yaml` configuration file with cloud init data.
 
-```yaml
-#cloud-config
-packages:
-- curl
-
-runcmd:
-  # Install Teleport using your cluster's script and define the group by query parameter.
-  # Script persists your updater flags (group, proxy, etc.)
-  - curl "https://<Var name="example.teleport.sh:443" />/scripts/install.sh?group=<Var name="development" />" | sudo bash
-
-  # Write agent config (join token) before starting the service.
-  - teleport configure --roles node --proxy <Var name="example.teleport.sh:443" /> --join-method iam --token iam-join > /etc/teleport.yaml
-
-  # Enable and start Teleport service.
-  - systemctl enable --now teleport
+   ```yaml
+   #cloud-config
+   packages:
+   - curl
+   
+   runcmd:
+     # Install Teleport using your cluster's script and define the group by query parameter.
+     # Script persists your updater flags (group, proxy, etc.)
+     - curl "https://<Var name="example.teleport.sh:443" />/scripts/install.sh?group=<Var name="development" />" | sudo bash
+   
+     # Write agent config (join token) before starting the service.
+     - teleport configure --roles node --proxy <Var name="example.teleport.sh:443" /> --join-method iam --token iam-join > /etc/teleport.yaml
+   
+     # Enable and start Teleport service.
+     - systemctl enable --now teleport
    ```
+
+1. Gather information about your EC2 instance:
+
+   - Assign <Var name="ami-xxxx" /> to the AMI ID of your instance.
+   - Assign <Var name="sg-xxxx" /> to a security group that allows at least
+     outbound traffic.
 
 1. Launch the EC2 instance with the instance profile:
 
-```code
-# Specify the AMI image ID for the instance and a security group that allows at least outbound traffic.
-$ aws ec2 run-instances \
-  --image-id <Var name="ami-xxxx" /> \
-  --instance-type t3.micro \
-  --iam-instance-profile Name=EC2TeleportInstanceProfile \
-  --security-group-ids <Var name="sg-xxxx" /> \
-  --region us-west-2 \
-  --user-data file://cloud-init.yaml
+   ```code
+   $ aws ec2 run-instances \
+     --image-id <Var name="ami-xxxx" /> \
+     --instance-type t3.micro \
+     --iam-instance-profile Name=EC2TeleportInstanceProfile \
+     --security-group-ids <Var name="sg-xxxx" /> \
+     --region us-west-2 \
+     --user-data file://cloud-init.yaml
    ```
 </TabItem>
 
@@ -360,7 +364,8 @@ systemd[1]: Finished teleport-update.service - Teleport auto-update service.
 
 From an admin workstation.
 
-Login to the remote cluster:
+Login to the remote cluster, assigning <Var name="user" /> to the name of your
+Teleport user:
 
 ```code
 $ tsh login --proxy <Var name="example.teleport.sh:443" /> --user <Var name="user" />

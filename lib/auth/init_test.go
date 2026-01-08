@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
@@ -228,11 +229,14 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		}
 		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
 		for _, caType := range types.CertAuthTypes {
-			cfg.BootstrapResources = append(cfg.BootstrapResources, authtest.NewTestCAWithConfig(authtest.TestCAConfig{
+			ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
 				Type:        caType,
 				ClusterName: cfg.ClusterName.GetClusterName(),
 				Clock:       cfg.Clock,
-			}))
+			})
+			require.NoError(t, err)
+
+			cfg.BootstrapResources = append(cfg.BootstrapResources, ca)
 		}
 		return cfg
 	}
@@ -395,10 +399,15 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 				}
 				testAuthServer, err := authtest.NewAuthServer(cfg)
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 				tlsServer, err := testAuthServer.NewTestTLSServer()
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
 				clt, err := tlsServer.NewClient(authtest.TestAdmin())
 				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 				for _, suiteValue := range types.SignatureAlgorithmSuite_value {
 					suite := types.SignatureAlgorithmSuite(suiteValue)
@@ -962,8 +971,6 @@ func TestPresets(t *testing.T) {
 
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
@@ -982,8 +989,6 @@ func TestPresets(t *testing.T) {
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
@@ -1007,8 +1012,6 @@ func TestPresets(t *testing.T) {
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1059,8 +1062,6 @@ func TestPresets(t *testing.T) {
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
-		clock := clockwork.NewFakeClock()
-		as.SetClock(clock)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1302,8 +1303,6 @@ func TestPresets(t *testing.T) {
 
 		t.Run("EmptyCluster", func(t *testing.T) {
 			as := newTestAuthServer(ctx, t)
-			clock := clockwork.NewFakeClock()
-			as.SetClock(clock)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
@@ -1365,6 +1364,45 @@ func TestPresets(t *testing.T) {
 			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
 		})
 	})
+}
+
+func TestDashboardMode(t *testing.T) {
+	// dashboard mode is determined via cloud and recovery codes
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Cloud:         false,
+			RecoveryCodes: true,
+		},
+	})
+
+	conf := setupConfig(t)
+	ctx := t.Context()
+	authServer, err := auth.Init(ctx, conf)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err = authServer.Close()
+		require.NoError(t, err)
+	})
+
+	// verify auth server is functional
+	_, err = authServer.GetClusterName(ctx)
+	require.NoError(t, err)
+
+	// verify that preset roles were NOT created in dashboard mode
+	presetRoles := auth.GetPresetRoles()
+
+	for _, role := range presetRoles {
+		_, err := authServer.GetRole(ctx, role.GetName())
+		require.True(t, trace.IsNotFound(err), "expected preset role %q to not exist in dashboard mode", role.GetName())
+	}
+
+	// verify preset users were NOT created in dashboard mode
+	presetUsers := auth.GetPresetUsers()
+
+	for _, user := range presetUsers {
+		_, err := authServer.GetUser(ctx, user.GetName(), false)
+		require.True(t, trace.IsNotFound(err), "expected preset user %q to not exist in dashboard mode", user.GetName())
+	}
 }
 
 func TestGetPresetUsers(t *testing.T) {

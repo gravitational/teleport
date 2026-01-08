@@ -45,7 +45,7 @@ data:
 ```
 
 Check out the [Access Requests with
-Microsoft Teams](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) guide
+Microsoft Teams](../../identity-governance/access-requests/plugins/msteams.mdx) guide
 for more information about how to acquire these credentials.
 
 ### `teleport.identitySecretPath`
@@ -74,7 +74,7 @@ You can pass the MsTeams appSecret:
 | `string` | `""` |
 
 `msTeams.appID` is the Azure app ID used by the plugin.
-See [the MsTeams guide](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+See [the MsTeams guide](../../identity-governance/access-requests/plugins/msteams.mdx) to know how to get this value.
 
 This value is mandatory.
 
@@ -85,7 +85,7 @@ This value is mandatory.
 | `string` | `""` |
 
 `msTeams.tenantID` is the Azure tenant ID used by the plugin and Microsoft Teams.
-See [the MsTeams guide](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+See [the MsTeams guide](../../identity-governance/access-requests/plugins/msteams.mdx) to know how to get this value.
 
 This value is mandatory.
 
@@ -96,7 +96,7 @@ This value is mandatory.
 | `string` | `""` |
 
 `msTeams.teamsAppID` is the MsTeams app ID used by the plugin.
-See [the MsTeams guide](../../identity-governance/access-request-plugins/ssh-approval-msteams.mdx) to know how to get this value.
+See [the MsTeams guide](../../identity-governance/access-requests/plugins/msteams.mdx) to know how to get this value.
 
 This value is mandatory.
 
@@ -248,7 +248,7 @@ teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
 | `string` | `"kubernetes"` |
 
 `tbot.joinMethod` describes how tbot joins the Teleport cluster.
-See [the join method reference](../../reference/deployment/join-methods.mdx) for a list fo supported values and detailed explanations.
+See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
 
 ## `annotations`
 

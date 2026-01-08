@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/migration"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -277,7 +278,7 @@ type InitConfig struct {
 	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
@@ -287,7 +288,7 @@ type InitConfig struct {
 	Okta services.Okta
 
 	// AccessLists is a service that manages access list resources.
-	AccessLists services.AccessLists
+	AccessLists services.AccessListsInternal
 
 	// DatabaseObjectImportRule is a service that manages database object import rules.
 	DatabaseObjectImportRules services.DatabaseObjectImportRules
@@ -414,8 +415,15 @@ type InitConfig struct {
 	// plugin. The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 
+	// RecordingMetadataProvider provides recording metadata for session recordings.
+	RecordingMetadataProvider *recordingmetadata.Provider
+
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
+
+	// AppAuthConfig is the service for storing and retrieving
+	// app auth config resources.
+	AppAuthConfig services.AppAuthConfig
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1585,7 +1593,7 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			DNSNames:             dnsNames,
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
-		})
+		}, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
