@@ -133,7 +133,7 @@ effect immediately.
 Disables are only allowed for keys in the [AdditionalTrustedKeys set](
 https://github.com/gravitational/teleport/blob/3121f066a27a4c24cb330452416a7261147eb2fa/api/proto/teleport/legacy/types/types.proto#L1398),
 meaning it can only happen for new keys during the "init" CA rotation phase. A
-disable may be forced via the `--force-immediate-disable` flag.
+disable may be forced via the `--force` flag.
 
 ### Alice deletes the "db_client" override
 
@@ -143,7 +143,7 @@ certificate. Deletes take effect immediately.
 `tctl auth delete-override --type=db_client`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
-delete may be forced with the `--force-immediate-delete` flag.
+delete may be forced with the `--force` flag.
 
 ### Alice performs a "db_client" CA rotation
 
