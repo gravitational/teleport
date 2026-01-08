@@ -1421,11 +1421,12 @@ func (s *Server) startAzureServerDiscovery() {
 
 	var azureWatcher *server.Watcher[*server.AzureInstances]
 
+	// static fetchers; can be cached, any changes require service restart.
+	staticFetchers := s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
+
 	// a full refresh is somewhat wasteful, however not overly so due to inexpensive operations involved.
 	// a more selective approach would necessitate deeper refactoring.
 	fullRefresh := func() {
-		// static fetchers.
-		staticFetchers := s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
 		replaceMap := make(map[string][]server.Fetcher[*server.AzureInstances])
 		replaceMap[noDiscoveryConfig] = staticFetchers
 
