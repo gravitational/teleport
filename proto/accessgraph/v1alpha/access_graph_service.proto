@@ -458,11 +458,20 @@ message BulkResumeDate {
 
 // RegisterRequest is the request for Register.
 message RegisterRequest {
-  bytes host_ca_pem = 1;
+  // host_ca_pem is deprecated. Use host_ca_pems instead.
+  bytes host_ca_pem = 1 [deprecated = true];
 
   // ClusterName is the self-submitted name of the Teleport cluster (usually a FQDN).
   // This may not uniquely identify the cluster, and is only used to make identification easier for debugging purposes.
   string cluster_name = 2;
+
+  // host_ca_pems contains one or more Teleport Host CA certificates in PEM format that will be used to authenticate
+  // this Teleport cluster (tenant) with the Access Graph service. During normal operation, this contains a single
+  // Host CA certificate. During Host CA rotation or if the cluster uses HSM with single key per auth, this may contain
+  // multiple certificates (e.g., both the active and additional/incoming CA). These certificates are used to verify
+  // client authentication for all subsequent RPC calls to the Access Graph service after registration. To update the
+  // set of trusted Host CAs after registration, use the ReplaceCAs RPC method instead.
+  repeated bytes host_ca_pems = 3;
 }
 
 // RegisterResponse is the response for Register.

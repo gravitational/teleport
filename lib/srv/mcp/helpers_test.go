@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"slices"
@@ -352,7 +353,7 @@ type mockAuthClient struct {
 }
 
 func (m mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
-	return "app-token-for-" + req.Username, nil
+	return fmt.Sprintf("app-token-for-%s-by-%s", req.Username, cmp.Or(req.AuthorityType, types.JWTSigner)), nil
 }
 
 func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {

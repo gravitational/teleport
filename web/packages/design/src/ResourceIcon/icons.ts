@@ -71,6 +71,7 @@ export { default as awsredshift } from './assets/awsredshift.svg?no-inline';
 export { default as awsredshift2 } from './assets/awsredshift2.svg?no-inline';
 export { default as awssimplestorageservices3 } from './assets/awssimplestorageservices3.svg?no-inline';
 export { default as awssinglesignon } from './assets/awssinglesignon.svg?no-inline';
+export { default as awsquicksight } from './assets/awsquicksight.svg?no-inline';
 export { default as azure } from './assets/azure.svg?no-inline';
 export { default as bill } from './assets/bill.svg?no-inline';
 export { default as bonusly } from './assets/bonusly.svg?no-inline';

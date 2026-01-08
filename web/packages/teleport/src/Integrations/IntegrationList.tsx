@@ -61,19 +61,36 @@ export type IntegrationLike =
   | ExternalAuditStorageIntegration;
 
 // statusKinds are the integration types with status pages; we enable clicking on the row directly to route to the view
-const statusKinds = ['okta', IntegrationKind.AwsOidc, IntegrationKind.AwsRa];
+const statusKinds = [
+  'okta',
+  'entra-id',
+  IntegrationKind.AwsOidc,
+  IntegrationKind.AwsRa,
+];
 
 export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
+    // TODO (avatus) enable this feature by checking isManagedByTerraform.
+    // Leaving commented until IaC form and settings page are implemented
+
+    // if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
+    //   history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+    //   return;
+    // }
+
     if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
   }
 
   function getRowStyle(row: IntegrationLike): React.CSSProperties {
-    if (!statusKinds.includes(row.kind)) return;
-    return { cursor: 'pointer' };
+    if (
+      ('isManagedByTerraform' in row && row.isManagedByTerraform) ||
+      statusKinds.includes(row.kind)
+    ) {
+      return { cursor: 'pointer' };
+    }
   }
 
   const [downloadAttempt, download] = useAsync(
@@ -123,10 +140,10 @@ export function IntegrationList(props: Props) {
           render: item => {
             if (
               item.kind === IntegrationKind.AwsOidc ||
-              item.kind === IntegrationKind.AwsRa
+              item.kind === IntegrationKind.AwsRa ||
+              item.kind === 'entra-id'
             ) {
-              // do not show any action menu for aws oidc or roles anywhere;
-              // settings are available on the dashboard
+              // action menu for these integrations are available on the status page dashboard.
               return;
             }
 

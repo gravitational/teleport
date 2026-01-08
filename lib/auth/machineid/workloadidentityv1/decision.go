@@ -27,10 +27,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/structpb"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type decision struct {
@@ -38,6 +38,17 @@ type decision struct {
 	shouldIssue               bool
 	reason                    error
 	sigstorePolicyResults     map[string]error
+}
+
+// validDNSSAN returns if the string is a valid value for a DNS SAN. This
+// permits not only valid DNS 1123 subdomains but also wildcards of those.
+func validDNSSAN(str string) bool {
+	isValidDomain := len(validation.IsDNS1123Subdomain(str)) == 0
+	isValidWildcard := len(validation.IsWildcardDNS1123Subdomain(str)) == 0
+	if isValidDomain || isValidWildcard {
+		return true
+	}
+	return false
 }
 
 func decide(
@@ -79,9 +90,9 @@ func decide(
 			d.reason = trace.Wrap(err, "templating spec.spiffe.x509.dns_sans[%d]", i)
 			return d
 		}
-		if !utils.IsValidHostname(templated) {
+		if !validDNSSAN(templated) {
 			d.reason = trace.BadParameter(
-				"templating spec.spiffe.x509.dns_sans[%d] resulted in an invalid DNS name %q",
+				"templating spec.spiffe.x509.dns_sans[%d] resulted in an invalid DNS SAN %q",
 				i,
 				templated,
 			)

@@ -31,6 +31,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
@@ -108,9 +109,22 @@ func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.Acce
 	return state
 }
 
+// TODO(greedy52) refactor token generation to an "auth" object and reduce token
+// ttl to 5 minutes.
 func (c *SessionCtx) generateJWTAndTraits(ctx context.Context, auth AuthClient) (err error) {
 	c.jwt, c.traitsForRewriteHeaders, err = appcommon.GenerateJWTAndTraits(ctx, &c.Identity, c.App, auth)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if newRewriteAuthDetails(c.App.GetRewrite()).hasIDTokenTrait {
+		idToken, err := generateIDToken(ctx, &c.Identity, c.App, auth)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.traitsForRewriteHeaders[constants.TraitIDToken] = []string{idToken}
+	}
+	return nil
 }
 
 type sessionHandlerConfig struct {
