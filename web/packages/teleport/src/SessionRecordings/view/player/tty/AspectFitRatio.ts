@@ -24,7 +24,7 @@ import type { TerminalSize } from 'teleport/SessionRecordings/view/player/tty/ty
 // Replace this with a direct import from '@xterm/xterm' once
 // https://github.com/xtermjs/xterm.js/pull/5551 is released (expected in v6.1.0).
 // Additionally, consider refactoring this addon to implement the IFitApi interface.
-export interface IRenderDimensions {
+interface IRenderDimensions {
   /**
    * Dimensions measured in CSS pixels (ie. device pixels / device pixel ratio).
    */
@@ -42,12 +42,12 @@ export interface IRenderDimensions {
   };
 }
 
-export interface IDimensions {
+interface IDimensions {
   width: number;
   height: number;
 }
 
-export interface IOffset {
+interface IOffset {
   top: number;
   left: number;
 }
