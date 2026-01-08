@@ -216,6 +216,7 @@ export function ConfigureAccess(props: FlowStepProps) {
       <CodeContainer>
         <CodePanel
           trackingStep={IntegrationEnrollStep.MWIGHAK8SConfigureAccess}
+          inProgress
         />
       </CodeContainer>
     </Container>

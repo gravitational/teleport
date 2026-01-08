@@ -113,7 +113,10 @@ export function Welcome(props: FlowStepProps) {
       </FormContainer>
 
       <CodeContainer>
-        <CodePanel trackingStep={IntegrationEnrollStep.MWIGHAK8SWelcome} />
+        <CodePanel
+          trackingStep={IntegrationEnrollStep.MWIGHAK8SWelcome}
+          inProgress
+        />
       </CodeContainer>
     </Container>
   );
