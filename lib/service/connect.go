@@ -44,6 +44,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -239,6 +240,13 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		} else {
 			identity = newIdentity
 		}
+		immutableLabels, err := process.storage.ReadImmutableLabels(process.ExitContext())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err, "loading immutable labels")
+			}
+		}
+		process.SetImmutableLabels(immutableLabels)
 	}
 
 	rotation := processState.Spec.Rotation
@@ -499,11 +507,12 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 }
 
 func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connector, error) {
-	identity, err := process.firstTimeConnectIdentity(role)
+	result, err := process.firstTimeConnectIdentity(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	identity := result.identity
 	process.logger.InfoContext(process.ExitContext(), "Successfully obtained credentials to connect to the cluster.", "identity", role)
 	var connector *Connector
 	if role == types.RoleAdmin || role == types.RoleAuth {
@@ -558,14 +567,24 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if err := process.storage.PersistAssignedHostID(process.GracefulExitContext(), process.Config, identity.ID.HostID()); err != nil {
 			return nil, trace.Wrap(err, "persisting host ID to storage")
 		}
+
+		if err := process.storage.WriteImmutableLabels(process.ExitContext(), result.immutableLabels); err != nil {
+			return nil, trace.Wrap(err, "writing immutable labels to storage")
+		}
+		process.SetImmutableLabels(result.immutableLabels)
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
 	return connector, nil
 }
 
-func (process *TeleportProcess) firstTimeConnectIdentity(role types.SystemRole) (*state.Identity, error) {
+func (process *TeleportProcess) firstTimeConnectIdentity(role types.SystemRole) (joinResult, error) {
 	if localAuth := process.getLocalAuth(); localAuth != nil {
-		return process.firstTimeConnectIdentityLocal(role, localAuth)
+		identity, err := process.firstTimeConnectIdentityLocal(role, localAuth)
+		if err != nil {
+			return joinResult{}, trace.Wrap(err)
+		}
+
+		return joinResult{identity: identity}, nil
 	}
 	return process.firstTimeConnectIdentityRemote(role)
 }
@@ -592,7 +611,7 @@ func (process *TeleportProcess) firstTimeConnectIdentityLocal(role types.SystemR
 	return auth.LocalRegister(id, localAuth, additionalPrincipals, dnsNames, process.Config.AdvertiseIP, systemRoles)
 }
 
-func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.SystemRole) (*state.Identity, error) {
+func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.SystemRole) (joinResult, error) {
 	if role == types.RoleInstance {
 		// Always need to go through the join process to get the first Instance
 		// identity.
@@ -602,10 +621,10 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	// without going through the join process.
 	instanceConn, err := waitForInstanceConnector(process, process.Config.Logger)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return joinResult{}, trace.Wrap(err)
 	}
 	if instanceConn == nil {
-		return nil, trace.BadParameter("process exiting and Instance connector never became available")
+		return joinResult{}, trace.BadParameter("process exiting and Instance connector never became available")
 	}
 	instanceIdentity := instanceConn.clientState.Load().identity
 	if !instanceIdentity.HasSystemRole(role) {
@@ -623,7 +642,11 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		//
 		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
-		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		identity, err := process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		if err != nil {
+			return joinResult{}, trace.Wrap(err)
+		}
+		return joinResult{identity: identity}, nil
 	}
 	// The instance connector does have the role requested, we can reregister
 	// without going through the join process.
@@ -635,7 +658,7 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 	}
 	additionalPrincipals, dnsNames, err := process.getAdditionalPrincipals(role, id.HostID())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return joinResult{}, trace.Wrap(err)
 	}
 	identity, err := auth.ReRegister(process.GracefulExitContext(), auth.ReRegisterParams{
 		Client:               instanceConn.Client,
@@ -643,10 +666,15 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		AdditionalPrincipals: additionalPrincipals,
 		DNSNames:             dnsNames,
 	})
-	return identity, trace.Wrap(err)
+	return joinResult{identity: identity}, trace.Wrap(err)
 }
 
-func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
+type joinResult struct {
+	identity        *state.Identity
+	immutableLabels *joiningv1.ImmutableLabels
+}
+
+func (process *TeleportProcess) instanceJoin() (joinResult, error) {
 	id := state.IdentityID{
 		Role:     types.RoleInstance,
 		NodeName: process.Config.Hostname,
@@ -654,23 +682,26 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 	additionalPrincipals, dnsNames := process.instanceAdditionalPrincipals()
 	joinParams, err := process.makeJoinParams(id, additionalPrincipals, dnsNames)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return joinResult{}, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-	joinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+	result, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
-			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
+			return joinResult{}, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		return nil, trace.Wrap(err)
+		return joinResult{}, trace.Wrap(err)
 	}
-	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return joinResult{}, trace.Wrap(err)
 	}
 
-	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
-	return identity, trace.Wrap(err)
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+	return joinResult{
+		identity:        identity,
+		immutableLabels: result.ImmutableLabels,
+	}, trace.Wrap(err)
 }
 
 func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {

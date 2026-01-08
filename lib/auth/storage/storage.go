@@ -35,9 +35,11 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
@@ -57,6 +59,8 @@ const (
 	teleportPrefix = "teleport"
 	// lastKnownVersion is a key for storing version of teleport
 	lastKnownVersion = "last-known-version"
+	// immutableLabelsKey is a key for storing immutable labels
+	immutableLabelsKey = "immutable-labels"
 )
 
 // stateBackend implements abstraction over local or remote storage backend methods
@@ -453,4 +457,40 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend stateBackend, id s
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// ReadImmutableLabels reads the set of immutable labels from the
+// backend.
+func (p *ProcessStorage) ReadImmutableLabels(ctx context.Context) (*joiningv1.ImmutableLabels, error) {
+	item, err := p.stateStorage.Get(ctx, backend.NewKey(immutableLabelsKey))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var immutableLabels joiningv1.ImmutableLabels
+	if err := protojson.Unmarshal(item.Value, &immutableLabels); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &immutableLabels, nil
+}
+
+// WriteImmutableLabels creates or replaces the set of immutable labels
+// to the backend.
+func (p *ProcessStorage) WriteImmutableLabels(ctx context.Context, immutableLabels *joiningv1.ImmutableLabels) error {
+	value, err := protojson.MarshalOptions{}.Marshal(immutableLabels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.NewKey(immutableLabelsKey),
+		Value: value,
+	}
+
+	if _, err := p.stateStorage.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

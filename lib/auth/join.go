@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -519,7 +520,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr:           params.RemoteAddr,
 			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
-		}, token.GetAssignedScope(), token.GetImmutableLabels())
+		}, token.GetAssignedScope(), joining.HashImmutableLabels(token.GetImmutableLabels()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
