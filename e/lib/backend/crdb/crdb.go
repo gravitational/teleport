@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
@@ -71,7 +72,7 @@ var schemas = []string{
 	) WITH (ttl_expiration_expression = 'expires', ttl_job_cron = '*/20 * * * *')`,
 }
 
-// New creates a new cockroachdb backend instance.
+// NewFromParams creates a new cockroachdb backend instance.
 func NewFromParams(ctx context.Context, p backend.Params) (*Backend, error) {
 	var cfg Config
 	if err := utils.ObjectToStruct(p, &cfg); err != nil {
@@ -90,6 +91,7 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	}
 	if cfg.ChangeFeedConnString == "" {
 		cfg.ChangeFeedConnString = cfg.ConnString
+		cfg.ChangeFeedCertReloadInterval = cfg.ClientCertReloadInterval
 	}
 	if cfg.RangePageSize <= 0 {
 		cfg.RangePageSize = defaultPageSize
@@ -100,24 +102,44 @@ func newFromConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tls := poolConfig.ConnConfig.TLSConfig; tls != nil {
-		expiry, err := getCertExpiry(tls)
+	if tlsConfig := poolConfig.ConnConfig.TLSConfig; tlsConfig != nil {
+		expiry, err := getCertExpiry(tlsConfig)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to report client cert expiry", "error", err)
 		}
 		metricCertExpiry.Set(float64(expiry.Unix()))
+	}
+	if cfg.ClientCertReloadInterval != 0 {
+		if err := pgcommon.CreateClientCertReloader(ctx,
+			"backend",
+			cfg.ConnString,
+			poolConfig.ConnConfig,
+			cfg.ClientCertReloadInterval.Value(),
+			metricCertExpiry); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	feedConfig, err := pgxpool.ParseConfig(cfg.ChangeFeedConnString)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tls := feedConfig.ConnConfig.TLSConfig; tls != nil {
-		expiry, err := getCertExpiry(tls)
+	if tlsConfig := feedConfig.ConnConfig.TLSConfig; tlsConfig != nil {
+		expiry, err := getCertExpiry(tlsConfig)
 		if err != nil {
 			log.WarnContext(ctx, "Failed to report changefeed cert expiry", "error", err)
 		}
 		metricChangefeedCertExpiry.Set(float64(expiry.Unix()))
+	}
+	if cfg.ChangeFeedCertReloadInterval != 0 {
+		if err := pgcommon.CreateClientCertReloader(ctx,
+			"changefeedclient",
+			cfg.ChangeFeedConnString,
+			feedConfig.ConnConfig,
+			cfg.ChangeFeedCertReloadInterval.Value(),
+			metricChangefeedCertExpiry); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	log.InfoContext(ctx, "Setting up backend.")
@@ -195,6 +217,12 @@ type Config struct {
 	// RangePageSize is maximum number of rows queried by GetRange in a single request.
 	// Queries with more rows will be broken up into multiple requests.
 	RangePageSize int `json:"range_page_size"`
+	// ClientCertReloadInterval is the interval for reloading the client cert
+	// for connections to the database
+	ClientCertReloadInterval types.Duration `json:"client_cert_reload_interval"`
+	// ChangeFeedCertReloadInterval is the interval for reloading the change feed client cert
+	// for connections to the database
+	ChangeFeedCertReloadInterval types.Duration `json:"changefeed_cert_reload_interval"`
 }
 
 type pool interface {
@@ -558,7 +586,6 @@ func (b *Backend) Items(ctx context.Context, params backend.ItemsParams) iter.Se
 				}
 
 				return items, nil
-
 			})
 			if err != nil {
 				yield(backend.Item{}, trace.Wrap(err))
