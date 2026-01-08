@@ -18,8 +18,14 @@ This RFD proposes that we reorganize our documentation to make it easier to find
 
 ## Why
 
-Currently, it can be difficult for users to find this documentation because it lives in different places depending
-on the component, target OS/platform, and other factors.
+Currently, it is difficult for users to find installation documentation because it lives in different places depending
+on the component, target OS/platform, and other factors. Teleport includes multiple components that are interesting to
+different users, and each component has many different installation options depending on an individual user's environment.
+
+A company using Teleport may have:
+- Operators that need to know how to install a self-hosted cluster on their chosen cloud provider,
+- Individual operations teams that need to know how to install Teleport agents into a Kubernetes cluster hosted by a different cloud provider, and
+- Developers that need to know how to install Teleport clients on their local workstations.
 
 For example, a common user workflow is installing a Teleport agent on an EC2 instance and connecting it to the cluster.
 Users who do not read the documentation and follow the instructions in the Teleport Web UI have an easy path forward
@@ -28,34 +34,34 @@ that involves executing a single command.
 However, a user who attempts to read the documentation might follow a path that looks like this:
 
 1. Navigates to goteleport.com/docs
-2. Finds no information in the sidebar about installation or upgrading
-3. Clicks each sidebar item and finds "Installation" under "Introduction"
-4. Clicks "Installation," then "Linux"
-5. Sees instructions for installing a Teleport cluster, continues to scroll down to agent
-6. Runs an install script that results in an auto-updating agent that is not configured
-7. Sees that they need to manually enroll the agent, clicks "Enroll Resources"
-8. Clicks "Linux Servers (section)"
-9. Sees a page with four different guides that are named very similarly
-10. Clicks the "Getting Started Guide", or may get directed there by clicking one of the other guides
-11. Sees the install script instructions again, along with other outdated installation instructions
-12. Finds and executes manual joining instructions, which are unnecessary if the Web UI is used.
+2. Locates "Installation" under "Introduction"
+3. Clicks "Installation," then "Linux"
+4. Sees instructions for installing a Teleport cluster, continues to scroll down to agent
+5. Runs an install script that results in an auto-updating agent that is not configured
+6. Sees that they need to manually enroll the agent because they did not use the Web UI
+7. Clicks "Enroll Resources"
+8. Clicks "Linux Servers (section)", then "Introduction to Enrolling Servers"
+9. Clicks the "Getting Started Guide", or may get directed there by clicking one of the other guides
+10. Sees the install script instructions again, along with other outdated installation instructions
+11. Finds and executes manual joining instructions (which are unnecessary if the Web UI is used).
 
-The Teleport Downloads page has a similar issue that is actively being addressed.
+This RFD proposes that we add one new top-level "Install Teleport" section, with subsections that are organized by use case:
 
-This RFD proposes that we add one new top-level "Platform" section, with at least two subsections:
-
-1. Platform
-   1. Installation
-   2. Upgrading
-   3. (Other sections, e.g., "High Availability" or "Backup & Restore")
+1. Install Teleport
+   1. Installing Self-Hosted Teleport Clusters
+   2. Installing Teleport Agents to Connect Resources
+   3. Installing Teleport Clients for Human Access
+   4. Installing Teleport Clients for Machine Access
+   5. Installing Teleport Plugins & External Integrations
+   6. Generic Installation Instructions
 
 These sections would cover all Teleport components.
-Installation sections will cover setup for Managed Updates, and link to more details Upgrading docs where appropriate.
+Installation sections will cover setup for Managed Updates and link to more detailed Upgrading docs where appropriate.
 
-Notably, the Platform section differs from the marketing-branded categories for our product features because it is cross-cutting,
-operational, and (in most cases) does not involve in-product UX workflows.
-Users install Teleport first, ensure they have a way to upgrade it, ensure they have day-two operations like backups
-configured, and then they (or different end-users) dive into the product itself.
+Notably, the "Install Teleport" section differs from the marketing-branded categories for our product features because it is cross-cutting,
+operational, and (in general) does not focus on in-product UX workflows.
+Users install Teleport, ensure they have a way to upgrade it, ensure they have day-two operations like backups
+configured, and then they (or different end-users) dive into the product itself via the category sections.
 
 A complete user story for a Teleport installation workflow may need to involve in-product configuration.
 For example, it is common to configure roles after installing a self-hosted cluster.
@@ -144,64 +150,106 @@ which Teleport component they need to install.
 A Teleport user may need to mix and match instructions for their use case.
 For example, they may need to install a self-hosted cluster on GKE, deploy an agent into EKS, and then configure the agent to allow App access.
 
+To address this complexity, the top-level subsections divide users into categories to ensure any misnavigation happens early and is obvious to users.
+The top-level subsection names will be verbose to avoid misnavigation.
+
 ### Proposed Organization
 
-The following organization is proposed, nested under a top-level Platform section:
+The following organization is proposed as an ideal, nested under a top-level "Install Teleport" section:
 
-1. Installation - New page, maps each use case for Teleport to the correct component
-   1. Installing Teleport Agents
-   2. Installing Teleport Client Tools
-   3. Installing Self-Hosted Teleport Clusters
-   4. Installing Teleport Plugins & Integrations
-2. Upgrading - New page, explains the relevance and importance of upgrading each component
-   1. Upgrading Teleport Agents
-   2. Upgrading Teleport Client Tools
-   3. Upgrading Self-Hosted Teleport Clusters
-   4. Upgrading Teleport Plugins & Integrations
-3. (Other operational sections) - New pages, explains what it means to operate Teleport (backups, troubleshooting, specialty config like KMS, multi-region, etc.)
-   1. (Operating) Teleport Agents
-   2. (Operating) Teleport Client Tools
-   3. (Operating) Self-Hosted Teleport Clusters
-   4. (Operating) Teleport Plugins & Integrations
+1. Installing Self-Hosted Teleport Clusters
+   1. Installing Teleport Clusters on Kubernetes
+      1. Amazon EKS
+         1. Installation
+         2. Upgrading
+         3. (Other operational sections as appropriate, e.g., High Availability, Backups, Troubleshooting, etc.)
+      3. etc.
+   2. Installing Teleport Clusters on Linux Servers
+      1. Amazon EC2
+         1. Installation
+         2. Upgrading
+         3. (Other operational sections as appropriate, e.g., High Availability, Backups, Troubleshooting, etc.)
+      2. etc.
+2. Installing Teleport Agents to Connect Resources
+   1. Database Access
+      1. Amazon EC2
+         1. Installation
+         2. Upgrading
+   2. etc.
+3. Installing Teleport Clients for Human Access
+   1. Desktop Application (Teleport Connect)
+      1. macOS
+      2. etc.
+   2. CLI Access
+      1. macOS
+      2. etc.
+4. Installing Teleport Clients for Machine Access
+   1. Installing tbot
+      1. Install tbot on Linux Servers
+         1. Install tbot on Amazon EC2
+         2. etc.
+      2. Install tbot on Kubernetes
+      3. Install tbot in Github Actions
+      4. etc.
+5. Installing Teleport Plugins & External Integrations
+6. Generic Installation Instructions
 
-Notably, cluster operations that are not handled by Cloud should be included under the marketing-branded sections, not Platform.
-For example, a guide to configuring a cluster to support AWS KMS would be included in Platform -> KMS -> Self-Hosted Teleport Clusters, while
+**However, we do not currently have content to fill most of these sections, and many of our existing pages are reused across platforms.**
+
+To account for this, the following organization is proposed as an actionable, short-term solution:
+
+1. Provisioning a Teleport Cloud Cluster
+   1. (Move Cloud cluster provisioning from Introduction -> Installation)
+   2. (Move Migrate Teleport Plans from Introduction -> Installation)
+   3. (Move Cloud Cluster Upgrades from Introduction -> Upgrading)
+2. Installing Self-Hosted Teleport Clusters
+   1. Installing Teleport Clusters on Kubernetes
+      1. (Move from ZTA -> Self-Hosting -> Helm Deployments
+      2. (Move from Introduction -> Upgrading -> Manual Upgrades -> Self-hosted Teleport clusters on Kubernetes)
+      2. Installing Access Graph | Links to Identity Security -> Self-Host TIS -> Helm
+      3. Installing Identity Activity Center | Links to Identity Security -> Self-Host TIS -> IAC
+   2. Installing Teleport Clusters on Linux Servers
+      1. (Move from VM-specific content of ZTA -> Self-Hosting -> Deployment Guides)
+      2. Installing Access Graph | Links to Identity Security -> Self-Host TIS -> Docker
+      3. Installing Identity Activity Center | Links to Identity Security -> Self-Host TIS -> IAC
+   3. (Move from other sections in ZTA -> Self-Hosting)
+3. Installing Teleport Agents to Connect Resources
+   1. Installing & Configuring Teleport Agents | Links to Enroll Resources
+   2. Managed Updates for Agents & Bots (v2) (Move from Upgrading)
+   3. Manual Upgrades
+      1. (Move from Introduction -> Upgrading -> Manual Upgrades -> Teleport Agents running on Kubernetes)
+      2. (Move from Introduction -> Upgrading -> Manual Upgrades -> Single Teleport binaries on Linux servers)
+4. Installing Teleport Clients for Human Access
+   1. Desktop Application (Teleport Connect) | Links to User Guide for Connect
+   2. CLI Access | Links to User Guide for tsh
+   3. Managed Updates for Clients (v2) (Move from Upgrading)
+5. Installing Teleport Clients for Machine Access
+   1. Installing & Configuring tbot | Links to M&WI -> Deploy tbot
+   2. Managed Updates for Agents & Bots (v2) | Links to Installing Teleport Agents to Connect Resources -> Managed Updates for Agents & Bots (v2)
+6. Installing Teleport Plugins & External Integrations
+   1. Just-in-Time Access Request Plugins | Links to Identity Governance -> Just-in-Time Access Request Plugins
+   2. Event Exporter | Links to ZTA -> Exporting Teleport Audit Events
+   3. Teleport Kubernetes Operator | Links to ZTA -> Infrastructure as Code -> Teleport Kubernetes Operator
+7. Generic Installation Instructions
+   1. Linux
+      1. (Move from ZTA -> Cluster management -> Run Teleport as a Daemon)
+   2. Docker
+   3. Source Code
+8. Uninstall Teleport
+   1. (Moved from Installation -> Uninstall Teleport)
+
+The Installing and Upgrading sections in Introduction will be removed entirely.
+
+Notably, cluster operations that are not handled by Cloud should be included in the marketing-branded sections (like Zero Trust Access), not in Install Teleport.
+For example, a guide to configuring a cluster to support AWS KMS would be included in Install Teleport -> Installing Self-Hosted Teleport Clusters -> KMS, while
 a guide for getting started with Teleport roles would be included in the "Zero Trust Access" section.
 The only exception to this rule is global, shared configuration that is directly related to platform operations and does not
-fit into the marketing-branded sections. For example, some of the `cluster_*` or `autoupdate_*` resources may be described in Platform.
+fit into the marketing-branded sections. For example, some of the `cluster_*` or `autoupdate_*` resources may be described in Install Teleport.
 These are generally optional for Cloud users to configure.
 
 Installation instructions should not be complete user guides that include in-product configuration.
 Installation instructions should link to user guides when they are more appropriate, and user guides should link to
 (or import) installation instructions where needed.
-
-### Proposed Action Plan
-
-The proposed action plan is iterative.
-It does not involve a large re-write of any existing documentation, and relies on links between sections where appropriate.
-
-Note: these are best understood by opening https://goteleport.com/docs and following from the top.
-
-- Create new sections and new pages described above.
-- For each existing installation page, separate agent, client, and cluster sections into new pages. No single guide or instruction page should address more than one.
-- "Installation -> Installing Teleport Agents" contains a link to "Enrolling Resources" with separate "Custom Agent Installation" instructions
-- "Introduction -> Installation" moves to "Platform -> Installation"
-- "Introduction -> Upgrading" moves to "Platform -> Upgrading"
-- "Introduction -> Migrate Teleport Plans" moves to "Platform -> Cloud" (tentative)
-- Client installation docs present under "User Guides" appear in "Platform -> Installation" as well (or link where more appropriate)
-- "Zero Trust Access -> Exporting Teleport Audit Events" and "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Event Exporter" include the same content or cross-link where appropriate. An Auditing section may be created in ZTA as well.
-- "Zero Trust Access -> Infrastructure as Code -> Teleport Kubernetes Operator" moves to "Platform -> Installation -> Installing Teleport Plugins & Integrations -> Teleport Kubernetes Operator" (install guides only, with cross-linking)
-- "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Uninstall Teleport" moves to "Platform -> Installation" (subsections as appropriate)
-- "Zero Trust Access -> Cluster management -> Cluster Administration guides -> Run Teleport as a Daemon" moves to "Platform -> Installation -> Installing Teleport Agents -> Linux Servers"
-- "Zero Trust Access -> Cluster management" moves to "Platform -> (new sections) -> Self-Hosted Teleport Clusters"
-- "Zero Trust Access -> Self-Hosting Teleport -> Guides for running Teleport using Helm" moves to "Platform -> Installation -> Installing Self-Hosted Clusters -> Kubernetes" (many subsections)
-- "Zero Trust Access -> Self-Hosting Teleport" moves to "Platform -> (new sections) -> Self-Hosted Teleport Clusters" (for remaining sections)
-- "Machine & Workload Identity" -> Machine ID -> Deploy tbot" links to "Installation -> Installing Teleport Client Tools -> tbot" (or vice-versa, at MWI team discretion.)
-- "Identity Governance -> Just-in-Time Access Request Plugins" become more discoverable via a link from "Platform -> Installation -> Access Request Plugins" (may move in the future if, e.g., per-OS docs are needed)
-- "Identity Security -> Self-Hosting Teleport Access Graph" moves to "Installation -> Installing Self-Hosted Teleport Clusters -> Access Graph"
-- "Enroll Resources -> Joining Teleport Agents" moves to "Platform -> Installation -> Installing Teleport Agents" (such that Enroll Resources is always use-case driven, and links to Platform -> Installation for Azure, GCP, etc, instructions.)
-
-Marketing-branded sections may link to Installation, Upgrading, or other Platform sections where relevant, and vice-versa.
 
 ### Confusing Workflow Reference
 
