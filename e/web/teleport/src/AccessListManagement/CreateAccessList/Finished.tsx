@@ -1,6 +1,14 @@
 import { Link } from 'react-router-dom';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, H2, Image } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonPrimary,
+  Flex,
+  H2,
+  Image,
+  Text,
+} from 'design';
 import pamSuccess from 'design/assets/images/icons/success.png';
 
 import cfg from 'e-teleport/config';
@@ -8,25 +16,42 @@ import cfg from 'e-teleport/config';
 import { useCreateAccessList } from './CreateAccessListContextProvider';
 
 export function Finished() {
-  const { reset } = useCreateAccessList();
+  const createContext = useCreateAccessList();
+  const { createdAccessList } = createContext;
 
   return (
     <Flex flexDirection="column" alignItems="center" mt={6} gap={2}>
       <Image src={pamSuccess} maxWidth="120px" />
       <H2 mt={3} mb={2}>
-        Access List Successfully Created!
+        {createdAccessList.title} Successfully Created!
       </H2>
-      <Box maxWidth="450px" textAlign="center" mb={1}>
-        The users added to this access list will receive permission grants upon
-        their next log in.
+      <Box maxWidth="550px" textAlign="center" mb={1}>
+        <Text>
+          Access list{' '}
+          <Text bold as="span">
+            {createdAccessList.title}
+          </Text>{' '}
+          is configured and ready to use.
+        </Text>
+        <Text>
+          Note: Users must re-authenticate to gain the access granted by this
+          list.
+        </Text>
       </Box>
       <Flex gap={3}>
-        <ButtonPrimary as={Link} to={cfg.getAccessListManagementRoute()}>
-          Browse Access Lists
+        <ButtonPrimary
+          as={Link}
+          to={cfg.getAccessListManagementRoute(createdAccessList.id)}
+        >
+          View Created List
         </ButtonPrimary>
-        <ButtonSecondary onClick={reset}>
-          Add Another Access List
-        </ButtonSecondary>
+        <ButtonBorder
+          intent="primary"
+          as={Link}
+          to={cfg.getAccessListManagementRoute()}
+        >
+          Browse Access Lists
+        </ButtonBorder>
       </Flex>
     </Flex>
   );

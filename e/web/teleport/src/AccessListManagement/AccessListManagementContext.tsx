@@ -34,6 +34,8 @@ import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 import { KeysEnum } from 'teleport/services/storageService';
 
+import { GuideEditorState, useGuideEditor } from './GuideEditor/useGuideEditor';
+
 // PreProcessFn is a function that takes a list of AccessList and returns a list of AccessLists.
 // This is used to modify the access lists before they are processed, e.g. to filter out certain lists
 // or add additional information after changes are made in the web ui.
@@ -97,6 +99,7 @@ interface AccessListManagementContext {
   hasNextPage?: boolean;
   updateAccessListCache: (mutation: AccessListMutation) => void;
   previousSearchParams?: string;
+  guideEditor: GuideEditorState;
 }
 
 const DEFAULT_SORT = {
@@ -124,6 +127,15 @@ const AccessListManagementContext = createContext<AccessListManagementContext>({
   previousSearchParams: '',
   filtersExist: false,
   updateAccessListCache: () => {},
+  guideEditor: {
+    reset: () => {},
+    preset: '',
+    setPreset: () => {},
+    currentStep: 0,
+    setCurrentStep: () => {},
+    prevStep: () => {},
+    nextStep: () => {},
+  },
 });
 
 export const AccessListManagementContextProvider = (
@@ -132,6 +144,8 @@ export const AccessListManagementContextProvider = (
   const history = useHistory();
   const location = useLocation();
   const queryClient = useQueryClient();
+  const guideEditor = useGuideEditor();
+
   const [backendCacheUnhealthy, setBackendCacheUnhealthy] = useState(false);
   const [previousSearchParams, setPreviousSearchParams] = useState('');
   const accessListPreferences =
@@ -374,6 +388,7 @@ export const AccessListManagementContextProvider = (
         sort,
         updateAccessListCache,
         previousSearchParams,
+        guideEditor,
       }}
     >
       {props.children}

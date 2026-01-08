@@ -69,14 +69,12 @@ export const MembersSection = () => {
         }
         attempt={createAttempt}
       />
-      <Box mb={5}>
-        <GrantSection
-          grant={memberGrant}
-          setGrant={setMemberGrant}
-          isOptional={true}
-          userKind="Members"
-        />
-      </Box>
+      <GrantSection
+        grant={memberGrant}
+        setGrant={setMemberGrant}
+        isOptional={true}
+        userKind="Members"
+      />
     </>
   );
 };

@@ -1,0 +1,119 @@
+import { MemoryRouter } from 'react-router';
+
+import { render, screen, waitFor } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
+import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/fixtures';
+import ecfg from 'e-teleport/config';
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { accessManagementService } from 'e-teleport/services/accessmanagement';
+import { pluginsService } from 'e-teleport/services/plugins';
+import TeleportEContext from 'e-teleport/teleportContextE';
+import { ContextProvider } from 'teleport';
+import cfg from 'teleport/config';
+import { getAcl } from 'teleport/mocks/contexts';
+import type { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
+import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
+import ResourceService from 'teleport/services/resources';
+import userService from 'teleport/services/user';
+
+import { CreateAccessListContextProvider } from '../CreateAccessListContextProvider';
+import { SelectGuide } from './SelectGuide';
+
+const defaultIsEnterpriseFlag = cfg.isEnterprise;
+const defaultAccessListentitlement = cfg.entitlements.AccessLists;
+
+describe('upsell links', () => {
+  const ctx = createTeleportContextE();
+
+  beforeEach(() => {
+    cfg.isEnterprise = true;
+
+    jest
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [mockAccessLists[0]] });
+
+    jest.spyOn(userService, 'fetchUsers').mockResolvedValue([]);
+    jest
+      .spyOn(userService, 'fetchUsersV2')
+      .mockResolvedValue({ startKey: '', items: [] });
+    jest.spyOn(ResourceService.prototype, 'fetchRoles').mockResolvedValue({
+      items: [],
+      startKey: '',
+    });
+    jest
+      .spyOn(pluginsService, 'fetchPlugin')
+      .mockResolvedValue({} as Plugin<PluginOktaSpec, PluginStatusOkta>);
+  });
+
+  afterEach(() => {
+    jest.resetAllMocks();
+
+    cfg.isEnterprise = defaultIsEnterpriseFlag;
+    cfg.entitlements.AccessLists = defaultAccessListentitlement;
+  });
+
+  test('no rbac access should not render tiles', async () => {
+    ecfg.oss.entitlements.AccessLists = {
+      // license is enabled, but RBAC access says its denied
+      enabled: true,
+      limit: 0,
+    };
+
+    const ctx = createTeleportContextE({
+      customAcl: getAcl({ noAccess: true }),
+    });
+
+    renderComponent(ctx);
+
+    await screen.findByText(
+      /Only Teleport administrators can create new Access Lists/i
+    );
+    expect(screen.queryByText('contact sales')).not.toBeInTheDocument();
+  });
+
+  test('unlimited & enabled entitlement renders no cta', async () => {
+    ecfg.oss.entitlements.AccessLists = {
+      enabled: true,
+      limit: 0,
+    };
+
+    renderComponent(ctx);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/contact sales/i)).not.toBeInTheDocument();
+    });
+  });
+
+  test('limited entitlement renders cta', async () => {
+    ecfg.oss.entitlements.AccessLists = {
+      enabled: true,
+      limit: 1,
+    };
+
+    renderComponent(ctx);
+
+    const link = await screen.findByText(/contact sales/i);
+    expect(link.parentElement).toHaveAttribute(
+      'href',
+      expect.stringMatching(/upgrade-igs/i)
+    );
+  });
+});
+
+function renderComponent(ctx: TeleportEContext) {
+  return render(
+    <MemoryRouter>
+      <InfoGuidePanelProvider>
+        <ContextProvider ctx={ctx}>
+          <AccessListManagementContextProvider>
+            <CreateAccessListContextProvider>
+              <SelectGuide />
+            </CreateAccessListContextProvider>
+          </AccessListManagementContextProvider>
+        </ContextProvider>
+      </InfoGuidePanelProvider>
+    </MemoryRouter>
+  );
+}

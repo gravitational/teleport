@@ -111,11 +111,13 @@ export const CalendarDateSelect = ({
   onChange,
   rule = noopRule,
   label,
+  isDisabled = false,
 }: {
   onChange(date: Date): void;
   date: Date;
   rule?: RuleFunc<string>;
   label: string;
+  isDisabled?: boolean;
 }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const dayPickerRef = useRefClickOutside<HTMLDivElement>({
@@ -133,6 +135,7 @@ export const CalendarDateSelect = ({
     <>
       <LabelInput hasError={hasError}>{labelText}</LabelInput>
       <CalendarInput
+        isDisabled={isDisabled}
         hasError={hasError}
         onClick={() => setShowDatePicker(true)}
         onKeyUp={e => {
@@ -169,6 +172,7 @@ export const CalendarDateSelect = ({
 const CalendarInput = styled(Flex)<{
   dateSelected?: boolean;
   hasError?: boolean;
+  isDisabled?: boolean;
 }>`
   color: ${p => (p.dateSelected ? 'inherit' : p.theme.colors.text.disabled)};
   height: 40px;
@@ -186,10 +190,18 @@ const CalendarInput = styled(Flex)<{
     outline: none;
   }
 
-  ${({ hasError, theme }) => {
+  ${({ hasError, theme, isDisabled }) => {
     if (hasError) {
       return {
         border: `2px solid ${theme.colors.error.main}`,
+      };
+    }
+    if (isDisabled) {
+      return {
+        backgroundColor: theme.colors.interactive.tonal.neutral[0],
+        color: theme.colors.text.disabled,
+        pointerEvents: 'none',
+        border: '1px solid transparent',
       };
     }
   }}

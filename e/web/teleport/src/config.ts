@@ -81,6 +81,7 @@ const cfg = {
     accessList: {
       reviews:
         '/v1/enterprise/accesslist/:accessListId/reviews?limit=:limit?&startKey=:startKey?',
+      upsertWithPreset: '/v1/enterprise/accesslistwithpreset',
     },
 
     accessGraphSettingsPath: '/v1/enterprise/accessgraphsettings',

@@ -31,6 +31,7 @@ test('fetch access lists, empty responses does not throw error', async () => {
       id: '',
       type: AccessListType.Default,
       origin: '',
+      preset: '',
       title: '',
       description: '',
       owners: [],
@@ -94,6 +95,7 @@ test('fetch an access list, empty response does not throw error', async () => {
     owners: [],
     ownershipRequires: { roles: [], traits: {} },
     origin: '',
+    preset: '',
     title: '',
   };
 
@@ -116,6 +118,7 @@ test('fetch an access list', async () => {
         name: 'some-id',
         labels: {
           'okta/org': 'https://some-url',
+          'teleport.internal/access-list-preset': 'short-term',
         },
       },
       membersCount: 1234,
@@ -179,6 +182,7 @@ test('fetch an access list', async () => {
     id: 'some-id',
     type: AccessListType.Default,
     origin: AccessListOrigin.Okta,
+    preset: 'short-term',
     title: 'some title',
     description: 'some description',
     audit: {

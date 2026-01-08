@@ -11,6 +11,7 @@ import {
   withGenericUnsupportedError,
 } from 'teleport/services/version/unsupported';
 
+import { AccessListPreset, UpsertAccessListWithPreset } from './preset';
 import {
   AccessList,
   AccessListCurrentUserAssignments,
@@ -152,6 +153,13 @@ export const accessManagementService = {
       .post(cfg.getAccessManagementListUrl(), req)
       .then(resp => makeAccessList(resp.accessList));
   },
+  upsertAccessListWithPreset(
+    req: UpsertAccessListWithPreset
+  ): Promise<AccessList> {
+    return api
+      .put(cfg.api.accessList.upsertWithPreset, req)
+      .then(resp => makeAccessList(resp.accessList));
+  },
   reviewAccessList(req: ReviewAccessListRequest): Promise<Date> {
     const madeReq = {
       access_list: req.name,
@@ -182,86 +190,7 @@ export const accessManagementService = {
     req: Partial<AccessList>;
     original: AccessList;
   }): Promise<AccessList> {
-    const madeReq: UpsertAccessListRequest = {
-      type: req.type || original.type,
-      title: req.title || original.title,
-      description:
-        req.description !== undefined ? req.description : original.description,
-      audit: req.audit
-        ? {
-            next_audit_date: req.audit.nextDate,
-            recurrence: {
-              frequency: convertReviewFrequencyIntoBackendParsableValue(
-                req.audit.recurrence.frequency
-              ),
-              day_of_month: req.audit.recurrence.dayOfMonth,
-            },
-          }
-        : {
-            next_audit_date: original.audit.nextDate,
-            recurrence: {
-              frequency: convertReviewFrequencyIntoBackendParsableValue(
-                original.audit.recurrence.frequency
-              ),
-              day_of_month: original.audit.recurrence.dayOfMonth,
-            },
-          },
-      grants: req.grants
-        ? {
-            roles: req.grants.roles,
-            traits: req.grants.traits,
-          }
-        : original.grants,
-      owner_grants: req.ownerGrants
-        ? {
-            roles: req.ownerGrants.roles,
-            traits: req.ownerGrants.traits,
-          }
-        : original.ownerGrants,
-      members: req.members
-        ? req.members.map(m => ({
-            name: m.name,
-            title: m.title,
-            joined: m.joined,
-            expires: m.expires,
-            reason: m.reason,
-            added_by: m.addedBy,
-            membership_kind: m.membershipKind,
-          }))
-        : original.members.map(m => ({
-            name: m.name,
-            joined: m.joined,
-            title: m.title,
-            expires: m.expires,
-            reason: m.reason,
-            added_by: m.addedBy,
-            membership_kind: m.membershipKind,
-          })),
-      owners: req.owners
-        ? req.owners.map(o => ({
-            name: o.name,
-            description: o.description,
-            membership_kind: o.membershipKind,
-          }))
-        : original.owners.map(o => ({
-            name: o.name,
-            description: o.description,
-            membership_kind: o.membershipKind,
-          })),
-      membership_requires: req.membershipRequires
-        ? {
-            roles: req.membershipRequires.roles,
-            traits: req.membershipRequires.traits,
-          }
-        : original.membershipRequires,
-      ownership_requires: req.ownershipRequires
-        ? {
-            roles: req.ownershipRequires.roles,
-            traits: req.ownershipRequires.traits,
-          }
-        : original.ownershipRequires,
-    };
-
+    const madeReq = makeAccessListForUpdate({ req, original });
     return api
       .put(cfg.getAccessManagementListUrl(original.id), madeReq)
       .then(resp => makeAccessList(resp.accessList));
@@ -275,6 +204,94 @@ export const accessManagementService = {
     );
   },
 };
+
+export function makeAccessListForUpdate({
+  req,
+  original,
+}: {
+  req: Partial<AccessList>;
+  original: AccessList;
+}): UpsertAccessListRequest {
+  return {
+    type: req.type || original.type,
+    title: req.title || original.title,
+    description:
+      req.description !== undefined ? req.description : original.description,
+    audit: req.audit
+      ? {
+          next_audit_date: req.audit.nextDate,
+          recurrence: {
+            frequency: convertReviewFrequencyIntoBackendParsableValue(
+              req.audit.recurrence.frequency
+            ),
+            day_of_month: req.audit.recurrence.dayOfMonth,
+          },
+        }
+      : {
+          next_audit_date: original.audit.nextDate,
+          recurrence: {
+            frequency: convertReviewFrequencyIntoBackendParsableValue(
+              original.audit.recurrence.frequency
+            ),
+            day_of_month: original.audit.recurrence.dayOfMonth,
+          },
+        },
+    grants: req.grants
+      ? {
+          roles: req.grants.roles,
+          traits: req.grants.traits,
+        }
+      : original.grants,
+    owner_grants: req.ownerGrants
+      ? {
+          roles: req.ownerGrants.roles,
+          traits: req.ownerGrants.traits,
+        }
+      : original.ownerGrants,
+    members: req.members
+      ? req.members.map(m => ({
+          name: m.name,
+          title: m.title,
+          joined: m.joined,
+          expires: m.expires,
+          reason: m.reason,
+          added_by: m.addedBy,
+          membership_kind: m.membershipKind,
+        }))
+      : original.members.map(m => ({
+          name: m.name,
+          joined: m.joined,
+          title: m.title,
+          expires: m.expires,
+          reason: m.reason,
+          added_by: m.addedBy,
+          membership_kind: m.membershipKind,
+        })),
+    owners: req.owners
+      ? req.owners.map(o => ({
+          name: o.name,
+          description: o.description,
+          membership_kind: o.membershipKind,
+        }))
+      : original.owners.map(o => ({
+          name: o.name,
+          description: o.description,
+          membership_kind: o.membershipKind,
+        })),
+    membership_requires: req.membershipRequires
+      ? {
+          roles: req.membershipRequires.roles,
+          traits: req.membershipRequires.traits,
+        }
+      : original.membershipRequires,
+    ownership_requires: req.ownershipRequires
+      ? {
+          roles: req.ownershipRequires.roles,
+          traits: req.ownershipRequires.traits,
+        }
+      : original.ownershipRequires,
+  };
+}
 
 export function makeAccessLists(json: any): AccessList[] {
   const accesslists = json || [];
@@ -295,6 +312,13 @@ function originFromMetadataLabel(labels: object): AccessListOrigin {
   return AccessListOrigin.Unspecified;
 }
 
+function getPresetTypeFromMetadataLabel(labels: object): AccessListPreset {
+  if (!labels) {
+    return '';
+  }
+  return labels['teleport.internal/access-list-preset'] ?? '';
+}
+
 function makeAccessList(json: any): AccessList {
   const spec = json?.spec || { spec: {} };
   const metadata = json?.metadata || { metadata: {} };
@@ -302,6 +326,7 @@ function makeAccessList(json: any): AccessList {
   return {
     id: metadata?.name || '',
     origin: originFromMetadataLabel(metadata?.labels || {}),
+    preset: getPresetTypeFromMetadataLabel(metadata?.labels || {}),
     type: spec.type || AccessListType.Default,
     title: spec.title || '',
     description: spec.description || '',

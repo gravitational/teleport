@@ -67,14 +67,12 @@ export const OwnersSection = () => {
         }
         attempt={createAttempt}
       />
-      <Box mb={5}>
-        <GrantSection
-          grant={ownerGrant}
-          setGrant={setOwnerGrant}
-          isOptional={true}
-          userKind="Owners"
-        />
-      </Box>
+      <GrantSection
+        grant={ownerGrant}
+        setGrant={setOwnerGrant}
+        isOptional={true}
+        userKind="Owners"
+      />
     </>
   );
 };

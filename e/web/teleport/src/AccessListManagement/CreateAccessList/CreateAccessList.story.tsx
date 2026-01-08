@@ -8,6 +8,11 @@ import { Info } from 'design/Alert';
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import {
+  AccessListType,
+  ReviewDayOfMonth,
+  ReviewFrequency,
+} from 'e-teleport/services/accessmanagement';
 import { ContextProvider } from 'teleport';
 import { getAcl } from 'teleport/mocks/contexts';
 
@@ -186,7 +191,28 @@ const Provider = props => {
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <AccessListManagementContextProvider>
-          <CreateAccessListContextProvider>
+          <CreateAccessListContextProvider
+            mockCreatedAccessList={{
+              id: 'random-access-list-id-1234',
+              title: 'some access list title that is really long',
+              type: AccessListType.Default,
+              audit: {
+                recurrence: {
+                  frequency: ReviewFrequency.OneMonth,
+                  dayOfMonth: ReviewDayOfMonth.FifteenthDayOfMonth,
+                },
+                nextDate: new Date(),
+              },
+              grants: { roles: [], traits: {} },
+              inheritedMemberGrants: { roles: [], traits: {} },
+              ownerGrants: { roles: [], traits: {} },
+              ownershipRequires: {
+                roles: [],
+                traits: {},
+              },
+              owners: [],
+            }}
+          >
             {props.children}
           </CreateAccessListContextProvider>
         </AccessListManagementContextProvider>

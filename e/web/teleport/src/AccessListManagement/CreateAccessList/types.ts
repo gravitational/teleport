@@ -38,3 +38,21 @@ export type Spec = {
   reviewFrequency: ReviewFrequencyOption;
   auditStartDate: Date;
 };
+
+export type NavView = {
+  Component?: React.ReactElement;
+};
+
+/**
+ * - users: are local Teleport users.
+ * - access-lists: are other access lists added as "nested" access list.
+ * - okta-access-lists: similar to "access-lists" but access lists
+ * that orginated from okta
+ */
+export type UserType = 'access-lists' | 'users' | 'okta-access-lists';
+
+export type UserTypeOption = {
+  value: UserType;
+  label: string;
+  disabled?: boolean;
+};

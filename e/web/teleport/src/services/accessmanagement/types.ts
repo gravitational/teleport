@@ -2,6 +2,8 @@ import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v
 
 import { AllUserTraits } from 'teleport/services/user';
 
+import { AccessListPreset } from './preset';
+
 // IneligibleStatus describes a member or owner's
 // ineligibility.
 export enum IneligibleStatus {
@@ -56,12 +58,20 @@ export type AccessListReviewResponse = {
 
 export type AccessList = {
   id: string;
-  title: string; // friendly name of id
+  /**
+   * friendly name of "id" field since id can be
+   * just alphanumerics.
+   */
+  title: string;
   description?: string;
   origin?: AccessListOrigin;
+  preset?: AccessListPreset;
   type: AccessListType;
   audit: AccessListAudit;
-  grants: AccessListGrant; // memberGrant
+  /**
+   * grants for members of access list.
+   */
+  grants: AccessListGrant;
   ownerGrants: AccessListGrant;
   // membershipRequires describes the requirements for a user to be a member of the access list.
   // For a membership to an access list to be effective, the user must meet the requirements of

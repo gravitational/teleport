@@ -27,6 +27,7 @@ export const SpecSection = () => {
         autoFocus={!isDisabled}
         value={spec.title}
         onChange={e => setSpec({ ...spec, title: e.target.value })}
+        disabled={isDisabled}
       />
       <FieldTextArea
         label="Description (Optional)"
@@ -37,6 +38,7 @@ export const SpecSection = () => {
         placeholder="Description"
         value={spec.description}
         onChange={e => setSpec({ ...spec, description: e.target.value })}
+        disabled={isDisabled}
       />
       <Box>
         <ReviewRecurrence
@@ -57,6 +59,7 @@ export const SpecSection = () => {
           }
           rule={requiredField('Review deadline required')}
           label="Deadline for First Review"
+          isDisabled={isDisabled}
         />
       </Box>
     </>

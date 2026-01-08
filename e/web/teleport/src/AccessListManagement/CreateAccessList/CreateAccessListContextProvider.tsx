@@ -13,6 +13,7 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import {
+  AccessList,
   AccessListMemberKind,
   AccessListType,
   accessManagementService,
@@ -53,11 +54,17 @@ type State = {
    */
   canCreateAccessList: boolean;
   reset(): void;
+  /**
+   * Only set after a successful call to onCreate func.
+   */
+  createdAccessList: AccessList;
 };
 
 const CreateAccessListContext = createContext<State>(null);
 
-export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
+export const CreateAccessListContextProvider: FC<
+  PropsWithChildren & { mockCreatedAccessList?: AccessList }
+> = props => {
   const ctx = useTeleport();
 
   const {
@@ -78,6 +85,9 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
   const [ownerGrant, setOwnerGrant] = useState<Grant>(defaultGrants);
   const [members, setMembers] = useState<Members>(defaultMembers);
   const [memberGrant, setMemberGrant] = useState<Grant>(defaultGrants);
+  const [createdAccessList, setCreatedAccessList] = useState<AccessList>(
+    props.mockCreatedAccessList
+  );
 
   function reset() {
     setSpec(defaultSpec);
@@ -86,6 +96,8 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
     setMembers(defaultMembers);
     setMemberGrant(defaultGrants);
     setCreateAttempt({ status: '' });
+    setCreatedAccessList(undefined);
+
     checkFeatureLimit();
   }
 
@@ -141,6 +153,8 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
             createdList.memberListCount = memberListCount;
           }
 
+          setCreatedAccessList(createdList);
+
           updateAccessListCache({
             mutationType: 'created',
             accessList: createdList,
@@ -168,6 +182,7 @@ export const CreateAccessListContextProvider: FC<PropsWithChildren> = props => {
         onCreate,
         canCreateAccessList,
         reset,
+        createdAccessList,
       }}
     >
       {props.children}
