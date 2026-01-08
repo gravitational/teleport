@@ -19,8 +19,10 @@
 package main
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -29,101 +31,149 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
+type inMemoryTransport struct {
+	handler http.Handler
+}
+
+func (c *inMemoryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	done := make(chan struct{})
+	rr := httptest.NewRecorder()
+
+	// We can't just naively return the result of ServeHTTP since it doesn't
+	// return errors when the context is cancelled. To fix that, wrap it in
+	// another goroutine and manually return an error if the context is
+	// cancelled.
+	go func() {
+		c.handler.ServeHTTP(rr, r)
+		close(done)
+	}()
+
+	select {
+	case <-r.Context().Done():
+		<-done
+		return nil, r.Context().Err()
+	case <-done:
+		return rr.Result(), nil
+	}
+}
+
+func createInMemoryWaitClient(handler http.Handler) *http.Client {
+	return &http.Client{
+		Transport: &inMemoryTransport{
+			handler: handler,
+		},
+	}
+}
+
 func TestWaitTimeoutExceeded(t *testing.T) {
 	t.Parallel()
 
-	reg := readyz.NewRegistry()
-	_ = reg.AddService("svc", "a")
+	synctest.Test(t, func(t *testing.T) {
+		reg := readyz.NewRegistry()
+		_ = reg.AddService("svc", "a")
 
-	srv := httptest.NewServer(readyz.HTTPWaitHandler(reg))
-	baseURL := srv.URL
-	srv.URL = baseURL + "/wait"
-	t.Cleanup(srv.Close)
+		handler := readyz.HTTPWaitHandler(reg)
 
-	ch := make(chan error)
-	go func() {
-		ch <- onWaitCommand(t.Context(), &cli.WaitCommand{
-			DiagAddr: baseURL,
-			Service:  "a",
-			Timeout:  time.Millisecond * 250,
-		})
-	}()
+		ch := make(chan error)
+		go func() {
+			ch <- onWaitCommand(t.Context(), &cli.WaitCommand{
+				DiagAddr: "http://fake",
+				Service:  "a",
+				Timeout:  time.Millisecond * 250,
+				Client:   createInMemoryWaitClient(handler),
+			})
+		}()
 
-	// Wait with a decent buffer.
-	time.Sleep(time.Millisecond * 500)
+		synctest.Wait()
 
-	select {
-	case res := <-ch:
-		require.ErrorContains(t, res, "context deadline exceeded")
-	case <-time.After(250 * time.Millisecond):
-		require.Fail(t, "wait failed to honor timeout")
-	}
+		time.Sleep(time.Millisecond * 500)
+
+		synctest.Wait()
+
+		select {
+		case res := <-ch:
+			require.ErrorContains(t, res, "context deadline exceeded")
+		case <-time.After(250 * time.Millisecond):
+			require.Fail(t, "wait failed to honor timeout")
+		}
+	})
 }
 
 func TestWaitSuccess(t *testing.T) {
 	t.Parallel()
 
-	reg := readyz.NewRegistry()
-	a := reg.AddService("svc", "a")
+	synctest.Test(t, func(t *testing.T) {
+		reg := readyz.NewRegistry()
+		a := reg.AddService("svc", "a")
 
-	srv := httptest.NewServer(readyz.HTTPWaitHandler(reg))
-	baseURL := srv.URL
-	srv.URL = baseURL + "/wait"
-	t.Cleanup(srv.Close)
+		handler := readyz.HTTPWaitHandler(reg)
 
-	ch := make(chan error)
-	go func() {
-		ch <- onWaitCommand(t.Context(), &cli.WaitCommand{
-			DiagAddr: baseURL,
-			Service:  "a",
-			Timeout:  time.Second * 2,
-		})
-	}()
+		ch := make(chan error)
+		go func() {
+			ch <- onWaitCommand(t.Context(), &cli.WaitCommand{
+				DiagAddr: "http://fake",
+				Service:  "a",
+				Timeout:  time.Second * 2,
+				Client:   createInMemoryWaitClient(handler),
+			})
+		}()
 
-	a.Report(readyz.Healthy)
+		synctest.Wait()
 
-	select {
-	case res := <-ch:
-		require.NoError(t, res, "must report ready")
-	case <-time.After(3 * time.Second):
-		require.Fail(t, "test timed out and failed to honor configured timeout")
-	}
+		a.Report(readyz.Healthy)
+
+		synctest.Wait()
+
+		select {
+		case res := <-ch:
+			require.NoError(t, res, "must report ready")
+		case <-time.After(3 * time.Second):
+			require.Fail(t, "test timed out and failed to honor configured timeout")
+		}
+	})
 }
 
 func TestWaitEventualSuccess(t *testing.T) {
 	t.Parallel()
 
-	reg := readyz.NewRegistry()
-	a := reg.AddService("svc", "a")
+	synctest.Test(t, func(t *testing.T) {
+		reg := readyz.NewRegistry()
+		a := reg.AddService("svc", "a")
 
-	srv := httptest.NewServer(readyz.HTTPWaitHandler(reg))
-	baseURL := srv.URL
-	srv.URL = baseURL + "/wait"
-	t.Cleanup(srv.Close)
+		handler := readyz.HTTPWaitHandler(reg)
 
-	ch := make(chan error)
-	go func() {
-		ch <- onWaitCommand(t.Context(), &cli.WaitCommand{
-			DiagAddr: baseURL,
-			Service:  "a",
+		ch := make(chan error)
+		go func() {
+			ch <- onWaitCommand(t.Context(), &cli.WaitCommand{
+				DiagAddr: "http://fake",
+				Service:  "a",
+				Client:   createInMemoryWaitClient(handler),
 
-			// More generous timeout since this will depend on exponential
-			// backoff (with configured worst case of 2 seconds)
-			Timeout: time.Second * 5,
-		})
-	}()
+				// More generous timeout since this will depend on exponential
+				// backoff (with configured worst case of 2 seconds)
+				Timeout: time.Second * 5,
+			})
+		}()
 
-	// Initially report unhealthy. This internally triggers a response and the
-	// HTTP endpoint will return the unhealthy status instead of waiting. The
-	// CLI should retry until the endpoint reports healthy.
-	a.ReportReason(readyz.Unhealthy, "oops")
-	time.Sleep(time.Millisecond * 200)
-	a.Report(readyz.Healthy)
+		synctest.Wait()
 
-	select {
-	case res := <-ch:
-		require.NoError(t, res, "must report ready")
-	case <-time.After(6 * time.Second):
-		require.Fail(t, "test timed out and failed to honor configured timeout")
-	}
+		// Initially report unhealthy. This internally triggers a response and the
+		// HTTP endpoint will return the unhealthy status instead of waiting. The
+		// CLI should retry until the endpoint reports healthy.
+		a.ReportReason(readyz.Unhealthy, "oops")
+		time.Sleep(time.Millisecond * 200)
+
+		synctest.Wait()
+
+		a.Report(readyz.Healthy)
+
+		synctest.Wait()
+
+		select {
+		case res := <-ch:
+			require.NoError(t, res, "must report ready")
+		case <-time.After(6 * time.Second):
+			require.Fail(t, "test timed out and failed to honor configured timeout")
+		}
+	})
 }

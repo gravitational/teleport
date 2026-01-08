@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -96,20 +95,13 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 		defer cancel()
 	}
 
-	var clock clockwork.Clock
-	if cmd.Clock != nil {
-		clock = cmd.Clock
-	} else {
-		clock = clockwork.NewRealClock()
-	}
-
 	diagAddr := cmd.DiagAddr
 	if diagAddr == "" {
 		return trace.BadParameter("--diag-addr is required")
 	}
 
 	// Allow plain host:port syntax; url.Parse will fail without a scheme, so if
-	// none is specified, prepend http
+	// none is specified, prepend http://
 	if !strings.Contains(diagAddr, "://") {
 		diagAddr = "http://" + diagAddr
 	}
@@ -131,15 +123,19 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 		Jitter: retryutils.HalfJitter,
 		First:  250 * time.Millisecond,
 		Max:    2 * time.Second,
-		Clock:  clock,
 	})
 	if err != nil {
 		return trace.Wrap(err, "creating retry helper")
 	}
 
-	client, err := defaults.HTTPClient()
-	if err != nil {
-		return trace.Wrap(err, "creating http client")
+	var client *http.Client
+	if cmd.Client != nil {
+		client = cmd.Client
+	} else {
+		client, err = defaults.HTTPClient()
+		if err != nil {
+			return trace.Wrap(err, "creating http client")
+		}
 	}
 
 	// Set a reasonably strict timeout. It could theoretically take a long time
@@ -150,7 +146,7 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 
 	l.InfoContext(ctx, "waiting for bot to become available")
 
-	now := clock.Now()
+	now := time.Now()
 
 	i := 0
 	for {
@@ -173,9 +169,6 @@ func onWaitCommand(ctx context.Context, cmd *cli.WaitCommand) error {
 		}
 	}
 
-	if err == nil {
-		l.InfoContext(ctx, "bot reported healthy", "after", clock.Since(now))
-	}
-
-	return trace.Wrap(err, "waiting for bot to become ready")
+	l.InfoContext(ctx, "bot reported healthy", "after", time.Since(now))
+	return nil
 }
