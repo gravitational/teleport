@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -686,7 +685,6 @@ type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
 	hello            *proto.UpstreamInventoryHello
 	registrationTime time.Time
-	immutableLabels  *joiningv1.ImmutableLabels
 
 	agentMetadata atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
 	goodbye       atomic.Pointer[proto.UpstreamInventoryGoodbye]
@@ -749,12 +747,11 @@ type heartBeatInfo[T any] struct {
 	keepAliveErrs int
 }
 
-func newUpstreamHandle(stream client.UpstreamInventoryControlStream, cfg UpstreamHandleConfig, now time.Time) *upstreamHandle {
+func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
-		hello:                          cfg.Hello,
-		immutableLabels:                cfg.ImmutableLabels,
+		hello:                          hello,
 		pings:                          make(map[uint64]pendingPing),
 		registrationTime:               now,
 	}
@@ -850,8 +847,4 @@ func (h *upstreamHandle) UpdateLabels(ctx context.Context, kind proto.LabelUpdat
 		Labels: labels,
 	}
 	return trace.Wrap(h.Send(ctx, req))
-}
-
-func (h *upstreamHandle) ImmutableLabels() *joiningv1.ImmutableLabels {
-	return h.immutableLabels
 }

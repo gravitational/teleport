@@ -65,10 +65,10 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -663,7 +663,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
 	}
 	identity := a.context.Identity.GetIdentity()
-	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope, identity.ImmutableLabels)
+	return a.authServer.GenerateHostCerts(ctx, req, identity.AgentScope, identity.ImmutableLabelHash)
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
@@ -803,11 +803,12 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
 	}
 	hello.Scope = agentScope
-
-	return hello, a.authServer.RegisterInventoryControlStream(ics, inventory.UpstreamHandleConfig{
-		Hello:           hello,
-		ImmutableLabels: a.context.Identity.GetIdentity().ImmutableLabels,
-	})
+	if labels := hello.GetImmutableLabels(); labels != nil {
+		if !joining.VerifyImmutableLabelsHash(labels, a.context.Identity.GetIdentity().ImmutableLabelHash) {
+			return nil, trace.AccessDenied("immutable labels do not match their agent identity")
+		}
+	}
+	return hello, a.authServer.RegisterInventoryControlStream(ics, hello)
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
