@@ -19,9 +19,12 @@ package types
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/types/appserveropts"
+	"github.com/gravitational/teleport/api/types/internal/equaltesting"
 )
 
 func TestGetTunnelType(t *testing.T) {
@@ -118,5 +121,60 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 				require.Equal(t, tt.expectedApp, app)
 			}
 		})
+	}
+}
+
+func Test_AppServer_IsEqualOpt(t *testing.T) {
+	t.Parallel()
+
+	filled := &AppServerV3{}
+	err := equaltesting.FillValue(
+		filled,
+		equaltesting.WithIgnoreUnexported(true),
+		equaltesting.WithSkipProtoXXXFields(true),
+	)
+	require.NoError(t, err)
+
+	// Check basic equality.
+	{
+		a, b := filled.copy(), filled.copy()
+
+		require.Empty(t, cmp.Diff(a, b))
+		require.True(t, EqualAppServers(a, b))
+	}
+
+	// Check returns false for non-AppServerV3 type.
+	{
+		var dummy AppServer
+		require.False(t, EqualAppServers(filled, dummy))
+		require.False(t, EqualAppServers(dummy, filled))
+		require.False(t, EqualAppServers(dummy, dummy))
+	}
+
+	// Check WithIgnoreHostID.
+	{
+		a, b := filled.copy(), filled.copy()
+		const aHostID, bHostID = "a_host_id", "b_host_id"
+		a.Spec.HostID = aHostID
+		b.Spec.HostID = bHostID
+
+		require.False(t, EqualAppServers(a, b))
+		require.True(t, EqualAppServers(a, b, appserveropts.WithIgnoreHostID(true)))
+
+		// Make sure there are no overwrites for the HostID
+		require.NotEqual(t, a.Spec.HostID, b.Spec.HostID)
+		require.Equal(t, aHostID, a.Spec.HostID)
+		require.Equal(t, bHostID, b.Spec.HostID)
+
+		// Let's check WithSkipClone
+		require.True(t, EqualAppServers(
+			a, b,
+			appserveropts.WithIgnoreHostID(true),
+			appserveropts.WithSkipClone(true)),
+		)
+
+		// This time HostID is overwritten because we skipped cloning.
+		require.Empty(t, a.Spec.HostID)
+		require.Empty(t, b.Spec.HostID)
 	}
 }
