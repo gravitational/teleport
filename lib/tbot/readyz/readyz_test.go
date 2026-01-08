@@ -216,9 +216,9 @@ func (c *inMemoryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	rr := httptest.NewRecorder()
 
 	// We can't just naively return the result of ServeHTTP since it doesn't
-	// return errors when the context is cancelled. To fix that, wrap it in
+	// return errors when the context is canceled. To fix that, wrap it in
 	// another goroutine and manually return an error if the context is
-	// cancelled.
+	// canceled.
 	go func() {
 		c.handler.ServeHTTP(rr, r)
 		close(done)
@@ -307,7 +307,7 @@ func TestWaitAPI(t *testing.T) {
 
 				code, err := testWaitFetch(t, testDefaultClient(t), "", endpoint)
 				require.NoError(t, err)
-				require.Equal(t, code, 200)
+				require.Equal(t, 200, code)
 			},
 		},
 		{
