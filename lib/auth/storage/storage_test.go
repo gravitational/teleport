@@ -22,10 +22,13 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
@@ -204,6 +207,38 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestImmutableLabels(t *testing.T) {
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	storage := ProcessStorage{
+		BackendStorage: mem,
+		stateStorage:   mem,
+	}
+
+	labels, err := storage.ReadImmutableLabels(ctx)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, labels)
+
+	immutableLabels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"test": "label",
+		},
+	}
+
+	// run in a loop to ensure we can overwrite existing labels
+	for i := range 2 {
+		err = storage.WriteImmutableLabels(ctx, immutableLabels)
+		require.NoError(t, err)
+		labels, err = storage.ReadImmutableLabels(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(immutableLabels, labels, protocmp.Transform()))
+		immutableLabels.Ssh[fmt.Sprintf("label-%d", i)] = fmt.Sprintf("value-%d", i)
+	}
+
 }
 
 type fakeKubeBackend struct {

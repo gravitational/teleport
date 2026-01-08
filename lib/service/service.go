@@ -369,11 +369,10 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 		serverState = s
 	}
 	c := &Connector{
-		clusterName:     clientIdentity.ClusterName,
-		hostID:          clientIdentity.ID.HostUUID,
-		scope:           clientIdentity.AgentScope,
-		immutableLabels: clientIdentity.ImmutableLabels,
-		role:            clientIdentity.ID.Role,
+		clusterName: clientIdentity.ClusterName,
+		hostID:      clientIdentity.ID.HostUUID,
+		scope:       clientIdentity.AgentScope,
+		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
 	c.serverState.Store(serverState)
@@ -438,11 +437,10 @@ type connectorState struct {
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
-	clusterName     string
-	hostID          string
-	scope           string
-	role            types.SystemRole
-	immutableLabels *joiningv1.ImmutableLabels
+	clusterName string
+	hostID      string
+	scope       string
+	role        types.SystemRole
 
 	// clientState contains the current connector state for outbound connections
 	// to the cluster.
@@ -482,11 +480,6 @@ func (c *Connector) Scope() string {
 
 func (c *Connector) Role() types.SystemRole {
 	return c.role
-}
-
-// ImmutableLabels returns the host's immutable labels.
-func (c *Connector) ImmutableLabels() *joiningv1.ImmutableLabels {
-	return c.immutableLabels
 }
 
 // ClientGetCertificate returns the current credentials for outgoing TLS
@@ -745,7 +738,8 @@ type TeleportProcess struct {
 	// need to add and remove metrics seevral times (e.g. hosted plugin metrics).
 	*metrics.SyncGatherers
 
-	tsrv reversetunnelclient.Server
+	tsrv            reversetunnelclient.Server
+	immutableLabels *joiningv1.ImmutableLabels
 }
 
 // processIndex is an internal process index
@@ -841,6 +835,23 @@ func (process *TeleportProcess) getInstanceRoles() []types.SystemRole {
 		out = append(out, role)
 	}
 	return out
+}
+
+// SetImmutableLabels sets the [*joiningv1.ImmutableLabels] for the process.
+func (process *TeleportProcess) SetImmutableLabels(labels *joiningv1.ImmutableLabels) {
+	process.Lock()
+	defer process.Unlock()
+
+	process.immutableLabels = labels
+}
+
+// getImmutableLabels returns the [*joiningv1.ImmutableLabels] assigned to
+// the process.
+func (process *TeleportProcess) getImmutableLabels() *joiningv1.ImmutableLabels {
+	process.Lock()
+	defer process.Unlock()
+
+	return process.immutableLabels
 }
 
 // getInstanceRoleEventMapping returns the same instance roles as getInstanceRoles, but as a mapping
@@ -1379,6 +1390,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
+			ImmutableLabels:  process.getImmutableLabels(),
 		}
 
 		if upgraderVersion != nil {
@@ -3541,7 +3553,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetChildLogConfig(cfg),
 			regular.SetUUID(conn.HostUUID()),
 			regular.SetScope(conn.Scope()),
-			regular.SetImmutableLabels(conn.ImmutableLabels().GetSsh()),
+			regular.SetImmutableLabels(process.getImmutableLabels().GetSsh()),
 			regular.SetLimiter(limiter),
 			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: conn.Client}),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels, process.cloudLabels),

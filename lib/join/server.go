@@ -503,8 +503,9 @@ func (s *Server) makeHostResult(
 		return nil, trace.Wrap(err)
 	}
 	return &messages.HostResult{
-		Certificates: *certificates,
-		HostID:       certsParams.HostID,
+		Certificates:    *certificates,
+		HostID:          certsParams.HostID,
+		ImmutableLabels: token.GetImmutableLabels(),
 	}, nil
 }
 
