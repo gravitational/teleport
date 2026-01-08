@@ -75,11 +75,12 @@ func (s *Server) handleIAMJoin(
 	// Verify the sts:GetCallerIdentity request, send it to AWS, and make sure
 	// the verified identity matches allow rules in the provision token.
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(stream.Context(), &iamjoin.CheckIAMRequestParams{
-		Challenge:          challenge,
-		ProvisionToken:     token,
-		STSIdentityRequest: solution.STSIdentityRequest,
-		HTTPClient:         s.cfg.AuthService.GetHTTPClientForAWSSTS(),
-		FIPS:               s.cfg.FIPS,
+		Challenge:              challenge,
+		ProvisionToken:         token,
+		STSIdentityRequest:     solution.STSIdentityRequest,
+		HTTPClient:             s.cfg.AuthService.GetHTTPClientForAWSSTS(),
+		FIPS:                   s.cfg.FIPS,
+		OrganizationsAPIGetter: s.cfg.AuthService.GetAWSOrganizationsClientGetter(),
 	})
 	// An identity will be returned even on error if the sts:GetCallerIdentity
 	// request was completed but no allow rules were matched, include it in the
