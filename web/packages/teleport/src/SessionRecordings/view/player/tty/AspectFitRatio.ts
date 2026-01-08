@@ -18,7 +18,7 @@
 
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
 
-import type { TerminalSize } from 'teleport/SessionRecordings/view/player/tty/types';
+import type { TerminalSize } from './types';
 
 // TODO(gzdunek): This interface was copied from the xterm's source code.
 // Replace this with a direct import from '@xterm/xterm' once
