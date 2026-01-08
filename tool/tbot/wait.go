@@ -43,7 +43,7 @@ import (
 func waitFetch(ctx context.Context, l *slog.Logger, client *http.Client, service string, endpoint *url.URL) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
-		return trace.Wrap(err, "could not build wait request")
+		return trace.Wrap(err, "building wait request")
 	}
 
 	resp, err := client.Do(req)
