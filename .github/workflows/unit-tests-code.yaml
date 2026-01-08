@@ -96,8 +96,15 @@ jobs:
             echo "GITHUB_RUN_NUMBER=$GITHUB_RUN_NUMBER"
             echo "GITHUB_SHA=$GITHUB_SHA"
             echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
-          } > build/github.env
-          cd .github/shared-workflows/tools/ci-normalize &&  go run ./cmd junit --github build/github.env  --testcase test-logs/testcase.jsonl --suite test-logs/suite.jsonl  test-logs/*.xml
+          } > test-logs/github.env
+          cd .github/shared-workflows/tools/ci-normalize &&  go run ./cmd junit --github test-logs/github.env  --testcase test-logs/testcase.jsonl --suite test-logs/suite.jsonl  test-logs/*.xml
           cat build/suite.jsonl > $GITHUB_OUTPUT
           cat build/testcase.jsonl > $GITHUB_OUTPUT
 
+
+
+# Seperate normalzie and upload step that is not blocking of the main pipeline.
+# - name:
+  # if: always()
+  # continue-on-error: true
+  # uses: actions/upload-artifact@v4
