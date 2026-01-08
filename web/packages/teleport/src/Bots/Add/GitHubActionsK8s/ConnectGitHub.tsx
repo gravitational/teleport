@@ -178,6 +178,10 @@ export function ConnectGitHub(props: FlowStepProps) {
                   );
                 }}
               >
+                <Text mb={3}>
+                  Use the options below to further restrict which workflows can
+                  access your Teleport resources.
+                </Text>
                 <FieldInput
                   label="Workflow"
                   placeholder="my-workflow"
