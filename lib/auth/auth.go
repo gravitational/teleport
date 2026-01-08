@@ -609,6 +609,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.MFAService == nil {
+		cfg.MFAService, err = local.NewMFAService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating MFAService")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -677,6 +684,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
+		MFAService:                      cfg.MFAService,
 	}
 
 	as = &Server{
@@ -880,77 +888,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	return as, nil
-}
-
-// Services is a collection of services that are used by the auth server.
-// Avoid using this type as a dependency and instead depend on the actual
-// methods/services you need. It should really only be necessary to directly
-// reference this type on auth.Server itself and on code that manages
-// the lifecycle of the auth server.
-type Services struct {
-	services.TrustInternal
-	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
-	services.DynamicAccessExt
-	services.ClusterConfigurationInternal
-	services.Restrictions
-	services.Applications
-	services.Kubernetes
-	services.Databases
-	services.DatabaseServices
-	services.WindowsDesktops
-	services.DynamicWindowsDesktops
-	services.SAMLIdPServiceProviders
-	services.UserGroups
-	services.SessionTrackerService
-	services.ConnectionsDiagnostic
-	services.StatusInternal
-	services.Integrations
-	services.IntegrationsTokenGenerator
-	services.UserTasks
-	services.DiscoveryConfigs
-	services.Okta
-	services.AccessListsInternal
-	services.DatabaseObjectImportRules
-	services.DatabaseObjects
-	services.UserLoginStates
-	services.UserPreferences
-	services.PluginData
-	services.SCIM
-	services.Notifications
-	usagereporter.UsageReporter
-	types.Events
-	events.AuditLogSessionStreamer
-	services.SecReports
-	services.KubeWaitingContainer
-	services.AccessMonitoringRules
-	services.CrownJewels
-	services.BotInstance
-	services.AccessGraphSecretsGetter
-	services.DevicesGetter
-	services.SPIFFEFederations
-	services.StaticHostUser
-	services.AutoUpdateService
-	services.ProvisioningStates
-	services.IdentityCenter
-	services.Plugins
-	services.PluginStaticCredentials
-	services.GitServers
-	services.WorkloadIdentities
-	services.StableUNIXUsersInternal
-	services.WorkloadIdentityX509Revocations
-	services.WorkloadIdentityX509Overrides
-	services.SigstorePolicies
-	services.HealthCheckConfig
-	services.AppAuthConfig
-	services.BackendInfoService
-	services.VnetConfigService
-	RecordingEncryptionManager
-	events.MultipartHandler
-	services.Summarizer
-	services.ScopedTokenService
 }
 
 // GetWebSession returns existing web session described by req.
