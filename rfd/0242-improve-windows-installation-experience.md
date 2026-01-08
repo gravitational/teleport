@@ -44,6 +44,11 @@ the app will provide a dual-mode installer:
 | Update mechanism                          | Default user-space process          | Privileged Windows service |
 | System registry hive for updater settings | HKCU / HKLM (HKLM takes precedence) | HKLM                       |
 
+During the runtime, the app will detect the per-machine mode by checking if it has been installed in `%ProgramFiles%`.
+Although the installation path can be changed via the `/D=<path>` option, the system services are installed only if 
+the app is placed in `%ProgramFiles%` (to avoid privilege escalation).
+This also means that changing the path via `/D` will break the per-machine installations. 
+
 ### Per-User Mode
 
 We will reintroduce the unprivileged installation path for users who do not need VNet functionality.
@@ -61,7 +66,8 @@ The "Install for all users" option will be preselected, so users will end up wit
 #### UX and Discoverability
 
 Since VNet is exclusive to the per-machine installation, the installer will explicitly state it:
-> To use VNet, install the app per-machine.
+> Only the per-machine option comes with VNet, Teleport's VPN-like experience for accessing TCP applications and SSH
+> servers.
 
 If a user attempts to run VNet in a per-user installation, the app will verify the lack of the system service
 and display an error:
@@ -77,8 +83,8 @@ To install per-machine updates silently, we will introduce a special Update Serv
 This service will run with full system permissions, and its only job will be to install updates that the main app has
 already downloaded.
 
-We will set up the service DACL so that any authenticated user can start, stop, or check its status.
-The service will never blindly run a passed file; it must verify the digital signature before executing the update.
+We will set up the service DACL so that any authenticated user can start the service.
+The service must be extremely careful and must not implicitly trust any input data.
 
 #### Security Considerations
 
@@ -129,13 +135,23 @@ Windows Group Policy rules in addition to the normal app install.
       Service).
       The app will only invoke `sc start TeleportUpdateService install-connect-update --path=... --cluster=...` and exit
       immediately.
-1. The service moves the binary to a system-protected path (e.g., `C:\Windows\Temp`) to prevent tampering during the
-   validation phase.
+1. The service copies the binary to a system-protected path (e.g., `%ProgramData%\TeleportConnect\Updates\<GUID>`) to
+   prevent tampering during the validation phase. This directory will be locked down to Administrators and LocalSystem
+   access only.
+    * The service must ensure it is not copying a file that the user doesn't have access to.
+    * An attacker could use the service to simply copy arbitrary files into our secure `%ProgramData%` location. For
+      example, they could first copy a malicious version.dll (loaded by almost every executable out there), then copy a
+      properly signed executable and have it executed. The malicious DLL could then be loaded from the same directory,
+      resulting in another LPE vector. This can be mitigated by creating a unique subdirectory for each service
+      invocation.
+    * The `%ProgramData%` is user-writable by default so ensure the directory wasn't pre-created before and there aren't
+      any planted DLLs suitable for DLL hijacking.
+    * To prevent the directory size from expanding indefinitely, it will be cleared before copying the update file.
 1. The service re-validates that the passed cluster is either a Teleport Cloud instance or present in the system
-   registry
-   allowlist.
+   registry allowlist.
 1. The service checks the signature to ensure the binary is signed by the same organization and extracts the version
    string directly from the signature.
+    * If the service itself is not signed, it will not require an update file to be signed.
 1. The service pings the passed cluster to fetch its `client_tools_version` and confirms it matches the version
    of the staged binary.
 1. The service executes the update and exits.
@@ -154,7 +170,8 @@ Update settings will be managed via the Windows Registry. Configuration can be a
 Registry Paths:
 
 * `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\TeleportConnect`
-* `HKEY_CURRENT_USER\SOFTWARE\Policies\TeleportConnect`
+* `HKEY_CURRENT_USER\SOFTWARE\Policies\TeleportConnect` - must be used only in the context of per-user installations,
+  will not affect per-machine behavior.
 
 | Setting                  | Type         | Description                                                                                                                                                                                |
 |--------------------------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -169,7 +186,8 @@ while the VNet service would be treated as a per-machine, on-demand component.
 
 Pros:
 
-* Eliminates the need for dual-mode installer, which is not great for first time users.
+* Eliminates the need for dual-mode installer, which is not great for first time users, since we ask them to make a
+  decision about the VNet component that they likely have no idea about.
 
 Cons:
 
