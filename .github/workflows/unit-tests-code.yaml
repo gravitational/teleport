@@ -97,9 +97,9 @@ jobs:
             echo "GITHUB_SHA=$GITHUB_SHA"
             echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
           } > test-logs/github.env
-          cd .github/shared-workflows/tools/ci-normalize &&  go run ./cmd junit --github test-logs/github.env  --testcase test-logs/testcase.jsonl --suite test-logs/suite.jsonl  test-logs/*.xml
-          cat build/suite.jsonl > $GITHUB_OUTPUT
-          cat build/testcase.jsonl > $GITHUB_OUTPUT
+          cd .github/shared-workflows/tools/ci-normalize &&  go run ./cmd junit --github $GITHUB_WORKSPACE/test-logs/github.env  --testcase $GITHUB_WORKSPACE/test-logs/testcase.jsonl --suite $GITHUB_WORKSPACE/test-logs/suite.jsonl  $GITHUB_WORKSPACE/test-logs/*.xml
+          cat $GITHUB_WORKSPACE/test-logs/suite.jsonl > $GITHUB_OUTPUT
+          cat $GITHUB_WORKSPACE/test-logs/testcase.jsonl > $GITHUB_OUTPUT
 
 
 
