@@ -55,7 +55,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -83,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -4746,12 +4746,6 @@ type createAccessListOptions struct {
 }
 
 type createAccessListOpt func(*createAccessListOptions)
-
-func withType(typ accesslist.Type) createAccessListOpt {
-	return func(o *createAccessListOptions) {
-		o.typ = typ
-	}
-}
 
 func withNextAuditDate(nextAuditDate time.Time) createAccessListOpt {
 	return func(o *createAccessListOptions) {
