@@ -175,11 +175,17 @@ function reducer(prev: State, action: Action): State {
         info,
       };
     case 'branch-changed':
+      const branch = action.value;
+      const ref = branch
+        ? branch.startsWith('refs/heads/')
+          ? branch
+          : `refs/heads/${branch}`
+        : '';
       return {
         ...prev,
-        branch: action.value,
+        branch,
         allowAnyBranch: false,
-        ref: action.value,
+        ref,
         refType: 'branch',
       };
     case 'allow-any-branch-toggled':
@@ -189,14 +195,19 @@ function reducer(prev: State, action: Action): State {
         branch: '',
         ref: '',
       };
-    case 'ref-changed':
+    case 'ref-changed': {
+      const branch =
+        prev.refType === 'branch'
+          ? action.value.replace(/^refs\/heads\//, '')
+          : '';
       return {
         ...prev,
         ref: action.value,
         // Keep ref in sync with branch while ref type is 'branch'
-        branch: prev.refType === 'branch' ? action.value : '',
+        branch: branch,
         isBranchDisabled: prev.refType !== 'branch',
       };
+    }
     case 'ref-type-changed':
       return {
         ...prev,
