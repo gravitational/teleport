@@ -18,10 +18,10 @@ package joining_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -408,36 +408,6 @@ func TestValidateScopedToken(t *testing.T) {
 		// TODO (eriktate): add a test case for a missing secret with non-token join method once scoped
 		// tokens support other join methods
 		{
-			name: "immutable labels over 2kb",
-			token: &joiningv1.ScopedToken{
-				Kind:    types.KindScopedToken,
-				Scope:   "/aa/bb",
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: "testtoken",
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
-					AssignedScope: "/aa/bb",
-					Roles:         []string{types.RoleNode.String()},
-					JoinMethod:    string(types.JoinMethodToken),
-					UsageMode:     string(joining.TokenUsageModeUnlimited),
-					ImmutableLabels: &joiningv1.ImmutableLabels{
-						Ssh: map[string]string{
-							// key length is also considered, so if we have
-							// two labels with values set to 1024 bytes each
-							// then we should still expect an error
-							"one": strings.Repeat("1", 1024),
-							"two": strings.Repeat("2", 1024),
-						},
-					},
-				},
-				Status: &joiningv1.ScopedTokenStatus{
-					Secret: "secret",
-				},
-			},
-			expectedStrongErr: "immutable labels for a single token must be smaller than 2kb",
-		},
-		{
 			name: "invalid labels key",
 			token: &joiningv1.ScopedToken{
 				Kind:    types.KindScopedToken,
@@ -510,4 +480,26 @@ func TestValidateScopedToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestImmutableLabelHashing(t *testing.T) {
+	labels := &joiningv1.ImmutableLabels{
+		Ssh: map[string]string{
+			"one":   "1",
+			"two":   "2",
+			"hello": "world",
+		},
+	}
+
+	// assert that the same labels match with their hash
+	initialHash := joining.HashImmutableLabels(labels)
+	require.True(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+
+	// assert that changing a label value fails the hash check
+	labels.Ssh["hello"] = "other"
+	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
+
+	// assert that adding a label fails the hash check
+	labels.Ssh["three"] = "3"
+	require.False(t, joining.VerifyImmutableLabelsHash(labels, initialHash))
 }

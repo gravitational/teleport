@@ -28,6 +28,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base32"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -42,7 +43,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -227,9 +227,10 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
-	// ImmutableLabels are labels that should be applied and enforced at the
-	// certificate level.
-	ImmutableLabels *joiningv1.ImmutableLabels
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash []byte
 }
 
 // RouteToApp holds routing information for applications.
@@ -620,9 +621,9 @@ var (
 	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
 	// used to tie the certificate to a spec
 	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
-	// ImmutableLabelsASN1ExtensionOID is an extension OID that contains the immutable labels
-	// encoded onto the certificate.
-	ImmutableLabelsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
 )
 
 // Device Trust OIDs.
@@ -1036,15 +1037,11 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
-	if id.ImmutableLabels != nil {
-		labels, err := protojson.Marshal(id.ImmutableLabels)
-		if err != nil {
-			return pkix.Name{}, trace.Errorf("failed to encode immutable labels: %w", err)
-		}
+	if id.ImmutableLabelHash != nil {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  ImmutableLabelsASN1ExtensionOID,
-				Value: string(labels),
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: hex.EncodeToString(id.ImmutableLabelHash),
 			})
 	}
 
@@ -1326,15 +1323,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 					return nil, trace.Wrap(err)
 				}
 			}
-		case attr.Type.Equal(ImmutableLabelsASN1ExtensionOID):
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
-				id.ImmutableLabels = &joiningv1.ImmutableLabels{}
-				unmarshaler := protojson.UnmarshalOptions{
-					DiscardUnknown: true,
-				}
-				if err := unmarshaler.Unmarshal([]byte(val), id.ImmutableLabels); err != nil {
+				hash, err := hex.DecodeString(val)
+				if err != nil {
 					return nil, trace.Wrap(err)
 				}
+
+				id.ImmutableLabelHash = hash
 			}
 		}
 	}

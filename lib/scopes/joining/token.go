@@ -17,6 +17,8 @@
 package joining
 
 import (
+	"cmp"
+	"crypto/sha256"
 	"slices"
 	"time"
 
@@ -303,10 +305,6 @@ func (t *Token) GetImmutableLabels() *joiningv1.ImmutableLabels {
 	return t.scoped.GetSpec().GetImmutableLabels()
 }
 
-// maxImmutableLabelsSize is the max size in bytes that all immutable labels
-// for a single scoped token can occupy.
-const maxImmutableLabelsSize = 2 * 1024 // 2KB
-
 func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
 	if spec == nil {
 		return nil
@@ -319,18 +317,43 @@ func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
 		}
 	}
 
-	var size int
-	for k, v := range sshLabels {
+	for k := range sshLabels {
 		if !types.IsValidLabelKey(k) {
 			return trace.BadParameter("invalid immutable label key %q", k)
 		}
-		size += len([]byte(k))
-		size += len([]byte(v))
-	}
-
-	if size > maxImmutableLabelsSize {
-		return trace.BadParameter("immutable labels for a single token must be smaller than %dkb", maxImmutableLabelsSize/1024)
 	}
 
 	return nil
+}
+
+// HashImmutableLabels returns a deterministic hash of the given [*joiningv1.ImmutableLabels].
+func HashImmutableLabels(labels *joiningv1.ImmutableLabels) []byte {
+	if labels == nil {
+		return nil
+	}
+
+	hash := sha256.New()
+	if sshLabels := labels.GetSsh(); sshLabels != nil {
+		sorted := make([]struct{ key, value string }, 0, len(sshLabels))
+		for k, v := range sshLabels {
+			sorted = append(sorted, struct{ key, value string }{k, v})
+		}
+		slices.SortFunc(sorted, func(a, b struct{ key, value string }) int {
+			return cmp.Compare(a.key, b.key)
+		})
+
+		for _, v := range sorted {
+			_, _ = hash.Write([]byte(v.key))
+			_, _ = hash.Write([]byte(v.value))
+		}
+	}
+
+	return hash.Sum(nil)
+}
+
+// VerifyImmutableLabelsHash returns whether or not the given [*joiningv1.ImmutableLabels]
+// matches the given hash.
+func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash []byte) bool {
+	newHash := HashImmutableLabels(labels)
+	return slices.Equal(newHash, hash)
 }
