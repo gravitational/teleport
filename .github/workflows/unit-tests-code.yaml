@@ -98,8 +98,8 @@ jobs:
             echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
           } > test-logs/github.env
           cd .github/shared-workflows/tools/ci-normalize &&  go run ./cmd junit --github $GITHUB_WORKSPACE/test-logs/github.env  --testcase $GITHUB_WORKSPACE/test-logs/testcase.jsonl --suite $GITHUB_WORKSPACE/test-logs/suite.jsonl  $GITHUB_WORKSPACE/test-logs/*.xml
-          cat $GITHUB_WORKSPACE/test-logs/suite.jsonl > $GITHUB_OUTPUT
-          cat $GITHUB_WORKSPACE/test-logs/testcase.jsonl > $GITHUB_OUTPUT
+          cat $GITHUB_WORKSPACE/test-logs/suite.jsonl
+          cat $GITHUB_WORKSPACE/test-logs/testcase.jsonl
 
 
 
