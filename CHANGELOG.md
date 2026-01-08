@@ -16,6 +16,7 @@
 * Fixed a potential SSRF vulnerability in the Azure join method implementation. [#62420](https://github.com/gravitational/teleport/pull/62420)
 * Updated github.com/quic-go/quic-go to 0.57.0 to mitigate CVE-2025-64702. [#62294](https://github.com/gravitational/teleport/pull/62294)
 * Fixed issue where AltGr key combinations did not work correctly in remote desktop sessions. [#62197](https://github.com/gravitational/teleport/pull/62197)
+* Fixed a memory leak in access list reminder notifications affecting clusters with more than 1000 pending Access List reviews. [#62664](https://github.com/gravitational/teleport/pull/62664)
 
 
 ## 17.7.12 (12/15/25)
