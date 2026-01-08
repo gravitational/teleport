@@ -23,19 +23,22 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // AppAuthConfigSessionsService provides functions for managing sessions with
 // app auth configs.
 service AppAuthConfigSessionsService {
-  // CreateAppSessionWithJwt creates an app session using JWT token.
+  // CreateAppSessionWithJWT creates an app session using JWT token.
   rpc CreateAppSessionWithJWT(CreateAppSessionWithJWTRequest) returns (CreateAppSessionWithJWTResponse);
 }
 
 // App contains information about the application the new session will access.
 message App {
-  // ClusterName is cluster within which the application is running.
+  // Cluster is cluster within which the application is running.
   string cluster_name = 1;
   // AppName is the name of the application.
   string app_name = 2;
-  // Uri is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  // Uri is the URI of the app. This is the internal endpoint where the
+  // application is running and isn't user-facing.
   string uri = 3;
-  // PublicAddr is the application public address.
+  // PublicAddr is the application public address. This value must come from
+  // the application resource without modificiation. It will be used when
+  // creating the session and issuing the credentials.
   string public_addr = 4;
 }
 
@@ -45,7 +48,7 @@ message CreateAppSessionWithJWTRequest {
   string config_name = 1;
   // App is application the session will access.
   App app = 2;
-  // Jwt is the JWT token used to create the app session.
+  // The JWT token used to create the app session.
   string jwt = 3;
   // RemoteAddr is a client (user's) address.
   string remote_addr = 4;

@@ -73,7 +73,7 @@ type CreateAppSessionForAppAuthRequest struct {
 
 // AppSessionCreator creates new app sessions.
 type AppSessionCreator interface {
-	// CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest, identity tlsca.Identity, checker services.SessionTTLAdjuster) (types.WebSession, error)
+	// CreateAppSessionForAppAuth creates a new session for app auth requests.
 	CreateAppSessionForAppAuth(ctx context.Context, req *CreateAppSessionForAppAuthRequest) (types.WebSession, error)
 }
 

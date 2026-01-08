@@ -39,13 +39,16 @@ const (
 // App contains information about the application the new session will access.
 type App struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// ClusterName is cluster within which the application is running.
+	// Cluster is cluster within which the application is running.
 	ClusterName string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	// AppName is the name of the application.
 	AppName string `protobuf:"bytes,2,opt,name=app_name,json=appName,proto3" json:"app_name,omitempty"`
-	// Uri is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	// Uri is the URI of the app. This is the internal endpoint where the
+	// application is running and isn't user-facing.
 	Uri string `protobuf:"bytes,3,opt,name=uri,proto3" json:"uri,omitempty"`
-	// PublicAddr is the application public address.
+	// PublicAddr is the application public address. This value must come from
+	// the application resource without modificiation. It will be used when
+	// creating the session and issuing the credentials.
 	PublicAddr    string `protobuf:"bytes,4,opt,name=public_addr,json=publicAddr,proto3" json:"public_addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -116,7 +119,7 @@ type CreateAppSessionWithJWTRequest struct {
 	ConfigName string `protobuf:"bytes,1,opt,name=config_name,json=configName,proto3" json:"config_name,omitempty"`
 	// App is application the session will access.
 	App *App `protobuf:"bytes,2,opt,name=app,proto3" json:"app,omitempty"`
-	// Jwt is the JWT token used to create the app session.
+	// The JWT token used to create the app session.
 	Jwt string `protobuf:"bytes,3,opt,name=jwt,proto3" json:"jwt,omitempty"`
 	// RemoteAddr is a client (user's) address.
 	RemoteAddr    string `protobuf:"bytes,4,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`

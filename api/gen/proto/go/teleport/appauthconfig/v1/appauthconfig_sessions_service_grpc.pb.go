@@ -43,7 +43,7 @@ const (
 // AppAuthConfigSessionsService provides functions for managing sessions with
 // app auth configs.
 type AppAuthConfigSessionsServiceClient interface {
-	// CreateAppSessionWithJwt creates an app session using JWT token.
+	// CreateAppSessionWithJWT creates an app session using JWT token.
 	CreateAppSessionWithJWT(ctx context.Context, in *CreateAppSessionWithJWTRequest, opts ...grpc.CallOption) (*CreateAppSessionWithJWTResponse, error)
 }
 
@@ -72,7 +72,7 @@ func (c *appAuthConfigSessionsServiceClient) CreateAppSessionWithJWT(ctx context
 // AppAuthConfigSessionsService provides functions for managing sessions with
 // app auth configs.
 type AppAuthConfigSessionsServiceServer interface {
-	// CreateAppSessionWithJwt creates an app session using JWT token.
+	// CreateAppSessionWithJWT creates an app session using JWT token.
 	CreateAppSessionWithJWT(context.Context, *CreateAppSessionWithJWTRequest) (*CreateAppSessionWithJWTResponse, error)
 	mustEmbedUnimplementedAppAuthConfigSessionsServiceServer()
 }

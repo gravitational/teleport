@@ -846,11 +846,14 @@ func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthcon
 
 	sess, err := a.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
 		NewWebSessionRequest: NewWebSessionRequest{
-			User:             req.Username,
-			LoginIP:          req.LoginIP,
-			SessionTTL:       req.TTL,
-			Roles:            req.Roles,
-			Traits:           req.Traits,
+			User:       req.Username,
+			LoginIP:    req.LoginIP,
+			SessionTTL: req.TTL,
+			Roles:      req.Roles,
+			Traits:     req.Traits,
+			// Always attest the web session as sessions from app auth will
+			// always come from proxy, and will only be visible/available to
+			// auth and proxy instances.
 			AttestWebSession: true,
 		},
 		ClusterName:        req.ClusterName,
