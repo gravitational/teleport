@@ -71,3 +71,32 @@ jobs:
       - name: Run tests
         timeout-minutes: 20
         run: make -j"$(nproc)" test-go test-sh test-api
+
+      - name: Checkout shared-workflows
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/shared-workflows
+          path: .github/shared-workflows
+          ref: c486478a5f9f59e05f05419161e79004d801a6d2 # okraport experiment
+
+      - name: Normalize # TODO: move to a common file somewhere
+        id: normalize
+        run: |
+          {
+            echo "GITHUB_ACTOR=$GITHUB_ACTOR"
+            echo "GITHUB_ACTOR_ID=$GITHUB_ACTOR_ID"
+            echo "GITHUB_BASE_REF=$GITHUB_BASE_REF"
+            echo "GITHUB_HEAD_REF=$GITHUB_HEAD_REF"
+            echo "GITHUB_JOB=$GITHUB_JOB"
+            echo "GITHUB_REF=$GITHUB_REF"
+            echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+            echo "GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT"
+            echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+            echo "GITHUB_RUN_NUMBER=$GITHUB_RUN_NUMBER"
+            echo "GITHUB_SHA=$GITHUB_SHA"
+            echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
+          } > build/github.env
+          cd .github/shared-workflows/tools/ci-normalize &&  go run ./cmd junit --github build/github.env  --testcase test-logs/testcase.jsonl --suite test-logs/suite.jsonl  test-logs/*.xml
+          cat build/suite.jsonl > $GITHUB_OUTPUT
+          cat build/testcase.jsonl > $GITHUB_OUTPUT
+
