@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -91,6 +92,12 @@ func TestIdentityConversion(t *testing.T) {
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
 		AgentScope:             "/foo",
+		ImmutableLabels: &joiningv1.ImmutableLabels{
+			Ssh: map[string]string{
+				"one": "1",
+				"two": "2",
+			},
+		},
 	}
 
 	ignores := []string{

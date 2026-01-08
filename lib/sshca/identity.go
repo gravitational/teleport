@@ -20,6 +20,7 @@
 package sshca
 
 import (
+	"encoding/hex"
 	"fmt"
 	"maps"
 	"strconv"
@@ -146,6 +147,9 @@ type Identity struct {
 	GitHubUsername string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
+	// ImmutableLabelHash is the immutable label hash used to verify
+	// immutable labels against the identity.
+	ImmutableLabelHash []byte
 }
 
 // Encode encodes the identity into an ssh certificate. Note that the returned certificate is incomplete
@@ -191,6 +195,10 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 
 	if i.AgentScope != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionAgentScope] = i.AgentScope
+	}
+
+	if i.ImmutableLabelHash != nil {
+		cert.Permissions.Extensions[teleport.CertExtensionImmutableLabelHash] = hex.EncodeToString(i.ImmutableLabelHash)
 	}
 
 	// --- user extensions ---
@@ -496,6 +504,14 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 			return nil, trace.BadParameter("failed to unmarshal value %q for extension %q as active requests: %v", v, teleport.CertExtensionTeleportActiveRequests, err)
 		}
 		ident.ActiveRequests = reqs.AccessRequests
+	}
+
+	if v, ok := takeExtension(teleport.CertExtensionImmutableLabelHash); ok {
+		hash, err := hex.DecodeString(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode value %q for extension %q as immutable label hash: %v", v, teleport.CertExtensionImmutableLabelHash, err)
+		}
+		ident.ImmutableLabelHash = hash
 	}
 
 	// aggregate all remaining extensions into the CertificateExtensions field

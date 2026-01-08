@@ -264,7 +264,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			Role:         types.RoleNode,
 			PublicSSHKey: sshPublicKey,
 			PublicTLSKey: tlsPublicKey,
-		}, "")
+		}, "", nil)
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server

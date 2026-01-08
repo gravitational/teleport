@@ -70,7 +70,7 @@ func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals
 			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
 			PublicTLSKey:         tlsPub,
 			SystemRoles:          systemRoles,
-		}, "")
+		}, "", nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

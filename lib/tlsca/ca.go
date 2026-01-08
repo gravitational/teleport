@@ -28,6 +28,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base32"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -226,6 +227,10 @@ type Identity struct {
 	// OriginClusterName is the name of the cluster where the identity is
 	// authenticated.
 	OriginClusterName string
+
+	// ImmutableLabelHash is the hash of the immutable labels that have been
+	// applied to the identity.
+	ImmutableLabelHash []byte
 }
 
 // RouteToApp holds routing information for applications.
@@ -616,6 +621,9 @@ var (
 	// AgentScopeASN1ExtensionOID is an extension OID that contains the agent scope
 	// used to tie the certificate to a spec
 	AgentScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 25}
+	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
+	// immuable label hash used to verify immutable labels.
+	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
 )
 
 // Device Trust OIDs.
@@ -1029,6 +1037,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		})
 	}
 
+	if id.ImmutableLabelHash != nil {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ImmutableLabelHashASN1ExtensionOID,
+				Value: hex.EncodeToString(id.ImmutableLabelHash),
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1306,6 +1322,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				if err := unmarshaler.Unmarshal([]byte(val), id.JoinAttributes); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				hash, err := hex.DecodeString(val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				id.ImmutableLabelHash = hash
 			}
 		}
 	}

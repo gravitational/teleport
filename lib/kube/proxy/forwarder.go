@@ -1004,7 +1004,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		}
 
 		// Get list of allowed kube user/groups based on kubernetes service labels.
-		labels := types.CombineLabels(c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
+		labels := types.CombineLabels(nil, c.GetStaticLabels(), types.LabelsToV2(c.GetDynamicLabels()))
 
 		matchers := make([]services.RoleMatcher, 0, 2)
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
