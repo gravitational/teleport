@@ -560,6 +560,9 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
 		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
 		"teleport_integration":                resourceTeleportIntegrationType{},
+		"teleport_inference_model":            resourceTeleportInferenceModelType{},
+		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
+		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
 	}, nil
 }
 
