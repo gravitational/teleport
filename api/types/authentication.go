@@ -132,10 +132,10 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
-	// GetAllowBrowserMFA returns if browser is allowed by cluster settings.
-	GetAllowBrowserMFA() bool
+	// GetAllowBrowser returns if browser is allowed by cluster settings.
+	GetAllowBrowser() bool
 	// SetAllowHeadless sets the value of the allow browser setting.
-	SetAllowBrowserMFA(b bool)
+	SetAllowBrowser(b bool)
 
 	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
 	SetRequireMFAType(RequireMFAType)
@@ -472,12 +472,12 @@ func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
 }
 
-func (c *AuthPreferenceV2) GetAllowBrowserMFA() bool {
-	return c.Spec.AllowBrowserMFA != nil && c.Spec.AllowBrowserMFA.Value
+func (c *AuthPreferenceV2) GetAllowBrowser() bool {
+	return c.Spec.AllowBrowser != nil && c.Spec.AllowBrowser.Value
 }
 
-func (c *AuthPreferenceV2) SetAllowBrowserMFA(b bool) {
-	c.Spec.AllowBrowserMFA = NewBoolOption(b)
+func (c *AuthPreferenceV2) SetAllowBrowser(b bool) {
+	c.Spec.AllowBrowser = NewBoolOption(b)
 }
 
 // SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
@@ -824,9 +824,9 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// Set/validate AllowBrowserMFA. We need Webauthn first to do this properly.
 	switch {
-	case c.Spec.AllowBrowserMFA == nil:
-		c.Spec.AllowBrowserMFA = NewBoolOption(hasWebauthn)
-	case !hasWebauthn && c.Spec.AllowBrowserMFA.Value:
+	case c.Spec.AllowBrowser == nil:
+		c.Spec.AllowBrowser = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowBrowser.Value:
 		return trace.BadParameter("missing required Webauthn configuration for browserMFA=true")
 	}
 

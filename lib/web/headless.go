@@ -66,18 +66,18 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	var mfaResp *proto.MFAAuthenticateResponse
-	var mfaErr error
-	if req.MFAResponse != nil {
-		mfaResp, mfaErr = req.MFAResponse.GetOptionalMFAResponseProtoReq()
-		if mfaErr != nil {
-			return nil, trace.Wrap(mfaErr)
-		}
-	}
-
 	var action types.HeadlessAuthenticationState
+	var mfaResp *proto.MFAAuthenticateResponse
 	switch req.Action {
 	case "accept":
+		var err error
+		if req.MFAResponse != nil {
+			mfaResp, err = req.MFAResponse.GetOptionalMFAResponseProtoReq()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 	case "denied":
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED

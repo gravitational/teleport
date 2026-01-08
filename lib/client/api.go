@@ -3786,6 +3786,9 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				"Headless login is not supported for this command. " +
 				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
 		case constants.BrowserConnector:
+			if !pr.Auth.AllowBrowser {
+				return nil, trace.BadParameter("browser auth disallowed by cluster settings")
+			}
 			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
 				return tc.browserLogin(ctx, keyRing)
 			}, nil

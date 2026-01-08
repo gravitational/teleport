@@ -1422,7 +1422,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
 		DeviceTrust:             deviceTrustSettings(cap),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
-		AllowBrowserMFA:         cap.GetAllowBrowserMFA(),
+		AllowBrowser:            cap.GetAllowBrowser(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.

@@ -2729,13 +2729,13 @@ message AuthPreferenceSpecV2 {
   // UNIX users.
   StableUNIXUserConfig stable_unix_user_config = 22;
 
-  // AllowBrowserMFA enables/disables browser support.
+  // AllowBrowser enables/disables tsh authentication via browser.
   // Browser authentication requires Webauthn to work.
   // Defaults to true if the Webauthn is configured, defaults to false
   // otherwise.
-  BoolValue AllowBrowserMFA = 23 [
+  BoolValue AllowBrowser = 23 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "allow_browser_mfa,omitempty",
+    (gogoproto.jsontag) = "allow_browser,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
 }

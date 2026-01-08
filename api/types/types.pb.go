@@ -7,6 +7,11 @@ import (
 	bytes "bytes"
 	encoding_binary "encoding/binary"
 	fmt "fmt"
+	io "io"
+	math "math"
+	math_bits "math/bits"
+	time "time"
+
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	_ "github.com/gogo/protobuf/types"
@@ -16,10 +21,6 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	_ "github.com/gravitational/teleport/api/types/wrappers"
 	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-	time "time"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -7924,11 +7925,11 @@ type AuthPreferenceSpecV2 struct {
 	// StableUnixUserConfig contains the cluster-wide configuration for stable
 	// UNIX users.
 	StableUnixUserConfig *StableUNIXUserConfig `protobuf:"bytes,22,opt,name=stable_unix_user_config,json=stableUnixUserConfig,proto3" json:"stable_unix_user_config,omitempty"`
-	// AllowBrowserMFA enables/disables browser support.
+	// AllowBrowser enables/disables browser support.
 	// Browser authentication requires Webauthn to work.
 	// Defaults to true if the Webauthn is configured, defaults to false
 	// otherwise.
-	AllowBrowserMFA      *BoolOption `protobuf:"bytes,23,opt,name=AllowBrowserMFA,proto3,customtype=BoolOption" json:"allow_browser_mfa,omitempty"`
+	AllowBrowser         *BoolOption `protobuf:"bytes,23,opt,name=AllowBrowserMFA,proto3,customtype=BoolOption" json:"allow_browser_mfa,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
 	XXX_sizecache        int32       `json:"-"`
@@ -38024,11 +38025,11 @@ func (m *AuthPreferenceSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if m.AllowBrowserMFA != nil {
+	if m.AllowBrowser != nil {
 		{
-			size := m.AllowBrowserMFA.Size()
+			size := m.AllowBrowser.Size()
 			i -= size
-			if _, err := m.AllowBrowserMFA.MarshalTo(dAtA[i:]); err != nil {
+			if _, err := m.AllowBrowser.MarshalTo(dAtA[i:]); err != nil {
 				return 0, err
 			}
 			i = encodeVarintTypes(dAtA, i, uint64(size))
@@ -62548,8 +62549,8 @@ func (m *AuthPreferenceSpecV2) Size() (n int) {
 		l = m.StableUnixUserConfig.Size()
 		n += 2 + l + sovTypes(uint64(l))
 	}
-	if m.AllowBrowserMFA != nil {
-		l = m.AllowBrowserMFA.Size()
+	if m.AllowBrowser != nil {
+		l = m.AllowBrowser.Size()
 		n += 2 + l + sovTypes(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
@@ -95915,10 +95916,10 @@ func (m *AuthPreferenceSpecV2) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.AllowBrowserMFA == nil {
-				m.AllowBrowserMFA = &BoolOption{}
+			if m.AllowBrowser == nil {
+				m.AllowBrowser = &BoolOption{}
 			}
-			if err := m.AllowBrowserMFA.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.AllowBrowser.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
