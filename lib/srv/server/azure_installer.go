@@ -44,7 +44,7 @@ type AzureInstallRequest struct {
 type AzureInstallFailure struct {
 	// Instance is the VM instance for which the installation failed.
 	Instance *armcompute.VirtualMachine
-	// Error is the ecountered error.
+	// Error is the encountered error.
 	Error error
 }
 
