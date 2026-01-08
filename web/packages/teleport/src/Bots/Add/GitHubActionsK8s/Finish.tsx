@@ -47,7 +47,7 @@ import { CodePanel } from './CodePanel';
 export function Finish(props: FlowStepProps) {
   const { prevStep } = props;
 
-  const [showDoneCheck, setShowDoneCheck] = useState(false);
+  const [showFinishCheck, setShowFinishCheck] = useState(false);
 
   const history = useHistory();
   const tracking = useTracking();
@@ -111,8 +111,8 @@ export function Finish(props: FlowStepProps) {
         </P2>
 
         <Flex gap={2} pt={5}>
-          <ButtonPrimary onClick={() => setShowDoneCheck(true)}>
-            Done
+          <ButtonPrimary onClick={() => setShowFinishCheck(true)}>
+            Finish
           </ButtonPrimary>
           <ButtonSecondary onClick={prevStep}>Back</ButtonSecondary>
         </Flex>
@@ -124,7 +124,7 @@ export function Finish(props: FlowStepProps) {
         />
       </CodeContainer>
 
-      <Dialog open={showDoneCheck} onClose={() => setShowDoneCheck(false)}>
+      <Dialog open={showFinishCheck} onClose={() => setShowFinishCheck(false)}>
         <DialogHeader mb={4}>
           <DialogTitle>
             Are you sure you would like to complete the guide?
@@ -144,7 +144,7 @@ export function Finish(props: FlowStepProps) {
             block
             size="large"
             autoFocus
-            onClick={() => setShowDoneCheck(false)}
+            onClick={() => setShowFinishCheck(false)}
           >
             Cancel
           </ButtonSecondary>
