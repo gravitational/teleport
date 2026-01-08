@@ -45,39 +45,20 @@ Teleport Proxy Service.
 
 ## Step 1/5. Configure Teleport resources
 
-{/* TODO: Consider recommending use of `tctl tokens configure-kube` once it is
-widely available. */}
-
 To begin, we'll need to create three new Teleport resources:
 1. A Teleport role to that will grant the `tbot` sidecar access to your desired
    SSH nodes
 1. A bot resource to name the bot and specify its list of allowed roles
 2. A join token to allow the bot to authenticate to Teleport
 
-For this example we'll assume your AWX jobs will run on a Kubernetes cluster
-where bots can join using the [Kubernetes `static_jwks` joining
-mode](../../../reference/deployment/join-methods.mdx#kubernetes-jwks).
-
-<Admonition type="tip" title="OIDC Joining">
-Kubernetes clusters running on cloud providers like Amazon EKS, Azure AKS, and
-Google Kubernetes Engine frequently rotate their JWKS keys and should instead
-use Kubernetes OIDC joining. Refer to our [Kubernetes OIDC joining
-guide](../deployment/kubernetes-oidc.mdx#step-15-verify-support-for-service-account-issuer-discovery)
-to learn how to configure the join token on these providers.
+<Admonition type="tip" title="Manual configuration">
+If you would instead prefer to configure joining manually, or wish to adapt the
+manual steps for use with Terraform or other tooling, see the [alternative
+steps](#configuring-oidc-joining-manually) below.
 </Admonition>
 
-Run the following command to determine your cluster's JWKS keys:
-```code
-$ kubectl get --raw /openid/v1/jwks
-{"keys":[--snip--]}
-```
-
-These keys will allow Teleport to verify that a bot trying to authenticate is
-using a JWT signed by your trusted Kubernetes cluster. Keep this value available
-for the next step.
-
-Next, create `awx-bot-resources.yaml` with the following content containing the
-three resources described above:
+First, we'll create a role and a bot. Create `awx-bot-resources.yaml` with the
+following content:
 ```yaml
 kind: role
 version: v7
@@ -102,30 +83,6 @@ spec:
   # but you can add any additional roles needed to grants the bot SSH access to
   # all the nodes you want to access via your Ansible jobs.
   roles: [example-role]
----
-kind: token
-version: v2
-metadata:
-  # name will be specified in the `tbot` to use this token
-  name: awx-bot
-spec:
-  roles: [Bot]
-  # bot_name should match the name of the bot resource above
-  bot_name: awx-bot
-  join_method: kubernetes
-  kubernetes:
-    # static_jwks configures the Auth Service to validate the JWT presented by
-    # `tbot` using the public key from a statically configured JWKS.
-    type: static_jwks
-    static_jwks:
-      jwks: |
-        # Replace this section (including this comment) with the JWKS keys you
-        # retrieved above.
-        {"keys":[--snip--]}
-    # allow specifies the rules by which the Auth Service determines if `tbot`
-    # should be allowed to join.
-    allow:
-    - service_account: "<Var name="awx" />:default" # namespace:service_account
 ```
 
 Be sure to adjust this configuration as needed:
@@ -133,16 +90,28 @@ Be sure to adjust this configuration as needed:
   just the nodes and logins needed to run your Ansible jobs.
 - Grant any additional desired roles to the bot by appending them to the
   `spec.roles` list in the bot definition.
-- Replace the token's `spec.kubernetes.static_jwks.jwks` field value with the
-  JWKS keys you retrieved above.
-- Adjust the token's `spec.kubernetes.allow` entry or entries as needed to match
-  the namespace(s) and service account under which your AWX jobs will run.
 
 Once ready, run the following command to create the resources on your Teleport
 cluster:
 ```code
 $ tctl create -f awx-bot-resources.yaml
 ```
+
+Next, we'll use `tctl tokens configure-kube` to automatically detect the best
+Kubernetes join method to use and create a join token automatically. Run
+the following:
+```code
+$ tctl tokens configure-kube \
+  --bot awx-bot \
+  --namespace <Var name="awx" /> \
+  --service-account default \
+  --token-name awx-bot
+```
+
+Adjust these flags as needed, and when ready, run the command to have it detect
+the best available join method and create a join token for your bot to use. You
+can ignore the helm instructions it prints and delete the `values.yaml` it
+generates - we won't be using the `teleport/tbot` Helm chart for this guide.
 
 ## Step 2/5. Configure Kubernetes resources
 
@@ -283,8 +252,6 @@ and make any necessary adjustments.
 Next, select the "Customize pod specification" checkbox. A text field will
 appear, containing a default pod spec. Replace it with the following:
 
-{/* TODO: update init container when `tbot copy-binaries` is available */}
-
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -295,9 +262,9 @@ spec:
   automountServiceAccountToken: false
   initContainers:
     - name: tbot-installer
-      image: public.ecr.aws/gravitational/teleport-distroless-debug:(=teleport.version=)
-      command: ["/busybox/busybox"]
-      args: ["cp", "/usr/local/bin/tbot", "/usr/local/bin/fdpass-teleport", "/tbot"]
+      image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
+      command: ["tbot"]
+      args: ["copy-binaries", "--include-fdpass", "/tbot"]
       volumeMounts:
         - name: tbot-binaries
           mountPath: /tbot
@@ -318,8 +285,8 @@ spec:
         - name: tbot-output
           mountPath: /tbot-output
     - name: tbot
-      image: public.ecr.aws/gravitational/teleport-distroless-debug:(=teleport.version=)
-      command: ["/usr/local/bin/tbot"]
+      image: public.ecr.aws/gravitational/tbot-distroless:(=teleport.version=)
+      command: ["tbot"]
       args:
         - start
         - -c
@@ -395,24 +362,10 @@ usual Ansible AWX tools, including smart and constructed inventories.
 
 ## Step 5/5. Use the credentials in your Ansible playbook
 
-Once `tbot` is successfully able to provide credentials to your AWX jobs, you
-can adjust your playbook to make use of the credentials.
+Once `tbot` is configured to provide credentials to your AWX jobs, your
+playbooks can start connecting to hosts protected by Teleport.
 
-{/* TODO: consider remove this once fix for gravitational/teleport#59066 is
-released; troubleshooting entry can stay to help users on older versions. */}
-
-First, create an `ansible.cfg` to disable OpenSSH's built-in multiplexer:
-
-```ini
-[ssh_connection]
-ssh_args = -o ControlMaster=no -o ControlPersist=no
-```
-
-As we've configured `tbot` to use its built-in `ssh-multiplexer` service,
-connections will still be multiplexed - by Teleport instead of OpenSSH - and
-performance should be equivalent.
-
-Next, start with this simple `hello_world.yml` playbook example:
+First, start with this simple `hello_world.yml` playbook example:
 
 ```yaml
 - name: Hello World Sample
@@ -485,10 +438,11 @@ output for each inventory node.
 
 ### Ansible fails to connect to Teleport hosts with an error like: "Shared connection to foo.example.teleport.sh closed."
 
-This is caused by [a Teleport
-bug](https://github.com/gravitational/teleport/issues/59066) with a pending fix.
-The simplest workaround is to disable OpenSSH's built-in multiplexing via
-an `ansible.cfg` in your project containing the following:
+This is caused by [a fixed Teleport
+bug](https://github.com/gravitational/teleport/issues/59066) and is best
+resolved by upgrading to a more recent Teleport release. Otherwise, you can
+work around `ControlMaster` issues by disabling OpenSSH's built-in multiplexing
+via an `ansible.cfg` in your project containing the following:
 
 ```ini
 [ssh_connection]
@@ -497,6 +451,114 @@ ssh_args = -o ControlMaster=no -o ControlPersist=no
 
 We've configured the `tbot` client to provide its own multiplexer (via the
 `ssh-multiplexer` service), so performance should be equivalent.
+
+### Configuring OIDC joining manually
+
+If for some reason `tctl tokens configure-kube` isn't working for you, or you
+would like to configure the token and other Teleport resources manually, you can
+follow these steps to do so.
+
+To begin, we'll need to create three new Teleport resources:
+1. A Teleport role to that will grant the `tbot` sidecar access to your desired
+   SSH nodes
+1. A bot resource to name the bot and specify its list of allowed roles
+2. A join token to allow the bot to authenticate to Teleport
+
+For this example we'll assume your AWX jobs will run on a Kubernetes cluster
+where bots can join using the [Kubernetes `static_jwks` joining
+mode](../../../reference/deployment/join-methods.mdx#kubernetes-jwks).
+
+<Admonition type="tip" title="OIDC Joining">
+Kubernetes clusters running on cloud providers like Amazon EKS, Azure AKS, and
+Google Kubernetes Engine frequently rotate their JWKS keys and should instead
+use Kubernetes OIDC joining. Refer to our [Kubernetes OIDC joining
+guide](../deployment/kubernetes-oidc.mdx#step-15-verify-support-for-service-account-issuer-discovery)
+to learn how to configure the join token on these providers.
+
+The `tctl tokens configure-kube` helper described in [the standard
+instructions](#step-15-configure-teleport-resources) automatically detects the
+best Kubernetes joining type for you.
+</Admonition>
+
+Run the following command to determine your cluster's JWKS keys:
+```code
+$ kubectl get --raw /openid/v1/jwks
+{"keys":[--snip--]}
+```
+
+These keys will allow Teleport to verify that a bot trying to authenticate is
+using a JWT signed by your trusted Kubernetes cluster. Keep this value available
+for the next step.
+
+Next, create `awx-bot-resources.yaml` with the following content containing the
+three resources described above:
+```yaml
+kind: role
+version: v7
+metadata:
+  name: example-role
+spec:
+  allow:
+    # Allow login to the Linux user 'root'.
+    logins: ['root']
+    # Allow connection to any node. Adjust these labels to match only nodes
+    # your Ansible jobs need to access.
+    node_labels:
+      '*': '*'
+---
+kind: bot
+version: v1
+metadata:
+  # name is a unique identifier for the Bot in the cluster.
+  name: awx-bot
+spec:
+  # roles is a list of roles to grant to the Bot. This includes the role above,
+  # but you can add any additional roles needed to grants the bot SSH access to
+  # all the nodes you want to access via your Ansible jobs.
+  roles: [example-role]
+---
+kind: token
+version: v2
+metadata:
+  # name will be specified in the `tbot` to use this token
+  name: awx-bot
+spec:
+  roles: [Bot]
+  # bot_name should match the name of the bot resource above
+  bot_name: awx-bot
+  join_method: kubernetes
+  kubernetes:
+    # static_jwks configures the Auth Service to validate the JWT presented by
+    # `tbot` using the public key from a statically configured JWKS.
+    type: static_jwks
+    static_jwks:
+      jwks: |
+        # Replace this section (including this comment) with the JWKS keys you
+        # retrieved above.
+        {"keys":[--snip--]}
+    # allow specifies the rules by which the Auth Service determines if `tbot`
+    # should be allowed to join.
+    allow:
+    - service_account: "<Var name="awx" />:default" # namespace:service_account
+```
+
+Be sure to adjust this configuration as needed:
+- Adjust the example role's `logins` and `node_labels` fields to limit access to
+  just the nodes and logins needed to run your Ansible jobs.
+- Grant any additional desired roles to the bot by appending them to the
+  `spec.roles` list in the bot definition.
+- Replace the token's `spec.kubernetes.static_jwks.jwks` field value with the
+  JWKS keys you retrieved above.
+- Adjust the token's `spec.kubernetes.allow` entry or entries as needed to match
+  the namespace(s) and service account under which your AWX jobs will run.
+
+Once ready, run the following command to create the resources on your Teleport
+cluster:
+```code
+$ tctl create -f awx-bot-resources.yaml
+```
+
+Once these resources have been created, continue from Step 2.
 
 ## Next Steps
 
