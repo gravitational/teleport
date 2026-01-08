@@ -66,6 +66,7 @@ func Handlers() map[string]Handler {
 		types.KindNode:                               serverHandler(),
 		types.KindOIDCConnector:                      oidcConnectorHandler(),
 		types.KindProxy:                              proxyHandler(),
+		types.KindRelayServer:                        relayServerHandler(),
 		types.KindRole:                               roleHandler(),
 		types.KindSAMLConnector:                      samlConnectorHandler(),
 		types.KindSAMLIdPServiceProvider:             samlIdPServiceProviderHandler(),
