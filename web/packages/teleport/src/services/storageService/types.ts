@@ -51,6 +51,8 @@ export const KeysEnum = {
     'grv_teleport_session_recordings_dismissed_setup',
   SESSION_RECORDING_SIDEBAR_HIDDEN:
     'grv_teleport_session_recording_sidebar_hidden',
+  SESSION_RECORDING_SIDEBAR_WIDTH:
+    'grv_teleport_session_recording_sidebar_width',
   SESSION_RECORDING_TIMELINE_HEIGHT:
     'grv_teleport_session_recording_timeline_height',
   SESSION_RECORDING_TIMELINE_HIDDEN:
