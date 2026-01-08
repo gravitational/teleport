@@ -116,10 +116,10 @@ type Config struct {
 	Log        *slog.Logger
 	PoolConfig *pgxpool.Config
 
-	DisableCleanup           bool
-	RetentionPeriod          time.Duration
-	CleanupInterval          time.Duration
-	EventsCertReloadInterval time.Duration
+	DisableCleanup     bool
+	RetentionPeriod    time.Duration
+	CleanupInterval    time.Duration
+	CertReloadInterval time.Duration
 }
 
 // SetFromURL sets config params from the URL, as per [pgxpool.ParseConfig]
@@ -177,7 +177,7 @@ func (c *Config) SetFromURL(u *url.URL) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		c.EventsCertReloadInterval = d
+		c.CertReloadInterval = d
 	}
 
 	return nil
@@ -230,8 +230,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.EventsCertReloadInterval != 0 {
-		err := pgcommon.CreateClientCertReloader(ctx, "pgevents", cfg.PoolConfig.ConnString(), cfg.PoolConfig.ConnConfig, cfg.EventsCertReloadInterval, nil)
+	if cfg.CertReloadInterval != 0 {
+		err := pgcommon.CreateClientCertReloader(ctx, "pgevents", cfg.PoolConfig.ConnString(), cfg.PoolConfig.ConnConfig, cfg.CertReloadInterval, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
