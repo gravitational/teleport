@@ -344,16 +344,14 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error
 		return trace.Wrap(err)
 	}
 
-	if resp.Properties != nil && resp.Properties.InstanceView != nil {
-		iv := resp.Properties.InstanceView
-		execState := fromPtr(iv.ExecutionState)
-		if execState != armcompute.ExecutionStateSucceeded {
-			return trace.BadParameter("execution failed; exec state: %v, output: %v, stderr: %v, exit code: %v", execState, fromPtr(iv.Output), fromPtr(iv.Error), fromPtr(iv.ExitCode))
-		}
-	} else {
+	if resp.Properties == nil || resp.Properties.InstanceView == nil {
 		return trace.BadParameter("unable to query command execution state, failure assumed")
 	}
-
+	iv := resp.Properties.InstanceView
+	execState := fromPtr(iv.ExecutionState)
+	if execState != armcompute.ExecutionStateSucceeded {
+		return trace.BadParameter("execution failed; exec state: %v, output: %v, stderr: %v, exit code: %v", execState, fromPtr(iv.Output), fromPtr(iv.Error), fromPtr(iv.ExitCode))
+	}
 	return nil
 }
 
