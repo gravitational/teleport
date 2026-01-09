@@ -111,7 +111,7 @@ jobs:
 
           REPO=$(jq -r '.repository' $META_FILE)
           ID=$(jq -r '.id' $META_FILE)
-          META_VERSION=$(jq -r '.canonical_meta_schema_version' $META_VERSION)
+          META_VERSION=$(jq -r '.canonical_meta_schema_version' $META_FILE)
 
           TIMESTAMP=$(jq -r '.timestamp' $META_FILE)
           YEAR=$(date -u -d "$TIMESTAMP" +"%Y")
