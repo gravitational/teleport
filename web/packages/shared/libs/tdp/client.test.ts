@@ -44,27 +44,21 @@ const mockSharedDirectoryAccess: SharedDirectoryAccess = {
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 
 test('tdp upgrade', async () => {
-  // Create a callback the resoves a promise
-  let cb: () => void;
-  let pm = new Promise<void>(resolve => {
-    cb = () => {
-      resolve();
-      return;
-    };
-  });
-
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
     () => Promise.resolve(mockSharedDirectoryAccess),
-    new TdpCodec(),
-    cb // Called once transport is set and initial TDP messages sent
+    new TdpCodec()
   );
+
+  const transportOpen = new Promise<void>(client.onTransportOpen);
 
   client.connect({
     screenSpec: { width: 1920, height: 1080 },
     keyboardLayout: 4,
   });
-  await pm; // Transport has been set on client and initial messages were sent
+
+  await transportOpen;
+
   expect(mockTransport.send).toHaveBeenCalledTimes(2);
 
   let onMessage = mockTransport.onMessage.mock.calls[0][0] as (

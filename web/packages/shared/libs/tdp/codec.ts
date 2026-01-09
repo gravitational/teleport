@@ -364,6 +364,7 @@ export type ClientHello = {
   keyboardLayout: number;
   screenSpec: ClientScreenSpec;
 };
+
 export type MfaResponse = {
   totp_code?: string;
   webauthn_response?: {
@@ -417,71 +418,44 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
 
 // Implement a set of encoding methods that the client will use
 // to send outbound messages
-export abstract class Codec {
-  // Legacy TDP Messages (optional override)
-  encodeClientKeyboardLayout(keyboardLayout: number): Message {
-    void keyboardLayout;
-    throw new Error('unimplemented');
-  }
-
-  encodeUsername(username: string): Message {
-    void username;
-    throw new Error('unimplemented');
-  }
-
-  // TDPB Messages (optional override)
-  encodeClientHello(hello: ClientHello): Message {
-    void hello;
-    throw new Error('unimplemented');
-  }
-
+export interface Codec {
   // Convert incoming messages into a common CodecResult
-  abstract processMessage(buffer: ArrayBufferLike): CodecResult;
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage;
 
   // Shared TDP/TDPB Messages
-  abstract encodeInitialMessages(
+  encodeInitialMessages(
     spec?: ClientScreenSpec,
-    keyboard_layout?: number
+    keyboardLayout?: number
   ): Message[];
-  abstract encodeMouseMove(x: number, y: number): Message;
-  abstract encodeMouseButton(button: MouseButton, state: ButtonState): Message;
-  abstract encodeSyncKeys(syncKeys: SyncKeys): Message;
-  abstract encodeClipboardData(clipboardData: ClipboardData): Message;
-  abstract encodeKeyboardInput(code: string, state: ButtonState): Message[];
-  abstract encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
-  abstract encodeClientScreenSpec(spec: ClientScreenSpec): Message;
-  abstract encodeMfaJson(mfaJson: MfaResponse): Message;
-  abstract encodeSharedDirectoryInfoResponse(
-    res: SharedDirectoryInfoResponse
-  ): Message;
-  abstract encodeSharedDirectoryReadResponse(
-    res: SharedDirectoryReadResponse
-  ): Message;
-  abstract encodeSharedDirectoryMoveResponse(
-    res: SharedDirectoryMoveResponse
-  ): Message;
-  abstract encodeSharedDirectoryListResponse(
-    res: SharedDirectoryListResponse
-  ): Message;
-  abstract encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message;
-  abstract encodeSharedDirectoryAnnounce(
-    announce: SharedDirectoryAnnounce
-  ): Message;
-  abstract encodeSharedDirectoryCreateResponse(
+  encodeMouseMove(x: number, y: number): Message;
+  encodeMouseButton(button: MouseButton, state: ButtonState): Message;
+  encodeSyncKeys(syncKeys: SyncKeys): Message;
+  encodeClipboardData(clipboardData: ClipboardData): Message;
+  encodeKeyboardInput(code: string, state: ButtonState): Message[];
+  encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
+  encodeClientScreenSpec(spec: ClientScreenSpec): Message;
+  encodeMfaJson(mfaJson: MfaResponse): Message;
+  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
+  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
+  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message;
+  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message;
+  encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message;
+  encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message;
+  encodeSharedDirectoryCreateResponse(
     resp: SharedDirectoryCreateResponse
   ): Message;
-  abstract encodeSharedDirectoryDeleteResponse(
+  encodeSharedDirectoryDeleteResponse(
     resp: SharedDirectoryDeleteResponse
   ): Message;
-  abstract encodeSharedDirectoryWriteResponse(
+  encodeSharedDirectoryWriteResponse(
     resp: SharedDirectoryWriteResponse
   ): Message;
-  abstract encodeSharedDirectoryTruncateResponse(
+  encodeSharedDirectoryTruncateResponse(
     resp: SharedDirectoryTruncateResponse
   ): Message;
 }
 
-export type CodecResult =
+export type DecodedMessage =
   | { kind: 'pngFrame'; data: PngFrame }
   | { kind: 'rdpConnectionActivated'; data: RdpConnectionActivated }
   | { kind: 'serverHello'; data: ServerHello }
@@ -506,7 +480,7 @@ export type CodecResult =
   | { kind: 'clientScreenSpec'; data: ClientScreenSpec }
   | { kind: 'mouseButton'; data: MouseButtonState }
   | { kind: 'mouseMove'; data: MouseMove }
-  | { kind: 'unknown'; data: any };
+  | { kind: 'unknown'; data: unknown };
 
 // Assists with type narrowing on SharedDirectory messages by
 // excluding the 'undefined' variant of the generated oneof.
@@ -521,7 +495,7 @@ function hasOneof<T extends { oneofKind?: string }>(
   return value.oneofKind !== undefined;
 }
 
-export class TdpbCodec extends Codec {
+export class TdpbCodec implements Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
 
@@ -544,7 +518,7 @@ export class TdpbCodec extends Codec {
     completionId: number,
     directoryId: number,
     op: SharedDirectoryRequest['operation']
-  ): CodecResult {
+  ): DecodedMessage {
     // Exclude 'oneOfKind: undefined'
     // Possibly due to 'strictNullChecks' being disabled, the compiler can't seem to narrow
     // the discriminated union using control flow analysis alone.
@@ -635,7 +609,7 @@ export class TdpbCodec extends Codec {
     }
   }
 
-  processMessage(buffer: ArrayBufferLike): CodecResult {
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage {
     // Note: TDPB messages are prefixed with a single big endian uint32 containing their length
     // to act as a simple framing mechanism. This client connects via a websocket which makes this
     // framing header redundant. Still, to avoid leaking TDPB details to the client implementation,
@@ -804,14 +778,14 @@ export class TdpbCodec extends Codec {
 
   encodeInitialMessages(
     spec?: ClientScreenSpec,
-    keyboard_layout?: number
+    keyboardLayout?: number
   ): Message[] {
     // Send a Hello message regardless of whether or we've been provided a screenspec or keyboardlayout
     const hello = this.marshal({
       oneofKind: 'clientHello',
       clientHello: tdpbClientHello.create({
         screenSpec: spec,
-        keyboardLayout: keyboard_layout,
+        keyboardLayout: keyboardLayout,
       }),
     });
     return new Array<Message>(hello);
@@ -1093,11 +1067,11 @@ export class TdpbCodec extends Codec {
 // [1] https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
-export class TdpCodec extends Codec {
+export class TdpCodec implements Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
 
-  processMessage(buffer: ArrayBufferLike): CodecResult {
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage {
     const messageType = this.decodeMessageType(buffer);
     switch (messageType) {
       case MessageType.PNG_FRAME:

@@ -165,8 +165,8 @@ export class TdpClient extends EventEmitter<EventMap> {
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
-    protected codec: Codec = new TdpCodec(),
-    private transportReady?: () => void
+    protected codec: Codec = new TdpCodec()
+    //private transportReady?: () => void
   ) {
     super();
   }
@@ -210,11 +210,6 @@ export class TdpClient extends EventEmitter<EventMap> {
       .encodeInitialMessages(options.screenSpec, options.keyboardLayout)
       .forEach(msg => this.send(msg));
     this.emit(TdpClientEvent.TRANSPORT_OPEN);
-
-    // Transport ready and initial messages sent
-    if (this.transportReady) {
-      this.transportReady();
-    }
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -357,7 +352,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBufferLike): Promise<void> {
-    const result = this.codec.processMessage(buffer);
+    const result = this.codec.decodeMessage(buffer);
     switch (result.kind) {
       case 'pngFrame':
         this.handlePngFrame(result.data);
@@ -440,11 +435,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleTDPBUpgrade() {
     // Swap our codec to the TDPB codec.
-    this.codec = new TdpbCodec();
+    const tdpbCodec = new TdpbCodec();
+    this.codec = tdpbCodec;
 
     // Send the TDPB client hello
     this.send(
-      this.codec.encodeClientHello({
+      tdpbCodec.encodeClientHello({
         keyboardLayout: this.keyboardLayout,
         screenSpec: this.screenSpec,
       })
@@ -747,10 +743,6 @@ export class TdpClient extends EventEmitter<EventMap> {
       `requesting screen spec from client ${spec.width} x ${spec.height}`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
-  }
-
-  sendClientKeyboardLayout(keyboardLayout: number) {
-    this.send(this.codec.encodeClientKeyboardLayout(keyboardLayout));
   }
 
   sendMouseMove(x: number, y: number) {
