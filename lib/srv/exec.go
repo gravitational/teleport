@@ -61,6 +61,9 @@ type ExecResult struct {
 
 	// Code is return code that execution of the command resulted in.
 	Code int
+
+	// Error is an exit error from the child process.
+	Error error
 }
 
 // Exec executes an "exec" request.
@@ -158,7 +161,6 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 	}
 
 	// Connect stdout and stderr to the channel so the user can interact with the command.
-	e.Cmd.Stderr = channel.Stderr()
 	e.Cmd.Stdout = channel
 
 	// Copy from the channel (client input) into stdin of the process.
@@ -212,13 +214,15 @@ func (e *localExec) Wait() *ExecResult {
 	} else {
 		e.Ctx.Logger.DebugContext(e.Ctx.CancelContext(), "Local command successfully executed")
 	}
+	exitCode := exitCode(err)
 
 	// Emit the result of execution to the Audit Log.
 	emitExecAuditEvent(e.Ctx, e.GetCommand(), err)
 
 	execResult := &ExecResult{
 		Command: e.GetCommand(),
-		Code:    exitCode(err),
+		Code:    exitCode,
+		Error:   e.Ctx.GetChildError(),
 	}
 
 	return execResult
@@ -342,9 +346,8 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 		return nil, trace.Wrap(err)
 	}
 
-	// hook up stdout/err the channel so the user can interact with the command
+	// hook up stdout the channel so the user can interact with the command
 	e.session.Stdout = ch
-	e.session.Stderr = ch.Stderr()
 	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)

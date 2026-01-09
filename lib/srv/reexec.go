@@ -235,20 +235,6 @@ func RunCommand() (code int, err error) {
 	// ignore SIGQUIT signals.
 	signal.Ignore(syscall.SIGQUIT)
 
-	// If the command fails to launch, write the error to stdout for the parent process
-	// to digest. If we have a terminal, write it there for the user to see as well.
-	var tty *os.File
-	defer func() {
-		if err != nil && code == teleport.RemoteCommandFailure {
-			var w io.Writer = os.Stdout
-			if tty != nil {
-				w = io.MultiWriter(os.Stdout, tty)
-			}
-
-			fmt.Fprintf(w, "Failed to launch: %v.\r\n", err)
-		}
-	}()
-
 	// Parent sends the command payload in the third file descriptor.
 	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
@@ -316,6 +302,7 @@ func RunCommand() (code int, err error) {
 	// If a terminal was requested, file descriptor 7 always points to the
 	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
+	var tty *os.File
 	if c.Terminal {
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if tty == nil {
@@ -779,6 +766,10 @@ func RunNetworking() (code int, err error) {
 		// Therefore we favor handling requests and cleanup on the main PAM thread for requests that
 		// are expected to be impacted (unix socket listeners).
 		switch req.Operation {
+		case networking.NetworkingReadyCheck:
+			// Signal ready by responding to the connection.
+			requestConn.Write([]byte{0})
+			requestConn.Close()
 		case networking.NetworkingOperationDial, networking.NetworkingOperationListen:
 			switch req.Network {
 			case "tcp":
@@ -982,6 +973,11 @@ func RunAndExit(commandType string) {
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
+		// Write the error to stderr, where it can be seen by the parent teleport process and the client.
+		if code == teleport.RemoteCommandFailure {
+			fmt.Fprintf(os.Stderr, "Failed to launch: %v", err)
+		}
+
 		// The "operation not permitted" error is expected from a variety of operations if the
 		// teleport process is running as a non-root user and is trying to spawn a process for
 		// a different OS user.
@@ -1294,6 +1290,9 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
 	}
+
+	// Capture stderr.
+	cmd.Stderr = ctx.stderrW
 
 	// Perform OS-specific tweaks to the command.
 	reexecCommandOSTweaks(cmd)

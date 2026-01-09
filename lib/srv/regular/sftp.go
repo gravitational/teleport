@@ -121,8 +121,6 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.sftpCmd.Stdout = os.Stdout
-	s.sftpCmd.Stderr = os.Stderr
 
 	s.logger.DebugContext(ctx, "starting SFTP process")
 	err = s.sftpCmd.Start()
@@ -233,6 +231,7 @@ func (s *sftpSubsys) Wait() error {
 	s.serverCtx.SendExecResult(ctx, srv.ExecResult{
 		Command: s.sftpCmd.String(),
 		Code:    s.sftpCmd.ProcessState.ExitCode(),
+		Error:   s.serverCtx.GetChildError(),
 	})
 
 	errs := []error{waitErr}
