@@ -105,7 +105,7 @@ describe('ConfigureAccess', () => {
         ref: 'main',
         refType: 'branch',
         workflow: 'my-workflow',
-        kubernetesGroups: [],
+        kubernetesGroups: ['viewers'],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
       },
@@ -118,6 +118,33 @@ describe('ConfigureAccess', () => {
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(onNextStep).toHaveBeenCalledTimes(1);
     expect(onPrevStep).toHaveBeenCalledTimes(1);
+  });
+
+  test('validates that groups or users are provided', async () => {
+    const { onNextStep, user } = renderComponent({
+      initialState: {
+        allowAnyBranch: false,
+        branch: 'main',
+        enterpriseJwks: '{"keys":[]}',
+        enterpriseSlug: 'octo-enterprise',
+        environment: 'production',
+        gitHubUrl: 'https://github.com/gravitational/teleport',
+        isBranchDisabled: false,
+        ref: 'main',
+        refType: 'branch',
+        workflow: 'my-workflow',
+        kubernetesGroups: [],
+        kubernetesLabels: [{ name: '*', values: ['*'] }],
+        kubernetesUsers: [],
+      },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(onNextStep).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByText('A Kubernetes group or user is required')
+    ).toHaveLength(2);
   });
 
   test('input groups', async () => {
