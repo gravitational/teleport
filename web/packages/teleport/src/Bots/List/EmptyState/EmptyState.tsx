@@ -74,9 +74,10 @@ export function EmptyState() {
           Static keys and API keys in your automated workflows are the target of
           hackers and are one of the primary sources of security breaches.
           <br />
-          Teleport Machine ID replaces shared credentials and secrets with
-          short-lived x.509 or SSH certificates and gives you a unified plan to
-          register, define access policies, and audit all your workflows.
+          Teleport Machine & Workload Identity replaces shared credentials and
+          secrets with short-lived X.509 or SSH certificates and gives you a
+          unified plan to register, define access policies, and audit all your
+          workflows.
         </Text>
       </Box>
       <FeatureContainer py={2} pr={2}>
@@ -87,7 +88,7 @@ export function EmptyState() {
             isSliding={!!intervalId}
             onClick={() => handleOnClick(0)}
             title="Eliminate secrets and shared credentials from CI/CD workflows"
-            description="Teleport Machine ID replaces passwords, API, and static keys with short-lived SSH and x.509 certificates."
+            description="Teleport Machine & Workload Identity replaces passwords, API, and static keys with short-lived SSH and X.509 certificates."
           />
           <DetailsTab
             active={currIndex === 1}
