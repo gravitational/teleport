@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && embed_sshd_helper
 
 /*
  * Teleport
@@ -21,12 +21,18 @@
 package reexec
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
+
+	"github.com/gravitational/teleport"
 )
 
 func init() {
@@ -64,6 +70,53 @@ func init() {
 // passed to reexecCommandOSTweaks, if not empty.
 var reexecPath string
 
+var embedFileOnce sync.Once
+var embedFile *os.File
+
+func embedFileInit() {
+	mfd, err := unix.MemfdCreate("teleport-sshd-helper", unix.MFD_ALLOW_SEALING|unix.MFD_CLOEXEC|unix.MFD_EXEC)
+	if err == unix.EINVAL {
+		mfd, err = unix.MemfdCreate("teleport-sshd-helper", unix.MFD_ALLOW_SEALING|unix.MFD_CLOEXEC)
+	}
+	if err != nil {
+		// if err == unix.EACCES { try a tmpfile }
+		slog.WarnContext(context.Background(), "failed to create memfd for embedded binary", "error", err)
+		return
+	}
+
+	mf := os.NewFile(uintptr(mfd), fmt.Sprintf("/proc/%d/fd/%d", os.Getpid(), mfd))
+	if _, err := mf.WriteString(teleport.SSHDHelperBinary); err != nil {
+		slog.WarnContext(context.Background(), "failed to write embedded binary in memfd", "error", err)
+		_ = mf.Close()
+		return
+	}
+	if err := mf.Chmod(0o111); err != nil {
+		slog.WarnContext(context.Background(), "failed to chmod memfd for embedded binary", "error", err)
+		_ = mf.Close()
+		return
+	}
+
+	// ignore errors here, F_SEAL_EXEC is new-ish (taking a page out of runc's
+	// logic for memfds)
+	_, _ = unix.FcntlInt(uintptr(mfd), unix.F_ADD_SEALS, unix.F_SEAL_EXEC)
+
+	if _, err := unix.FcntlInt(uintptr(mfd), unix.F_ADD_SEALS, unix.F_SEAL_SEAL|unix.F_SEAL_SHRINK|unix.F_SEAL_GROW|unix.F_SEAL_WRITE); err != nil {
+		slog.WarnContext(context.Background(), "failed to seal memfd for embedded binary", "error", err)
+		_ = mf.Close()
+		return
+	}
+
+	embedFile = mf
+}
+
+func getEmbedPath() string {
+	embedFileOnce.Do(embedFileInit)
+	if embedFile == nil {
+		return ""
+	}
+	return embedFile.Name()
+}
+
 func CommandOSTweaks(cmd *exec.Cmd) {
 	reexecCommandOSTweaks(cmd)
 }
@@ -81,7 +134,11 @@ func reexecCommandOSTweaks(cmd *exec.Cmd) {
 	// upgraded version of teleport) with reexecPath, which contains
 	// some path that refers to the specific binary we're running
 	if reexecPath != "" {
-		cmd.Path = reexecPath
+		if embedPath := getEmbedPath(); embedPath != "" {
+			cmd.Path = embedPath
+		} else {
+			cmd.Path = reexecPath
+		}
 	}
 }
 

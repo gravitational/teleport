@@ -118,7 +118,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 	// Perform OS-specific tweaks to the command.
 	reexec.CommandOSTweaks(cmd)
-	cmd.Path = "/usr/local/bin/teleport-sshd-helper"
 
 	return cmd, nil
 }
