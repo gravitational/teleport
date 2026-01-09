@@ -340,6 +340,24 @@ const mockAccessLists = () => {
       members: Array(1).fill({}),
       membersCount: 1,
     },
+    {
+      metadata: {
+        name: 'entra1',
+        labels: {
+          'teleport.dev/origin': 'entra-id',
+        },
+      },
+      spec: {
+        title: 'AD group',
+        description: 'lorem ipsum some kind of generic description',
+        audit: {},
+        grants: { roles: ['access'] },
+        ownership_requires: { roles: [] },
+        owners: [],
+      },
+      members: Array(1).fill({}),
+      membersCount: 1,
+    },
   ].map((list, i) => {
     return {
       ...list,

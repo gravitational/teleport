@@ -230,7 +230,8 @@ function MainContent({
       accessLists.some(
         a =>
           a.origin === AccessListOrigin.Okta ||
-          a.origin === AccessListOrigin.AwsIdentityCenter
+          a.origin === AccessListOrigin.AwsIdentityCenter ||
+          a.origin === AccessListOrigin.EntraID
       ),
     [accessLists]
   );
@@ -505,6 +506,8 @@ const friendlyListOrigin = (listType: string) => {
       return 'Okta';
     case AccessListOrigin.AwsIdentityCenter:
       return 'AWS IAM Identity Center';
+    case AccessListOrigin.EntraID:
+      return 'Entra ID';
     default:
       return 'Teleport';
   }

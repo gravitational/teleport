@@ -309,6 +309,12 @@ function originFromMetadataLabel(labels: object): AccessListOrigin {
     }
   }
 
+  for (const [k, v] of Object.entries(labels)) {
+    if (k === 'teleport.dev/origin' && v === 'entra-id') {
+      return AccessListOrigin.EntraID;
+    }
+  }
+
   return AccessListOrigin.Unspecified;
 }
 

@@ -20,6 +20,10 @@ export const TypeBadge = ({ type }: { type: AccessListOrigin }) => {
         iconName = 'okta';
         title = 'Okta';
         break;
+      case AccessListOrigin.EntraID:
+        iconName = 'entraid';
+        title = 'Entra ID';
+        break;
     }
     return (
       <>
@@ -36,6 +40,7 @@ export const TypeBadge = ({ type }: { type: AccessListOrigin }) => {
       css={`
         background: ${props => props.theme.colors.spotBackground[0]};
         border-radius: 35px;
+        padding-inline: 5px;
         min-width: 60px;
         height: 22px;
         color: ${p => p.theme.colors.text.slightlyMuted};
