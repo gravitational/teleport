@@ -92,10 +92,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 
 	download := recordings.Command("download", "Download session recordings.")
 	download.Arg("session-id", "ID of the session to download recordings for.").Required().StringVar(&c.recordingsDownloadSessionID)
-	pwd, err := os.Getwd()
-	if err != nil {
-		pwd = "."
-	}
+	pwd := "."
 	download.Flag("output-dir", "Directory to download session recordings to.").Short('o').Default(pwd).StringVar(&c.recordingsDownloadOutputDir)
 	c.recordingsDownload = download
 
