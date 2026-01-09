@@ -19,7 +19,6 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 
 	proto "github.com/gogo/protobuf/proto"
@@ -29,7 +28,6 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
@@ -67,55 +65,5 @@ func (protobufMFACodec) DecodeChallenge(bytes []byte, envelopeType string) (*aut
 
 	return &authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
-	}, nil
-}
-
-// tdpMFACodec converts MFA challenges and responses to Teleport Desktop
-// Protocol (TDP) messages used by Desktop Access web sessions
-type tdpMFACodec struct{}
-
-func (tdpMFACodec) Encode(chal *client.MFAAuthenticateChallenge, envelopeType string) ([]byte, error) {
-	switch envelopeType {
-	case defaults.WebsocketMFAChallenge:
-	default:
-		return nil, trace.BadParameter(
-			"received envelope type %v, expected %v (MFAChallenge)", envelopeType, defaults.WebsocketMFAChallenge)
-	}
-
-	tdpMsg := tdp.MFA{
-		Type:                     envelopeType[0],
-		MFAAuthenticateChallenge: chal,
-	}
-	return tdpMsg.Encode()
-}
-
-func (tdpMFACodec) DecodeResponse(buf []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
-	if len(buf) == 0 {
-		return nil, trace.BadParameter("empty MFA message received")
-	}
-	if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-		return nil, trace.BadParameter("decodeResponse: expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
-	}
-	msg, err := tdp.DecodeMFA(bytes.NewReader(buf[1:]))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return msg.MFAAuthenticateResponse, nil
-}
-
-func (tdpMFACodec) DecodeChallenge(buf []byte, envelopeType string) (*authproto.MFAAuthenticateChallenge, error) {
-	if len(buf) == 0 {
-		return nil, trace.BadParameter("empty MFA message received")
-	}
-	if tdp.MessageType(buf[0]) != tdp.TypeMFA {
-		return nil, trace.BadParameter("decodeChallenge: expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
-	}
-	msg, err := tdp.DecodeMFAChallenge(bytes.NewReader(buf[1:]))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &authproto.MFAAuthenticateChallenge{
-		WebauthnChallenge: wantypes.CredentialAssertionToProto(msg.WebauthnChallenge),
 	}, nil
 }

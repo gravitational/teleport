@@ -1051,7 +1051,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle, WithSubprotocols(protocolTDPB)))
 	// GET /webapi/sites/:site/desktopplayback/:sid/ws
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
@@ -4938,9 +4938,9 @@ var authnWsUpgrader = websocket.Upgrader{
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket, as well as to grab the remoteSite (which can represent this local
 // cluster or a remote trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httprouter.Handle {
+func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler, opts ...wsUpgraderOption) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p)
+		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4959,8 +4959,8 @@ func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httproute
 // *SessionContext (same as AuthenticateRequest), and also grabs the
 // remoteSite (which can represent this local cluster or a remote
 // trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
-	sctx, ws, err := h.AuthenticateRequestWS(w, r)
+func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, opts ...wsUpgraderOption) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
+	sctx, ws, err := h.AuthenticateRequestWS(w, r, opts...)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -5444,14 +5444,29 @@ type wsStatus struct {
 // open.
 const wsIODeadline = time.Second * 4
 
+type wsUpgraderOption func(*websocket.Upgrader)
+
+// Adds subprotocol(s) to the websocket upgrade response
+func WithSubprotocols(s ...string) wsUpgraderOption {
+	return func(u *websocket.Upgrader) {
+		u.Subprotocols = s
+	}
+}
+
 // AuthenticateRequest authenticates request using combination of a session cookie
 // and bearer token retrieved from a websocket
-func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) (*SessionContext, *websocket.Conn, error) {
+func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request, opts ...wsUpgraderOption) (*SessionContext, *websocket.Conn, error) {
 	sctx, err := h.validateCookie(w, r)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ws, err := authnWsUpgrader.Upgrade(w, r, nil)
+
+	upgrader := authnWsUpgrader
+	for _, opt := range opts {
+		opt(&upgrader)
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error upgrading to websocket: %v", err)
 	}
