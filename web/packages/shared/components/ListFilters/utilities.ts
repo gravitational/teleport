@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import { FilterMap } from './ListFilters';
 
-export { IntegrationPicker, displayName } from './IntegrationPicker';
-export { Tile, IntegrationTileWithSpec } from './Tile';
+export function applyFilters<Item, Values extends Record<string, unknown>>(
+  list: Item[],
+  filters: FilterMap<Item, Values>
+) {
+  return Object.values(filters).reduce((acc, filter) => {
+    if (filter.selected.length === 0) return acc;
+    return filter.apply(acc, filter.selected);
+  }, list);
+}

@@ -31,7 +31,8 @@ import {
   integrationTagOptions,
   isIntegrationTag,
   type IntegrationTag,
-} from './common';
+} from 'teleport/Integrations/types';
+
 import { IntegrationPickerFilterKey, IntegrationPickerState } from './state';
 
 export function FilterPanel({

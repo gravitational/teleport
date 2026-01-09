@@ -22,7 +22,8 @@ import { Router } from 'react-router';
 
 import { Providers, render, screen } from 'design/utils/testing';
 
-import { type BaseIntegration } from './common';
+import { type BaseIntegration } from 'teleport/Integrations/types';
+
 import { IntegrationPicker } from './IntegrationPicker';
 
 type TestIntegration = BaseIntegration & {

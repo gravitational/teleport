@@ -44,6 +44,7 @@ export default function Table<T>(props: TableProps<T>) {
     emptyText,
     emptyHint,
     emptyButton,
+    filters,
     nextPage,
     prevPage,
     setSearchValue,
@@ -201,6 +202,7 @@ export default function Table<T>(props: TableProps<T>) {
       setSearchValue,
       fetching,
       isSearchable,
+      filters,
     };
 
     if (state.pagination.CustomTable) {
@@ -289,6 +291,7 @@ function PagedTable<T>({
   pagination,
   searchValue,
   setSearchValue,
+  filters,
   fetching,
   className,
   style,
@@ -321,6 +324,7 @@ function PagedTable<T>({
           )}
         </StyledPanel>
       )}
+      {filters && <StyledPanel>{filters}</StyledPanel>}
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}

@@ -17,6 +17,7 @@
  */
 
 import cfg from 'teleport/config';
+import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
@@ -25,6 +26,7 @@ import { integrationService } from './integrations';
 import {
   IntegrationAudience,
   IntegrationAwsOidc,
+  IntegrationKind,
   IntegrationStatusCode,
 } from './types';
 
@@ -43,8 +45,9 @@ test('fetch a single integration: fetchIntegration()', async () => {
   expect(api.get).toHaveBeenCalledWith(
     cfg.getIntegrationsUrl('integration-name')
   );
+  const kind = IntegrationKind.AwsOidc;
   expect(response).toEqual({
-    kind: 'aws-oidc',
+    kind,
     name: 'aws-oidc-integration',
     resourceType: 'integration',
     details:
@@ -54,6 +57,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
       origin: undefined,
     },
     statusCode: IntegrationStatusCode.Running,
+    tags: integrationKindToTags(kind),
   });
 
   // test null response
@@ -68,6 +72,7 @@ test('fetch a single integration: fetchIntegration()', async () => {
     statusCode: IntegrationStatusCode.Running,
     kind: undefined,
     name: undefined,
+    tags: [],
   });
 });
 
@@ -89,7 +94,7 @@ test('fetch integration list: fetchIntegrations()', async () => {
     nextKey: 'some-key',
     items: [
       {
-        kind: 'aws-oidc',
+        kind: IntegrationKind.AwsOidc,
         name: 'aws-oidc-integration',
         resourceType: 'integration',
         details:
@@ -98,9 +103,10 @@ test('fetch integration list: fetchIntegrations()', async () => {
           roleArn: 'arn-123',
         },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       },
       {
-        kind: 'aws-oidc',
+        kind: IntegrationKind.AwsOidc,
         name: 'aws-oidc-integration2',
         resourceType: 'integration',
         details:
@@ -110,20 +116,23 @@ test('fetch integration list: fetchIntegrations()', async () => {
           audience: 'aws-identity-center',
         },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       },
       {
-        kind: 'github',
+        kind: IntegrationKind.GitHub,
         name: 'github-my-org',
         resourceType: 'integration',
         details: 'GitHub repository access for organization "my-org"',
         spec: { organization: 'my-org' },
         statusCode: IntegrationStatusCode.Running,
+        tags: integrationKindToTags(IntegrationKind.GitHub),
       },
       {
         kind: 'abc',
         name: 'non-aws-oidc-integration',
         resourceType: 'integration',
         statusCode: IntegrationStatusCode.Running,
+        tags: [],
       },
     ],
   });

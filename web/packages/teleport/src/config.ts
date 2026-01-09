@@ -45,7 +45,7 @@ import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
-import { IntegrationTag } from './Integrations/Enroll/Shared';
+import { IntegrationTag } from './Integrations/types';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
 
