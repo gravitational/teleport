@@ -24,6 +24,9 @@
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
 //!   and whose name begins with `CGO`)
 
+// bring in rdp-decoder to export its unmangled symbols in the staticlib
+extern crate rdp_decoder as _;
+
 use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
