@@ -505,7 +505,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				Hint: "Wow - what a lovely hint, {{user.name}}!",
 				X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 					DnsSans: []string{
-						"example.com",
+						"*.example.com",
 						"{{user.name}}.example.com",
 					},
 				},
@@ -849,7 +849,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
 				// Check cert TTL
 				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
-				require.Equal(t, []string{"example.com", "dog.example.com"}, cert.DNSNames)
+				require.Equal(t, []string{"*.example.com", "dog.example.com"}, cert.DNSNames)
 
 				// Check against SPIFFE SPEC
 				// References are to https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
@@ -902,7 +902,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						WorkloadIdentity:         full.GetMetadata().GetName(),
 						WorkloadIdentityRevision: full.GetMetadata().GetRevision(),
 						DNSSANs: []string{
-							"example.com",
+							"*.example.com",
 							"dog.example.com",
 						},
 						NameSelector: full.GetMetadata().GetName(),

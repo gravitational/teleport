@@ -1269,7 +1269,7 @@ lint-go:
 
 .PHONY: fix-imports
 fix-imports:
-	$(MAKE) -C build.assets/ fix-imports
+	$(MAKE) -C build.assets fix-imports
 
 .PHONY: fix-imports/host
 fix-imports/host:

@@ -509,6 +509,15 @@ secret_labels:
 #   - "teleport.dev/updated"                 - RFC3339-formatted timestamp
 #   - "teleport.dev/tbot-version"            - Version of tbot running
 #   - "teleport.dev/teleport-cluster-name"   - Name of the Teleport cluster
+#
+# Annotation values can be Go template strings with the following variables:
+#
+#   - {{.ClusterName}} - Name of the Teleport cluster
+#   - {{.KubeName}} - Name of the Kubernetes cluster resource
+#   - {{.Labels}} - Map of labels applied to the Kubernetes cluster
+# 	   resource that can be indexed using `{{index .Labels "key"}}`
+#
+# If the annotation value is empty, the annotation will not be added to the secret
 secret_annotations:
   creator: bob
 

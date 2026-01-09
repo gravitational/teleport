@@ -19,10 +19,14 @@
 package discovery
 
 import (
+	"maps"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 )
@@ -52,6 +56,110 @@ func TestTruncateErrorMessage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := truncateErrorMessage(tt.in)
 			require.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+type mockInstance struct {
+	syncTime       *timestamppb.Timestamp
+	discoveryGroup string
+}
+
+func (m *mockInstance) GetSyncTime() *timestamppb.Timestamp {
+	return m.syncTime
+}
+
+func (m *mockInstance) GetDiscoveryGroup() string {
+	return m.discoveryGroup
+}
+
+func TestMergeExistingInstances(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	pollInterval := 10 * time.Minute
+	s := &Server{
+		Config: &Config{
+			clock:          clock,
+			PollInterval:   pollInterval,
+			DiscoveryGroup: "group-1",
+		},
+	}
+
+	now := clock.Now()
+	tooOld := now.Add(-3 * pollInterval)
+	recent := now.Add(-pollInterval)
+
+	tests := []struct {
+		name           string
+		oldInstances   map[string]*mockInstance
+		freshInstances map[string]*mockInstance
+		expected       map[string]*mockInstance
+	}{
+		{
+			name: "skip instances from the same discovery group",
+			oldInstances: map[string]*mockInstance{
+				"inst-1": {
+					syncTime:       timestamppb.New(recent),
+					discoveryGroup: "group-1",
+				},
+			},
+			freshInstances: map[string]*mockInstance{},
+			expected:       map[string]*mockInstance{},
+		},
+		{
+			name: "skip expired instances",
+			oldInstances: map[string]*mockInstance{
+				"inst-2": {
+					syncTime:       timestamppb.New(tooOld),
+					discoveryGroup: "group-2",
+				},
+			},
+			freshInstances: map[string]*mockInstance{},
+			expected:       map[string]*mockInstance{},
+		},
+		{
+			name: "merge missing instances",
+			oldInstances: map[string]*mockInstance{
+				"inst-3": {
+					syncTime:       timestamppb.New(recent),
+					discoveryGroup: "group-2",
+				},
+			},
+			freshInstances: map[string]*mockInstance{},
+			expected: map[string]*mockInstance{
+				"inst-3": {
+					syncTime:       timestamppb.New(recent),
+					discoveryGroup: "group-2",
+				},
+			},
+		},
+		{
+			name: "do not overwrite fresh instances",
+			oldInstances: map[string]*mockInstance{
+				"inst-4": {
+					syncTime:       timestamppb.New(recent),
+					discoveryGroup: "group-2",
+				},
+			},
+			freshInstances: map[string]*mockInstance{
+				"inst-4": {
+					syncTime:       timestamppb.New(now),
+					discoveryGroup: "group-1",
+				},
+			},
+			expected: map[string]*mockInstance{
+				"inst-4": {
+					syncTime:       timestamppb.New(now),
+					discoveryGroup: "group-1",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workingCopy := maps.Clone(tt.freshInstances)
+			mergeExistingInstances(s, tt.oldInstances, workingCopy)
+			require.Equal(t, tt.expected, workingCopy)
 		})
 	}
 }

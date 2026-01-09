@@ -218,6 +218,17 @@ describe('makeDeepLinkWithSafeInput followed by parseDeepLink gives the same res
         redirect_uri: 'http://cluster.example.com:1337/web/users',
       },
     },
+    {
+      proxyHost: 'cluster.example.com:1337',
+      path: '/authenticate_web_device',
+      username: 'alice.bobson@example.com',
+      searchParams: {
+        token: '123',
+        id: '123',
+        redirect_uri:
+          'https://cluster.example.com:1337/web/cluster/enterprise-local/resources?sort=name%3Adesc&pinnedOnly=false&kinds=app',
+      },
+    },
   ];
 
   test.each(inputs)('%j', input => {
@@ -242,6 +253,14 @@ describe('parseDeepLink followed by makeDeepLinkWithSafeInput gives the same res
     'teleport://alice.bobson%40example.com@cluster.example.com:1337/connect_my_computer',
     'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234',
     'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234&redirect_uri=http%3A%2F%2Fcluster.example.com%2Fweb%2Fusers',
+    'teleport://alice@cluster.example.com/authenticate_web_device?id=123&token=234&redirect_uri=http%3A%2F%2Fcluster.example.com%2Fweb%2Fusers',
+    // redirect_uri which includes its own query params.
+    'teleport://alice@cluster.example.com:3030/authenticate_web_device?id=423535c9-5da5-4b0e-a3cc-4c629ec09848&token=m83K7v2waTYCJJsFRHlKHDWHZ7CszFwBTj5NHmG_32Q&redirect_uri=https%3A%2F%2Fcluster.example.com%3A3030%2Fweb%2Fcluster%2Fenterprise-local%2Fresources%3Fsort%3Dname%253Adesc%26pinnedOnly%3Dfalse%26kinds%3Dapp',
+    // Triple-nested redirect_uri: it points to an app launch URL of the dumper app which is
+    // supposed to redirect to a URL which in itself has a custom_url query param with some kind of
+    // a URL with query params. You can imagine that originally the user wanted to visit this URL:
+    // https://dumper.cluster.example.com:3030/hello?custom_url=https%3A%2F%2Fcluster.example.com%3A3030%2Fweb%2Fcluster%2Fenterprise-local%2Fresources%3Fsort%3Dname%253Adesc%26pinnedOnly%3Dfalse%26kinds%3Dapp
+    'teleport://alice@cluster.example.com:3030/authenticate_web_device?id=e8fce168-3cb1-4731-90d6-a59b2aeb343e&token=5-8lLKZ0VPU9_dqkx2OhAXLwGMth005QlPtVWHfnvXU&redirect_uri=https%3A%2F%2Fcluster.example.com%3A3030%2Fweb%2Flaunch%2Fdumper.cluster.example.com%3Fpath%3D%252Fhello%26query%3Dcustom_url%253Dhttps%25253A%25252F%25252Fcluster.example.com%25253A3030%25252Fweb%25252Fcluster%25252Fenterprise-local%25252Fresources%25253Fsort%25253Dname%2525253Adesc%252526pinnedOnly%25253Dfalse%252526kinds%25253Dapp',
   ];
 
   test.each(inputs)('%s', input => {

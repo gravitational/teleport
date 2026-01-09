@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ToastNotificationItemContent } from 'shared/components/ToastNotification';
-
 import {
   cannotProxyVnetConnectionReasonIsCertReissueError,
   cannotProxyVnetConnectionReasonIsInvalidLocalPort,
@@ -31,7 +29,11 @@ import {
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
 import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
+import {
+  NotificationContent,
+  NotificationKey,
+  NotificationsService,
+} from 'teleterm/ui/services/notifications';
 import { ResourceUri, routing } from 'teleterm/ui/uri';
 
 export class TshdNotificationsService {
@@ -45,9 +47,14 @@ export class TshdNotificationsService {
     this.notificationsService.notifyError(notificationContent);
   }
 
+  // All returned notification contents should include a key that limits the notification to a
+  // single kind per root cluster. This is to avoid spamming the user with notifications if a
+  // 3rd-party client is trying to, say, reconnect through a gateway connection.
   private getNotificationContent(
     request: SendNotificationRequest
-  ): ToastNotificationItemContent {
+  ): NotificationContent & {
+    key: NotificationKey;
+  } {
     const { subject } = request;
     // switch followed by a type guard is awkward, but it helps with ensuring that we get type
     // errors whenever a new request reason is added.
@@ -62,6 +69,7 @@ export class TshdNotificationsService {
           subject.cannotProxyGatewayConnection;
         const gateway = this.clustersService.findGateway(gatewayUri);
         const clusterName = this.getClusterName(targetUri);
+        const rootClusterUri = routing.ensureRootClusterUri(targetUri);
         let targetName: string;
         let targetUser: string;
         let targetDesc: string;
@@ -82,6 +90,7 @@ export class TshdNotificationsService {
         return {
           title: `Cannot connect to ${targetDesc} (${clusterName})`,
           description: `A connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
+          key: ['cannotProxyGatewayConnection', rootClusterUri],
         };
       }
       case 'cannotProxyVnetConnection': {
@@ -91,6 +100,7 @@ export class TshdNotificationsService {
         const { routeToApp, targetUri, reason } =
           subject.cannotProxyVnetConnection;
         const clusterName = this.getClusterName(targetUri);
+        const rootClusterUri = routing.ensureRootClusterUri(targetUri);
 
         switch (reason.oneofKind) {
           case 'certReissueError': {
@@ -102,6 +112,11 @@ export class TshdNotificationsService {
             return {
               title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
               description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
+              key: [
+                'cannotProxyVnetConnection',
+                'certReissueError',
+                rootClusterUri,
+              ],
             };
           }
           case 'invalidLocalPort': {
@@ -129,6 +144,11 @@ export class TshdNotificationsService {
               // port within a short time. As all notifications from this service go as errors, we
               // don't want to force the user to manually close each notification.
               isAutoRemovable: true,
+              key: [
+                'cannotProxyVnetConnection',
+                'invalidLocalPort',
+                rootClusterUri,
+              ],
             };
           }
           default: {
