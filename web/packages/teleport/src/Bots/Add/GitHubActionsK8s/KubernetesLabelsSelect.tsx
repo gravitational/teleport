@@ -198,20 +198,29 @@ function Picker(props: {
 
   const handleAdd = (name: string, value: string) => {
     setSelected(prev => {
-      const index = prev.findIndex(l => l.name === name);
-      if (index == -1) {
-        return [...prev, { name, values: [value] }];
+      // Clear other labels when the wildcard is added
+      if (isWildcardPair(name, value)) {
+        return [WILDCARD_LABEL];
       }
-      return prev.map(l => {
-        if (l.name === name) {
-          const vs = new Set([...l.values, value]);
-          return {
-            ...l,
-            values: [...vs],
-          };
-        }
-        return l;
-      });
+
+      const index = prev.findIndex(l => l.name === name);
+      let next: KubernetesLabel[];
+      if (index == -1) {
+        next = [...prev, { name, values: [value] }];
+      } else {
+        next = prev.map(l => {
+          if (l.name === name) {
+            const vs = new Set([...l.values, value]);
+            return {
+              ...l,
+              values: [...vs],
+            };
+          }
+          return l;
+        });
+      }
+
+      return stripWildcard(next);
     });
   };
 
@@ -231,21 +240,25 @@ function Picker(props: {
 
   const handleRemove = (name: string, value?: string) => {
     setSelected(prev => {
+      let next: KubernetesLabel[];
       if (value === undefined) {
-        return prev.filter(l => l.name !== name);
+        next = prev.filter(l => l.name !== name);
+      } else {
+        next = prev.flatMap(l => {
+          if (l.name === name) {
+            l.values = l.values.filter(v => v != value);
+
+            if (l.values.length < 1) {
+              return [];
+            }
+          }
+
+          return [l];
+        });
       }
 
-      return prev.flatMap(l => {
-        if (l.name === name) {
-          l.values = l.values.filter(v => v != value);
-
-          if (l.values.length < 1) {
-            return [];
-          }
-        }
-
-        return [l];
-      });
+      // Add wildcard if all labels are removed
+      return next.length === 0 ? [WILDCARD_LABEL] : next;
     });
   };
 
@@ -440,6 +453,21 @@ const EmptyText = styled(Text)`
 
 function formatLabel(label: KubernetesLabel) {
   return `${label.name}: ${label.values.join(' or ')}`;
+}
+
+const WILDCARD_LABEL_NAME = '*';
+const WILDCARD_LABEL_VALUE = '*';
+const WILDCARD_LABEL: KubernetesLabel = {
+  name: WILDCARD_LABEL_NAME,
+  values: [WILDCARD_LABEL_VALUE],
+};
+
+function isWildcardPair(name: string, value: string) {
+  return name === WILDCARD_LABEL_NAME && value === WILDCARD_LABEL_VALUE;
+}
+
+function stripWildcard(labels: KubernetesLabel[]) {
+  return labels.filter(l => l.name !== WILDCARD_LABEL_NAME);
 }
 
 const labelNameRegex = /^([a-z0-9:]+|\*)$/; // 1-n alphanumerics or colon, or a single asterisk

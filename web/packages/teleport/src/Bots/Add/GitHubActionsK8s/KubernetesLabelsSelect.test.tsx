@@ -271,11 +271,12 @@ describe('KubernetesLabelsSelect', () => {
     ).toBeInTheDocument();
 
     expect(
-      within(modal).getByRole('heading', { name: 'Selected Labels (0)' })
+      within(modal).getByRole('heading', { name: 'Selected Labels (1)' })
     ).toBeInTheDocument();
     expect(
       within(selectedSection!).queryByText('env: dev')
     ).not.toBeInTheDocument();
+    expect(within(selectedSection!).getByText('*: *')).toBeInTheDocument();
   });
 
   test('manual entry', async () => {
