@@ -151,7 +151,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.ClientCertReloadInterval != 0 {
+	if cfg.ClientCertReloadInterval > 0 {
 		err := pgcommon.CreateClientCertReloader(ctx, "backend", cfg.ConnString, poolConfig.ConnConfig, cfg.ClientCertReloadInterval.Value(), nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -162,8 +162,8 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if cfg.ChangeFeedCertReloadInterval != 0 {
-		err := pgcommon.CreateClientCertReloader(ctx, "changefeedclient", cfg.ChangeFeedConnString, feedConfig.ConnConfig, cfg.ChangeFeedCertReloadInterval.Value(), nil)
+	if cfg.ChangeFeedCertReloadInterval > 0 {
+		err := pgcommon.CreateClientCertReloader(ctx, "changefeed", cfg.ChangeFeedConnString, feedConfig.ConnConfig, cfg.ChangeFeedCertReloadInterval.Value(), nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

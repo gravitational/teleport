@@ -230,7 +230,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.CertReloadInterval != 0 {
+	if cfg.CertReloadInterval > 0 {
 		err := pgcommon.CreateClientCertReloader(ctx, "pgevents", cfg.PoolConfig.ConnString(), cfg.PoolConfig.ConnConfig, cfg.CertReloadInterval, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
