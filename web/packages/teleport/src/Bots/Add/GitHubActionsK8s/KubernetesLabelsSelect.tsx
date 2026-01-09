@@ -451,8 +451,11 @@ const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-function formatLabel(label: KubernetesLabel) {
-  return `${label.name}: ${label.values.join(' or ')}`;
+function formatLabel({ name, values }: KubernetesLabel) {
+  if (values.length === 1) {
+    return `${name}: ${values[0]}`;
+  }
+  return `${name}: ( ${values.join(' | ')} )`;
 }
 
 const WILDCARD_LABEL_NAME = '*';
