@@ -346,7 +346,9 @@ type IntegrationDiscoveredSummary struct {
 	// AWSRDS contains the summary for the AWS RDS discovered databases.
 	AwsRds *ResourcesDiscoveredSummary `protobuf:"bytes,2,opt,name=aws_rds,json=awsRds,proto3" json:"aws_rds,omitempty"`
 	// AWSEKS contains the summary for the AWS EKS discovered clusters.
-	AwsEks        *ResourcesDiscoveredSummary `protobuf:"bytes,3,opt,name=aws_eks,json=awsEks,proto3" json:"aws_eks,omitempty"`
+	AwsEks *ResourcesDiscoveredSummary `protobuf:"bytes,3,opt,name=aws_eks,json=awsEks,proto3" json:"aws_eks,omitempty"`
+	// The summary for the Azure VM discovered instances.
+	AzureVms      *ResourcesDiscoveredSummary `protobuf:"bytes,4,opt,name=azure_vms,json=azureVms,proto3" json:"azure_vms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -398,6 +400,13 @@ func (x *IntegrationDiscoveredSummary) GetAwsRds() *ResourcesDiscoveredSummary {
 func (x *IntegrationDiscoveredSummary) GetAwsEks() *ResourcesDiscoveredSummary {
 	if x != nil {
 		return x.AwsEks
+	}
+	return nil
+}
+
+func (x *IntegrationDiscoveredSummary) GetAzureVms() *ResourcesDiscoveredSummary {
+	if x != nil {
+		return x.AzureVms
 	}
 	return nil
 }
@@ -492,11 +501,12 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"#IntegrationDiscoveredResourcesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12O\n" +
 	"\x05value\x18\x02 \x01(\v29.teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryR\x05value:\x028\x01B\x10\n" +
-	"\x0e_error_messageJ\x04\b\x05\x10\x06R\x1caws_ec2_instances_discovered\"\x94\x02\n" +
+	"\x0e_error_messageJ\x04\b\x05\x10\x06R\x1caws_ec2_instances_discovered\"\xea\x02\n" +
 	"\x1cIntegrationDiscoveredSummary\x12P\n" +
 	"\aaws_ec2\x18\x01 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEc2\x12P\n" +
 	"\aaws_rds\x18\x02 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsRds\x12P\n" +
-	"\aaws_eks\x18\x03 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEks\"f\n" +
+	"\aaws_eks\x18\x03 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\x06awsEks\x12T\n" +
+	"\tazure_vms\x18\x04 \x01(\v27.teleport.discoveryconfig.v1.ResourcesDiscoveredSummaryR\bazureVms\"f\n" +
 	"\x1aResourcesDiscoveredSummary\x12\x14\n" +
 	"\x05found\x18\x01 \x01(\x04R\x05found\x12\x1a\n" +
 	"\benrolled\x18\x02 \x01(\x04R\benrolled\x12\x16\n" +
@@ -552,12 +562,13 @@ var file_teleport_discoveryconfig_v1_discoveryconfig_proto_depIdxs = []int32{
 	5,  // 11: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
 	5,  // 12: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
 	5,  // 13: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	4,  // 14: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	5,  // 14: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	4,  // 15: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() }
