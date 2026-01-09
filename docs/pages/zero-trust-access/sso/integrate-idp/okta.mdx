@@ -69,6 +69,8 @@ Create two groups: "okta-dev" and "okta-admin".
 
 ### Create and configure an Okta app
 
+Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
+
 <Tabs groupId="saml-app" defaultValue="legacy">
 <TabItem label="Okta Integration Network" value="oin">
 
@@ -94,38 +96,41 @@ Create two groups: "okta-dev" and "okta-admin".
   </Admonition>
 
   1. In Okta Console, go to **Applications**.
+
   2. Click **Create App Integration**.
+
   3. Select "SAML 2.0" and click **Next**.
+
   4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
+
   5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
 
-    - Single sign on URL:
-
-      ```
-      https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-      ```
-
-    - Audience URI (SP Entity ID):
-
-      ```
-      https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-      ```
-
-    - Name ID format `EmailAddress`
-
-    - Application username `Okta username` 
-
-    {/* NOTE: This image is shared in multiple guides. */}
-    ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
-
+     - Single sign on URL:
+ 
+       ```
+       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+       ```
+ 
+     - Audience URI (SP Entity ID):
+ 
+       ```
+       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+       ```
+ 
+     - Name ID format `EmailAddress`
+ 
+     - Application username `Okta username` 
+ 
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
   6. In the same "Configure SAML" setup screen, scroll down to the **Group Attribute Statements (optional)** section and setup it like so:
 
-    - Name: `groups` | Name format: `Unspecified`
-    - Filter: `Matches regex` |  `.*`
+     - Name: `groups` | Name format: `Unspecified`
+     - Filter: `Matches regex` |  `.*`
 
-    {/* NOTE: This image is shared in multiple guides. */}
-    ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
+     {/* NOTE: This image is shared in multiple guides. */}
+     ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
 
   7. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
 
