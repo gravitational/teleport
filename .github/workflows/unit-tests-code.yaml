@@ -103,7 +103,7 @@ jobs:
           aws-region: us-west-2
           role-to-assume: arn:aws:iam::278576220453:role/tf-ci-test-artifacts-upload-gha-role
           role-session-name: gha-ci-test-artifacts-${{ github.event.repository.name }}-${{ github.run_number }}
-          role-duration-seconds: 180  # Three minutes
+          role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
       - name: Upload test artifacts
         run: |
