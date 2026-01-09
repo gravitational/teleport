@@ -140,8 +140,9 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 }
 
 type mockMFAService struct {
-	// If ReturnError is set, methods will return this error.
-	ReturnError error
+	createValidatedMFAChallengeError error
+
+	chal *mfav1.ValidatedMFAChallenge
 }
 
 func (m *mockMFAService) CreateValidatedMFAChallenge(
@@ -149,9 +150,21 @@ func (m *mockMFAService) CreateValidatedMFAChallenge(
 	username string,
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
-	if m.ReturnError != nil {
-		return nil, m.ReturnError
+	if m.createValidatedMFAChallengeError != nil {
+		return nil, m.createValidatedMFAChallengeError
 	}
 
-	return chal, nil
+	return m.chal, nil
+}
+
+func (m *mockMFAService) GetValidatedMFAChallenge(
+	ctx context.Context,
+	username string,
+	challengeName string,
+) (*mfav1.ValidatedMFAChallenge, error) {
+	if m.createValidatedMFAChallengeError != nil {
+		return nil, m.createValidatedMFAChallengeError
+	}
+
+	return m.chal, nil
 }
