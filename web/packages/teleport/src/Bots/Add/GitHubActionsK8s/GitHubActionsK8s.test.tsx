@@ -21,6 +21,7 @@ import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { Router } from 'react-router';
+import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -134,6 +135,9 @@ describe('GitHubActionsK8s', () => {
     expect(
       screen.getByRole('heading', { name: 'Configure Access' })
     ).toBeInTheDocument();
+
+    const input = screen.getByLabelText('Kubernetes Groups');
+    await user.type(input, 'viewers{enter}');
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
