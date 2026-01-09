@@ -5106,6 +5106,57 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
+			desc:          "organization matcher defined for AWS discovery",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":   []string{"ec2"},
+						"regions": []string{"*"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"assume_role_name": "my-role",
+						"organization": cfgMap{
+							"organization_id": "o-123",
+							"organizational_units": cfgMap{
+								"include": []string{"ou-123"},
+								"exclude": []string{"ou-456"},
+							},
+						},
+					},
+				}
+			},
+			expectedAWSMatchers: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"*"},
+				Tags: map[string]apiutils.Strings{
+					"discover_teleport": []string{"yes"},
+				},
+				Params: &types.InstallerParams{
+					JoinMethod:      types.JoinMethodIAM,
+					JoinToken:       "aws-discovery-iam-token",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					ScriptName:      "default-installer",
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+				AssumeRole: &types.AssumeRole{
+					RoleName: "my-role",
+				},
+				Organization: &types.AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+						Exclude: []string{"ou-456"},
+					},
+				},
+			}},
+		},
+		{
 			desc:          "Azure section is filled with defaults (vm)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
