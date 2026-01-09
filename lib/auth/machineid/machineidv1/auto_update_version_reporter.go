@@ -20,6 +20,7 @@ package machineidv1
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -180,6 +182,14 @@ func (r *AutoUpdateVersionReporter) runLeader(ctx context.Context) error {
 				Step:   30 * time.Second,
 				Max:    1 * time.Minute,
 				Jitter: retryutils.DefaultJitter,
+				BeforeRetry: func(ctx context.Context, err error, wait time.Duration, attempt int64) {
+					// Silence noisy log from failing to acquire semaphore
+					// when it is already held by another auth server.
+					if strings.Contains(err.Error(), constants.MaxLeases) {
+						return
+					}
+					r.logger.DebugContext(ctx, "Waiting to retry operation again", "wait", wait.String(), "error", err)
+				},
 			},
 		},
 	)
