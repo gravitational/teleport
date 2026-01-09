@@ -109,10 +109,26 @@ $ tctl tokens configure-kube \
   --token-name awx-bot
 ```
 
-Adjust these flags as needed, and when ready, run the command to have it detect
-the best available join method and create a join token for your bot to use. You
-can ignore the helm instructions it prints and delete the `values.yaml` it
-generates - we won't be using the `teleport/tbot` Helm chart for this guide.
+By default, the `configure-kube` helper makes use of your currently selected
+`kubectl` context, so make sure `kubectl` is configured to access the desired
+Kubernetes cluster before continuing. If needed, you can use the `--context`
+flag to select an alternative context. A full list of useful parameters can be
+viewed with `tctl tokens configure-kube --help`.
+
+Once flags have been adjusted appropriately, run the command to have it
+detect the best available join method and create a join token for your bot to
+use. You can ignore the `helm` instructions it prints and delete the
+`values.yaml` it generates - we won't be using the `teleport/tbot` Helm chart
+for this guide.
+
+If desired, you can examine the generated join token by running the following
+command:
+```code
+$ tctl get token/awx-bot
+```
+
+...however, you'll only need to know the token name (`awx-bot`) for use in the
+next step.
 
 ## Step 2/5. Configure Kubernetes resources
 
@@ -161,7 +177,7 @@ data:
         type: directory
         # The path in the pod where credentials and the multiplexer socket will
         # be created. This must match the volume mounts for both the worker and
-        # tbot containers.
+        # tbot containers as configured in your AWX container group template.
         path: "/tbot-output"
 ```
 
@@ -188,12 +204,12 @@ cluster at <Var name="example.teleport.sh" />. Once ready, create the resource:
 $ kubectl create -f configmap-tbot-awx-config.yaml
 ```
 
-Note that we use the default service namespace service account, matching the
-default AWX container group template that you'll configure below. If you prefer
-to create a custom service account, refer to our generic [Kubernetes
-guide](../deployment/kubernetes.mdx) for an example of the Kubernetes RBAC
-resources you'll need to create, and the adjustments you'll need to make to the
-Teleport token to allow that account to join.
+Additionally, note that we use the default service namespace service account,
+matching the default AWX container group template that you'll configure below.
+If you prefer to create a custom service account, refer to our generic
+[Kubernetes guide](../deployment/kubernetes.mdx) for an example of the
+Kubernetes RBAC resources you'll need to create, and the adjustments you'll need
+to make to the Teleport token to allow that account to join.
 
 ## Step 3/5. Create a new container group
 
