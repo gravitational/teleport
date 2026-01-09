@@ -66,6 +66,9 @@ type LinearConfig struct {
 	AutoReset int64
 	// Clock to override clock in tests
 	Clock clockwork.Clock
+	// BeforeRetry is called before the failing function is retried. If unset,
+	// a debug log will be emitted.
+	BeforeRetry func(ctx context.Context, err error, wait time.Duration, attempt int64)
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -190,7 +193,12 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		if errors.As(trace.Unwrap(err), &permanentRetryError) {
 			return trace.Wrap(err)
 		}
-		slog.DebugContext(ctx, "Waiting to retry operation again", "wait", r.Duration().String(), "error", err)
+		wait := r.Duration()
+		if r.BeforeRetry == nil {
+			slog.DebugContext(ctx, "Waiting to retry operation again", "wait", wait.String(), "error", err)
+		} else {
+			r.BeforeRetry(ctx, err, wait, r.attempt)
+		}
 		select {
 		case <-r.After():
 			r.Inc()
