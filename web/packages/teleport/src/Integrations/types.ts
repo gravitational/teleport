@@ -35,8 +35,7 @@ export type IntegrationLike =
   | Plugin
   | ExternalAuditStorageIntegration;
 
-// note integrationTags keys are used for sorting integrations
-// by tag with a simple compare. Ref compareByTags below.
+// note integrationTags keys are used for sorting integrations by tag
 export const integrationTags = {
   bot: 'Bot',
   cicd: 'CI/CD',
