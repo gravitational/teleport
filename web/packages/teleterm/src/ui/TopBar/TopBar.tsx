@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject } from 'react';
+import { RefObject } from 'react';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
@@ -28,8 +28,8 @@ import { Connections } from './Connections';
 import { Identity } from './Identity';
 
 export function TopBar(props: {
-  connectMyComputerRef: MutableRefObject<HTMLDivElement>;
-  accessRequestRef: MutableRefObject<HTMLDivElement>;
+  connectMyComputerRef: RefObject<HTMLDivElement>;
+  accessRequestRef: RefObject<HTMLDivElement>;
 }) {
   return (
     <Grid>
