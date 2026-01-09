@@ -153,7 +153,7 @@ func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMembershi
 		if err == nil {
 			result[user.GetName()] = user
 		} else {
-			slog.ErrorContext(ctx, "failed to convert Entra ID user to Teleport user", "error", err)
+			slog.ErrorContext(ctx, "failed to convert Entra ID user to Teleport user, user will be skipped", "error", err)
 		}
 		return true
 	})
@@ -190,14 +190,8 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 
 	samAccountName := in.OnPremisesSAMAccountName
 
-	// Username value is used as a backend key for the user resource.
-	// Entra ID user's username may contain an unsupported character such
-	// as single quote (') and will cause the users reconciler to fail.
-	// Note: This check should ideally be done within the [NewUser]
-	// but may have been avoided for backward compatibility.
-	key := backend.KeyFromString(*username)
-	if !backend.IsKeySafe(key) {
-		return nil, trace.BadParameter("username %q contains unsupported character(s), it should only include alphabets, hyphens, dots, and plus signs", *username)
+	if err := isValidUsername(*username); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	out, err := types.NewUser(*username)
@@ -331,4 +325,17 @@ func matchByConnector(ref *types.ConnectorRef, connectorID string) bool {
 		Type: constants.SAML,
 		ID:   connectorID,
 	})
+}
+
+func isValidUsername(in string) error {
+	// Username value is used as a backend key for the user resource.
+	// Entra ID user's username may contain an unsupported characters such
+	// as single quote ('), forward slash (/) etc and will cause the users
+	// reconciler to fail.
+	key := backend.NewKey(in)
+	if !backend.IsKeySafe(key) {
+		return trace.BadParameter("username %q contains unsupported character(s), it should only include alphanumerics, hyphens, dots, and plus signs", in)
+	}
+
+	return nil
 }

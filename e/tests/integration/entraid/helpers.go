@@ -70,8 +70,8 @@ func listEntraIDUsers(ctx context.Context, authClient authclient.ClientI) ([]str
 	return out, nil
 }
 
-func listEntraIDAccessLists(ctx context.Context, aclClient services.AccessLists) (map[string]string, error) {
-	out := make(map[string]string)
+func listEntraIDAccessLists(ctx context.Context, aclClient services.AccessLists) (map[string]*accesslist.AccessList, error) {
+	out := make(map[string]*accesslist.AccessList)
 	fn := func(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 		return aclClient.ListAccessLists(ctx, pageSize, nextToken)
 	}
@@ -83,7 +83,7 @@ func listEntraIDAccessLists(ctx context.Context, aclClient services.AccessLists)
 		if a.Origin() != types.OriginEntraID {
 			continue
 		}
-		out[a.Spec.Title] = a.GetName()
+		out[a.Spec.Title] = a
 	}
 
 	return out, nil
