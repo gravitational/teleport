@@ -26,20 +26,24 @@ For an overview of Teleport installation methods and supported platforms, see
 
 <Tabs>
 <TabItem label="Teleport Enterprise (Managed)">
+
 (!docs/pages/includes/cloud/install-macos.mdx!)
+
 </TabItem>
 <TabItem label="Teleport Enterprise (Self-Hosted)">
+
 (!docs/pages/includes/enterprise/install-macos.mdx!)
+
 </TabItem>
 <TabItem label="Teleport Community Edition">
 
-You can download one of the following .pkg installers for macOS:
+Download the Teleport installer for macOS:
 
-| Link | Binaries |
-| - | - |
-| [`teleport-(=teleport.version=).pkg`](https://cdn.teleport.dev/teleport-(=teleport.version=).pkg) | `teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot`<br/>`fdpass-teleport` |
+[`teleport-(=teleport.version=).pkg`](https://cdn.teleport.dev/teleport-(=teleport.version=).pkg)
 
-You can also fetch an installer via the command line:
+This universal installer works on both Intel and Apple Silicon Macs and includes the following binaries: `teleport`, `tctl`, `tsh`, `tbot`, and `fdpass-teleport`.
+
+You can also fetch and run the installer via the command line:
 ```code
 $ curl -O https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
 # Installs on Macintosh HD
@@ -59,6 +63,7 @@ Homebrew is not maintained by Teleport and we can't guarantee its reliability or
 security.
 
 </Admonition>
+
 </TabItem>
 </Tabs>
 
@@ -75,9 +80,8 @@ $ teleport version
 You should see output displaying the Teleport version number.
 
 Here are some troubleshooting tips:
-- If `teleport` is not found, ensure `/usr/local/bin` is in your `PATH` environment variable.
-- If you see a permissions error during installation, verify you're using `sudo` with the installer command.
+- If `teleport` is not found, ensure `/Applications/Teleport.app/Contents/MacOS/` is in your `PATH` environment variable, or run the binary directly from that location.
+- If you see `installer: must be run as root` when running the installer command, add `sudo` before the `installer` command.
 - If macOS blocks the installer, go to **System Settings** > **Privacy & Security** and click **Open Anyway** for the Teleport package.
-- For Apple Silicon Macs, ensure you downloaded the correct architecture-specific installer if one is provided.
 
 </Checkpoint>
