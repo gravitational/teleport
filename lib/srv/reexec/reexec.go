@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/trace"
 	ocselinux "github.com/opencontainers/selinux/go-selinux"
+	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/lib/auditd"
@@ -989,6 +990,8 @@ func runPark() (code int, err error) {
 	}
 }
 
+var alwaysFalse bool
+
 // RunAndExit will run the requested command and then exit. This wrapper
 // allows Run{Command,Forward} to use defers and makes sure error messages
 // are consistent across both.
@@ -1005,6 +1008,11 @@ func RunAndExit(commandType string) {
 		code, err = runCheckHomeDir()
 	case ParkSubCommand:
 		code, err = runPark()
+	case SFTPSubCommand:
+		if alwaysFalse {
+			_ = sftp.NewRequestServer(nil, sftp.Handlers{})
+		}
+		code, err = RemoteCommandFailure, errors.New("lmao no sftp yet")
 	default:
 		code, err = RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -1232,7 +1240,6 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 	// Perform OS-specific tweaks to the command.
 	if isReexec {
 		reexecCommandOSTweaks(&cmd)
-		cmd.Path = "/usr/local/bin/teleport-sshd-helper"
 	} else {
 		userCommandOSTweaks(&cmd)
 	}
@@ -1346,7 +1353,6 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 
 	// Perform OS-specific tweaks to the command.
 	reexecCommandOSTweaks(cmd)
-	cmd.Path = "/usr/local/bin/teleport-sshd-helper"
 
 	if err := cmd.Run(); err != nil {
 		if cmd.ProcessState.ExitCode() == RemoteCommandFailure {
@@ -1373,7 +1379,6 @@ func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential
 
 	// Perform OS-specific tweaks to the command.
 	parkerCommandOSTweaks(cmd)
-	cmd.Path = "/usr/local/bin/teleport-sshd-helper"
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)
