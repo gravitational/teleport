@@ -23,13 +23,13 @@ Teleport administrators to define policies like:
 
 In Teleport Enterprise Cloud and Self-Hosted Teleport Enterprise, Teleport can automatically
 configure an SSO connector as part of [enrolling Okta
-integration](../../identity-governance/integrations/okta/okta.mdx).
+integration](../../../identity-governance/integrations/okta/okta.mdx).
 
 To start Okta integration enrollment, visit the Teleport Web UI, click **Add New** in the left sidebar and click **Integration**:
 
-![Enroll an Access Request plugin](../../../img/sso/okta/okta-tile.png)
+![Enroll an Access Request plugin](../../../../img/sso/okta/okta-tile.png)
 
-Then follow the instructions for the [guided Okta single sign-on integration](../../identity-governance/integrations/okta/guided-sso.mdx).
+Then follow the instructions for the [guided Okta single sign-on integration](../../../identity-governance/integrations/okta/guided-sso.mdx).
 
 
 </details>
@@ -82,7 +82,7 @@ Create two groups: "okta-dev" and "okta-admin".
   6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
 
     {/* NOTE: This image is shared in multiple guides. */}
-    ![Set groups attribute](../../../img/sso/okta/group-regex.png)
+    ![Set groups attribute](../../../../img/sso/okta/group-regex.png)
 
   7. Scroll down and click **Save**.
 
@@ -116,7 +116,7 @@ Create two groups: "okta-dev" and "okta-admin".
     - Application username `Okta username` 
 
     {/* NOTE: This image is shared in multiple guides. */}
-    ![SAML general settings](../../../img/sso/okta/legacy-general-settings.png)
+    ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
 
   6. In the same "Configure SAML" setup screen, scroll down to the **Group Attribute Statements (optional)** section and setup it like so:
@@ -125,7 +125,7 @@ Create two groups: "okta-dev" and "okta-admin".
     - Filter: `Matches regex` |  `.*`
 
     {/* NOTE: This image is shared in multiple guides. */}
-    ![Set groups attribute](../../../img/sso/okta/legacy-group-regex.png)
+    ![Set groups attribute](../../../../img/sso/okta/legacy-group-regex.png)
 
   7. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
 
@@ -147,7 +147,7 @@ Create two groups: "okta-dev" and "okta-admin".
 3. Click **Assign** next to each selected groups and click **Done**.
 
    {/* NOTE: This image is shared in multiple guides. */}
-   ![Assign user groups](../../../img/sso/okta/assign-groups.png)
+   ![Assign user groups](../../../../img/sso/okta/assign-groups.png)
 
 ### Save IdP metadata path
 
@@ -156,7 +156,7 @@ Create two groups: "okta-dev" and "okta-admin".
 2. Copy the Metadata URL using the **Copy** button below it.
 
    {/* NOTE: This is a shared image. When making changes check other guides using this image. */}
-   ![Copy metadata URL](../../../img/sso/okta/copy-metadata-url.png)
+   ![Copy metadata URL](../../../../img/sso/okta/copy-metadata-url.png)
 
 3. Store the URL to the metadata file for later use.
 
@@ -175,7 +175,7 @@ issue certificates to users.
 Define an Okta SAML connector using `tctl`. Update this example command with
 the path to your metadata file, and edit the `--attributes-to-roles` values for
 custom group assignment to roles. See [tctl sso configure
-saml](../../reference/cli/tctl.mdx) for a full reference of
+saml](../../../reference/cli/tctl.mdx) for a full reference of
 flags for this command:
 
 ```code
