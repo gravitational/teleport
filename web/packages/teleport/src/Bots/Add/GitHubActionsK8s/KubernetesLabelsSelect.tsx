@@ -94,10 +94,10 @@ export function KubernetesLabelsSelect(
 
   return (
     <Box {...styles}>
-      <LabelInput mb={0} aria-label="Labels">
-        <LabelContent>Labels</LabelContent>
+      <LabelInput mb={0} aria-label="Teleport Labels">
+        <LabelContent>Teleport Labels</LabelContent>
 
-        <LabelsContainer aria-describedby={'labels-select-helper-text'}>
+        <LabelsContainer aria-describedby={'labels-select-helper-text'} mt={1}>
           {selected.map(l => (
             <Label key={l.name} label={formatLabel(l)} style="secondary" />
           ))}
@@ -262,7 +262,7 @@ function Picker(props: {
     <Dialog open onClose={onCancel}>
       <DialogHeader>
         <Box width={'100%'}>
-          <DialogTitle>Kubernetes Labels</DialogTitle>
+          <DialogTitle>Teleport Labels</DialogTitle>
           <Text>Select one or more labels to configure access.</Text>
 
           {!hasListPermission ? (

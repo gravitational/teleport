@@ -88,7 +88,7 @@ describe('ConfigureAccess', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByLabelText('Kubernetes Groups')).toBeInTheDocument();
-    expect(screen.getByLabelText('Labels')).toBeInTheDocument();
+    expect(screen.getByLabelText('Teleport Labels')).toBeInTheDocument();
     expect(screen.getByLabelText('Kubernetes Users')).toBeInTheDocument();
   });
 
@@ -149,7 +149,7 @@ describe('ConfigureAccess', () => {
 
     const { user } = renderComponent();
 
-    const input = screen.getByLabelText('Labels');
+    const input = screen.getByLabelText('Teleport Labels');
     await user.click(within(input).getByRole('button'));
 
     const modal = screen.getByTestId('Modal');
