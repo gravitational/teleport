@@ -97,7 +97,7 @@ export function KubernetesLabelsSelect(
       <LabelInput mb={0} aria-label="Teleport Labels">
         <LabelContent>Teleport Labels</LabelContent>
 
-        <LabelsContainer aria-describedby={'labels-select-helper-text'}>
+        <LabelsContainer aria-describedby={'labels-select-helper-text'} mt={1}>
           {selected.map(l => (
             <Label key={l.name} label={formatLabel(l)} style="secondary" />
           ))}
