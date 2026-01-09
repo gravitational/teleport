@@ -34,7 +34,7 @@
     "@gravitational/build": "workspace:*",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.0",
     "@storybook/addon-vitest": "^9.1.16",
-    "@storybook/react-vite": "^9.1.16",
+    "@storybook/react-vite": "^9.1.17",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@testing-library/user-event": "^14.6.1",
