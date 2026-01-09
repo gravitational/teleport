@@ -32,7 +32,9 @@ through the Teleport Proxy Service.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A working Ansible AWX installation (or Ansible Tower, or Ansible Automation
-  Platform)
+  Platform), running in a Kubernetes cluster you can access.
+- The `kubectl` client should be available on your local machine and should be
+  configured to access the Kubernetes cluster in which Ansible AWX is running.
 - You must have permissions to create a new container group.
 - This guide does not apply to instance groups running outside of Kubernetes:
   these can be treated as traditional Ansible nodes and should follow our
