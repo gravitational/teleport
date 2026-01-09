@@ -19,12 +19,9 @@
 import { ReactNode } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
+import { Flex, Text } from 'design';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { P } from 'design/Text/Text';
-import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
 import { IntegrationTile } from 'teleport/Integrations';
@@ -34,9 +31,7 @@ import {
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import useTeleport from 'teleport/useTeleport';
 
-import { InfoGuide } from '../InfoGuide';
 import { BotFlowType } from '../types';
 
 export type BotIntegration = {
