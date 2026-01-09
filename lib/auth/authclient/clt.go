@@ -55,6 +55,7 @@ import (
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -676,13 +677,29 @@ func (c *Client) DeleteStaticTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// DeleteStaticScopedTokens deletes static scoped tokens
+func (c *Client) DeleteStaticScopedTokens() error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // GetStaticTokens returns a list of static register tokens
 func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
 	return c.APIClient.GetStaticTokens(ctx)
 }
 
+// GetStaticScopedTokens returns a list of static, scoped join tokens
+func (c *Client) GetStaticScopedTokens(ctx context.Context) (*joiningv1.StaticScopedTokens, error) {
+	// return c.APIClient.GetStaticScopedTokens(ctx)
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
 // SetStaticTokens sets a list of static register tokens
 func (c *Client) SetStaticTokens(st types.StaticTokens) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// SetStaticScopedTokens sets a list of static, scoped join tokens
+func (c *Client) SetStaticScopedTokens(st *joiningv1.StaticScopedTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

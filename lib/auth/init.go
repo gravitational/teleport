@@ -45,6 +45,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -206,6 +207,10 @@ type InitConfig struct {
 	// StaticTokens are pre-defined host provisioning tokens supplied via config file for
 	// environments where paranoid security is not needed
 	StaticTokens types.StaticTokens
+
+	// StaticTokens are pre-defined, scoped host provisioning tokens supplied via config file for
+	// environments where paranoid security is not needed
+	StaticScopedTokens *joiningv1.StaticScopedTokens
 
 	// AuthPreference defines the authentication type (local, oidc) and second
 	// factor passed in from a configuration file.
@@ -599,6 +604,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
+	})
+
+	g.Go(func() error {
+		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		defer span.End()
+		return trace.Wrap(asrv.SetStaticScopedTokens(cfg.StaticScopedTokens))
 	})
 
 	var cn types.ClusterName

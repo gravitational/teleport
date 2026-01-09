@@ -36,6 +36,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	userprovisioningv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -73,6 +74,7 @@ type collections struct {
 
 	provisionTokens                    *collection[types.ProvisionToken, provisionTokenIndex]
 	staticTokens                       *collection[types.StaticTokens, staticTokensIndex]
+	staticScopedTokens                 *collection[*joiningv1.StaticScopedTokens, staticScopedTokensIndex]
 	certAuthorities                    *collection[types.CertAuthority, certAuthorityIndex]
 	users                              *collection[types.User, userIndex]
 	roles                              *collection[types.Role, roleIndex]
@@ -191,6 +193,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.staticTokens = collect
 			out.byKind[resourceKind] = out.staticTokens
+		case types.KindStaticScopedTokens:
+			collect, err := newStaticScopedTokensCollection(c.ClusterConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.staticScopedTokens = collect
+			out.byKind[resourceKind] = out.staticScopedTokens
 		case types.KindCertAuthority:
 			collect, err := newCertAuthorityCollection(c.Trust, watch)
 			if err != nil {

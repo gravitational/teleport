@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -109,6 +110,7 @@ type AuthService interface {
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
+	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
 }
 
 // ServerConfig holds configuration parameters for [Server].
@@ -118,6 +120,7 @@ type ServerConfig struct {
 	FIPS               bool
 	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
+	Logger             *slog.Logger
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -128,6 +131,9 @@ type Server struct {
 
 // NewServer returns a new [Server] instance.
 func NewServer(cfg *ServerConfig) *Server {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, "join")
+	}
 	return &Server{
 		cfg:               cfg,
 		oracleRootCACache: oraclejoin.NewRootCACache(),
@@ -146,6 +152,21 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 
 	wg := &sync.WaitGroup{}
 	wg.Go(func() {
+		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
+			}
+		}
+
+		// short circuit if a matching static scoped token is found
+		for _, tok := range staticTokens.GetSpec().GetTokens() {
+			if tok.GetMetadata().GetName() == name {
+				scoped, scopedErr = joining.NewToken(tok)
+				return
+			}
+		}
+
 		tok, err := s.cfg.ScopedTokenService.UseScopedToken(ctx, name)
 		if err != nil {
 			scopedErr = err

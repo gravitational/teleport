@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
@@ -44,10 +45,17 @@ type ClusterConfiguration interface {
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
 	GetStaticTokens(context.Context) (types.StaticTokens, error)
+	// GetStaticScopedTokens gets [*joiningv1.StaticScopedTokens] from the backend.
+	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
 	// SetStaticTokens sets services.StaticTokens on the backend.
 	SetStaticTokens(types.StaticTokens) error
+	// SetStaticScopedTokens sets [*joiningv1.StaticScopedTokens] to the backend.
+	SetStaticScopedTokens(*joiningv1.StaticScopedTokens) error
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
+	// DeleteStaticScopedTokens deletes the [*joiningv1.StaticScopedTokens] resource resource
+	// from the backend
+	DeleteStaticScopedTokens() error
 
 	// GetUIConfig gets the proxy service UI config from the backend
 	GetUIConfig(context.Context) (types.UIConfig, error)

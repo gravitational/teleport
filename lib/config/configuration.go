@@ -933,6 +933,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
