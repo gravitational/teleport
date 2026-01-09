@@ -46,7 +46,7 @@ void rdp_decoder_free(RdpDecoder* ptr);
 
 int rdp_decoder_resize(RdpDecoder* ptr, uint16_t width, uint16_t height);
 int rdp_decoder_process(RdpDecoder* ptr, const uint8_t* data, size_t len);
-const uint8_t* rdp_decoder_image_data(RdpDecoder* ptr, size_t* out_len);
+const uint8_t* rdp_decoder_image_data(RdpDecoder* ptr, uint16_t* width, uint16_t* height);
 */
 import "C"
 
@@ -62,9 +62,7 @@ import (
 // TODO: build tag?
 
 type Decoder struct {
-	ptr    *C.RdpDecoder
-	width  uint16
-	height uint16
+	ptr *C.RdpDecoder
 }
 
 func New(width, height uint16) (*Decoder, error) {
@@ -72,11 +70,7 @@ func New(width, height uint16) (*Decoder, error) {
 	if ptr == nil {
 		return nil, errors.New("failed to create decoder")
 	}
-	return &Decoder{
-		ptr:    ptr,
-		width:  width,
-		height: height,
-	}, nil
+	return &Decoder{ptr: ptr}, nil
 }
 
 func (d *Decoder) Release() {
@@ -91,8 +85,7 @@ func (d *Decoder) Resize(width, height uint16) {
 	if d.ptr == nil {
 		return
 	}
-	d.width = width
-	d.height = height
+
 	C.rdp_decoder_resize(d.ptr, C.uint16_t(width), C.uint16_t(height))
 }
 
@@ -115,22 +108,16 @@ func (d *Decoder) Image() *image.RGBA {
 		return nil
 	}
 
-	var outLen C.size_t
-	data := C.rdp_decoder_image_data(d.ptr, &outLen)
-	if data == nil || outLen == 0 {
+	var outWidth, outHeight C.uint16_t
+	data := C.rdp_decoder_image_data(d.ptr, &outWidth, &outHeight)
+	if data == nil || outWidth == 0 || outHeight == 0 {
 		return nil
 	}
 
-	w := int(d.width)
-	h := int(d.height)
-	if w == 0 || h == 0 {
-		return nil
-	}
-
-	rgba := image.NewRGBA(image.Rect(0, 0, w, h))
+	rgba := image.NewRGBA(image.Rect(0, 0, int(outWidth), int(outHeight)))
 
 	// Copy from the Rust-owned memory into Go memory.
-	copy(rgba.Pix, unsafe.Slice((*uint8)(data), outLen))
+	copy(rgba.Pix, unsafe.Slice((*uint8)(data), outWidth*outHeight*4))
 
 	return rgba
 }

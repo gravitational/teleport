@@ -34,9 +34,11 @@ pub struct RdpDecoder {
 }
 
 impl RdpDecoder {
+    const PIXEL_FORMAT: PixelFormat = PixelFormat::RgbA32;
+
     pub fn new(width: u16, height: u16) -> Self {
         Self {
-            image: DecodedImage::new(PixelFormat::RgbA32, width, height),
+            image: DecodedImage::new(RdpDecoder::PIXEL_FORMAT, width, height),
             fast_path_processor: ProcessorBuilder {
                 // These options only matter in a real RDP session when we have
                 // to send responses back to the server. We can safely leave them
@@ -51,11 +53,19 @@ impl RdpDecoder {
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
-        self.image = DecodedImage::new(PixelFormat::RgbA32, width, height);
+        self.image = DecodedImage::new(RdpDecoder::PIXEL_FORMAT, width, height);
     }
 
     pub fn image_data(&self) -> &[u8] {
         self.image.data()
+    }
+
+    pub fn width(&self) -> u16 {
+        self.image.width()
+    }
+
+    pub fn height(&self) -> u16 {
+        self.image.height()
     }
 
     pub fn process(&mut self, tdp_fast_path_frame: &[u8]) {
@@ -76,16 +86,11 @@ impl RdpDecoder {
 /// when the decoder is no longer needed.
 #[no_mangle]
 pub extern "C" fn rdp_decoder_new(width: u16, height: u16) -> *mut RdpDecoder {
-    match catch_unwind(AssertUnwindSafe(move || {
+    match catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || {
         Box::into_raw(Box::new(RdpDecoder::new(width, height)))
     })) {
         Ok(ptr) => ptr,
-        Err(e) => {
-            catch_unwind(AssertUnwindSafe(move || std::mem::drop(e)))
-                .map_err(|_e| std::process::abort())
-                .unwrap();
-            ptr::null_mut()
-        }
+        Err(_) => ptr::null_mut(),
     }
 }
 
@@ -99,7 +104,7 @@ pub unsafe extern "C" fn rdp_decoder_free(ptr: *mut RdpDecoder) {
     if ptr.is_null() {
         return;
     }
-    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
+    let _ = catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
         let _ = Box::from_raw(ptr);
     }));
 }
@@ -118,7 +123,7 @@ pub unsafe extern "C" fn rdp_decoder_resize(ptr: *mut RdpDecoder, width: u16, he
     if ptr.is_null() {
         return;
     }
-    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
+    let _ = catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
         decoder.resize(width, height);
     }));
@@ -137,45 +142,53 @@ pub unsafe extern "C" fn rdp_decoder_process(ptr: *mut RdpDecoder, data: *const 
     if ptr.is_null() || data.is_null() || len == 0 {
         return;
     }
-    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
+    let _ = catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
         let slice = std::slice::from_raw_parts(data, len);
         decoder.process(slice);
     }));
 }
 
-/// Returns a pointer to the decoder's internal image buffer and writes its length to `out_len`.
+/// Returns a pointer to the decoder's internal image buffer. The `out_width` and `out_height`
+/// outparams receive the size of the image in pixels.
+///
 ///
 /// # Safety
 ///
 /// The returned pointer is valid as long as the decoder is alive and is not mutated by other calls
 /// (e.g. `process`, `resize`). Caller should copy the data if it needs to keep it.
+///
+/// The returned pointer references out_width * out_height * 4 bytes.
 #[no_mangle]
 pub unsafe extern "C" fn rdp_decoder_image_data(
     ptr: *mut RdpDecoder,
-    out_len: *mut usize,
+    out_width: *mut u16,
+    out_height: *mut u16,
 ) -> *const u8 {
-    if ptr.is_null() {
-        if !out_len.is_null() {
-            unsafe { *out_len = 0 };
-        }
+    const { assert!(matches!(RdpDecoder::PIXEL_FORMAT, PixelFormat::RgbA32)) }
+
+    if ptr.is_null() || out_width.is_null() || out_height.is_null() {
         return ptr::null();
     }
 
-    match catch_unwind(AssertUnwindSafe(move || unsafe {
+    match catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
         let decoder = &*ptr;
         let data = decoder.image_data();
-        if !out_len.is_null() {
-            *out_len = data.len();
-        }
+
+        *out_width = decoder.image.width();
+        *out_height = decoder.image.width();
         data.as_ptr()
     })) {
         Ok(p) => p,
-        Err(_) => {
-            if !out_len.is_null() {
-                unsafe { *out_len = 0 };
-            }
-            ptr::null()
-        }
+        Err(_) => ptr::null(),
     }
+}
+
+fn catch_unwind_and_drop_panic_payload<F: FnOnce() -> R, R>(f: F) -> Result<R, ()> {
+    catch_unwind(AssertUnwindSafe(f)).map_err(|e| {
+        // If dropping the original panic payload causes another panic,
+        // abort the process.
+        catch_unwind(AssertUnwindSafe(move || std::mem::drop(e)))
+            .unwrap_or_else(|_e| std::process::abort())
+    })
 }
