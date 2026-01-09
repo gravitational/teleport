@@ -21,8 +21,11 @@ package mcp
 import (
 	"context"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -31,6 +34,60 @@ import (
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// maxTokenDuration defines how long an egress JWT or ID token should last. Most
+// providers use one hour as default. However, since we divide streamable-HTTP
+// requests in chunks which are 5 minutes, our token doesn't have to be that
+// long. For SSE servers, a refresh will happen after the token expires upon new
+// requests.
+const maxTokenDuration = time.Minute * 10
+
+// sessionAuth handles generating auth tokens for an MCP session.
+type sessionAuth struct {
+	*SessionCtx
+	authClient appcommon.AppTokenGenerator
+	clock      clockwork.Clock
+
+	mu         sync.Mutex
+	jwt        string
+	traits     wrappers.Traits
+	lastUpdate time.Time
+}
+
+func (a *sessionAuth) generateJWTAndTraits(ctx context.Context) (string, wrappers.Traits, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.clock.Now().Before(a.lastUpdate.Add(maxTokenDuration)) {
+		return a.jwt, a.traits, nil
+	}
+
+	// Note that token validation on server side usually has some leeway like a
+	// minute, so we don't have to worry about adding that to "expires".
+	now := a.clock.Now()
+	expires := a.Identity.Expires
+	if maxExpires := now.Add(maxTokenDuration); maxExpires.Before(expires) {
+		expires = maxExpires
+	}
+
+	jwt, traitsForRewriteHeaders, err := appcommon.GenerateJWTAndTraits(ctx, &a.Identity, a.App, a.authClient, expires)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+
+	if a.rewriteAuthDetails.hasIDTokenTrait {
+		idToken, err := generateIDToken(ctx, &a.Identity, a.App, a.authClient, expires)
+		if err != nil {
+			return "", nil, trace.Wrap(err)
+		}
+		traitsForRewriteHeaders[constants.TraitIDToken] = []string{idToken}
+	}
+
+	a.jwt = jwt
+	a.traits = traitsForRewriteHeaders
+	a.lastUpdate = now
+	return jwt, traitsForRewriteHeaders, nil
+}
 
 type rewriteAuthDetails struct {
 	rewriteAuthHeader bool
@@ -68,7 +125,7 @@ func newRewriteAuthDetails(rewrite *types.Rewrite) rewriteAuthDetails {
 	return r
 }
 
-func generateIDToken(ctx context.Context, identity *tlsca.Identity, app types.Application, auth AuthClient) (string, error) {
+func generateIDToken(ctx context.Context, identity *tlsca.Identity, app types.Application, auth AuthClient, expires time.Time) (string, error) {
 	roles, traits := appcommon.RolesAndTraitsForAppToken(identity, app)
 
 	// Use types.OIDCIdPCA to generate the token.
@@ -77,7 +134,7 @@ func generateIDToken(ctx context.Context, identity *tlsca.Identity, app types.Ap
 		Roles:         roles,
 		Traits:        traits,
 		URI:           app.GetURI(),
-		Expires:       identity.Expires,
+		Expires:       expires,
 		AuthorityType: types.OIDCIdPCA,
 	})
 	return idToken, trace.Wrap(err)

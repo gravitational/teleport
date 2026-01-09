@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
@@ -147,7 +146,7 @@ func (a *sessionAuditor) appendStartEvent(ctx context.Context, options ...eventO
 		UserMetadata:       a.makeUserMetadata(),
 		ConnectionMetadata: a.makeConnectionMetadata(),
 		AppMetadata:        a.makeAppMetadata(),
-		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.App.GetRewrite()),
+		EgressAuthType:     guessEgressAuthType(opts.header, a.sessionCtx.rewriteAuthDetails),
 	})
 	if err != nil {
 		a.logger.ErrorContext(ctx, "failed to prepare session start event", "error", err)
@@ -445,9 +444,7 @@ func headersForAudit(h http.Header) http.Header {
 
 // guessEgressAuthType makes an educated guess on what kind of auth is used to
 // for the remote MCP server.
-func guessEgressAuthType(headerWithoutRewrite http.Header, rewrite *types.Rewrite) string {
-	// TODO(greedy52) cache auth details per session.
-	rewriteDetails := newRewriteAuthDetails(rewrite)
+func guessEgressAuthType(headerWithoutRewrite http.Header, rewriteDetails rewriteAuthDetails) string {
 	switch {
 	case rewriteDetails.hasIDTokenTrait:
 		return egressAuthTypeAppIDToken
