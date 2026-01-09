@@ -102,13 +102,14 @@ test.each`
   }
 );
 
-const make = (name: string, tags: IntegrationTag[]): IntegrationLike => ({
-  name,
-  tags,
-  resourceType: 'integration',
-  kind: IntegrationKind.AwsOidc,
-  statusCode: IntegrationStatusCode.Running,
-});
+const make = (name: string, tags: IntegrationTag[]) =>
+  withSortedTags({
+    name,
+    tags,
+    resourceType: 'integration',
+    kind: IntegrationKind.AwsOidc,
+    statusCode: IntegrationStatusCode.Running,
+  });
 
 describe('withSortedTags', () => {
   test('sorts an IntegrationLike tags alphabetically', () => {
@@ -121,15 +122,15 @@ describe('withSortedTags', () => {
 
 describe('compareByTags', () => {
   test('comparing tag-by-tag alphabetically', () => {
-    const a = withSortedTags(make('a', ['notifications', 'scim']));
-    const b = withSortedTags(make('b', ['bot', 'scim']));
+    const a = make('a', ['notifications', 'scim']);
+    const b = make('b', ['bot', 'scim']);
 
     expect(compareByTags(a, b)).toBeGreaterThan(0);
   });
 
   test('ties are broken by name', () => {
-    const z = withSortedTags(make('ztest', ['bot', 'scim']));
-    const b = withSortedTags(make('btest', ['bot', 'scim']));
+    const z = make('ztest', ['bot', 'scim']);
+    const b = make('btest', ['bot', 'scim']);
 
     expect(compareByTags(z, b)).toBeGreaterThan(0);
     expect(compareByTags(b, z)).toBeLessThan(0);
