@@ -9,6 +9,12 @@
 # https://nsis.sourceforge.io/Environmental_Variables:_append,_prepend,_and_remove_entries
 # https://nsis.sourceforge.io/EnVar_plug-in
 
+!macro customHeader
+  ; 1. Redefine the text used in the top label
+  ; Use $\r$\n for line breaks.
+  LangString selectUserMode ${LANG_ENGLISH} "Select installation mode.$\r$\n$\r$\nIMPORTANT: Choose 'Anyone who uses this computer' if you need the app to run as a Windows Service."
+!macroend
+
 !macro customInstall
     # Make EnVar define system env vars since Connect is installed per-machine.
     EnVar::SetHKLM
