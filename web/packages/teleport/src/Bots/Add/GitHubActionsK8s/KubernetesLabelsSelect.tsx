@@ -153,7 +153,8 @@ function Picker(props: {
   const { selected: initial, onChange, onCancel } = props;
 
   const [selected, setSelected] = useState(initial);
-  const [manualInput, setManualInput] = useState('');
+  const [manualName, setManualName] = useState('');
+  const [manualValue, setManualValue] = useState('');
 
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -219,13 +220,13 @@ function Picker(props: {
       return;
     }
 
-    const [n, ...rest] = manualInput.split(': ');
-    const name = n.trim();
-    const value = rest.join(': ').trim();
+    const name = manualName.trim();
+    const value = manualValue.trim();
     handleAdd(name, value);
 
     validator.reset();
-    setManualInput('');
+    setManualName('');
+    setManualValue('');
   };
 
   const handleRemove = (name: string, value?: string) => {
@@ -362,14 +363,26 @@ function Picker(props: {
                         flex={1}
                         m={0}
                         size="small"
-                        rule={requireValidManualLabel}
-                        label={'Add custom label'}
-                        placeholder="name: value"
-                        value={manualInput}
-                        onChange={e => setManualInput(e.target.value)}
-                        toolTipContent="e.g. env: prod, region: us-*, name: ^kube-(a|b).+$"
+                        rule={requireValidLabelName}
+                        label="Name"
+                        placeholder="e.g. env"
+                        value={manualName}
+                        onChange={e => setManualName(e.target.value)}
                       />
-                      <ButtonSecondary type="submit">Add</ButtonSecondary>
+                      <FieldInput
+                        flex={1}
+                        m={0}
+                        size="small"
+                        rule={requireValidLabelValue}
+                        label="Value"
+                        placeholder="e.g. prod"
+                        value={manualValue}
+                        onChange={e => setManualValue(e.target.value)}
+                        toolTipContent="e.g. prod, us-*, ^kube-(a|b).+$"
+                      />
+                      <ButtonIcon type="submit" aria-label="add label">
+                        <Plus size="small" />
+                      </ButtonIcon>
                     </ManualInputContainer>
                   </div>
                 </form>
@@ -396,6 +409,7 @@ const PickerContainer = styled(Flex)`
 `;
 
 const ColumnContainer = styled(Flex)`
+  min-width: 360px;
   flex: 1;
   flex-direction: column;
   overflow: auto;
@@ -428,12 +442,20 @@ function formatLabel(label: KubernetesLabel) {
   return `${label.name}: ${label.values.join(' or ')}`;
 }
 
-const manualLabelRegex = /^ *[a-z0-9:*]+ *: .+$/;
-export const requireValidManualLabel: Rule = value => () => {
-  const match = manualLabelRegex.test(value);
+const labelNameRegex = /^([a-z0-9:]+|\*)$/; // 1-n alphanumerics or colon, or a single asterisk
+export const requireValidLabelName: Rule = value => () => {
+  const match = labelNameRegex.test(value.trim());
   return {
     valid: match,
-    message: match ? undefined : 'Must be in the format "name: value"',
+    message: match ? undefined : 'Alphanumeric or * is required',
+  };
+};
+
+export const requireValidLabelValue: Rule = value => () => {
+  const trimmed = value.trim();
+  return {
+    valid: trimmed.length > 0,
+    message: trimmed.length > 0 ? undefined : 'Value is required',
   };
 };
 
