@@ -34,6 +34,9 @@ export const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow whic
 # the events that trigger your workflow, such as when pushing to a named branch
 # or triggering it manually.
 
+# Note: the workflow file may need to exist on the "main branch" in your repo
+# before it will appear in GitHub Actions.
+
 # For more information about using GitHub Actions read the getting started
 # guide; https://docs.github.com/en/actions/get-started/quickstart
 
