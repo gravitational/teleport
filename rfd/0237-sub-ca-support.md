@@ -791,6 +791,8 @@ how to mint certificates from the CSR.
 - [ ] Create an override for the "spiffe-tls" CA
 - [ ] (N-1 upgrade) Create SPIFFE TLS workload overrides, verify migration to
       cert_authority_override
+- [ ] Create override in a leaf cluster, verify "propagation" and access via
+      root cluster
 - [ ] Verify overridden CA certificates using `tctl auth export`
 - [ ] Perform a CA rotation, reconfigure trust roots if necessary, and re-verify
       access.
