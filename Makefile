@@ -1994,11 +1994,19 @@ test-e2e: ensure-webassets
 
 .PHONY: cli-docs-tsh
 cli-docs-tsh:
-	# Not executing go run since we don't want to redirect linker warnings
-	# along with the docs page content.
+	# Executing go build instead of go run since we don't want to redirect
+	# irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
 	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
+
+.PHONY: cli-docs-teleport
+cli-docs-teleport:
+	# Executing go build instead of go run since we don't want to redirect
+	# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
+	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	rm $(BUILDDIR)/teleportdocs
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.
