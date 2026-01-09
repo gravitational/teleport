@@ -16,14 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Codec, {
+import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
+
+import {
   ButtonState,
   MessageType,
   MouseButton,
   ScrollAxis,
+  TdpbCodec,
+  TdpCodec,
 } from './codec';
 
-const codec = new Codec();
+const codec = new TdpCodec();
+const tdpbCodec = new TdpbCodec();
 
 test('encodes and decodes the screen spec', () => {
   const spec = {
@@ -180,4 +185,33 @@ test('encodes and decodes clipboard data', () => {
 
   const decoded = codec.decodeClipboardData(encodedData);
   expect(decoded.data).toEqual(clipboardData);
+});
+
+test('tdpb encode/decode', () => {
+  let buffer = tdpbCodec.encodeClientHello({
+    screenSpec: {
+      width: 1920,
+      height: 1080,
+    },
+    keyboardLayout: 1,
+  });
+
+  // Header should match the buffer size
+  const view = new DataView(buffer);
+  expect(view.getUint32(0)).toEqual(buffer.byteLength - 4);
+
+  // Message should be wrapped in an Envelope
+  const envelope = Envelope.fromBinary(new Uint8Array(buffer.slice(4)));
+
+  // Envelope should enclose a hello that matches what we encoded above.
+  if (envelope.payload.oneofKind !== 'clientHello') {
+    throw Error(
+      `Expected kind="clientHello", got ${envelope.payload.oneofKind}`
+    );
+  }
+
+  const hello = envelope.payload.clientHello;
+  expect(hello.screenSpec.width).toEqual(1920);
+  expect(hello.screenSpec.height).toEqual(1080);
+  expect(hello.keyboardLayout).toEqual(1);
 });
