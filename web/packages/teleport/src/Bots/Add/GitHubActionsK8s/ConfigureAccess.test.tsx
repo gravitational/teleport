@@ -126,7 +126,9 @@ describe('ConfigureAccess', () => {
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Kubernetes Groups');
-    await selectEvent.create(input, 'system:masters');
+    await selectEvent.create(input, 'system:masters', {
+      createOptionText: 'Add group "system:masters"',
+    });
     await user.type(input, 'viewers{enter}');
 
     expect(screen.getByText('system:masters')).toBeInTheDocument();
@@ -182,7 +184,9 @@ describe('ConfigureAccess', () => {
     const { user } = renderComponent();
 
     const input = screen.getByLabelText('Kubernetes Users');
-    await selectEvent.create(input, 'user1@example.com');
+    await selectEvent.create(input, 'user1@example.com', {
+      createOptionText: 'Add user "user1@example.com"',
+    });
     await user.type(input, 'user2@example.com{enter}');
 
     expect(screen.getByText('user1@example.com')).toBeInTheDocument();
