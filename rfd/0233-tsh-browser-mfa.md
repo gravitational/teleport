@@ -143,7 +143,7 @@ authentication through the browser.
 `tsh` will send an unauthenticated request to `POST /webapi/login/headless` that
 will remain open until the request is approved, denied, or times out. It will
 send the client's SSH public key, proxy address, and the authentication type
-etc. The Proxy fowards these details to the Auth server using
+etc. The Proxy forwards these details to the Auth server using
 `POST /:version/users/:user/ssh/authenticate`. The security of this
 unauthenticated endpoint will be discussed in the
 [security section](#unauthenticated-webapiloginbrowser-endpoint).
@@ -276,7 +276,7 @@ authenticate their request.
 
 When initiating a command that requires per-session MFA, a call to retrieve
 authentication settings will need to be made to determine if browser MFA is
-available. If this request hit the auth server everytime, this would add a lot
+available. If this request hit the auth server every time, this would add a lot
 of load. TBD how this impact will be lessened. 
 
 ### Backward Compatibility
@@ -328,7 +328,7 @@ message AuthPreferencesV2 {
 message HeadlessAuthentication {
     ...
 
-    // HeadlessAuthenticationType is the type of request that was intiated
+    // HeadlessAuthenticationType is the type of request that was initiated
     HeadlessAuthenticationType type = 9;
 }
 
