@@ -472,6 +472,9 @@ const (
 	checkpointExt = ".checkpoint"
 	// errorExt is a suffix for files storing session errors
 	errorExt = ".error"
+	// abandonedErrorExt is a suffix for files storing session errors due to
+	// abandoning an upload.
+	abandonedErrorExt = ".abandoned" + errorExt
 	// reservationExt is part reservation extension.
 	reservationExt = ".reservation"
 )

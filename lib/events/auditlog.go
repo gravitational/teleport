@@ -67,6 +67,11 @@ const (
 	// valuable info.
 	CorruptedSessionsDir = "corrupted"
 
+	// CorruptedSessionsDir is a subdirectory of sessions (/var/lib/teleport/log/upload/abandoned)
+	// where abandoned session recordings are placed (i.e. uploading the session failed, but not
+	// due to corruption).
+	AbandonedSessionsDir = "abandoned"
+
 	// RecordsDir is an auth server subdirectory with session recordings that is used
 	// when the auth server is not configured for external cloud storage. It is not
 	// used by nodes, proxies, or other Teleport services.
