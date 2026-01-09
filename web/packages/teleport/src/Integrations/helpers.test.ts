@@ -16,13 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getStatus, getStatusAndLabel } from 'teleport/Integrations/helpers';
+import {
+  compareByTags,
+  getStatus,
+  getStatusAndLabel,
+  withSortedTags,
+  wrapLazyPresortCache,
+} from 'teleport/Integrations/helpers';
 import {
   Integration,
+  IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-import { IntegrationLike, Status } from './types';
+import { IntegrationLike, IntegrationTag, Status } from './types';
 
 test.each`
   type                        | code                                       | expected
@@ -94,3 +101,56 @@ test.each`
     expect(status.labelKind).toBe(expectedLabelKind);
   }
 );
+
+const make = (name: string, tags: IntegrationTag[]): IntegrationLike => ({
+  name,
+  tags,
+  resourceType: 'integration',
+  kind: IntegrationKind.AwsOidc,
+  statusCode: IntegrationStatusCode.Running,
+});
+
+describe('withSortedTags', () => {
+  test('sorts an IntegrationLike tags alphabetically', () => {
+    expect(
+      withSortedTags(make('test', ['bot', 'scim', 'notifications']))
+        .alphabeticalTags
+    ).toEqual(['bot', 'notifications', 'scim']);
+  });
+});
+
+describe('compareByTags', () => {
+  test('comparing tag-by-tag alphabetically', () => {
+    const a = withSortedTags(make('a', ['notifications', 'scim']));
+    const b = withSortedTags(make('b', ['bot', 'scim']));
+
+    expect(compareByTags(a, b)).toBeGreaterThan(0);
+  });
+
+  test('ties are broken by name', () => {
+    const z = withSortedTags(make('ztest', ['bot', 'scim']));
+    const b = withSortedTags(make('btest', ['bot', 'scim']));
+
+    expect(compareByTags(z, b)).toBeGreaterThan(0);
+    expect(compareByTags(b, z)).toBeLessThan(0);
+  });
+});
+
+describe('wrapLazyPresortCache', () => {
+  test('computes derived values lazily and caches by object', () => {
+    const items = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const compute = jest.fn((i: { id: number }) => i.id);
+    const compare = (a: number, b: number) => a - b;
+
+    const cmp = wrapLazyPresortCache(items, compute, compare);
+
+    expect(cmp(items[2], items[0])).toBe(2);
+    expect(compute).toHaveBeenCalledTimes(2);
+
+    expect(cmp(items[2], items[0])).toBe(2);
+    expect(compute).toHaveBeenCalledTimes(2);
+
+    expect(cmp(items[1], items[0])).toBe(1);
+    expect(compute).toHaveBeenCalledTimes(3);
+  });
+});

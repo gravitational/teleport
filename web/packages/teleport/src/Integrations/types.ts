@@ -70,15 +70,3 @@ export function isIntegrationTag(tag: unknown): tag is IntegrationTag {
 export function getIntegrationTagLabel(t: IntegrationTag): string {
   return integrationTags[t];
 }
-
-const getFirstTag = (i: IntegrationLike) => {
-  return i.tags?.length ? i.tags.reduce((f, c) => (c < f ? c : f)) : '';
-};
-const compare = (a: IntegrationTag | '', b: IntegrationTag | ''): number => {
-  if (a < b) return -1;
-  if (a > b) return 1;
-  return 0;
-};
-export function compareByTags(a: IntegrationLike, b: IntegrationLike): number {
-  return compare(getFirstTag(a), getFirstTag(b));
-}

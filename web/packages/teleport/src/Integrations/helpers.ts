@@ -152,3 +152,51 @@ export function filterByIntegrationTags(
     return true;
   });
 }
+
+type OrderedIntegrationLike = IntegrationLike & {
+  alphabeticalTags: IntegrationTag[];
+};
+export const withSortedTags = (i: IntegrationLike): OrderedIntegrationLike => {
+  return {
+    ...i,
+    alphabeticalTags: [...i.tags].sort((a, b) => a.localeCompare(b)),
+  };
+};
+export function compareByTags(
+  a: OrderedIntegrationLike,
+  b: OrderedIntegrationLike
+): number {
+  const n = Math.min(a.alphabeticalTags.length, b.alphabeticalTags.length);
+  for (let i = 0; i < n; i++) {
+    const res = a.alphabeticalTags[i].localeCompare(b.alphabeticalTags[i]);
+    if (res) return res;
+  }
+
+  const res = a.alphabeticalTags.length - b.alphabeticalTags.length;
+
+  // If they both have the same tags, tie-break with the integration name
+  if (res === 0) {
+    return a.name.localeCompare(b.name);
+  }
+
+  return res;
+}
+
+// wrapLazyPresortCache lazily computes derived values and stores them for
+// repeated use in sort comparisons to eliminate unnecessary recomputation.
+export function wrapLazyPresortCache<T extends object, D>(
+  items: readonly T[],
+  compute: (i: T) => D,
+  compare: (a: D, b: D) => number
+): (a: T, b: T) => number {
+  const map = new WeakMap<T, D>();
+
+  const get = (i: T): D => {
+    if (map.has(i)) return map.get(i);
+    const derived = compute(i);
+    map.set(i, derived);
+    return derived;
+  };
+
+  return (a: T, b: T) => compare(get(a), get(b));
+}

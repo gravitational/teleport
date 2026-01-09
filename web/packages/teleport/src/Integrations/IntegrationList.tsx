@@ -52,9 +52,9 @@ import {
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { compareByTags, withSortedTags, wrapLazyPresortCache } from './helpers';
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 import {
-  compareByTags,
   getIntegrationTagLabel,
   IntegrationLike,
   IntegrationTag,
@@ -160,7 +160,11 @@ export function IntegrationList(props: Props) {
           key: 'tags',
           headerText: 'Type',
           isSortable: true,
-          onSort: compareByTags,
+          onSort: wrapLazyPresortCache(
+            filteredList,
+            withSortedTags,
+            compareByTags
+          ),
           render: item => (
             <Cell>
               <Flex gap={1}>
