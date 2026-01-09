@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
@@ -134,12 +135,24 @@ func TestJoinIAM(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	allowedOrgID := "o-allowedorg"
+	allowedOrgIDUsingAmbientCredentials := "o-allowedorg"
+	allowedOrgIDUsingIntegrationCredentials := "o-allowedorg-integration"
+
+	exampleIntegrationName := "my-integration"
 	organizationsClientGetter := &mockAWSOrganizationsClientGetter{
-		OrganizationsAPI: &mockAWSOrganizationsClient{
+		ambientCredentialsOrgsAPI: &mockAWSOrganizationsClient{
 			getAccountOutput: &organizations.DescribeAccountOutput{
 				Account: &organizationstypes.Account{
-					Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgID + "/1234"),
+					Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingAmbientCredentials + "/1234"),
+				},
+			},
+		},
+		integrationCredentialsOrgsAPI: map[string]iamjoin.OrganizationsAPI{
+			exampleIntegrationName: &mockAWSOrganizationsClient{
+				getAccountOutput: &organizations.DescribeAccountOutput{
+					Account: &organizationstypes.Account{
+						Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingIntegrationCredentials + "/1234"),
+					},
 				},
 			},
 		},
@@ -196,7 +209,7 @@ func TestJoinIAM(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "using organizations",
+			desc:             "using organizations with ambient credentials",
 			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
@@ -204,7 +217,7 @@ func TestJoinIAM(t *testing.T) {
 				Roles: []types.SystemRole{types.RoleNode},
 				Allow: []*types.TokenRule{
 					{
-						AWSOrganizationID: allowedOrgID,
+						AWSOrganizationID: allowedOrgIDUsingAmbientCredentials,
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -219,7 +232,31 @@ func TestJoinIAM(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "using organizations - organization id is not allowed",
+			desc:             "using organizations with integration credentials",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: exampleIntegrationName,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "using organizations with ambient credentials - organization id is not allowed",
 			authServer:       regularServer,
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
@@ -228,6 +265,30 @@ func TestJoinIAM(t *testing.T) {
 				Allow: []*types.TokenRule{
 					{
 						AWSOrganizationID: "not-allowedorg",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.Error,
+		},
+		{
+			desc:             "using organizations with integration credentials - organization id is not allowed",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: exampleIntegrationName,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingAmbientCredentials,
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,
@@ -708,11 +769,21 @@ func (m *mockAWSOrganizationsClient) DescribeAccount(ctx context.Context, params
 }
 
 type mockAWSOrganizationsClientGetter struct {
-	OrganizationsAPI iamjoin.OrganizationsAPI
+	ambientCredentialsOrgsAPI     iamjoin.OrganizationsAPI
+	integrationCredentialsOrgsAPI map[string]iamjoin.OrganizationsAPI
 }
 
-func (m *mockAWSOrganizationsClientGetter) Get(ctx context.Context) (iamjoin.OrganizationsAPI, error) {
-	return m.OrganizationsAPI, nil
+func (m *mockAWSOrganizationsClientGetter) Get(ctx context.Context, integration string, awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient) (iamjoin.OrganizationsAPI, error) {
+	if integration == "" {
+		return m.ambientCredentialsOrgsAPI, nil
+	}
+
+	client, found := m.integrationCredentialsOrgsAPI[integration]
+	if !found {
+		return nil, trace.NotFound("integration %q not found", integration)
+	}
+
+	return client, nil
 }
 
 func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {

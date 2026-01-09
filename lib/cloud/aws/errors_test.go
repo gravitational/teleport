@@ -88,6 +88,19 @@ func TestConvertRequestFailureError(t *testing.T) {
 			wantIsError: trace.IsAccessDenied,
 		},
 		{
+			name: "StatusBadRequest with TooManyRequestsException",
+			inputError: &awshttp.ResponseError{
+				RequestID: fakeRequestID,
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusBadRequest,
+					}},
+					Err: trace.Errorf("TooManyRequestsException"),
+				},
+			},
+			wantIsError: trace.IsLimitExceeded,
+		},
+		{
 			name:           "not AWS error",
 			inputError:     errors.New("not-aws-error"),
 			wantUnmodified: true,

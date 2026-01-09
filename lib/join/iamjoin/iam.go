@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
@@ -240,8 +241,8 @@ func arnMatches(pattern, arn string) (bool, error) {
 
 // checkIAMAllowRules checks if the given identity matches any of the given
 // allowRules.
-func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, allowRules []*types.TokenRule, organizationIDFetcher *organizationsIDFetcher) error {
-	for _, rule := range allowRules {
+func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, params *CheckIAMRequestParams, organizationIDFetcher *organizationsIDFetcher) error {
+	for _, rule := range params.ProvisionToken.GetAllowRules() {
 		// if this rule specifies an AWS account, the identity must match
 		if rule.AWSAccount != "" {
 			if rule.AWSAccount != identity.Account {
@@ -262,7 +263,7 @@ func checkIAMAllowRules(ctx context.Context, identity *AWSIdentity, allowRules [
 		}
 
 		if rule.AWSOrganizationID != "" {
-			organizationID, err := organizationIDFetcher.fetch(ctx)
+			organizationID, err := organizationIDFetcher.fetch(ctx, params.ProvisionToken.GetIntegration())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -286,7 +287,7 @@ type OrganizationsAPI interface {
 
 // OrganizationsAPIGetter defines an interface for getting an OrganizationsAPI.
 type OrganizationsAPIGetter interface {
-	Get(ctx context.Context) (OrganizationsAPI, error)
+	Get(ctx context.Context, integration string, awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient) (OrganizationsAPI, error)
 }
 
 // CheckIAMRequestParams holds parameters for checking an IAM-method join request.
@@ -303,6 +304,8 @@ type CheckIAMRequestParams struct {
 	HTTPClient utils.HTTPDoClient
 	// OrganizationsAPIGetter returns an AWS Organizations client with a subset of the APIs required for validating whether an identity belongs to an Organization.
 	OrganizationsAPIGetter OrganizationsAPIGetter
+	// AWSOIDCIntegrationClient is an OIDC integration client used to fetch temporary AWS credentials via OIDC integration.
+	AWSOIDCIntegrationClient awsconfig.OIDCIntegrationClient
 	// FIPS must be true if the server is in FIPS mode.
 	FIPS bool
 }
@@ -339,12 +342,13 @@ func CheckIAMRequest(ctx context.Context, params *CheckIAMRequestParams) (*AWSId
 	}
 
 	organizationsIDFetcher := &organizationsIDFetcher{
-		organizationsAPIGetter: params.OrganizationsAPIGetter,
-		accountID:              identity.Account,
+		organizationsAPIGetter:   params.OrganizationsAPIGetter,
+		accountID:                identity.Account,
+		awsOIDCIntegrationClient: params.AWSOIDCIntegrationClient,
 	}
 
 	// check that the node identity matches an allow rule for this token
-	if err := checkIAMAllowRules(ctx, identity, params.ProvisionToken.GetAllowRules(), organizationsIDFetcher); err != nil {
+	if err := checkIAMAllowRules(ctx, identity, params, organizationsIDFetcher); err != nil {
 		// We return the identity since it's "validated" but does not match the
 		// rules. This allows us to include it in a failed join audit event
 		// as additional context to help the user understand why the join failed.
@@ -365,17 +369,18 @@ func GenerateIAMChallenge() (string, error) {
 }
 
 type organizationsIDFetcher struct {
-	accountID              string
-	organizationsAPIGetter OrganizationsAPIGetter
-	fetchedOrganizationID  string
+	accountID                string
+	organizationsAPIGetter   OrganizationsAPIGetter
+	fetchedOrganizationID    string
+	awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient
 }
 
-func (f *organizationsIDFetcher) fetch(ctx context.Context) (string, error) {
+func (f *organizationsIDFetcher) fetch(ctx context.Context, integration string) (string, error) {
 	if f.fetchedOrganizationID != "" {
 		return f.fetchedOrganizationID, nil
 	}
 
-	organizationsClient, err := f.organizationsAPIGetter.Get(ctx)
+	organizationsClient, err := f.organizationsAPIGetter.Get(ctx, integration, f.awsOIDCIntegrationClient)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -387,6 +392,10 @@ func (f *organizationsIDFetcher) fetch(ctx context.Context) (string, error) {
 		convertedError := libcloudaws.ConvertRequestFailureError(err)
 		if trace.IsAccessDenied(convertedError) {
 			return "", trace.BadParameter("IAM Join attempt using an Organization requires access to 'organizations:DescribeAccount' API in the assigned IAM Role. Allow the Auth Service access to that permission.")
+		}
+
+		if trace.IsLimitExceeded(convertedError) {
+			return "", trace.BadParameter("AWS Organizations API rate limit exceeded when attempting to verify account's Organization ID. Please try again later.")
 		}
 
 		return "", trace.Wrap(convertedError)
