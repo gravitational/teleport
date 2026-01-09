@@ -1,4 +1,4 @@
-//go:build !desktop_access_rdp
+//go:build !desktop_access_rdp && !rust_rdp_decoder
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
@@ -18,15 +18,20 @@
 
 package decoder
 
-/*
-#cgo linux,386 LDFLAGS: -L${SRCDIR}/../../../../../target/i686-unknown-linux-gnu/release
-#cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
-#cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
-#cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
-#cgo linux LDFLAGS: -lrdp_decoder
+import (
+	"image"
 
-#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
-#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -lrdp_decoder
-*/
-import "C"
+	"github.com/gravitational/trace"
+)
+
+type Decoder struct{}
+
+func New(width, height uint16) (*Decoder, error) {
+	return nil, trace.NotImplemented("the RDP decoder is not included in this build")
+}
+
+func (d *Decoder) Release()                       {}
+func (d *Decoder) Resize(w, h uint16)             {}
+func (d *Decoder) Process([]byte)                 {}
+func (d *Decoder) Image() *image.RGBA             { return nil }
+func (d *Decoder) Thumbnail(w, h int) *image.RGBA { return nil }

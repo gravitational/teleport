@@ -1,3 +1,5 @@
+//go:build desktop_access_rdp || rust_rdp_decoder
+
 /*
  * Teleport
  * Copyright (C) 2025  Gravitational, Inc.
@@ -18,11 +20,13 @@
 
 // Package decoder implements a RDP fast path decoder by calling into IronRDP via CGo.
 //
-// When used by Teleport, this package links its symbols from librdp (the Rust library
-// that Teleport already links).
+// When used by Teleport (ie with the desktop_access_rdp build tag), this package links
+// its symbols from librdp (the Rust library that Teleport already links).
 //
 // When used by other client tools (tsh), we link to a separate librdp_decoder library
-// to avoid linking in extra RDP code that we don't need.
+// (using the rust_rdp_decoder build tag) to avoid linking in extra RDP code that we don't need.
+//
+// If neither build tag is specified, then a no-op implementation is used.
 package decoder
 
 /*
@@ -58,8 +62,6 @@ import (
 
 	"golang.org/x/image/draw"
 )
-
-// TODO: build tag?
 
 type Decoder struct {
 	ptr *C.RdpDecoder
