@@ -1620,22 +1620,11 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			return nil, false, trace.Wrap(err)
 		}
 
-		// When the fetcher's total size exceeds the response size limit,
-		// create a checkpoint from the last processed event.
-		// This overrides LastEvaluatedKey to resume processing from this checkpoint.
+		// Stop early when the fetcher's total size exceeds the response size limit.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			lastEvent := out[len(out)-1]
-			iterator, err := lastEvent.toIterator()
-			if err != nil {
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-
-			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
-			// current date, so we must set it to true independently of the hasLeftFun.
-			l.checkpoint.Iterator = iterator
-			l.hasLeft = true
-
-			l.log.DebugContext(context.Background(), "fetcher's total size exceeds response size limit (sub-page break), creating new checkpoint", "iterator", iterator)
 			return out, true, nil
 		}
 		l.totalSize += len(data)
@@ -1643,18 +1632,9 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		l.left--
 		// Stop early if the query limit is reached.
 		if l.left == 0 {
-			lastEvent := out[len(out)-1]
-			iterator, err := lastEvent.toIterator()
-			if err != nil {
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-
-			// Since we stopped because of the query limit, we assume there are more events to fetch.
-			// If there are no more, the next fetch returns no events and an empty iterator.
-			l.checkpoint.Iterator = iterator
-			l.hasLeft = true
-
-			l.log.DebugContext(context.Background(), "query limit reached (sub-page break), creating new checkpoint", "iterator", iterator)
 			return out, true, nil
 		}
 	}
@@ -1666,6 +1646,23 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 	}
 	l.hasLeft = hf || l.checkpoint.Iterator != ""
 	return out, false, nil
+}
+
+// saveCheckpointAtEvent updates the checkpoint iterator at the given event.
+// This overrides LastEvaluatedKey to resume future processing from this iterator.
+func (l *eventsFetcher) saveCheckpointAtEvent(e event) error {
+	iterator, err := e.toIterator()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Since the iterator is manually reset, we should always assume there are more
+	// events to fetch.
+	l.checkpoint.Iterator = iterator
+	l.hasLeft = true
+
+	l.log.DebugContext(context.Background(), "sub-page break, saving new checkpoint", "iterator", iterator)
+	return nil
 }
 
 func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string) (values []event, err error) {
