@@ -240,17 +240,13 @@ override. The example shows how to perform the initial override along with a CA
 rotation.
 
 ```shell
-# Print the public key of the current CA.
-tctl auth export --type=db-client | tctl auth pub-key-hash
-> 1BCDEF...
-
 # 1. Start a rotation.
 tctl auth rotate --type=db_client --phase=init
 
 # 2. Create the CSR.
 tctl auth create-override-csr --type=db_client \
   --subject='OU=Llama Unit,CN=Llama Teleport DB client CA'
-> (Writes files for OLD and NEW keys.)
+> (Writes CSR file for NEW key.)
 
 # 3. Sign the CSR for the NEW key using the external CA.
 
