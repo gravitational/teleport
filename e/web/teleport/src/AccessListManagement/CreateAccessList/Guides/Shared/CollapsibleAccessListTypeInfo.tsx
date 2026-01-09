@@ -1,22 +1,27 @@
-import { Link as ExternalLink, Stack, Text } from 'design';
+import { Box, Link as ExternalLink, Mark, Stack, Text } from 'design';
+import { Info } from 'design/Alert';
 import { CollapsibleInfoSection } from 'design/CollapsibleInfoSection';
 
-import { UserTypeOption } from '../../types';
+import { OktaIntegrationStepType } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Okta/Shared';
+import cfg from 'teleport/config';
 
-type UserCategory = 'owner' | 'member';
+import { UserTypeOption } from '../../types';
+import { Okta, UserCategory } from './types';
 
 export function CollapsibleAccessListTypeInfo({
   userTypeOption,
   userCategory,
+  okta,
 }: {
   userTypeOption: UserTypeOption;
   userCategory: UserCategory;
+  okta?: Okta;
 }) {
   let Info;
   let label = '';
 
   if (userTypeOption.value === 'users') {
-    label = 'What are Users?';
+    label = `What is ${userCategory} type Users?`;
     Info = (
       <Text py={3}>
         Teleport users. SSO (Single Sign-On) users are ephemeral and may not
@@ -36,8 +41,8 @@ export function CollapsibleAccessListTypeInfo({
   }
 
   if (userTypeOption.value === 'access-lists') {
-    label = 'What are Access Lists?';
-    Info = <NestedAccessListInfo userCategory={userCategory} />;
+    label = `What is ${userCategory} type Access Lists?`;
+    Info = <NestedAccessListInfo userCategory={userCategory} okta={okta} />;
   }
 
   if (userTypeOption.value === 'okta-access-lists') {
@@ -76,34 +81,104 @@ const nestedAccessListDoc =
 
 function NestedAccessListInfo({
   userCategory,
+  okta,
 }: {
   userCategory: UserCategory;
+  okta?: Okta;
 }) {
+  let oktaInfo;
+  if (okta && !okta.hasPlugin) {
+    oktaInfo = (
+      <Info
+        mt={4}
+        wrapContents
+        primaryAction={{
+          content: 'Enroll Okta Integration',
+          linkTo: cfg.getIntegrationEnrollRoute('okta'),
+        }}
+      >
+        Enrolling Okta integration imports Okta applications and groups as
+        Teleport Access Lists (optional opt-in). Those access lists can then
+        also be assigned as {userCategory}
+        s.
+        <br />
+        <ExternalLink
+          target="_blank"
+          href="https://goteleport.com/docs/identity-governance/integrations/okta/"
+        >
+          Learn more.
+        </ExternalLink>
+      </Info>
+    );
+  } else if (okta && !okta.hasAppGroupSyncEnabled) {
+    oktaInfo = (
+      <Info
+        mt={4}
+        wrapContents
+        primaryAction={{
+          content: 'Enable Okta Apps and Groups Sync',
+          linkTo: cfg.getIntegrationEnrollRoute(
+            'okta',
+            OktaIntegrationStepType.AppGroupSync
+          ),
+        }}
+      >
+        Enabling <Mark>application and group sync</Mark> in your Okta
+        integration will sync Okta apps and groups as Access Lists which then
+        can also be assigned as {getPluralUserCategory(userCategory)}.
+        <br />
+        <ExternalLink
+          target="_blank"
+          href="https://goteleport.com/docs/identity-governance/integrations/okta/app-and-group-sync/"
+        >
+          Learn more.
+        </ExternalLink>
+      </Info>
+    );
+  }
+
   if (userCategory === 'owner') {
     return (
-      <Text>
-        An access list can be added as a owner. Members of the added access list
-        will inherit the owner permissions from this new access list. Learn more
-        about{' '}
-        <ExternalLink target="_blank" href={nestedAccessListDoc}>
-          nested access lists
-        </ExternalLink>
-        .
-      </Text>
+      <Box>
+        <Text>
+          An access list can be added as a owner. Members of the added access
+          list will inherit the owner permissions from this new access list.
+          Learn more about{' '}
+          <ExternalLink target="_blank" href={nestedAccessListDoc}>
+            nested access lists
+          </ExternalLink>
+          .
+        </Text>
+        {oktaInfo}
+      </Box>
     );
   }
 
   if (userCategory === 'member') {
     return (
-      <Text>
-        An access list can be added as a member. Members of the added access
-        list will inherit the member permissions from this new access list.
-        Learn more about{' '}
-        <ExternalLink target="_blank" href={nestedAccessListDoc}>
-          nested access lists
-        </ExternalLink>
-        .
-      </Text>
+      <Box>
+        <Text>
+          An access list can be added as a member. Members of the added access
+          list will inherit the member permissions from this new access list.
+          Learn more about{' '}
+          <ExternalLink target="_blank" href={nestedAccessListDoc}>
+            nested access lists
+          </ExternalLink>
+          .
+        </Text>
+        {oktaInfo}
+      </Box>
     );
+  }
+}
+
+function getPluralUserCategory(user: UserCategory) {
+  switch (user) {
+    case 'member':
+      return 'members';
+    case 'owner':
+      return 'owners';
+    default:
+      user satisfies never;
   }
 }

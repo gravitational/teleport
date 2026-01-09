@@ -56,3 +56,38 @@ export type UserTypeOption = {
   label: string;
   disabled?: boolean;
 };
+
+/**
+ * userTypeOptions does not support okta yet since backend support
+ * is lacking:
+ *
+ * TODO(kimlisa): add support for advanced filtering for the listing
+ * access lists endpoint e.g. "list access list not having okta origin"
+ * (might need predicate support).
+ */
+export const userTypeOptions: UserTypeOption[] = [
+  {
+    value: 'access-lists',
+    label: 'Access Lists',
+  },
+  {
+    value: 'users',
+    label: 'Users',
+  },
+];
+
+export type EligibleUsersFieldSelectProps = {
+  selected: Option<MemberSelection>[];
+  isDisabled: boolean;
+  onChange(opts: Option<MemberSelection>[]): void;
+  loadOptions(input: string): Promise<HybridUserOption[]>;
+  label: string;
+  requiredErrMsg?: string;
+  disableCreate?: boolean;
+  placeholder?: string;
+  autoFocus?: boolean;
+  noOptionsMsg?: string;
+  // If undefined, userKind refers to Teleport users.
+  userKind?: 'nested-access-list' | undefined;
+  key?: string;
+};

@@ -20,7 +20,7 @@ import { useHistory, useLocation } from 'react-router';
 import { parseSortType } from 'design/DataTable/sort';
 import type { SortDir } from 'design/DataTable/types';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { useAsync } from 'shared/hooks/useAsync';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import type { AccessListWithModifiedGrants } from 'e-teleport/AccessListManagement/AccessLists/AccessLists';
 import { makeTraitLabel } from 'e-teleport/AccessListManagement/Traits';
@@ -100,6 +100,16 @@ interface AccessListManagementContext {
   updateAccessListCache: (mutation: AccessListMutation) => void;
   previousSearchParams?: string;
   guideEditor: GuideEditorState;
+  /**
+   * Used to determine if okta plugin has been created.
+   * Error or no result (null) will be interpreted as "not created".
+   *
+   * Intended to determine if CTA is needed to lead user to create
+   * a okta plugin since okta apps/groups can be synced as access lists as well.
+   *
+   * Also can be used to get more information for Okta originated access lists.
+   */
+  oktaPluginAttempt: Attempt<Plugin<PluginOktaSpec, PluginStatusOkta>>;
 }
 
 const DEFAULT_SORT = {
@@ -136,6 +146,7 @@ const AccessListManagementContext = createContext<AccessListManagementContext>({
     prevStep: () => {},
     nextStep: () => {},
   },
+  oktaPluginAttempt: undefined,
 });
 
 export const AccessListManagementContextProvider = (
@@ -376,6 +387,7 @@ export const AccessListManagementContextProvider = (
         isOktaPluginReadOnly:
           oktaPluginAttempt?.data &&
           !oktaPluginAttempt.data.spec?.enableBidirectionalSync,
+        oktaPluginAttempt,
         updateSearchParams,
         search,
         filters: {

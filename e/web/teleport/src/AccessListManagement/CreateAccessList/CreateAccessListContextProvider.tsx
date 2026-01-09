@@ -35,7 +35,7 @@ type State = {
    * Only true if license does not support IGS.
    */
   featureLimitReached: boolean;
-  onCreate(validator: Validator): void;
+  onCreate(validator: Validator): Promise<boolean>;
   createAttempt: Attempt;
   setCreateAttempt(attempt: Attempt): void;
   owners: Owners;
@@ -138,7 +138,7 @@ export const CreateAccessListContextProvider: FC<
       accessListCreator,
     });
 
-    runAttempt(() =>
+    return runAttempt(() =>
       accessManagementService
         .createAccessList(listToCreate)
         // After creating, go back to access list listing.

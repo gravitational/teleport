@@ -23,7 +23,7 @@ export const SpecSection = () => {
       <FieldInput
         label="Title"
         rule={requiredField('Title is required')}
-        placeholder="Tile"
+        placeholder="Title"
         autoFocus={!isDisabled}
         value={spec.title}
         onChange={e => setSpec({ ...spec, title: e.target.value })}

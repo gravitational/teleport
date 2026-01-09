@@ -1,5 +1,5 @@
 import { Alert, Box, Flex, H2 } from 'design';
-import Validation from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
@@ -23,13 +23,20 @@ export function AccessListForm() {
     reset: resetCreateContext,
   } = useCreateAccessList();
   const { guideEditor } = useAccessListManagementContext();
-  const { prevStep, currentStep } = guideEditor;
+  const { prevStep, currentStep, nextStep } = guideEditor;
 
   function handlePrev() {
     if (currentStep === 0) {
       resetCreateContext();
     }
     prevStep();
+  }
+
+  async function handleFinish(validator: Validator) {
+    const created = await onCreate(validator);
+    if (created) {
+      nextStep();
+    }
   }
 
   return (
@@ -53,7 +60,7 @@ export function AccessListForm() {
               <Alert>{createAttempt.statusText}</Alert>
             )}
             <StepButtons
-              onNext={() => onCreate(validator)}
+              onNext={() => handleFinish(validator)}
               onPrev={handlePrev}
             />
           </>

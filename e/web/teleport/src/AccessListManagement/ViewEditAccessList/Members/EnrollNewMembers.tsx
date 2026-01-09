@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
@@ -15,6 +15,7 @@ import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { EligibleUsersFieldSelect } from 'e-teleport/AccessListManagement/CreateAccessList/Shared';
 import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit';
 import { UserKind } from 'e-teleport/AccessListManagement/Shared/types';
+import { useFetch } from 'e-teleport/AccessListManagement/useFetch';
 import {
   EnrollingNestedListsAlert,
   getNewAndExistingUsersForAddingNewUsers,
@@ -26,11 +27,9 @@ import {
   AccessListMemberKind,
   accessManagementService,
 } from 'e-teleport/services/accessmanagement';
-import { type User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 
-import { useUserOptions } from '../../Shared/hooks';
-import type { HybridUserOption, MemberSelection } from '../../Shared/Shared';
+import type { MemberSelection } from '../../Shared/Shared';
 
 type Props = {
   onClose(): void;
@@ -51,33 +50,7 @@ export function EnrollNewMembersFields({
   optional?: boolean;
   userKind: UserKind;
 }) {
-  const { loadOptions } = useUserOptions<HybridUserOption>((user: User[]) => {
-    return user.map(user => ({
-      label: user.name,
-      value: {
-        membershipKind: AccessListMemberKind.User,
-        name: user.name,
-      },
-    }));
-  });
-
-  const fetchAccessListsOptions = useCallback(async (input: string) => {
-    const accessListsResult = await accessManagementService.fetchAccessListsV2({
-      // sort by name here. If they want to find a specific list to add, they will most
-      // likely type, but this allows this form to work without extra steps to check
-      // if the cache is healthy or not
-      sort: { dir: 'ASC', fieldName: 'name' },
-      search: input,
-      limit: 50,
-    });
-
-    const options: HybridUserOption[] = accessListsResult.agents.map(list => ({
-      label: list.title,
-      value: { membershipKind: AccessListMemberKind.List, name: list.id },
-    }));
-
-    return options;
-  }, []);
+  const { fetchUsersOptions, fetchAccessListsOptions } = useFetch();
 
   function updateSelectedMembers(
     vals: Option<MemberSelection>[],
@@ -134,7 +107,7 @@ export function EnrollNewMembersFields({
         onChange={vals =>
           updateSelectedMembers(vals || [], AccessListMemberKind.User)
         }
-        loadOptions={loadOptions}
+        loadOptions={fetchUsersOptions}
         placeholder="Search for a user…"
         label={`Add ${userKind}`}
         requiredErrMsg={requiredErrMsg}

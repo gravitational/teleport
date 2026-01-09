@@ -1,15 +1,19 @@
 import { Meta } from '@storybook/react-vite';
+import { MemoryRouter } from 'react-router';
 
 import { UserType, UserTypeOption } from '../../types';
 import { CollapsibleAccessListTypeInfo } from './CollapsibleAccessListTypeInfo';
+import { UserCategory } from './types';
 
 type StoryProps = {
-  userCategory: 'owner' | 'member';
+  userCategory: UserCategory;
   userType: UserType;
+  hasOktaPlugin: boolean;
+  hasOktaAppGroupSyncEnabled: boolean;
 };
 
 const meta: Meta<StoryProps> = {
-  title: 'TeleportE/AccessLists/Guide',
+  title: 'TeleportE/AccessLists/Guide/UserTypeInfo',
   argTypes: {
     userCategory: {
       control: { type: 'select' },
@@ -23,7 +27,9 @@ const meta: Meta<StoryProps> = {
   // default
   args: {
     userCategory: 'member',
-    userType: 'okta-access-lists',
+    userType: 'access-lists',
+    hasOktaPlugin: true,
+    hasOktaAppGroupSyncEnabled: true,
   },
 };
 export default meta;
@@ -52,9 +58,15 @@ export function AccessListTypeInfo(props: StoryProps) {
   }
 
   return (
-    <CollapsibleAccessListTypeInfo
-      userCategory={props.userCategory}
-      userTypeOption={userTypeOption}
-    />
+    <MemoryRouter>
+      <CollapsibleAccessListTypeInfo
+        userCategory={props.userCategory}
+        userTypeOption={userTypeOption}
+        okta={{
+          hasPlugin: props.hasOktaPlugin,
+          hasAppGroupSyncEnabled: props.hasOktaAppGroupSyncEnabled,
+        }}
+      />
+    </MemoryRouter>
   );
 }

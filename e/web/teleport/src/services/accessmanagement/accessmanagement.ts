@@ -325,7 +325,7 @@ function getPresetTypeFromMetadataLabel(labels: object): AccessListPreset {
   return labels['teleport.internal/access-list-preset'] ?? '';
 }
 
-function makeAccessList(json: any): AccessList {
+export function makeAccessList(json: any): AccessList {
   const spec = json?.spec || { spec: {} };
   const metadata = json?.metadata || { metadata: {} };
 

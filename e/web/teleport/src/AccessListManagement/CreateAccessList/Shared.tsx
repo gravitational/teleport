@@ -11,10 +11,9 @@ import ResourceService from 'teleport/services/resources';
 import {
   ReactSelectAccessListMultiValue,
   ReactSelectAccessListOption,
-  type HybridUserOption,
-  type MemberSelection,
 } from '../Shared/Shared';
 import { RolesSelectedFor, UserKind } from '../Shared/types';
+import { EligibleUsersFieldSelectProps } from './types';
 
 // EligibilityOrGrantRolesFieldSelectAndCreate is used to define
 // eligibility (what roles are required to be eligible members/owners)
@@ -75,9 +74,6 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
 const FieldSelectCreatableWrapper = styled.div`
   display: contents;
 
-  .react-select__value-container {
-    margin: ${p => p.theme.space[1]}px 0;
-  }
   .react-select__input-container {
     margin: 0;
     padding: 0 calc(${p => p.theme.space[1]}px / 2);
@@ -96,20 +92,8 @@ export function EligibleUsersFieldSelect({
   autoFocus = false,
   noOptionsMsg = 'No users found',
   userKind,
-}: {
-  selected: Option<MemberSelection>[];
-  isDisabled: boolean;
-  onChange(opts: Option<MemberSelection>[]): void;
-  loadOptions(input: string): Promise<HybridUserOption[]>;
-  label: string;
-  requiredErrMsg?: string;
-  disableCreate?: boolean;
-  placeholder?: string;
-  autoFocus?: boolean;
-  noOptionsMsg?: string;
-  // If undefined, userKind refers to Teleport users.
-  userKind?: 'nested-access-list' | undefined;
-}) {
+  key,
+}: EligibleUsersFieldSelectProps) {
   const Component = disableCreate
     ? FieldSelectAsync
     : FieldSelectCreatableAsync;
@@ -117,6 +101,7 @@ export function EligibleUsersFieldSelect({
   return (
     <FieldSelectCreatableWrapper>
       <Component
+        key={key}
         label={label}
         value={selected}
         rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
