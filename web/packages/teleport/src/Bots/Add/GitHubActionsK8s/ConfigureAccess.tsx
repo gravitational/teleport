@@ -72,9 +72,9 @@ export function ConfigureAccess(props: FlowStepProps) {
           </H2>
 
           <Text mb={3}>
-            Fine tune the access your workflow needs to perform its steps.
-            Restrict which clusters can be accessed using labels and what level
-            of access using the other options.
+            Fine tune the access your workflow needs. Restrict <i>which</i>{' '}
+            clusters can be accessed using labels and <i>what</i> level of
+            access using groups and users.
           </Text>
         </Box>
 
