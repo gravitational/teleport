@@ -7,6 +7,10 @@ resources:
     package: types
     yaml_kind: app
     yaml_version: v3
+  - type: AppServerV3
+    package: types
+    yaml_kind: app_server
+    yaml_version: v3
   - type: DiscoveryConfig
     package: discoveryconfig
     yaml_kind: discovery_config
