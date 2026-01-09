@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	ossaccessgraphclient "github.com/gravitational/teleport/lib/accessgraph"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -204,14 +205,7 @@ type AccessGraphConfig struct {
 	// Enabled indicates if Access Graph reporting is enabled.
 	Enabled bool
 
-	// Addr of the Access Graph service.
-	Addr string
-
-	// CA is the CA in PEM format used by the Access Graph service.
-	CA []byte
-
-	// Insecure is true if the connection to the Access Graph service should be insecure.
-	Insecure bool
+	GetAccessGraphClient ossaccessgraphclient.AccessGraphClientGetter
 }
 
 type awsFetchersClientsGetter struct {
