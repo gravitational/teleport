@@ -111,7 +111,7 @@ export function ConfigureAccess(props: FlowStepProps) {
                   >
                     Teleport Kubernetes Access Controls
                   </Link>{' '}
-                  docs for information about using Kubernetes labels.
+                  docs for information about using labels.
                 </Text>
 
                 <FieldSelectCreatable
