@@ -16,7 +16,9 @@ However, if you need to customize the installation process for your environment,
 
 The custom document's parameters must include `env`, `scriptName` and `token`.
 
-The recommended approach is to use the following document and customize it as needed:
+The recommended approach is to use the following document,
+setting <Var name="teleport.example.com:443" /> to the host and port of your Teleport Proxy Service or Enterprise Cloud site, 
+and customizing it as needed:
 
 ```yaml
 schemaVersion: '2.2'
@@ -90,4 +92,135 @@ Add the necessary IAM permissions to allow the Discovery Service to list regions
     ],
     "Resource": "*"
 }
+```
+
+### Discover instances in multiple accounts under the same organization
+
+The Discovery Service can be configured to discover EC2 instances across multiple AWS accounts within the same AWS Organization.
+
+Some additional configurations are required, and this section explains them in further detail below:
+- update invite token to allow instances belonging to the organization to join the cluster
+- allow the Discovery Service to list accounts in the organization and assume roles in the target accounts
+- create an IAM role in each target account that the Discovery Service can assume
+- configure the Discovery Service to enable account discovery
+
+#### Update invite token
+
+Add all the account IDs to the `spec.allow` section of the EC2 invite token used by the Discovery Service.
+
+```diff
+# token.yaml
+kind: token
+version: v2
+metadata:
+  name: aws-discovery-iam-token
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+  - aws_account: "123456789012"
+    # Existing entry...
++ - aws_account: "account-number-1"
++ - aws_account: "account-number-2"
++ # other accounts...
++ - aws_account: "account-number-3"
+```
+
+#### Allow the Discovery Service to list accounts and assume the discovery role in those accounts
+
+The Discovery Service must be able to list all the accounts in the AWS Organization.
+
+<Admonition type="tip">
+
+The required AWS APIs are part of the AWS Organizations service, and can only be called from the management account or a member account that is a delegated administrator.
+
+</Admonition>
+
+Navigate to the IAM Role, <Var name="Discovery Service role's ARN" />, used by the Discovery Service and edit its policies.
+
+Allow the role to list accounts by adding the following IAM Policy:
+```json
+{
+    "Effect": "Allow",
+    "Action": [
+        "organizations:ListAccountsForParent",
+        "organizations:ListChildren",
+        "organizations:ListRoots"
+    ],
+    "Resource": "*"
+}
+```
+
+Allow the role to assume other roles in each target account by adding the following IAM Policy:
+```json
+{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "*"
+}
+```
+
+#### Create IAM Role in each target account
+
+The Discovery Service must be able to assume a role in each target AWS account to discover EC2 instances.
+
+Create an IAM Role named <Var name="DiscoverEC2AssumedRole" /> in each target AWS account, including the one where the Discovery Service is running, with the following permissions:
+
+```json
+{
+    "Effect": "Allow",
+    "Action": [
+        "account:ListRegions",
+        "ec2:DescribeInstances",
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetCommandInvocation",
+        "ssm:ListCommandInvocations",
+        "ssm:SendCommand"
+    ],
+    "Resource": "*"
+}
+```
+
+And the following trust relationship, which allows the <Var name="Discovery Service role's ARN" /> to assume it:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "<Var name="Discovery Service role's ARN" />"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+#### Configure the Discovery Service to enable account discovery
+
+Navigate to AWS Organizations and note the Organization ID: <Var name="o-org-id" />.
+
+Edit the `teleport.yaml` file to enable account discovery in the Discovery Service:
+```yaml
+discovery_service:
+  aws:
+   - types: ["ec2"]
+     # other fields...
+     regions: ["*"]
+     assume_role_name: <Var name="DiscoverEC2AssumedRole" />
+     organization:
+       organization_id: <Var name="o-org-id" />
+       organizational_units:
+         # Include is a list of AWS Organizational Unit IDs and children OUs to include.
+         # Accounts that belong to these OUs, and their children, will be included.
+         # Only exact matches or wildcard (*) are supported.
+         # Required.
+         include: ["*"]
+         # Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+         # Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+         # Only exact matches are supported.
+         # Optional. If empty, no OUs are excluded.
+         exclude: []
 ```
