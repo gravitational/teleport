@@ -370,6 +370,7 @@ func NewServer(cfg Config) (reversetunnelclient.Server, error) {
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
+		sshutils.SetRequestHandler(srv),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
 		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
@@ -388,6 +389,21 @@ func remoteClustersMap(rc []types.RemoteCluster) map[string]types.RemoteCluster 
 		out[rc[i].GetName()] = rc[i]
 	}
 	return out
+}
+
+// HandleRequest processes global out-of-band requests.
+//
+// Only supports [teleport.KeepAliveReqType] requests, all other requests are discarded.
+func (s *server) HandleRequest(ctx context.Context, ccx *sshutils.ConnectionContext, r *ssh.Request) {
+	switch r.Type {
+	case teleport.KeepAliveReqType:
+		r.Reply(false, nil)
+	default:
+		if err := r.Reply(false, nil); err != nil {
+			s.logger.WarnContext(ctx, "Failed to reply to ssh request", "request_type", r.Type, "error", err)
+		}
+		s.logger.DebugContext(ctx, "Discarding global request", "request_type", r.Type)
+	}
 }
 
 // disconnectClusters disconnects reverse tunnel connections from remote clusters
@@ -679,7 +695,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		}
 		//nolint:sloglint // message should be a constant but in this case we are creating it at runtime.
 		s.logger.WarnContext(ctx, msg)
-		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
+		s.rejectRequest(nch, ssh.UnknownChannelType, msg)
 		return
 	}
 }
