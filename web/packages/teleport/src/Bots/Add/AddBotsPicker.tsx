@@ -54,7 +54,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + SSH',
     description:
-      'Use Machine & Workload Identity to grant GitHub Actions CI/CD access to Teleport resources.',
+      'Use Machine & Workload Identity (MWI) to grant GitHub Actions CI/CD access to Teleport resources.',
     link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsSsh),
     icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActions,
@@ -76,7 +76,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'GitHub Actions + Kubernetes',
     description:
-      'Use Machine & Workload Identity to grant GitHub Actions CI/CD access to Teleport resources.',
+      'Use Machine & Workload Identity (MWI) to grant GitHub Actions CI/CD access to Kubernetes clusters.',
     link: cfg.getBotsNewRoute(BotFlowType.GitHubActionsK8s),
     icon: 'github',
     kind: IntegrationEnrollKind.MachineIDGitHubActionsKubernetes,
@@ -86,7 +86,8 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'CircleCI',
-    description: 'Use Machine ID to power CircleCI CI/CD workflows.',
+    description:
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials in CircleCI CI/CD workflows.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/circleci/',
     icon: 'circleci',
     kind: IntegrationEnrollKind.MachineIDCircleCI,
@@ -96,7 +97,8 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'GitLab CI/CD',
-    description: 'Use Machine ID to power GitLab CI/CD workflows.',
+    description:
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials in GitLab pipelines.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gitlab/',
     icon: 'gitlab',
     kind: IntegrationEnrollKind.MachineIDGitLab,
@@ -107,7 +109,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Jenkins',
     description:
-      'Use Machine ID to eliminate long-lived credentials in Jenkins.',
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials in Jenkins.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/jenkins/',
     icon: 'jenkins',
     kind: IntegrationEnrollKind.MachineIDJenkins,
@@ -118,7 +120,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Ansible',
     description:
-      'Use Machine ID to eliminate long-lived credentials from auth with Linux hosts.',
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials from Ansible workflows.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/access-guides/ansible/',
     icon: 'ansible',
     kind: IntegrationEnrollKind.MachineIDAnsible,
@@ -129,7 +131,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Spacelift',
     description:
-      'Use Machine ID to authenticate workloads running in Spacelift with Teleport.',
+      'Use Machine & Workload Identity (MWI) to authenticate Spacelift runs with Teleport.',
     link: 'https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/spacelift/',
     icon: 'spacelift',
     kind: IntegrationEnrollKind.MachineIDSpacelift,
@@ -139,7 +141,8 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'AWS',
-    description: 'Connect EC2 instances and RDS databases seamlessly.',
+    description:
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials on EC2 VMs.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/aws/',
     icon: 'aws',
     kind: IntegrationEnrollKind.MachineIDAWS,
@@ -149,7 +152,8 @@ export const integrations: BotIntegration[] = [
   },
   {
     title: 'Google Cloud',
-    description: 'Connect GCE instances and CloudSQL databases seamlessly.',
+    description:
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials on GCE VMs.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/gcp/',
     icon: 'googlecloud',
     kind: IntegrationEnrollKind.MachineIDGCP,
@@ -160,7 +164,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Azure',
     description:
-      'Use Machine ID to eliminate long-lived credentials on Azure VMs.',
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials on Azure VMs.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/azure/',
     icon: 'azure',
     kind: IntegrationEnrollKind.MachineIDAzure,
@@ -171,7 +175,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Kubernetes',
     description:
-      'Use Machine ID to eliminate long-lived credentials for Kubernetes workloads.',
+      'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials for Kubernetes workloads.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/deployment/kubernetes/',
     icon: 'kube',
     kind: IntegrationEnrollKind.MachineIDKubernetes,
@@ -182,7 +186,7 @@ export const integrations: BotIntegration[] = [
   {
     title: 'Argo CD',
     description:
-      'Use Machine ID to enable Argo CD to connect to external Kubernetes clusters.',
+      'Use Machine & Workload Identity (MWI) to enable Argo CD to connect to external Kubernetes clusters.',
     link: 'https://goteleport.com/docs/machine-workload-identity/machine-id/access-guides/argocd/',
     icon: 'argocd',
     kind: IntegrationEnrollKind.MachineIDArgoCD,
@@ -191,8 +195,9 @@ export const integrations: BotIntegration[] = [
     tags: ['bot', 'cicd'],
   },
   {
-    title: 'Generic',
-    description: 'Use Machine ID to Integrate generic server with Teleport.',
+    title: 'Generic Linux',
+    description:
+        'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials on Linux servers.',
     link: 'https://goteleport.com/docs/enroll-resources/machine-id/getting-started/',
     icon: 'server',
     kind: IntegrationEnrollKind.MachineID,
@@ -213,8 +218,8 @@ export function AddBotsPicker() {
       </FeatureHeader>
 
       <P mb="5">
-        Set up Teleport Machine ID to allow CI/CD workflows and other machines
-        to access resources protected by Teleport.
+        Set up Teleport Machine & Workload Identity to allow CI/CD workflows and
+        other machines to access resources protected by Teleport.
       </P>
 
       <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
@@ -278,7 +283,7 @@ function ExternalLinkTile({ integration }: { integration: BotIntegration }) {
 
   return (
     <Tile
-      title={`Machine ID: ${integration.title}`}
+      title={`MWI: ${integration.title}`}
       description={integration.description}
       tags={integration.tags}
       link={{ external: true, url: integration.link, onClick: onBotClick }}
@@ -319,7 +324,7 @@ function GuidedTile({
 
   return (
     <Tile
-      title={`Machine ID: ${integration.title}`}
+      title={`MWI: ${integration.title}`}
       description={integration.description}
       tags={integration.tags}
       hasAccess={hasCreateBotPermission}
