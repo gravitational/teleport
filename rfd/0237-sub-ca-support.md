@@ -15,9 +15,11 @@ state: draft
 
 Add support for Teleport CAs to operate as a sub CA of an external root.
 
-While the feature design is generic, support is (initially) only available for a
+All existing and future Teleport CAs will be overridable. Support will be added
+one CA at a time due to the number of CAs. The first supported CAs will be the
 subset of Teleport CAs that are commonly visible to external trusted root
-configurations: namely the "DB client" and "Windows Desktop Access" CAs.
+configurations: namely the "DB client" and "Windows Desktop Access" CAs. After
+that the SPIFFE CA will be next, followed by all other CAs.
 
 Sub CA support is an Enterprise feature.
 
