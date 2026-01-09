@@ -50,9 +50,9 @@ type UploaderConfig struct {
 	ScanDir string
 	// CorruptedDir is the directory to store corrupted uploads in.
 	CorruptedDir string
-	// AbandonedDir is the directory to store abandoned uploads in (uploads that
-	// could not be completed, but not due to corruption).
-	AbandonedDir string
+	// DelayedDir is the directory to store delayed uploads in (uploads that
+	// encountered a non-permanent error that will be retried at a reduced frequency).
+	DelayedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
 	// InitialScanDelay is how long to wait before performing the initial scan.
@@ -79,9 +79,11 @@ type UploaderConfig struct {
 	// If set to 0, then no maximum is enforced.
 	EncryptedRecordingUploadMaxSize int
 	// MaxUploadAttempts is the maximum number of times the uploader will attempt
-	// to upload a particular session before marking it as corrupted. If set to
+	// to upload a particular session before marking it as delayed. If set to
 	// zero, there is no limit.
 	MaxUploadAttempts int
+
+	backoff *retryutils.Linear
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -94,9 +96,6 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.CorruptedDir == "" {
 		return trace.BadParameter("missing parameter CorruptedDir")
-	}
-	if cfg.AbandonedDir == "" {
-		return trace.BadParameter("missing parameter AbandonedDir")
 	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
@@ -113,6 +112,19 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	if cfg.EncryptedRecordingUploadTargetSize == 0 {
 		cfg.EncryptedRecordingUploadTargetSize = events.MinUploadPartSizeBytes
 	}
+	if cfg.backoff == nil {
+		backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
+			First:  cfg.InitialScanDelay,
+			Step:   cfg.ScanPeriod,
+			Max:    cfg.ScanPeriod * 100,
+			Clock:  cfg.Clock,
+			Jitter: retryutils.SeventhJitter,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.backoff = backoff
+	}
 	return nil
 }
 
@@ -128,19 +140,6 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err := os.MkdirAll(cfg.CorruptedDir, teleport.SharedDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	if err := os.MkdirAll(cfg.AbandonedDir, teleport.SharedDirMode); err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  cfg.InitialScanDelay,
-		Step:   cfg.ScanPeriod,
-		Max:    cfg.ScanPeriod * 100,
-		Clock:  cfg.Clock,
-		Jitter: retryutils.SeventhJitter,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	uploader := &Uploader{
 		cfg:            cfg,
@@ -149,8 +148,33 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		semaphore:      make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:       make(chan events.UploadEvent, cfg.ConcurrentUploads),
 		eventPreparer:  &events.NoOpPreparer{},
-		backoff:        backoff,
 		uploadAttempts: make(map[string]int),
+	}
+	if cfg.DelayedDir != "" {
+		if err := os.MkdirAll(cfg.DelayedDir, teleport.SharedDirMode); err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+
+		delayedCfg := cfg
+		delayedCfg.ScanDir = cfg.DelayedDir
+		delayedCfg.DelayedDir = ""
+		delayedCfg.MaxUploadAttempts = 0
+		backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
+			First:  24 * time.Hour,
+			Step:   24 * time.Hour,
+			Max:    24 * time.Hour,
+			Clock:  cfg.Clock,
+			Jitter: retryutils.SeventhJitter,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		delayedCfg.backoff = backoff
+		delayedUploader, err := NewUploader(delayedCfg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uploader.delayedUploader = delayedUploader
 	}
 	return uploader, nil
 }
@@ -178,8 +202,8 @@ type Uploader struct {
 
 	eventPreparer *events.NoOpPreparer
 
-	backoff        *retryutils.Linear
-	uploadAttempts map[string]int
+	uploadAttempts  map[string]int
+	delayedUploader *Uploader
 }
 
 func (u *Uploader) Close() {
@@ -187,6 +211,10 @@ func (u *Uploader) Close() {
 	u.mu.Lock()
 	u.isClosing = true
 	u.mu.Unlock()
+
+	if u.delayedUploader != nil {
+		u.delayedUploader.Close()
+	}
 
 	close(u.closeC)
 	// wait for all uploads to finish
@@ -197,8 +225,8 @@ func (u *Uploader) writeCorruptedError(sessionID session.ID, err error) error {
 	return trace.Wrap(u.writeSessionError(u.corruptedErrorFilePath(sessionID), err))
 }
 
-func (u *Uploader) writeAbandonedError(sessionID session.ID, err error) error {
-	return trace.Wrap(u.writeSessionError(u.abandonedErrorFilePath(sessionID), err))
+func (u *Uploader) writeDelayedError(sessionID session.ID, err error) error {
+	return trace.Wrap(u.writeSessionError(u.delayedErrorFilePath(sessionID), err))
 }
 
 func (u *Uploader) writeSessionError(path string, err error) error {
@@ -212,8 +240,8 @@ func (u *Uploader) checkCorruptedError(sessionID session.ID) (bool, error) {
 	return u.checkSessionError(u.corruptedErrorFilePath(sessionID))
 }
 
-func (u *Uploader) checkAbandonedError(sessionID session.ID) (bool, error) {
-	return u.checkSessionError(u.abandonedErrorFilePath(sessionID))
+func (u *Uploader) checkDelayedError(sessionID session.ID) (bool, error) {
+	return u.checkSessionError(u.delayedErrorFilePath(sessionID))
 }
 
 func (u *Uploader) checkSessionError(path string) (bool, error) {
@@ -249,6 +277,14 @@ func (u *Uploader) Serve(ctx context.Context) error {
 	u.mu.Unlock()
 	defer u.wg.Done()
 
+	if u.delayedUploader != nil {
+		u.wg.Go(func() {
+			if err := u.delayedUploader.Serve(ctx); err != nil {
+				u.log.WarnContext(ctx, "delayed uploader failed", "error", err)
+			}
+		})
+	}
+
 	u.log.InfoContext(ctx, "uploader server ready", "scan_dir", u.cfg.ScanDir, "scan_period", u.cfg.ScanPeriod.String())
 	for {
 		select {
@@ -262,26 +298,24 @@ func (u *Uploader) Serve(ctx context.Context) error {
 			switch {
 			case event.Error == nil:
 				delete(u.uploadAttempts, event.SessionID)
-				u.backoff.ResetToDelay()
+				u.cfg.backoff.ResetToDelay()
 			case isCorruptedError(event.Error):
 				delete(u.uploadAttempts, event.SessionID)
 				u.log.WarnContext(ctx, "Failed to read session recording, will skip future uploads.", "session_id", event.SessionID)
 				if err := u.writeCorruptedError(session.ID(event.SessionID), event.Error); err != nil {
-					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
+					u.log.WarnContext(ctx, "Failed to write corrupted session error", "error", err, "session_id", event.SessionID)
 				}
 			case u.cfg.MaxUploadAttempts != 0 && u.uploadAttempts[event.SessionID] >= u.cfg.MaxUploadAttempts:
 				delete(u.uploadAttempts, event.SessionID)
-				u.log.WarnContext(ctx, "Failed to upload session, will skip future uploads.",
+				u.log.WarnContext(ctx, "Failed to upload session, backing off until error is resolved. Auth server logs may have more information.",
 					"session_id", event.SessionID, "error", event.Error, "attempts", u.uploadAttempts[event.SessionID])
-				if err := u.writeAbandonedError(session.ID(event.SessionID), event.Error); err != nil {
-					u.log.WarnContext(ctx, "Failed to write session", "error", err, "session_id", event.SessionID)
+				if err := u.writeDelayedError(session.ID(event.SessionID), event.Error); err != nil {
+					u.log.WarnContext(ctx, "Failed to write delayed session upload error", "error", err, "session_id", event.SessionID)
 				}
 			default:
-				if !trace.IsAccessDenied(event.Error) && !trace.IsNotFound(event.Error) {
-					u.uploadAttempts[event.SessionID]++
-				}
-				u.backoff.Inc()
-				u.log.WarnContext(ctx, "Increasing session upload backoff due to error, applying backoff before retrying", "backoff", u.backoff.Duration())
+				u.uploadAttempts[event.SessionID]++
+				u.cfg.backoff.Inc()
+				u.log.WarnContext(ctx, "Increasing session upload backoff due to error, applying backoff before retrying", "backoff", u.cfg.backoff.Duration())
 			}
 			// forward the event to channel that used in tests
 			if u.cfg.EventsC != nil {
@@ -292,11 +326,11 @@ func (u *Uploader) Serve(ctx context.Context) error {
 				}
 			}
 		// Tick at scan period but slow down (and speeds up) on errors.
-		case <-u.backoff.After():
+		case <-u.cfg.backoff.After():
 			if _, err := u.Scan(ctx); err != nil {
 				if !errors.Is(trace.Unwrap(err), errContext) {
-					u.backoff.Inc()
-					u.log.WarnContext(ctx, "Uploader scan failed, applying backoff before retrying", "backoff", u.backoff.Duration(), "error", err)
+					u.cfg.backoff.Inc()
+					u.log.WarnContext(ctx, "Uploader scan failed, applying backoff before retrying", "backoff", u.cfg.backoff.Duration(), "error", err)
 				}
 			}
 		}
@@ -370,9 +404,9 @@ func (u *Uploader) corruptedErrorFilePath(sid session.ID) string {
 	return filepath.Join(u.cfg.ScanDir, sid.String()+errorExt)
 }
 
-// abandonedErrorFilePath returns a path to an error file for abandoned session uploads.
-func (u *Uploader) abandonedErrorFilePath(sid session.ID) string {
-	return filepath.Join(u.cfg.ScanDir, sid.String()+abandonedErrorExt)
+// delayedErrorFilePath returns a path to an error file for delayed session uploads.
+func (u *Uploader) delayedErrorFilePath(sid session.ID) string {
+	return filepath.Join(u.cfg.ScanDir, sid.String()+delayedErrorExt)
 }
 
 type upload struct {
@@ -561,6 +595,8 @@ func encryptedUploadAggregateIter(in io.Reader, targetSize int, maxSize int) ite
 }
 
 func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error) {
+	fmt.Println("start upload")
+	defer fmt.Println("start upload finished with error:", err)
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -571,30 +607,21 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 	sessionFilePath := filepath.Join(u.cfg.ScanDir, fileName)
 	// Corrupted session records can clog the uploader
 	// that will indefinitely try to upload them.
-	var errorDir string
 	isCorruptedError, err := u.checkCorruptedError(sessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	isAbandonedErr, err := u.checkAbandonedError(sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	if isCorruptedError {
-		errorDir = u.cfg.CorruptedDir
-	} else if isAbandonedErr {
-		errorDir = u.cfg.AbandonedDir
-	}
-	if errorDir != "" {
+		fmt.Println("corrupted")
 		errorFilePath := u.corruptedErrorFilePath(sessionID)
 		// move the corrupted recording and the error marker to a separate directory
 		// to prevent the uploader from spinning on the same corrupted upload
 		var moveErrs []error
-		if err := os.Rename(sessionFilePath, filepath.Join(errorDir, filepath.Base(sessionFilePath))); err != nil {
-			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, errorDir))
+		if err := os.Rename(sessionFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(sessionFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, u.cfg.CorruptedDir))
 		}
-		if err := os.Rename(errorFilePath, filepath.Join(errorDir, filepath.Base(errorFilePath))); err != nil {
-			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, errorDir))
+		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(errorFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
 		}
 		if len(moveErrs) > 0 {
 			log.ErrorContext(ctx, "Failed to move corrupted recording", "error", trace.NewAggregate(moveErrs...))
@@ -603,8 +630,31 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return corruptedError{
 			err: trace.BadParameter(
 				"session recording %v; check the %v directory for artifacts",
-				sessionID, errorDir),
+				sessionID, u.cfg.CorruptedDir),
 		}
+	}
+	// Delayed errors may succeed eventually, but we will move them to their own
+	// folder and scan them less frequently to not clog the logs.
+	isDelayedErr, err := u.checkDelayedError(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isDelayedErr && u.cfg.DelayedDir != "" {
+		fmt.Println("delayed")
+		errorFilePath := u.delayedErrorFilePath(sessionID)
+		var moveErrs []error
+		if err := os.Rename(sessionFilePath, filepath.Join(u.cfg.DelayedDir, filepath.Base(sessionFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, u.cfg.DelayedDir))
+		}
+		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.DelayedDir, filepath.Base(errorFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.DelayedDir))
+		}
+		if len(moveErrs) > 0 {
+			log.ErrorContext(ctx, "Failed to move corrupted recording", "error", trace.NewAggregate(moveErrs...))
+		}
+		return trace.Errorf(
+			"Session recording %v cannot be uploaded right now, will try again later. Check the %v directory for artifacts.",
+			sessionID, u.cfg.DelayedDir)
 	}
 
 	start := time.Now()
@@ -758,6 +808,7 @@ func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 }
 
 func (u *Uploader) upload(ctx context.Context, up *upload) error {
+	fmt.Printf("upload: %+v\n", up)
 	log := u.log.With(fieldSessionID, up.sessionID)
 
 	defer u.releaseSemaphore(ctx)
@@ -775,6 +826,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		}
 		stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
 		if err != nil {
+			fmt.Println("create stream:", err)
 			return trace.Wrap(err)
 		}
 	} else {

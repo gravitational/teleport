@@ -158,7 +158,7 @@ func TestMovesCorruptedUploads(t *testing.T) {
 		Streamer:     events.NewDiscardStreamer(),
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
-		AbandonedDir: t.TempDir(),
+		DelayedDir:   t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -484,78 +484,57 @@ func (e *retryErrorStreamer) ResumeAuditStream(ctx context.Context, sid session.
 }
 
 func TestUploadMaxAttempts(t *testing.T) {
-	tests := []struct {
-		name             string
-		uploadErr        error
-		expectMaxRetries bool
-	}{
-		{
-			name:             "hit max attempts",
-			uploadErr:        trace.Errorf("general error"),
-			expectMaxRetries: true,
-		},
-		{
-			name:      "ignore limit for errors that can be fixed",
-			uploadErr: trace.AccessDenied("fixable permissions error"),
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			synctest.Test(t, func(t *testing.T) {
-				ctx := t.Context()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
 
-				p := newUploaderPack(t, uploaderPackConfig{
-					clock: clockwork.NewRealClock(),
-					wrapProtoStreamer: func(streamer events.Streamer) (events.Streamer, error) {
-						return &retryErrorStreamer{err: tc.uploadErr}, nil
-					},
-					maxUploadAttempts: 1,
-				})
-				backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
-					First: time.Second,
-					Step:  time.Second,
-					Max:   time.Second,
-				})
-				require.NoError(t, err)
-				p.uploader.backoff = backoff
-				go p.Serve(ctx)
-
-				inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
-				sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
-				p.emitEvents(ctx, t, inEvents)
-				sessionFile := filepath.Join(p.scanDir, sid+".tar")
-				corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
-				abandonedSessionFile := filepath.Join(p.uploader.cfg.AbandonedDir, sid+".tar")
-
-				time.Sleep(time.Second)
-				synctest.Wait()
-				require.FileExists(t, sessionFile)
-				require.NoFileExists(t, corruptedSessionFile)
-				require.NoFileExists(t, abandonedSessionFile)
-
-				// Session should not be marked as corrupted after first attempt.
-				time.Sleep(time.Second)
-				synctest.Wait()
-				require.FileExists(t, sessionFile)
-				require.NoFileExists(t, corruptedSessionFile)
-				require.NoFileExists(t, abandonedSessionFile)
-
-				// If the error allows retries, session should be marked as corrupted
-				// after upload attempts are exhausted.
-				time.Sleep(time.Second)
-				synctest.Wait()
-				if tc.expectMaxRetries {
-					require.NoFileExists(t, sessionFile)
-					require.NoFileExists(t, corruptedSessionFile)
-					require.FileExists(t, abandonedSessionFile)
-				} else {
-					require.FileExists(t, sessionFile)
-					require.NoFileExists(t, corruptedSessionFile)
-					require.NoFileExists(t, abandonedSessionFile)
-				}
-			})
+		p := newUploaderPack(t, uploaderPackConfig{
+			clock:             clockwork.NewRealClock(),
+			maxUploadAttempts: 1,
 		})
-	}
+		backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
+			First: time.Second,
+			Step:  time.Second,
+			Max:   time.Second,
+		})
+		require.NoError(t, err)
+		p.uploader.cfg.backoff = backoff
+		p.uploader.cfg.Streamer = &retryErrorStreamer{err: trace.Errorf("test error")}
+		go p.Serve(ctx)
+
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 1024})
+		sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+		p.emitEvents(ctx, t, inEvents)
+		sessionFile := filepath.Join(p.scanDir, sid+".tar")
+		corruptedSessionFile := filepath.Join(p.uploader.cfg.CorruptedDir, sid+".tar")
+		delayedSessionFile := filepath.Join(p.uploader.cfg.DelayedDir, sid+".tar")
+
+		time.Sleep(time.Second)
+		synctest.Wait()
+		require.FileExists(t, sessionFile)
+		require.NoFileExists(t, corruptedSessionFile)
+		require.NoFileExists(t, delayedSessionFile)
+
+		// Session should not be marked as corrupted after first attempt.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		require.FileExists(t, sessionFile)
+		require.NoFileExists(t, corruptedSessionFile)
+		require.NoFileExists(t, delayedSessionFile)
+
+		// If the error allows retries, session should be marked as corrupted
+		// after upload attempts are exhausted.
+		time.Sleep(time.Second)
+		synctest.Wait()
+		require.NoFileExists(t, sessionFile)
+		require.NoFileExists(t, corruptedSessionFile)
+		require.FileExists(t, delayedSessionFile)
+
+		time.Sleep(24 * time.Hour)
+		synctest.Wait()
+		require.NoFileExists(t, sessionFile)
+		require.NoFileExists(t, corruptedSessionFile)
+		require.NoFileExists(t, delayedSessionFile)
+	})
 }
 
 // TestUploadCorruptSession creates a corrupted session file
@@ -1040,7 +1019,7 @@ type uploaderPack struct {
 func newUploaderPack(t *testing.T, cfg uploaderPackConfig) uploaderPack {
 	scanDir := t.TempDir()
 	corruptedDir := t.TempDir()
-	abandonedDir := t.TempDir()
+	delayedDir := t.TempDir()
 
 	clock := cfg.clock
 	if clock == nil {
@@ -1083,7 +1062,7 @@ func newUploaderPack(t *testing.T, cfg uploaderPackConfig) uploaderPack {
 	uploaderCfg := UploaderConfig{
 		ScanDir:                            pack.scanDir,
 		CorruptedDir:                       corruptedDir,
-		AbandonedDir:                       abandonedDir,
+		DelayedDir:                         delayedDir,
 		InitialScanDelay:                   pack.initialScanDelay,
 		ScanPeriod:                         pack.scanPeriod,
 		Streamer:                           pack.protoStreamer,
@@ -1148,7 +1127,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		EventsC:          eventsC,
 		ScanDir:          scanDir,
 		CorruptedDir:     corruptedDir,
-		AbandonedDir:     t.TempDir(),
+		DelayedDir:       t.TempDir(),
 		InitialScanDelay: 10 * time.Millisecond,
 		ScanPeriod:       scanPeriod,
 		Streamer:         test.streamer,

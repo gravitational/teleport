@@ -3831,7 +3831,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	paths := [][]string{
 		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.StreamingSessionsDir, apidefaults.Namespace},
 		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.CorruptedSessionsDir, apidefaults.Namespace},
-		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.AbandonedSessionsDir, apidefaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.DelayedSessionsDir, apidefaults.Namespace},
 	}
 	for _, path := range paths {
 		for i := 1; i < len(path); i++ {
@@ -3854,13 +3854,13 @@ func (process *TeleportProcess) initUploaderService() error {
 
 	uploadsDir := filepath.Join(paths[0]...)
 	corruptedDir := filepath.Join(paths[1]...)
-	abandonedDir := filepath.Join(paths[2]...)
+	delayedDir := filepath.Join(paths[2]...)
 
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		Streamer:                        uploaderClient,
 		ScanDir:                         uploadsDir,
 		CorruptedDir:                    corruptedDir,
-		AbandonedDir:                    abandonedDir,
+		DelayedDir:                      delayedDir,
 		EventsC:                         process.Config.Testing.UploadEventsC,
 		InitialScanDelay:                15 * time.Second,
 		EncryptedRecordingUploader:      uploaderClient,
