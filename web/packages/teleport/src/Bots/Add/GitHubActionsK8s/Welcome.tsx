@@ -76,7 +76,7 @@ export function Welcome(props: FlowStepProps) {
           <P2>You’ll need:</P2>
           <ul>
             <li>A GitHub repository</li>
-            <li>Access rules for your workflow</li>
+            <li>An enrolled Kubernetes cluster</li>
           </ul>
 
           <Info
