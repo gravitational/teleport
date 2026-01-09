@@ -50,24 +50,6 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
-// namedResourceCollection is an implementation of [resources.Collection] that
-// displays resources in a table as a list of names and nothing else.
-type namedResourceCollection []types.Resource
-
-// Resources implements [resources.Collection].
-func (c namedResourceCollection) Resources() []types.Resource {
-	return c
-}
-
-// WriteText implements [resources.Collection].
-func (c namedResourceCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name"})
-	for _, override := range c {
-		t.AddRow([]string{override.GetName()})
-	}
-	return trace.Wrap(t.WriteTo(w))
-}
-
 func printMetadataLabels(labels map[string]string) string {
 	pairs := []string{}
 	for key, value := range labels {

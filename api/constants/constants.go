@@ -135,6 +135,8 @@ const (
 	// AWSCNConsoleURL is the URL of AWS management console for AWS China
 	// Partition.
 	AWSCNConsoleURL = "https://console.amazonaws.cn"
+	// AWSQuickSightURL is the URL for accessing AWS QuickSight
+	AWSQuickSightURL = "https://quicksight.aws.amazon.com"
 
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"

@@ -193,13 +193,17 @@ function buildAuthorizedSessionUrl(
   webSessionRequest: WebSessionRequest,
   confirmationToken: DeviceConfirmationToken
 ): string {
-  const { redirectUri } = webSessionRequest;
+  const url = `https://${rootCluster.proxyHost}/${confirmPath}`;
 
-  let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${confirmationToken.id}&token=${confirmationToken.token}`;
-  if (redirectUri) {
-    url = `${url}&redirect_uri=${redirectUri}`;
+  const qp = new URLSearchParams();
+  qp.set('id', confirmationToken.id);
+  qp.set('token', confirmationToken.token);
+
+  if (webSessionRequest.redirectUri) {
+    qp.set('redirect_uri', webSessionRequest.redirectUri);
   }
-  return url;
+
+  return url + '?' + qp.toString();
 }
 
 function buildUnauthorizedSessionUrl(

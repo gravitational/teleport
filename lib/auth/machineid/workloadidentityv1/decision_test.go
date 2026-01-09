@@ -69,7 +69,7 @@ func Test_decide(t *testing.T) {
 			attrs:     standardAttrs,
 			wantIssue: false,
 			assertReason: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "templating spec.spiffe.x509.dns_sans[0] resulted in an invalid DNS name")
+				require.ErrorContains(t, err, "templating spec.spiffe.x509.dns_sans[0] resulted in an invalid DNS SAN")
 			},
 		},
 	}
@@ -598,4 +598,45 @@ func TestTemplateExtraClaims_TooDeeplyNested(t *testing.T) {
 
 	_, err = templateExtraClaims(rawClaims, &workloadidentityv1pb.Attrs{})
 	require.ErrorContains(t, err, "cannot contain more than 10 levels of nesting")
+}
+
+func Test_validDNSSAN(t *testing.T) {
+	tests := []struct {
+		str  string
+		want bool
+	}{
+		{
+			str:  "example.com",
+			want: true,
+		},
+		{
+			// Single-label domain name. An unusual case but important since we
+			// may be issuing certs for hostnames in a local network (which will
+			// not abide by usual public internet dns semantics).
+			str:  "example",
+			want: true,
+		},
+		{
+			// DNS 1123 permits numeric characters at start (unlike RFC 1035)
+			str:  "123-example.com",
+			want: true,
+		},
+		{
+			str:  "*.example.com",
+			want: true,
+		},
+		{
+			str:  "*example.com",
+			want: false,
+		},
+		{
+			str:  ".example.com",
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.str, func(t *testing.T) {
+			require.Equal(t, tt.want, validDNSSAN(tt.str))
+		})
+	}
 }

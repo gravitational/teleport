@@ -16,18 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback } from 'react';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 
 import { Notifications } from './Notifications';
 
 export function NotificationsHost() {
   const { notificationsService } = useAppContext();
-
-  notificationsService.useState();
+  const notifications = useStoreSelector(
+    'notificationsService',
+    useCallback(state => state, [])
+  );
 
   return (
     <Notifications
-      items={notificationsService.getNotifications()}
+      items={[...notifications.values()]}
       onRemoveItem={item => notificationsService.removeNotification(item)}
     />
   );

@@ -1379,6 +1379,7 @@ $ TELEPORT_TEST_GCP_KMS_KEYRING=projects/<account>/locations/us-west3/keyRings/<
 ## Moderated session
 
 Create two Teleport users, a moderator and a user. Configure Teleport roles to require that the moderator moderate the user's sessions. Use `TELEPORT_HOME` to `tsh login` as the user in one terminal, and the moderator in another.
+For web, run each session in a different browser.
 
 Ensure the default `terminationPolicy` of `terminate` has not been changed.
 
@@ -1386,6 +1387,8 @@ For each of the following cases, create a moderated session with the user using 
  - [ ] Ensure that `Ctrl+C` in the user terminal disconnects the moderator as the session has ended.
  - [ ] Ensure that `Ctrl+C` in the moderator terminal disconnects the moderator and terminates the user's session as the session no longer has a moderator.
  - [ ] Ensure that `t` in the moderator terminal terminates the session for all participants.
+ - [ ] Upload file (web only).
+ - [ ] Download file (web only).
 
 ## Performance
 
