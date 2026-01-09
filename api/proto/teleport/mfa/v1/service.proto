@@ -106,6 +106,10 @@ message VerifyValidatedMFAChallengeRequest {
   SessionIdentifyingPayload payload = 2;
   // Name of the cluster where the validated challenge originated.
   string source_cluster = 3;
+  // Name of the user for whom the challenge was issued. The client calling VerifyValidatedMFAChallenge MUST
+  // independently determine this value from session state. The server will verify it matches the user associated with
+  // the validated challenge to ensure the challenge is tied to the correct user.
+  string user = 4;
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
