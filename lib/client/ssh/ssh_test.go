@@ -20,7 +20,6 @@ package ssh_test
 
 import (
 	"context"
-	"net"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -29,13 +28,13 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
-	client_ssh "github.com/gravitational/teleport/lib/client/ssh"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 )
 
 func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
-	challengeName := "test-challenge-name"
+	const challengeName = "test-challenge-name"
 
-	authMethod := client_ssh.KeyboardInteractive(
+	authMethod := clientssh.KeyboardInteractive(
 		t.Context(),
 		&mockMFACeremonyPerformer{
 			challengeName: challengeName,
@@ -69,7 +68,7 @@ func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
 }
 
 func TestKeyboardInteractive_FailedMFA(t *testing.T) {
-	authMethod := client_ssh.KeyboardInteractive(
+	authMethod := clientssh.KeyboardInteractive(
 		t.Context(),
 		&mockMFACeremonyPerformer{
 			err: trace.Errorf("a-wild-error-appeared!"),
@@ -98,7 +97,7 @@ func TestKeyboardInteractive_FailedMFA(t *testing.T) {
 }
 
 func TestKeyboardInteractive_InvalidAuthPrompt_NonProtoQuestion(t *testing.T) {
-	authMethod := client_ssh.KeyboardInteractive(
+	authMethod := clientssh.KeyboardInteractive(
 		t.Context(),
 		nil,
 		nil,
@@ -115,7 +114,7 @@ func TestKeyboardInteractive_InvalidAuthPrompt_NonProtoQuestion(t *testing.T) {
 }
 
 func TestKeyboardInteractive_InvalidAuthPrompt_NilPromptField(t *testing.T) {
-	authMethod := client_ssh.KeyboardInteractive(
+	authMethod := clientssh.KeyboardInteractive(
 		t.Context(),
 		nil,
 		nil,
@@ -142,7 +141,7 @@ type mockMFACeremonyPerformer struct {
 	err           error
 }
 
-var _ client_ssh.MFACeremonyPerformer = (*mockMFACeremonyPerformer)(nil)
+var _ clientssh.MFACeremonyPerformer = (*mockMFACeremonyPerformer)(nil)
 
 func (m *mockMFACeremonyPerformer) PerformSessionMFACeremony(_ context.Context, _ []byte) (string, error) {
 	if m.err != nil {
@@ -153,14 +152,9 @@ func (m *mockMFACeremonyPerformer) PerformSessionMFACeremony(_ context.Context, 
 }
 
 type mockConnMetadata struct {
+	ssh.ConnMetadata
+
 	sessionID []byte
 }
 
-var _ ssh.ConnMetadata = (*mockConnMetadata)(nil)
-
-func (m *mockConnMetadata) User() string          { return "" }
-func (m *mockConnMetadata) SessionID() []byte     { return m.sessionID }
-func (m *mockConnMetadata) ClientVersion() []byte { return nil }
-func (m *mockConnMetadata) ServerVersion() []byte { return nil }
-func (m *mockConnMetadata) RemoteAddr() net.Addr  { return nil }
-func (m *mockConnMetadata) LocalAddr() net.Addr   { return nil }
+func (m *mockConnMetadata) SessionID() []byte { return m.sessionID }

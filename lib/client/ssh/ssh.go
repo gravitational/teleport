@@ -62,7 +62,7 @@ func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.Conn
 					answers = append(answers, answer)
 
 				default:
-					return nil, trace.Errorf("invalid or unsupported auth prompt type: %T", pr)
+					return nil, trace.BadParameter("invalid or unsupported auth prompt type: %T", pr)
 				}
 			}
 
