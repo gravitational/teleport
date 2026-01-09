@@ -55,8 +55,8 @@ func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.True(t, ok, "authMethod should be KeyboardInteractiveChallenge")
+	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
 
 	answers, err := ki("", "", []string{string(mfaPromptJSON)}, []bool{})
 	require.NoError(t, err)
@@ -89,8 +89,8 @@ func TestKeyboardInteractive_FailedMFA(t *testing.T) {
 	require.NoError(t, err)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.True(t, ok, "authMethod should be KeyboardInteractiveChallenge")
+	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
 
 	answers, err := ki("", "", []string{string(mfaPromptJSON)}, []bool{})
 	require.ErrorContains(t, err, "a-wild-error-appeared!")
@@ -106,8 +106,8 @@ func TestKeyboardInteractive_InvalidAuthPrompt_NonProtoQuestion(t *testing.T) {
 	require.NotNil(t, authMethod)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.True(t, ok)
+	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
 
 	answers, err := ki("", "", []string{"invalid-auth-prompt"}, []bool{})
 	require.ErrorContains(t, err, "invalid value invalid-auth-prompt")
@@ -129,8 +129,8 @@ func TestKeyboardInteractive_InvalidAuthPrompt_NilPromptField(t *testing.T) {
 	require.NoError(t, err)
 
 	// Extract the KeyboardInteractiveChallenge function from the AuthMethod so it can be tested.
-	ki, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.True(t, ok)
+	ki := authMethod.(ssh.KeyboardInteractiveChallenge)
+	require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), ki)
 
 	answers, err := ki("", "", []string{string(mfaPromptJSON)}, []bool{})
 	require.ErrorIs(t, err, trace.BadParameter("received sshpb.AuthPrompt with nil Prompt field"))
