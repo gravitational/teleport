@@ -276,6 +276,7 @@ func (a *AppV3) IsAWSConsole() bool {
 		constants.AWSConsoleURL,
 		constants.AWSUSGovConsoleURL,
 		constants.AWSCNConsoleURL,
+		constants.AWSQuickSightURL,
 	} {
 		if strings.HasPrefix(a.Spec.URI, consoleURL) {
 			return true

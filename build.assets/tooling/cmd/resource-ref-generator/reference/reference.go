@@ -75,7 +75,8 @@ type GeneratorConfig struct {
 	// Path to the root of the Go project directory.
 	SourcePath string `yaml:"source"`
 	// Directory where the generator writes reference pages.
-	DestinationDirectory string `yaml:"destination"`
+	DestinationDirectory string   `yaml:"destination"`
+	CamelCaseExceptions  []string `yaml:"camel_case_exceptions"`
 }
 
 type GenerationError struct {
@@ -117,7 +118,7 @@ func Generate(conf GeneratorConfig, tmpl *template.Template) error {
 
 		// decl is a dynamic resource type, so get data for the type and
 		// its dependencies.
-		entries, err := resource.ReferenceDataFromDeclaration(decl, sourceData.TypeDecls)
+		entries, err := resource.ReferenceDataFromDeclaration(decl, sourceData.TypeDecls, conf.CamelCaseExceptions)
 		if errors.As(err, &resource.NotAGenDeclError{}) {
 			continue
 		}

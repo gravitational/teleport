@@ -183,6 +183,10 @@ type ProvisionToken interface {
 	// unscoped
 	GetAssignedScope() string
 
+	// GetSecret returns the token's secret value and a bool representing whether
+	// or not the token had a secret..
+	GetSecret() (string, bool)
+
 	// Clone creates a copy of the token.
 	Clone() ProvisionToken
 }
@@ -297,6 +301,9 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if allowRule.AWSARN != "" {
 				return trace.BadParameter(`the %q join method does not support the "aws_arn" parameter`, JoinMethodEC2)
 			}
+			if allowRule.AWSOrganizationID != "" {
+				return trace.BadParameter(`the %q join method does not support the "aws_organization_id" parameter`, JoinMethodEC2)
+			}
 			if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
 				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_role"`, JoinMethodEC2)
 			}
@@ -316,8 +323,8 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if len(allowRule.AWSRegions) != 0 {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
-			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
-				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
+			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" && allowRule.AWSOrganizationID == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization"`, JoinMethodIAM)
 			}
 		}
 	case JoinMethodGitHub:
@@ -661,6 +668,12 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 // unscoped
 func (p *ProvisionTokenV2) GetAssignedScope() string {
 	return ""
+}
+
+// GetSecret always returns an empty string and false because a [ProvisionTokenV2] does not have a
+// dedicated secret value. The name itself is the secret for the "token" join method.
+func (p *ProvisionTokenV2) GetSecret() (string, bool) {
+	return "", false
 }
 
 // String returns the human readable representation of a provisioning token.

@@ -3,6 +3,10 @@ destination: "../../../../docs/pages/reference/infrastructure-as-code/teleport-r
 
 # Please alphabetize the resource list by type name.
 resources:
+  - type: AppV3
+    package: types
+    yaml_kind: app
+    yaml_version: v3
   - type: DiscoveryConfig
     package: discoveryconfig
     yaml_kind: discovery_config
@@ -20,3 +24,9 @@ resources:
     yaml_kind: saml
     yaml_version: v2
 
+camel_case_exceptions:
+  - ID
+  - MFA
+  - OIDC
+  - SAML
+  - SSO

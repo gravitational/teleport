@@ -23,9 +23,8 @@ var (
 	// the AWS STS service.
 	//
 	// TODO(nklaassen): find a better way to validate STS endpoints or generate
-	// this list and get notified when it needs to be updated. The original
-	// solution was https://github.com/nklaassen/sts-endpoints which is based on
-	// aws-sdk-go v1 which no longer gets updates for new regions.
+	// this list and get notified when it needs to be updated. The current set
+	// of all AWS regions can be found in https://github.com/aws/aws-sdk-go-v2/blob/main/internal/endpoints/awsrulesfn/partitions.json
 	ValidSTSEndpoints = sync.OnceValue(func() []string {
 		return []string{
 			"sts-fips.us-east-1.amazonaws.com",
@@ -35,6 +34,7 @@ var (
 			"sts.af-south-1.amazonaws.com",
 			"sts.amazonaws.com",
 			"sts.ap-east-1.amazonaws.com",
+			"sts.ap-east-2.amazonaws.com",
 			"sts.ap-northeast-1.amazonaws.com",
 			"sts.ap-northeast-2.amazonaws.com",
 			"sts.ap-northeast-3.amazonaws.com",
@@ -44,6 +44,9 @@ var (
 			"sts.ap-southeast-2.amazonaws.com",
 			"sts.ap-southeast-3.amazonaws.com",
 			"sts.ap-southeast-4.amazonaws.com",
+			"sts.ap-southeast-5.amazonaws.com",
+			"sts.ap-southeast-6.amazonaws.com",
+			"sts.ap-southeast-7.amazonaws.com",
 			"sts.ca-central-1.amazonaws.com",
 			"sts.ca-west-1.amazonaws.com",
 			"sts.cn-north-1.amazonaws.com.cn",

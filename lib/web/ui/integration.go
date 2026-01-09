@@ -118,6 +118,8 @@ type IntegrationWithSummary struct {
 	*Integration
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
+	// UserTasks contains the list of unresolved user tasks related to this integration.
+	UserTasks []UserTask `json:"userTasks,omitempty"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
 	AWSEC2 ResourceTypeSummary `json:"awsec2"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
@@ -127,6 +129,10 @@ type IntegrationWithSummary struct {
 
 	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
 	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`
+
+	// IsManagedByTerraform indicates if this integration was created by Terraform.
+	// This is set when the label "teleport.dev/iac" has the value "terraform".
+	IsManagedByTerraform bool `json:"isManagedByTerraform"`
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -210,6 +216,8 @@ type Integration struct {
 	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// GitHub contains the fields for `github` subkind integration.
 	GitHub *IntegrationGitHub `json:"github,omitempty"`
+	// IsManagedByTerraform indicates if this integration was created by Terraform.
+	IsManagedByTerraform bool `json:"isManagedByTerraform"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -349,13 +357,17 @@ func MakeIntegrations(igs []types.Integration) ([]*Integration, error) {
 	return uiList, nil
 }
 
+const IaCTerraformLabel = "terraform"
+
 // MakeIntegration creates a UI Integration representation.
 func MakeIntegration(ig types.Integration) (*Integration, error) {
 	ret := &Integration{
 		Name:    ig.GetName(),
 		SubKind: ig.GetSubKind(),
 	}
-
+	if val, ok := ig.GetLabel(types.CreatedByIaCLabel); ok && val == IaCTerraformLabel {
+		ret.IsManagedByTerraform = true
+	}
 	switch ig.GetSubKind() {
 	case types.IntegrationSubKindAWSOIDC:
 		var s3Bucket string

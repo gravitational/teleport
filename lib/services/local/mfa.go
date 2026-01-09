@@ -49,7 +49,7 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 			BackendPrefix: backend.NewKey(types.KindValidatedMFAChallenge),
 			MarshalFunc:   MarshalValidatedMFAChallenge,
 			UnmarshalFunc: UnmarshalValidatedMFAChallenge,
-			ValidateFunc:  validateValidatedMFAChallenge,
+			ValidateFunc:  checkValidatedMFAChallenge,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,7 +76,7 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 
 	challenge := (*validatedMFAChallenge)(chal)
 
-	if err := validateValidatedMFAChallenge(challenge); err != nil {
+	if err := checkValidatedMFAChallenge(challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -160,8 +160,8 @@ func UnmarshalValidatedMFAChallenge(b []byte, _ ...services.MarshalOption) (*val
 	return (*validatedMFAChallenge)(challenge), nil
 }
 
-// validateValidatedMFAChallenge validates a ValidatedMFAChallenge resource.
-func validateValidatedMFAChallenge(chal *validatedMFAChallenge) error {
+// checkValidatedMFAChallenge checks that a ValidatedMFAChallenge resource is valid.
+func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
 	switch {
 	case chal == nil:
 		return trace.BadParameter("chal must not be nil")
