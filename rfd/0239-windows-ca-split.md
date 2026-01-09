@@ -166,3 +166,5 @@ CA rotation.
   - [ ] `tctl auth rotate`
   - [ ] `tctl auth crl`
 - [ ] /webapi/auth/export endpoint
+- [ ] Test plan executed against software keys
+- [ ] Test plan executed against Cloud/HSM-backed keys
