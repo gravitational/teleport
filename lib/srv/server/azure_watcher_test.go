@@ -190,3 +190,170 @@ func TestAzureWatcher(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureInstances_FilterExistingNodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		instances     *AzureInstances
+		existingNodes []types.Server
+		expectedVMIDs []string
+	}{
+		{
+			name: "no existing nodes",
+			instances: &AzureInstances{
+				SubscriptionID: "sub-1",
+				Instances: []*armcompute.VirtualMachine{
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-1"),
+						},
+					},
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-2"),
+						},
+					},
+				},
+			},
+			existingNodes: []types.Server{},
+			expectedVMIDs: []string{"vm-id-1", "vm-id-2"},
+		},
+		{
+			name: "filter out matching node",
+			instances: &AzureInstances{
+				SubscriptionID: "sub-1",
+				Instances: []*armcompute.VirtualMachine{
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-1"),
+						},
+					},
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-2"),
+						},
+					},
+				},
+			},
+			existingNodes: []types.Server{
+				makeAzureNode(t, "node-1", "sub-1", "vm-id-1"),
+			},
+			expectedVMIDs: []string{"vm-id-2"},
+		},
+		{
+			name: "filter out all matching nodes",
+			instances: &AzureInstances{
+				SubscriptionID: "sub-1",
+				Instances: []*armcompute.VirtualMachine{
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-1"),
+						},
+					},
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-2"),
+						},
+					},
+				},
+			},
+			existingNodes: []types.Server{
+				makeAzureNode(t, "node-1", "sub-1", "vm-id-1"),
+				makeAzureNode(t, "node-2", "sub-1", "vm-id-2"),
+			},
+			expectedVMIDs: []string{},
+		},
+		{
+			name: "different subscription is not filtered",
+			instances: &AzureInstances{
+				SubscriptionID: "sub-1",
+				Instances: []*armcompute.VirtualMachine{
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-1"),
+						},
+					},
+				},
+			},
+			existingNodes: []types.Server{
+				makeAzureNode(t, "node-1", "sub-2", "vm-id-1"),
+			},
+			expectedVMIDs: []string{"vm-id-1"},
+		},
+		{
+			name: "node without vm id is not used for filtering",
+			instances: &AzureInstances{
+				SubscriptionID: "sub-1",
+				Instances: []*armcompute.VirtualMachine{
+					{
+						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
+						Properties: &armcompute.VirtualMachineProperties{
+							VMID: to.Ptr("vm-id-1"),
+						},
+					},
+				},
+			},
+			existingNodes: []types.Server{
+				makeAzureNode(t, "node-1", "sub-1", ""),
+			},
+			expectedVMIDs: []string{"vm-id-1"},
+		},
+		{
+			name: "instance without properties is not filtered",
+			instances: &AzureInstances{
+				SubscriptionID: "sub-1",
+				Instances: []*armcompute.VirtualMachine{
+					{
+						ID:         to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
+						Properties: nil,
+					},
+				},
+			},
+			existingNodes: []types.Server{
+				makeAzureNode(t, "node-1", "sub-1", "vm-id-1"),
+			},
+			expectedVMIDs: []string{""},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.instances.FilterExistingNodes(tc.existingNodes)
+
+			var gotVMIDs []string
+			for _, vm := range tc.instances.Instances {
+				var vmID string
+				if vm.Properties != nil {
+					vmID = *vm.Properties.VMID
+				}
+				gotVMIDs = append(gotVMIDs, vmID)
+			}
+
+			require.ElementsMatch(t, tc.expectedVMIDs, gotVMIDs)
+		})
+	}
+}
+
+func makeAzureNode(t *testing.T, name, subscriptionID, vmID string) types.Server {
+	t.Helper()
+
+	labels := map[string]string{
+		types.SubscriptionIDLabel: subscriptionID,
+	}
+	if vmID != "" {
+		labels[types.VMIDLabel] = vmID
+	}
+
+	node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, labels)
+	require.NoError(t, err)
+	return node
+}
