@@ -19,7 +19,6 @@ package msgraphtest
 import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/msgraph"
 )
 
@@ -79,21 +78,21 @@ func NewDefaultStorage() *Storage {
 			ID:          to.Ptr("group1"),
 			DisplayName: to.Ptr("group1"),
 		},
-		GroupTypes: []string{types.EntraIDSecurityGroups},
+		GroupTypes: []string{"security-groups"},
 	}
 	group2 := &msgraph.Group{
 		DirectoryObject: msgraph.DirectoryObject{
 			ID:          to.Ptr("group2"),
 			DisplayName: to.Ptr("group2"),
 		},
-		GroupTypes: []string{types.EntraIDSecurityGroups},
+		GroupTypes: []string{"security-groups"},
 	}
 	group3 := &msgraph.Group{
 		DirectoryObject: msgraph.DirectoryObject{
 			ID:          to.Ptr("group3"),
 			DisplayName: to.Ptr("group3"),
 		},
-		GroupTypes: []string{types.EntraIDSecurityGroups},
+		GroupTypes: []string{"security-groups"},
 	}
 
 	app1 := &msgraph.Application{
