@@ -1,0 +1,8 @@
+go 1.25.5
+
+use (
+	.
+	./api
+	./integrations/event-handler
+	./integrations/terraform
+)
