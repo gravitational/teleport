@@ -61,6 +61,12 @@ It is recommended to allow a safety evaluation period of the new release before
 User or Windows CA rotations, to avoid potential complications due to version
 rollbacks.
 
+All existing Windows Desktop service instances must be upgraded prior to a
+Windows CA rotation to ensure correct behavior. Windows CA rotations will [issue
+a warning][ca-warning-example] calling attention to this fact.
+
+[ca-warning-example]: https://github.com/gravitational/teleport/blob/acc3b793502c352489a49d8ff59d17bae6a38fc9/tool/tctl/common/auth_rotate_command.go#L1197-L1200
+
 ## Details
 
 The Windows CA, if it doesn't exist, is created during Teleport initialization:
