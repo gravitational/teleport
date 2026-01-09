@@ -253,10 +253,18 @@ func formatUsageArg(arg *kingpin.ArgModel) string {
 }
 
 // formatHelp prints help text to include in a Markdown table cell. It escapes
-// curly braces to avoid breaking the MDX parser, and it escapes pipes to
-// avoid breaking the cell.
+// curly, angle, and square braces to avoid breaking the MDX parser, and it
+// escapes pipes to avoid breaking the cell.
 func formatHelp(help string) string {
-	return strings.NewReplacer("{", `\{`, "}", `\}`, "|", `\|`).Replace(help)
+	return strings.NewReplacer(
+		"{", `\{`,
+		"}", `\}`,
+		"|", `\|`,
+		"[", `\[`,
+		"]", `\]`,
+		"<", `\<`,
+		">", `\>`,
+	).Replace(help)
 }
 
 // docsUsageTemplatePath points to a help text template for CLI reference
