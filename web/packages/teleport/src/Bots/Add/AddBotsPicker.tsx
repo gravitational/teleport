@@ -202,51 +202,6 @@ export const integrations: BotIntegration[] = [
   },
 ];
 
-// TODO(alexhemard): delete in a follow up PR
-export function AddBotsPicker() {
-  const ctx = useTeleport();
-  return (
-    <>
-      <FeatureHeader justifyContent="space-between">
-        <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
-        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
-      </FeatureHeader>
-
-      <P mb="5">
-        Set up Teleport Machine ID to allow CI/CD workflows and other machines
-        to access resources protected by Teleport.
-      </P>
-
-      <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
-    </>
-  );
-}
-
-export function BotTiles({
-  hasCreateBotPermission,
-}: {
-  hasCreateBotPermission: boolean;
-}) {
-  return (
-    <div
-      css={`
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-        gap: 16px;
-      `}
-    >
-      {integrations.map(i => (
-        <Box key={i.title}>
-          <BotTile
-            integration={i}
-            hasCreateBotPermission={hasCreateBotPermission}
-          />
-        </Box>
-      ))}
-    </div>
-  );
-}
-
 export function BotTile({
   integration,
   hasCreateBotPermission,
