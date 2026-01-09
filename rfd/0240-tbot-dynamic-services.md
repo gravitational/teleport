@@ -370,10 +370,11 @@ service is entirely optional and available only when explicitly enabled by
 users, either via `tbot.yaml` or `tbot start bot-api`.
 
 The API itself will expose just two RPCs or endpoints for this MVP: `spawn` and
-`config`. It will be exposed over an arbitrary listening socket; we'll strongly
-recommend a Unix socket, but will allow use of TCP sockets. The API will be
-otherwise unauthenticated, and it is up to the user to enforce the security of
-the socket, as with `tbot`'s existing credential outputs today.
+`config`. It will be exposed over a Unix socket and will be otherwise
+unauthenticated. It is up to the user to enforce the security of the socket,
+but as with `tbot`'s existing credential outputs today we will configure sane
+default permissions and our existing tooling can be used to restrict access to
+the socket via filesystem ACLs.
 
 These V1 bot API endpoints will accept and return configuration in YAML format.
 This allows use of our existing config parsing library without additional
@@ -418,7 +419,7 @@ should not be e.g. shared via Docker mount.
 
 If adequately protected, all an attacker with access to the API socket can
 feasibly do is have the bot write credentials to the filesystem at arbitrary
-paths to which its Unix user has access - but if they have RCE as the bot's Unix
+paths to which its Unix user has access. If they have RCE as the bot's Unix
 user, they could do that anyway.
 
 And as always, Teleport RBAC permissions should also be limited such that bots
