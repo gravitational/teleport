@@ -282,7 +282,7 @@ of load. TBD how this impact will be lessened.
 ### Backward Compatibility
 
 `tsh` will `GET /webapi/ping` to get the authentication settings supported by
-the cluster. If `AllowBrowserMFA` is present and `true`, `tsh` will proceed with
+the cluster. If `AllowBrowser` is present and `true`, `tsh` will proceed with
 browser authentication. If the field isn't present or it is set to false, 
 browser authentication will not be attempted.
 
@@ -296,14 +296,64 @@ per-session MFA.
 Events will be logged when:
 
 1. `tsh` makes its initial unauthenticated request, which logs:
-    - Remote IP address
-    - Client public key
-    - Request type
+    - **Remote IP address** - `addr.remote` (`string`)
+    - **Request type** - `method` (`string`)
+    - **Request ID** - `uid` (`string`)
 1. a user approves/denies an authentication event, which logs:
-    - IP address
-    - Client public key
-    - Request type
-    - Request outcome
-    - User
-    - Request ID
-1. a certificate is generated upon a approval
+    - **Remote IP address** - `addr.remote` (`string`)
+    - **Request type** - `method` (`string`)
+    - **Request ID** - `uid` (`string`)
+    - **Request outcome** - `success` (`boolean`)
+    - **User** - `user` (`string`)
+
+### Protobuf Definitions
+
+```proto
+package types;
+
+message AuthPreferencesV2 {
+    ...
+
+    // AllowBrowser enables/disables tsh authentication via browser.
+    // Browser authentication requires Webauthn to work.
+    // Defaults to true if the Webauthn is configured, defaults to false
+    // otherwise.
+    BoolValue AllowBrowser = 23 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "allow_browser,omitempty",
+        (gogoproto.customtype) = "BoolOption"
+    ];
+}
+
+message HeadlessAuthentication {
+    ...
+
+    // HeadlessAuthenticationType is the type of request that was intiated
+    HeadlessAuthenticationType type = 9;
+}
+
+// HeadlessAuthenticationType is the type of authentication event
+enum HeadlessAuthenticationType {
+    HEADLESS_AUTHENTICATION_TYPE_UNSPECIFIED = 0;
+
+    // headless login attempt
+    HEADLESS_AUTHENTICATION_TYPE_HEADLESS = 1;
+
+    // browser login attempt
+    HEADLESS_AUTHENTICATION_TYPE_BROWSER = 2;
+
+    // per-session MFA attempt
+    HEADLESS_AUTHENTICATION_TYPE_SESSION = 3;
+}
+```
+
+```proto
+package events;
+message UserLogin {
+    ...
+
+    // RequestID is a UUID used to correlate events from a single login flow that
+    // spans multiple contexts
+    string RequestID = 11 [(gogoproto.jsontag) = "request_id,omitempty];
+}
+```
