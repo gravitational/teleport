@@ -134,6 +134,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                     );
                   }}
                   createOptionPosition="last"
+                  components={{
+                    // Hide the dropdown indicator and spacing
+                    DropdownIndicator: () => null,
+                    IndicatorSeparator: () => null,
+                  }}
+                  noOptionsMessage={() => 'Type to add a value'}
+                  formatCreateLabel={input => `Add group "${input}"`}
                 />
                 <Text mb={3}>
                   Add Kubernetes groups created using RoleBinding or
@@ -188,6 +195,13 @@ export function ConfigureAccess(props: FlowStepProps) {
                     );
                   }}
                   createOptionPosition="last"
+                  components={{
+                    // Hide the dropdown indicator and spacing
+                    DropdownIndicator: () => null,
+                    IndicatorSeparator: () => null,
+                  }}
+                  noOptionsMessage={() => 'Type to add a value'}
+                  formatCreateLabel={input => `Add user "${input}"`}
                 />
                 <Text mb={3}>
                   See the{' '}
