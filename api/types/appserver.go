@@ -17,8 +17,10 @@ limitations under the License.
 package types
 
 import (
+	"context"
 	"fmt"
 	"iter"
+	"log/slog"
 	"slices"
 	"sort"
 	"time"
@@ -28,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	"github.com/gravitational/teleport/api/types/appserveropts"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/iterutils"
 )
@@ -357,11 +360,15 @@ func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
 
 // Copy returns a copy of this app server object.
 func (s *AppServerV3) Copy() AppServer {
-	return utils.CloneProtoMsg(s)
+	return s.copy()
 }
 
 func (s *AppServerV3) CloneResource() ResourceWithLabels {
-	return s.Copy()
+	return s.copy()
+}
+
+func (s *AppServerV3) copy() *AppServerV3 {
+	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -462,4 +469,36 @@ func (s AppServers) Applications() iter.Seq[Application] {
 	return iterutils.Map(func(appServer AppServer) Application {
 		return appServer.GetApp()
 	}, slices.Values(s))
+}
+
+// EqualAppServers checks equality to another AppServer. Some options may cause the other to be
+// copied. Please refer to the options documentation.
+func EqualAppServers(a, b AppServer, opts ...appserveropts.EqualOpt) bool {
+	aV3, ok := a.(*AppServerV3)
+	if !ok {
+		slog.ErrorContext(context.Background(), "AppServer a passed to EqualAppServers must be of type *AppServerV3 (this is a bug)", "actual_type", fmt.Sprintf("%T", a))
+		return false
+	}
+	bV3, ok := b.(*AppServerV3)
+	if !ok {
+		slog.ErrorContext(context.Background(), "AppServer b passed to EqualAppServers must be of type *AppServerV3 (this is a bug)", "actual_type", fmt.Sprintf("%T", b))
+		return false
+	}
+
+	opt := appserveropts.NewEqual(opts)
+
+	needsClone := !opt.SkipClone && opt.IgnoreHostID
+	if needsClone {
+		// We could avoid one clone by setting value of one to the other but it's probably
+		// better to explicitly zero ignored values in both to catch potential bugs early.
+		aV3 = aV3.copy()
+		bV3 = bV3.copy()
+	}
+
+	if opt.IgnoreHostID {
+		aV3.Spec.HostID = ""
+		bV3.Spec.HostID = ""
+	}
+
+	return deriveTeleportEqualAppServer(aV3, bV3)
 }
