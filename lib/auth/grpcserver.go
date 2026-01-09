@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -5990,10 +5989,58 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// authMiddlewareInterceptor is a custom interceptor that sits after the authentication
+	// middleware but before the handler. It catches "Access Denied" errors (like Locks
+	// or IP Pinning) and emits an AuthAttempt failure event
+	authMiddlewareInterceptor := func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		resp, err := handler(ctx, req)
+
+		// If the RPC failed with AccessDenied (locks/pinning), emit an audit log.
+		if err != nil && trace.IsAccessDenied(err) {
+			identity, _ := authz.UserFromContext(ctx)
+
+			if identity != nil {
+				username := identity.GetIdentity().Username
+				method := info.FullMethod
+
+				event := &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						User: username,
+					},
+					Status: apievents.Status{
+						Success:     false,
+						Error:       err.Error(),
+						UserMessage: fmt.Sprintf("%v [attempted %s]", err.Error(), method),
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{},
+					ServerMetadata: apievents.ServerMetadata{
+						ServerVersion: teleport.Version,
+						ServerID:      cfg.AuthServer.ServerID,
+					},
+				}
+
+				if p, _ := peer.FromContext(ctx); p != nil {
+					event.ConnectionMetadata.RemoteAddr = p.Addr.String()
+				}
+
+				if emitErr := cfg.Emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+					logger.WarnContext(ctx, "Failed to emit lock failure audit event", "error", emitErr)
+				}
+			}
+		}
+		return resp, err
+	}
+
+	unaryInterceptors := append(cfg.UnaryInterceptors, authMiddlewareInterceptor)
+
 	server := grpc.NewServer(
 		grpc.Creds(creds),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptors...),
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
 		grpc.ChainStreamInterceptor(cfg.StreamInterceptors...),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
@@ -6571,41 +6618,7 @@ type grpcContext struct {
 func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
-
-	// If authorization fails (e.g., IP pinning mismatch), we capture the rejection
-	// at the connection layer to ensure security visibility in the Audit Log/UI.
 	if err != nil {
-		p, _ := peer.FromContext(ctx)
-		identity, _ := authz.UserFromContext(ctx)
-
-		if p != nil && identity != nil {
-			event := &apievents.AuthAttempt{
-				Metadata: apievents.Metadata{
-					Type: events.AuthAttemptEvent,
-					Code: events.AuthAttemptFailureCode,
-				},
-				UserMetadata: apievents.UserMetadata{
-					User: identity.GetIdentity().Username,
-				},
-				ConnectionMetadata: apievents.ConnectionMetadata{
-					RemoteAddr: p.Addr.String(),
-					Protocol:   events.EventProtocol,
-				},
-				ServerMetadata: apievents.ServerMetadata{
-					ServerVersion:   teleport.Version,
-					ServerID:        g.AuthServer.ServerID,
-					ServerNamespace: apidefaults.Namespace,
-				},
-				Status: apievents.Status{
-					Success:     false,
-					Error:       err.Error(),
-					UserMessage: trace.UserMessage(err),
-				},
-			}
-			if emitErr := g.AuthServer.EmitAuditEvent(ctx, event); emitErr != nil {
-				g.logger.WarnContext(ctx, "Failed to emit auth attempt", "error", emitErr)
-			}
-		}
 		return nil, trace.Wrap(err)
 	}
 	return &grpcContext{
