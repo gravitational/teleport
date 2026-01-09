@@ -256,15 +256,17 @@ message GetFooResponse {
 The `List` RPC takes the requested page size and starting point and returns a list of resources that match. If there are
 additional resources, the response MUST also include a token that indicates where the next page of results begins.
 
+`List` RPC can optionally provide a `Filter` message and/or a `SortMode` field where supported.
+
 Most legacy APIs do not provide a paginated way to retrieve resources and instead offer some kind of `GetAllFoos` RPC
 which either returns all `Foo` in a single message or leverages a server side stream to send each `Foo` one at a time.
 Returning all items in a single message causes problems when the number of resources scales beyond gRPC message size
 limits. To provide parity with this legacy API if needed, a helper method should be implemented on the client which
-builds the entire resource set by repeatedly calling `List` until all pages have been consumed.
+builds the entire resource set by repeatedly calling `List` until all pages have been consumed, see the [clientutils](https://github.com/gravitational/teleport/blob/ae1c0890bccf304b0bb40b9a2436501b4ec2a966/api/utils/clientutils/resources.go#L19) package for more details.
 
 ```protobuf
 // Returns a page of Foo and the token to find the next page of items.
-    rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
+rpc ListFoos(ListFoosRequest) returns (ListFoosResponse);
 
 message ListFoosRequest {
   // The maximum number of items to return.
@@ -272,6 +274,18 @@ message ListFoosRequest {
   int32 page_size = 1;
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
+
+  enum SortMode {
+    SORT_MODE_UNSPECIFIED = 0;
+    SORT_MODE_FIELD_EXAMPLE = 1;
+  }
+  // sort_mode specifies the sorting type for the results.
+  SortMode sort_mode = 3;
+  // is_sort_descending specifies sort direction
+  bool is_sort_descending = 4;
+
+  // filter is a collection of fields to filter Foos
+  ListFoosFilter filter = 5;
 }
 
 message ListFoosResponse {
@@ -286,6 +300,61 @@ message ListFoosResponse {
 A listing operation should not abort entirely if a single item cannot be (un)marshalled, it should instead be logged,
 and the rest of the page should be processed. Aborting an entire page when a single entry is invalid causes the cache
 to be permanently unhealthy since it is never able to initialize loading the affected resource.
+
+##### Pagination Stability
+
+As of time of writing 2025-11-24 the backend does not support snapshotting. Meaning every `List` query executed
+against the backend has a potentially different view of the data. It is possible for:
+* Items to be deleted or created between `List` calls.
+* Mutable fields to be modified causing items to be reordered when sorting resulting in duplicate entries.
+
+#### Sorting Support
+
+Note that as of time of writing (2025-11-24), advanced sorting is possible in Cache only.
+
+This is achieved via the [sortcache](https://github.com/gravitational/teleport/blob/96f222c00624e3f7ad3cbcd1859936420b438725/lib/utils/sortcache/sortcache.go#L47) package.
+
+Each index requires a dedicated key function that returns lexicographically sortable key, for example:
+
+```go
+func (u *inventoryInstance) getAlphabeticalKey() bytestring {
+	var name, id string
+	if u.isInstance() {
+		name = u.instance.GetHostname()
+		id = u.instance.GetName()
+	} else {
+		name = u.bot.GetSpec().GetBotName()
+		id = u.bot.GetSpec().GetInstanceId()
+	}
+
+	return bytestring(ordered.Encode(name, id, u.getKind()))
+}
+```
+
+With the pagination token using a base32 representation of that key:
+```go
+nextPageToken = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(rawKey))
+```
+
+1. Default sort mode must be the same and use the same key format as the pagination in the backend.
+2. Compound keys should use make use of the `rsc.io/ordered` package.
+3. Sorting options must remain unchanged for subsequent `List`.
+4. The backend should return a `*trace.CompareFailedError` if the sort mode is unsupported by the backend.
+
+##### Page Token contract
+
+The backend only enforces a single contract for the token:
+* Empty token (`""`) indicates no more items.
+* Any other string value indicates further results are available.
+
+If possible the structure of the token should be opaque to the client to prevent tampering and reduce the implicit API surface.
+
+##### Page Size
+
+Clients should make use of [clientutils](https://github.com/gravitational/teleport/blob/ae1c0890bccf304b0bb40b9a2436501b4ec2a966/api/utils/clientutils/resources.go#L19) to automatically adjust the page size when fetching resources:
+```go
+foos, err := clientutils.Resources(ctx, client.ListFoos)
+```
 
 #### Delete
 
