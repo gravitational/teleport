@@ -43,6 +43,7 @@ test('should convert the old cluster user preferences format to the new one', ()
       pinnedResources: ['resource1', 'resource2'],
     },
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    skipSummarizerOnboardingModal: false,
   };
 
   const actualUserPreferences: UserPreferences = {
@@ -52,6 +53,7 @@ test('should convert the old cluster user preferences format to the new one', ()
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
     },
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    skipSummarizerOnboardingModal: false,
   };
 
   // when we grab the user preferences from the local storage, we check if it is in the old format
@@ -76,6 +78,7 @@ test('should convert the user preferences back to the old format when updating',
       pinnedResources: { resourceIds: ['resource1', 'resource2'] },
     },
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    skipSummarizerOnboardingModal: false,
   };
 
   const convertedPreferences = convertUserPreferences(actualUserPreferences);

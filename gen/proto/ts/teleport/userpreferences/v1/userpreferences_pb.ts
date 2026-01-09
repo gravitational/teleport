@@ -92,6 +92,14 @@ export interface UserPreferences {
      * @generated from protobuf field: uint32 keyboard_layout = 9;
      */
     keyboardLayout: number;
+    /**
+     * SkipSummarizerOnboardingModal controls whether the user will see the modal
+     * if other conditions are met. Set to true if the user dismissed the dialog
+     * so that it doesn't appear every time.
+     *
+     * @generated from protobuf field: bool skip_summarizer_onboarding_modal = 10;
+     */
+    skipSummarizerOnboardingModal: boolean;
 }
 /**
  * GetUserPreferencesRequest is a request to get the user preferences.
@@ -137,7 +145,8 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
             { no: 6, name: "access_graph", kind: "message", T: () => AccessGraphUserPreferences },
             { no: 7, name: "side_nav_drawer_mode", kind: "enum", T: () => ["teleport.userpreferences.v1.SideNavDrawerMode", SideNavDrawerMode, "SIDE_NAV_DRAWER_MODE_"] },
             { no: 8, name: "discover_resource_preferences", kind: "message", T: () => DiscoverResourcePreferences },
-            { no: 9, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 9, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 10, name: "skip_summarizer_onboarding_modal", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<UserPreferences>): UserPreferences {
@@ -145,6 +154,7 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
         message.theme = 0;
         message.sideNavDrawerMode = 0;
         message.keyboardLayout = 0;
+        message.skipSummarizerOnboardingModal = false;
         if (value !== undefined)
             reflectionMergePartial<UserPreferences>(this, message, value);
         return message;
@@ -177,6 +187,9 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
                     break;
                 case /* uint32 keyboard_layout */ 9:
                     message.keyboardLayout = reader.uint32();
+                    break;
+                case /* bool skip_summarizer_onboarding_modal */ 10:
+                    message.skipSummarizerOnboardingModal = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -214,6 +227,9 @@ class UserPreferences$Type extends MessageType<UserPreferences> {
         /* uint32 keyboard_layout = 9; */
         if (message.keyboardLayout !== 0)
             writer.tag(9, WireType.Varint).uint32(message.keyboardLayout);
+        /* bool skip_summarizer_onboarding_modal = 10; */
+        if (message.skipSummarizerOnboardingModal !== false)
+            writer.tag(10, WireType.Varint).bool(message.skipSummarizerOnboardingModal);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

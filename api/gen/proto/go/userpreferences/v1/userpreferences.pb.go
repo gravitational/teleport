@@ -57,8 +57,12 @@ type UserPreferences struct {
 	// keyboard layout identifiers can be found here:
 	// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
 	KeyboardLayout uint32 `protobuf:"varint,9,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// SkipSummarizerOnboardingModal controls whether the user will see the modal
+	// if other conditions are met. Set to true if the user dismissed the dialog
+	// so that it doesn't appear every time.
+	SkipSummarizerOnboardingModal bool `protobuf:"varint,10,opt,name=skip_summarizer_onboarding_modal,json=skipSummarizerOnboardingModal,proto3" json:"skip_summarizer_onboarding_modal,omitempty"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *UserPreferences) Reset() {
@@ -145,6 +149,13 @@ func (x *UserPreferences) GetKeyboardLayout() uint32 {
 		return x.KeyboardLayout
 	}
 	return 0
+}
+
+func (x *UserPreferences) GetSkipSummarizerOnboardingModal() bool {
+	if x != nil {
+		return x.SkipSummarizerOnboardingModal
+	}
+	return false
 }
 
 // GetUserPreferencesRequest is a request to get the user preferences.
@@ -280,7 +291,7 @@ var File_teleport_userpreferences_v1_userpreferences_proto protoreflect.FileDesc
 
 const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/userpreferences/v1/userpreferences.proto\x12\x1bteleport.userpreferences.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a.teleport/userpreferences/v1/access_graph.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a?teleport/userpreferences/v1/discover_resource_preferences.proto\x1a)teleport/userpreferences/v1/onboard.proto\x1a5teleport/userpreferences/v1/sidenav_preferences.proto\x1a'teleport/userpreferences/v1/theme.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\xed\x05\n" +
+	"1teleport/userpreferences/v1/userpreferences.proto\x12\x1bteleport.userpreferences.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a.teleport/userpreferences/v1/access_graph.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a?teleport/userpreferences/v1/discover_resource_preferences.proto\x1a)teleport/userpreferences/v1/onboard.proto\x1a5teleport/userpreferences/v1/sidenav_preferences.proto\x1a'teleport/userpreferences/v1/theme.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\xb6\x06\n" +
 	"\x0fUserPreferences\x128\n" +
 	"\x05theme\x18\x02 \x01(\x0e2\".teleport.userpreferences.v1.ThemeR\x05theme\x12M\n" +
 	"\aonboard\x18\x03 \x01(\v23.teleport.userpreferences.v1.OnboardUserPreferencesR\aonboard\x12d\n" +
@@ -289,7 +300,9 @@ const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\faccess_graph\x18\x06 \x01(\v27.teleport.userpreferences.v1.AccessGraphUserPreferencesR\vaccessGraph\x12_\n" +
 	"\x14side_nav_drawer_mode\x18\a \x01(\x0e2..teleport.userpreferences.v1.SideNavDrawerModeR\x11sideNavDrawerMode\x12|\n" +
 	"\x1ddiscover_resource_preferences\x18\b \x01(\v28.teleport.userpreferences.v1.DiscoverResourcePreferencesR\x1bdiscoverResourcePreferences\x12'\n" +
-	"\x0fkeyboard_layout\x18\t \x01(\rR\x0ekeyboardLayoutJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
+	"\x0fkeyboard_layout\x18\t \x01(\rR\x0ekeyboardLayout\x12G\n" +
+	" skip_summarizer_onboarding_modal\x18\n" +
+	" \x01(\bR\x1dskipSummarizerOnboardingModalJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
 	"\x19GetUserPreferencesRequestJ\x04\b\x01\x10\x02R\busername\"l\n" +
 	"\x1aGetUserPreferencesResponse\x12N\n" +
 	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferences\"~\n" +

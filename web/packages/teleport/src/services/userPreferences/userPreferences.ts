@@ -46,6 +46,7 @@ export interface BackendUserPreferences {
   unifiedResourcePreferences?: UnifiedResourcePreferences;
   discoverResourcePreferences?: DiscoverResourcePreferences;
   keyboardLayout: number;
+  skipSummarizerOnboardingModal: boolean;
 }
 
 export async function getUserPreferences(): Promise<UserPreferences> {
@@ -104,6 +105,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
     sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
     discoverResourcePreferences: {},
     keyboardLayout: 0,
+    skipSummarizerOnboardingModal: false,
   };
 }
 
