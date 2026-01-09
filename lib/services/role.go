@@ -2803,6 +2803,32 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		r.GetKind(), additionalDeniedMessage)
 }
 
+// CheckDeviceAccess verifies if the device state satisfies the device trust
+// requirements of the user's RoleSet.
+//
+// This is used for early authorization checks where a full resource object
+// is not yet available, but we need to verify the device before proceeding.
+func (set RoleSet) CheckDeviceAccess(state AccessState) error {
+	if !state.EnableDeviceVerification {
+		return nil
+	}
+	for _, role := range set {
+		err := dtauthz.VerifyTrustedDeviceMode(
+			role.GetOptions().DeviceTrustMode,
+			dtauthz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: state.DeviceVerified,
+				IsBot:           state.IsBot,
+				AllowEmptyMode:  true,
+			},
+		)
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]
 // for [condition].
 // It considers both the role labels (<kind>_labels) and label expression

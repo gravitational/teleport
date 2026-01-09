@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/rsa"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -552,6 +553,45 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}, clusterName.GetClusterName(), a)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Enforce device trust early via the AccessChecker.
+	if err = checker.CheckDeviceAccess(services.AccessState{
+		DeviceVerified:           req.DeviceExtensions.DeviceID != "",
+		EnableDeviceVerification: true,
+		IsBot:                    req.Identity.IsBot(),
+	}); err != nil {
+		errMsg := fmt.Sprintf("access to application %s requires a trusted device", req.AppName)
+		a.emitter.EmitAuditEvent(ctx, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type:        events.AuthAttemptEvent,
+				Code:        events.AuthAttemptFailureCode,
+				ClusterName: req.ClusterName,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        a.ServerID,
+				ServerNamespace: apidefaults.Namespace,
+			},
+			UserMetadata: apievents.UserMetadata{
+				User: req.User,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: req.ClientAddr,
+			},
+			Status: apievents.Status{
+				Success:     false,
+				Error:       errMsg,
+				UserMessage: errMsg,
+			},
+			AppMetadata: apievents.AppMetadata{
+				AppURI:        req.AppURI,
+				AppPublicAddr: req.PublicAddr,
+				AppName:       req.AppName,
+				AppTargetPort: uint32(req.AppTargetPort),
+			},
+		})
+		return nil, trace.AccessDenied("%s", errMsg)
 	}
 
 	// Create services.WebSession for this session.
