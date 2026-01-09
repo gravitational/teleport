@@ -79,7 +79,7 @@ jobs:
       - name: Capture Run Metadata # TODO: move to a common file somewhere
         id: capture_metadata
         continue-on-error: true
-        run: cd .github/shared-workflows/tools/ci-normalize &&  run ./cmd meta | tee $GITHUB_WORKSPACE/test-logs/ci-job-meta.json
+        run: mkdir -p $GITHUB_WORKSPACE/test-logs && cd .github/shared-workflows/tools/ci-normalize && go run ./cmd meta | tee $GITHUB_WORKSPACE/test-logs/ci-job-meta.json
 
       - name: Run tests
         timeout-minutes: 20
