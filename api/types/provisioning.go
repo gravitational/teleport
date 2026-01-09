@@ -146,6 +146,9 @@ type ProvisionToken interface {
 	GetAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
+	// GetIntegration returns the integration name that provides credentials to validate allow rules.
+	// Currently, this is only used to validate the AWS Organization.
+	GetIntegration() string
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
 	// GetGithubRules will return the GitHub rules within this token.
@@ -605,6 +608,12 @@ func (p *ProvisionTokenV2) GetSuggestedLabels() Labels {
 // They are added to `db_service.resources.0.labels`.
 func (p *ProvisionTokenV2) GetSuggestedAgentMatcherLabels() Labels {
 	return p.Spec.SuggestedAgentMatcherLabels
+}
+
+// GetIntegration returns the integration name that provides credentials to validate allow rules.
+// Currently, this is only used to validate the AWS Organization.
+func (p *ProvisionTokenV2) GetIntegration() string {
+	return p.Spec.Integration
 }
 
 // V1 returns V1 version of the resource
