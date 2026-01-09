@@ -20,8 +20,6 @@ package dynamoevents
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -264,6 +262,15 @@ type event struct {
 	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
 	FieldsMap      events.EventFields
 	EventNamespace string
+}
+
+// toIterator marshals an event's EventKey, to be used in checkpointKey.
+func (e *event) toIterator() (string, error) {
+	b, err := json.Marshal(e.EventKey)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(b), nil
 }
 
 const (
@@ -739,11 +746,6 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator string `json:"iterator,omitempty"`
-
-	// EventKey is a derived identifier for an event used for resuming
-	// sub-page breaks due to size constraints.
-	// TODO(hugoShaka): Deprecate and remove this field.
-	EventKey string `json:"event_key,omitempty"`
 }
 
 // legacyCheckpointKey is the old checkpoint key returned by older auth versions. Used to decode
@@ -921,8 +923,6 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		}
 	}
 
-	foundStart := checkpoint.EventKey == ""
-
 	var forward bool
 	switch order {
 	case types.EventOrderAscending:
@@ -947,7 +947,6 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		log:        logger,
 		totalSize:  totalSize,
 		checkpoint: &checkpoint,
-		foundStart: foundStart,
 		dates:      dates,
 		left:       left,
 		fromUTC:    fromUTC,
@@ -1061,7 +1060,6 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 	return checkpointKey{
 		Date:     checkpoint.Date,
 		Iterator: string(iterator),
-		EventKey: checkpoint.EventKey,
 	}, nil
 }
 
@@ -1079,16 +1077,6 @@ func getExprFilter(filter searchEventsFilter) *string {
 		filterExpr = aws.String(strings.Join(filterConds, " AND "))
 	}
 	return filterExpr
-}
-
-func getSubPageCheckpoint(e *event) (string, error) {
-	data, err := utils.FastMarshal(e)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:]), nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
@@ -1586,7 +1574,6 @@ type eventsFetcher struct {
 	totalSize  int
 	hasLeft    bool
 	checkpoint *checkpointKey
-	foundStart bool
 	dates      []string
 	left       int32
 
@@ -1598,8 +1585,11 @@ type eventsFetcher struct {
 	filter    searchEventsFilter
 }
 
+// processQueryOutput returns events from the DynamoDB query output.
+// It stops if events.MaxEventBytesInResponse is reached, the query limit is reached, or there are no more events.
+// If events.MaxEventBytesInResponse is reached or the query limit is reached,
+// we create a new nonempty checkpoint iterator, indicating there are more events to fetch.
 func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeftFun func() bool) ([]event, bool, error) {
-	oldIterator := l.checkpoint.Iterator
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
@@ -1630,54 +1620,49 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			return nil, false, trace.Wrap(err)
 		}
 
-		// TODO(hugoShaka): Fix this. This code path has terrible performance
-		// and should be replaced by proper pagination.
-		if !l.foundStart {
-			key, err := getSubPageCheckpoint(&e)
-			if err != nil {
-				return nil, false, trace.Wrap(err)
-			}
-
-			if key != l.checkpoint.EventKey {
-				continue
-			}
-			l.foundStart = true
-		}
-		// Because this may break on non page boundaries an additional
-		// checkpoint is needed for sub-page breaks.
+		// Stop early when the fetcher's total size exceeds the response size limit.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			key, err := getSubPageCheckpoint(&e)
-			if err != nil {
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			l.log.DebugContext(context.Background(), "breaking up sub-page due to event size", "key", key)
-			l.checkpoint.EventKey = key
-
-			// We need to reset the iterator so we get the previous page again.
-			l.checkpoint.Iterator = oldIterator
-
-			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
-			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
-			// the new iterator being empty.
-			l.hasLeft = true
-
 			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
 		l.left--
+		// Stop early if the query limit is reached.
 		if l.left == 0 {
-			hf := false
-			if hasLeftFun != nil {
-				hf = hasLeftFun()
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+				return nil, false, trace.Wrap(err)
 			}
-			l.hasLeft = hf || l.checkpoint.Iterator != ""
-			l.checkpoint.EventKey = ""
-			l.log.DebugContext(context.Background(), "resetting checkpoint event-key due to full page", "has_left", l.hasLeft, "checkpoint", l.checkpoint)
 			return out, true, nil
 		}
 	}
+
+	// If all items in current page are processed (no sub-page breaks), check if there are more items.
+	hf := false
+	if hasLeftFun != nil {
+		hf = hasLeftFun()
+	}
+	l.hasLeft = hf || l.checkpoint.Iterator != ""
 	return out, false, nil
+}
+
+// saveCheckpointAtEvent updates the checkpoint iterator at the given event.
+// This overrides LastEvaluatedKey to resume future processing from this iterator.
+func (l *eventsFetcher) saveCheckpointAtEvent(e event) error {
+	iterator, err := e.toIterator()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Since the iterator is manually reset, we should always assume there are more
+	// events to fetch.
+	l.checkpoint.Iterator = iterator
+	l.hasLeft = true
+
+	l.log.DebugContext(context.Background(), "sub-page break, saving new checkpoint", "iterator", iterator)
+	return nil
 }
 
 func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string) (values []event, err error) {
@@ -1741,26 +1726,23 @@ dateLoop:
 			hasLeft := func() bool {
 				return i+1 != len(l.dates)
 			}
-			result, limitReached, err := l.processQueryOutput(out, hasLeft)
+			result, stopped, err := l.processQueryOutput(out, hasLeft)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			values = append(values, result...)
-			if limitReached {
-				// If we've reached the limit, we need to determine whether there are more events to fetch from the current date
+			if stopped {
+				// If we stopped, we need to determine whether there are more events to fetch from the current date
 				// or if we need to move the cursor to the next date.
-				// To do this, we check if the iterator is empty and if the EventKey is empty.
-				// DynamoDB returns an empty iterator if all events from the current date have been consumed.
-				// We need to check if the EventKey is empty because it indicates that we left the page midway
-				// due to reaching the maximum response size. In this case, we need to resume the query
-				// from the same date and the request's iterator to fetch the remainder of the page.
-				// If the input iterator is empty but the EventKey is not, we need to resume the query from the same date
-				// and we shouldn't move to the next date.
-				if i < len(l.dates)-1 && l.checkpoint.Iterator == "" && l.checkpoint.EventKey == "" {
+				// To do this, we check if the iterator is empty.
+				// DynamoDB returns an empty iterator (LastEvaluatedKey) if all events from the current date have been consumed.
+				// However, in the case that we stopped early and the iterator is nonempty, we should not move to the next date.
+				if i < len(l.dates)-1 && l.checkpoint.Iterator == "" {
 					l.checkpoint.Date = l.dates[i+1]
 				}
 				return values, nil
 			}
+			// An empty iterator indicates that there are no more events to fetch from the current date.
 			if l.checkpoint.Iterator == "" {
 				continue dateLoop
 			}
