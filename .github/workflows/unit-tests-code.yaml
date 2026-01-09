@@ -79,7 +79,7 @@ jobs:
       - name: Capture Job Metadata # TODO: move to a common file somewhere
         id: capture_metadata
         continue-on-error: true
-        run: mkdir -p $GITHUB_WORKSPACE/test-logs && go run .github/shared-workflows/tools/ci-normalize/cmd meta | tee $GITHUB_WORKSPACE/test-logs/ci-job-meta.json
+        run: mkdir -p $GITHUB_WORKSPACE/test-logs && cd .github/shared-workflows/tools/ci-normalize && go run ./cmd meta | tee $GITHUB_WORKSPACE/test-logs/ci-job-meta.json
 
       - name: Run tests
         timeout-minutes: 20
@@ -90,14 +90,14 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          go run .github/shared-workflows/tools/ci-normalize/cmd junit \
+          cd .github/shared-workflows/tools/ci-normalize && go run ./cmd junit \
             --meta $GITHUB_WORKSPACE/test-logs/ci-job-meta.json \
             --testcase $GITHUB_WORKSPACE/test-logs/testcase.jsonl \
             --suite $GITHUB_WORKSPACE/test-logs/suite.jsonl \
             $GITHUB_WORKSPACE/test-logs/*.xml
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
           aws-region: us-west-2
           role-to-assume: arn:aws:iam::278576220453:role/tf-ci-test-artifacts-upload-gha-role
@@ -122,4 +122,3 @@ jobs:
           aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/ci-job-meta.json s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/tests/year=${YEAR}/month=${MONTH}/day=${DAY}/repo=${REPO}/job-${ID}-${TIMESTAMP}.json"
           aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/testcase.jsonl s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/suites/year=${YEAR}/month=${MONTH}/day=${DAY}/repo=${REPO}/tests-${ID}-${TIMESTAMP}.jsonl"
           aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/suite.jsonl s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/jobs/year=${YEAR}/month=${MONTH}/day=${DAY}/repo=${REPO}/suites-${ID}-${TIMESTAMP}.jsonl"
-
