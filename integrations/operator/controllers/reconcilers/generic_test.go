@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/common"
 )
 
 // newFakeTeleportResource creates a fakeTeleportResource
@@ -118,7 +118,7 @@ func (f *fakeTeleportResourceClient) resourceExists(name string) bool {
 // Its corresponding TeleportResource is fakeTeleportResource.
 type fakeTeleportKubernetesResource struct {
 	kclient.Object
-	status resources.Status
+	status common.Status
 }
 
 // ToTeleport implements the TeleportKubernetesResource interface.
