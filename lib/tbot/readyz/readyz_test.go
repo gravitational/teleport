@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"os"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestReadyz(t *testing.T) {

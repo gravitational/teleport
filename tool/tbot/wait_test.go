@@ -22,13 +22,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 type inMemoryTransport struct {
