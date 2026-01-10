@@ -89,14 +89,29 @@ func agentIsPresent() bool {
 
 // agentSupportsSSHCertificates checks if the running agent supports SSH certificates.
 // This detection implementation is as described in RFD 18 and works by simply checking for
-// presence of gpg-agent which is a common agent known to not support SSH certificates.
-func agentSupportsSSHCertificates() bool {
+// presence of gpg-agent or 1password which are common agents known to not support SSH certificates.
+func agentSupportsSSHCertificates(goos string) bool {
 	agent := os.Getenv(teleport.SSHAuthSock)
-	return !strings.Contains(agent, "gpg-agent")
+
+	if strings.Contains(agent, "gpg-agent") {
+		return false
+	}
+
+	// Platform specific socket locations for 1Password  are described here:
+	// https://developer.1password.com/docs/ssh/agent/compatibility/#working-with-ssh-clients
+	if goos == "linux" && strings.Contains(agent, ".1password/agent.sock") {
+		return false
+	}
+
+	if goos == "darwin" && strings.Contains(agent, "Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock") {
+		return false
+	}
+
+	return true
 }
 
 func shouldAddKeysToAgent(addKeysToAgent string) bool {
-	return (addKeysToAgent == AddKeysToAgentAuto && agentSupportsSSHCertificates()) || addKeysToAgent == AddKeysToAgentOnly || addKeysToAgent == AddKeysToAgentYes
+	return (addKeysToAgent == AddKeysToAgentAuto && agentSupportsSSHCertificates(runtime.GOOS)) || addKeysToAgent == AddKeysToAgentOnly || addKeysToAgent == AddKeysToAgentYes
 }
 
 // LocalAgentConfig contains parameters for creating the local keys agent.
@@ -144,7 +159,7 @@ func NewLocalAgent(conf LocalAgentConfig) (a *LocalKeyAgent, err error) {
 	} else {
 		log.DebugContext(context.Background(), "Skipping connection to the local ssh-agent.")
 
-		if !agentSupportsSSHCertificates() && agentIsPresent() {
+		if !agentSupportsSSHCertificates(runtime.GOOS) && agentIsPresent() {
 			log.WarnContext(context.Background(), `Certificate was not loaded into agent because the agent at SSH_AUTH_SOCK does not appear
 to support SSH certificates. To force load the certificate into the running agent, use
 the --add-keys-to-agent=yes flag.`)
