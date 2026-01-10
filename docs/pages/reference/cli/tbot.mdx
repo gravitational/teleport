@@ -22,6 +22,9 @@ The primary commands for `tbot` are as follows:
 | `tbot init` | Initialize a certificate destination directory for writes from a separate bot user, configuring either file or POSIX ACL permissions. |
 | `tbot db` | Connects to databases using native clients and queries database information. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
 | `tbot proxy` | Allows for access to Teleport resources on a cluster using TLS Routing. Functions as a wrapper for `tsh`, and requires `tsh` installation. |
+| `tbot copy-binaries` | Copies the `tbot` binary (and optionally `fdpass-teleport`) to a destination directory. |
+| `tbot keypair create` | Generates a keypair for `bound_keypair` joining. |
+| `tbot wait` | Waits for a running `tbot` instance to become ready, using its diagnostics endpoint. |
 | `tbot tpm identify` | Output identifying information related to the TPM (Trusted Platform Module) detected on the system. |
 
 ## tbot db
@@ -694,6 +697,30 @@ command supports these additional flags:
 | `--dns-san`                              | A DNS name that should be included in the SVID. Repeatable. |
 | `--ip-san`                               | An IP address that should be included in the SVID. Repeatable. |
 
+## tbot copy-binaries
+
+Copies the `tbot` binary to a destination directory, optionally including
+`fdpass-teleport`.
+
+This command may be useful for copying the `tbot` binaries from Teleport's
+distroless containers into another container, for example as part of a
+Kubernetes `initContainer`.
+
+If using the `ssh-multiplexer` service with the `fdpass-teleport` helper, the
+`--include-fdpass` flag should be used to ensure that helper binary is also
+copied. However, note that the binary must be available in the source
+environment to be copied.
+
+```code
+$ tbot copy-binaries [--include-fdpass] DESTINATION-DIR
+```
+
+### Flags
+
+| Flag              | Description |
+|-------------------|-------------|
+| `--include-fdpass` | If set, also copy `fdpass-teleport` from the same directory as the `tbot` binary. |
+
 ## tbot install systemd
 
 Generates and installs a systemd unit file for a specific tbot configuration.
@@ -764,6 +791,36 @@ join token to be used as a
 Note that the Teleport Proxy Service address is required to fetch the currently
 enabled [signature suite](../deployment/signature-algorithms.mdx). No authentication takes
 place at this time.
+
+## tbot wait
+
+Waits for a running `tbot` to become ready by querying its diagnostics endpoint.
+
+A `tbot` process must have been started with the diagnostics service enabled via
+the `--diag-addr` CLI flag or `diag_addr` YAML field.
+
+The `wait` command waits indefinitely for the bot (or single service, if
+specified) to begin reporting its status, and for the bot to become healthy as
+reported by the diagnostics service's `/readyz` endpoint. It is safe to run
+before the main `tbot` process has started running and will only return when
+either the bot is ready for use, or the timeout (if specified) has elapsed.
+
+If the `--timeout` flag is specified and the bot or specific service has not
+become healthy within the time limit, the command exits with an error. If not
+specified, the command will only exit if and when the bot becomes healthy.
+
+```code
+$ tbot wait --diag-addr=127.0.0.1:1234 [<flags>]
+```
+
+### Flags
+
+| Flag         | Description |
+|--------------|-------------|
+| `--diag-addr` | The configured `--diag-addr` of a running bot, in `host:port` form. Required. |
+| `--service`  | If set, waits for only the named service to become healthy. If unset, waits for all services. |
+| `--timeout`  | An optional timeout duration string, e.g. `30s`. The command exits with an error if services are not healthy before the timeout. |
+
 
 ## Destination URIs
 

@@ -119,6 +119,67 @@ performance issues.
 They will only be enabled if the `-d`/`--debug` flag is provided when starting
 `tbot`. This is known as **debug mode**.
 
+### `/wait` and `/wait/{service}`
+
+The `/wait` endpoint returns the same content as `/readyz`, but delays its
+response until the bot or service has reported its initial status, regardless of
+if it reports itself as healthy or unhealthy. As with `/readyz`, if the bot or
+service is not healthy, it responds with a 503 status code. It will delay
+potentially indefinitely waiting for the initial readiness report, so clients
+should configure a reasonable timeout if necessary.
+
+This endpoint is useful when integrating synchronously with bots to ensure
+workflows that depend on bot outputs or services are in fact ready to serve
+requests, without needing to explicitly implement a readiness checking loop in
+your own app. It can be useful in CI/CD environments, or any other situation in
+which you need to be certain `tbot` is fully initialized.
+
+The [`tbot wait`](../cli/tbot.mdx#tbot-wait) helper command makes use of this
+endpoint internally, but handles additional error cases (`tbot` not yet started,
+waits explicitly for services to become healthy). Most users should prefer the
+CLI helper when possible.
+
+```code
+$ curl -v http://127.0.0.1:3001/wait
+
+HTTP/1.1 503 Service Unavailable
+Content-Type: application/json
+
+{
+  "status": "unhealthy",
+  "services": {
+    "ca-rotation": {
+      "status": "healthy"
+    },
+    "heartbeat": {
+      "status": "healthy"
+    },
+    "identity": {
+      "status": "healthy"
+    },
+    "aws-roles-anywhere": {
+      "status": "unhealthy",
+      "reason": "access denied to perform action \"read\" on \"workload_identity\""
+    }
+  },
+  "pid": 42344
+}
+```
+
+You can also use the `/wait/{service}` endpoint to wait for a particular service
+to report its initial status.
+
+```code
+$ curl -v http://127.0.0.1:3001/wait/aws-roles-anywhere
+
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+  "status": "healthy"
+}
+```
+
 ## Prometheus metrics
 
 The `tbot` process exposes a number of Prometheus metrics via the `/metrics`
