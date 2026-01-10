@@ -23,17 +23,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ConnectSSEServer establishes an SSE stream with the MCP server and finds the
@@ -131,15 +134,26 @@ func (w *SSERequestWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMess
 // SSE stream with the MCP server.
 type SSEResponseReader struct {
 	io.Closer
-	scanner *bufio.Scanner
+	nextEvent func() (event, error, bool)
 }
 
 // NewSSEResponseReader creates a new SSEResponseReader. Input reader is usually the
 // http body used for SSE stream.
 func NewSSEResponseReader(reader io.ReadCloser) *SSEResponseReader {
+	var mu sync.Mutex
+	nextEvent, stopFunc := iter.Pull2(scanEvents(reader))
 	return &SSEResponseReader{
-		Closer:  reader,
-		scanner: bufio.NewScanner(reader),
+		Closer: utils.CloseFunc(func() error {
+			mu.Lock()
+			stopFunc()
+			mu.Unlock()
+			return reader.Close()
+		}),
+		nextEvent: func() (event, error, bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			return nextEvent()
+		},
 	}
 }
 
@@ -147,8 +161,10 @@ func NewSSEResponseReader(reader io.ReadCloser) *SSEResponseReader {
 // This should be the first event after connecting to SSE server, and any error
 // is critical.
 func (r *SSEResponseReader) ReadEndpoint(ctx context.Context, baseURL *url.URL) (*url.URL, error) {
-	evt, err := r.nextEvent()
-	if err != nil {
+	evt, err, ok := r.nextEvent()
+	if !ok {
+		return nil, trace.Wrap(io.EOF, "reading SSE server message")
+	} else if err != nil {
 		return nil, trace.Wrap(err, "reading SSE server message")
 	}
 	if evt.name != sseEventEndpoint {
@@ -163,9 +179,11 @@ func (r *SSEResponseReader) ReadEndpoint(ctx context.Context, baseURL *url.URL) 
 
 // ReadMessage reads the next SSE message event from SSE stream.
 func (r *SSEResponseReader) ReadMessage(ctx context.Context) (string, error) {
-	evt, err := r.nextEvent()
-	if err != nil {
-		return "", trace.Wrap(err)
+	evt, err, ok := r.nextEvent()
+	if !ok {
+		return "", trace.Wrap(io.EOF, "reading SSE server message")
+	} else if err != nil {
+		return "", trace.Wrap(err, "reading SSE server message")
 	}
 	if evt.name != sseEventMessage {
 		return "", newReaderParseError(trace.BadParameter("unexpected event type %s", evt.name))
@@ -184,55 +202,125 @@ const (
 )
 
 // event is an event is a server-sent event.
+// Copied from official go-sdk with minor modification (make all fields private):
+// https://github.com/modelcontextprotocol/go-sdk/blob/a225d4dc7ded92f5492651a1bc60499b3be27044/mcp/event.go#L31
 type event struct {
-	name string
-	data []byte
+	name  string // the "event" field
+	id    string // the "id" field
+	data  []byte // the "data" field
+	retry string // the "retry" field
+}
+
+// empty reports whether the Event is empty.
+func (e event) empty() bool {
+	return e.name == "" && e.id == "" && len(e.data) == 0 && e.retry == ""
 }
 
 func (e event) marshal() []byte {
-	return fmt.Appendf(nil, "event: %s\ndata: %s\n\n", e.name, e.data)
+	// Copied from official go-sdk with minor modification (no need for io.Writer):
+	// https://github.com/modelcontextprotocol/go-sdk/blob/a225d4dc7ded92f5492651a1bc60499b3be27044/mcp/event.go#L44
+	var b bytes.Buffer
+	if e.name != "" {
+		fmt.Fprintf(&b, "event: %s\n", e.name)
+	}
+	if e.id != "" {
+		fmt.Fprintf(&b, "id: %s\n", e.id)
+	}
+	if e.retry != "" {
+		fmt.Fprintf(&b, "retry: %s\n", e.retry)
+	}
+	fmt.Fprintf(&b, "data: %s\n\n", string(e.data))
+	return b.Bytes()
 }
 
-// nextEvent reads one sse event from the wire.
+// scanEvents iterates SSE events in the given scanner. The iterated error is
+// terminal: if encountered, the stream is corrupt or broken and should no
+// longer be used.
 //
-// Logic is copied from golang internal mcp lib which might get released
-// officially someday:
-// https://cs.opensource.google/go/x/tools/+/refs/tags/v0.34.0:internal/mcp/sse.go.
-//
-// Original comment from above go source:
-// https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#examples
-//   - `key: value` line records.
-//   - Consecutive `data: ...` fields are joined with newlines.
-//   - Unrecognized fields are ignored. Since we only care about 'event' and
-//     'data', these are the only two we consider.
-//   - Lines starting with ":" are ignored.
-//   - Records are terminated with two consecutive newlines.
-func (r *SSEResponseReader) nextEvent() (event, error) {
+// Copied from official go-sdk with minor modification (use unexposed "event"):
+// https://github.com/modelcontextprotocol/go-sdk/blob/a225d4dc7ded92f5492651a1bc60499b3be27044/mcp/event.go#L69
+func scanEvents(r io.Reader) iter.Seq2[event, error] {
+	scanner := bufio.NewScanner(r)
+	const maxTokenSize = 1 * 1024 * 1024 // 1 MiB max line size
+	scanner.Buffer(nil, maxTokenSize)
+
+	// TODO: investigate proper behavior when events are out of order, or have
+	// non-standard names.
 	var (
-		evt         event
-		lastWasData bool // if set, preceding data field was also data
+		eventKey = []byte("event")
+		idKey    = []byte("id")
+		dataKey  = []byte("data")
+		retryKey = []byte("retry")
 	)
-	for r.scanner.Scan() {
-		line := r.scanner.Bytes()
-		if len(line) == 0 && (evt.name != "" || len(evt.data) > 0) {
-			return evt, nil
-		}
-		before, after, found := bytes.Cut(line, []byte{':'})
-		if !found {
-			return evt, fmt.Errorf("malformed line in SSE stream: %q", string(line))
-		}
-		switch {
-		case bytes.Equal(before, []byte("event")):
-			evt.name = strings.TrimSpace(string(after))
-		case bytes.Equal(before, []byte("data")):
-			data := bytes.TrimSpace(after)
-			if lastWasData {
-				evt.data = slices.Concat(evt.data, []byte{'\n'}, data)
-			} else {
-				evt.data = data
+
+	return func(yield func(event, error) bool) {
+		// iterate event from the wire.
+		// https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#examples
+		//
+		//  - `key: value` line records.
+		//  - Consecutive `data: ...` fields are joined with newlines.
+		//  - Unrecognized fields are ignored. Since we only care about 'event', 'id', and
+		//   'data', these are the only three we consider.
+		//  - Lines starting with ":" are ignored.
+		//  - Records are terminated with two consecutive newlines.
+		var (
+			evt     event
+			dataBuf *bytes.Buffer // if non-nil, preceding field was also data
+		)
+		flushData := func() {
+			if dataBuf != nil {
+				evt.data = dataBuf.Bytes()
+				dataBuf = nil
 			}
-			lastWasData = true
+		}
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if len(line) == 0 {
+				flushData()
+				// \n\n is the record delimiter
+				if !evt.empty() && !yield(evt, nil) {
+					return
+				}
+				evt = event{}
+				continue
+			}
+			before, after, found := bytes.Cut(line, []byte{':'})
+			if !found {
+				yield(event{}, fmt.Errorf("malformed line in SSE stream: %q", string(line)))
+				return
+			}
+			if !bytes.Equal(before, dataKey) {
+				flushData()
+			}
+			switch {
+			case bytes.Equal(before, eventKey):
+				evt.name = strings.TrimSpace(string(after))
+			case bytes.Equal(before, idKey):
+				evt.id = strings.TrimSpace(string(after))
+			case bytes.Equal(before, retryKey):
+				evt.retry = strings.TrimSpace(string(after))
+			case bytes.Equal(before, dataKey):
+				data := bytes.TrimSpace(after)
+				if dataBuf != nil {
+					dataBuf.WriteByte('\n')
+					dataBuf.Write(data)
+				} else {
+					dataBuf = new(bytes.Buffer)
+					dataBuf.Write(data)
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			if errors.Is(err, bufio.ErrTooLong) {
+				err = fmt.Errorf("event exceeded max line length of %d", maxTokenSize)
+			}
+			if !yield(event{}, err) {
+				return
+			}
+		}
+		flushData()
+		if !evt.empty() {
+			yield(evt, nil)
 		}
 	}
-	return evt, io.EOF
 }
