@@ -54,8 +54,9 @@ const (
 )
 
 const (
-	defaultRetentionPeriod = 8766 * time.Hour // 365.25 days, i.e. one year
-	defaultCleanupInterval = time.Hour
+	defaultRetentionPeriod    = 8766 * time.Hour // 365.25 days, i.e. one year
+	defaultCleanupInterval    = time.Hour
+	defaultCertReloadInterval = 0
 )
 
 // URL parameters for configuration.
@@ -67,6 +68,7 @@ const (
 	disableCleanupParam  = "disable_cleanup"
 	cleanupIntervalParam = "cleanup_interval"
 	retentionPeriodParam = "retention_period"
+	certReloadParam      = "cert_reload_interval"
 )
 
 const (
@@ -114,9 +116,10 @@ type Config struct {
 	Log        *slog.Logger
 	PoolConfig *pgxpool.Config
 
-	DisableCleanup  bool
-	RetentionPeriod time.Duration
-	CleanupInterval time.Duration
+	DisableCleanup     bool
+	RetentionPeriod    time.Duration
+	CleanupInterval    time.Duration
+	CertReloadInterval time.Duration
 }
 
 // SetFromURL sets config params from the URL, as per [pgxpool.ParseConfig]
@@ -169,6 +172,14 @@ func (c *Config) SetFromURL(u *url.URL) error {
 		c.RetentionPeriod = d
 	}
 
+	if s := params.Get(certReloadParam); s != "" {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CertReloadInterval = d
+	}
+
 	return nil
 }
 
@@ -204,7 +215,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Returns a new Log given a Config. Starts a background cleanup task unless
+// New returns a new Log given a Config. Starts a background cleanup task unless
 // disabled in the Config.
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -217,6 +228,13 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	if err := cfg.AuthConfig.ApplyToPoolConfigs(ctx, cfg.Log, cfg.PoolConfig); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.CertReloadInterval > 0 {
+		err := pgcommon.CreateClientCertReloader(ctx, "pgevents", cfg.PoolConfig.ConnString(), cfg.PoolConfig.ConnConfig, cfg.CertReloadInterval, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	cfg.Log.InfoContext(ctx, "Setting up events backend.")

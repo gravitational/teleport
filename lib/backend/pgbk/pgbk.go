@@ -79,6 +79,12 @@ type Config struct {
 	DisableExpiry   bool           `json:"disable_expiry"`
 	ExpiryInterval  types.Duration `json:"expiry_interval"`
 	ExpiryBatchSize int            `json:"expiry_batch_size"`
+	// ClientCertReloadInterval is the interval for reloading the client cert
+	// for connections to the database
+	ClientCertReloadInterval types.Duration `json:"client_cert_reload_interval"`
+	// ChangeFeedCertReloadInterval is the interval for reloading the change feed client cert
+	// for connections to the database
+	ChangeFeedCertReloadInterval types.Duration `json:"changefeed_cert_reload_interval"`
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -88,6 +94,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.ChangeFeedConnString == "" {
 		c.ChangeFeedConnString = c.ConnString
+		c.ChangeFeedCertReloadInterval = c.ClientCertReloadInterval
 	}
 	if c.ChangeFeedPollInterval < 0 {
 		return trace.BadParameter("change feed poll interval must be non-negative")
@@ -144,9 +151,22 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if cfg.ClientCertReloadInterval > 0 {
+		err := pgcommon.CreateClientCertReloader(ctx, "backend", cfg.ConnString, poolConfig.ConnConfig, cfg.ClientCertReloadInterval.Value(), nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	feedConfig, err := pgxpool.ParseConfig(cfg.ChangeFeedConnString)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if cfg.ChangeFeedCertReloadInterval > 0 {
+		err := pgcommon.CreateClientCertReloader(ctx, "changefeed", cfg.ChangeFeedConnString, feedConfig.ConnConfig, cfg.ChangeFeedCertReloadInterval.Value(), nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	log := slog.With(teleport.ComponentKey, componentName)
