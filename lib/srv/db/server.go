@@ -1543,7 +1543,7 @@ func (s *Server) getHealthChecker(ctx context.Context, db types.Database) (healt
 		Clock:                 s.cfg.Clock,
 		Database:              db,
 		GCPClients:            s.cfg.GCPClients,
-		Log:                   s.log,
+		Log:                   s.log.With(teleport.ComponentKey, teleport.ComponentDatabaseHealth),
 		UpdateProxiedDatabase: s.updateProxiedDatabase,
 	})
 	if err != nil {
