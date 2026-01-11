@@ -337,6 +337,11 @@ install_teleport() {
   centos | rhel | rocky | almalinux | amzn)
     install_via_yum "$ID"
     ;;
+  # Fedora uses dnf but there is no dedicated Fedora repository,
+  # so we use the RHEL repository which is compatible.
+  fedora)
+    install_via_yum rhel
+    ;;
   sles)
     install_via_zypper
     ;;
