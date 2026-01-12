@@ -35,6 +35,7 @@ import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/trackingTester';
@@ -49,6 +50,7 @@ beforeAll(() => {
 
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
+  server.use(fetchUnifiedResourcesSuccess());
   server.use(userEventCaptureSuccess());
 
   jest.useFakeTimers();
@@ -78,6 +80,7 @@ describe('ConnectGitHub', () => {
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: '',
       },
     });
 
@@ -126,6 +129,7 @@ describe('ConnectGitHub', () => {
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: '',
       },
     });
 

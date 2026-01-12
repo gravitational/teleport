@@ -34,6 +34,10 @@ import {
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import {
+  ResourcesResponse,
+  UnifiedResource,
+} from 'teleport/services/agents/types';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
 import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
@@ -65,6 +69,8 @@ afterAll(() => {
 
 describe('ConfigureAccess', () => {
   test('renders', async () => {
+    withListUnifiedResourcesSuccess();
+
     renderComponent({
       initialState: {
         allowAnyBranch: false,
@@ -80,6 +86,7 @@ describe('ConfigureAccess', () => {
         kubernetesGroups: ['viewers'],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: ['user@example.com'],
+        kubernetesCluster: 'my-kubernetes-cluster',
       },
     });
 
@@ -87,12 +94,17 @@ describe('ConfigureAccess', () => {
       screen.getByRole('heading', { name: 'Configure Access' })
     ).toBeInTheDocument();
 
-    expect(screen.getByLabelText('Kubernetes Groups')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Select a cluster to access')
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Teleport Labels')).toBeInTheDocument();
     expect(screen.getByLabelText('Kubernetes Users')).toBeInTheDocument();
+    expect(screen.getByLabelText('Kubernetes Groups')).toBeInTheDocument();
   });
 
   test('navigation', async () => {
+    withListUnifiedResourcesSuccess();
+
     const { onNextStep, onPrevStep, user } = renderComponent({
       initialState: {
         allowAnyBranch: false,
@@ -108,6 +120,7 @@ describe('ConfigureAccess', () => {
         kubernetesGroups: ['viewers'],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: 'my-kubernetes-cluster',
       },
     });
 
@@ -121,6 +134,8 @@ describe('ConfigureAccess', () => {
   });
 
   test('validates that groups or users are provided', async () => {
+    withListUnifiedResourcesSuccess();
+
     const { onNextStep, user } = renderComponent({
       initialState: {
         allowAnyBranch: false,
@@ -136,6 +151,7 @@ describe('ConfigureAccess', () => {
         kubernetesGroups: [],
         kubernetesLabels: [{ name: '*', values: ['*'] }],
         kubernetesUsers: [],
+        kubernetesCluster: 'my-kubernetes-cluster',
       },
     });
 
@@ -147,7 +163,39 @@ describe('ConfigureAccess', () => {
     ).toHaveLength(2);
   });
 
+  test('validates that a cluster is provided', async () => {
+    withListUnifiedResourcesSuccess();
+
+    const { onNextStep, user } = renderComponent({
+      initialState: {
+        allowAnyBranch: false,
+        branch: 'main',
+        enterpriseJwks: '{"keys":[]}',
+        enterpriseSlug: 'octo-enterprise',
+        environment: 'production',
+        gitHubUrl: 'https://github.com/gravitational/teleport',
+        isBranchDisabled: false,
+        ref: 'main',
+        refType: 'branch',
+        workflow: 'my-workflow',
+        kubernetesGroups: ['viewers'],
+        kubernetesLabels: [{ name: '*', values: ['*'] }],
+        kubernetesUsers: [],
+        kubernetesCluster: '',
+      },
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(onNextStep).not.toHaveBeenCalled();
+    expect(
+      screen.getAllByText('A Kubernetes cluster is required')
+    ).toHaveLength(1);
+  });
+
   test('input groups', async () => {
+    withListUnifiedResourcesSuccess();
+
     const tracking = trackingTester();
 
     const { user } = renderComponent();
@@ -174,6 +222,8 @@ describe('ConfigureAccess', () => {
   });
 
   test('input labels', async () => {
+    withListUnifiedResourcesSuccess();
+
     const tracking = trackingTester();
 
     const { user } = renderComponent();
@@ -206,6 +256,8 @@ describe('ConfigureAccess', () => {
   });
 
   test('input users', async () => {
+    withListUnifiedResourcesSuccess();
+
     const tracking = trackingTester();
 
     const { user } = renderComponent();
@@ -273,4 +325,10 @@ function makeWrapper(opts?: {
       </QueryClientProvider>
     );
   };
+}
+
+function withListUnifiedResourcesSuccess(opts?: {
+  response?: ResourcesResponse<UnifiedResource>;
+}) {
+  server.use(fetchUnifiedResourcesSuccess(opts));
 }

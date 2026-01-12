@@ -40,6 +40,7 @@ import { ContextProvider } from 'teleport/index';
 import { ContentMinWidth } from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { genWizardCiCdSuccess } from 'teleport/test/helpers/bots';
+import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { trackingTester } from '../Shared/trackingTester';
@@ -53,6 +54,7 @@ beforeAll(() => {
 
   server.use(genWizardCiCdSuccess());
   server.use(userEventCaptureSuccess());
+  server.use(fetchUnifiedResourcesSuccess());
 
   jest.useFakeTimers();
 });
@@ -135,6 +137,16 @@ describe('GitHubActionsK8s', () => {
     expect(
       screen.getByRole('heading', { name: 'Configure Access' })
     ).toBeInTheDocument();
+
+    const select = screen.getByLabelText('Select a cluster to access');
+    await selectEvent.select(select, 'kube-lon-staging-01.example.com');
+
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      'test-tracking-event-id',
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME'
+    );
 
     const input = screen.getByLabelText('Kubernetes Groups');
     await user.type(input, 'viewers{enter}');

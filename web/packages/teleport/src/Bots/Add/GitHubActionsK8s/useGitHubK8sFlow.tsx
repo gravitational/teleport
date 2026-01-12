@@ -152,6 +152,7 @@ export function GitHubK8sFlowProvider(
       ghaWorkflow: makeGhaWorkflow({
         tokenName: `gha-${state.info?.owner ?? 'gravitational'}-${state.info?.repository ?? 'teleport'}`,
         clusterPublicUrl: cluster.publicURL,
+        clusterName: state.kubernetesCluster,
       }),
     },
   };
@@ -251,6 +252,11 @@ function reducer(prev: State, action: Action): State {
         ...prev,
         kubernetesUsers: action.value,
       };
+    case 'kubernetes-cluster-changed':
+      return {
+        ...prev,
+        kubernetesCluster: action.value,
+      };
     default:
       const exhaustiveCheck: never = action;
       throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
@@ -284,6 +290,10 @@ type Action =
   | {
       type: 'kubernetes-labels-changed';
       value: KubernetesLabel[];
+    }
+  | {
+      type: 'kubernetes-cluster-changed';
+      value: string;
     };
 
 type State = {
@@ -305,6 +315,7 @@ type State = {
   kubernetesGroups: string[];
   kubernetesLabels: KubernetesLabel[];
   kubernetesUsers: string[];
+  kubernetesCluster: string;
 };
 
 const defaultState: State = {
@@ -321,6 +332,7 @@ const defaultState: State = {
   kubernetesGroups: [],
   kubernetesLabels: [{ name: '*', values: ['*'] }],
   kubernetesUsers: [],
+  kubernetesCluster: '',
 };
 
 type Context = {
