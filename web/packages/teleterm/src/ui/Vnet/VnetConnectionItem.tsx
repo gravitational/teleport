@@ -114,6 +114,7 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
+    systemServiceStatus,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -122,7 +123,9 @@ const VnetConnectionItemBase = forwardRef<
   );
   const isUserInWorkspace = !!rootClusterUri;
   const isProcessing =
-    startAttempt.status === 'processing' || stopAttempt.status === 'processing';
+    startAttempt.status === 'processing' ||
+    stopAttempt.status === 'processing' ||
+    systemServiceStatus.status === '';
   const disabledDiagnosticsReason =
     getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus: ConnectionStatus = useMemo(() => {
@@ -361,6 +364,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
+                disabled={systemServiceStatus.status === 'error'}
                 title=""
                 onClick={e => {
                   e.stopPropagation();

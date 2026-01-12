@@ -128,6 +128,8 @@ export type VnetContext = {
     /** Optional callback that will be invoked after SSH clients are configured. */
     onSuccess?: () => void;
   }) => void;
+
+  systemServiceStatus: Attempt<void>;
 };
 
 export type VnetStatus =
@@ -168,6 +170,22 @@ export const VnetContextProvider: FC<
     [mainProcessClient]
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
+
+  const [systemServiceStatus, loadSystemServiceStatus] = useAsync(
+    useCallback(async () => {
+      try {
+        await vnet.getSystemService({});
+      } catch (error) {
+        if (!isTshdRpcError(error, 'UNIMPLEMENTED')) {
+          throw error;
+        }
+      }
+    }, [vnet])
+  );
+
+  useEffect(() => {
+    loadSystemServiceStatus();
+  }, [loadSystemServiceStatus]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -331,6 +349,7 @@ export const VnetContextProvider: FC<
     [hasDismissedDiagnosticsAlert, diagnosticsAttempt]
   );
 
+  const isServiceOk = systemServiceStatus.status === 'success';
   useEffect(() => {
     const handleAutoStart = async () => {
       if (
@@ -339,7 +358,8 @@ export const VnetContextProvider: FC<
         // Accessing resources through VNet might trigger the MFA modal,
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
-        startAttempt.status === ''
+        startAttempt.status === '' &&
+        isServiceOk
       ) {
         const [, error] = await start();
 
@@ -352,7 +372,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized]);
+  }, [isWorkspaceStateInitialized, isServiceOk]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -533,6 +553,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
+        systemServiceStatus,
       }}
     >
       {children}

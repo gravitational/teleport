@@ -119,6 +119,20 @@ export interface GetBackgroundItemStatusResponse {
     status: BackgroundItemStatus;
 }
 /**
+ * Request for GetSystemServiceRequest.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetSystemServiceRequest
+ */
+export interface GetSystemServiceRequest {
+}
+/**
+ * Response for GetSystemServiceResponse.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetSystemServiceResponse
+ */
+export interface GetSystemServiceResponse {
+}
+/**
  * Request for RunDiagnostics.
  *
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
@@ -454,6 +468,56 @@ class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItem
  */
 export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetSystemServiceRequest$Type extends MessageType<GetSystemServiceRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetSystemServiceRequest", []);
+    }
+    create(value?: PartialMessage<GetSystemServiceRequest>): GetSystemServiceRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetSystemServiceRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetSystemServiceRequest): GetSystemServiceRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetSystemServiceRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetSystemServiceRequest
+ */
+export const GetSystemServiceRequest = new GetSystemServiceRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetSystemServiceResponse$Type extends MessageType<GetSystemServiceResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetSystemServiceResponse", []);
+    }
+    create(value?: PartialMessage<GetSystemServiceResponse>): GetSystemServiceResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetSystemServiceResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetSystemServiceResponse): GetSystemServiceResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetSystemServiceResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetSystemServiceResponse
+ */
+export const GetSystemServiceResponse = new GetSystemServiceResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
     constructor() {
         super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest", []);
@@ -582,6 +646,7 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
+    { name: "GetSystemService", options: {}, I: GetSystemServiceRequest, O: GetSystemServiceResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
     { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
 ]);

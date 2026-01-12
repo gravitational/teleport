@@ -27,6 +27,8 @@ import type { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import type { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import type { RunDiagnosticsResponse } from "./vnet_service_pb";
 import type { RunDiagnosticsRequest } from "./vnet_service_pb";
+import type { GetSystemServiceResponse } from "./vnet_service_pb";
+import type { GetSystemServiceRequest } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import type { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -69,6 +71,13 @@ export interface IVnetServiceClient {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
+    /**
+     * GetSystemServiceStatus returns the status of the background item responsible for launching
+     * VNet system service. Windows only.
+     *
+     * @generated from protobuf rpc: GetSystemService(teleport.lib.teleterm.vnet.v1.GetSystemServiceRequest) returns (teleport.lib.teleterm.vnet.v1.GetSystemServiceResponse);
+     */
+    getSystemService(input: GetSystemServiceRequest, options?: RpcOptions): UnaryCall<GetSystemServiceRequest, GetSystemServiceResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -133,13 +142,23 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
         return stackIntercept<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * GetSystemServiceStatus returns the status of the background item responsible for launching
+     * VNet system service. Windows only.
+     *
+     * @generated from protobuf rpc: GetSystemService(teleport.lib.teleterm.vnet.v1.GetSystemServiceRequest) returns (teleport.lib.teleterm.vnet.v1.GetSystemServiceResponse);
+     */
+    getSystemService(input: GetSystemServiceRequest, options?: RpcOptions): UnaryCall<GetSystemServiceRequest, GetSystemServiceResponse> {
+        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetSystemServiceRequest, GetSystemServiceResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
      *
      * @generated from protobuf rpc: RunDiagnostics(teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest) returns (teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse);
      */
     runDiagnostics(input: RunDiagnosticsRequest, options?: RpcOptions): UnaryCall<RunDiagnosticsRequest, RunDiagnosticsResponse> {
-        const method = this.methods[4], opt = this._transport.mergeOptions(options);
+        const method = this.methods[5], opt = this._transport.mergeOptions(options);
         return stackIntercept<RunDiagnosticsRequest, RunDiagnosticsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -149,7 +168,7 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
      * @generated from protobuf rpc: AutoConfigureSSH(teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest) returns (teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponse);
      */
     autoConfigureSSH(input: AutoConfigureSSHRequest, options?: RpcOptions): UnaryCall<AutoConfigureSSHRequest, AutoConfigureSSHResponse> {
-        const method = this.methods[5], opt = this._transport.mergeOptions(options);
+        const method = this.methods[6], opt = this._transport.mergeOptions(options);
         return stackIntercept<AutoConfigureSSHRequest, AutoConfigureSSHResponse>("unary", this._transport, method, opt, input);
     }
 }

@@ -24,6 +24,8 @@ import { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
+import { GetSystemServiceResponse } from "./vnet_service_pb";
+import { GetSystemServiceRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -64,6 +66,13 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetBackgroundItemStatus(teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusRequest) returns (teleport.lib.teleterm.vnet.v1.GetBackgroundItemStatusResponse);
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
+    /**
+     * GetSystemServiceStatus returns the status of the background item responsible for launching
+     * VNet system service. Windows only.
+     *
+     * @generated from protobuf rpc: GetSystemService(teleport.lib.teleterm.vnet.v1.GetSystemServiceRequest) returns (teleport.lib.teleterm.vnet.v1.GetSystemServiceResponse);
+     */
+    getSystemService: grpc.handleUnaryCall<GetSystemServiceRequest, GetSystemServiceResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -130,6 +139,16 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         requestDeserialize: bytes => GetBackgroundItemStatusRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
+    },
+    getSystemService: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetSystemService",
+        originalName: "GetSystemService",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetSystemServiceResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetSystemServiceRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetSystemServiceResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetSystemServiceRequest.toBinary(value))
     },
     runDiagnostics: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",
