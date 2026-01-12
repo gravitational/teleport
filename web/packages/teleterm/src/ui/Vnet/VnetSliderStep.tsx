@@ -25,6 +25,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
@@ -88,9 +89,18 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           }
         `}
       >
-        {startAttempt.status === 'error' && (
-          <ErrorText>Could not start VNet: {startAttempt.statusText}</ErrorText>
-        )}
+        {startAttempt.status === 'error' &&
+          (isTshdRpcError(startAttempt.error, 'NOT_FOUND') ? (
+            <ErrorText>
+              VNet system service not found. To use VNet, install Teleport
+              Connect in a per-machine mode. Administrator privileges will be
+              required.
+            </ErrorText>
+          ) : (
+            <ErrorText>
+              Could not start VNet: {startAttempt.statusText}
+            </ErrorText>
+          ))}
         {stopAttempt.status === 'error' && (
           <ErrorText>Could not stop VNet: {stopAttempt.statusText}</ErrorText>
         )}

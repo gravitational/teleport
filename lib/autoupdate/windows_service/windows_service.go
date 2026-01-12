@@ -210,6 +210,9 @@ func startService(ctx context.Context, cfg *Config) (*mgr.Service, error) {
 	}
 	serviceHandle, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
 	if err != nil {
+		if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			return nil, trace.NotFound("service does not exists as an installed service")
+		}
 		return nil, trace.Wrap(err, "opening Windows service %v", serviceName)
 	}
 	service := &mgr.Service{

@@ -12,7 +12,7 @@
 !pragma warning disable 6030
 
 !macro customHeader
-  LangString selectUserMode ${LANG_ENGLISH} "Select installation mode.$\r$\n$\r$\nIMPORTANT: Choose 'Anyone who uses this computer' if you need the app to run as a Windows Service."
+  LangString selectUserMode ${LANG_ENGLISH} "Select installation mode. Only the 'Anyone on this computer' option comes with VNet, Teleport's VPN-like experience for accessing TCP applications and SSH servers."
 !macroend
 
 ; 3. Re-enable warnings to keep the rest of the build safe
@@ -20,24 +20,55 @@
 !pragma warning default 6030
 
 !macro customInstall
-    # Make EnVar define system env vars since Connect is installed per-machine.
+  ${If} $installMode == "all"
+    # Make EnVar define system env vars if Connect is installed per-machine.
     EnVar::SetHKLM
     EnVar::AddValue "Path" $INSTDIR\resources\bin
+
+    # Install VNet and ignore errors
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-install-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe vnet-install-service failed with exit code $0. The installer is going to continue. Output: $1."
+    ${Endif}
 
     nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" windows-install-update-service'
     Pop $0 # ExitCode
     Pop $1 # Output
+
     ${If} $0 != 0
         MessageBox MB_ICONSTOP \
             "tsh.exe windows-install-update-service failed with exit code $0. Output: $1"
         Quit
     ${Endif}
+
+  ${Else}
+    # Make EnVar define system user vars if Connect is installed per-user.
+    EnVar::SetHKCU
+    EnVar::AddValue "Path" "$INSTDIR\resources\bin"
+
+  ${EndIf}
 !macroend
 
 !macro customUnInstall
+  ${If} $installMode == "all"
     EnVar::SetHKLM
     # Inside the uninstaller, $INSTDIR is the directory where the uninstaller lies.
     # Fortunately, electron-builder puts the uninstaller directly into the actual installation dir.
     # https://nsis.sourceforge.io/Docs/Chapter4.html#varother
-    EnVar::DeleteValue "Path" $INSTDIR\resources\bin
+    EnVar::DeleteValue "Path" "$INSTDIR\resources\bin"
+
+    nsExec::ExecToStack '"$INSTDIR\resources\bin\tsh.exe" vnet-uninstall-service'
+    Pop $0 # ExitCode
+    Pop $1 # Output
+    ${If} $0 != 0
+        MessageBox MB_ICONSTOP \
+            "tsh.exe vnet-uninstall-service failed with exit code $0. The uninstaller is going to continue. Output: $1"
+    ${Endif}
+  ${Else}
+    EnVar::SetHKCU
+    EnVar::DeleteValue "Path" "$INSTDIR\resources\bin"
+  ${EndIf}
 !macroend
