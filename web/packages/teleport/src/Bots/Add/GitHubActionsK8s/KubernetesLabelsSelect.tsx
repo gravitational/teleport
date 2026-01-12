@@ -179,7 +179,13 @@ function Picker(props: {
     fetchNextPage,
   } = useInfiniteQuery({
     enabled: hasListPermission,
-    queryKey: ['list', 'unified_resources', cfg.proxyCluster, ['kube_cluster']],
+    queryKey: [
+      'list',
+      'unified_resources',
+      'paged',
+      cfg.proxyCluster,
+      ['kube_cluster'],
+    ],
     queryFn: ({ pageParam, signal }) =>
       ctx.resourceService.fetchUnifiedResources(
         cfg.proxyCluster,

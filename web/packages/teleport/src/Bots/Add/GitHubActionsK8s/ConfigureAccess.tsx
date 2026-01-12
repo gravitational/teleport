@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useQuery } from '@tanstack/react-query';
 import { MultiValue } from 'react-select';
 import styled from 'styled-components';
 
@@ -28,13 +29,16 @@ import { FieldSelectCreatable } from 'shared/components/FieldSelect/FieldSelectC
 import { Rule } from 'shared/components/Validation/rules';
 import Validator, { Validation } from 'shared/components/Validation/Validation';
 
+import cfg from 'teleport/config';
 import { SectionBox } from 'teleport/Roles/RoleEditor/StandardEditor/sections';
+import { Kube } from 'teleport/services/kube/types';
 import {
   IntegrationEnrollField,
   IntegrationEnrollSection,
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
 } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 import { FlowStepProps } from '../Shared/GuidedFlow';
 import { useTracking } from '../Shared/useTracking';
@@ -47,6 +51,35 @@ export function ConfigureAccess(props: FlowStepProps) {
 
   const { dispatch, state } = useGitHubK8sFlow();
   const tracking = useTracking();
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasKubernetesListPermission = flags.kubernetes;
+
+  const { data, isLoading, error } = useQuery({
+    enabled: hasKubernetesListPermission,
+    queryKey: ['list', 'unified_resources', cfg.proxyCluster, ['kube_cluster']],
+    queryFn: ({ signal }) =>
+      ctx.resourceService.fetchUnifiedResources(
+        cfg.proxyCluster,
+        {
+          kinds: ['kube_cluster'],
+          limit: 1000,
+        },
+        signal
+      ),
+    staleTime: 30_000,
+  });
+
+  const kubernetesClusters =
+    data?.agents
+      ?.filter((resource): resource is Kube => resource.kind === 'kube_cluster')
+      .map(resource => resource.name) ?? [];
+
+  const kubernetesClusterOptions = kubernetesClusters.map(cluster => ({
+    label: cluster,
+    value: cluster,
+  }));
 
   const handleNext = (validator: Validator) => {
     if (!validator.validate()) {
@@ -77,6 +110,15 @@ export function ConfigureAccess(props: FlowStepProps) {
     };
   };
 
+  const kubernetesClusterRule: Rule<{ label: string; value: string } | null> =
+    value => () => {
+      const valid = Boolean(value?.value);
+      return {
+        valid,
+        message: valid ? '' : 'A Kubernetes cluster is required',
+      };
+    };
+
   return (
     <Container>
       <FormContainer>
@@ -86,9 +128,9 @@ export function ConfigureAccess(props: FlowStepProps) {
           </H2>
 
           <Text mb={3}>
-            Fine tune the access your workflow needs. Restrict <i>which</i>{' '}
-            clusters can be accessed using labels and <i>what</i> level of
-            access using groups and users.
+            Choose a cluster to access. Then fine tune the access your workflow
+            needs. Restrict <i>which</i> clusters can be accessed using labels
+            and <i>what</i> level of access using groups and users.
           </Text>
         </Box>
 
@@ -96,6 +138,42 @@ export function ConfigureAccess(props: FlowStepProps) {
           {({ validator }) => (
             <>
               <div>
+                <FieldSelectCreatable
+                  label="Select a cluster to access"
+                  mt={2}
+                  isClearable
+                  isLoading={isLoading}
+                  rule={kubernetesClusterRule}
+                  options={kubernetesClusterOptions}
+                  value={
+                    state.kubernetesCluster
+                      ? {
+                          label: state.kubernetesCluster,
+                          value: state.kubernetesCluster,
+                        }
+                      : null
+                  }
+                  onChange={option => {
+                    dispatch({
+                      type: 'kubernetes-cluster-changed',
+                      value: option?.value ?? '',
+                    });
+                    tracking.field(
+                      IntegrationEnrollStep.MWIGHAK8SConfigureAccess,
+                      IntegrationEnrollField.MWIGHAK8SKubernetesClusterName
+                    );
+                  }}
+                  noOptionsMessage={() => {
+                    if (isLoading) {
+                      return 'Loading clusters...';
+                    }
+                    if (error) {
+                      return 'Unable to load clusters';
+                    }
+                    return 'Enter cluster name manually';
+                  }}
+                  formatCreateLabel={input => `Use cluster "${input}"`}
+                />
                 <KubernetesLabelsSelect
                   mt={2}
                   selected={state.kubernetesLabels}

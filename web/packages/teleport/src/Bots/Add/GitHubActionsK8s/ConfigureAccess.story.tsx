@@ -29,7 +29,11 @@ import {
   genWizardCiCdForever,
   genWizardCiCdSuccess,
 } from 'teleport/test/helpers/bots';
-import { fetchUnifiedResourcesSuccess } from 'teleport/test/helpers/resources';
+import {
+  fetchUnifiedResourcesError,
+  fetchUnifiedResourcesForever,
+  fetchUnifiedResourcesSuccess,
+} from 'teleport/test/helpers/resources';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { TrackingProvider } from '../Shared/useTracking';
@@ -78,6 +82,30 @@ export const TemplateFetching: Story = {
       handlers: [
         genWizardCiCdForever(),
         fetchUnifiedResourcesSuccess(),
+        userEventCaptureSuccess(),
+      ],
+    },
+  },
+};
+
+export const ClustersFetchFailed: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        genWizardCiCdSuccess(),
+        fetchUnifiedResourcesError(500, 'something went wrong'),
+        userEventCaptureSuccess(),
+      ],
+    },
+  },
+};
+
+export const ClustersFetching: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        genWizardCiCdSuccess(),
+        fetchUnifiedResourcesForever(),
         userEventCaptureSuccess(),
       ],
     },

@@ -19,11 +19,17 @@
 export function makeGhaWorkflow(params: {
   tokenName: string;
   clusterPublicUrl: string;
+  clusterName: string;
 }) {
   return GHA_WORKFLOW.replaceAll(
     ':token_name',
     JSON.stringify(params.tokenName)
-  ).replaceAll(':cluster_public_url', JSON.stringify(params.clusterPublicUrl));
+  )
+    .replaceAll(':cluster_public_url', JSON.stringify(params.clusterPublicUrl))
+    .replaceAll(
+      ':kubernetes_cluster',
+      JSON.stringify(params.clusterName || 'my-kubernetes-cluster')
+    );
 }
 
 export const GHA_WORKFLOW = `# This file contains a GitHub Actions workflow which enrolls with Teleport in
@@ -45,9 +51,7 @@ on: workflow_dispatch
 env:
   TELEPORT_PROXY_ADDR: :cluster_public_url
   TELEPORT_JOIN_TOKEN_NAME: :token_name
-
-  # TODO: Provide the name of the Kubernetes cluster in Teleport
-  TELEPORT_K8S_CLUSTER_NAME: my-kubernetes-cluster
+  TELEPORT_K8S_CLUSTER_NAME: :kubernetes_cluster
 
 jobs:
   demo:
