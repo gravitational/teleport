@@ -24,7 +24,7 @@ import init, {
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
-import Logger from 'shared/libs/logger';
+import { Logger } from 'design/logger';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
 import {
@@ -160,13 +160,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
 
-  private logger = Logger.create('TDPClient');
+  private logger = new Logger('TDPClient');
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
     protected codec: Codec = new TdpCodec()
-    //private transportReady?: () => void
   ) {
     super();
   }
@@ -352,7 +351,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBufferLike): Promise<void> {
-    const result = this.codec.decodeMessage(buffer);
+    const result = this.codec.decodeMessage(buffer, this.logger);
     switch (result.kind) {
       case 'pngFrame':
         this.handlePngFrame(result.data);
@@ -363,7 +362,7 @@ export class TdpClient extends EventEmitter<EventMap> {
         break;
       case 'serverHello':
         // Comes from TDPB codec
-        this.handleRdpConnectionActivated(result.data.activationEvent);
+        this.handleServerHello(result.data);
         break;
       case 'rdpFastPathPdu':
         this.handleRdpFastPathPdu(result.data);
@@ -413,7 +412,7 @@ export class TdpClient extends EventEmitter<EventMap> {
         this.handleLatencyStats(result.data);
         break;
       case 'tdpbUpgrade':
-        this.handleTDPBUpgrade();
+        this.handleTdpbUpgrade();
         break;
       case 'clientScreenSpec':
         this.handleClientScreenSpec(result.data);
@@ -433,7 +432,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
 
-  handleTDPBUpgrade() {
+  handleTdpbUpgrade() {
     // Swap our codec to the TDPB codec.
     const tdpbCodec = new TdpbCodec();
     this.codec = tdpbCodec;
@@ -448,22 +447,10 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleServerHello(hello: ServerHello) {
-    const { ioChannelId, userChannelId, screenWidth, screenHeight } =
-      hello.activationEvent;
-
-    const spec = { width: screenWidth, height: screenHeight };
-    this.logger.info(
-      `screen spec received from server ${spec.width} x ${spec.height}`
-    );
-
-    this.initFastPathProcessor(ioChannelId, userChannelId, {
-      width: screenWidth,
-      height: screenHeight,
-    });
-
-    // Emit the spec to any listeners. Listeners can then resize
-    // the canvas to the size we're actually using in this session.
-    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+    // In the future, we may add new server capability advertisements
+    // that will affect client configuration.
+    // For now we'll just activate the the connection.
+    this.handleRdpConnectionActivated(hello.activationEvent)
   }
 
   handleClientScreenSpec(spec: ClientScreenSpec) {
@@ -758,7 +745,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    this.codec.encodeKeyboardInput(code, state).forEach(msg => this.send(msg));
+    this.codec.encodeKeyboardInput(code, state, this.logger).forEach(msg => this.send(msg));
   }
 
   sendSyncKeys(syncKeys: SyncKeys) {
