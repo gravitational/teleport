@@ -144,16 +144,11 @@ func NewSessionsService(cfg SessionsServiceConfig) (*SessionsService, error) {
 
 // CreateAppSessionWithJwt implements appauthconfigv1.AppAuthConfigSessionsServiceServer.
 func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (_ *appauthconfigv1.CreateAppSessionWithJWTResponse, err error) {
-	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
 	defer func() {
 		if emitErr := s.emitter.EmitAuditEvent(ctx, newVerifyJWTAuditEvent(ctx, req, "", err)); emitErr != nil {
 			s.logger.ErrorContext(ctx, "failed to emit jwt verification audit event", "error", emitErr)
 		}
 	}()
-
-	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -162,6 +157,11 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 
 	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+
+	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
+	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	config, err := s.cache.GetAppAuthConfig(ctx, req.ConfigName)
@@ -254,7 +254,7 @@ func retrieveJWKSAppAuthConfig(jwtConfig *appauthconfigv1.AppAuthConfigJWTSpec, 
 // verifyAppAuthJWTToken verifies the provided JWT token using app auth config
 // and returns the extracted username from JWT claims.
 func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jose.SignatureAlgorithm, jwtConfig *appauthconfigv1.AppAuthConfigJWTSpec) (string, time.Time, error) {
-	parsedJwt, err := jwt.ParseSigned(jwtToken, sigs)
+	parsedJWT, err := jwt.ParseSigned(jwtToken, sigs)
 	if err != nil {
 		return "", time.Time{}, trace.Wrap(err)
 	}
@@ -263,7 +263,7 @@ func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jos
 		claims          jwt.Claims
 		remainingClaims map[string]any
 	)
-	if err := parsedJwt.Claims(jwks, &claims, &remainingClaims); err != nil {
+	if err := parsedJWT.Claims(jwks, &claims, &remainingClaims); err != nil {
 		return "", time.Time{}, trace.Wrap(err)
 	}
 
