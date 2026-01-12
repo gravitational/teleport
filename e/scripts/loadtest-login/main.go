@@ -54,13 +54,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	//nolint:depguard // It's safe to import authtest because we are in a standalone CLI, not in Teleport.
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -119,7 +119,7 @@ func run(ctx context.Context, args []string, proxyAddr, deviceName string) error
 
 		dump, err := json.Marshal(device)
 		if err != nil {
-			return trace.Wrap(err, "marshalling device")
+			return trace.Wrap(err, "marshaling device")
 		}
 		if err := os.WriteFile(args[1], dump, 0600); err != nil {
 			return trace.Wrap(err, "writing device json")
