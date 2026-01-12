@@ -1,0 +1,334 @@
+---
+title: Teleport Agentic Identity Framework
+template: doc-page
+---
+
+import DocHero from "@site/src/components/Pages/Landing/DocHero";
+import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
+import Resources from "@site/src/components/Pages/Homepage/Resources";
+import heroPlaceholder from "@version/docs/img/hero-placeholder.png";
+import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+
+The Teleport Agentic Identity Framework is a standards-driven security
+architecture and a reference implementation for deploying AI agents across
+infrastructure. It provides designs and reference implementations for safe agent
+adoption across infrastructure with built-in security invariants, observability,
+and governance. The framework is architected for the pace and scale of AI,
+enabling engineers to integrate security into agentic systems from the initial
+design phase.
+
+As with the AI ecosystem as a whole, the Teleport Agentic Identity Framework is
+under development. Each component includes one of the following status
+categories:
+
+- **Ready:** Available for production use.
+- **Development:** Partially complete.
+- **Planned:** Not yet it development, but on the roadmap.
+
+<DocHero
+  title="Agentic Identity"
+  image={heroPlaceholder}
+  ctaLinks={[]}
+  links={[]}
+>
+
+You can use Teleport to issue and manage cryptographic identities for agents,
+including delegated identities and identities for long-running agents across all
+of your infrastructure.
+
+Teleport includes the following capabilities for Agentic Identity:
+
+|Feature|Status|
+|---|---|
+|Delegated Identity (Digital Twins)|**Development**|
+|Identity for Long-Running Agents|**Development**|
+|Identity for LLM Apps|**Development**|
+
+</DocHero>
+
+<Resources
+  title="Delegated Identity (Digital Twins)"
+  description="Agents operate on behalf of principals while preserving approval/authorization workflows."
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Delegation Flows",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Session Management",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Access Requests",
+      description: "Description TODO",
+      href: "",
+      iconComponent: questionSvg,
+    },
+  ]}
+/>
+
+<Resources
+  title="Identity for Long-Running Agents"
+  description="Durable identities for long-running agents with verification and rotation patterns."
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Attestation",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Renewal & Issuance",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+  ]}
+/>
+
+<Resources
+  title="Identity for LLM Apps"
+  description="Every agent has a unique cryptographic identity that can be audited."
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Framework Integrations",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Identity Provider Integrations",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    }
+  ]}
+/>
+
+<DocHero
+  title="Agentic Access"
+  image={heroPlaceholder}
+  ctaLinks={[]}
+  links={[]}
+>
+
+You can use Teleport to manage authorization to infrastructure, services, and
+data with discovery of MCP servers and LLM controls, including rate limiting,
+load balancing, budgets, prompt/response tracking, and guardrails.
+
+Teleport includes the following capabilities for Agentic Access:
+
+|Feature|Status|
+|---|---|
+|MCP Access|**Development**|
+|MCP Catalog|**Development**|
+|LLM Access|**Development**|
+
+</DocHero>
+
+<Resources
+  title="MCP Access"
+  description="Securely authorize and observe agent calls to databases, services, and infrastructure through MCP."
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Client and Server Proxying",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Authorization",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Authentication",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    }
+  ]}
+/>
+
+<Resources
+  title="MCP Catalog"
+  description="Discover MCP servers across infrastructure, track drift over time, and reduce unmanaged endpoints."
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Discovery",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Tracking Changes and Provenance",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Access Control",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    }
+  ]}
+/>
+
+<Resources
+  title="LLM Access"
+  description="Description TODO"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Guardrails",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Rate Limiting",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Budgeting",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Multiplexing",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    }
+  ]}
+/>
+
+
+<DocHero
+  title="Agentic Security"
+  image={heroPlaceholder}
+  ctaLinks={[]}
+  links={[]}
+>
+
+Teleport provides discovery, detection, and analytics for AI agents and MCP
+servers to reduce shadow deployments and context poisoning attacks.
+
+Teleport includes the following capabilities for Agentic Security:
+
+|Feature|Status|
+|---|---|
+|Visibility & Discovery|**Development**|
+|Audit & Security|**Development**|
+
+</DocHero>
+
+<Resources
+  title="Visibility and Discovery"
+  description="Continuous discovery, detection, and policy violation insights for agents and MCP endpoints."
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Analytics",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Discovery",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+  ]}
+/>
+
+<Resources
+  title="Audit & Security"
+  description="Description TODO"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+    {
+      title: "Session Recording & Audit",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+    {
+      title: "Behavior Analysis",
+      description: "Description TODO",
+      iconComponent: questionSvg,
+      href: ""
+    },
+  ]}
+/>
+
+<DocHero
+  title="Scheduling & Orchestration"
+  image={heroPlaceholder}
+  ctaLinks={[]}
+  links={[]}
+>
+
+Integrations and SDKs for modern agentic orchestration tools enable secure
+identities for agentic workflows accessing resources like databases and git
+repositories, as well as file sharing and developer tooling.
+
+Teleport includes the following capabilities for Scheduling & Orchestration:
+
+|Feature|Status|
+|---|---|
+|Data Sharing|**Planned**|
+|Workflows|**Planned**|
+|Developer Experience|**Planned**|
+
+</DocHero>
+
+<Resources
+  title="Data Sharing"
+  description="Description TODO"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+  ]}
+/>
+
+<Resources
+  title="Workflows"
+  description="Description TODO"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+  ]}
+/>
+
+<Resources
+  title="Developer Experience"
+  description="Description TODO"
+  variant="doc"
+  desktopColumnsCount={3}
+  resources={[
+  ]}
+/>
