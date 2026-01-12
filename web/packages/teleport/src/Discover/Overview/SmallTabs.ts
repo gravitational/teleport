@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,16 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import styled from 'styled-components';
 
-import { AddBotsPicker } from './AddBotsPicker';
+import { TabContainer, TabsContainer } from 'design/Tabs';
 
-export default {
-  title: 'Teleport/Bots/Add/AddBotsPicker',
-};
+export const SmallTabsContainer = styled(TabsContainer)`
+  gap: ${p => p.theme.space[3]}px;
+`;
 
-export const Picker = () => (
-  <TeleportProviderBasic>
-    <AddBotsPicker />
-  </TeleportProviderBasic>
-);
+export const SmallTab = styled(TabContainer)`
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[2]}px;
+`;

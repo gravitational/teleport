@@ -1,0 +1,20 @@
+{{ if .Values.rbac.create -}}
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "tbot-spiffe-daemon-set.fullname" . }}
+{{- if .Values.extraLabels.clusterRoleBinding }}
+  labels: {{- toYaml .Values.extraLabels.clusterRoleBinding | nindent 4 }}
+{{- end }}
+{{- if .Values.annotations.clusterRoleBinding }}
+  annotations: {{- toYaml .Values.annotations.clusterRoleBinding | nindent 4 }}
+{{- end}}
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "tbot-spiffe-daemon-set.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "tbot-spiffe-daemon-set.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{ end }}

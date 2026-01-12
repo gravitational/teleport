@@ -8939,7 +8939,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/deploy-a-cluster/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/deploy-a-cluster/reliability/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 

@@ -29,6 +29,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -63,20 +64,15 @@ func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*
 // BeginSSOMFAChallenge mocks the SSO MFA challenge initiation.
 func (m *mockAuthServer) BeginSSOMFAChallenge(
 	_ context.Context,
-	_ string,
-	sso *types.SSOMFADevice,
-	ssoClientRedirectURL,
-	_ string,
-	_ *mfav1.ChallengeExtensions,
-	_ *mfav1.SessionIdentifyingPayload,
+	params mfatypes.BeginSSOMFAChallengeParams,
 ) (*proto.SSOChallenge, error) {
 	requestID := strconv.Itoa(int(time.Now().UnixNano()))
 	m.requestIDs.Store(requestID, struct{}{})
 
 	return &proto.SSOChallenge{
 		RequestId:   requestID,
-		Device:      sso,
-		RedirectUrl: ssoClientRedirectURL,
+		Device:      params.SSO,
+		RedirectUrl: params.SSOClientRedirectURL,
 	}, nil
 }
 
@@ -112,7 +108,14 @@ func (m *mockAuthServer) VerifySSOMFASession(
 		return nil, trace.NotFound("SSO MFA device not found %q", requestID)
 	}
 
-	return &authz.MFAAuthData{Device: ssoDevice}, nil
+	return &authz.MFAAuthData{
+		Device: ssoDevice,
+		Payload: &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: []byte("test-session-id"),
+		},
+		SourceCluster: "test-cluster",
+		TargetCluster: "test-cluster",
+	}, nil
 }
 
 type mockAuthServerIdentity struct {
@@ -134,4 +137,21 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 
 	// Combine the devices that were passed in NewMockAuthServer with any registered after the mock was created.
 	return slices.Concat([]*types.MFADevice{}, m.devices, devices), nil
+}
+
+type mockMFAService struct {
+	// If ReturnError is set, methods will return this error.
+	ReturnError error
+}
+
+func (m *mockMFAService) CreateValidatedMFAChallenge(
+	ctx context.Context,
+	username string,
+	chal *mfav1.ValidatedMFAChallenge,
+) (*mfav1.ValidatedMFAChallenge, error) {
+	if m.ReturnError != nil {
+		return nil, m.ReturnError
+	}
+
+	return chal, nil
 }

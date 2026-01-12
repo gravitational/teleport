@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 
@@ -51,7 +52,6 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 		name               string
 		redirectURI        string
 		expectedRedirectTo string
-		redirectsToFullURL bool
 		statusCode         int
 	}{
 		{
@@ -90,6 +90,12 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			statusCode:         http.StatusSeeOther,
 		},
 		{
+			name:               "with empty path with query params",
+			redirectURI:        "https://example.com/?foo=bar",
+			expectedRedirectTo: "/web?foo=bar",
+			statusCode:         http.StatusSeeOther,
+		},
+		{
 			name:               "with relative path",
 			redirectURI:        "/custom/path",
 			expectedRedirectTo: "/web/custom/path",
@@ -105,27 +111,53 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			name:               "saml idp service provider initiated sso endpoint",
 			redirectURI:        fmt.Sprintf("https://%s/enterprise/saml-idp/sso?SAMLRequest=example-authn-request", proxy.webURL.Host),
 			expectedRedirectTo: fmt.Sprintf("https://%s/enterprise/saml-idp/sso?SAMLRequest=example-authn-request", proxy.webURL.Host),
-			redirectsToFullURL: true,
 			statusCode:         http.StatusSeeOther,
 		},
 		{
 			name:               "saml idp identity provider initiated sso endpoint",
 			redirectURI:        fmt.Sprintf("https://%s/enterprise/saml-idp/login/example-app", proxy.webURL.Host),
 			expectedRedirectTo: fmt.Sprintf("https://%s/enterprise/saml-idp/login/example-app", proxy.webURL.Host),
-			redirectsToFullURL: true,
 			statusCode:         http.StatusSeeOther,
 		},
 		{
-			name:               "saml idp sso endpoint with redirect_uri pointing to a different host",
-			redirectURI:        "https://example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request",
-			redirectsToFullURL: true,
-			statusCode:         http.StatusBadRequest,
+			name:        "saml idp sso endpoint with redirect_uri pointing to a different host",
+			redirectURI: "https://example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request",
+			statusCode:  http.StatusBadRequest,
 		},
 		{
-			name:               "saml idp sso endpoint with redirect_uri pointing to a malformed URL",
-			redirectURI:        "https://%s.//example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request",
-			redirectsToFullURL: true,
-			statusCode:         http.StatusBadRequest,
+			name:        "saml idp sso endpoint with redirect_uri pointing to a malformed URL",
+			redirectURI: "https://%s.//example.com/enterprise/saml-idp/sso?SAMLRequest=example-authn-request",
+			statusCode:  http.StatusBadRequest,
+		},
+		{
+			name:               "query params with base path",
+			redirectURI:        "/web/foo?bar=quux",
+			expectedRedirectTo: "/web/foo?bar=quux",
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "query params without base path",
+			redirectURI:        "/foo?bar=quux",
+			expectedRedirectTo: "/web/foo?bar=quux",
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "query params with base path in full URL",
+			redirectURI:        "https://example.com/web/foo?bar=quux",
+			expectedRedirectTo: "/web/foo?bar=quux",
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "query params without base path in full URL",
+			redirectURI:        "https://example.com/foo?bar=quux",
+			expectedRedirectTo: "/web/foo?bar=quux",
+			statusCode:         http.StatusSeeOther,
+		},
+		{
+			name:               "query params with nested URL with query params",
+			redirectURI:        "https://teleport.example.com:3030/web/launch/dumper.teleport.example.com?path=%2Fhello&query=custom_url%3Dhttps%253A%252F%252Fcluster.example.com%253A3030%252Fweb%252Fcluster%252Fenterprise-local%252Fresources%253Fsort%253Dname%25253Adesc%2526pinnedOnly%253Dfalse%2526kinds%253Dapp",
+			expectedRedirectTo: "/web/launch/dumper.teleport.example.com?path=%2Fhello&query=custom_url%3Dhttps%253A%252F%252Fcluster.example.com%253A3030%252Fweb%252Fcluster%252Fenterprise-local%252Fresources%253Fsort%253Dname%25253Adesc%2526pinnedOnly%253Dfalse%2526kinds%253Dapp",
+			statusCode:         http.StatusSeeOther,
 		},
 	}
 
@@ -143,10 +175,12 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			httpClient := webClient.HTTPClient()
 			httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 				redirected = true
-				actualRedirectTo = req.URL.Path
-				if test.redirectsToFullURL {
-					actualRedirectTo = req.URL.String()
+				isExpectRedirectToRelative := strings.HasPrefix(test.expectedRedirectTo, "/")
+				if isExpectRedirectToRelative {
+					req.URL.Scheme = ""
+					req.URL.Host = ""
 				}
+				actualRedirectTo = req.URL.String()
 				return http.ErrUseLastResponse
 			}
 

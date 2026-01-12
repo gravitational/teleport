@@ -338,6 +338,12 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 	}
 	ret.Integration = uiIg
 
+	if req.integration != nil {
+		if val, ok := req.integration.GetLabel(types.CreatedByIaCLabel); ok && val == ui.IaCTerraformLabel {
+			ret.IsManagedByTerraform = true
+		}
+	}
+
 	var nextPage string
 	for {
 		filters := &usertasksv1.ListUserTasksFilters{
@@ -349,7 +355,7 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 			return nil, err
 		}
 
-		ret.UnresolvedUserTasks += len(userTasks)
+		ret.UserTasks = append(ret.UserTasks, ui.MakeUserTasks(userTasks)...)
 
 		for _, userTask := range userTasks {
 			switch userTask.GetSpec().GetTaskType() {
@@ -367,6 +373,8 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		}
 		nextPage = nextToken
 	}
+
+	ret.UnresolvedUserTasks = len(ret.UserTasks)
 
 	nextPage = ""
 	for {

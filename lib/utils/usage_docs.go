@@ -28,6 +28,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -35,12 +36,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// formatThreeColMarkdownTable formats the provided row data into a three-column
-// Markdown table, minus the header.
-func formatThreeColMarkdownTable(rows [][3]string) string {
-	var buf bytes.Buffer
+var nonLetters = regexp.MustCompile(`\W`)
 
-	for _, r := range rows {
+// lowerWordChars returns only the word characters (\w) from in, in lowercase,
+// so we can sort short-format flags alongside long-format flags in tables.
+func lowerWordChars(in string) string {
+	return strings.ToLower(nonLetters.ReplaceAllString(in, ""))
+}
+
+// formatThreeColMarkdownTable formats the provided row data into a three-column
+// Markdown table, minus the header, sorted lexicographically by the values of
+// the first column.
+func formatThreeColMarkdownTable(rows [][3]string) string {
+	newRows := slices.Clone(rows)
+	slices.SortFunc(newRows, func(a, b [3]string) int {
+		return strings.Compare(
+			lowerWordChars(a[0]),
+			lowerWordChars(b[0]),
+		)
+	})
+
+	var buf bytes.Buffer
+	for _, r := range newRows {
 		fmt.Fprintf(&buf, "\n|%v|%v|%v|", r[0], r[1], r[2])
 	}
 	return buf.String()
@@ -236,10 +253,18 @@ func formatUsageArg(arg *kingpin.ArgModel) string {
 }
 
 // formatHelp prints help text to include in a Markdown table cell. It escapes
-// curly braces to avoid breaking the MDX parser, and it escapes pipes to
-// avoid breaking the cell.
+// curly, angle, and square braces to avoid breaking the MDX parser, and it
+// escapes pipes to avoid breaking the cell.
 func formatHelp(help string) string {
-	return strings.NewReplacer("{", `\{`, "}", `\}`, "|", `\|`).Replace(help)
+	return strings.NewReplacer(
+		"{", `\{`,
+		"}", `\}`,
+		"|", `\|`,
+		"[", `\[`,
+		"]", `\]`,
+		"<", `\<`,
+		">", `\>`,
+	).Replace(help)
 }
 
 // docsUsageTemplatePath points to a help text template for CLI reference
