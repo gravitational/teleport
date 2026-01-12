@@ -147,6 +147,6 @@ jobs:
           DAY=$(date -u -d "$TIMESTAMP" +"%d")
 
           BUCKET=tp-278576220453-ci-test-artifacts-storage
-          aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/ci-job-meta.json "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/tests/year=${YEAR}/month=${MONTH}/day=${DAY}/repo=${REPO}/job-${ID}-${TIMESTAMP}.json"
-          aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/testcase.jsonl "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/suites/year=${YEAR}/month=${MONTH}/day=${DAY}/repo=${REPO}/tests-${ID}-${TIMESTAMP}.jsonl"
-          aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/suite.jsonl "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/jobs/year=${YEAR}/month=${MONTH}/day=${DAY}/repo=${REPO}/suites-${ID}-${TIMESTAMP}.jsonl"
+          aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/ci-job-meta.json "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/tests/repository=${REPO}/year=${YEAR}/month=${MONTH}/day=${DAY}/${TIMESTAMP}-job-${ID}.json"
+          aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/testcase.jsonl "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/suites/repository=${REPO}/year=${YEAR}/month=${MONTH}/day=${DAY}/${TIMESTAMP}-tests-${ID}.jsonl"
+          aws s3 cp --dryrun ${GITHUB_WORKSPACE}/test-logs/suite.jsonl "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/jobs/repository=${REPO}/year=${YEAR}/month=${MONTH}/day=${DAY}/${TIMESTAMP}-suites-${ID}.jsonl"
