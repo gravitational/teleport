@@ -30,7 +30,7 @@ spec: # [...]
 |sub_kind|An optional resource subkind.|string|
 |version|The resource version. It must be specified. Supported values are:`v3`.|string|
 
-## AppAWS
+## App AWS
 
 Contains additional options for AWS applications.
 
@@ -45,9 +45,9 @@ roles_anywhere_profile: # [...]
 |Field Name|Description|Type|
 |---|---|---|
 |external_id|The AWS External ID used when assuming roles in this app.|string|
-|roles_anywhere_profile|Contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|[AppAWSRoles Anywhere Profile](#appawsroles-anywhere-profile)|
+|roles_anywhere_profile|Contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|[App AWS Roles Anywhere Profile](#app-aws-roles-anywhere-profile)|
 
-## AppAWSRoles Anywhere Profile
+## App AWS Roles Anywhere Profile
 
 Contains the fields that represent an AWS IAM Roles Anywhere Profile.
 
@@ -124,9 +124,9 @@ mcp: # [...]
 |Field Name|Description|Type|
 |---|---|---|
 |UserGroups|A list of user group IDs that this app is associated with.|[]string|
-|aws|Contains additional options for AWS applications.|[AppAWS](#appaws)|
+|aws|Contains additional options for AWS applications.|[App AWS](#app-aws)|
 |cloud|Identifies the cloud instance the app represents.|string|
-|cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORSPolicy](#corspolicy)|
+|cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORS Policy](#cors-policy)|
 |dynamic_labels|The app's command labels.|map[string][Command Label V2](#command-label-v2)|
 |identity_center|Encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
@@ -139,7 +139,7 @@ mcp: # [...]
 |uri|The web app endpoint.|string|
 |use_any_proxy_public_addr|Will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|Boolean|
 
-## CORSPolicy
+## CORS Policy
 
 Defines the CORS policy for AppSpecV3
 
