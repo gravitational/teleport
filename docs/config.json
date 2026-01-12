@@ -3485,6 +3485,11 @@
       "source": "/zero-trust-access/deploy-a-cluster/proxy-peering/",
       "destination": "/zero-trust-access/deploy-a-cluster/reliability/proxy-peering/",
       "permanent": true
+    },
+    {
+      "source": "/enroll-resources/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/getting-started/",
+      "permanent": true
     }
   ]
 }
