@@ -118,7 +118,29 @@ jobs:
         run: |
           META_FILE="$GITHUB_WORKSPACE/test-logs/ci-job-meta.json"
 
-          REPO=$(jq -r '.repository' $META_FILE)
+          urlencode() {
+              local string="$1"
+              local length="${#string}"
+              local encoded=""
+
+              for (( i=0; i<length; i++ )); do
+                  local c="${string:i:1}"
+                  case "$c" in
+                      [a-zA-Z0-9.~_-])
+                          encoded+="$c"
+                          ;;
+                      *)
+                          printf -v hex '%%%02X' "'$c"
+                          encoded+="$hex"
+                          ;;
+                  esac
+              done
+
+              echo "$encoded"
+          }
+
+          repo_raw=$(jq -r '.repository' $META_FILE)
+          REPO=$(urlencode "$repo_raw")
           ID=$(jq -r '.id' $META_FILE)
           META_VERSION=$(jq -r '.canonical_meta_schema_version' $META_FILE)
 
