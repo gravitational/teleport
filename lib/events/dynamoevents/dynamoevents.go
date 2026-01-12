@@ -974,7 +974,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	}
 
 	var lastKey []byte
-	if ef.hasLeft {
+	if checkpoint.Iterator != "" {
 		lastKey, err = json.Marshal(&checkpoint)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -1572,7 +1572,6 @@ type eventsFetcher struct {
 	api query
 
 	totalSize  int
-	hasLeft    bool
 	checkpoint *checkpointKey
 	dates      []string
 	left       int32
@@ -1589,7 +1588,7 @@ type eventsFetcher struct {
 // It stops if events.MaxEventBytesInResponse is reached, the query limit is reached, or there are no more events.
 // If events.MaxEventBytesInResponse is reached or the query limit is reached,
 // we create a new nonempty checkpoint iterator, indicating there are more events to fetch.
-func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeftFun func() bool) ([]event, bool, error) {
+func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]event, bool, error) {
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
@@ -1638,13 +1637,6 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 			return out, true, nil
 		}
 	}
-
-	// If all items in current page are processed (no sub-page breaks), check if there are more items.
-	hf := false
-	if hasLeftFun != nil {
-		hf = hasLeftFun()
-	}
-	l.hasLeft = hf || l.checkpoint.Iterator != ""
 	return out, false, nil
 }
 
@@ -1656,11 +1648,7 @@ func (l *eventsFetcher) saveCheckpointAtEvent(e event) error {
 		return trace.Wrap(err)
 	}
 
-	// Since the iterator is manually reset, we should always assume there are more
-	// events to fetch.
 	l.checkpoint.Iterator = iterator
-	l.hasLeft = true
-
 	l.log.DebugContext(context.Background(), "sub-page break, saving new checkpoint", "iterator", iterator)
 	return nil
 }
@@ -1669,7 +1657,7 @@ func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
 
 dateLoop:
-	for i, date := range l.dates {
+	for _, date := range l.dates {
 		l.checkpoint.Date = date
 
 		attributes := map[string]any{
@@ -1723,23 +1711,14 @@ dateLoop:
 				"iterator", l.checkpoint.Iterator,
 			)
 
-			hasLeft := func() bool {
-				return i+1 != len(l.dates)
-			}
-			result, stopped, err := l.processQueryOutput(out, hasLeft)
+			result, stopped, err := l.processQueryOutput(out)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			values = append(values, result...)
+
+			// Return all currently processed events.
 			if stopped {
-				// If we stopped, we need to determine whether there are more events to fetch from the current date
-				// or if we need to move the cursor to the next date.
-				// To do this, we check if the iterator is empty.
-				// DynamoDB returns an empty iterator (LastEvaluatedKey) if all events from the current date have been consumed.
-				// However, in the case that we stopped early and the iterator is nonempty, we should not move to the next date.
-				if i < len(l.dates)-1 && l.checkpoint.Iterator == "" {
-					l.checkpoint.Date = l.dates[i+1]
-				}
 				return values, nil
 			}
 			// An empty iterator indicates that there are no more events to fetch from the current date.
@@ -1801,13 +1780,10 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 		"iterator", l.checkpoint.Iterator,
 	)
 
-	result, limitReached, err := l.processQueryOutput(out, nil)
+	result, _, err := l.processQueryOutput(out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	values = append(values, result...)
-	if limitReached {
-		return values, nil
-	}
 	return values, nil
 }
