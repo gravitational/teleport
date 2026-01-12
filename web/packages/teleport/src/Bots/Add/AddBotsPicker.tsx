@@ -19,12 +19,9 @@
 import { ReactNode } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
+import { Flex, Text } from 'design';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { P } from 'design/Text/Text';
-import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
 import { IntegrationTile } from 'teleport/Integrations';
@@ -34,9 +31,7 @@ import {
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import useTeleport from 'teleport/useTeleport';
 
-import { InfoGuide } from '../InfoGuide';
 import { BotFlowType } from '../types';
 
 export type BotIntegration = {
@@ -201,51 +196,6 @@ export const integrations: BotIntegration[] = [
     tags: ['bot', 'resourceaccess'],
   },
 ];
-
-// TODO(alexhemard): delete in a follow up PR
-export function AddBotsPicker() {
-  const ctx = useTeleport();
-  return (
-    <>
-      <FeatureHeader justifyContent="space-between">
-        <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
-        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
-      </FeatureHeader>
-
-      <P mb="5">
-        Set up Teleport Machine ID to allow CI/CD workflows and other machines
-        to access resources protected by Teleport.
-      </P>
-
-      <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
-    </>
-  );
-}
-
-export function BotTiles({
-  hasCreateBotPermission,
-}: {
-  hasCreateBotPermission: boolean;
-}) {
-  return (
-    <div
-      css={`
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-        gap: 16px;
-      `}
-    >
-      {integrations.map(i => (
-        <Box key={i.title}>
-          <BotTile
-            integration={i}
-            hasCreateBotPermission={hasCreateBotPermission}
-          />
-        </Box>
-      ))}
-    </div>
-  );
-}
 
 export function BotTile({
   integration,
