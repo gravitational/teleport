@@ -119,24 +119,21 @@ jobs:
           META_FILE="$GITHUB_WORKSPACE/test-logs/ci-job-meta.json"
 
           urlencode() {
-              local string="$1"
-              local length="${#string}"
-              local encoded=""
-
-              for (( i=0; i<length; i++ )); do
-                  local c="${string:i:1}"
+              string="$1"
+              i=1
+              while [ "$i" -le "$(printf "%s" "$string" | wc -c)" ]; do
+                  c=$(printf "%s" "$string" | cut -c "$i")
                   case "$c" in
                       [a-zA-Z0-9.~_-])
-                          encoded+="$c"
+                          printf "%s" "$c"
                           ;;
                       *)
-                          printf -v hex '%%%02X' "'$c"
-                          encoded+="$hex"
+                          printf '%%%02X' "'$c"
                           ;;
                   esac
+                  i=$((i + 1))
               done
-
-              echo "$encoded"
+              printf "\n"
           }
 
           repo_raw=$(jq -r '.repository' $META_FILE)
