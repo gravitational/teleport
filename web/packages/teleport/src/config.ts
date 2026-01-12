@@ -1418,13 +1418,17 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
+  getIntegrationsUrl(integrationName?: string, withSummaries: boolean = false) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
+    let url = generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
     });
+    if (withSummaries) {
+      url += `?withSummaries=true`;
+    }
+    return url;
   },
 
   getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {

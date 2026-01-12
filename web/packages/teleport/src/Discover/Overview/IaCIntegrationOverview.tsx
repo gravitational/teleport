@@ -31,17 +31,16 @@ import {
   ArrowLeft,
   ArrowRight,
   ChevronRight,
-  CircleCheck,
   CircleCross,
   Warning,
 } from 'design/Icon';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { TabBorder, useSlidingBottomBorderTabs } from 'design/Tabs';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
+import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import {
   IntegrationKind,
   integrationService,
@@ -186,12 +185,7 @@ function IntegrationHealthCard({
       <Flex flexDirection="column" gap={2}>
         <StatusRow label="Status:">
           <Flex alignItems="center" gap={2} flexWrap="wrap">
-            <LabelButtonWithIcon
-              IconLeft={hasIssues ? Warning : CircleCheck}
-              kind={hasIssues ? 'outline-warning' : 'outline-success'}
-            >
-              {hasIssues ? 'Issues' : 'Healthy'}
-            </LabelButtonWithIcon>
+            <SummaryStatusLabel summary={stats} />
             {hasIssues && (
               <>
                 <Text typography="body3">
