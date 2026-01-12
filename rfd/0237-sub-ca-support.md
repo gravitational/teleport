@@ -322,6 +322,7 @@ override, so they may take the necessary steps (like updating trusted roots).
 
 [rfd0194]: https://github.com/gravitational/teleport/blob/master/rfd/0194-spiffe-x509-override.md
 
+<a id="ca_override_resource"></a>
 ### The cert_authority_override resource
 
 A new Terraform-friendly resource is added to configure CA overrides. The new
@@ -554,6 +555,28 @@ commands are removed from the CLI.
 Workload override API endpoints, similarly, will error for a full release and be
 removed on N+1.
 
+<a id="client-agent-compat-validation"></a>
+### Client/Agent compatibility validation
+
+Client/Agent compatibility is required to apply certain override extensions,
+such as the ability to provide a certificate chain.
+
+Compatibility can be tested by making clients explicitly assert feature support
+in their requests. This lets Auth fail requests from old clients/agents cleanly,
+instead of replying with a response that is destined to failure (for example, a
+certificate chain that is going to be ignored).
+
+There will be no client/agent compatibility validation for the initial feature
+release, as the first set of CAs do not call for such a feature:
+
+* Databases may be configured to trust the overridden Teleport certificate, so
+  there is no need to break due to lack of certificate chain support.
+* Windows Desktop Access needs the immediate CA to be trusted (there is no chain
+  support, as explained in the [cert_authority_override resource
+  section](#ca_override_resource))
+* SPIFFE already has similar controls built into the workload override
+  implementation.
+
 ### Expiration alerts
 
 The following cluster alerts are created automatically, based on the remaining
@@ -708,6 +731,9 @@ roots.
 A possible mitigation is to backport a minimal knowledge of
 cert_authority_override to the N-1 version such that it, at least, warns the
 user on startup. Whether this is an acceptable or desirable mitigation is TBD.
+
+See also the [client/agent compatibility validation
+section](#client-agent-compat-validation).
 
 ## Audit Events
 
