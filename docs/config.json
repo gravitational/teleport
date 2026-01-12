@@ -1787,7 +1787,7 @@
     },
     {
       "source": "/enroll-resources/application-access/introduction/",
-      "destination": "/enroll-resources/application-access/",
+      "destination": "/enroll-resources/application-access/getting-started/",
       "permanent": true
     }
   ]
