@@ -19,8 +19,7 @@
 import { ResourceIconName } from 'design/ResourceIcon';
 
 import cfg from 'teleport/config';
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
-import { type IntegrationTag } from 'teleport/Integrations/types';
+import { type IntegrationTag } from 'teleport/Integrations/Enroll/Shared';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export type IntegrationTileSpec = {
@@ -47,7 +46,7 @@ const integrations: IntegrationTileSpec[] = [
       'Store audit events and session recordings on AWS infrastructure.',
     icon: 'awssimplestorageservices3',
     name: 'AWS External Audit Storage',
-    tags: integrationKindToTags(IntegrationKind.ExternalAuditStorage),
+    tags: ['resourceaccess'],
   },
   {
     type: 'integration',
@@ -56,7 +55,7 @@ const integrations: IntegrationTileSpec[] = [
     name: 'AWS OIDC Identity Provider',
     description:
       'Set up Teleport as AWS OIDC IdP to support AWS resource enrollment.',
-    tags: integrationKindToTags(IntegrationKind.AwsOidc),
+    tags: ['idp'],
   },
   {
     type: 'integration',
@@ -65,7 +64,7 @@ const integrations: IntegrationTileSpec[] = [
       'Use AWS Roles Anywhere to provide AWS Console and CLI access.',
     icon: 'awsidentityandaccessmanagementiam',
     name: 'AWS IAM Roles Anywhere',
-    tags: integrationKindToTags(IntegrationKind.AwsRa),
+    tags: ['resourceaccess'],
   },
 ];
 

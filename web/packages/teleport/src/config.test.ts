@@ -23,7 +23,7 @@ import cfg, {
   UrlAwsOidcConfigureIdp,
   UrlDeployServiceIamConfigureScriptParams,
 } from './config';
-import { IntegrationTag } from './Integrations/types';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
 
 test('getDeployServiceIamConfigureScriptPath formatting', () => {
   const params: UrlDeployServiceIamConfigureScriptParams = {

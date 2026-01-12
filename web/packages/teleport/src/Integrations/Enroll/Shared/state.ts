@@ -27,10 +27,7 @@ import { useHistory } from 'react-router';
 
 import { SortOrder } from 'shared/components/Controls/SortMenuV2';
 
-import {
-  isIntegrationTag,
-  type IntegrationTag,
-} from 'teleport/Integrations/types';
+import { isIntegrationTag, type IntegrationTag } from './common';
 
 export interface IntegrationPickerFilters {
   tags: IntegrationTag[];

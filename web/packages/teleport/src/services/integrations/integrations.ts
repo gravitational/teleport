@@ -18,7 +18,6 @@
 
 import cfg from 'teleport/config';
 import { ProfilesFilterOption } from 'teleport/Integrations/Enroll/AwsConsole/Access/ProfilesFilter';
-import { integrationKindToTags } from 'teleport/Integrations/helpers';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import api from 'teleport/services/api';
@@ -642,7 +641,6 @@ function makeIntegration(json: any): Integration {
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
     isManagedByTerraform,
-    tags: integrationKindToTags(subKind),
   };
 
   if (subKind === IntegrationKind.AwsOidc) {

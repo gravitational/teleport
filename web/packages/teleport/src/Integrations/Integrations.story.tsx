@@ -26,7 +26,6 @@ import {
 import { DeleteAwsOidcIntegrationDialog } from './DeleteAwsOidcIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from './EditAwsOidcIntegrationDialog';
 import { integrations, plugins } from './fixtures';
-import { integrationKindToTags } from './helpers';
 import { IntegrationList } from './IntegrationList';
 import { DeleteIntegrationDialog } from './RemoveIntegrationDialog';
 
@@ -66,7 +65,6 @@ export function DeleteAwsOidcDialog() {
             roleArn: 'arn:aws:iam::123456789012:role/johndoe',
           },
           statusCode: IntegrationStatusCode.Running,
-          tags: integrationKindToTags(IntegrationKind.AwsOidc),
         }}
       />
     </MemoryRouter>
@@ -86,7 +84,6 @@ export function EditDialogWithoutS3() {
           roleArn: 'arn:aws:iam::123456789012:role/johndoe',
         },
         statusCode: IntegrationStatusCode.Running,
-        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       }}
     />
   );
@@ -107,7 +104,6 @@ export function EditDialogWithS3() {
           issuerS3Prefix: 'named-prefix',
         },
         statusCode: IntegrationStatusCode.Running,
-        tags: integrationKindToTags(IntegrationKind.AwsOidc),
       }}
     />
   );

@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { displayName } from 'teleport/Integrations/Enroll/Shared';
 import {
+  displayName,
   type BaseIntegration,
   type IntegrationTag,
-} from 'teleport/Integrations/types';
+} from 'teleport/Integrations/Enroll/Shared';
 
 export function filterIntegrations<T extends BaseIntegration>(
   integrations: T[],

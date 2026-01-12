@@ -27,8 +27,6 @@ import {
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-import { integrationKindToTags } from './helpers';
-
 test('integration list does not display action menu for aws-oidc, row click navigates', async () => {
   const history = createMemoryHistory();
   history.push = jest.fn();
@@ -43,7 +41,6 @@ test('integration list does not display action menu for aws-oidc, row click navi
             kind: IntegrationKind.AwsOidc,
             statusCode: IntegrationStatusCode.Running,
             spec: { roleArn: '', issuerS3Prefix: '', issuerS3Bucket: '' },
-            tags: integrationKindToTags(IntegrationKind.AwsOidc),
           },
         ]}
       />

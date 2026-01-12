@@ -24,11 +24,8 @@ import * as Icons from 'design/Icon';
 
 import { FeatureHeader, FeatureHeaderTitle } from 'teleport/components/Layout';
 import { TextIcon } from 'teleport/Discover/Shared';
-import {
-  integrationTagOptions,
-  type BaseIntegration,
-} from 'teleport/Integrations/types';
 
+import { integrationTagOptions, type BaseIntegration } from './common';
 import { FilterPanel } from './FilterPanel';
 import { filterIntegrations } from './filters';
 import { useIntegrationPickerState } from './state';

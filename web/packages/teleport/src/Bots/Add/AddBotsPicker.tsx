@@ -25,8 +25,7 @@ import { ResourceIconName } from 'design/ResourceIcon';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import cfg from 'teleport/config';
 import { IntegrationTile } from 'teleport/Integrations';
-import { Tile } from 'teleport/Integrations/Enroll/Shared';
-import { IntegrationTag } from 'teleport/Integrations/types';
+import { IntegrationTag, Tile } from 'teleport/Integrations/Enroll/Shared';
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
