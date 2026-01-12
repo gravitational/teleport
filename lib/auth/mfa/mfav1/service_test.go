@@ -37,6 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
 
+const (
+	chalName      = "test-challenge"
+	sourceCluster = "test-cluster"
+	targetCluster = "test-cluster"
+)
+
 func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	t.Parallel()
 
@@ -74,7 +80,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	event := emitter.LastEvent()
 	require.Equal(t, events.CreateMFAAuthChallengeEvent, event.GetType())
 	require.Equal(t, events.CreateMFAAuthChallengeCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	createEvent, ok := event.(*apievents.CreateMFAAuthChallenge)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), createEvent.GetUser())
@@ -105,7 +111,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	event = emitter.LastEvent()
 	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
 	require.Equal(t, events.ValidateMFAAuthResponseCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	validateEvent, ok := event.(*apievents.ValidateMFAAuthResponse)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), validateEvent.GetUser())
@@ -134,8 +140,8 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 					SshSessionId: []byte("test-session-id"),
 				},
 			},
-			SourceCluster: "test-cluster",
-			TargetCluster: "test-cluster",
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
 		},
 	}
 
@@ -205,7 +211,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	event := emitter.LastEvent()
 	require.Equal(t, events.CreateMFAAuthChallengeEvent, event.GetType())
 	require.Equal(t, events.CreateMFAAuthChallengeCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	createEvent, ok := event.(*apievents.CreateMFAAuthChallenge)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), createEvent.GetUser())
@@ -231,7 +237,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	event = emitter.LastEvent()
 	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
 	require.Equal(t, events.ValidateMFAAuthResponseCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	validateEvent, ok := event.(*apievents.ValidateMFAAuthResponse)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), validateEvent.GetUser())
@@ -257,8 +263,8 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 					SshSessionId: []byte("test-session-id"),
 				},
 			},
-			SourceCluster: "test-cluster",
-			TargetCluster: "test-cluster",
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
 		},
 	}
 
@@ -459,7 +465,7 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 			name: "missing Response",
 			req: &mfav1.ValidateSessionChallengeRequest{
 				MfaResponse: &mfav1.AuthenticateResponse{
-					Name:     "test-challenge",
+					Name:     chalName,
 					Response: nil,
 				},
 			},
@@ -481,7 +487,7 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 			name: "missing Webauthn response",
 			req: &mfav1.ValidateSessionChallengeRequest{
 				MfaResponse: &mfav1.AuthenticateResponse{
-					Name: "test-challenge",
+					Name: chalName,
 					Response: &mfav1.AuthenticateResponse_Webauthn{
 						Webauthn: nil,
 					},
@@ -493,7 +499,7 @@ func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
 			name: "missing SSO response",
 			req: &mfav1.ValidateSessionChallengeRequest{
 				MfaResponse: &mfav1.AuthenticateResponse{
-					Name: "test-challenge",
+					Name: chalName,
 					Response: &mfav1.AuthenticateResponse_Sso{
 						Sso: nil,
 					},
@@ -562,7 +568,7 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 	event := emitter.LastEvent()
 	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
 	require.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	e, ok := event.(*apievents.ValidateMFAAuthResponse)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), e.GetUser())
@@ -631,7 +637,7 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	event := emitter.LastEvent()
 	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
 	require.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	e, ok := event.(*apievents.ValidateMFAAuthResponse)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), e.GetUser())
@@ -707,7 +713,7 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	event := emitter.LastEvent()
 	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
 	require.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
-	require.Equal(t, "test-cluster", event.GetClusterName())
+	require.Equal(t, sourceCluster, event.GetClusterName())
 	e, ok := event.(*apievents.ValidateMFAAuthResponse)
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), e.GetUser())
@@ -722,12 +728,6 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 	authServer, service, _, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
-
-	const (
-		chalName      = "test-challenge"
-		sourceCluster = "test-cluster"
-		targetCluster = "test-cluster"
-	)
 
 	payload := &mfav1.SessionIdentifyingPayload{
 		Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
@@ -753,7 +753,7 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 	resp, err := service.VerifyValidatedMFAChallenge(
 		ctx,
 		&mfav1.VerifyValidatedMFAChallengeRequest{
-			User:          user.GetName(),
+			Username:      user.GetName(),
 			Name:          chalName,
 			Payload:       payload,
 			SourceCluster: sourceCluster,
@@ -770,12 +770,6 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-	const (
-		chalName      = "test-challenge"
-		sourceCluster = "test-cluster"
-		targetCluster = "test-cluster"
-	)
-
 	chal := &mfav1.ValidatedMFAChallenge{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
@@ -788,16 +782,16 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 					SshSessionId: []byte("test-session-id"),
 				},
 			},
-			SourceCluster: "test-cluster",
-			TargetCluster: "test-cluster",
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
 		},
 	}
 	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
 	require.NoError(t, err)
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
-		User: user.GetName(),
-		Name: chalName,
+		Username: user.GetName(),
+		Name:     chalName,
 		Payload: &mfav1.SessionIdentifyingPayload{
 			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
 				SshSessionId: []byte("this-is-a-different-session-id"),
@@ -818,12 +812,6 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
 
-	const (
-		chalName      = "test-challenge"
-		sourceCluster = "test-cluster"
-		targetCluster = "test-cluster"
-	)
-
 	payload := &mfav1.SessionIdentifyingPayload{
 		Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
 			SshSessionId: []byte("test-session-id"),
@@ -838,15 +826,15 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 		},
 		Spec: &mfav1.ValidatedMFAChallengeSpec{
 			Payload:       payload,
-			SourceCluster: "test-cluster",
-			TargetCluster: "test-cluster",
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
 		},
 	}
 	_, err := authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
 	require.NoError(t, err)
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
-		User:          user.GetName(),
+		Username:      user.GetName(),
 		Name:          chalName,
 		Payload:       payload,
 		SourceCluster: "this-is-a-different-cluster",
@@ -866,14 +854,14 @@ func TestVerifyValidatedMFAChallenge_NonNodeDenied(t *testing.T) {
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
-		User: user.GetName(),
-		Name: "test-challenge",
+		Username: user.GetName(),
+		Name:     chalName,
 		Payload: &mfav1.SessionIdentifyingPayload{
 			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
 				SshSessionId: []byte("test-session-id"),
 			},
 		},
-		SourceCluster: "test-cluster",
+		SourceCluster: sourceCluster,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
@@ -894,42 +882,47 @@ func TestVerifyValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 		expectedError string
 	}{
 		{
+			name:          "Nil request",
+			req:           nil,
+			expectedError: "param VerifyValidatedMFAChallengeRequest is nil",
+		},
+		{
 			name: "Missing user",
 			req: &mfav1.VerifyValidatedMFAChallengeRequest{
-				User:          "",
-				Name:          "test-challenge",
+				Username:      "",
+				Name:          chalName,
 				Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("test-session-id")}},
-				SourceCluster: "test-cluster",
+				SourceCluster: sourceCluster,
 			},
-			expectedError: "missing VerifyValidatedMFAChallengeRequest user",
+			expectedError: "missing VerifyValidatedMFAChallengeRequest username",
 		},
 		{
 			name: "Missing name",
 			req: &mfav1.VerifyValidatedMFAChallengeRequest{
-				User:          "test-user",
+				Username:      "test-user",
 				Name:          "",
 				Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("test-session-id")}},
-				SourceCluster: "test-cluster",
+				SourceCluster: sourceCluster,
 			},
 			expectedError: "missing VerifyValidatedMFAChallengeRequest name",
 		},
 		{
 			name: "Missing payload",
 			req: &mfav1.VerifyValidatedMFAChallengeRequest{
-				User:          "test-user",
-				Name:          "test-challenge",
+				Username:      "test-user",
+				Name:          chalName,
 				Payload:       nil,
-				SourceCluster: "test-cluster",
+				SourceCluster: sourceCluster,
 			},
 			expectedError: "missing VerifyValidatedMFAChallengeRequest payload",
 		},
 		{
 			name: "Empty SshSessionId",
 			req: &mfav1.VerifyValidatedMFAChallengeRequest{
-				User:          "test-user",
-				Name:          "test-challenge",
+				Username:      "test-user",
+				Name:          chalName,
 				Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte{}}},
-				SourceCluster: "test-cluster",
+				SourceCluster: sourceCluster,
 			},
 			expectedError: "empty SshSessionId in payload",
 		},
@@ -953,13 +946,66 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 
 	// No challenge stored for this name.
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
-		User:          user.GetName(),
+		Username:      user.GetName(),
 		Name:          "non-existent-challenge",
 		Payload:       &mfav1.SessionIdentifyingPayload{Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("test-session-id")}},
-		SourceCluster: "test-cluster",
+		SourceCluster: sourceCluster,
 	})
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, resp)
+}
+
+func TestVerifyValidatedMFAChallenge_WebauthnFailedStorage(t *testing.T) {
+	t.Parallel()
+
+	authServer, service, _, user := setupAuthServer(t, nil)
+
+	mfaService := &mockMFAService{getValidatedMFAChallengeError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+		Storage:    mfaService,
+	})
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleNode).I)
+
+	payload := &mfav1.SessionIdentifyingPayload{
+		Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+			SshSessionId: []byte("test-session-id"),
+		},
+	}
+
+	chal := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: "v1",
+		Metadata: &types.Metadata{
+			Name: chalName,
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+			TargetCluster: targetCluster,
+		},
+	}
+	_, err = authServer.Auth().MFAService.CreateValidatedMFAChallenge(ctx, user.GetName(), chal)
+	require.NoError(t, err)
+
+	resp, err := service.VerifyValidatedMFAChallenge(
+		ctx,
+		&mfav1.VerifyValidatedMFAChallengeRequest{
+			Username:      user.GetName(),
+			Name:          chalName,
+			Payload:       payload,
+			SourceCluster: sourceCluster,
+		},
+	)
+	require.ErrorContains(t, err, "MOCKED TEST ERROR FROM STORAGE LAYER")
 	require.Nil(t, resp)
 }
 
@@ -971,7 +1017,7 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	authServer, err := NewMockAuthServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
-			ClusterName: "test-cluster",
+			ClusterName: sourceCluster,
 			Dir:         t.TempDir(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactors: []types.SecondFactorType{

@@ -398,16 +398,16 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.AccessDenied("only SSH nodes can verify validated MFA challenges")
 	}
 
-	if err := validateVerifyValidatedMFAChallengeRequest(req); err != nil {
+	if err := checkVerifyValidatedMFAChallengeRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUser(), req.GetName())
+	chal, err := s.storage.GetValidatedMFAChallenge(ctx, req.GetUsername(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Ensure the SIP that was initially used to create the challenge matches the SIP provided in the request.
+	// Ensure the payload that was initially used to create the challenge matches the payload provided in the request.
 	switch payload := chal.GetSpec().GetPayload().GetPayload().(type) {
 	case *mfav1.SessionIdentifyingPayload_SshSessionId:
 		if !bytes.Equal(req.GetPayload().GetSshSessionId(), payload.SshSessionId) {
@@ -656,25 +656,23 @@ func mfaPreferences(pref types.AuthPreference) (*types.U2F, *types.Webauthn, err
 	return u2f, webauthn, nil
 }
 
-func validateVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChallengeRequest) error {
-	if req == nil {
+func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChallengeRequest) error {
+	switch {
+	case req == nil:
 		return trace.BadParameter("param VerifyValidatedMFAChallengeRequest is nil")
-	}
 
-	if req.GetUser() == "" {
-		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest user")
-	}
+	case req.GetUsername() == "":
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest username")
 
-	if req.GetName() == "" {
+	case req.GetName() == "":
 		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name")
 	}
 
-	payload := req.GetPayload()
-	if payload == nil {
+	switch payload := req.GetPayload(); {
+	case payload == nil:
 		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest payload")
-	}
 
-	if len(payload.GetSshSessionId()) == 0 {
+	case len(payload.GetSshSessionId()) == 0:
 		return trace.BadParameter("empty SshSessionId in payload")
 	}
 

@@ -140,31 +140,41 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 }
 
 type mockMFAService struct {
-	createValidatedMFAChallengeError error
-
 	chal *mfav1.ValidatedMFAChallenge
+	mu   sync.RWMutex
+
+	createValidatedMFAChallengeError error
+	getValidatedMFAChallengeError    error
 }
 
 func (m *mockMFAService) CreateValidatedMFAChallenge(
-	ctx context.Context,
-	username string,
+	_ context.Context,
+	_ string,
 	chal *mfav1.ValidatedMFAChallenge,
 ) (*mfav1.ValidatedMFAChallenge, error) {
 	if m.createValidatedMFAChallengeError != nil {
 		return nil, m.createValidatedMFAChallengeError
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.chal = chal
+
 	return m.chal, nil
 }
 
 func (m *mockMFAService) GetValidatedMFAChallenge(
-	ctx context.Context,
-	username string,
-	challengeName string,
+	_ context.Context,
+	_ string,
+	_ string,
 ) (*mfav1.ValidatedMFAChallenge, error) {
-	if m.createValidatedMFAChallengeError != nil {
-		return nil, m.createValidatedMFAChallengeError
+	if m.getValidatedMFAChallengeError != nil {
+		return nil, m.getValidatedMFAChallengeError
 	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	return m.chal, nil
 }
