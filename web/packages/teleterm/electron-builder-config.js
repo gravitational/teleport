@@ -219,7 +219,10 @@ module.exports = {
     // Use a per-machine installation to support VNet.
     // VNet installs a Windows service per-machine, and tsh.exe must be
     // installed in a path that is not user-writable.
-    perMachine: true,
+    perMachine: false,
+    oneClick: false,
+    selectPerMachineByDefault: true,
+    multiLanguageInstaller: false,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',

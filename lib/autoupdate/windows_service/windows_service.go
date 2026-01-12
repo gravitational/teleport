@@ -592,8 +592,6 @@ func secureCopy(userPath string, logger *slog.Logger) (string, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	logger.Info("Before: %s\n", getCurrentUser())
-
 	// 1. Impersonate the client who called the RPC/Service
 	// Note: In a real service, this is often RpcImpersonateClient()
 	// or getting a token from a specific process ID.
@@ -601,8 +599,6 @@ func secureCopy(userPath string, logger *slog.Logger) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to impersonate: %v", err)
 	}
-
-	logger.Info("After Impersonation: %s\n", getCurrentUser())
 
 	// Ensure we ALWAYS revert to the service's own identity (SYSTEM/Admin)
 	defer windows.RevertToSelf()
@@ -646,32 +642,6 @@ func secureCopy(userPath string, logger *slog.Logger) (string, error) {
 	_, err = io.Copy(dstFile, srcFile)
 
 	return securePath, nil
-}
-
-// getCurrentUser returns the name of the user currently associated with the thread.
-func getCurrentUser() string {
-	// We check for a Thread Token first (impersonated identity)
-	// If that fails, we check the Process Token (original identity)
-	t, err := windows.OpenThreadToken(windows.CurrentThread(), windows.TOKEN_QUERY, true)
-	if err != nil {
-		t, err = windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_QUERY)
-		if err != nil {
-			return "Unknown"
-		}
-	}
-	defer t.Close()
-
-	user, err := t.GetTokenUser()
-	if err != nil {
-		return "Unknown"
-	}
-
-	// Convert SID to a readable account name
-	account, domain, _, err := user.User.Sid.LookupAccount("")
-	if err != nil {
-		return user.User.Sid.String()
-	}
-	return fmt.Sprintf("%s\\%s", domain, account)
 }
 
 type FileInfo struct {
