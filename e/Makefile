@@ -24,7 +24,7 @@ ifeq ("$(TELEPORT_DEBUG)","true")
 BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)' -buildvcs=false
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -ldflags '$(LDFLAGS) $(KUBECTL_SETVERSION)' -buildvcs=false
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '-w -s $(LDFLAGS) $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 endif
 
@@ -204,7 +204,7 @@ else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-extldflags "-Wl,--long-plt" -w -s -debugtramp=2 $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 
 endif
@@ -260,7 +260,6 @@ ifneq ("$(FIPS)","")
 # FIPS requires cgo and dynamic linking
 	TBOT_DYNAMIC = yes
 else ifeq ("$(CGO_ENABLED)", "1")
-# The -buildmode=pie flag requires external cgo linking.
 	TBOT_DYNAMIC = yes
 endif
 
@@ -268,7 +267,7 @@ endif
 $(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
 ifeq ("$(TBOT_DYNAMIC)", "yes")
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ../tool/tbot
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
 else
 	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
 endif
