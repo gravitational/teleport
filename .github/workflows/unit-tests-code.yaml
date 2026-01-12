@@ -75,7 +75,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: c988ef13bca761d564dbd89af5bb2e4fff7447af # okraport experiment
+          ref: 697d17be923e0182e6632be1fbc11c66a2dc72d5 # okraport experiment
 
       - name: Capture Job Metadata # TODO: move to a common file somewhere
         id: capture_metadata
