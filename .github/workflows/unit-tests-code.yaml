@@ -105,9 +105,17 @@ jobs:
           role-session-name: gha-ci-test-artifacts-${{ github.event.repository.name }}-${{ github.run_number }}
           role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
-      - name: Upload test artifacts
+        # Install aws cli for testing
+      - name: Install AWS CLI v2
         run: |
-          # In the future perhaps the CLI could pipe the results directly to s3.
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+          unzip awscliv2.zip
+          ./aws/install
+          aws --version
+
+      - name: Upload test artifacts
+        # In the future perhaps the CLI could pipe the results directly to s3.
+        run: |
           META_FILE="$GITHUB_WORKSPACE/test-logs/ci-job-meta.json"
 
           REPO=$(jq -r '.repository' $META_FILE)
