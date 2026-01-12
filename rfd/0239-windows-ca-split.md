@@ -59,7 +59,8 @@ migration][docs-db-ca-migration] advice.
 
 It is recommended to allow a safety evaluation period of the new release before
 User or Windows CA rotations, to avoid potential complications due to version
-rollbacks.
+rollbacks. (Note: to be communicated via changelogs, public docs and `tctl
+rotate`.)
 
 All existing Windows Desktop service instances must be upgraded prior to a
 Windows CA rotation to ensure correct behavior. Windows CA rotations will [issue
