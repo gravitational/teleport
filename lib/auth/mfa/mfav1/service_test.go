@@ -17,8 +17,10 @@
 package mfav1_test
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -36,42 +38,9 @@ import (
 )
 
 func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
-	emitter := &eventstest.MockRecorderEmitter{}
+	t.Parallel()
 
-	authServer, err := NewMockAuthServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
-			ClusterName: "test-cluster",
-			Dir:         t.TempDir(),
-			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-				SecondFactors: []types.SecondFactorType{
-					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
-					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
-				},
-				Webauthn: &types.Webauthn{
-					RPID: "localhost",
-				},
-			},
-		},
-	},
-		nil,
-	)
-	require.NoError(t, err)
-
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
+	authServer, service, emitter, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
@@ -98,6 +67,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify a Webauthn challenge was returned.
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
 
 	// Verify emitted event.
@@ -121,6 +91,7 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.MfaChallenge.Name,
 				Response: &mfav1.AuthenticateResponse_Webauthn{
 					Webauthn: mfaResp.GetWebauthn(),
 				},
@@ -142,27 +113,54 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	require.Equal(t, validateEvent.MFADevice.DeviceID, device.MFA.Id)
 	require.Equal(t, validateEvent.MFADevice.DeviceType, device.MFA.MFAType())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, validateEvent.FlowType)
+
+	// Verify stored ValidatedMFAChallenge.
+	gotChallenge, err := authServer.Auth().MFAService.GetValidatedMFAChallenge(
+		t.Context(),
+		user.GetName(),
+		challengeResp.GetMfaChallenge().GetName(),
+	)
+	require.NoError(t, err)
+
+	wantedChallenge := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: "v1",
+		Metadata: &types.Metadata{
+			Name: challengeResp.GetMfaChallenge().GetName(),
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+			SourceCluster: "test-cluster",
+			TargetCluster: "test-cluster",
+		},
+	}
+
+	require.Empty(
+		t,
+		cmp.Diff(
+			wantedChallenge,
+			gotChallenge,
+			cmp.FilterPath(
+				// Ignore expiration time in comparison.
+				func(p cmp.Path) bool {
+					return p.String() == "Metadata.Expires"
+				},
+				cmp.Ignore(),
+			),
+		),
+		"GetValidatedMFAChallenge(%s, %s) mismatch (-want +got)", user.GetName(), challengeResp.GetMfaChallenge().GetName(),
+	)
 }
 
 func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
-	emitter := &eventstest.MockRecorderEmitter{}
+	t.Parallel()
 
-	authServer, err := NewMockAuthServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
-			ClusterName: "test-cluster",
-			Dir:         t.TempDir(),
-			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-				SecondFactors: []types.SecondFactorType{
-					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
-					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
-				},
-				Webauthn: &types.Webauthn{
-					RPID: "localhost",
-				},
-			},
-		},
-	},
+	authServer, service, emitter, user := setupAuthServer(
+		t,
 		[]*types.MFADevice{
 			{
 				Metadata: types.Metadata{
@@ -178,22 +176,6 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 			},
 		},
 	)
-	require.NoError(t, err)
-
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
@@ -212,6 +194,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SSO challenge was returned.
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetSsoChallenge(), "SSOChallenge must not be nil")
 	require.Equal(t, "test-display-name", challengeResp.GetMfaChallenge().GetSsoChallenge().GetDevice().DisplayName)
 	require.Equal(t, "test-device-connector-id", challengeResp.GetMfaChallenge().GetSsoChallenge().GetDevice().ConnectorId)
@@ -232,6 +215,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.GetMfaChallenge().GetName(),
 				Response: &mfav1.AuthenticateResponse_Sso{
 					Sso: &mfav1.SSOChallengeResponse{
 						RequestId: challengeResp.GetMfaChallenge().GetSsoChallenge().GetRequestId(),
@@ -252,31 +236,57 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, user.GetName(), validateEvent.GetUser())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, validateEvent.FlowType)
+
+	// Verify stored ValidatedMFAChallenge.
+	gotChallenge, err := authServer.Auth().MFAService.GetValidatedMFAChallenge(
+		t.Context(),
+		user.GetName(),
+		challengeResp.GetMfaChallenge().GetName(),
+	)
+	require.NoError(t, err)
+
+	wantedChallenge := &mfav1.ValidatedMFAChallenge{
+		Kind:    types.KindValidatedMFAChallenge,
+		Version: "v1",
+		Metadata: &types.Metadata{
+			Name: challengeResp.GetMfaChallenge().GetName(),
+		},
+		Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+			SourceCluster: "test-cluster",
+			TargetCluster: "test-cluster",
+		},
+	}
+
+	diff := cmp.Diff(
+		wantedChallenge,
+		gotChallenge,
+		cmp.FilterPath(
+			// Ignore expiration time in comparison.
+			func(p cmp.Path) bool {
+				return p.String() == "Metadata.Expires"
+			},
+			cmp.Ignore(),
+		),
+	)
+	require.Empty(t, diff, "GetValidatedMFAChallenge(%s, %s) mismatch (-want +got):\n%s", user.GetName(), challengeResp.GetMfaChallenge().GetName(), diff)
 }
 
 func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
-	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		},
-	})
-	require.NoError(t, err)
+	t.Parallel()
 
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
+	_, service, _, _ := setupAuthServer(t, nil)
 
 	ctx := t.Context()
 
 	// Use a context with a system user.
 	ctx = authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I)
 
-	_, err = service.CreateSessionChallenge(
+	_, err := service.CreateSessionChallenge(
 		ctx,
 		&mfav1.CreateSessionChallengeRequest{
 			Payload: &mfav1.SessionIdentifyingPayload{
@@ -291,43 +301,28 @@ func TestCreateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 }
 
 func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
-	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		},
-	})
-	require.NoError(t, err)
+	t.Parallel()
 
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
+	_, service, _, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	for _, testCase := range []struct {
-		name string
-		req  *mfav1.CreateSessionChallengeRequest
+		name          string
+		req           *mfav1.CreateSessionChallengeRequest
+		expectedError string
 	}{
 		{
-			name: "missing payload",
-			req:  &mfav1.CreateSessionChallengeRequest{Payload: nil},
+			name:          "missing payload",
+			req:           &mfav1.CreateSessionChallengeRequest{Payload: nil},
+			expectedError: "missing CreateSessionChallengeRequest payload",
 		},
 		{
 			name: "missing SshSessionId in payload",
 			req: &mfav1.CreateSessionChallengeRequest{
 				Payload: &mfav1.SessionIdentifyingPayload{Payload: nil},
 			},
+			expectedError: "empty SshSessionId in payload",
 		},
 		{
 			name: "empty SshSessionId in payload",
@@ -338,6 +333,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 					},
 				},
 			},
+			expectedError: "empty SshSessionId in payload",
 		},
 		{
 			name: "SSO challenge missing SsoClientRedirectUrl",
@@ -350,6 +346,7 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				SsoClientRedirectUrl: "", // missing
 				ProxyAddressForSso:   "proxy.example.com",
 			},
+			expectedError: "missing SsoClientRedirectUrl for SSO challenge",
 		},
 		{
 			name: "SSO challenge missing ProxyAddressForSso",
@@ -362,46 +359,48 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 				SsoClientRedirectUrl: "https://client/redirect",
 				ProxyAddressForSso:   "", // missing
 			},
+			expectedError: "missing ProxyAddressForSso for SSO challenge",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			resp, err := service.CreateSessionChallenge(ctx, testCase.req)
 			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, testCase.expectedError)
 			require.Nil(t, resp)
 		})
 	}
 }
 
-func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
-	authServer, err := NewMockAuthServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		},
-	},
-		[]*types.MFADevice{
-			// No devices.
-		},
-	)
-	require.NoError(t, err)
+func TestCreateSessionChallenge_TargetClusterDoesNotExist(t *testing.T) {
+	t.Parallel()
 
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
+	_, service, _, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
-	_, err = service.CreateSessionChallenge(
+	resp, err := service.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+			TargetCluster: "non-existent-cluster",
+		})
+	require.True(t, trace.IsNotFound(err))
+	require.ErrorContains(t, err, `remote cluster "non-existent-cluster" is not found`)
+	require.Nil(t, resp)
+}
+
+func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
+	t.Parallel()
+
+	_, service, _, user := setupAuthServer(t, nil)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	_, err := service.CreateSessionChallenge(
 		ctx,
 		&mfav1.CreateSessionChallengeRequest{
 			Payload: &mfav1.SessionIdentifyingPayload{
@@ -416,28 +415,14 @@ func TestCreateSessionChallenge_NoMFADevices(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
-	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		},
-	})
-	require.NoError(t, err)
+	t.Parallel()
 
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	ctx := t.Context()
+	_, service, _, _ := setupAuthServer(t, nil)
 
 	// Use a context with a non-local user (e.g., a builtin role).
-	ctx = authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I)
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleProxy).I)
 
-	_, err = service.ValidateSessionChallenge(
+	_, err := service.ValidateSessionChallenge(
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
@@ -452,99 +437,89 @@ func TestValidateSessionChallenge_NonLocalUserDenied(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_InvalidRequest(t *testing.T) {
-	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
-		},
-	})
-	require.NoError(t, err)
+	t.Parallel()
 
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer.Auth(),
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
+	_, service, _, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	for _, testCase := range []struct {
-		name string
-		req  *mfav1.ValidateSessionChallengeRequest
+		name          string
+		req           *mfav1.ValidateSessionChallengeRequest
+		expectedError string
 	}{
 		{
 			name: "missing MfaResponse",
 			req: &mfav1.ValidateSessionChallengeRequest{
 				MfaResponse: nil,
 			},
+			expectedError: "nil ValidateSessionChallengeRequest.mfa_response",
 		},
 		{
 			name: "missing Response",
 			req: &mfav1.ValidateSessionChallengeRequest{
 				MfaResponse: &mfav1.AuthenticateResponse{
+					Name:     "test-challenge",
 					Response: nil,
 				},
 			},
+			expectedError: "nil ValidateSessionChallengeRequest.mfa_response",
+		},
+		{
+			name: "missing Name",
+			req: &mfav1.ValidateSessionChallengeRequest{
+				MfaResponse: &mfav1.AuthenticateResponse{
+					Name: "",
+					Response: &mfav1.AuthenticateResponse_Webauthn{
+						Webauthn: &webauthnpb.CredentialAssertionResponse{}, // minimal, not relevant for this test
+					},
+				},
+			},
+			expectedError: "missing ValidateSessionChallengeRequest.mfa_response.name",
+		},
+		{
+			name: "missing Webauthn response",
+			req: &mfav1.ValidateSessionChallengeRequest{
+				MfaResponse: &mfav1.AuthenticateResponse{
+					Name: "test-challenge",
+					Response: &mfav1.AuthenticateResponse_Webauthn{
+						Webauthn: nil,
+					},
+				},
+			},
+			expectedError: "nil WebauthnResponse in AuthenticateResponse",
+		},
+		{
+			name: "missing SSO response",
+			req: &mfav1.ValidateSessionChallengeRequest{
+				MfaResponse: &mfav1.AuthenticateResponse{
+					Name: "test-challenge",
+					Response: &mfav1.AuthenticateResponse_Sso{
+						Sso: nil,
+					},
+				},
+			},
+			expectedError: "nil SSOResponse in AuthenticateResponse",
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			resp, err := service.ValidateSessionChallenge(ctx, testCase.req)
 			require.Nil(t, resp)
 			require.True(t, trace.IsBadParameter(err))
+			require.ErrorContains(t, err, testCase.expectedError)
 		})
 	}
 }
 
 func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
-	emitter := &eventstest.MockRecorderEmitter{}
+	t.Parallel()
 
-	authServer, err := NewMockAuthServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
-			ClusterName: "test-cluster",
-			Dir:         t.TempDir(),
-			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-				SecondFactors: []types.SecondFactorType{
-					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
-					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
-				},
-				Webauthn: &types.Webauthn{
-					RPID: "localhost",
-				},
-			},
-		},
-	},
-		nil,
-	)
-	require.NoError(t, err)
-
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
+	authServer, service, emitter, user := setupAuthServer(t, nil)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
 	// Register a Webauthn device for the user.
-	_, err = authtest.RegisterTestDevice(
+	_, err := authtest.RegisterTestDevice(
 		ctx,
 		authServer.Auth(),
 		"webauthn-device",
@@ -564,12 +539,14 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge())
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
+	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.GetMfaChallenge().GetName(),
 				Response: &mfav1.AuthenticateResponse_Webauthn{
 					Webauthn: &webauthnpb.CredentialAssertionResponse{
 						Type: "invalid",
@@ -594,24 +571,10 @@ func TestValidateSessionChallenge_WebauthnFailedValidation(t *testing.T) {
 }
 
 func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
-	emitter := &eventstest.MockRecorderEmitter{}
+	t.Parallel()
 
-	authServer, err := NewMockAuthServer(authtest.ServerConfig{
-		Auth: authtest.AuthServerConfig{
-			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
-			ClusterName: "test-cluster",
-			Dir:         t.TempDir(),
-			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-				SecondFactors: []types.SecondFactorType{
-					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
-					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
-				},
-				Webauthn: &types.Webauthn{
-					RPID: "localhost",
-				},
-			},
-		},
-	},
+	_, service, emitter, user := setupAuthServer(
+		t,
 		[]*types.MFADevice{
 			{
 				Metadata: types.Metadata{
@@ -627,22 +590,6 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 			},
 		},
 	)
-	require.NoError(t, err)
-
-	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().Identity,
-	})
-	require.NoError(t, err)
-
-	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
-	require.NoError(t, err)
 
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
 
@@ -661,12 +608,14 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify SSO challenge was returned.
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
 	require.NotNil(t, challengeResp.GetMfaChallenge().GetSsoChallenge(), "SSOChallenge must not be nil")
 
 	validateResp, err := service.ValidateSessionChallenge(
 		ctx,
 		&mfav1.ValidateSessionChallengeRequest{
 			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.GetMfaChallenge().GetName(),
 				Response: &mfav1.AuthenticateResponse_Sso{
 					Sso: &mfav1.SSOChallengeResponse{
 						RequestId: "invalid-request-id-to-fail-validation",
@@ -688,4 +637,125 @@ func TestValidateSessionChallenge_SSOFailedValidation(t *testing.T) {
 	require.Equal(t, user.GetName(), e.GetUser())
 	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
 	require.False(t, e.Success)
+}
+
+func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
+	t.Parallel()
+
+	authServer, _, emitter, user := setupAuthServer(t, nil)
+
+	mfaService := &mockMFAService{ReturnError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+		Storage:    mfaService,
+	})
+	require.NoError(t, err)
+
+	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+
+	// Register a Webauthn device for the user.
+	device, err := authtest.RegisterTestDevice(
+		ctx,
+		authServer.Auth(),
+		"webauthn-device",
+		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		nil,
+	)
+	require.NoError(t, err)
+
+	challengeResp, err := service.CreateSessionChallenge(
+		ctx,
+		&mfav1.CreateSessionChallengeRequest{
+			Payload: &mfav1.SessionIdentifyingPayload{
+				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+					SshSessionId: []byte("test-session-id"),
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, challengeResp.GetMfaChallenge().GetName(), "Challenge name must not be empty")
+	require.NotNil(t, challengeResp.GetMfaChallenge().GetWebauthnChallenge(), "WebauthnChallenge must not be nil")
+
+	challenge := &proto.MFAAuthenticateChallenge{
+		WebauthnChallenge: challengeResp.MfaChallenge.WebauthnChallenge,
+	}
+
+	mfaResp, err := device.SolveAuthn(challenge)
+	require.NoError(t, err)
+
+	validateResp, err := service.ValidateSessionChallenge(
+		ctx,
+		&mfav1.ValidateSessionChallengeRequest{
+			MfaResponse: &mfav1.AuthenticateResponse{
+				Name: challengeResp.MfaChallenge.Name,
+				Response: &mfav1.AuthenticateResponse_Webauthn{
+					Webauthn: mfaResp.GetWebauthn(),
+				},
+			},
+		},
+	)
+	require.ErrorContains(t, err, "MOCKED TEST ERROR FROM STORAGE LAYER")
+	require.Nil(t, validateResp)
+
+	// Verify emitted event.
+	event := emitter.LastEvent()
+	require.Equal(t, events.ValidateMFAAuthResponseEvent, event.GetType())
+	require.Equal(t, events.ValidateMFAAuthResponseFailureCode, event.GetCode())
+	require.Equal(t, "test-cluster", event.GetClusterName())
+	e, ok := event.(*apievents.ValidateMFAAuthResponse)
+	require.True(t, ok)
+	require.Equal(t, user.GetName(), e.GetUser())
+	require.Equal(t, apievents.MFAFlowType_MFA_FLOW_TYPE_IN_BAND, e.FlowType)
+	require.False(t, e.Success)
+	require.Contains(t, e.Error, "MOCKED TEST ERROR FROM STORAGE LAYER")
+}
+
+func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer, *mfav1impl.Service, *eventstest.MockRecorderEmitter, types.User) {
+	t.Helper()
+
+	emitter := &eventstest.MockRecorderEmitter{}
+
+	authServer, err := NewMockAuthServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			AuditLog:    &eventstest.MockAuditLog{Emitter: emitter},
+			ClusterName: "test-cluster",
+			Dir:         t.TempDir(),
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+				},
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			},
+		},
+	},
+		devices,
+	)
+	require.NoError(t, err)
+
+	role, err := authtest.CreateRole(t.Context(), authServer.Auth(), "test-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(t.Context(), authServer.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	service, err := mfav1impl.NewService(mfav1impl.ServiceConfig{
+		Authorizer: authServer.AuthServer.Authorizer,
+		AuthServer: authServer,
+		Cache:      authServer.Auth().Cache,
+		Emitter:    authServer.Auth(),
+		Identity:   authServer.Auth().Identity,
+		Storage:    authServer.Auth(),
+	})
+	require.NoError(t, err)
+
+	return authServer, service, emitter, user
 }

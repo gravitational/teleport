@@ -99,6 +99,8 @@ type BeginParams struct {
 	User                      string
 	ChallengeExtensions       *mfav1.ChallengeExtensions
 	SessionIdentifyingPayload *mfav1.SessionIdentifyingPayload
+	SourceCluster             string
+	TargetCluster             string
 }
 
 // Begin is the first step of the LoginFlow.
@@ -125,7 +127,7 @@ func (f *LoginFlow) Begin(ctx context.Context, params BeginParams) (*wantypes.Cr
 		//  the actual challenge scope.
 		sessionData: (*userSessionStorage)(f),
 	}
-	return lf.begin(ctx, params.User, params.ChallengeExtensions, params.SessionIdentifyingPayload)
+	return lf.begin(ctx, params)
 }
 
 // Finish is the second and last step of the LoginFlow.

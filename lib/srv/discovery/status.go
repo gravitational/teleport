@@ -20,6 +20,9 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -60,7 +63,7 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Static configurations (ie those in `teleport.yaml/discovery_config.<cloud>.matchers`) do not have a DiscoveryConfig resource.
 		// Those are discarded because there's no Status to update.
 		if discoveryConfigName == "" {
-			return
+			continue
 		}
 
 		discoveryConfigStatus := discoveryconfig.Status{
@@ -81,20 +84,25 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Merge AWS EKS clusters (auto discovery) status
 		discoveryConfigStatus = s.awsEKSResourcesStatus.mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
 
+		// Merge Azure VMs discovery status.
+		discoveryConfigStatus = s.azureVMStatus.Load().mergeIntoGlobalStatus(discoveryConfigName, discoveryConfigStatus)
+
 		// Ensure the error message is truncated to the maximum allowed size.
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-		defer cancel()
+		func() {
+			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+			defer cancel()
 
-		_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-		switch {
-		case trace.IsNotImplemented(err):
-			s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-		case err != nil:
-			s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
-		}
+			_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
+			switch {
+			case trace.IsNotImplemented(err):
+				s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
+			case err != nil:
+				s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+			}
+		}()
 	}
 }
 
@@ -299,14 +307,8 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 			Failed:   uint64(groupResult.failed),
 		}
 
-		switch ars.resourceType {
-		case types.AWSMatcherEC2:
-			existingIntegrationResources.AwsEc2 = resourcesSummary
-		case types.AWSMatcherRDS:
-			existingIntegrationResources.AwsRds = resourcesSummary
-		case types.AWSMatcherEKS:
-			existingIntegrationResources.AwsEks = resourcesSummary
-		}
+		integrationDiscoveredSummaryUpdate(existingIntegrationResources, ars.resourceType, resourcesSummary)
+
 		existingStatus.IntegrationDiscoveredResources[group.integration] = existingIntegrationResources
 	}
 
@@ -894,5 +896,112 @@ func mergeExistingInstances[Instance interface {
 		if _, found := freshInstances[instanceKey]; !found {
 			freshInstances[instanceKey] = instance
 		}
+	}
+}
+
+type statusType int
+
+const (
+	statusFound statusType = iota
+	statusEnrolled
+	statusFailed
+)
+
+type fetcherGroupKey struct {
+	discoveryConfigName string
+	integration         string
+}
+
+// resourceStatusMap tracks discovery status (found/enrolled/failed counts)
+// per fetcher group key (discovery config + integration combination).
+type resourceStatusMap struct {
+	resourceType string
+	results      map[fetcherGroupKey]map[statusType]int
+}
+
+func newStatusMap(resourceType string) *resourceStatusMap {
+	return &resourceStatusMap{
+		resourceType: resourceType,
+		results:      make(map[fetcherGroupKey]map[statusType]int),
+	}
+}
+
+func (s *resourceStatusMap) add(key fetcherGroupKey, results map[statusType]int) {
+	if s.results[key] == nil {
+		s.results[key] = make(map[statusType]int)
+	}
+	for k, v := range results {
+		s.results[key][k] += v
+	}
+}
+
+func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+	if s == nil {
+		// nil resourceStatusMap is valid, just empty.
+		return existingStatus
+	}
+
+	for key, results := range s.results {
+		if key.discoveryConfigName != discoveryConfigName {
+			continue
+		}
+
+		if results == nil {
+			continue
+		}
+
+		// Update global discovered resources count.
+		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[statusFailed])
+
+		// Initialize map if needed.
+		if existingStatus.IntegrationDiscoveredResources == nil {
+			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary)
+		}
+
+		// Update counters specific to resources discovered.
+		var summary *discoveryconfigv1.IntegrationDiscoveredSummary
+		summary = existingStatus.IntegrationDiscoveredResources[key.integration]
+		if summary == nil {
+			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+		}
+
+		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
+			Found:    uint64(results[statusFound]),
+			Enrolled: uint64(results[statusEnrolled]),
+			Failed:   uint64(results[statusFailed]),
+		}
+
+		integrationDiscoveredSummaryUpdate(summary, s.resourceType, resourcesSummary)
+
+		existingStatus.IntegrationDiscoveredResources[key.integration] = summary
+	}
+
+	return existingStatus
+}
+
+func (s *resourceStatusMap) discoveryConfigs() []string {
+	if s == nil {
+		return nil
+	}
+
+	names := map[string]struct{}{}
+	for key := range s.results {
+		names[key.discoveryConfigName] = struct{}{}
+	}
+	return slices.Collect(maps.Keys(names))
+}
+
+func integrationDiscoveredSummaryUpdate(summary *discoveryconfigv1.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	switch resourceType {
+	case types.AWSMatcherEC2:
+		summary.AwsEc2 = resourcesSummary
+	case types.AWSMatcherRDS:
+		summary.AwsRds = resourcesSummary
+	case types.AWSMatcherEKS:
+		summary.AwsEks = resourcesSummary
+	case types.AzureMatcherVM:
+		summary.AzureVms = resourcesSummary
+	default:
+		slog.WarnContext(context.Background(), "Unknown integration discovered summary resource type (this is a bug)", "resource_type", resourceType)
 	}
 }

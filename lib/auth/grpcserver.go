@@ -6544,6 +6544,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
 		Identity:   cfg.AuthServer.Identity,
+		Storage:    cfg.AuthServer.MFAService,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
