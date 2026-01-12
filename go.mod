@@ -191,7 +191,6 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/ohler55/ojg v1.26.8
 	github.com/okta/okta-sdk-golang/v2 v2.20.0
-	github.com/openai/openai-go v1.8.2
 	github.com/openai/openai-go/v3 v3.16.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/selinux v1.12.0
@@ -445,7 +444,7 @@ require (
 	github.com/in-toto/attestation v1.1.1 // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/invopop/jsonschema v0.13.0 // indirect
+	github.com/invopop/jsonschema v0.13.0
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
