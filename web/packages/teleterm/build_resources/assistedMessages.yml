@@ -1,0 +1,22 @@
+selectUserMode:
+  en: Please select whether you wish to make this software available to all users or just yourself 123
+  de: Bitte wählen Sie, ob Sie die Anwendung nur für sich oder für alle Benutzer installieren möchten.
+  ru: Выберите, хотите ли Вы сделать эту программу доступной для всех пользователей, или только для себя
+  sk: Prosím vyberte či sa ma tento softvér inštalovať len pre Vás alebo pre všetkých uživateľov
+  cs: Prosím vyberte, zda se má tento software instalovat jen pro Vás, nebo pro všechny uživatele
+  fr: "Choisis pour qui ce logiciel doit être accessible : pour tous les utilisateurs ou juste pour toi ?"
+  hu_HU: Válaszd ki, hogy a szoftver elérhető legyen-e minden felhasználó számára, vagy csak neked
+  pt_BR: Por favor, selecione se este software deve estar disponível apenas para você ou para todos usuários
+  zh_CN: 请选择为当前用户还是所有用户安装该软件
+  zh_TW: 請選擇為目前使用者還是所有使用者安裝該軟體
+  tr_TR: Lütfen bu yazılımı tüm kullanıcılar için mi yoksa sadece kendiniz mi kullanmak istediğinizi seçin
+  sv_SE: Välj om du vill göra den här mjukvaran tillgänglig för alla användare eller bara för dig
+  pl_PL: Wybierz, czy to oprogramowanie ma być dostępne dla wszystkich użytkowników, czy tylko dla Ciebie
+  no: Velg om du vil gjøre denne programvaren tilgjengelig for alle brukerne eller bare deg selv
+  nl_NL: Selecteer of je deze software beschikbaar wilt maken voor alle gebruikers of alleen voor jezelf.
+  it_IT: Seleziona se desideri rendere questo software accessibile a tutti gli utenti o solo a te
+  fi: Valitse, haluatko tämän ohjelmiston kaikkien käyttäjien vai pelkästään itsesi käyttöön
+  es: Elige si deseas que este software esté disponible para todos los usuarios o solo para ti.
+  da: Vælg, om du vil gøre denne software tilgængelig for andre brugere, eller kun for dig selv
+  ja: このソフトウェアをすべてのユーザーが使用できるようにするか、現在のユーザーのみ使用するかを選択してください
+  ko : 이 프로그램을 모든 사용자가 사용할 수 있도록 할 것인지 아니면 자신만 사용할 수 있도록 할 것인지 선택하십시오.
