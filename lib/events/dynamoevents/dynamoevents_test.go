@@ -707,6 +707,74 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 	}
 }
 
+func TestSearchEventsMultipleDays(t *testing.T) {
+	ctx := t.Context()
+	tt := setupDynamoContext(t)
+	blob := "data"
+	const eventCount int = 10
+	const days int = 3
+
+	// create events per day
+	for dayDiff := range days {
+		for i := range eventCount {
+			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
+				Method:       events.LoginMethodSAML,
+				Status:       apievents.Status{Success: true},
+				UserMetadata: apievents.UserMetadata{User: "bob"},
+				Metadata: apievents.Metadata{
+					Type: events.UserLoginEvent,
+					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
+				},
+				IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	windowStart := time.Date(
+		tt.suite.Clock.Now().UTC().Year(),
+		tt.suite.Clock.Now().UTC().Month(),
+		tt.suite.Clock.Now().UTC().Day(),
+		0, /* hour */
+		0, /* minute */
+		0, /* second */
+		0, /* nanosecond */
+		time.UTC)
+	windowEnd := windowStart.Add(time.Hour * time.Duration(24*days))
+
+	data, err := json.Marshal(checkpointKey{
+		Date: windowStart.Format("2006-01-02"),
+	})
+	require.NoError(t, err)
+	checkpoint := string(data)
+
+	var gotEvents []apievents.AuditEvent
+	for {
+		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:     windowStart,
+			To:       windowEnd,
+			Limit:    5,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		require.NoError(t, err)
+		checkpoint = lCheckpoint
+		gotEvents = append(gotEvents, fetched...)
+
+		if checkpoint == "" {
+			break
+		}
+	}
+
+	require.Len(t, gotEvents, eventCount*days)
+	lastTime := tt.suite.Clock.Now().UTC().Add(-time.Hour)
+
+	for _, event := range gotEvents {
+		require.True(t, event.GetTime().After(lastTime))
+		lastTime = event.GetTime()
+	}
+}
+
 // TestValidationErrorsHandling given events that return validation
 // errors (large event size and already exists), the emit should handle them
 // and succeed on emitting the event when it does support trimming.
