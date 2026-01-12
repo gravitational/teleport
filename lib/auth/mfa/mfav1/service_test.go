@@ -959,7 +959,7 @@ func TestVerifyValidatedMFAChallenge_NotFound(t *testing.T) {
 func TestVerifyValidatedMFAChallenge_WebauthnFailedStorage(t *testing.T) {
 	t.Parallel()
 
-	authServer, service, _, user := setupAuthServer(t, nil)
+	authServer, _, _, user := setupAuthServer(t, nil)
 
 	mfaService := &mockMFAService{getValidatedMFAChallengeError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
 

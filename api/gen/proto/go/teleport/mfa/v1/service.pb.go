@@ -377,15 +377,15 @@ type VerifyValidatedMFAChallengeRequest struct {
 	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
 	// challenge.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Value that uniquely identifies the user's session. The client calling VerifyValidatedMFAChallenge MUST
-	// independently compute this value from session state. The server will verify it matches the payload supplied in
-	// CreateSessionChallengeRequest to ensure the challenge is tied to the correct session.
+	// Value that uniquely identifies the user's session. The client MUST independently compute this value from session
+	// state. The server will verify it matches the payload supplied in CreateSessionChallengeRequest to ensure the
+	// challenge is tied to the correct session.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Name of the cluster where the validated challenge originated.
 	SourceCluster string `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
-	// Name of the user for whom the challenge was issued. The client calling VerifyValidatedMFAChallenge MUST
-	// independently determine this value from session state. The server will verify it matches the user associated with
-	// the validated challenge to ensure the challenge is tied to the correct user.
+	// Username of the user for whom the challenge was issued. The client MUST determine this value by authenticating the
+	// user before calling this method. The server will verify that it matches the user associated with the validated
+	// challenge to ensure the challenge is tied to the correct user.
 	Username             string   `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
