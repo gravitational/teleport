@@ -1,9 +1,26 @@
+import { formatDistanceStrict } from 'date-fns';
+import { useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex, H2, Label, Text } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonSecondary,
+  Flex,
+  H2,
+  Label,
+  P3,
+  Text,
+} from 'design';
 import { CardTile } from 'design/CardTile/CardTile';
-import { Edit, UserList, Users } from 'design/Icon';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/DialogConfirmation';
+import { Edit, SyncAlt, UserList, Users } from 'design/Icon';
 import { IconTooltip } from 'design/Tooltip';
 
 import cfg from 'e-teleport/config';
@@ -31,6 +48,23 @@ export function DirectorySyncDetails({
   status: PluginStatus<PluginEntraIDStatusDetails>;
 }) {
   const history = useHistory();
+
+  function lastSynced() {
+    let msg = `Last Synced: ${getDurationText(status?.lastRun)}`;
+    if (status?.code === IntegrationStatusCode.Running) {
+      return msg;
+    }
+    if (
+      status.details.imported_users === 0 &&
+      status.details.imported_groups === 0
+    ) {
+      msg = msg + ', failed.';
+    } else {
+      msg = msg + ', partially succeeded.';
+    }
+
+    return msg;
+  }
 
   return (
     <CardTile width="100%">
@@ -114,6 +148,23 @@ export function DirectorySyncDetails({
         </SettingContainer>
 
         <FilterDetails filters={spec.groupFilters} />
+      </Flex>
+
+      <Flex alignItems="center" mt={4} gap={2} px={1}>
+        <Flex>
+          <SyncAlt color="text.slightlyMuted" size="small" />
+          <P3 ml={1} color="text.slightlyMuted">
+            {lastSynced()}
+          </P3>
+        </Flex>
+
+        <Flex>
+          <ShowError
+            statusCode={status.code}
+            title={status.errorMessage}
+            content={status.lastRawError}
+          />
+        </Flex>
       </Flex>
     </CardTile>
   );
@@ -215,6 +266,45 @@ function FilterDetails({ filters }: { filters: Filters }) {
   );
 }
 
+function ShowError({
+  statusCode,
+  title,
+  content,
+}: {
+  statusCode: IntegrationStatusCode;
+  title: string;
+  content: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (statusCode === IntegrationStatusCode.Running) {
+    return null;
+  }
+
+  return (
+    <>
+      <ButtonBorder size="small" intent="danger" onClick={() => setOpen(true)}>
+        View errors
+      </ButtonBorder>
+      <Dialog onClose={() => setOpen(false)} open={open}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <ErrorPre>
+            <code>{content}</code>
+          </ErrorPre>
+        </DialogContent>
+        <DialogFooter>
+          <ButtonSecondary onClick={() => setOpen(false)}>
+            Close
+          </ButtonSecondary>
+        </DialogFooter>
+      </Dialog>
+    </>
+  );
+}
+
 function hasIncludeFilters(filters: Filters): boolean {
   if (!filters) {
     return false;
@@ -235,4 +325,24 @@ const SettingContainer = styled(Flex)`
   }
   display: grid;
   grid-template-columns: 1.3fr 8fr;
+`;
+
+function getDurationText(date: Date | undefined) {
+  if (!date || date.getTime() <= 0) {
+    return 'not recorded yet';
+  }
+  return formatDistanceStrict(date, new Date(), { addSuffix: true });
+}
+
+const ErrorPre = styled(Box).attrs({ as: 'pre' })`
+  white-space: pre;
+  font-size: ${({ theme }) => theme.fontSizes[1]}px;
+  tab-size: ${({ theme }) => theme.space[3]}px;
+  background-color: ${p => p.theme.colors.levels.sunken};
+  border-width: 0;
+  border-left-width: ${({ theme }) => theme.space[1]}px;
+  border-style: solid;
+  border-color: ${({ theme }) => theme.colors.interactive.solid.danger.default};
+  padding: 0 ${({ theme }) => theme.space[2]}px;
+  overflow: auto;
 `;

@@ -7,7 +7,7 @@ import { ContextProvider } from 'teleport/index';
 import type { Plugin } from 'teleport/services/integrations';
 
 import { StatusDetails } from './EntraStatus';
-import { entraPlugin } from './fixtures';
+import { entraPlugin, entraPluginErrorStatus } from './fixtures';
 
 export default {
   title: 'TeleportE/Integrations/Status/Entra',
@@ -18,6 +18,16 @@ export const Default: StoryObj = {
     const ctx = createTeleportContextE();
     cfg.isPolicyEnabled = true;
     return render(ctx, entraPlugin);
+  },
+};
+
+export const DirectorySyncError: StoryObj = {
+  render: () => {
+    const ctx = createTeleportContextE();
+    cfg.isPolicyEnabled = true;
+    const plugin = { ...entraPlugin };
+    plugin.status = entraPluginErrorStatus;
+    return render(ctx, plugin);
   },
 };
 
