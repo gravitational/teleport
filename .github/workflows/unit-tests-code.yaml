@@ -120,7 +120,7 @@ jobs:
           echo "conclusion=${{ steps.normalize_test_results.conclusion }}"
 
       - name: Upload test artifacts
-        if: steps.normalize_test_results.conclusion == 'success'
+        if: always() && steps.normalize_test_results.outcome == 'success'
         continue-on-error: true
         # In the future perhaps the CLI could pipe the results directly to s3.
         run: |
