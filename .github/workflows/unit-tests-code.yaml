@@ -99,6 +99,8 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        if: always()
+        continue-on-error: true
         with:
           aws-region: us-west-2
           role-to-assume: arn:aws:iam::278576220453:role/tf-ci-test-artifacts-upload-gha-role
@@ -107,6 +109,8 @@ jobs:
 
         # Install aws cli for testing
       - name: Install AWS CLI v2
+        if: always()
+        continue-on-error: true
         run: |
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
           unzip awscliv2.zip
@@ -114,6 +118,8 @@ jobs:
           aws --version
 
       - name: Upload test artifacts
+        if: steps.normalize_test_results.outcome == 'success'
+        continue-on-error: true
         # In the future perhaps the CLI could pipe the results directly to s3.
         run: |
           META_FILE="$GITHUB_WORKSPACE/test-logs/ci-job-meta.json"
