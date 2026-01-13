@@ -818,6 +818,10 @@ func (a *awsKMSKeystore) applyMRKConfig(ctx context.Context, key awsKMSKeyID) ([
 			KeyId:         &key.id,
 			ReplicaRegion: &region,
 			Tags:          tags,
+		}, func(o *kms.Options) {
+			// ReplicateKey has a low throttle limit so increase the retry
+			// attempts to help it get through.
+			o.RetryMaxAttempts = 10
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
