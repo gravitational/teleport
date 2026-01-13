@@ -426,7 +426,7 @@ func TestCreateAppSessionWithJWT(t *testing.T) {
 				}, nil
 			},
 			assertError:      require.Error,
-			assertAuditEvent: require.Nil,
+			assertAuditEvent: assertAuditEventFailure,
 		},
 		"invalid token": {
 			config: config,
