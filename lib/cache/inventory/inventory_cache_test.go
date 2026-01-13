@@ -160,6 +160,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	crownJewelsSvc, err := local.NewCrownJewelsService(bkWrapper)
 	require.NoError(t, err)
 
+	cloudClusterSvc, err := local.NewCloudClusterService(bkWrapper)
+	require.NoError(t, err)
+
 	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(bkWrapper)
 	require.NoError(t, err)
 
@@ -243,6 +246,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Notifications:           notificationsSvc,
 		AccessMonitoringRules:   accessMonitoringRuleService,
 		CrownJewels:             crownJewelsSvc,
+		CloudClusterService:     cloudClusterSvc,
 		SPIFFEFederations:       spiffeFederationsSvc,
 		DatabaseObjects:         databaseObjectsSvc,
 		StaticHostUsers:         staticHostUserService,
