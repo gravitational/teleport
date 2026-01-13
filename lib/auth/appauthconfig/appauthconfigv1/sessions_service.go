@@ -144,12 +144,6 @@ func NewSessionsService(cfg SessionsServiceConfig) (*SessionsService, error) {
 
 // CreateAppSessionWithJwt implements appauthconfigv1.AppAuthConfigSessionsServiceServer.
 func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (_ *appauthconfigv1.CreateAppSessionWithJWTResponse, err error) {
-	defer func() {
-		if emitErr := s.emitter.EmitAuditEvent(ctx, newVerifyJWTAuditEvent(ctx, req, "", err)); emitErr != nil {
-			s.logger.ErrorContext(ctx, "failed to emit jwt verification audit event", "error", emitErr)
-		}
-	}()
-
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -160,6 +154,12 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 	}
 
 	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
+	defer func() {
+		if emitErr := s.emitter.EmitAuditEvent(ctx, newVerifyJWTAuditEvent(ctx, req, "", err)); emitErr != nil {
+			s.logger.ErrorContext(ctx, "failed to emit jwt verification audit event", "error", emitErr)
+		}
+	}()
+
 	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
