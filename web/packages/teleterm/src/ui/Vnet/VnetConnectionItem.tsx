@@ -133,6 +133,7 @@ const VnetConnectionItemBase = forwardRef<
     if (
       startAttempt.status === 'error' ||
       stopAttempt.status === 'error' ||
+      getWindowsSystemServiceAttempt.status === 'error' ||
       (status.value === 'stopped' &&
         status.reason.value === 'unexpected-shutdown')
     ) {
@@ -148,7 +149,13 @@ const VnetConnectionItemBase = forwardRef<
     }
 
     return 'on';
-  }, [startAttempt, stopAttempt, status, showDiagWarningIndicator]);
+  }, [
+    startAttempt,
+    stopAttempt,
+    status,
+    showDiagWarningIndicator,
+    getWindowsSystemServiceAttempt,
+  ]);
 
   const onEnterPress = (event: React.KeyboardEvent) => {
     if (
@@ -310,7 +317,6 @@ const VnetConnectionItemBase = forwardRef<
             ) : (
               <ButtonIcon
                 key={toggleVnetButtonKey}
-                disabled={getWindowsSystemServiceAttempt.status === 'error'}
                 title={
                   status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
                 }
@@ -378,6 +384,7 @@ const VnetConnectionItemBase = forwardRef<
               <ButtonIcon
                 key={toggleVnetButtonKey}
                 title="Start VNet"
+                disabled={getWindowsSystemServiceAttempt.status === 'error'}
                 onClick={e => {
                   e.stopPropagation();
                   start();
