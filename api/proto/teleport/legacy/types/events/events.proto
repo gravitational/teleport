@@ -1318,6 +1318,10 @@ message UserLogin {
 
   // ConnectorID is the ID of the connector used
   string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
+
+  // RequestID is a UUID used to correlate events from a single login flow that
+  // spans multiple contexts
+  string RequestID = 11 [(gogoproto.jsontag) = "request_id,omitempty"];
 }
 
 // MFAFlowType defines how MFA was enforced for a given authentication event.

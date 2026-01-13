@@ -586,7 +586,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 		return nil, trace.Wrap(err)
 	}
 
-	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, a.emitter, ha, nil)
+	emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginRequestedCode, a.emitter, ha, req.HeadlessAuthenticationID, nil)
 
 	// HTTP server has shorter WriteTimeout than is needed, so we override WriteDeadline of the connection.
 	if conn, err := authz.ConnFromContext(ctx); err == nil {

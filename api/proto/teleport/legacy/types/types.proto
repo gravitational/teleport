@@ -8780,7 +8780,7 @@ message HeadlessAuthentication {
   // PKCS#1 or PKIX format.
   bytes tls_public_key = 8;
 
-  //HeadlessAuthenticationType is the type of request that was initiated.
+  // HeadlessAuthenticationType is the type of request that was initiated.
   HeadlessAuthenticationType type = 9;
 }
 

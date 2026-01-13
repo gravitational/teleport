@@ -8102,7 +8102,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 		// The user must authenticate with MFA to change the state to approved.
 		if mfaResp == nil {
 			err = trace.BadParameter("expected MFA auth challenge response")
-			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 			return err
 		}
 
@@ -8114,28 +8114,28 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 			browserAddr, err := authz.ClientSrcAddrFromContext(ctx)
 			if err != nil {
 				err = trace.Wrap(err, "failed to get client address from context")
-				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 				return err
 			}
 
 			browserHost, _, err := net.SplitHostPort(browserAddr.String())
 			if err != nil {
 				err = trace.Wrap(err, "failed to parse browser address")
-				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 				return err
 			}
 
 			clientHost, _, err := net.SplitHostPort(headlessAuthn.ClientIpAddress)
 			if err != nil {
 				err = trace.Wrap(err, "failed to parse browser address")
-				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 				return err
 			}
 
 			// Compare browser and client hosts, treating local addresses as equal
 			if !(browserHost == clientHost || (utils.IsLocalhost(browserHost) && utils.IsLocalhost(clientHost))) {
 				err = trace.AccessDenied("approver IP address %s does not match the headless authentication request IP %s", browserHost, clientHost)
-				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+				emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 				return err
 			}
 		}
@@ -8145,14 +8145,14 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 		case *proto.MFAAuthenticateResponse_Webauthn, *proto.MFAAuthenticateResponse_SSO:
 		default:
 			err = trace.BadParameter("MFA response of type %T is not supported for headless authentication", mfaResp.Response)
-			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 			return err
 		}
 
 		requiredExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN}
 		mfaData, err := a.authServer.ValidateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, requiredExt)
 		if err != nil {
-			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, err)
+			emitHeadlessLoginEvent(ctx, events.UserHeadlessLoginApprovedFailureCode, a.authServer.emitter, headlessAuthn, name, err)
 			return trace.Wrap(err)
 		}
 
@@ -8169,7 +8169,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	if err != nil && eventCode == events.UserHeadlessLoginApprovedCode {
 		eventCode = events.UserHeadlessLoginApprovedFailureCode
 	}
-	emitHeadlessLoginEvent(ctx, eventCode, a.authServer.emitter, headlessAuthn, err)
+	emitHeadlessLoginEvent(ctx, eventCode, a.authServer.emitter, headlessAuthn, name, err)
 	return trace.Wrap(err)
 }
 
@@ -8274,7 +8274,7 @@ func (a *ServerWithRoles) DeleteClusterMaintenanceConfig(ctx context.Context) er
 	return a.authServer.DeleteClusterMaintenanceConfig(ctx)
 }
 
-func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, err error) {
+func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.Emitter, headlessAuthn *types.HeadlessAuthentication, requestId string, err error) {
 	clientAddr := ""
 	if code == events.UserHeadlessLoginRequestedCode {
 		clientAddr = headlessAuthn.ClientIpAddress
@@ -8310,6 +8310,7 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 			UserMessage: message,
 			Error:       errorMessage,
 		},
+		RequestID: requestId,
 	}
 
 	if emitErr := emitter.EmitAuditEvent(ctx, &event); emitErr != nil {
