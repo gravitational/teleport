@@ -562,6 +562,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		Applications:            p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
+		CloudClusterService:     p.AuthServer.Services.CloudClusterService,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
 		Databases:               p.AuthServer.Services.Databases,
