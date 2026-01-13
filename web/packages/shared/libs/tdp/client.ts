@@ -20,11 +20,11 @@ import { EventEmitter } from 'events';
 
 import { useEffect } from 'react';
 
+import { Logger } from 'design/logger';
 import init, {
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
-import { Logger } from 'design/logger';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
 import {
@@ -89,7 +89,7 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   // TDP_INFO corresponds with the TDP info message
   TDP_INFO = 'tdp info',
-  TRANSPORT_OPEN = 'transport open',
+  CONNECTION_OPEN = 'connection open',
   // TRANSPORT_CLOSE is emitted when a connection ends due to the transport layer being closed.
   // This can occur with or without an error.
   // If an error is present, it will be displayed in the UI.
@@ -108,7 +108,7 @@ type EventMap = {
   [TdpClientEvent.TDP_WARNING]: [string];
   [TdpClientEvent.CLIENT_WARNING]: [string];
   [TdpClientEvent.TDP_INFO]: [string];
-  [TdpClientEvent.TRANSPORT_OPEN]: [void];
+  [TdpClientEvent.CONNECTION_OPEN]: [void];
   [TdpClientEvent.TRANSPORT_CLOSE]: [Error | undefined];
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
@@ -208,7 +208,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.codec
       .encodeInitialMessages(options.screenSpec, options.keyboardLayout)
       .forEach(msg => this.send(msg));
-    this.emit(TdpClientEvent.TRANSPORT_OPEN);
+    this.emit(TdpClientEvent.CONNECTION_OPEN);
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -301,8 +301,8 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   onTransportOpen = (listener: () => void) => {
-    this.on(TdpClientEvent.TRANSPORT_OPEN, listener);
-    return () => this.off(TdpClientEvent.TRANSPORT_OPEN, listener);
+    this.on(TdpClientEvent.CONNECTION_OPEN, listener);
+    return () => this.off(TdpClientEvent.CONNECTION_OPEN, listener);
   };
 
   onClipboardData = (listener: (clipboardData: ClipboardData) => void) => {
@@ -351,7 +351,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBufferLike): Promise<void> {
-    const result = this.codec.decodeMessage(buffer, this.logger);
+    const result = this.codec.decodeMessage(buffer);
     switch (result.kind) {
       case 'pngFrame':
         this.handlePngFrame(result.data);
@@ -450,7 +450,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // In the future, we may add new server capability advertisements
     // that will affect client configuration.
     // For now we'll just activate the the connection.
-    this.handleRdpConnectionActivated(hello.activationEvent)
+    this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
   handleClientScreenSpec(spec: ClientScreenSpec) {
@@ -745,7 +745,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   sendKeyboardInput(code: string, state: ButtonState) {
-    this.codec.encodeKeyboardInput(code, state, this.logger).forEach(msg => this.send(msg));
+    this.codec.encodeKeyboardInput(code, state).forEach(msg => this.send(msg));
   }
 
   sendSyncKeys(syncKeys: SyncKeys) {

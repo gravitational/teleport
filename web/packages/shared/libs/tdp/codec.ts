@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Logger } from 'design/logger';
 import {
   Envelope,
   MFA,
@@ -29,7 +30,6 @@ import {
   SSOChallenge,
 } from 'gen-proto-ts/teleport/mfa/v1/challenge_pb';
 import { arrayBufferToBase64, base64urlToBuffer } from 'shared/utils/base64';
-import { Logger } from 'design/logger';
 
 export type Message = ArrayBufferLike;
 
@@ -421,7 +421,7 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
 // to send outbound messages
 export interface Codec {
   // Convert incoming messages into a common CodecResult
-  decodeMessage(buffer: ArrayBufferLike, logger: Logger): DecodedMessage;
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage;
 
   // Shared TDP/TDPB Messages
   encodeInitialMessages(
@@ -432,7 +432,7 @@ export interface Codec {
   encodeMouseButton(button: MouseButton, state: ButtonState): Message;
   encodeSyncKeys(syncKeys: SyncKeys): Message;
   encodeClipboardData(clipboardData: ClipboardData): Message;
-  encodeKeyboardInput(code: string, state: ButtonState, logger: Logger): Message[];
+  encodeKeyboardInput(code: string, state: ButtonState): Message[];
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
   encodeClientScreenSpec(spec: ClientScreenSpec): Message;
   encodeMfaJson(mfaJson: MfaResponse): Message;
@@ -499,6 +499,7 @@ function hasOneof<T extends { oneofKind?: string }>(
 export class TdpbCodec implements Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
+  private logger = new Logger('TDPBCodec');
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
   private asBase64Url(buffer: ArrayBufferLike, offset: number): string {
@@ -518,8 +519,7 @@ export class TdpbCodec implements Codec {
   private processSharedDirectoryRequest(
     completionId: number,
     directoryId: number,
-    op: SharedDirectoryRequest['operation'],
-    logger: Logger,
+    op: SharedDirectoryRequest['operation']
   ): DecodedMessage {
     // Exclude 'oneOfKind: undefined'
     // Possibly due to 'strictNullChecks' being disabled, the compiler can't seem to narrow
@@ -607,11 +607,11 @@ export class TdpbCodec implements Codec {
           },
         };
       default:
-        logger.debug('received unsupported shared directory request');
+        this.logger.debug('received unsupported shared directory request');
     }
   }
 
-  decodeMessage(buffer: ArrayBufferLike, logger: Logger): DecodedMessage {
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage {
     // Note: TDPB messages are prefixed with a single big endian uint32 containing their length
     // to act as a simple framing mechanism. This client connects via a websocket which makes this
     // framing header redundant. Still, to avoid leaking TDPB details to the client implementation,
@@ -672,8 +672,7 @@ export class TdpbCodec implements Codec {
         return this.processSharedDirectoryRequest(
           envelope.payload.sharedDirectoryRequest.completionId,
           envelope.payload.sharedDirectoryRequest.directoryId,
-          envelope.payload.sharedDirectoryRequest.operation,
-          logger
+          envelope.payload.sharedDirectoryRequest.operation
         );
       case 'latencyStats':
         const stats = envelope.payload.latencyStats;
@@ -722,7 +721,7 @@ export class TdpbCodec implements Codec {
           'Invalid MFA type - Only SSO or Webauthn are supported'
         );
       default:
-        logger.debug(
+        this.logger.debug(
           `received unsupported message type", ${envelope.payload.oneofKind}`
         );
     }
@@ -818,11 +817,10 @@ export class TdpbCodec implements Codec {
     });
   }
 
-  encodeKeyboardInput(code: string, state: ButtonState, logger: Logger): Message[] {
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
     const scancodes = KEY_SCANCODES[code];
     if (!scancodes) {
-      // eslint-disable-next-line no-console
-      logger.warn(`unsupported key code: ${code}`);
+      this.logger.warn(`unsupported key code: ${code}`);
       return [];
     }
     return scancodes.map(scancode => this.encodeScancode(scancode, state));
@@ -1073,6 +1071,7 @@ export class TdpbCodec implements Codec {
 export class TdpCodec implements Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
+  private logger = new Logger('TDPCodec');
 
   decodeMessage(buffer: ArrayBufferLike): DecodedMessage {
     const messageType = this.decodeMessageType(buffer);
@@ -1285,11 +1284,10 @@ export class TdpCodec implements Codec {
   // encodeKeyboardInput encodes a keyboard action.
   // Returns an empty array if an unsupported code is passed.
   // | message type (5) | key_code uint32 | state byte |
-  encodeKeyboardInput(code: string, state: ButtonState, logger: Logger): Message[] {
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
     const scancodes = KEY_SCANCODES[code];
     if (!scancodes) {
-      // eslint-disable-next-line no-console
-      logger.warn(`unsupported key code: ${code}`);
+      this.logger.warn(`unsupported key code: ${code}`);
       return [];
     }
 
