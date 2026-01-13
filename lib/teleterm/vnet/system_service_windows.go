@@ -19,17 +19,16 @@ package vnet
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/trace"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet"
 )
 
 func (s *Service) GetSystemService(_ context.Context, req *api.GetSystemServiceRequest) (*api.GetSystemServiceResponse, error) {
 	err := vnet.CheckStatus()
 	if err != nil {
-		return &api.GetSystemServiceResponse{}, nil
+		return nil, trace.Wrap(err)
 	}
-
-	return nil, trace.Wrap(err)
+	return &api.GetSystemServiceResponse{}, nil
 }
