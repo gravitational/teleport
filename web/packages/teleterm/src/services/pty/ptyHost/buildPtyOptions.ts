@@ -45,6 +45,7 @@ export type PtyConfigOptions = {
   windowsPty: Pick<WindowsPty, 'useConpty'>;
   customShellPath: string;
   tshHome: string;
+  setTeleportAuthServerEnvVar: boolean;
 };
 
 const WSLENV_VAR = 'WSLENV';
@@ -97,7 +98,7 @@ export async function buildPtyOptions({
       // combinedEnv is going to be used as env by every command coming out of buildPtyOptions. Some
       // commands might add extra variables, but they shouldn't remove any of the env vars that are
       // added here.
-      const combinedEnv = {
+      const combinedEnv: Record<string, string> = {
         ...processEnv,
         ...shellEnv,
         TERM_PROGRAM: 'Teleport_Connect',
@@ -106,9 +107,12 @@ export async function buildPtyOptions({
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
         [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
-        // Makes tctl operate on the root cluster of the current workspace.
-        TELEPORT_AUTH_SERVER: cmd.proxyHost,
       };
+
+      if (options.setTeleportAuthServerEnvVar) {
+        // Makes tctl operate on the root cluster of the current workspace.
+        combinedEnv['TELEPORT_AUTH_SERVER'] = cmd.proxyHost;
+      }
 
       // The regular env vars are not available in WSL,
       // they need to be passed via the special variable WSLENV.
@@ -123,8 +127,11 @@ export async function buildPtyOptions({
           'TELEPORT_PROXY',
           'TELEPORT_HOME/p',
           TSH_AUTOUPDATE_ENV_VAR,
-          'TELEPORT_AUTH_SERVER',
         ];
+        if (options.setTeleportAuthServerEnvVar) {
+          wslEnv.push('TELEPORT_AUTH_SERVER');
+        }
+
         // Preserve the user defined WSLENV and add ours (ours takes precedence).
         combinedEnv[WSLENV_VAR] = [combinedEnv[WSLENV_VAR], wslEnv]
           .flat()

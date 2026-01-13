@@ -53,6 +53,7 @@ const makeConfigOptions = (
   ssh: makeSshOptions(),
   windowsPty: { useConpty: true },
   tshHome: '',
+  setTeleportAuthServerEnvVar: true,
   ...options,
 });
 
@@ -319,5 +320,50 @@ describe('buildPtyOptions', () => {
     expect(processOptions.env.WSLENV).toBe(
       'CUSTOM_VAR:KUBECONFIG/p:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:TELEPORT_TOOLS_VERSION:TELEPORT_AUTH_SERVER'
     );
+  });
+
+  it('sets TELEPORT_AUTH_SERVER if setTeleportAuthServerEnvVar is true', async () => {
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'zsh',
+    };
+
+    const {
+      processOptions: { env },
+    } = await buildPtyOptions({
+      settings: makeRuntimeSettings(),
+      options: makeConfigOptions({
+        setTeleportAuthServerEnvVar: true,
+      }),
+      cmd,
+      processEnv: {},
+    });
+
+    expect(env).toHaveProperty('TELEPORT_AUTH_SERVER');
+    expect(env['TELEPORT_AUTH_SERVER']).toEqual(cmd.proxyHost);
+  });
+
+  it('does not set TELEPORT_AUTH_SERVER if setTeleportAuthServerEnvVar is false', async () => {
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'zsh',
+    };
+
+    const {
+      processOptions: { env },
+    } = await buildPtyOptions({
+      settings: makeRuntimeSettings(),
+      options: makeConfigOptions({
+        setTeleportAuthServerEnvVar: false,
+      }),
+      cmd,
+      processEnv: {},
+    });
+
+    expect(env).not.toHaveProperty('TELEPORT_AUTH_SERVER');
   });
 });
