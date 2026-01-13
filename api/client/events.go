@@ -21,6 +21,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	cloudclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -86,6 +87,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
 		out.Resource = &proto.Event_CrownJewel{
 			CrownJewel: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*cloudclusterv1.CloudCluster]:
+		out.Resource = &proto.Event_CloudCluster{
+			CloudCluster: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
 		out.Resource = &proto.Event_DatabaseObject{
@@ -614,6 +619,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetCrownJewel(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetCloudCluster(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetDatabaseObject(); r != nil {
