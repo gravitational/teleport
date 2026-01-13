@@ -34,7 +34,7 @@ const InfoGuideReferenceLinks = {
     href: 'https://goteleport.com/docs/reference/architecture/machine-id-architecture/#tbot',
   },
   AccessResources: {
-    title: 'Access your Infrastructure with Machine ID',
+    title: 'Access your Infrastructure with Machine & Workload Identity',
     href: 'https://goteleport.com/docs/enroll-resources/machine-id/access-guides/',
   },
 };
