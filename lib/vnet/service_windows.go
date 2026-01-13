@@ -143,15 +143,18 @@ func CheckStatus() error {
 	// Avoid [mgr.Connect] because it requests elevated permissions.
 	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
 	if err != nil {
-		return nil, trace.Wrap(err, "opening Windows service manager")
+		return trace.Wrap(err, "opening Windows service manager")
 	}
 	defer windows.CloseServiceHandle(scManager)
 	serviceNamePtr, err := syscall.UTF16PtrFromString(serviceName)
 	if err != nil {
-		return nil, trace.Wrap(err, "converting service name to UTF16")
+		return trace.Wrap(err, "converting service name to UTF16")
 	}
-	_, err := windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
-	return nil, trace.Wrap(err, "opening Windows service %v", serviceName)
+	_, err = windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return trace.NotFound("service does not exist")
+	}
+	return trace.Wrap(err, "opening Windows service %v", serviceName)
 }
 
 // windowsService implements [svc.Handler].

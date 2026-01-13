@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/trace"
@@ -30,10 +29,6 @@ func (s *Service) GetSystemService(_ context.Context, req *api.GetSystemServiceR
 	err := vnet.CheckStatus()
 	if err != nil {
 		return &api.GetSystemServiceStatusResponse{}, nil
-	}
-
-	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		return nil, trace.NotFound("service not found")
 	}
 
 	return nil, trace.Wrap(err)
