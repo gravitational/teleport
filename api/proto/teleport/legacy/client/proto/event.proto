@@ -20,6 +20,7 @@ import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/appauthconfig/v1/appauthconfig.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
+import "teleport/cloudcluster/v1/cloudcluster.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -237,5 +238,7 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
     // AppAuthConfig is a resource for defining app auth configs.
     teleport.appauthconfig.v1.AppAuthConfig AppAuthConfig = 86;
+    // CloudCluster is a Cloud Cluster resource.
+    teleport.cloudcluster.v1.CloudCluster CloudCluster = 87;
   }
 }
