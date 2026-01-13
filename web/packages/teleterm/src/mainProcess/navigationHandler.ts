@@ -91,7 +91,16 @@ function isUrlSafe(
     return true;
   }
   // AWS IAM IC apps.
-  if (url.host.endsWith('.awsapps.com')) {
+  // Verify that the host is a direct subdomain of awsapp.com and that it has the expected path.
+  // https://docs.aws.amazon.com/singlesignon/latest/userguide/howtochangeURL.html
+  // This of course allows an attacker to create an app on awsapps.com and open it from Connect.
+  // TODO(ravicious): Allow tsh to bless arbitrary hosts for opening in the browser.
+  // https://github.com/gravitational/teleport/issues/62808
+  if (
+    url.host.endsWith('.awsapps.com') &&
+    url.host.split('.').length === 3 &&
+    url.pathname === '/start/'
+  ) {
     return true;
   }
 

@@ -82,6 +82,11 @@ describe('opening links to', () => {
       url: 'https://google.com',
       allowed: false,
     },
+    {
+      name: 'AWS IC',
+      url: 'https://d-1234.awsapps.com/start/#/console?account_id=1234',
+      allowed: true,
+    },
   ])('$name', test => {
     let handler: Parameters<WebContents['setWindowOpenHandler']>[0];
     registerNavigationHandlers(
