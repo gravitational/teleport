@@ -1227,6 +1227,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "cloud_cluster"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },
