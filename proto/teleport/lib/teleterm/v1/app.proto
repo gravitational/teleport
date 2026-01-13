@@ -86,6 +86,11 @@ message App {
   // If this field is not empty, URI is expected to contain no port number and start with the tcp
   // protocol.
   repeated PortRange tcp_ports = 12;
+  // Subkind of the app resource. Used to differentiate different flavors of app.
+  string sub_kind = 13;
+  // Defines a permission set that is available on an IdentityCenter account app.
+  // Such apps can be recognized by sub_kind == 'aws_ic_account'.
+  repeated IdentityCenterPermissionSet permission_sets = 14;
 }
 
 // AwsRole describes AWS IAM role.
@@ -130,4 +135,14 @@ message RouteToApp {
   string uri = 4;
   // target_port is the port of a multi-port TCP app that the connection is going to be proxied to.
   uint32 target_port = 5;
+}
+
+// Defines a permission set that is available on an IdentityCenter account app.
+message IdentityCenterPermissionSet {
+  // Human-readable name of the permission set.
+  string name = 1;
+  // AWS-assigned ARN of the permission set.
+  string arn = 2;
+  // Assignment resource ID that will provision an Account assignment for this permission set on the enclosing account.
+  string assignment_id = 3;
 }
