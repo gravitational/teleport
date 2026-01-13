@@ -2,7 +2,6 @@ package sso
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -322,5 +321,5 @@ func ExtractOktaOrganizationFromURL(oktaURL string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return fmt.Sprintf("%s://%s", u.Scheme, u.Hostname()), nil
+	return u.Scheme + "://" + u.Host, nil
 }

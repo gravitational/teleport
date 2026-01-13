@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,16 +19,24 @@ import (
 )
 
 func TestSCIMAuth(t *testing.T) {
-	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
-	mockClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	_ = createOktaSetup(t, t.Context(), mockClient, oktaAppGroupsUsersCount)
+	t.Parallel()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withAppCount(3),
+		withGroupCount(3),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(&muxToTransportWrapper{handler: setupOktaAPIServerForSCIMFlow(t, mockClient)}),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
-	validToken := createAndWaitForOktaIntegration(t, sut, mockClient)
+	validToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
 
 	scimUser := &scimsdk.User{ExternalID: "alice", UserName: "alice@example.com", Active: true}
 	t.Run("request should fail with invalid token", func(t *testing.T) {
@@ -53,23 +60,30 @@ func TestSCIMAuth(t *testing.T) {
 }
 
 func TestSCIMCRUD(t *testing.T) {
-	ctx := context.Background()
-	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
-	mockClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	_ = createOktaSetup(t, ctx, mockClient, oktaAppGroupsUsersCount)
+	t.Parallel()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withAppCount(3),
+		withGroupCount(3),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(&muxToTransportWrapper{handler: setupOktaAPIServerForSCIMFlow(t, mockClient)}),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
-	validToken := createAndWaitForOktaIntegration(t, sut, mockClient)
+	validToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
 
-	testSCIMCRUD(t, mockClient, createSCIMClient(t, sut, validToken))
+	testSCIMCRUD(t, fakeOkta, createSCIMClient(t, sut, validToken))
 }
 
-func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.Client) {
-	ctx := context.Background()
+func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client) {
+	ctx := t.Context()
 	scimUserName := "test-user+001@example.com"
 	scimUserExternalID := "test-user-001"
 	t.Run("Create SCIM User", func(t *testing.T) {
@@ -130,11 +144,7 @@ func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.C
 	var group *scimsdk.Group
 	var groupName = "Test SCIM Group1"
 	t.Run("Create SCIM Group", func(t *testing.T) {
-		_, _, err := infraClient.CreateGroup(ctx, okta.Group{
-			Type:    "OKTA_GROUP",
-			Profile: &okta.GroupProfile{Name: groupName},
-		})
-		require.NoError(t, err)
+		fakeOkta.CreateOktaGroup(groupName)
 		scimGroups := []*scimsdk.Group{{DisplayName: groupName}}
 		groups := provisionSCIMGroups(t, client, scimGroups)
 		require.Len(t, groups, 1)
@@ -187,19 +197,26 @@ func testSCIMCRUD(t *testing.T, infraClient *mockOktaAPIClient, client scimsdk.C
 }
 
 func TestSCIMOktaUserProvisioning(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
-	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
-	mockClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	_ = createOktaSetup(t, ctx, mockClient, oktaAppGroupsUsersCount)
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withAppCount(3),
+		withGroupCount(3),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(&muxToTransportWrapper{handler: setupOktaAPIServerForSCIMFlow(t, mockClient)}),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	scimToken := createAndWaitForOktaIntegration(t, sut, mockClient)
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
 	scimClient := createSCIMClient(t, sut, scimToken)
 
 	scimUsers := provisionSCIMUsers(t, scimClient, "001", "002", "003")
@@ -207,19 +224,26 @@ func TestSCIMOktaUserProvisioning(t *testing.T) {
 }
 
 func TestSCIMUserOktaProvisioningWithoutAccessListSyncDisabled(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
-	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
-	mockClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	_ = createOktaSetup(t, ctx, mockClient, oktaAppGroupsUsersCount)
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withAppCount(3),
+		withGroupCount(3),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(&muxToTransportWrapper{handler: setupOktaAPIServerForSCIMFlow(t, mockClient)}),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	scimToken := createAndWaitForOktaIntegration(t, sut, mockClient, withAccessListDisabled())
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, withAccessListDisabled())
 	scimClient := createSCIMClient(t, sut, scimToken)
 
 	scimUsers := provisionSCIMUsers(t, scimClient, "001", "002", "003")
@@ -227,28 +251,31 @@ func TestSCIMUserOktaProvisioningWithoutAccessListSyncDisabled(t *testing.T) {
 }
 
 func TestSCIMOktaGroupProvisioning(t *testing.T) {
-	ctx := context.Background()
-	mockClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	t.Parallel()
+	ctx := t.Context()
 
-	oktaAppGroupsUsersCount := withAppsGroupsUsersCount(3, 3, 3)
-	_ = createOktaSetup(t, ctx, mockClient, oktaAppGroupsUsersCount)
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withAppCount(3),
+		withGroupCount(3),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(&muxToTransportWrapper{handler: setupOktaAPIServerForSCIMFlow(t, mockClient)}),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	scimToken := createAndWaitForOktaIntegration(t, sut, mockClient)
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta)
 	scimClient := createSCIMClient(t, sut, scimToken)
 
 	scimUsers := provisionSCIMUsers(t, scimClient, "001", "002", "003")
 
-	scimGroup, _, err := mockClient.CreateGroup(context.Background(), okta.Group{
-		Type:    "OKTA_GROUP",
-		Profile: &okta.GroupProfile{Name: "Test SCIM Group1"},
-	})
-	require.NoError(t, err)
+	scimGroup := fakeOkta.CreateOktaGroup("Test SCIM Group1")
 
 	t.Run("SCIM group provisioning should create ACL", func(t *testing.T) {
 		var scimGroups = []*scimsdk.Group{
@@ -290,7 +317,7 @@ func TestSCIMOktaGroupProvisioning(t *testing.T) {
 	})
 
 	t.Run("SCIM group deprovisioning should delete ACL", func(t *testing.T) {
-		err = scimClient.DeleteGroup(ctx, scimGroup.Id)
+		err := scimClient.DeleteGroup(ctx, scimGroup.Id)
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {

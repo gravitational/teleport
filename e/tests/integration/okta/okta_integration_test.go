@@ -2,7 +2,6 @@ package okta
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -27,24 +26,52 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
+func oktaUserLogin(u *okta.User) string {
+	if u == nil {
+		panic("okta user is nil")
+	}
+	if u.Profile == nil {
+		panic("okta user profile is nil")
+	}
+	val, ok := (*u.Profile)["login"]
+	if !ok {
+		panic("login field not found")
+	}
+	var login string
+	login, ok = val.(string)
+	if !ok {
+		panic("login field is not a string")
+	}
+	return login
+}
+
 // TestBasicAssignmentFlow tests the basic assignment flow.
 // That tests the basic assignment flow for the apps groups imported by Okta integration
 // making sure that removing/adding members to the access list will trigger the assignment/unassignment
 // and the proper Okta API calls are made.
 func TestBasicAssignmentFlow(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(1),
+		withGroupCount(2),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 2, 7))
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[0].Id)
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[4].Id)
-	defaultOwner := oktaInfra.Users[5]
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[0].Id)
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[1].Id)
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[4].Id)
+
+	defaultOwner := fakeOkta.provisionedUsers[5]
+	ownerLogin := oktaUserLogin(defaultOwner)
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
 	tclCmd := sut.GetTCTL(t)
@@ -53,12 +80,12 @@ func TestBasicAssignmentFlow(t *testing.T) {
 
 	err := tclCmd.Run(t.Context(),
 		`plugins`, `install`, `okta`,
-		`--org`, oktaApiClient.GetOrgUrl(),
+		`--org`, fakeOkta.URL(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
-		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
-		fmt.Sprintf("--owner=%s", defaultOwner.login()))
+		`--api-token="secret-okta-api-token`,
+		"--owner="+ownerLogin)
 	require.NoError(t, err)
 
 	// Set time between imports to 1s
@@ -71,48 +98,63 @@ func TestBasicAssignmentFlow(t *testing.T) {
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
-	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaInfra.Users[0])
+	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaUserLogin(fakeOkta.provisionedUsers[0]))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		wantMembers := []*accesslist.AccessListMember{
-			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaInfra.Users[0].login()}}},
-			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaInfra.Users[1].login()}}},
-			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaInfra.Users[4].login()}}},
+			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaUserLogin(fakeOkta.provisionedUsers[0])}}},
+			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaUserLogin(fakeOkta.provisionedUsers[1])}}},
+			{ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{Name: oktaUserLogin(fakeOkta.provisionedUsers[4])}}},
 		}
 		var accessListMembers []*accesslist.AccessListMember
 		mustRunTCTLAndGetResultAs(t, tclCmd, []string{
-			`acl`, `users`, `ls`, `--format=json`, oktaInfra.Groups[0].Id,
+			`acl`, `users`, `ls`, `--format=json`, fakeOkta.provisionedGroups[0].Id,
 		}, &accessListMembers)
 		assertResourcesByName(t, wantMembers, accessListMembers)
 	}, time.Second*10, time.Millisecond*100)
 	err = tclCmd.Run(t.Context(),
-		`acl`, `users`, `rm`, oktaInfra.Groups[0].Id, oktaInfra.Users[0].login())
+		`acl`, `users`, `rm`, fakeOkta.provisionedGroups[0].Id, oktaUserLogin(fakeOkta.provisionedUsers[0]))
 	require.NoError(t, err)
-	oktaInfra.assertUserWasUnassignedFromOktaGroup(t, oktaInfra.Users[0].Id, oktaInfra.Groups[0].Id)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[0].Id))
+	}, time.Second*10, time.Millisecond*250, "User %s is still assigned to group %s", fakeOkta.provisionedUsers[0].Id, fakeOkta.provisionedGroups[0].Id)
 
 	err = tclCmd.Run(t.Context(),
-		`acl`, `users`, `add`, oktaInfra.Groups[0].Id, oktaInfra.Users[2].login())
+		`acl`, `users`, `add`, fakeOkta.provisionedGroups[0].Id, oktaUserLogin(fakeOkta.provisionedUsers[2]))
 	require.NoError(t, err)
-	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[2].Id, oktaInfra.Groups[0].Id)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[2].Id))
+	}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", fakeOkta.provisionedUsers[2].Id, fakeOkta.provisionedGroups[0].Id)
 }
 
 // TestNestedAclAssignment tests the assignment and sync of nested access lists.
 // It ensures that members from nested access lists are flattened and added to the root access list in Okta,
 // and that on reconciliation during sync, the nested lists are not flattened on the Teleport side.
 func TestNestedAclAssignment(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(1),
+		withGroupCount(2),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 2, 7))
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[1].Id)
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[2].Id)
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, oktaInfra.Users[3].Id)
-	defaultOwner := oktaInfra.Users[0]
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[1].Id)
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[2].Id)
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[3].Id)
+
+	defaultOwner := fakeOkta.provisionedUsers[0]
+	ownerLogin := oktaUserLogin(defaultOwner)
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
 	authServer := sut.Teleport.Process.GetAuthServer()
@@ -122,12 +164,12 @@ func TestNestedAclAssignment(t *testing.T) {
 
 	err := tctlCmd.Run(t.Context(),
 		`plugins`, `install`, `okta`,
-		`--org`, oktaApiClient.GetOrgUrl(),
+		`--org`, fakeOkta.URL(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
-		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
-		fmt.Sprintf("--owner=%s", defaultOwner.login()),
+		`--api-token="secret-okta-api-token"`,
+		"--owner="+ownerLogin,
 	)
 	require.NoError(t, err)
 
@@ -140,13 +182,13 @@ func TestNestedAclAssignment(t *testing.T) {
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(beforeInstall))
 	waitForOktaFirstOktaAssignment(t, sut)
-	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), defaultOwner)
+	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
 
-	oktaSyncedList, err := authServer.GetAccessList(ctx, oktaInfra.Groups[0].Id)
+	oktaSyncedList, err := authServer.GetAccessList(ctx, fakeOkta.provisionedGroups[0].Id)
 	require.NoError(t, err)
-	teleportList0 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-0", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"access"}}, []string{oktaInfra.Users[4].login()})
-	teleportList1 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-1", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"editor"}}, []string{oktaInfra.Users[5].login()})
-	teleportList2 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-2", []string{defaultOwner.login()}, accesslist.Grants{Roles: []string{"reviewer"}}, []string{oktaInfra.Users[6].login()})
+	teleportList0 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-0", []string{ownerLogin}, accesslist.Grants{Roles: []string{"access"}}, []string{oktaUserLogin(fakeOkta.provisionedUsers[4])})
+	teleportList1 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-1", []string{ownerLogin}, accesslist.Grants{Roles: []string{"editor"}}, []string{oktaUserLogin(fakeOkta.provisionedUsers[5])})
+	teleportList2 := createAccessListWithMembers(t, ctx, sut, "teleport-access-list-2", []string{ownerLogin}, accesslist.Grants{Roles: []string{"reviewer"}}, []string{oktaUserLogin(fakeOkta.provisionedUsers[6])})
 
 	// teleport list 1 and 2 are nested within teleport list 0
 	nestedTeleportList1, err := authServer.AccessListsInternal.UpsertAccessListMember(ctx, mustCreateMember(t, teleportList0.GetName(), teleportList1.GetName(), accesslist.MembershipKindList))
@@ -161,31 +203,33 @@ func TestNestedAclAssignment(t *testing.T) {
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100))
 
 	// members from nested lists should be flattened + added to root in okta
-	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[4].Id, oktaInfra.Groups[0].Id)
-	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[5].Id, oktaInfra.Groups[0].Id)
-	oktaInfra.assertUserWasAssignedToOktaGroup(t, oktaInfra.Users[6].Id, oktaInfra.Groups[0].Id)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[4].Id))
+		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[5].Id))
+		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, fakeOkta.provisionedUsers[6].Id))
+	}, time.Second*30, time.Millisecond*250)
 
 	// ensure membership on Teleport side isn't flattened after sync w/ okta
-	assertAccessListMembers(t, ctx, sut, oktaInfra.Groups[0].Id, []string{
+	assertAccessListMembers(t, ctx, sut, fakeOkta.provisionedGroups[0].Id, []string{
 		// from root list
-		oktaInfra.Users[1].login(),
-		oktaInfra.Users[2].login(),
-		oktaInfra.Users[3].login(),
+		oktaUserLogin(fakeOkta.provisionedUsers[1]),
+		oktaUserLogin(fakeOkta.provisionedUsers[2]),
+		oktaUserLogin(fakeOkta.provisionedUsers[3]),
 		// nested list members
 		nestedTeleportList0.GetName(),
 	})
 
 	// nested lists should contain their members
 	assertAccessListMembers(t, ctx, sut, nestedTeleportList0.GetName(), []string{
-		oktaInfra.Users[4].login(),
+		oktaUserLogin(fakeOkta.provisionedUsers[4]),
 		nestedTeleportList1.GetName(),
 		nestedTeleportList2.GetName(),
 	})
 	assertAccessListMembers(t, ctx, sut, nestedTeleportList1.GetName(), []string{
-		oktaInfra.Users[5].login(),
+		oktaUserLogin(fakeOkta.provisionedUsers[5]),
 	})
 	assertAccessListMembers(t, ctx, sut, nestedTeleportList2.GetName(), []string{
-		oktaInfra.Users[6].login(),
+		oktaUserLogin(fakeOkta.provisionedUsers[6]),
 	})
 }
 
@@ -195,19 +239,25 @@ func TestNestedAclAssignment(t *testing.T) {
 func TestAccessRequest(t *testing.T) {
 	ctx := t.Context()
 
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(1),
+		withGroupCount(2),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 2, 7))
+	fakeOkta.CreateApplicationGroupAssignment(fakeOkta.provisionedApps[0].Id, fakeOkta.provisionedGroups[0].Id)
 
-	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
-	reviewer := oktaInfra.Users[5]
-	requester := oktaInfra.Users[4]
+	reviewer := fakeOkta.provisionedUsers[5]
+	requester := fakeOkta.provisionedUsers[4]
 
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
 	tctlCmd := sut.GetTCTL(t)
@@ -216,12 +266,12 @@ func TestAccessRequest(t *testing.T) {
 
 	err := tctlCmd.Run(t.Context(),
 		`plugins`, `install`, `okta`,
-		`--org`, oktaApiClient.GetOrgUrl(),
+		`--org`, fakeOkta.URL(),
 		`--saml-connector`, `okta-pre-created-test`,
 		`--group-filter=*`,
 		`--app-filter=*`,
-		fmt.Sprintf(`--api-token=%s`, "secret-okta-api-token"),
-		fmt.Sprintf("--owner=%s", reviewer.login()),
+		`--api-token="secret-okta-api-token"`,
+		"--owner="+oktaUserLogin(reviewer),
 	)
 	require.NoError(t, err)
 
@@ -239,7 +289,7 @@ func TestAccessRequest(t *testing.T) {
 		var wantMembers []*accesslist.AccessListMember
 		var accessListMembers []*accesslist.AccessListMember
 		mustRunTCTLAndGetResultAs(t, tctlCmd, []string{
-			`acl`, `users`, `ls`, `--format=json`, oktaInfra.Groups[0].Id,
+			`acl`, `users`, `ls`, `--format=json`, fakeOkta.provisionedGroups[0].Id,
 		}, &accessListMembers)
 		assertResourcesByName(t, wantMembers, accessListMembers)
 	}, time.Second*10, time.Millisecond*100)
@@ -252,7 +302,13 @@ func TestAccessRequest(t *testing.T) {
 		proxyAddr: sut.ProxyAddr,
 	}
 	t.Run("requester requests access to an app", func(t *testing.T) {
-		tshRequester.mustLogin(t, requester.login(), append(oktaInfra.getUserGroups(t, requester.Id), "Everyone"))
+		userGroups := fakeOkta.ListUserGroups(requester.Id)
+		groupNames := make([]string, 0, len(userGroups))
+		for _, v := range userGroups {
+			groupNames = append(groupNames, v.Id)
+		}
+
+		tshRequester.mustLogin(t, oktaUserLogin(requester), append(groupNames, "Everyone"))
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			var apps []*types.AppV3
 			mustRunTSHAndGetResultAs(t, tshRequester, []string{
@@ -264,8 +320,19 @@ func TestAccessRequest(t *testing.T) {
 		}, time.Second*10, time.Millisecond*100)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			err := tshRequester.run(t, []string{
-				`request`, `create`, `--resource`, fmt.Sprintf(`/local-site/app/%s`, mustGetAppIDbyAppLabel(t, sut, oktaInfra)), `--nowait`,
+			appServers, err := sut.Teleport.Process.GetAuthServer().GetApplicationServers(ctx, "default")
+			require.NoError(t, err)
+			var appID string
+			for _, v := range appServers {
+				if v.GetApp().GetDescription() == fakeOkta.provisionedApps[0].Label {
+					appID = v.GetApp().GetName()
+					break
+				}
+			}
+			require.NotEmpty(t, appID)
+
+			err = tshRequester.run(t, []string{
+				`request`, `create`, `--resource`, `/local-site/app/` + appID, `--nowait`,
 			})
 			require.NoError(t, err)
 		}, time.Second*10, time.Millisecond*100)
@@ -280,7 +347,13 @@ func TestAccessRequest(t *testing.T) {
 			clock:     clockwork.NewRealClock(),
 			proxyAddr: sut.ProxyAddr,
 		}
-		tshReviewer.mustLogin(t, reviewer.login(), append(oktaInfra.getUserGroups(t, requester.Id), "Everyone"))
+		userGroups := fakeOkta.ListUserGroups(requester.Id)
+		groupNames := make([]string, 0, len(userGroups))
+		for _, v := range userGroups {
+			groupNames = append(groupNames, v.Id)
+		}
+
+		tshReviewer.mustLogin(t, oktaUserLogin(reviewer), append(groupNames, "Everyone"))
 		var accReqs []*types.AccessRequestV3
 		mustRunTSHAndGetResultAs(t, tshReviewer, []string{
 			`request`, `ls`, `--format=json`,
@@ -288,7 +361,7 @@ func TestAccessRequest(t *testing.T) {
 		require.Len(t, accReqs, 1)
 
 		err := tshReviewer.run(t, []string{
-			`request`, `review`, fmt.Sprintf(`--approve=%s`, accReqs[0].GetName()),
+			`request`, `review`, `--approve=` + accReqs[0].GetName(),
 		})
 		require.NoError(t, err)
 		requestID = accReqs[0].GetName()
@@ -296,7 +369,7 @@ func TestAccessRequest(t *testing.T) {
 
 	t.Run("requester is able to access the app", func(t *testing.T) {
 		err := tshRequester.run(t, []string{
-			`login`, fmt.Sprintf(`--request-id=%s`, requestID),
+			`login`, `--request-id=` + requestID,
 			`--insecure`,
 		})
 		require.NoError(t, err)
@@ -309,7 +382,7 @@ func TestAccessRequest(t *testing.T) {
 				"--format=json",
 			}, &apps)
 			want := []*types.AppV3{
-				{Metadata: types.Metadata{Description: oktaInfra.Apps[0].Label}},
+				{Metadata: types.Metadata{Description: fakeOkta.provisionedApps[0].Label}},
 			}
 			assertResourcesByDesc(t, want, apps)
 		}, time.Second*10, time.Millisecond*100)
@@ -378,33 +451,42 @@ func mustCreateMember(t *testing.T, aclName, memberName string, memberType strin
 }
 
 func TestOktaAccessRequestFlow(t *testing.T) {
-	ctx := context.Background()
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 1, 7))
-	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(1),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	fakeOkta.CreateApplicationGroupAssignment(fakeOkta.provisionedApps[0].Id, fakeOkta.provisionedGroups[0].Id)
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	reviewer := oktaInfra.Users[5]
-	requester := oktaInfra.Users[4]
+	reviewer := fakeOkta.provisionedUsers[5]
+	requester := fakeOkta.provisionedUsers[4]
 
-	_, _, err := oktaApiClient.AssignUserToApplication(t.Context(), oktaInfra.Apps[0].Id, okta.AppUser{Id: oktaInfra.Users[0].Id})
-	require.NoError(t, err)
+	requesterLogin := oktaUserLogin(requester)
+	reviewerLogin := oktaUserLogin(reviewer)
 
-	oktaSAMLAppName := "trial-1234567_teleportsamlconnectorapp_1"
-	samlApp := createOktaSAMLAPP(t, ctx, oktaApiClient, oktaSAMLAppName)
-	for _, user := range oktaInfra.Users {
-		_, _, err := oktaApiClient.AssignUserToApplication(t.Context(), samlApp.Id, okta.AppUser{Id: user.Id})
-		require.NoError(t, err)
+	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedApps[0].Id, fakeOkta.provisionedUsers[0].Id))
+
+	for _, user := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
 	}
 
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
-	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:        durationpb.New(1 * time.Second),
 		ApiCredentials:            apiCredentials,
 		EnableUserSync:            true,
@@ -415,7 +497,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		AccessListSettings: &oktav1.AccessListSettings{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
-			DefaultOwner: []string{reviewer.login()},
+			DefaultOwner: []string{reviewerLogin},
 		},
 		ReuseConnector: "okta-pre-created-test",
 	})
@@ -425,7 +507,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 	auth := sut.Teleport.Process.GetAuthServer()
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s, err := auth.GetUserLoginState(ctx, reviewer.login())
+		s, err := auth.GetUserLoginState(ctx, reviewerLogin)
 		require.NoError(t, err)
 		require.Len(t, s.GetRoles(), 3) // okta-requester + 2 ACL reviewer roles
 	}, time.Second, time.Millisecond*100)
@@ -435,7 +517,7 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		apps, err := auth.GetApplicationServers(t.Context(), "default")
 		require.NoError(t, err)
 		for _, v := range apps {
-			if v.GetMetadata().Description != oktaSAMLAppName {
+			if v.GetMetadata().Description != fakeOkta.provisionedSAMLApp.Name {
 				app = v
 				break
 			}
@@ -443,36 +525,53 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 		appID, ok := app.GetLabel(eteleport.OktaAppIDLabel)
 		require.True(t, ok)
-		oktaInfra.assertUsersIsNotAssignedToOktaApp(t, requester.Id, appID)
-		assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requester.login())
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+		}, time.Second*10, time.Millisecond*250, "User %s was assigned to app %s", requester.Id, appID)
+
+		assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 
 		t.Run("delete app access request", func(t *testing.T) {
-			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requester.login())
-			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewer.login())
+			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requesterLogin)
+			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewerLogin)
 
-			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
-			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requester.login())
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+
+			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 
 			err = auth.DeleteAccessRequest(t.Context(), accessRequestApp.GetName())
 			require.NoError(t, err)
-			oktaInfra.assertUsersIsNotAssignedToOktaApp(t, requester.Id, appID)
-			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requester.login())
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				require.False(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+			}, time.Second*10, time.Millisecond*250, "User %s is still assigned to app %s", requester.Id, appID)
+
+			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requesterLogin)
 		})
 
 		t.Run("member was added to acl before access request was deleted", func(t *testing.T) {
-			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requester.login())
-			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewer.login())
+			accessRequestApp := createAccessRequest(t, sut, app.GetName(), types.KindApp, requesterLogin)
+			approveAccessRequest(t, sut, accessRequestApp.GetName(), reviewerLogin)
 
-			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
-			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), requester.login())
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
 
-			mustAddAccessListMember(t, sut, app.GetName(), requester.login())
+			assertUserIsNotAccessListMember(ctx, t, sut, app.GetName(), reviewerLogin)
+
+			mustAddAccessListMember(t, sut, app.GetName(), reviewerLogin)
 
 			err = sut.Teleport.Process.GetAuthServer().DeleteAccessRequest(t.Context(), accessRequestApp.GetName())
 			require.NoError(t, err)
 
-			oktaInfra.assertUserWasAssignedToOktaApp(t, requester.Id, appID)
-			assertUserIsAccessListMember(ctx, t, sut, app.GetName(), requester.login())
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				require.True(t, fakeOkta.IsUserAssignedToApplication(appID, requester.Id))
+			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to app %s", requester.Id, appID)
+
+			assertUserIsAccessListMember(ctx, t, sut, app.GetName(), reviewerLogin)
 		})
 	})
 
@@ -480,22 +579,28 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 		userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, userGroups)
-		group := selectUserGroupByName(userGroups, oktaInfra.Groups[0].Id)
+		group := selectUserGroupByName(userGroups, fakeOkta.provisionedGroups[0].Id)
 		require.NotNil(t, group)
 		groupID := group.GetName()
 
 		t.Run("delete group access request", func(t *testing.T) {
-			accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requester.login())
+			accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requesterLogin)
 
-			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requester.login())
-			approveAccessRequest(t, sut, accessRequest.GetName(), reviewer.login())
-			oktaInfra.assertUserWasAssignedToOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
+			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+			approveAccessRequest(t, sut, accessRequest.GetName(), reviewerLogin)
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
+			}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
 
 			err = auth.DeleteAccessRequest(t.Context(), accessRequest.GetName())
 			require.NoError(t, err)
 
-			oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
-			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requester.login())
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				require.False(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
+			}, time.Second*10, time.Millisecond*250, "User %s is still assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+
+			assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 		})
 	})
 }
@@ -543,32 +648,44 @@ func assertUserIsAccessListMember(ctx context.Context, t require.TestingT, sut *
 // Even after the access request expires, the user would
 // still remain a member of the access list.
 func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(1, 1, 7))
-	oktaInfra.createApplicationGroupAssignment(t, oktaInfra.Apps[0].Id, oktaInfra.Groups[0].Id)
 
-	reviewer := oktaInfra.Users[5]
-	requester := oktaInfra.Users[4]
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(1),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	fakeOkta.CreateApplicationGroupAssignment(fakeOkta.provisionedApps[0].Id, fakeOkta.provisionedGroups[0].Id)
+
+	reviewer := fakeOkta.provisionedUsers[5]
+	requester := fakeOkta.provisionedUsers[4]
+	reviewerLogin := oktaUserLogin(reviewer)
+	requesterLogin := oktaUserLogin(requester)
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
 	start := time.Now()
-	scimToken := createAndWaitForOktaIntegration(t, sut, oktaApiClient, witAccessListSettings(&oktav1.AccessListSettings{
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(&oktav1.AccessListSettings{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
-		DefaultOwner: []string{reviewer.login()},
+		DefaultOwner: []string{reviewerLogin},
 	}), withEnableFullSync())
 	scimClient := createSCIMClient(t, sut, scimToken)
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s, err := sut.Teleport.Process.GetAuthServer().GetUserLoginState(ctx, reviewer.login())
+		s, err := sut.Teleport.Process.GetAuthServer().GetUserLoginState(ctx, reviewerLogin)
 		require.NoError(t, err)
 		require.Len(t, s.GetRoles(), 2) // okta-requester + 2 ACL reviewer roles
 	}, time.Second, time.Millisecond*100)
@@ -577,52 +694,66 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, userGroups)
-	group := selectUserGroupByName(userGroups, oktaInfra.Groups[0].Id)
+	group := selectUserGroupByName(userGroups, fakeOkta.provisionedGroups[0].Id)
 	require.NotNil(t, group)
 	groupID := group.GetName()
 
-	accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requester.login())
+	accessRequest := createAccessRequest(t, sut, groupID, types.KindUserGroup, requesterLogin)
 
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requester.login())
-	approveAccessRequest(t, sut, accessRequest.GetName(), reviewer.login())
+	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
+	approveAccessRequest(t, sut, accessRequest.GetName(), reviewerLogin)
 
-	g, err := scimClient.GetGroup(ctx, oktaInfra.Groups[0].Id)
+	g, err := scimClient.GetGroup(ctx, fakeOkta.provisionedGroups[0].Id)
 	require.NoError(t, err)
 	g.Members = append(g.Members, &scimsdk.GroupMember{
-		ExternalID: requester.login(),
+		ExternalID: requesterLogin,
 	})
 	_, err = scimClient.UpdateGroup(t.Context(), g)
 	require.NoError(t, err)
 
-	oktaInfra.assertUserWasAssignedToOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requester.login())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
+	}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+
+	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 
 	err = auth.DeleteAccessRequest(t.Context(), accessRequest.GetName())
 	require.NoError(t, err)
 
-	oktaInfra.assertUserWasUnassignedFromOktaGroup(t, requester.Id, oktaInfra.Groups[0].Id)
-	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requester.login())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.True(t, fakeOkta.UserAssignedGroup(fakeOkta.provisionedGroups[0].Id, requester.Id))
+	}, time.Second*10, time.Millisecond*250, "User %s was never assigned to group %s", requester.Id, fakeOkta.provisionedGroups[0].Id)
+
+	assertUserIsNotAccessListMember(ctx, t, sut, groupID, requesterLogin)
 }
 
 func TestOktaAssignmentRaceCheck(t *testing.T) {
-	ctx := context.Background()
-	oktaAPIClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaInfra := createOktaSetup(t, ctx, oktaAPIClient, withAppsGroupsUsersCount(0, 1, 7))
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(0),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 
-	reviewer := oktaInfra.Users[5]
-	requester := oktaInfra.Users[4]
+	reviewer := fakeOkta.provisionedUsers[5]
+	reviewerLogin := oktaUserLogin(reviewer)
+	requester := fakeOkta.provisionedUsers[4]
+	requesterLogin := oktaUserLogin(requester)
 
-	oktaSAMLAppName := "trial-1234567_teleportsamlconnectorapp_1"
-	samlApp := createOktaSAMLAPP(t, ctx, oktaAPIClient, oktaSAMLAppName)
-	for _, user := range oktaInfra.Users {
-		_, _, err := oktaAPIClient.AssignUserToApplication(t.Context(), samlApp.Id, okta.AppUser{Id: user.Id})
-		require.NoError(t, err)
+	for _, user := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
 	}
 
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
@@ -637,7 +768,7 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 		AccessListSettings: &oktav1.AccessListSettings{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
-			DefaultOwner: []string{reviewer.login()},
+			DefaultOwner: []string{reviewerLogin},
 		},
 		ReuseConnector: "okta-pre-created-test",
 	})
@@ -649,16 +780,16 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 	userGroups, _, err := auth.ListUserGroups(t.Context(), 0, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, userGroups)
-	group := selectUserGroupByName(userGroups, oktaInfra.Groups[0].Id)
+	group := selectUserGroupByName(userGroups, fakeOkta.provisionedGroups[0].Id)
 	require.NotNil(t, group)
 
 	const iterCount = 10
 	for range iterCount {
-		oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, requester.Id)
-		m := assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requester.login())
+		fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
+		m := assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
 		require.Equal(t, "okta-service", m.Spec.AddedBy)
-		oktaInfra.removeUserFromGroup(t, oktaInfra.Groups[0].Id, requester.Id)
-		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requester.login())
+		fakeOkta.RemoveUserFromGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
+		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			assignments, _, err := sut.Teleport.Process.GetAuthServer().Okta.ListOktaAssignments(ctx, 0, "")
 			require.NoError(t, err)
@@ -666,14 +797,14 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 		}, time.Second*5, time.Millisecond*30)
 	}
 
-	oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, requester.Id)
-	assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requester.login())
+	fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
+	assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
 	for range iterCount {
-		oktaInfra.removeUserFromGroup(t, oktaInfra.Groups[0].Id, requester.Id)
-		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requester.login())
-		oktaInfra.addUserToGroup(t, oktaInfra.Groups[0].Id, requester.Id)
-		assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requester.login())
+		fakeOkta.RemoveUserFromGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
+		assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
+		fakeOkta.AddUserToGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
+		assertUserIsAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
 	}
-	oktaInfra.removeUserFromGroup(t, oktaInfra.Groups[0].Id, requester.Id)
-	assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requester.login())
+	fakeOkta.RemoveUserFromGroup(fakeOkta.provisionedGroups[0].Id, requester.Id)
+	assertUserIsNotAccessListMember(ctx, t, sut, group.GetName(), requesterLogin)
 }

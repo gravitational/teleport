@@ -1,7 +1,6 @@
 package okta
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
-	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/events"
@@ -25,36 +23,37 @@ import (
 // Proves that a Teleport editor user can't modify Access List members when bidirectional sync is
 // disabled.
 func Test_AccessList_readOnly_members(t *testing.T) {
-	var err error
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	// Setup Okta mock.
-	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaClient := oktaapi.NewForAPIClient(oktaApiClientMock)
-
-	// Create Okta SAML app.
-	connectorSamlApp := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-1234567_teleportsamlconnectorapp_1")
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
 	// Create Okta users.
-	user1, email1 := createOktaUser(t, ctx, oktaApiClientMock, "ghost")
-	_, email2 := createOktaUser(t, ctx, oktaApiClientMock, "specter")
+	const ghostEmail = "ghost@example.com"
+	ghostUser := fakeOkta.CreateUser("ghost")
+
+	const specterEmail = "specter@example.com"
+	fakeOkta.CreateUser("specter")
 
 	// Assign only user1.
-	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user1.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
-	require.NoError(t, err)
+	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, ghostUser.Id))
 
 	// Setup Teleport.
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	authServer := sut.Teleport.Process.GetAuthServer()
 
 	// 1. Create the integration with bidirectional sync disabled
-
-	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
@@ -69,7 +68,6 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 	require.NoError(t, err)
 
 	// 2. Verify users (user1 - ghost) are synchronized
-
 	var oktaUsers []types.User
 	mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
 
@@ -96,7 +94,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 		require.Len(t, accessLists, 1)
 		accessList = accessLists[0]
 		require.NotEmpty(t, accessList.Spec.Title)
-		require.Equal(t, connectorSamlApp.Label, accessList.Spec.Title)
+		require.Equal(t, fakeOkta.provisionedSAMLApp.Label, accessList.Spec.Title)
 	}, time.Second*2, time.Millisecond*50)
 
 	// 4. Verify members (user1 - ghost)
@@ -108,7 +106,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, members, 1)
 		member1 = members[0]
-		require.Equal(t, email1, member1.GetName())
+		require.Equal(t, ghostEmail, member1.GetName())
 	}, time.Second*2, time.Millisecond*50)
 
 	// 5. Prepare user's client and member2 (specter) struct
@@ -117,11 +115,11 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	member2, err := accesslist.NewAccessListMember(
 		header.Metadata{
-			Name: email2,
+			Name: specterEmail,
 		},
 		accesslist.AccessListMemberSpec{
 			AccessList: accessList.GetName(),
-			Name:       email2,
+			Name:       specterEmail,
 			Joined:     time.Now(),
 			Expires:    time.Now().Add(24 * time.Hour),
 			Reason:     "tests reason",
@@ -204,29 +202,31 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 // Verifies Okta changes to apps are reflected in Teleport when bidirectional sync is disabled.
 func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
-	var err error
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	// Setup Okta mock.
-	oktaApiClientMock := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaClient := oktaapi.NewForAPIClient(oktaApiClientMock)
-
-	// Create Okta SAML app.
-	connectorSamlApp := createOktaSAMLAPP(t, ctx, oktaApiClientMock, "trial-1234567_teleportsamlconnectorapp_1")
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
 	// Create Okta users.
-	user1, email1 := createOktaUser(t, ctx, oktaApiClientMock, "ghost")
-	user2, email2 := createOktaUser(t, ctx, oktaApiClientMock, "specter")
+	const ghostEmail = "ghost@example.com"
+	ghostUser := fakeOkta.CreateUser("ghost")
+
+	const specterEmail = "specter@example.com"
+	specterUser := fakeOkta.CreateUser("specter")
 
 	// Assign only user1.
-	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user1.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
-	require.NoError(t, err)
+	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, ghostUser.Id))
 
 	// Setup Teleport.
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	authServer := sut.Teleport.Process.GetAuthServer()
@@ -235,7 +235,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	beforeCreationTime := time.Now()
 
-	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
@@ -277,7 +277,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		require.Len(t, accessLists, 1)
 		accessList = accessLists[0]
 		require.NotEmpty(t, accessList.Spec.Title)
-		require.Equal(t, connectorSamlApp.Label, accessList.Spec.Title)
+		require.Equal(t, fakeOkta.provisionedSAMLApp.Label, accessList.Spec.Title)
 	}, time.Second*2, time.Millisecond*50)
 
 	// 4. Verify members (user1 - ghost)
@@ -289,12 +289,12 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, members, 1)
 		member1 = members[0]
-		require.Equal(t, email1, member1.GetName())
+		require.Equal(t, ghostEmail, member1.GetName())
 	}, time.Second*2, time.Millisecond*50)
 
 	// 5. Assign user2 (specter) to the SAML app on the Okta side
 
-	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user2.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
+	err = fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, specterUser.Id)
 	require.NoError(t, err)
 
 	// 6. Verify user2 (specter) is synchronized to the Access List
@@ -307,7 +307,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		require.Empty(t, nextToken)
 		require.Len(t, members, 2, "members = %v", members)
 		for _, m := range members {
-			require.True(t, m.GetName() == email1 || m.GetName() == email2, "member name = %q", m.GetName())
+			require.True(t, m.GetName() == ghostEmail || m.GetName() == specterEmail, "member name = %q", m.GetName())
 		}
 	}, time.Second*2, time.Millisecond*50)
 }

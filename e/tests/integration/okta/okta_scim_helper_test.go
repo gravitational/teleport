@@ -3,16 +3,13 @@ package okta
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -23,49 +20,6 @@ import (
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/e/tests/common"
 )
-
-// muxToTransportWrapper allows to forward http.ServeMux as http.Transport.
-type muxToTransportWrapper struct {
-	handler http.Handler
-}
-
-func (rt *muxToTransportWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
-	rec := httptest.NewRecorder()
-	rt.handler.ServeHTTP(rec, req)
-	return rec.Result(), nil
-}
-
-// TODO(smallinsky): ideally the okta infra and SCIM provisioning behavior should be consistent and the SCIM push should be
-// automatically called during the CRUD operation on the oktaInfra object instead of
-// having to call it manually via SCIM client
-func setupOktaAPIServerForSCIMFlow(t *testing.T, mockClient *mockOktaAPIClient) *http.ServeMux {
-	t.Helper()
-	r := http.NewServeMux()
-	r.HandleFunc("GET /api/v1/groups", func(writer http.ResponseWriter, request *http.Request) {
-		groups, _, err := mockClient.ListGroups(request.Context(), nil)
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		jsonResponse(t, writer, groups)
-	})
-	r.HandleFunc("GET /api/v1/users/{id}/groups", func(writer http.ResponseWriter, request *http.Request) {
-		groups, _, err := mockClient.ListUserGroups(request.Context(), request.PathValue("id"))
-		if err != nil {
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		jsonResponse(t, writer, groups)
-	})
-	return r
-}
-
-func jsonResponse(t *testing.T, writer http.ResponseWriter, data any) {
-	t.Helper()
-	writer.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(writer).Encode(data)
-	assert.NoError(t, err)
-}
 
 func createSCIMClient(t *testing.T, sut *common.SUT, scimToken string) scimsdk.Client {
 	t.Helper()
@@ -114,7 +68,7 @@ func withEnableFullSync() oktaIntegrationOption {
 }
 
 // createAndWaitForOktaIntegration creates Okta integration and waits for the plugin to be running.
-func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *mockOktaAPIClient, options ...oktaIntegrationOption) string {
+func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, options ...oktaIntegrationOption) string {
 	t.Helper()
 	opts := scimIntegrationOptions{
 		ApiCredentials:     &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "12345"}},
@@ -126,17 +80,13 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *
 	scimToken := uuid.NewString()
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
-	samlApp := createOktaSAMLAPP(t, t.Context(), mockClient, "trial-1234567_teleportsamlconnectorapp_1")
-	users, _, err := mockClient.ListUsers(t.Context(), nil)
-	require.NoError(t, err)
-	for _, u := range users {
-		_, _, err := mockClient.AssignUserToApplication(t.Context(), samlApp.Id, okta.AppUser{Id: u.Id})
-		require.NoError(t, err)
+	for _, u := range fakeOkta.ListUsers() {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, u.Id))
 	}
 
 	req := &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:  durationpb.New(1 * time.Second),
-		OktaOrganizationUrl: "https://trial-1234567.okta.com",
+		OktaOrganizationUrl: fakeOkta.URL(),
 		ScimToken:           scimToken,
 		ApiCredentials:      opts.ApiCredentials,
 		AccessListSettings:  opts.AccessListSettings,
@@ -150,7 +100,7 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, mockClient *
 		req.EnableAccessListSync = true
 	}
 
-	_, err = oktaClient.CreateIntegration(t.Context(), req)
+	_, err := oktaClient.CreateIntegration(t.Context(), req)
 	require.NoError(t, err)
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 	ctx := t.Context()

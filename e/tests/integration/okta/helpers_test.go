@@ -86,8 +86,9 @@ func mustWaitForEvent(t *testing.T, sut *common.SUT, eventType string, opts ...w
 		o(options)
 	}
 
+	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		gotEvents, _, err := sut.Teleport.Process.GetAuthServer().SearchEvents(context.Background(), events.SearchEventsRequest{
+		gotEvents, _, err := sut.Teleport.Process.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
 			From: options.timePoint,
 			To:   time.Now(),
 			EventTypes: []string{
@@ -100,10 +101,10 @@ func mustWaitForEvent(t *testing.T, sut *common.SUT, eventType string, opts ...w
 	}, options.timeout, options.step, "failed to wait for %s", eventType)
 }
 
-func userExistInTeleportAndIsNotLocked(t *testing.T, ctx context.Context, auth *auth.Server, oktaUser *oktaUserType) {
-	_, err := auth.GetUser(ctx, oktaUser.login(), false)
+func userExistInTeleportAndIsNotLocked(t *testing.T, ctx context.Context, auth *auth.Server, oktaLogin string) {
+	_, err := auth.GetUser(ctx, oktaLogin, false)
 	require.NoError(t, err)
-	locks, err := auth.GetLocks(ctx, false, types.LockTarget{User: oktaUser.login()})
+	locks, err := auth.GetLocks(ctx, false, types.LockTarget{User: oktaLogin})
 	require.NoError(t, err)
 	require.Empty(t, locks)
 }

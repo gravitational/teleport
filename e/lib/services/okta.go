@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -179,6 +180,11 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
+	var clt *http.Client
+	if process.Config.Testing.HTTPTransport != nil {
+		clt = &http.Client{Transport: process.Config.Testing.HTTPTransport}
+	}
+
 	oktaService, err := okta.New(ctx, okta.Config{
 		Leader:             oktaLeader,
 		ConnectorService:   conn.Client,
@@ -200,6 +206,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		SCIMEnabled:        settings.scimEnabled,
 		AuthProvider:       settings.authProvider,
 		AssignmentsService: conn.Client.OktaClient(),
+		TestHTTPClient:     clt,
 	})
 	if err != nil {
 		return trace.Wrap(err)

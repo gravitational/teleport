@@ -1,7 +1,6 @@
 package okta
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -16,16 +15,23 @@ import (
 )
 
 func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withUserCount(7),
+		withAppCount(4),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
-	_ = createOktaSAMLAPP(t, ctx, oktaApiClient, "trial-1234567_teleportsamlconnectorapp_1")
-	oktaInfra := createOktaSetup(t, ctx, oktaApiClient, withAppsGroupsUsersCount(7, 4, 1))
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
@@ -33,11 +39,11 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 	createPluginStaticCredentials(t, sut, "okta-unrelated", map[string]string{"test-unrelated": "to-okta"})
 
 	getAppsReqNoCreds := &oktav1.GetAppsRequest{
-		OktaOrganizationUrl: oktaApiClient.GetOrgUrl(),
+		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      nil,
 	}
 	getGroupsReqNoCreds := &oktav1.GetGroupsRequest{
-		OktaOrganizationUrl: oktaApiClient.GetOrgUrl(),
+		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      nil,
 	}
 
@@ -55,7 +61,7 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 	_, err = oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:  durationpb.New(1 * time.Second),
 		ReuseConnector:      "okta-pre-created-test",
-		OktaOrganizationUrl: oktaApiClient.GetOrgUrl(),
+		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,
 		EnableUserSync:      true,
 	})
@@ -65,16 +71,16 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 
 	getAppsResp, err := oktaClient.GetApps(ctx, getAppsReqNoCreds)
 	require.NoError(t, err)
-	require.Len(t, getAppsResp.GetApps(), len(oktaInfra.Apps)+1 /* +1 for the connector SAML app */)
+	require.Len(t, getAppsResp.GetApps(), len(fakeOkta.provisionedApps)+1 /* +1 for the connector SAML app */)
 
 	getGroupsResp, err := oktaClient.GetGroups(ctx, getGroupsReqNoCreds)
 	require.NoError(t, err)
-	require.Len(t, getGroupsResp.GetGroups(), len(oktaInfra.Groups))
+	require.Len(t, getGroupsResp.GetGroups(), len(fakeOkta.provisionedGroups))
 }
 
 func createPluginStaticCredentials(t *testing.T, sut *common.SUT, name string, labels map[string]string) types.PluginStaticCredentials {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	c, err := types.NewPluginStaticCredentials(
 		types.Metadata{

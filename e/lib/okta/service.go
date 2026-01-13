@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"log/slog"
+	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -125,6 +126,10 @@ type Config struct {
 
 	// AssignmentsService is the service for managing Okta assignments.
 	AssignmentsService oktacommon.OktaAssignmentService
+
+	// TestHTTPClient is an optional HTTP client that can be used to override the
+	// default client for testing. Do not set in production.
+	TestHTTPClient *http.Client
 }
 
 var (
@@ -422,10 +427,11 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 	}
 
 	oktaClient, err := creator(ctx, oktaapi.Config{
-		OrgUrl:       config.OktaAPIEndpoint,
-		AuthProvider: config.AuthProvider,
-		Log:          config.Logger,
-		Scopes:       oktacommon.GetOAuthScopesForSyncSettings(&config.SyncSettings),
+		OrgUrl:         config.OktaAPIEndpoint,
+		AuthProvider:   config.AuthProvider,
+		Log:            config.Logger,
+		Scopes:         oktacommon.GetOAuthScopesForSyncSettings(&config.SyncSettings),
+		TestHTTPClient: config.TestHTTPClient,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating Okta client")

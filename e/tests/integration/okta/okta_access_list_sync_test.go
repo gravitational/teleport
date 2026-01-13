@@ -1,15 +1,11 @@
 package okta
 
 import (
-	"context"
-	"io"
-	"net/http"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
-	oktasdk "github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -19,62 +15,47 @@ import (
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
-	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/events"
 )
 
 func TestAccessListSync(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
-	httpMock := RoundTripperFunc(func(request *http.Request) (*http.Response, error) {
-		if strings.HasSuffix(request.URL.Path, "/sso/saml/metadata") {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(idp.EntityDescriptor)),
-				Header:     http.Header{"Content-Type": []string{"application/xml"}},
-			}, nil
-		}
-		return &http.Response{
-			StatusCode: http.StatusNotFound,
-		}, nil
-	})
-
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaApiClient.setRoundTripper(httpMock)
-
-	// The value from app name is  taken from idp.EntityDescriptor returned by the httpMock
-	// above.
-	createOktaSAMLAPP(t, ctx, oktaApiClient, "example_test-okta-app-name")
+	// Setup Okta mock.
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
 	// Create a user in Okta.
-	user, _ := createOktaUser(t, ctx, oktaApiClient, "oktan@test.com")
+	user := fakeOkta.CreateUser("oktan")
+
 	// Create Okta app with multiple embed links.
 	appLinks := []oktaApplicationEmbedLink{
 		{Name: "Power Dot", Href: "https://powerdot.mysoft365.example.com"},
 		{Name: "Expel", Href: "https://expel.mysoft365.example.com"},
 		{Name: "Crews", Href: "https://crews.mysoft365.example.com"},
 	}
-	app := createOktaApp(
-		t, ctx, oktaApiClient,
-		"my-soft-365",
-		withAppLinks(oktaApplicationEmbedLinks{appLinks}),
-	)
-	mustCreateOktaEveryoneGroupAndAssignOktaUsers(t, oktaApiClient, &oktaUserType{user})
+	app := fakeOkta.CreateBasicApp("my-soft-365", appLinks...)
+
+	group := fakeOkta.CreateBuiltInGroup("Everyone")
+	fakeOkta.AddUserToGroup(group.Id, user.Id)
 
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
-		common.WithHTTPClient(httpMock),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
 	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:        durationpb.New(1 * time.Second),
 		ApiCredentials:            apiCredentials,
-		SsoMetadataUrl:            oktaApiClient.GetOrgUrl() + "/app/123487988/sso/saml/metadata",
+		SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
 		EnableAppGroupSync:        true,
@@ -144,8 +125,7 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("after assigning user to application", func(t *testing.T) {
 		// Assign user to application so we have Access List and corresponding access and review
 		// system roles created.
-		_, _, err := oktaApiClient.AssignUserToApplication(ctx, app.Id, oktasdk.AppUser{Id: user.Id})
-		require.NoError(t, err)
+		require.NoError(t, fakeOkta.AssignUserToApplication(app.Id, user.Id))
 
 		// Wait for Access List sync.
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
@@ -183,36 +163,34 @@ func TestAccessListSync(t *testing.T) {
 }
 
 func TestAccessListSync_bidirectionalSync(t *testing.T) {
-	var err error
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	// Setup Okta mock.
-	oktaApiClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaClient := oktaapi.NewForAPIClient(oktaApiClient)
-
-	// Create Okta SAML app.
-	connectorSamlApp := createOktaSAMLAPP(t, ctx, oktaApiClient, "trial-1234567_teleportsamlconnectorapp_1")
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
 	// Create and assign Okta SAML app users.
-	user1, _ := createOktaUser(t, ctx, oktaApiClient, "bob")
-	user2, _ := createOktaUser(t, ctx, oktaApiClient, "alice")
-	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user1.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
-	require.NoError(t, err)
-	err = oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(user2.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
-	require.NoError(t, err)
+	user1 := fakeOkta.CreateUser("bob")
+	user2 := fakeOkta.CreateUser("alice")
+	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user1.Id))
+	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user2.Id))
 
 	// Setup Teleport.
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	authServer := sut.Teleport.Process.GetAuthServer()
 
 	// 1. Create integration with bidirectional sync disabled.
 
-	_, err = oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
 		TimeBetweenImports:      durationpb.New(1 * time.Second),
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,

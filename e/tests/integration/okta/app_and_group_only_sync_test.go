@@ -10,7 +10,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
 )
@@ -18,31 +17,32 @@ import (
 // Verifies app and group only sync pushes RBAC changes to Okta and respects the bidirectional sync
 // flag.
 func Test_AppAndGroup_only_sync(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 
 	// Setup Okta mock.
-	oktaAPIClient := newMockOktaAPIClient("https://trial-1234567.okta.com")
-	oktaClient := oktaapi.NewForAPIClient(oktaAPIClient)
-
-	// Create Okta SAML app.
-	connectorSamlApp := createOktaSAMLAPP(t, ctx, oktaAPIClient, "trial-1234567_teleportsamlconnectorapp_1")
+	fakeOkta := newFakeOktaServer(
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
 
 	// Create Okta user.
-	oktaUser, oktaUserEmail := createOktaUser(t, ctx, oktaAPIClient, "test-okta-user-1")
+	const userEmail = "test-okta-user-1@example.com"
+	user := fakeOkta.CreateUser("test-okta-user-1")
 
 	// Assign the user to the SAML app.
-	err := oktaClient.AssignUserToApplication(ctx, oktaapi.OktaUserID(oktaUser.Id), oktaapi.OktaAppID(connectorSamlApp.Id))
-	require.NoError(t, err)
+	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user.Id))
 
 	// Create Okta groups.
-	group1 := createOktaGroup(t, ctx, oktaAPIClient, "group1")
-	group2 := createOktaGroup(t, ctx, oktaAPIClient, "group2")
+	group1 := fakeOkta.CreateBuiltInGroup("group1")
+	group2 := fakeOkta.CreateBuiltInGroup("group2")
 
 	// Setup Teleport.
 	sut := common.InitSUT(t,
-		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
 	)
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	authServer := sut.Teleport.Process.GetAuthServer()
@@ -73,12 +73,12 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 
 	t.Run("verify users synced", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			_, err := authServer.GetUser(ctx, oktaUserEmail, false /* withSecrets */)
+			_, err := authServer.GetUser(ctx, userEmail, false /* withSecrets */)
 			require.NoError(t, err)
 		}, time.Second*2, time.Millisecond*50)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			uls, err := authServer.GetUserLoginState(ctx, oktaUserEmail)
+			uls, err := authServer.GetUserLoginState(ctx, userEmail)
 			require.NoError(t, err)
 			require.Contains(t, uls.GetRoles(), teleport.SystemOktaRequesterRoleName)
 		}, time.Second*2, time.Millisecond*50)
@@ -95,14 +95,14 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 	})
 
 	t.Run("make sure there are not assignments to any group", func(t *testing.T) {
-		requireNoGroupAssignments(t, oktaAPIClient, group1.Id)
-		requireNoGroupAssignments(t, oktaAPIClient, group2.Id)
+		require.Empty(t, fakeOkta.GroupAssignments(group1.Id))
+		require.Empty(t, fakeOkta.GroupAssignments(group2.Id))
 	})
 
 	var accessRequestName string
 
 	t.Run("create access request to group1 and wait for the okta_assignment for it", func(t *testing.T) {
-		accessRequest := createAccessRequest(t, sut, group1.Id, types.KindUserGroup, oktaUserEmail)
+		accessRequest := createAccessRequest(t, sut, group1.Id, types.KindUserGroup, userEmail)
 		approveAccessRequest(t, sut, accessRequest.GetName(), "alice-admin")
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -115,9 +115,9 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 
 	t.Run("verify assignment to the group1 is processed", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			requireGroupAssignments(t, oktaAPIClient, group1.Id, oktaUser.Id)
+			require.True(t, fakeOkta.UserAssignedGroup(group1.Id, user.Id))
 		}, time.Second*4, time.Millisecond*50)
-		requireNoGroupAssignments(t, oktaAPIClient, group2.Id)
+		require.Empty(t, fakeOkta.GroupAssignments(group2.Id))
 	})
 
 	// Disable bidirectional sync
@@ -138,9 +138,9 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 
 	t.Run("verify assignment to the group1 is still there on the Okta side", func(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			requireGroupAssignments(t, oktaAPIClient, group1.Id, oktaUser.Id)
+			require.True(t, fakeOkta.UserAssignedGroup(group1.Id, user.Id))
 		}, time.Second*2, time.Millisecond*50)
-		requireNoGroupAssignments(t, oktaAPIClient, group2.Id)
+		require.Empty(t, fakeOkta.GroupAssignments(group2.Id))
 	})
 
 	// Enable bidirectional sync
@@ -156,7 +156,7 @@ func Test_AppAndGroup_only_sync(t *testing.T) {
 	})
 
 	t.Run("verify assignment to the group1 is cleaned up on the Okta side", func(t *testing.T) {
-		requireNoGroupAssignments(t, oktaAPIClient, group1.Id)
-		requireNoGroupAssignments(t, oktaAPIClient, group2.Id)
+		require.Empty(t, fakeOkta.GroupAssignments(group1.Id))
+		require.Empty(t, fakeOkta.GroupAssignments(group2.Id))
 	})
 }

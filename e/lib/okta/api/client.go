@@ -184,15 +184,14 @@ func New(ctx context.Context, cfg Config) (Interface, error) {
 	}
 
 	settings = append(settings, cfg.AuthProvider.GetAuthOptions()...)
-	createFunc := APIClientProvider.get()
-	client, err := createFunc(ctx, settings...)
+	_, client, err := okta.NewClient(ctx, settings...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Client{
 		Log:       cfg.Log,
-		APIClient: client,
+		APIClient: NewAPIClient(client),
 	}, nil
 }
 
