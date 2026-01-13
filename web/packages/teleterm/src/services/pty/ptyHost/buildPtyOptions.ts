@@ -106,6 +106,8 @@ export async function buildPtyOptions({
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
         [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
+        // Makes tctl operate on the root cluster of the current workspace.
+        TELEPORT_AUTH_SERVER: cmd.proxyHost,
       };
 
       // The regular env vars are not available in WSL,
@@ -121,6 +123,7 @@ export async function buildPtyOptions({
           'TELEPORT_PROXY',
           'TELEPORT_HOME/p',
           TSH_AUTOUPDATE_ENV_VAR,
+          'TELEPORT_AUTH_SERVER',
         ];
         // Preserve the user defined WSLENV and add ours (ours takes precedence).
         combinedEnv[WSLENV_VAR] = [combinedEnv[WSLENV_VAR], wslEnv]
