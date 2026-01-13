@@ -4046,7 +4046,7 @@ func (a *ServerWithRoles) trySettingConnectorNameToPasswordless(ctx context.Cont
 // This method always compare with the original preset users, and take into account that some preset users may
 // have been removed.
 func hasOneNonPresetUser(users []types.User) bool {
-	presets := getPresetUsers()
+	presets := getPresetUsers(modules.GetModules().BuildType())
 
 	// Exit early if the number of users is greater than the number of presets + 1.
 	if len(users) > len(presets)+1 {
