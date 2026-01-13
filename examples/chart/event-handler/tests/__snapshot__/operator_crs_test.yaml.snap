@@ -1,4 +1,4 @@
-should match the snapshot (tokenJoinOverride set):
+should match the snapshot (tokenSpecOverride set):
   1: |
     apiVersion: resources.teleport.dev/v1
     kind: TeleportRoleV7
