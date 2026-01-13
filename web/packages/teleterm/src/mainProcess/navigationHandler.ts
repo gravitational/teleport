@@ -90,6 +90,10 @@ function isUrlSafe(
   if (url.host === 'github.com' && url.pathname.startsWith('/gravitational/')) {
     return true;
   }
+  // AWS IAM IC apps.
+  if (url.host.endsWith('.awsapps.com')) {
+    return true;
+  }
 
   const rootClusterProxyHostAllowList = makeRootClusterProxyHostAllowList(
     clusterStore.getRootClusters(),
