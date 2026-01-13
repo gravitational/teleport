@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/appauthconfig/appauthconfigv1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -448,6 +449,8 @@ type NewAppSessionRequest struct {
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
+	// SuggestedSessionID is a session ID suggested by the requester.
+	SuggestedSessionID string
 
 	// BotName is the name of the bot that is creating this session.
 	// Empty if not a bot.
@@ -554,10 +557,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		return nil, trace.Wrap(err)
 	}
 
-	// Create services.WebSession for this session.
-	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sessionID := req.SuggestedSessionID
+	if sessionID == "" {
+		// Create services.WebSession for this session.
+		sessionID, err = utils.CryptoRandomHex(defaults.SessionTokenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Create certificate for this session.
@@ -847,4 +853,37 @@ func (a *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	a.logger.DebugContext(ctx, "Generated Snowflake web session", "user", req.Username, "ttl", ttl)
 
 	return session, nil
+}
+
+// CreateAppSessionForAppAuth creates a new app session based on app auth
+// config.
+func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthconfigv1.CreateAppSessionForAppAuthRequest) (types.WebSession, error) {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.App).Enabled {
+		return nil, trace.AccessDenied(
+			"this Teleport cluster is not licensed for application access, please contact the cluster administrator")
+	}
+
+	sess, err := a.CreateAppSessionFromReq(ctx, NewAppSessionRequest{
+		NewWebSessionRequest: NewWebSessionRequest{
+			User:       req.Username,
+			LoginIP:    req.LoginIP,
+			SessionTTL: req.TTL,
+			Roles:      req.Roles,
+			Traits:     req.Traits,
+			// Always attest the web session as sessions from app auth will
+			// always come from proxy, and will only be visible/available to
+			// auth and proxy instances.
+			AttestWebSession: true,
+		},
+		ClusterName:        req.ClusterName,
+		AppName:            req.AppName,
+		AppURI:             req.AppURI,
+		PublicAddr:         req.AppPublicAddr,
+		SuggestedSessionID: req.SuggestedSessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }

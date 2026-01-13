@@ -20,6 +20,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/gravitational/trace"
 
@@ -48,6 +50,13 @@ type AppAuthConfig interface {
 	UpsertAppAuthConfig(ctx context.Context, in *appauthconfigv1.AppAuthConfig) (*appauthconfigv1.AppAuthConfig, error)
 	// DeleteAppAuthConfig deletes the specified AppAuthConfig.
 	DeleteAppAuthConfig(ctx context.Context, name string) error
+}
+
+// AppAuthConfigSessions is a service that manages sessions using app auth
+// config.
+type AppAuthConfigSessions interface {
+	// CreateAppSessionWithJWT creates an app session using JWT token.
+	CreateAppSessionWithJWT(ctx context.Context, req *appauthconfigv1.CreateAppSessionWithJWTRequest) (types.WebSession, error)
 }
 
 // ValidateAppAuthConfig validates the given app auth config.
@@ -96,4 +105,10 @@ func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	}
 
 	return nil
+}
+
+// GenerateAppSessionIDFromJWT generates a app session id based on JWT token.
+func GenerateAppSessionIDFromJWT(jwtToken string) string {
+	jwtHash := sha256.Sum256([]byte(jwtToken))
+	return hex.EncodeToString(jwtHash[:])
 }

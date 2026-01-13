@@ -6573,6 +6573,18 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	appauthconfigv1pb.RegisterAppAuthConfigServiceServer(server, appAuthConfigSvc)
 
+	appAuthConfigSessionsSvc, err := appauthconfigv1.NewSessionsService(appauthconfigv1.SessionsServiceConfig{
+		Authorizer:      cfg.Authorizer,
+		Reader:          cfg.AuthServer.Cache,
+		Emitter:         cfg.Emitter,
+		SessionsCreator: cfg.AuthServer,
+		UserGetter:      cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	appauthconfigv1pb.RegisterAppAuthConfigSessionsServiceServer(server, appAuthConfigSessionsSvc)
+
 	return authServer, nil
 }
 

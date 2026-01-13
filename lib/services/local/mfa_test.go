@@ -20,14 +20,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -53,7 +51,7 @@ func TestMFAService_CRUD(t *testing.T) {
 	created, err := svc.CreateValidatedMFAChallenge(t.Context(), username, chal)
 	require.NoError(t, err)
 
-	want := proto.Clone(chal).(*mfav1.ValidatedMFAChallenge)
+	want := newValidatedMFAChallenge()
 
 	require.Empty(
 		t,
@@ -61,8 +59,7 @@ func TestMFAService_CRUD(t *testing.T) {
 			want,
 			created,
 			// Ignore expiration time in comparison.
-			protocmp.Transform(),
-			protocmp.IgnoreFields(&headerv1.Metadata{}, "expires"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Expires"),
 		),
 		"CreateValidatedMFAChallenge mismatch (-want +got)",
 	)
