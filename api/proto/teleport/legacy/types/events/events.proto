@@ -2440,6 +2440,115 @@ message TrustedClusterDelete {
   ];
 }
 
+// The event emitted when a scoped token is created.
+message ScopedTokenCreate {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // The roles that the scoped token can provision.
+  repeated string roles = 4;
+  // The join method that the scoped token can be used with.
+  string join_method = 5;
+  // The usage mode that the scoped token adheres to.
+  string usage_mode = 6;
+  // The scope that the scoped token belongs to.
+  string scope = 7;
+  // The scope that the scoped token assigns to provisioned
+  // resources.
+  string assigned_scope = 8;
+}
+
+// The event emitted when a scoped token is deleted.
+message ScopedTokenDelete {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common user event metadata
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// The event emitted when a scoped token is used to provision a resource.
+message ScopedTokenUse {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // The roles that the scoped token can provision.
+  repeated string roles = 3;
+  // The join method that the scoped token can be used with.
+  string join_method = 4;
+  // The usage mode that the scoped token adheres to.
+  string usage_mode = 5;
+  // The scope that the scoped token belongs to.
+  string scope = 6;
+  // The scope that the scoped token assigns to provisioned
+  // resources.
+  string assigned_scope = 7;
+}
+
+// The event emitted when a scoped token fails to provision a resource.
+message ScopedTokenFail {
+  // Common event metadata
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Common resource event metadata
+  ResourceMetadata resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // The roles that the scoped token can provision.
+  repeated string roles = 3;
+  // The join method that the scoped token can be used with.
+  string join_method = 4;
+  // The usage mode that the scoped token adheres to.
+  string usage_mode = 5;
+  // The scope that the scoped token belongs to.
+  string scope = 6;
+  // The scope that the scoped token assigns to provisioned
+  // resources.
+  string assigned_scope = 7;
+}
+
 // ProvisionTokenCreate event is emitted when a provisioning token (a.k.a. join
 // token) of any role is created.
 message ProvisionTokenCreate {
@@ -4927,6 +5036,10 @@ message OneOf {
     events.VnetConfigCreate VnetConfigCreate = 232;
     events.VnetConfigUpdate VnetConfigUpdate = 233;
     events.VnetConfigDelete VnetConfigDelete = 234;
+    events.ScopedTokenCreate ScopedTokenCreate = 235;
+    events.ScopedTokenDelete ScopedTokenDelete = 236;
+    events.ScopedTokenUse ScopedTokenUse = 237;
+    events.ScopedTokenFail ScopedTokenFail = 238;
   }
 }
 
