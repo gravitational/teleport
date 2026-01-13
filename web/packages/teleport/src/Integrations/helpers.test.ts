@@ -16,13 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getStatus, getStatusAndLabel } from 'teleport/Integrations/helpers';
 import { IntegrationLike } from 'teleport/Integrations/IntegrationList';
-import {
-  Integration,
-  IntegrationStatusCode,
-} from 'teleport/services/integrations';
+import { IntegrationStatusCode } from 'teleport/services/integrations';
 
+import { getStatus } from './shared/StatusLabel';
 import { Status } from './types';
 
 test.each`
@@ -56,40 +53,5 @@ test.each`
     };
     const status = getStatus(item);
     expect(status).toBe(expected);
-  }
-);
-
-test.each`
-  type                        | code                                       | expectedLabelKind | expectedTitle
-  ${'integration'}            | ${IntegrationStatusCode.Draft}             | ${'success'}      | ${'Draft'}
-  ${'integration'}            | ${IntegrationStatusCode.Running}           | ${'success'}      | ${'Running'}
-  ${'integration'}            | ${IntegrationStatusCode.Unauthorized}      | ${'success'}      | ${'Unauthorized'}
-  ${'integration'}            | ${IntegrationStatusCode.SlackNotInChannel} | ${'success'}      | ${'Bot not invited to channel'}
-  ${'integration'}            | ${IntegrationStatusCode.Unknown}           | ${'success'}      | ${'Unknown'}
-  ${'integration'}            | ${IntegrationStatusCode.OtherError}        | ${'success'}      | ${'Unknown error'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Draft}             | ${'warning'}      | ${'Draft'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Running}           | ${'success'}      | ${'Running'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Unauthorized}      | ${'success'}      | ${'Unauthorized'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.SlackNotInChannel} | ${'success'}      | ${'Bot not invited to channel'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.Unknown}           | ${'success'}      | ${'Unknown'}
-  ${'external-audit-storage'} | ${IntegrationStatusCode.OtherError}        | ${'success'}      | ${'Unknown error'}
-  ${'any'}                    | ${IntegrationStatusCode.Draft}             | ${'warning'}      | ${'Draft'}
-  ${'any'}                    | ${IntegrationStatusCode.Running}           | ${'success'}      | ${'Running'}
-  ${'any'}                    | ${IntegrationStatusCode.Unauthorized}      | ${'danger'}       | ${'Unauthorized'}
-  ${'any'}                    | ${IntegrationStatusCode.SlackNotInChannel} | ${'warning'}      | ${'Bot not invited to channel'}
-  ${'any'}                    | ${IntegrationStatusCode.Unknown}           | ${'secondary'}    | ${'Unknown'}
-  ${'any'}                    | ${IntegrationStatusCode.OtherError}        | ${'danger'}       | ${'Unknown error'}
-`(
-  'getStatusAndLabel type $type with code $code returns expected',
-  async ({ type, code, expectedLabelKind, expectedTitle }) => {
-    const item: Integration = {
-      name: '',
-      kind: undefined,
-      resourceType: type,
-      statusCode: code,
-    };
-    const status = getStatusAndLabel(item);
-    expect(status.status).toBe(expectedTitle);
-    expect(status.labelKind).toBe(expectedLabelKind);
   }
 );

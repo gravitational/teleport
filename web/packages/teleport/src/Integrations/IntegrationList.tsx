@@ -21,22 +21,15 @@ import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex, Text } from 'design';
+import { Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { CircleCheck, CircleCross, CircleDashed, Warning } from 'design/Icon';
-import {
-  DangerAccessible,
-  SecondaryAccessible,
-  WarningAccessible,
-} from 'design/Label/Label';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 import cfg from 'teleport/config';
-import { getStatus } from 'teleport/Integrations/helpers';
+import { sortByStatus } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
   ExternalAuditStorageIntegration,
@@ -49,7 +42,7 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
-import { Status } from './types';
+import { StatusLabel } from './shared/StatusLabel';
 
 type Props = {
   list: IntegrationLike[];
@@ -135,7 +128,12 @@ export function IntegrationList(props: Props) {
           key: 'statusCode',
           headerText: 'Status',
           isSortable: true,
-          render: item => <StatusCell item={item} />,
+          onSort: sortByStatus,
+          render: item => (
+            <Cell>
+              <StatusLabel integration={item} />
+            </Cell>
+          ),
         },
         {
           key: 'details',
@@ -257,86 +255,6 @@ export function IntegrationList(props: Props) {
     />
   );
 }
-
-const StatusCell = ({ item }: { item: IntegrationLike }) => {
-  const { status, label, tooltip } = getStatus(item);
-
-  return (
-    <Cell>
-      <HoverTooltip
-        tipContent={
-          <Box>
-            <Text fontWeight={600}>Status</Text>
-            <Text>{tooltip}</Text>
-          </Box>
-        }
-      >
-        <Flex inline alignItems="center">
-          {statusLabel(status, label)}
-        </Flex>
-      </HoverTooltip>
-    </Cell>
-  );
-};
-
-const statusLabel = (status: Status, label: string) => {
-  switch (status) {
-    case Status.Healthy:
-      return (
-        <SecondaryAccessible>
-          <Flex alignItems={'center'} gap={1} p={0.5}>
-            <CircleCheck size="small" />
-            {label}
-          </Flex>
-        </SecondaryAccessible>
-      );
-    case Status.Draft:
-      return (
-        <SecondaryAccessible>
-          <Flex alignItems={'center'} gap={1} p={0.5}>
-            <CircleDashed size="small" />
-            {label}
-          </Flex>
-        </SecondaryAccessible>
-      );
-    case Status.Failed:
-      return (
-        <DangerAccessible>
-          <Flex alignItems={'center'} gap={1} p={0.5}>
-            <CircleCross size="small" />
-            {label}
-          </Flex>
-        </DangerAccessible>
-      );
-    case Status.Issues:
-      return (
-        <WarningAccessible>
-          <Flex alignItems={'center'} gap={1} p={0.5}>
-            <Warning size="small" />
-            {label}
-          </Flex>
-        </WarningAccessible>
-      );
-    case Status.OktaConfigError:
-      return (
-        <DangerAccessible>
-          <Flex alignItems={'center'} gap={1} p={0.5}>
-            <CircleCross size="small" />
-            {label}
-          </Flex>
-        </DangerAccessible>
-      );
-    case Status.Unknown:
-      return (
-        <SecondaryAccessible>
-          <Flex alignItems={'center'} gap={1} p={0.5}>
-            <CircleDashed size="small" />
-            {label}
-          </Flex>
-        </SecondaryAccessible>
-      );
-  }
-};
 
 const NameCell = ({ item }: { item: IntegrationLike }) => {
   let formattedText;
