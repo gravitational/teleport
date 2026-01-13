@@ -2,6 +2,11 @@ import { useState } from 'react';
 
 import { AccessListPreset } from 'e-teleport/services/accessmanagement/preset';
 
+import {
+  AwsIcRoleState,
+  useAwsIcRoleState,
+} from './Preset/DefineAccess/AwsIc/useAwsIcRoleState';
+
 export type GuideEditorState = {
   /**
    * Describes the type of selected preset.
@@ -28,6 +33,11 @@ export type GuideEditorState = {
    * and wants to add another access list.
    */
   reset(): void;
+
+  /**
+   * Contains the role conditions and funcs specific to AWS IC application.
+   */
+  awsIcRoleState: AwsIcRoleState;
 };
 
 /**
@@ -46,6 +56,8 @@ export type GuideEditorState = {
 export function useGuideEditor(): GuideEditorState {
   const [preset, setPreset] = useState<AccessListPreset>();
   const [currentStep, setCurrentStep] = useState(0);
+
+  const awsIcRoleState = useAwsIcRoleState();
 
   function reset() {
     setPreset(null);
@@ -73,5 +85,7 @@ export function useGuideEditor(): GuideEditorState {
     setCurrentStep,
     prevStep,
     nextStep,
+
+    awsIcRoleState,
   };
 }

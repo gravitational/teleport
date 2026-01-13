@@ -1,7 +1,16 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, History } from 'history';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { Router } from 'react-router';
 
-import { render, screen, userEvent, within } from 'design/utils/testing';
+import {
+  render,
+  screen,
+  testQueryClient,
+  userEvent,
+  within,
+} from 'design/utils/testing';
 import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -29,9 +38,24 @@ import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatus
 import ResourceService from 'teleport/services/resources';
 import userService, { Acl } from 'teleport/services/user';
 
+import { unifiedResourcePath } from '../GuideEditor/Preset/testHelper';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
 beforeEach(() => {
+  server.use(
+    http.get(unifiedResourcePath, () => {
+      return HttpResponse.json({
+        items: [],
+      });
+    })
+  );
+
   jest
     .spyOn(accessManagementService, 'fetchAccessList')
     .mockResolvedValue(accessList);
@@ -52,9 +76,13 @@ beforeEach(() => {
   jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue(oktaPlugin);
 });
 
-afterEach(() => {
+afterEach(async () => {
   jest.resetAllMocks();
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
 });
+
+afterAll(() => server.close());
 
 test('back button uses previous route if present and preserves queries', async () => {
   const history = createMemoryHistory({
@@ -335,11 +363,13 @@ const Provider = ({
   const ctx = createTeleportContextE({ customAcl });
   return (
     <Router history={customHistory}>
-      <ContextProvider ctx={ctx}>
-        <AccessListManagementContextProvider>
-          <ViewEditAccessList />
-        </AccessListManagementContextProvider>
-      </ContextProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <ContextProvider ctx={ctx}>
+          <AccessListManagementContextProvider>
+            <ViewEditAccessList />
+          </AccessListManagementContextProvider>
+        </ContextProvider>
+      </QueryClientProvider>
     </Router>
   );
 };

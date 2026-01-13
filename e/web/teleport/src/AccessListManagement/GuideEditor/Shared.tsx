@@ -1,6 +1,7 @@
 import styled, { CSSProp, useTheme } from 'styled-components';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex } from 'design';
+import { Box, ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
+import { Magnifier } from 'design/Icon';
 
 import { FeatureBox } from 'teleport/components/Layout';
 
@@ -9,6 +10,15 @@ import { useAccessListManagementContext } from '../AccessListManagementContext';
 export const MaxWidthBox = styled(Box)`
   width: 710px;
 `;
+
+export function NoResultsFound() {
+  return (
+    <Flex gap={2}>
+      <Magnifier size="small" />
+      <Text>No results found</Text>
+    </Flex>
+  );
+}
 
 export const StepButtons = ({
   disabled = false,

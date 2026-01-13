@@ -1,4 +1,7 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
@@ -30,11 +33,35 @@ import { getAcl } from 'teleport/mocks/contexts';
 import { ApiError } from 'teleport/services/api/parseError';
 import type { Plugin } from 'teleport/services/integrations';
 
+import { unifiedResourcePath } from '../GuideEditor/Preset/testHelper';
 import { AccessLists } from './AccessLists';
 
 const mio = mockIntersectionObserver();
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListEntitlement = cfg.entitlements.AccessLists;
+
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+beforeEach(() => {
+  server.use(
+    http.get(unifiedResourcePath, () => {
+      return HttpResponse.json({
+        items: [],
+      });
+    })
+  );
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+});
+
+afterAll(() => server.close());
 
 describe('access list management upsell links', () => {
   const ctx = createTeleportContextE();
@@ -120,17 +147,19 @@ describe('access list management upsell links', () => {
 
 function renderComponent(ctx: TeleportEContext) {
   return render(
-    <Providers>
-      <MemoryRouter>
-        <ToastNotificationProvider>
-          <ContextProvider ctx={ctx}>
-            <AccessListManagementContextProvider>
-              <AccessLists />
-            </AccessListManagementContextProvider>
-          </ContextProvider>
-        </ToastNotificationProvider>
-      </MemoryRouter>
-    </Providers>
+    <QueryClientProvider client={testQueryClient}>
+      <Providers>
+        <MemoryRouter>
+          <ToastNotificationProvider>
+            <ContextProvider ctx={ctx}>
+              <AccessListManagementContextProvider>
+                <AccessLists />
+              </AccessListManagementContextProvider>
+            </ContextProvider>
+          </ToastNotificationProvider>
+        </MemoryRouter>
+      </Providers>
+    </QueryClientProvider>
   );
 }
 

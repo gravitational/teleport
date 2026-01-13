@@ -145,6 +145,7 @@ const AccessListManagementContext = createContext<AccessListManagementContext>({
     setCurrentStep: () => {},
     prevStep: () => {},
     nextStep: () => {},
+    awsIcRoleState: undefined,
   },
   oktaPluginAttempt: undefined,
 });

@@ -1,10 +1,14 @@
+import { QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
-import { render, screen, waitFor } from 'design/utils/testing';
+import { render, screen, testQueryClient, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/fixtures';
+import { unifiedResourcePath } from 'e-teleport/AccessListManagement/GuideEditor/Preset/testHelper';
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';
@@ -23,6 +27,29 @@ import { SelectGuide } from './SelectGuide';
 
 const defaultIsEnterpriseFlag = cfg.isEnterprise;
 const defaultAccessListentitlement = cfg.entitlements.AccessLists;
+
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+beforeEach(() => {
+  server.use(
+    http.get(unifiedResourcePath, () => {
+      return HttpResponse.json({
+        items: [],
+      });
+    })
+  );
+});
+
+afterEach(async () => {
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+});
+
+afterAll(() => server.close());
 
 describe('upsell links', () => {
   const ctx = createTeleportContextE();
@@ -105,15 +132,17 @@ describe('upsell links', () => {
 function renderComponent(ctx: TeleportEContext) {
   return render(
     <MemoryRouter>
-      <InfoGuidePanelProvider>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <CreateAccessListContextProvider>
-              <SelectGuide />
-            </CreateAccessListContextProvider>
-          </AccessListManagementContextProvider>
-        </ContextProvider>
-      </InfoGuidePanelProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <CreateAccessListContextProvider>
+                <SelectGuide />
+              </CreateAccessListContextProvider>
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        </InfoGuidePanelProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 }

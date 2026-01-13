@@ -1,8 +1,11 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
-import { act, render, screen } from 'design/utils/testing';
+import { act, render, screen, testQueryClient } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -20,6 +23,7 @@ import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatus
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
 
+import { unifiedResourcePath } from '../GuideEditor/Preset/testHelper';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
 import { CreateAccessList } from './CreateAccessListV2';
 
@@ -36,6 +40,30 @@ jest.mock('shared/libs/logger', () => {
     create: () => mockLogger,
   };
 });
+
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
+
+beforeEach(() => {
+  server.use(
+    http.get(unifiedResourcePath, () => {
+      return HttpResponse.json({
+        items: [],
+      });
+    })
+  );
+});
+
+afterEach(async () => {
+  jest.resetAllMocks();
+  server.resetHandlers();
+  await testQueryClient.resetQueries();
+});
+
+afterAll(() => server.close());
 
 describe('going through different guides', () => {
   // Delay set to null here b/c using fake timers
@@ -285,16 +313,18 @@ describe('going through different guides', () => {
 function renderComponent(ctx: TeleportEContext) {
   return render(
     <MemoryRouter>
-      <InfoGuidePanelProvider>
-        <ContextProvider ctx={ctx}>
-          <AccessListManagementContextProvider>
-            <CreateAccessListContextProvider>
-              <CreateAccessList />
-            </CreateAccessListContextProvider>
-          </AccessListManagementContextProvider>
-        </ContextProvider>
-        <InfoGuideSidePanel />
-      </InfoGuidePanelProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <InfoGuidePanelProvider>
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <CreateAccessListContextProvider>
+                <CreateAccessList />
+              </CreateAccessListContextProvider>
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+          <InfoGuideSidePanel />
+        </InfoGuidePanelProvider>
+      </QueryClientProvider>
     </MemoryRouter>
   );
 }
