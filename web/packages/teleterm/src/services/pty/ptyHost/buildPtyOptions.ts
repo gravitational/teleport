@@ -40,7 +40,7 @@ import {
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
 
-type PtyOptions = {
+export type PtyConfigOptions = {
   ssh: SshOptions;
   windowsPty: Pick<WindowsPty, 'useConpty'>;
   customShellPath: string;
@@ -56,7 +56,7 @@ export async function buildPtyOptions({
   processEnv = process.env,
 }: {
   settings: RuntimeSettings;
-  options: PtyOptions;
+  options: PtyConfigOptions;
   cmd: PtyCommand;
   processEnv?: typeof process.env;
 }): Promise<{
@@ -152,7 +152,7 @@ export function getPtyProcessOptions({
   shellBinPath,
 }: {
   settings: RuntimeSettings;
-  options: PtyOptions;
+  options: PtyConfigOptions;
   cmd: PtyCommand;
   env: typeof process.env;
   shellBinPath: string;
@@ -250,7 +250,7 @@ function prependBinDirToPath(
 async function resolveShell(
   cmd: ShellCommand,
   settings: RuntimeSettings,
-  ptyOptions: PtyOptions
+  ptyOptions: PtyConfigOptions
 ): Promise<Shell | undefined> {
   if (cmd.shellId !== CUSTOM_SHELL_ID) {
     return settings.availableShells.find(s => s.id === cmd.shellId);

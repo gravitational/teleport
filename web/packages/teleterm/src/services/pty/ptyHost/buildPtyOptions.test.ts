@@ -26,7 +26,11 @@ import {
   SshOptions,
   TshLoginCommand,
 } from '../types';
-import { buildPtyOptions, getPtyProcessOptions } from './buildPtyOptions';
+import {
+  buildPtyOptions,
+  getPtyProcessOptions,
+  PtyConfigOptions,
+} from './buildPtyOptions';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -39,6 +43,16 @@ jest.mock('./resolveShellEnv', () => ({
 const makeSshOptions = (options: Partial<SshOptions> = {}): SshOptions => ({
   noResume: false,
   forwardAgent: false,
+  ...options,
+});
+
+const makeConfigOptions = (
+  options: Partial<PtyConfigOptions> = {}
+): PtyConfigOptions => ({
+  customShellPath: '',
+  ssh: makeSshOptions(),
+  windowsPty: { useConpty: true },
+  tshHome: '',
   ...options,
 });
 
@@ -63,12 +77,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
-          ssh: makeSshOptions(),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        options: makeConfigOptions(),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -99,12 +108,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
-          ssh: makeSshOptions(),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        options: makeConfigOptions(),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -114,7 +118,9 @@ describe('getPtyProcessOptions', () => {
       expect(env.cmdExclusive).toBe('cmd');
       expect(env.shared).toBe('fromCmd');
     });
+  });
 
+  describe('pty.tsh-login', () => {
     it('disables SSH connection resumption on tsh ssh invocations if the option is set', () => {
       const processEnv = {
         processExclusive: 'process',
@@ -132,12 +138,9 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
+        options: makeConfigOptions({
           ssh: makeSshOptions({ noResume: true }),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        }),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -163,12 +166,9 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
+        options: makeConfigOptions({
           ssh: makeSshOptions({ forwardAgent: true }),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        }),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -194,12 +194,9 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions({
         settings: makeRuntimeSettings(),
-        options: {
-          customShellPath: '',
+        options: makeConfigOptions({
           ssh: makeSshOptions({ forwardAgent: false }),
-          windowsPty: { useConpty: true },
-          tshHome: '',
-        },
+        }),
         cmd: cmd,
         env: processEnv,
         shellBinPath: '/bin/zsh',
@@ -230,12 +227,7 @@ describe('buildPtyOptions', () => {
           },
         ],
       }),
-      options: {
-        customShellPath: '',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      options: makeConfigOptions(),
       cmd,
     });
 
@@ -258,12 +250,9 @@ describe('buildPtyOptions', () => {
 
     const { shell, creationStatus } = await buildPtyOptions({
       settings: makeRuntimeSettings(),
-      options: {
+      options: makeConfigOptions({
         customShellPath: '/custom/shell/path/better-shell',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      }),
       cmd,
     });
 
@@ -286,12 +275,7 @@ describe('buildPtyOptions', () => {
 
     const { shell, creationStatus } = await buildPtyOptions({
       settings: makeRuntimeSettings(),
-      options: {
-        customShellPath: '',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      options: makeConfigOptions(),
       cmd,
     });
 
@@ -324,12 +308,7 @@ describe('buildPtyOptions', () => {
           },
         ],
       }),
-      options: {
-        customShellPath: '',
-        ssh: makeSshOptions(),
-        windowsPty: { useConpty: true },
-        tshHome: '',
-      },
+      options: makeConfigOptions(),
       cmd,
       processEnv: {
         // Simulate the user defined WSLENV var.
