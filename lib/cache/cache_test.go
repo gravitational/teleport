@@ -1430,7 +1430,8 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 			// *that* rather than do an equality test. An equality test here
 			// would be overly-pedantic about a service returning `nil` rather
 			// than an empty slice.
-			if len(expected) == 0 {
+			// Inject failure to test metrics.
+			if len(expected) != 0 {
 				require.Empty(t, out)
 				return
 			}
