@@ -25,6 +25,7 @@ import (
 	v14 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	v120 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	v111 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	v121 "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	v110 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	v17 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	v18 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -202,6 +203,7 @@ type Event struct {
 	//	*Event_Plugin
 	//	*Event_AutoUpdateBotInstanceReport
 	//	*Event_AppAuthConfig
+	//	*Event_CloudCluster
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -980,6 +982,15 @@ func (x *Event) GetAppAuthConfig() *v120.AppAuthConfig {
 	return nil
 }
 
+func (x *Event) GetCloudCluster() *v121.CloudCluster {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_CloudCluster); ok {
+			return x.CloudCluster
+		}
+	}
+	return nil
+}
+
 type isEvent_Resource interface {
 	isEvent_Resource()
 }
@@ -1394,6 +1405,11 @@ type Event_AppAuthConfig struct {
 	AppAuthConfig *v120.AppAuthConfig `protobuf:"bytes,86,opt,name=AppAuthConfig,proto3,oneof"`
 }
 
+type Event_CloudCluster struct {
+	// CloudCluster is a Cloud Cluster resource.
+	CloudCluster *v121.CloudCluster `protobuf:"bytes,87,opt,name=CloudCluster,proto3,oneof"`
+}
+
 func (*Event_ResourceHeader) isEvent_Resource() {}
 
 func (*Event_CertAuthority) isEvent_Resource() {}
@@ -1556,11 +1572,13 @@ func (*Event_AutoUpdateBotInstanceReport) isEvent_Resource() {}
 
 func (*Event_AppAuthConfig) isEvent_Resource() {}
 
+func (*Event_CloudCluster) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xb51\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a+teleport/cloudcluster/v1/cloudcluster.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\x832\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1656,7 +1674,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x13RecordingEncryption\x18S \x01(\v24.teleport.recordingencryption.v1.RecordingEncryptionH\x00R\x13RecordingEncryption\x12)\n" +
 	"\x06plugin\x18T \x01(\v2\x0f.types.PluginV1H\x00R\x06plugin\x12w\n" +
 	"\x1bAutoUpdateBotInstanceReport\x18U \x01(\v23.teleport.autoupdate.v1.AutoUpdateBotInstanceReportH\x00R\x1bAutoUpdateBotInstanceReport\x12P\n" +
-	"\rAppAuthConfig\x18V \x01(\v2(.teleport.appauthconfig.v1.AppAuthConfigH\x00R\rAppAuthConfigB\n" +
+	"\rAppAuthConfig\x18V \x01(\v2(.teleport.appauthconfig.v1.AppAuthConfigH\x00R\rAppAuthConfig\x12L\n" +
+	"\fCloudCluster\x18W \x01(\v2&.teleport.cloudcluster.v1.CloudClusterH\x00R\fCloudClusterB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10ER\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlan**\n" +
 	"\tOperation\x12\b\n" +
@@ -1760,6 +1779,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*types.PluginV1)(nil),                      // 77: types.PluginV1
 	(*v111.AutoUpdateBotInstanceReport)(nil),    // 78: teleport.autoupdate.v1.AutoUpdateBotInstanceReport
 	(*v120.AppAuthConfig)(nil),                  // 79: teleport.appauthconfig.v1.AppAuthConfig
+	(*v121.CloudCluster)(nil),                   // 80: teleport.cloudcluster.v1.CloudCluster
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -1844,11 +1864,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	77, // 79: proto.Event.plugin:type_name -> types.PluginV1
 	78, // 80: proto.Event.AutoUpdateBotInstanceReport:type_name -> teleport.autoupdate.v1.AutoUpdateBotInstanceReport
 	79, // 81: proto.Event.AppAuthConfig:type_name -> teleport.appauthconfig.v1.AppAuthConfig
-	82, // [82:82] is the sub-list for method output_type
-	82, // [82:82] is the sub-list for method input_type
-	82, // [82:82] is the sub-list for extension type_name
-	82, // [82:82] is the sub-list for extension extendee
-	0,  // [0:82] is the sub-list for field type_name
+	80, // 82: proto.Event.CloudCluster:type_name -> teleport.cloudcluster.v1.CloudCluster
+	83, // [83:83] is the sub-list for method output_type
+	83, // [83:83] is the sub-list for method input_type
+	83, // [83:83] is the sub-list for extension type_name
+	83, // [83:83] is the sub-list for extension extendee
+	0,  // [0:83] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -1938,6 +1959,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_Plugin)(nil),
 		(*Event_AutoUpdateBotInstanceReport)(nil),
 		(*Event_AppAuthConfig)(nil),
+		(*Event_CloudCluster)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
