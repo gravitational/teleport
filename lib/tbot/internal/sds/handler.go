@@ -337,6 +337,7 @@ func (h *Handler) StreamSecrets(
 		case <-renewalTimer.C:
 			// Handle renewal time!
 			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
+			// Set svids to nil to fetching of fresh SVIDs
 			svids = nil
 		}
 
