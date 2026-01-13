@@ -1,0 +1,40 @@
+should match the snapshot (tokenJoinOverride set):
+  1: |
+    apiVersion: resources.teleport.dev/v1
+    kind: TeleportRoleV7
+    metadata:
+      name: RELEASE-NAME-teleport-plugin-event-handler
+    spec:
+      allow:
+        rules:
+        - resources:
+          - event
+          - session
+          verbs:
+          - list
+          - read
+  2: |
+    apiVersion: resources.teleport.dev/v1
+    kind: TeleportBotV1
+    metadata:
+      name: RELEASE-NAME-teleport-plugin-event-handler
+    spec:
+      roles:
+      - RELEASE-NAME-teleport-plugin-event-handler
+  3: |
+    apiVersion: resources.teleport.dev/v2
+    kind: TeleportProvisionToken
+    metadata:
+      name: test-token
+    spec:
+      bot_name: RELEASE-NAME-teleport-plugin-event-handler
+      join_method: kubernetes
+      kubernetes:
+        allow:
+        - service_account: NAMESPACE:RELEASE-NAME-tbot
+        static_jwks:
+          jwks: |
+            test-jwks
+        type: static_jwks
+      roles:
+      - Bot

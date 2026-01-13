@@ -1,0 +1,81 @@
+suite: Test operator custom resources
+templates:
+  - operator_crs.yaml
+tests:
+  - it: should match the snapshot (tokenJoinOverride set)
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: true
+        tokenJoinOverride:
+          join_method: kubernetes
+          kubernetes:
+            type: static_jwks
+            static_jwks:
+              jwks: |
+                test-jwks
+    asserts:
+      - matchSnapshot: {}
+  - it: creates custom resources when crd.create is true
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - containsDocument:
+          kind: TeleportRoleV7
+          apiVersion: resources.teleport.dev/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler
+      - containsDocument:
+          kind: TeleportBotV1
+          apiVersion: resources.teleport.dev/v1
+          name: RELEASE-NAME-teleport-plugin-event-handler
+      - containsDocument:
+          kind: TeleportProvisionToken
+          apiVersion: resources.teleport.dev/v2
+          name: test-token
+  - it: creates no custom resources when crd.create is false
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should fail if tbot enabled and token name is not provided
+    set:
+      tbot:
+        enabled: true
+        clusterName: "test.teleport.sh"
+        teleportProxyAddress: "test.teleport.sh:443"
+        token: ""
+      crd:
+        create: true
+    asserts:
+      - failedTemplate: 
+          errorMessage: "tbot.token cannot be empty in chart values"
+  - it: should fail if tbot not enabled and tokenJoinOverride not set
+    set:
+      crd:
+        create: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "crd.tokenJoinOverride cannot be empty in chart values"
+  - it: should fail if tbot not enabled and tokenJoinOverride does not contain join_method
+    set:
+      crd:
+        create: true
+        tokenJoinOverride:
+          kubernetes:
+            type: static_jwks
+            static_jwks:
+              jwks: |
+                test-jwks
+    asserts:
+      - failedTemplate:
+          errorMessage: "crd.tokenJoinOverride.join_method cannot be empty in chart values"

@@ -79,3 +79,53 @@ identity
 {{- .Values.teleport.identitySecretPath -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Create the embedded tbot's service account name.
+*/}}
+{{- define "event-handler.tbot.serviceAccountName" -}}
+{{- if .Values.tbot.serviceAccount.name -}}
+{{- .Values.tbot.serviceAccount.name -}}
+{{- else -}}
+{{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Create the name for TeleportProvisionToken custom resource.
+*/}}
+{{- define "event-handler.crd.tokenName" -}}
+{{- if .Values.tbot.enabled -}}
+{{- required "tbot.token cannot be empty in chart values" .Values.tbot.token -}}
+{{- else -}}
+{{- include "event-handler.fullname" . -}}-bot
+{{- end -}}
+{{- end -}}
+
+{{/*
+Create the default TeleportProvisionToken join spec when using kubernetes join method,
+and tbot is enabled.
+*/}}
+{{- define "event-handler.crd.defaultKubeJoinSpec" -}}
+join_method: kubernetes
+kubernetes:
+  allow:
+  - service_account: "{{ .Release.Namespace }}:{{ include "event-handler.tbot.serviceAccountName" . }}"
+{{- end -}}
+
+{{/*
+Create the full TeleportProvisionToken join spec.
+*/}}
+{{- define "event-handler.crd.tokenJoinSpec" -}}
+{{- if and .Values.tbot.enabled (eq .Values.tbot.joinMethod "kubernetes") -}}
+{{- mustMergeOverwrite (include "event-handler.crd.defaultKubeJoinSpec" . | fromYaml) .Values.crd.tokenJoinOverride | toYaml -}}
+{{- else -}}
+  {{- if empty .Values.crd.tokenJoinOverride -}}
+  {{- fail "crd.tokenJoinOverride cannot be empty in chart values" -}}
+  {{- end -}}
+  {{- if not (hasKey .Values.crd.tokenJoinOverride "join_method") -}}
+  {{- fail "crd.tokenJoinOverride.join_method cannot be empty in chart values" -}}
+  {{- end -}}
+{{- .Values.crd.tokenJoinOverride | toYaml -}}
+{{- end -}}
+{{- end -}}
