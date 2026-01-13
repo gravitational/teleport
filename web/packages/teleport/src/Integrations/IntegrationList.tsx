@@ -21,10 +21,16 @@ import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
+import { Box, Flex, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { CircleCheck, CircleCross, CircleDashed, Warning } from 'design/Icon';
+import {
+  DangerAccessible,
+  SecondaryAccessible,
+  WarningAccessible,
+} from 'design/Label/Label';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { IconTooltip } from 'design/Tooltip';
+import { HoverTooltip } from 'design/Tooltip';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
@@ -34,8 +40,7 @@ import { getStatus } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
   ExternalAuditStorageIntegration,
-  getStatusCodeDescription,
-  getStatusCodeTitle,
+  // getStatusCodeDescription,
   Integration,
   IntegrationKind,
   IntegrationStatusCode,
@@ -44,6 +49,7 @@ import {
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
+import { Status } from './types';
 
 type Props = {
   list: IntegrationLike[];
@@ -120,20 +126,20 @@ export function IntegrationList(props: Props) {
           isNonRender: true,
         },
         {
-          key: 'kind',
-          headerText: 'Integration',
+          key: 'name',
+          headerText: 'Name',
           isSortable: true,
-          render: item => <IconCell item={item} />,
-        },
-        {
-          key: 'details',
-          headerText: 'Details',
+          render: item => <NameCell item={item} />,
         },
         {
           key: 'statusCode',
           headerText: 'Status',
           isSortable: true,
           render: item => <StatusCell item={item} />,
+        },
+        {
+          key: 'details',
+          headerText: 'Details',
         },
         {
           altKey: 'options-btn',
@@ -253,68 +259,86 @@ export function IntegrationList(props: Props) {
 }
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
-  const status = getStatus(item);
+  const { status, label, tooltip } = getStatus(item);
 
-  if (
-    item.resourceType === 'integration' &&
-    item.kind === IntegrationKind.AwsOidc &&
-    (!item.spec.issuerS3Bucket || !item.spec.issuerS3Prefix)
-  ) {
-    return (
-      <Cell>
-        <Flex alignItems="center">
-          <StatusLight status={status} />
-          {getStatusCodeTitle(item.statusCode)}
-        </Flex>
-      </Cell>
-    );
-  }
-  const statusDescription = getStatusCodeDescription(
-    item.statusCode,
-    item.status?.errorMessage
-  );
   return (
     <Cell>
-      <Flex alignItems="center">
-        <StatusLight status={status} />
-        {getStatusCodeTitle(item.statusCode)}
-        {statusDescription && (
-          <Box mx="1">
-            <IconTooltip>{statusDescription}</IconTooltip>
+      <HoverTooltip
+        tipContent={
+          <Box>
+            <Text fontWeight={600}>Status</Text>
+            <Text>{tooltip}</Text>
           </Box>
-        )}
-      </Flex>
+        }
+      >
+        <Flex inline alignItems="center">
+          {statusLabel(status, label)}
+        </Flex>
+      </HoverTooltip>
     </Cell>
   );
 };
 
-export enum Status {
-  Success,
-  Warning,
-  Error,
-  OktaConfigError = 20,
-}
+const statusLabel = (status: Status, label: string) => {
+  switch (status) {
+    case Status.Healthy:
+      return (
+        <SecondaryAccessible>
+          <Flex alignItems={'center'} gap={1} p={0.5}>
+            <CircleCheck size="small" />
+            {label}
+          </Flex>
+        </SecondaryAccessible>
+      );
+    case Status.Draft:
+      return (
+        <SecondaryAccessible>
+          <Flex alignItems={'center'} gap={1} p={0.5}>
+            <CircleDashed size="small" />
+            {label}
+          </Flex>
+        </SecondaryAccessible>
+      );
+    case Status.Failed:
+      return (
+        <DangerAccessible>
+          <Flex alignItems={'center'} gap={1} p={0.5}>
+            <CircleCross size="small" />
+            {label}
+          </Flex>
+        </DangerAccessible>
+      );
+    case Status.Issues:
+      return (
+        <WarningAccessible>
+          <Flex alignItems={'center'} gap={1} p={0.5}>
+            <Warning size="small" />
+            {label}
+          </Flex>
+        </WarningAccessible>
+      );
+    case Status.OktaConfigError:
+      return (
+        <DangerAccessible>
+          <Flex alignItems={'center'} gap={1} p={0.5}>
+            <CircleCross size="small" />
+            {label}
+          </Flex>
+        </DangerAccessible>
+      );
+    case Status.Unknown:
+      return (
+        <SecondaryAccessible>
+          <Flex alignItems={'center'} gap={1} p={0.5}>
+            <CircleDashed size="small" />
+            {label}
+          </Flex>
+        </SecondaryAccessible>
+      );
+  }
+};
 
-const StatusLight = styled(Box)<{ status: Status }>`
-  border-radius: 50%;
-  margin-right: 4px;
-  width: 8px;
-  height: 8px;
-  background-color: ${({ status, theme }) => {
-    if (status === Status.Success) {
-      return theme.colors.success.main;
-    }
-    if ([Status.Error, Status.OktaConfigError].includes(status)) {
-      return theme.colors.error.main;
-    }
-    if (status === Status.Warning) {
-      return theme.colors.warning.main;
-    }
-    return theme.colors.grey[300]; // Unknown
-  }};
-`;
-
-const IconCell = ({ item }: { item: IntegrationLike }) => {
+const NameCell = ({ item }: { item: IntegrationLike }) => {
   let formattedText;
   let icon;
   if (item.resourceType === 'plugin') {

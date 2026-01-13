@@ -169,6 +169,57 @@ const kind = ({
     };
   }
 
+  if (kind === 'accessible-secondary') {
+    return {
+      color: theme.colors.text.muted,
+      backgroundColor: theme.colors.interactive.tonal.neutral[1],
+      borderColor: theme.colors.text.muted,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['alert'].hover,
+        },
+      }),
+    };
+  }
+
+  if (kind === 'accessible-warning') {
+    return {
+      color: theme.colors.interactive.solid.alert.default,
+      backgroundColor: theme.colors.interactive.tonal.alert[1],
+      borderColor: theme.colors.interactive.solid.alert.default,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['alert'].hover,
+        },
+      }),
+    };
+  }
+
+  if (kind === 'accessible-danger') {
+    return {
+      color: theme.colors.interactive.solid.danger.default,
+      backgroundColor: theme.colors.interactive.tonal.danger[1],
+      borderColor: theme.colors.interactive.solid.danger.default,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
+      ...(withHoverState && {
+        '&:hover': {
+          color: theme.colors.text.primaryInverse,
+          backgroundColor: theme.colors.interactive.solid['alert'].hover,
+        },
+      }),
+    };
+  }
+
   // default is primary
   return {
     backgroundColor: theme.colors.brand,
@@ -192,7 +243,10 @@ export type LabelKind =
   | 'outline-warning'
   | 'outline-danger'
   | 'outline-primary'
-  | 'outline-success';
+  | 'outline-success'
+  | 'accessible-secondary'
+  | 'accessible-warning'
+  | 'accessible-danger';
 
 export type LabelProps = {
   kind?: LabelKind;
@@ -241,4 +295,16 @@ export const WarningOutlined = (props: LabelPropsWithoutKind) => (
 );
 export const DangerOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-danger" {...props} />
+);
+
+export const SecondaryAccessible = (props: LabelPropsWithoutKind) => (
+  <Label kind="accessible-secondary" {...props} />
+);
+
+export const WarningAccessible = (props: LabelPropsWithoutKind) => (
+  <Label kind="accessible-warning" {...props} />
+);
+
+export const DangerAccessible = (props: LabelPropsWithoutKind) => (
+  <Label kind="accessible-danger" {...props} />
 );

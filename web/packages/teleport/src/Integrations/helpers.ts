@@ -18,38 +18,74 @@
 
 import { LabelKind } from 'design/Label';
 
-import { IntegrationLike, Status } from 'teleport/Integrations/IntegrationList';
+import { IntegrationLike } from 'teleport/Integrations/IntegrationList';
 import {
   getStatusCodeTitle,
   Integration,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
 
-export function getStatus(item: IntegrationLike): Status {
+import { Status } from './types';
+
+const HEALTHY = {
+  status: Status.Healthy,
+  label: 'Healthy',
+  tooltip: 'Integration is connected and working.',
+};
+
+const DRAFT = {
+  status: Status.Draft,
+  label: 'Draft',
+  tooltip: 'Integration setup has not been completed.',
+};
+
+const FAILED = (tooltip: string) => ({
+  status: Status.Failed,
+  label: 'Failed',
+  tooltip,
+});
+
+export function getStatus(item: IntegrationLike): {
+  status: Status;
+  label: string;
+  tooltip: string;
+} {
   if (item.resourceType === 'integration') {
-    return Status.Success;
+    return HEALTHY;
   }
 
   if (item.resourceType === 'external-audit-storage') {
-    switch (item.statusCode) {
-      case IntegrationStatusCode.Draft:
-        return Status.Warning;
-      default:
-        return Status.Success;
-    }
+    return item.statusCode === IntegrationStatusCode.Draft ? DRAFT : HEALTHY;
   }
 
   switch (item.statusCode) {
     case IntegrationStatusCode.Unknown:
-      return null;
+      return {
+        status: Status.Unknown,
+        label: 'Healthy',
+        tooltip: 'Integration is connected and working.',
+      };
     case IntegrationStatusCode.Running:
-      return Status.Success;
-    case IntegrationStatusCode.SlackNotInChannel:
-      return Status.Warning;
+      return HEALTHY;
     case IntegrationStatusCode.Draft:
-      return Status.Warning;
+      return DRAFT;
+    case IntegrationStatusCode.SlackNotInChannel:
+      return {
+        status: Status.Issues,
+        label: 'Issues',
+        tooltip:
+          'The Slack integration must be invited to the default channel in order to receive access request notifications.',
+      };
+    case IntegrationStatusCode.Unauthorized:
+      return FAILED(
+        'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
+      );
+    case IntegrationStatusCode.OktaConfigError:
+      return FAILED(
+        `There was an error with the integration's configuration.${item.status?.errorMessage ? ` ${item.status.errorMessage}` : ''}`
+      );
     default:
-      return Status.Error;
+      return FAILED('Integration failed due to an unknown error.');
   }
 }
 
@@ -57,17 +93,15 @@ export function getStatusAndLabel(integration: Integration): {
   labelKind: LabelKind;
   status: string;
 } {
-  const modifiedStatus = getStatus(integration);
+  const { status: modifiedStatus } = getStatus(integration);
   const statusCode = integration.statusCode;
   const title = getStatusCodeTitle(statusCode);
 
   switch (modifiedStatus) {
-    case Status.Success:
+    case Status.Healthy:
       return { labelKind: 'success', status: title };
-    case Status.Error:
+    case Status.Failed:
       return { labelKind: 'danger', status: title };
-    case Status.Warning:
-      return { labelKind: 'warning', status: title };
     default:
       return { labelKind: 'secondary', status: title };
   }
