@@ -28,7 +28,7 @@ import (
 func (s *Service) GetSystemService(_ context.Context, req *api.GetSystemServiceRequest) (*api.GetSystemServiceResponse, error) {
 	err := vnet.CheckStatus()
 	if err != nil {
-		return &api.GetSystemServiceStatusResponse{}, nil
+		return &api.GetSystemServiceResponse{}, nil
 	}
 
 	return nil, trace.Wrap(err)
