@@ -45,6 +45,7 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	cloudclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/cloudcluster/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -171,6 +172,7 @@ type testPack struct {
 	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
 	appAuthConfigs          *local.AppAuthConfigService
+	cloudClusters           *local.CloudClusterService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -445,6 +447,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	cloudClusterSvc, err := local.NewCloudClusterService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.cloudClusters = cloudClusterSvc
+
 	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -591,6 +599,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		AppAuthConfig:           p.appAuthConfigs,
+		CloudClusterService:     p.cloudClusters,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -861,6 +870,7 @@ func TestCompletenessInit(t *testing.T) {
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
 			AppAuthConfig:           p.appAuthConfigs,
+			CloudClusterService:     p.cloudClusters,
 		}))
 		require.NoError(t, err)
 
@@ -950,6 +960,7 @@ func TestCompletenessReset(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
+		CloudClusterService:     p.cloudClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1111,6 +1122,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
+		CloudClusterService:     p.cloudClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1211,6 +1223,7 @@ func initStrategy(t *testing.T) {
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
+		CloudClusterService:     p.cloudClusters,
 	}))
 	require.NoError(t, err)
 
@@ -1956,6 +1969,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
+		types.KindCloudCluster:                      types.Resource153ToLegacy(newCloudCluster(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -2009,6 +2023,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*cloudclusterv1.CloudCluster]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*cloudclusterv1.CloudCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*accessmonitoringrulesv1.AccessMonitoringRule]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*notificationsv1.GlobalNotification]:
@@ -2453,6 +2469,18 @@ func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
 	}
 
 	return crownJewel
+}
+
+func newCloudCluster(t *testing.T, name string) *cloudclusterv1.CloudCluster {
+	t.Helper()
+
+	cloudCluster := &cloudclusterv1.CloudCluster{
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+	}
+
+	return cloudCluster
 }
 
 func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
