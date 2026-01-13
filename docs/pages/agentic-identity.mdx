@@ -1,11 +1,15 @@
 ---
 title: Teleport Agentic Identity Framework
+template: doc-page
 ---
 
 import DocHero from "@site/src/components/Pages/Landing/DocHero";
 import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
 import Resources from "@site/src/components/Pages/Homepage/Resources";
 import questionSvg from "@site/src/components/Icon/svg/question2.svg";
+import connectSvg from "@site/src/components/Icon/svg/connect.svg";
+import usersSvg from "@site/src/components/Icon/svg/users.svg";
+import lockSvg from "@site/src/components/Icon/svg/lock.svg";
 
 The Teleport Agentic Identity Framework is a standards-driven security
 architecture and a reference implementation for deploying AI agents across
@@ -128,21 +132,21 @@ Teleport includes the following capabilities for Agentic Access:
   resources={[
     {
       title: "Client and Server Proxying",
-      description: "Description TODO",
-      iconComponent: questionSvg,
-      href: ""
+      description: "Protect MCP servers with Teleport so AI agents can securely connect to your infrastructure.",
+      iconComponent: connectSvg,
+      href: "../enroll-resources/mcp-access/"
     },
     {
       title: "Authorization",
-      description: "Description TODO",
-      iconComponent: questionSvg,
-      href: ""
+      description: "Use Teleport roles to limit the MCP servers that an AI agent is allowed to access.",
+      iconComponent: usersSvg,
+      href: "../enroll-resources/mcp-access/rbac/"
     },
     {
       title: "Authentication",
-      description: "Description TODO",
-      iconComponent: questionSvg,
-      href: ""
+      description: "Securely authenticate to Teleport-protected MCP servers.",
+      iconComponent: lockSvg,
+      href: "../connect-your-client/model-context-protocol/mcp-access/",
     }
   ]}
 />
