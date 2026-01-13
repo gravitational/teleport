@@ -36,7 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
@@ -410,7 +410,7 @@ func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *r
 
 func getRoleStatusConditionError(object map[string]interface{}) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
-	var status apiresources.Status
+	var status teleportcr.Status
 	_ = mapstructure.Decode(object["status"], &status)
 
 	for _, condition := range status.Conditions {

@@ -37,7 +37,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
-	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 	v2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
@@ -400,7 +400,7 @@ func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *v
 
 func getUserStatusConditionError(object map[string]interface{}) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
-	var status apiresources.Status
+	var status teleportcr.Status
 	_ = mapstructure.Decode(object["status"], &status)
 
 	for _, condition := range status.Conditions {
