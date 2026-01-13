@@ -44,7 +44,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     status,
     startAttempt,
     stopAttempt,
-    systemServiceStatus,
+    getWindowsSystemServiceAttempt,
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
@@ -97,12 +97,12 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           <ErrorText>Could not stop VNet: {stopAttempt.statusText}</ErrorText>
         )}
 
-        {systemServiceStatus.status === 'error' &&
-          isTshdRpcError(systemServiceStatus.error, 'NOT_FOUND') && (
+        {getWindowsSystemServiceAttempt.status === 'error' &&
+          isTshdRpcError(getWindowsSystemServiceAttempt.error, 'NOT_FOUND') && (
             <ErrorText>
-              VNet system service not found. To use VNet, install Teleport
-              Connect in a per-machine mode. Administrator privileges will be
-              required.
+              VNet system service is not installed. <br />
+              To use VNet, reinstall Teleport Connect in a per-machine mode.
+              Administrator privileges will be required.
             </ErrorText>
           )}
 
@@ -143,10 +143,10 @@ export const VnetSliderStep = (props: StepComponentProps) => {
 };
 
 const ErrorText = (props: PropsWithChildren) => (
-  <Text>
+  <Flex>
     <ConnectionStatusIndicator status="error" inline mr={2} />
     {props.children}
-  </Text>
+  </Flex>
 );
 
 /**

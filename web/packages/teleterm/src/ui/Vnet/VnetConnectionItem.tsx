@@ -114,7 +114,7 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
-    systemServiceStatus,
+    getWindowsSystemServiceAttempt,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -125,7 +125,7 @@ const VnetConnectionItemBase = forwardRef<
   const isProcessing =
     startAttempt.status === 'processing' ||
     stopAttempt.status === 'processing' ||
-    systemServiceStatus.status === '';
+    getWindowsSystemServiceAttempt.status === 'processing';
   const disabledDiagnosticsReason =
     getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus: ConnectionStatus = useMemo(() => {
@@ -310,6 +310,7 @@ const VnetConnectionItemBase = forwardRef<
             ) : (
               <ButtonIcon
                 key={toggleVnetButtonKey}
+                disabled={getWindowsSystemServiceAttempt.status === 'error'}
                 title={
                   status.value === 'running' ? 'Stopping VNet' : 'Starting VNet'
                 }
@@ -364,7 +365,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
-                disabled={systemServiceStatus.status === 'error'}
+                disabled={getWindowsSystemServiceAttempt.status === 'error'}
                 title=""
                 onClick={e => {
                   e.stopPropagation();

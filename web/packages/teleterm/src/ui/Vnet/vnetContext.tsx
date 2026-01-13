@@ -85,6 +85,10 @@ export type VnetContext = {
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
   /**
+   * Checks if the Windows VNet service is installed.
+   */
+  getWindowsSystemServiceAttempt: Attempt<void>;
+  /**
    * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
    * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
    *
@@ -128,8 +132,6 @@ export type VnetContext = {
     /** Optional callback that will be invoked after SSH clients are configured. */
     onSuccess?: () => void;
   }) => void;
-
-  systemServiceStatus: Attempt<void>;
 };
 
 export type VnetStatus =
@@ -171,7 +173,7 @@ export const VnetContextProvider: FC<
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
 
-  const [systemServiceStatus, loadSystemServiceStatus] = useAsync(
+  const [getWindowsSystemServiceAttempt, getWindowsSystemService] = useAsync(
     useCallback(async () => {
       try {
         await vnet.getSystemService({});
@@ -183,9 +185,10 @@ export const VnetContextProvider: FC<
     }, [vnet])
   );
 
+  // Check if the Windows service exists when the app starts.
   useEffect(() => {
-    loadSystemServiceStatus();
-  }, [loadSystemServiceStatus]);
+    getWindowsSystemService();
+  }, [getWindowsSystemService]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -349,8 +352,14 @@ export const VnetContextProvider: FC<
     [hasDismissedDiagnosticsAlert, diagnosticsAttempt]
   );
 
-  const isServiceOk = systemServiceStatus.status === 'success';
   useEffect(() => {
+    if (
+      getWindowsSystemServiceAttempt.status === '' ||
+      getWindowsSystemServiceAttempt.status === 'processing'
+    ) {
+      return;
+    }
+
     const handleAutoStart = async () => {
       if (
         isSupported &&
@@ -359,7 +368,7 @@ export const VnetContextProvider: FC<
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === '' &&
-        isServiceOk
+        getWindowsSystemServiceAttempt.status === 'success'
       ) {
         const [, error] = await start();
 
@@ -372,7 +381,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized, isServiceOk]);
+  }, [isWorkspaceStateInitialized, getWindowsSystemServiceAttempt.status]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -553,7 +562,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
-        systemServiceStatus,
+        getWindowsSystemServiceAttempt,
       }}
     >
       {children}
