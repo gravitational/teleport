@@ -116,6 +116,8 @@ jobs:
           unzip awscliv2.zip
           ./aws/install
           aws --version
+          echo "outcome=${{ steps.normalize_test_results.outcome }}"
+          echo "conclusion=${{ steps.normalize_test_results.conclusion }}"
 
       - name: Upload test artifacts
         if: steps.normalize_test_results.conclusion == 'success'
