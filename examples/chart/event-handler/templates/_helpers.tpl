@@ -118,14 +118,14 @@ Create the full TeleportProvisionToken join spec.
 */}}
 {{- define "event-handler.crd.tokenJoinSpec" -}}
 {{- if and .Values.tbot.enabled (eq .Values.tbot.joinMethod "kubernetes") -}}
-{{- mustMergeOverwrite (include "event-handler.crd.defaultKubeJoinSpec" . | fromYaml) .Values.crd.tokenJoinOverride | toYaml -}}
+{{- mustMergeOverwrite (include "event-handler.crd.defaultKubeJoinSpec" . | fromYaml) .Values.crd.tokenSpecOverride | toYaml -}}
 {{- else -}}
-  {{- if empty .Values.crd.tokenJoinOverride -}}
-  {{- fail "crd.tokenJoinOverride cannot be empty in chart values" -}}
+  {{- if empty .Values.crd.tokenSpecOverride -}}
+  {{- fail "crd.tokenSpecOverride cannot be empty in chart values" -}}
   {{- end -}}
-  {{- if not (hasKey .Values.crd.tokenJoinOverride "join_method") -}}
-  {{- fail "crd.tokenJoinOverride.join_method cannot be empty in chart values" -}}
+  {{- if not (hasKey .Values.crd.tokenSpecOverride "join_method") -}}
+  {{- fail "crd.tokenSpecOverride.join_method cannot be empty in chart values" -}}
   {{- end -}}
-{{- .Values.crd.tokenJoinOverride | toYaml -}}
+{{- .Values.crd.tokenSpecOverride | toYaml -}}
 {{- end -}}
 {{- end -}}

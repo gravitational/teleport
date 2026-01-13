@@ -2,13 +2,13 @@ suite: Test operator custom resources
 templates:
   - operator_crs.yaml
 tests:
-  - it: should match the snapshot (tokenJoinOverride set)
+  - it: should match the snapshot (tokenSpecOverride set)
     values:
       - ../.lint/tbot-enabled.yaml
     set:
       crd:
         create: true
-        tokenJoinOverride:
+        tokenSpecOverride:
           join_method: kubernetes
           kubernetes:
             type: static_jwks
@@ -59,18 +59,18 @@ tests:
     asserts:
       - failedTemplate: 
           errorMessage: "tbot.token cannot be empty in chart values"
-  - it: should fail if tbot not enabled and tokenJoinOverride not set
+  - it: should fail if tbot not enabled and tokenSpecOverride not set
     set:
       crd:
         create: true
     asserts:
       - failedTemplate:
-          errorMessage: "crd.tokenJoinOverride cannot be empty in chart values"
-  - it: should fail if tbot not enabled and tokenJoinOverride does not contain join_method
+          errorMessage: "crd.tokenSpecOverride cannot be empty in chart values"
+  - it: should fail if tbot not enabled and tokenSpecOverride does not contain join_method
     set:
       crd:
         create: true
-        tokenJoinOverride:
+        tokenSpecOverride:
           kubernetes:
             type: static_jwks
             static_jwks:
@@ -78,4 +78,4 @@ tests:
                 test-jwks
     asserts:
       - failedTemplate:
-          errorMessage: "crd.tokenJoinOverride.join_method cannot be empty in chart values"
+          errorMessage: "crd.tokenSpecOverride.join_method cannot be empty in chart values"

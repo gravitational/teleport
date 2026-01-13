@@ -174,24 +174,24 @@ crd:
   # crd.create(bool) -- controls if the chart should create
   # the Operator custom resources to automatically bootstrap the plugin.
   create: false
-  # crd.tokenJoinOverride -- configures the join token for tbot and the plugin to use to join the Teleport cluster.
+  # crd.tokenSpecOverride -- optionally overrides the join token spec for tbot to use to join the Teleport cluster.
   #
-  # When tbot is enabled, the default configuration uses the kubernetes in_cluster join method.
-  # By default, the service account for tbot will be allowed for all kubernetes join types: in_cluster, JWKS, OIDC.
+  # When tbot is enabled, the default configuration uses the `kubernetes` in_cluster join method.
+  # By default, the service account for tbot will be allowed for all `kubernetes` join types: in_cluster, JWKS, OIDC.
   #
   # You can also configure the token to use other supported join methods. The token specification
   # must match `tbot.joinMethod` for the plugin to correctly join the cluster.
   # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
   #
   # <Admonition type="warning" title="Other Join Methods">
-  # When not using the kubernetes join method, or when tbot is not enabled, you must specify `join_method`.
+  # When not using the `kubernetes` join method, or when tbot is not enabled, you must specify `join_method`.
   # Ensure all necessary fields for the join token are present for the Operator
   # to correctly create the Teleport token resource.
   # </Admonition>
   #
-  # Example (kubernetes JWKS join method):
+  # Example (Kubernetes JWKS join method):
   # ```yaml
-  # tokenJoinOverride:
+  # tokenSpecOverride:
   #   join_method: kubernetes
   #   kubernetes:
   #     type: static_jwks
@@ -201,9 +201,9 @@ crd:
   #         {"keys":[--snip--]}
   # ```
   #
-  # Example (kubernetes OIDC join method):
+  # Example (Kubernetes OIDC join method):
   # ```yaml
-  # tokenJoinOverride:
+  # tokenSpecOverride:
   #   join_method: kubernetes
   #   kubernetes:
   #     type: oidc
@@ -212,7 +212,7 @@ crd:
   #       # cluster and cloud provider.
   #       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
   # ```
-  tokenJoinOverride: {}
+  tokenSpecOverride: {}
 
 persistentVolumeClaim:
   enabled: false
