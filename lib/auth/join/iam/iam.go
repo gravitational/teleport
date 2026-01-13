@@ -129,8 +129,19 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 	return signedRequest.Bytes(), nil
 }
 
+var (
+	// ErrNoFIPSEndpoint is returned when a FIPS endpoint is requested for a
+	// region that has none.
+	ErrNoFIPSEndpoint = errors.New("region has no known FIPS endpoint")
+)
+
 // ExpectedSTSHost returns the expected AWS STS endpoint hostname in the given region and FIPS mode.
 func ExpectedSTSHost(ctx context.Context, region string, fips bool) (string, error) {
+	// This check is necessary because the AWS SDK will happily return FIPS
+	// endpoints that don't exist in regions that don't have one.
+	if fips && !slices.Contains(FIPSSTSRegions(), region) {
+		return "", ErrNoFIPSEndpoint
+	}
 	resolver := sts.NewDefaultEndpointResolverV2()
 	endpoint, err := resolver.ResolveEndpoint(ctx, sts.EndpointParameters{
 		Region:  aws.String(region),

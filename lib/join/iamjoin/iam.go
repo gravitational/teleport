@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -108,6 +109,9 @@ func validateSTSHost(ctx context.Context, stsHost string, requireFIPS bool) erro
 	// host for this region and compare with what the client sent.
 	expectedSTSHost, err := iam.ExpectedSTSHost(ctx, region, endpointIsFIPS)
 	if err != nil {
+		if errors.Is(err, iam.ErrNoFIPSEndpoint) {
+			return trace.AccessDenied("node selected FIPS AWS STS endpoint in region with no known FIPS endpoint")
+		}
 		return trace.Wrap(err, "resolving expected STS endpoint for region: %q fips: %v", region, endpointIsFIPS)
 	}
 

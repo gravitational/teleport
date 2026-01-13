@@ -99,6 +99,7 @@ func TestValidateSTSHost(t *testing.T) {
 	}
 
 	invalidEndpoints := []string{
+		"sts-fips.ap-south-1.amazonaws.com", // No real FIPS endpoint in this region.
 		"sts.evil.amazonaws.com",
 		"sts-fips.evil.amazonaws.com",
 		"evil.us-west-2.amazonaws.com",
