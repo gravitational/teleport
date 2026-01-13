@@ -20,11 +20,18 @@ import { ComponentType } from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
-import { CircleCheck, CircleCross, CircleDashed, Warning } from 'design/Icon';
+import {
+  CircleCheck,
+  CircleCross,
+  Pencil,
+  Question,
+  Warning,
+} from 'design/Icon';
 import { IconSize } from 'design/Icon/Icon';
 import {
   DangerAccessible,
   SecondaryAccessible,
+  SuccessAccessible,
   WarningAccessible,
 } from 'design/Label/Label';
 import { HoverTooltip } from 'design/Tooltip';
@@ -141,21 +148,17 @@ const StatusUI: Record<
 > = {
   [Status.Healthy]: {
     Icon: CircleCheck,
-    Label: SecondaryAccessible,
+    Label: SuccessAccessible,
   },
   [Status.Draft]: {
-    Icon: CircleDashed,
+    Icon: Pencil,
     Label: SecondaryAccessible,
   },
   [Status.Unknown]: {
-    Icon: CircleDashed,
+    Icon: Question,
     Label: SecondaryAccessible,
   },
   [Status.Failed]: {
-    Icon: CircleCross,
-    Label: DangerAccessible,
-  },
-  [Status.OktaConfigError]: {
     Icon: CircleCross,
     Label: DangerAccessible,
   },
@@ -169,8 +172,8 @@ const statusLabel = (status: Status, label: string) => {
   const { Icon, Label } = StatusUI[status];
 
   return (
-    <Label>
-      <Flex alignItems="center" gap={1} p={0.5}>
+    <Label aria-label="status">
+      <Flex alignItems="center" gap={1}>
         <Icon size="small" />
         {label}
       </Flex>

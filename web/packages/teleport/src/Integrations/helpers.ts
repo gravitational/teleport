@@ -16,20 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { IntegrationLike } from './IntegrationList';
 import { getStatus } from './shared/StatusLabel';
 import { Status } from './types';
 
-const STATUS_RANK: Record<Status, number> = {
-  [Status.Healthy]: 1,
-  [Status.Draft]: 2,
-  [Status.Unknown]: 3,
-  [Status.Issues]: 4,
-  [Status.Failed]: 5,
-  [Status.OktaConfigError]: 6,
+const StatusRank: Record<Status, number> = {
+  [Status.Draft]: 1,
+  [Status.Healthy]: 2,
+  [Status.Issues]: 3,
+  [Status.Failed]: 4,
+  [Status.Unknown]: 5,
 };
 
 export const sortByStatus = (a, b) => {
   const { status: statusA } = getStatus(a);
   const { status: statusB } = getStatus(b);
-  return STATUS_RANK[statusA] - STATUS_RANK[statusB];
+  return StatusRank[statusA] - StatusRank[statusB];
 };
+
+export function filterByIntegrationStatus(
+  l: IntegrationLike[],
+  s: Status[]
+): IntegrationLike[] {
+  return l.filter(i => {
+    if (s.length) {
+      const { status } = getStatus(i);
+      if (!s.includes(status)) {
+        return false;
+      }
+    }
+    return true;
+  });
+}

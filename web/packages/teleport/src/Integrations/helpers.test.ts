@@ -40,7 +40,7 @@ test.each`
   ${'any'}                    | ${IntegrationStatusCode.Running}           | ${Status.Healthy}
   ${'any'}                    | ${IntegrationStatusCode.Unauthorized}      | ${Status.Failed}
   ${'any'}                    | ${IntegrationStatusCode.SlackNotInChannel} | ${Status.Issues}
-  ${'any'}                    | ${IntegrationStatusCode.Unknown}           | ${null}
+  ${'any'}                    | ${IntegrationStatusCode.Unknown}           | ${Status.Unknown}
   ${'any'}                    | ${IntegrationStatusCode.OtherError}        | ${Status.Failed}
 `(
   'getStatus type $type with code $code returns $expected',
@@ -51,7 +51,7 @@ test.each`
       resourceType: type,
       statusCode: code,
     };
-    const status = getStatus(item);
+    const { status } = getStatus(item);
     expect(status).toBe(expected);
   }
 );

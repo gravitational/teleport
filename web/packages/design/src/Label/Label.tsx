@@ -177,29 +177,28 @@ const kind = ({
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['alert'].hover,
-        },
-      }),
+    };
+  }
+
+  if (kind === 'accessible-success') {
+    return {
+      color: theme.colors.interactive.solid.success.hover,
+      backgroundColor: theme.colors.interactive.tonal.success[1],
+      borderColor: theme.colors.interactive.solid.success.hover,
+      borderWidth: 1,
+      borderStyle: 'solid',
+      fontWeight: theme.fontWeights.regular,
     };
   }
 
   if (kind === 'accessible-warning') {
     return {
-      color: theme.colors.interactive.solid.alert.default,
+      color: theme.colors.interactive.solid.alert.hover,
       backgroundColor: theme.colors.interactive.tonal.alert[1],
-      borderColor: theme.colors.interactive.solid.alert.default,
+      borderColor: theme.colors.interactive.solid.alert.hover,
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['alert'].hover,
-        },
-      }),
     };
   }
 
@@ -211,12 +210,6 @@ const kind = ({
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['alert'].hover,
-        },
-      }),
     };
   }
 
@@ -245,6 +238,7 @@ export type LabelKind =
   | 'outline-primary'
   | 'outline-success'
   | 'accessible-secondary'
+  | 'accessible-success'
   | 'accessible-warning'
   | 'accessible-danger';
 
@@ -299,6 +293,10 @@ export const DangerOutlined = (props: LabelPropsWithoutKind) => (
 
 export const SecondaryAccessible = (props: LabelPropsWithoutKind) => (
   <Label kind="accessible-secondary" {...props} />
+);
+
+export const SuccessAccessible = (props: LabelPropsWithoutKind) => (
+  <Label kind="accessible-success" {...props} />
 );
 
 export const WarningAccessible = (props: LabelPropsWithoutKind) => (

@@ -16,11 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export enum Status {
-  Healthy,
-  Failed,
-  Issues,
-  Draft,
-  Unknown,
-  OktaConfigError = 20,
-}
+export const Status = {
+  Healthy: 'Healthy',
+  Issues: 'Issues',
+  Failed: 'Failed',
+  Draft: 'Draft',
+  Unknown: 'Unknown',
+} as const;
+
+export type Status = (typeof Status)[keyof typeof Status];
+
+export const StatusOptions: { label: Status; value: Status }[] = Object.values(
+  Status
+).map(s => ({
+  label: s,
+  value: s,
+}));

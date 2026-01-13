@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
@@ -24,16 +24,23 @@ import styled from 'styled-components';
 import { Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { ResourceIcon } from 'design/ResourceIcon';
+import {
+  applyFilters,
+  FilterMap,
+  ListFilters,
+} from 'shared/components/ListFilters';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { useAsync } from 'shared/hooks/useAsync';
 import { saveOnDisk } from 'shared/utils/saveOnDisk';
 
 import cfg from 'teleport/config';
-import { sortByStatus } from 'teleport/Integrations/helpers';
+import {
+  filterByIntegrationStatus,
+  sortByStatus,
+} from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
 import {
   ExternalAuditStorageIntegration,
-  // getStatusCodeDescription,
   Integration,
   IntegrationKind,
   IntegrationStatusCode,
@@ -43,6 +50,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ExternalAuditStorageOpType } from './Operations/useIntegrationOperation';
 import { StatusLabel } from './shared/StatusLabel';
+import { StatusOptions, type Status } from './types';
 
 type Props = {
   list: IntegrationLike[];
@@ -66,6 +74,10 @@ const statusKinds = [
   IntegrationKind.AwsOidc,
   IntegrationKind.AwsRa,
 ];
+
+type Filters = {
+  Status: Status;
+};
 
 export function IntegrationList(props: Props) {
   const history = useHistory();
@@ -103,12 +115,26 @@ export function IntegrationList(props: Props) {
     }
   );
 
+  const [filters, setFilters] = useState<FilterMap<IntegrationLike, Filters>>({
+    Status: {
+      options: StatusOptions,
+      selected: [],
+      apply: filterByIntegrationStatus,
+    },
+  });
+
+  const filteredList = useMemo(
+    () => applyFilters(props.list, filters),
+    [props.list, filters]
+  );
+
   const { clusterId } = useStickyClusterId();
   return (
     <Table
       pagination={{ pageSize: 20 }}
       isSearchable
-      data={props.list}
+      filters={<ListFilters filters={filters} onFilterChange={setFilters} />}
+      data={filteredList}
       row={{
         onClick: handleRowClick,
         getStyle: getRowStyle,
