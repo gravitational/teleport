@@ -17,10 +17,12 @@
  */
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { AppSubKind } from 'shared/services';
 import { getAppProtocol } from 'shared/services/apps';
 
 import {
   getAwsAppLaunchUrl,
+  getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
   isWebApp,
@@ -51,7 +53,7 @@ export async function connectToApp(
   target: App,
   telemetry: { origin: DocumentOrigin },
   options?: {
-    arnForAwsApp?: string;
+    arnForAwsAppOrRoleForAwsIc?: string;
   }
 ): Promise<void> {
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
@@ -79,7 +81,20 @@ export async function connectToApp(
         app: target,
         rootCluster,
         cluster,
-        arn: options.arnForAwsApp,
+        arn: options.arnForAwsAppOrRoleForAwsIc,
+      }),
+      telemetry
+    );
+    return;
+  }
+
+  if (target.subKind === AppSubKind.AwsIcAccount) {
+    launchAppInBrowser(
+      ctx,
+      target,
+      getAwsIcLaunchUrl({
+        app: target,
+        roleName: options.arnForAwsAppOrRoleForAwsIc,
       }),
       telemetry
     );

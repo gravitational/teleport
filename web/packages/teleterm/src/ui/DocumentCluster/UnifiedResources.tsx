@@ -59,7 +59,7 @@ import {
 } from 'shared/services/databases';
 import { waitForever } from 'shared/utils/wait';
 
-import { getAppAddrWithProtocol, isMcp } from 'teleterm/services/tshd/app';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useConnectMyComputerContext } from 'teleterm/ui/ConnectMyComputer';
@@ -588,7 +588,8 @@ const mapToSharedResource = (
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
-          subKind: isMcp(app) ? AppSubKind.MCP : undefined,
+          subKind: resource.resource.subKind as AppSubKind,
+          permissionSets: resource.resource.permissionSets,
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,
