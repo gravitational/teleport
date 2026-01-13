@@ -57,15 +57,15 @@ Neither User or Windows CA is rotated automatically, nor is there any forced
 rotation relationship between them. This follows our [database CA
 migration][docs-db-ca-migration] advice.
 
-It is recommended to allow a safety evaluation period of the new release before
-User or Windows CA rotations, to avoid potential complications due to version
-rollbacks. (Note: to be communicated via changelogs, public docs and `tctl
-rotate`.)
+Old Windows Desktop service instances (prior to the introduction of the Windows
+CA) will remain issuing RDP certificates using the User CA. Only new Windows
+Desktop service instances are capable of using the Windows CA. This is
+transparent while the Windows CA is a copy of the User CA, but the issued
+certificates will differ once a rotation happens.
 
-All existing Windows Desktop service instances must be upgraded prior to a
-Windows CA rotation to ensure correct behavior. Windows CA rotations will [issue
-a warning][ca-warning-example] calling attention to this fact and agents will be
-denied requests to mint new certificates.
+Attempts to rotate the Windows CA will [issue a warning][ca-warning-example]
+calling attention to this fact that only new agents are capable of utilizing it,
+thus all agents should be upgraded first.
 
 [ca-warning-example]: https://github.com/gravitational/teleport/blob/acc3b793502c352489a49d8ff59d17bae6a38fc9/tool/tctl/common/auth_rotate_command.go#L1197-L1200
 
@@ -90,21 +90,8 @@ precautions against Auth server races are required.
 In order to ensure correct functioning a new [GenerateWindowsDesktopCert][] RPC
 request parameter is added to detect old clients/agents.
 
-Old agents are permitted to operate while the User and Windows CAs are
-equivalent, but will be prohibited once either CA rotates. This is meant to
-cause clean failures instead of minting certificates that may fail in surprising
-ways downstream.
-
-An example of a problematic scenario is:
-
-1. Auth is upgraded to version N, but Windows Desktop service instances remain
-   at N-1 (no Windows CA support).
-1. A rotation is triggered for the Windows CA, the warning about agent upgrades
-   is ignored.
-1. Because all Windows Desktop service instances are unaware of the Windows CA,
-   the CRL for the new CA certificate is never published.
-1. GenerateWindowsDesktopCert requests would succeed without the compatibility
-   check, returning a certificate that fails downstream due to a missing CRL.
+Old agents (prior to Windows CA) get certificates issued using the User CA. New
+agents use the Windows CA.
 
 ```diff
  message WindowsDesktopCertRequest {
@@ -181,9 +168,9 @@ and documentation.
 
 Rollbacks to versions prior to the split suffer a similar problem: the system
 will revert to using the User CA for Windows Desktop Access. Harmless without a
-rotation, but very likely to break downstream trust if a rotation happened. The
-mitigation is that downstream systems should retain trust to the User CA
-certificate for a safety period, after which a downgrade becomes unlikely.
+rotation, but may break downstream trust if a rotation happened. The mitigation
+is that downstream systems should retain trust to the User CA certificate for a
+safety period, after which a downgrade becomes unlikely.
 
 In the case of a rollback the split Windows CA remains in the backend,
 effectively dormant until a following upgrade makes use of it again.
@@ -200,13 +187,17 @@ CA rotation.
 - [ ] New cluster creates a distinct Windows CA
 - [ ] Existing cluster splits the User CA
   - [ ] CAs are identical on split
-  - [ ] OLD windows_desktop_service works with NEW Auth (partial upgrade)
-  - [ ] NEW windows_desktop_service works with NEW Auth (complete upgrade)
-  - [ ] NEW windows_desktop_service works with OLD Auth (partial downgrade)
-  - [ ] OLD windows_desktop_service works with OLD Auth (complete downgrade)
+  - [ ] OLD windows_desktop_service works with NEW Auth
+        (partial upgrade, mints with UserCA)
+  - [ ] NEW windows_desktop_service works with NEW Auth
+        (complete upgrade, mints with WindowsCA)
+  - [ ] NEW windows_desktop_service works with OLD Auth
+        (partial downgrade, mints with UserCA)
+  - [ ] OLD windows_desktop_service works with OLD Auth
+        (complete downgrade, mints with UserCA)
   - [ ] CAs are distinct after rotation (NEW Auth)
-  - [ ] OLD windows_desktop_service cannot mint certificates with NEW Auth
-        (after rotation).
+  - [ ] OLD windows_desktop_service works with NEW Auth
+        (after rotation, still mints with UserCA).
 - [ ] Desktop Access works as expected
 - [ ] tctl commands work as expected
   - [ ] `tctl status`
