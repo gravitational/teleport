@@ -64,7 +64,8 @@ rotate`.)
 
 All existing Windows Desktop service instances must be upgraded prior to a
 Windows CA rotation to ensure correct behavior. Windows CA rotations will [issue
-a warning][ca-warning-example] calling attention to this fact.
+a warning][ca-warning-example] calling attention to this fact and agents will be
+denied requests to mint new certificates.
 
 [ca-warning-example]: https://github.com/gravitational/teleport/blob/acc3b793502c352489a49d8ff59d17bae6a38fc9/tool/tctl/common/auth_rotate_command.go#L1197-L1200
 
@@ -83,6 +84,43 @@ precautions against Auth server races are required.
 [init-migrations]: https://github.com/gravitational/teleport/blob/30b4bdcfe6b18d6c9c6075b393c0528d9c1082f1/lib/auth/init.go#L644
 [init-authorities]: https://github.com/gravitational/teleport/blob/30b4bdcfe6b18d6c9c6075b393c0528d9c1082f1/lib/auth/init.go#L707
 [init-lock]: https://github.com/gravitational/teleport/blob/30b4bdcfe6b18d6c9c6075b393c0528d9c1082f1/lib/auth/init.go#L456
+
+### Agent compatibility check
+
+In order to ensure correct functioning a new [GenerateWindowsDesktopCert][] RPC
+request parameter is added to detect old clients/agents.
+
+Old agents are permitted to operate while the User and Windows CAs are
+equivalent, but will be prohibited once either CA rotates. This is meant to
+cause clean failures instead of minting certificates that may fail in surprising
+ways downstream.
+
+An example of a problematic scenario is:
+
+1. Auth is upgraded to version N, but Windows Desktop service instances remain
+   at N-1 (no Windows CA support).
+1. A rotation is triggered for the Windows CA, the warning about agent upgrades
+   is ignored.
+1. Because all Windows Desktop service instances are unaware of the Windows CA,
+   the CRL for the new CA certificate is never published.
+1. GenerateWindowsDesktopCert requests would succeed without the compatibility
+   check, returning a certificate that fails downstream due to a missing CRL.
+
+```diff
+ message WindowsDesktopCertRequest {
+   // (Existing fields omitted.)
++
++  // Set by callers that fully support the new Windows CA.
++  // Auth will fail requests from callers that do not support the Windows CA if
++  // the CA deviated from the User CA (ie, a rotation happened).
++  //
++  // Transitional. To be removed on version N+1, when all callers are expected
++  // to support the Windows CA.
++  bool SupportsWindowsCA = n;
+ }
+```
+
+[GenerateWindowsDesktopCert]: https://github.com/gravitational/teleport/blob/269f876060350f785f45ca87f1653d30cb5fbcbe/api/proto/teleport/legacy/client/proto/authservice.proto#L3657-L3659
 
 ### Trust architecture
 
@@ -167,12 +205,8 @@ CA rotation.
   - [ ] NEW windows_desktop_service works with OLD Auth (partial downgrade)
   - [ ] OLD windows_desktop_service works with OLD Auth (complete downgrade)
   - [ ] CAs are distinct after rotation (NEW Auth)
-  - [ ] OLD windows_desktop_service works with NEW Auth (after rotation).
-
-    TODO(codingllama): Verify if the item above is possible. If yes keep it in
-    the plan. If no see where/how we can improve a potential error message and
-    update the plan accordingly.
-
+  - [ ] OLD windows_desktop_service cannot mint certificates with NEW Auth
+        (after rotation).
 - [ ] Desktop Access works as expected
 - [ ] tctl commands work as expected
   - [ ] `tctl status`
