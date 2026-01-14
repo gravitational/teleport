@@ -530,6 +530,9 @@ const mapToSharedResource = (
           friendlyName: app.friendlyName,
           samlApp: app.samlApp,
           requiresRequest: resource.requiresRequest,
+          // `as any` added to avoid importing AppSubKind from teleport/services/apps.
+          subKind: resource.resource.subKind as any,
+          permissionSets: resource.resource.permissionSets,
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,
