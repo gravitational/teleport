@@ -313,7 +313,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.flushAppURI = flushServer.URL
 	p.dumperAppURI = dumperServer.URL
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.

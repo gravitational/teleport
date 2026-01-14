@@ -330,11 +330,17 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(tross): replace with cfg.Modules.BuildType
+	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
 		VersionStorage:               NewFakeTeleportVersion(),
-		Authority:                    authority.NewWithClock(cfg.Clock),
+		Authority:                    authority,
 		Access:                       access,
 		Identity:                     identity,
 		AuditLog:                     srv.AuditLog,

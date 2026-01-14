@@ -70,7 +70,7 @@ func TestJoinCircleCI(t *testing.T) {
 	})
 
 	// helper for creating RegisterUsingTokenRequest
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)

@@ -306,7 +306,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		require.Fail(t, "auth already initialized")
 	}
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	auth := helpers.NewInstance(t, helpers.InstanceConfig{
