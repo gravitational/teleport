@@ -23,8 +23,17 @@ resources:
     package: types
     yaml_kind: saml
     yaml_version: v2
+  - type: SAMLIdPServiceProviderV1
+    package: types
+    yaml_kind: saml_idp_service_provider
+    yaml_version: v1
 
 camel_case_exceptions:
+  - AWS
+  - CORS
+  - EKS
+  - GCP
+  - HTTP
   - ID
   - MFA
   - OIDC
