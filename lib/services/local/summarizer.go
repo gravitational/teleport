@@ -224,11 +224,13 @@ const (
 type SummarizerServiceConfig struct {
 	// Backend is the resource storage backend.
 	Backend backend.Backend
-	// EnableBedrock enables access to Amazon Bedrock models. Currently, this
-	// should only be turned on outside Teleport Cloud. Setting it to true allows
-	// creating inference_model resources that use the Bedrock inference
-	// provider.
-	EnableBedrock bool
+	// EnableBedrockWithoutRestrictions enables access to Amazon Bedrock models
+	// without any restrictions. This should only be turned on outside Teleport
+	// Cloud. Setting it to true allows creating inference_model resources that
+	// use the Bedrock inference provider without going through OIDC. Setting it
+	// to false means that only teleport-cloud-default model is authorized to use
+	// Bedrock this way.
+	EnableBedrockWithoutRestrictions bool
 }
 
 // NewSummarizerService returns a service that manages summarization
@@ -239,8 +241,13 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if !cfg.EnableBedrock && m.GetSpec().GetBedrock() != nil {
-			return trace.BadParameter("Amazon Bedrock models are unavailable in Teleport Cloud")
+		// If access to Bedrock is restricted, only models available via OIDC and
+		// the special default cloud model are considered valid.
+		if !cfg.EnableBedrockWithoutRestrictions &&
+			m.GetSpec().GetBedrock() != nil &&
+			m.GetSpec().GetBedrock().GetIntegration() == "" &&
+			m.GetMetadata().GetName() != summarizer.CloudDefaultInferenceModelName {
+			return trace.BadParameter("only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud")
 		}
 		return nil
 	}

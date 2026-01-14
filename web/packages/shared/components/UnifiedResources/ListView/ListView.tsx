@@ -35,6 +35,7 @@ export function ListView({
   isProcessing,
   expandAllLabels,
   visibleInputFields,
+  showResourcesSelectedIcon,
   resourceLabelConfig,
 }: ResourceViewProps) {
   return (
@@ -55,6 +56,7 @@ export function ListView({
             showingStatusInfo={showingStatusInfo}
             visibleInputFields={visibleInputFields}
             resourceLabelConfig={resourceLabelConfig}
+            showResourceSelectedIcon={showResourcesSelectedIcon}
           />
         )
       )}
