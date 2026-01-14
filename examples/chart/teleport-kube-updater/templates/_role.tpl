@@ -1,13 +1,12 @@
-{{- if .Values.updater.enabled -}}
-{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater -}}
-{{- if $updater.rbac.create -}}
+{{- define "teleport-kube-updater.role" -}}
+{{- if .rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ .Release.Name }}-updater
-  namespace: {{ .Release.Namespace }}
-{{- if $updater.extraLabels.role }}
-  labels: {{- toYaml $updater.extraLabels.role | nindent 4 }}
+  name: {{ .releaseName }}-updater
+  namespace: {{ .releaseNamespace }}
+{{- if .extraLabels.role }}
+  labels: {{- toYaml .extraLabels.role | nindent 4 }}
 {{- end }}
 rules:
 # the updater needs to list pods to check their health
@@ -45,7 +44,7 @@ rules:
   verbs:
     - get
   resourceNames:
-    - {{ .Release.Name }}-shared-state
+    - {{ .releaseName }}-shared-state
 - apiGroups:
     - ""
   resources:
@@ -70,7 +69,7 @@ rules:
     - get
     - update
   resourceNames:
-    - {{ .Release.Name }}-updater
+    - {{ .releaseName }}-updater
 # the controller in the updater must be able to watch deployments and
 # statefulsets and get the one it should reconcile
 - apiGroups:
@@ -93,7 +92,7 @@ rules:
   verbs:
     - update
   resourceNames:
-    - {{ .Release.Name }}
+    - {{ .releaseName }}
 - apiGroups:
     - coordination.k8s.io
   resources:
@@ -103,7 +102,7 @@ rules:
 - apiGroups:
     - coordination.k8s.io
   resourceNames:
-    - {{ .Release.Name }}
+    - {{ .releaseName }}
   resources:
     - leases
   verbs:
