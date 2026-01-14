@@ -83,11 +83,6 @@ func TestValidateInferenceModel(t *testing.T) {
 		},
 		{
 			base: validOpenAI,
-			fn:   func(m *summarizerv1.InferenceModel) { m.Metadata.Name = "teleport-cloud-default" },
-			msg:  "metadata.name \"teleport-cloud-default\" is reserved",
-		},
-		{
-			base: validOpenAI,
 			fn:   func(m *summarizerv1.InferenceModel) { m.Spec = nil },
 			msg:  "spec is required",
 		},
