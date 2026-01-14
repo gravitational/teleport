@@ -92,19 +92,20 @@ Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 </TabItem>
 </Tabs>
 
-<Checkpoint
-  title="Verify image pull"
-  description="Confirm that you can pull the Teleport Docker image."
->
+### Verify image pull
 
 Run the following command to pull the image:
 ```code
 $ docker pull <Var name="(=teleport.latest_oss_docker_image=)" />
 ```
 
-You should see output indicating the image layers are being downloaded, ending with a success message.
+You should see output indicating the image layers are being downloaded, ending with a success message like `Status: Downloaded newer image`.
 
-Here are some troubleshooting tips:
+<Checkpoint
+  title="Troubleshoot image pull issues"
+  description="If the image pull failed or timed out, try these steps."
+>
+
 - If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
 - For network timeouts, check your internet connection and any proxy settings configured in Docker.
 - If you see `no matching manifest for linux/arm64`, try specifying the platform explicitly with `docker pull --platform linux/amd64`.
@@ -145,10 +146,7 @@ Alternatively, you can use the debug variant of the image, which contains [busyb
 $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
 
-<Checkpoint
-  title="Verify Kubernetes pod status"
-  description="Confirm that Teleport pods are running correctly in your Kubernetes cluster."
->
+#### Verify Kubernetes pod status
 
 Run the following commands to check pod status:
 ```code
@@ -158,7 +156,11 @@ $ kubectl describe pod <pod-name>
 
 You should see the pod listed with a status of `Running` and no recent restarts.
 
-Here are some troubleshooting tips:
+<Checkpoint
+  title="Troubleshoot Kubernetes pod issues"
+  description="If the pod is not running or shows errors, try these steps."
+>
+
 - If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <pod-name>`.
 - If the pod is in `CrashLoopBackOff`, view logs from the previous crash with `kubectl logs <pod-name> --previous`.
 - If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check if pull secrets are required.
@@ -166,10 +168,7 @@ Here are some troubleshooting tips:
 
 </Checkpoint>
 
-<Checkpoint
-  title="Verify Teleport is responding in Kubernetes"
-  description="Confirm that the Teleport service is healthy and accepting connections."
->
+#### Verify Teleport is responding in Kubernetes
 
 Check Teleport cluster status from inside the pod:
 ```code
@@ -184,7 +183,13 @@ $ kubectl port-forward <pod-name> 3080:3080
 $ curl --insecure https://localhost:3080/webapi/ping
 ```
 
-Here are some troubleshooting tips:
+You should see JSON output containing `cluster_name`, `server_version`, and configuration details.
+
+<Checkpoint
+  title="Troubleshoot Kubernetes connectivity issues"
+  description="If Teleport is not responding or commands fail, try these steps."
+>
+
 - If `tctl status` fails with connection errors, verify the Auth Service is reachable and the pod has the correct configuration mounted.
 - If port-forward fails, ensure the pod is running and the container port is correct.
 - View pod logs for startup errors with `kubectl logs -f <pod-name>`.
@@ -193,10 +198,7 @@ Here are some troubleshooting tips:
 
 </Checkpoint>
 
-<Checkpoint
-  title="Verify Kubernetes deployment and upgrades"
-  description="Confirm that Teleport deployments and upgrades complete successfully."
->
+#### Verify Kubernetes deployment and upgrades
 
 Check rollout status during an upgrade:
 ```code
@@ -210,7 +212,13 @@ Verify the running image version:
 $ kubectl get pod <pod-name> -o jsonpath='{.spec.containers[0].image}'
 ```
 
-Here are some troubleshooting tips:
+You should see the expected image tag matching the version you deployed.
+
+<Checkpoint
+  title="Troubleshoot Kubernetes deployment issues"
+  description="If the deployment or upgrade is not completing, try these steps."
+>
+
 - If the rollout is stuck, view rollout history with `kubectl rollout history deployment/teleport`.
 - To roll back to the previous version, run `kubectl rollout undo deployment/teleport`.
 - If pods fail after upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
@@ -344,10 +352,7 @@ $ docker run --hostname localhost --rm \
   <Var name="(=teleport.latest_oss_docker_image=)" /> configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
 ```
 
-<Checkpoint
-  title="Verify configuration file"
-  description="Confirm that the Teleport configuration file was generated successfully."
->
+### Verify configuration file
 
 Run the following command to verify the configuration file exists and contains valid content:
 ```code
@@ -356,7 +361,11 @@ $ cat ~/teleport/config/teleport.yaml | head -20
 
 You should see YAML configuration output beginning with `version:` and `teleport:` sections.
 
-Here are some troubleshooting tips:
+<Checkpoint
+  title="Troubleshoot configuration file issues"
+  description="If the configuration file is missing or empty, try these steps."
+>
+
 - If the file is empty or missing, ensure the `docker run` command completed without errors and that you have write permissions to `~/teleport/config/`.
 - If you see `docker: Error response from daemon: OCI runtime create failed`, verify Docker is running and you have permission to use it.
 - If you see permission denied errors, check that your user has access to the Docker socket (you may need to add your user to the `docker` group).
@@ -373,10 +382,7 @@ $ docker run --hostname localhost --name teleport \
   <Var name="(=teleport.latest_oss_docker_image=)" />
 ```
 
-<Checkpoint
-  title="Verify container is running"
-  description="Confirm that the Teleport container started successfully."
->
+### Verify container is running
 
 Open a new terminal and run:
 ```code
@@ -385,7 +391,11 @@ $ docker ps --filter name=teleport
 
 You should see the `teleport` container listed with a status of `Up`.
 
-Here are some troubleshooting tips:
+<Checkpoint
+  title="Troubleshoot container startup issues"
+  description="If the container is not running or exited unexpectedly, try these steps."
+>
+
 - If the container is not listed, check if it exited with `docker ps -a --filter name=teleport`. View logs with `docker logs teleport`.
 - If you see `Error response from daemon: Conflict. The container name "/teleport" is already in use`, remove the existing container with `docker rm teleport` or choose a different name.
 - If you see `bind: address already in use` for ports 3025 or 3080, another process is using those ports. Find it with `lsof -i :3080` (macOS/Linux) or choose different host ports (e.g., `-p 3081:3080`).
@@ -440,10 +450,7 @@ We are using the `--insecure` flag to trust Teleport's self-signed certificate.
 In production, you will want to provision TLS credentials to the Proxy Service
 from a trusted CA, e.g., Let's Encrypt.
 
-<Checkpoint
-  title="Verify Teleport is responding"
-  description="Confirm that the Teleport Proxy Service is accepting connections and the cluster is healthy."
->
+### Verify Teleport is responding
 
 Run the following command to verify the web API is responding:
 ```code
@@ -452,7 +459,11 @@ $ curl --insecure https://localhost:3080/webapi/ping
 
 You should see JSON output containing `cluster_name`, `server_version`, and configuration details.
 
-Here are some troubleshooting tips:
+<Checkpoint
+  title="Troubleshoot Teleport connectivity issues"
+  description="If Teleport is not responding or the connection fails, try these steps."
+>
+
 - If you see `curl: (7) Failed to connect to localhost port 3080`, verify the container is running with `docker ps` and that port 3080 is correctly mapped.
 - If you see `curl: (35) SSL connect error` or certificate errors, ensure you're using the `--insecure` flag for self-signed certificates.
 - If the response is empty or malformed, check container logs with `docker logs teleport` for startup errors.
@@ -472,10 +483,7 @@ To upgrade a Teleport container running on Docker:
    as the data directory contains the same content as before the upgrade, the
    Teleport container does not need to re-join the cluster.
 
-<Checkpoint
-  title="Verify upgrade"
-  description="Confirm that Teleport was upgraded successfully and the cluster is healthy."
->
+### Verify upgrade
 
 After starting the new container, verify the upgraded version:
 ```code
@@ -484,7 +492,11 @@ $ curl --insecure https://localhost:3080/webapi/ping | jq '.server_version'
 
 You should see the new version number in the output.
 
-Here are some troubleshooting tips:
+<Checkpoint
+  title="Troubleshoot upgrade issues"
+  description="If the upgrade failed or the container won't start, try these steps."
+>
+
 - If the container fails to start after upgrade, check logs with `docker logs teleport` for migration or compatibility errors.
 - If you see database migration errors, ensure you're not skipping major versions. Teleport supports upgrades from one major version to the next, not skipping versions.
 - If the cluster state seems incorrect, verify the data directory mount is pointing to the same location as before the upgrade.
