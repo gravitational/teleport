@@ -78,11 +78,13 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 			return trace.BadParameter("spec.openai.openai_model_id is required")
 		}
 	case *summarizerv1.InferenceModelSpec_Bedrock:
-		if p.Bedrock.GetBedrockModelId() == "" {
-			return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
-		}
-		if p.Bedrock.GetRegion() == "" {
-			return trace.BadParameter("spec.bedrock.region is required")
+		if m.GetMetadata().GetName() != CloudDefaultInferenceModelName {
+			if p.Bedrock.GetBedrockModelId() == "" {
+				return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
+			}
+			if p.Bedrock.GetRegion() == "" {
+				return trace.BadParameter("spec.bedrock.region is required")
+			}
 		}
 	}
 
