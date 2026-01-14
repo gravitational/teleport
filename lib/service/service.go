@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/keystore/health"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -2834,6 +2835,38 @@ func (process *TeleportProcess) initAuthService() error {
 	process.ExpectService(teleport.ComponentAuth)
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
+	if cfg.Auth.KeyStore.HealthCheck != nil &&
+		cfg.Auth.KeyStore.HealthCheck.Active != nil &&
+		cfg.Auth.KeyStore.HealthCheck.Active.Enabled {
+
+		cawatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentAuth,
+				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+				Client:    authServer.Services,
+			},
+			AuthorityGetter: authServer.Services,
+			Types:           types.CertAuthTypes,
+			LoadKeys:        true,
+			ResourceC:       make(chan []types.CertAuthority, 64),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		keystoreHealth, err := health.NewActiveHealthChecker(health.ActiveHealthCheckConfig{
+			Callback:   process.OnHeartbeat(teleport.ComponentKeyStore),
+			KeyManager: authServer.GetKeyStore(),
+			Logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKeyStore, "health")),
+			ResourceC:  cawatcher.ResourcesC,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		process.RegisterFunc("auth.keystore_health", func() error {
+			return trace.Wrap(keystoreHealth.Run(process.ExitContext()))
+		})
+	}
+
 	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
 		Backend:       b,
 		Store:         authServer.Services.SPIFFEFederations,
@@ -4873,7 +4906,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	caWatcher, err := services.NewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
+	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
+	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(process.ExitContext(), services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
@@ -4885,6 +4919,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			types.UserCA,
 			types.DatabaseCA,
 			types.OpenSSHCA,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appServerWatcher, err := services.NewAppServersWatcher(process.ExitContext(), services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
 		},
 	})
 	if err != nil {
@@ -5161,6 +5206,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:             lockWatcher,
 				PeerClient:              peerClient,
 				NodeWatcher:             nodeWatcher,
+				AppServerWatcher:        appServerWatcher,
 				GitServerWatcher:        gitServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
 				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
@@ -5335,17 +5381,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := accessPoint.GetApplicationServers(ctx, apidefaults.Namespace)
+			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
-			for _, a := range allAppServers {
-				if publicAddressMatches(ctx, a) {
-					return a.GetApp(), nil
-				}
+			if len(allAppServers) == 0 {
+				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
 			}
-			return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
+			// TODO(okraport): determine if we should shuffle app servers here.
+			return allAppServers[0].GetApp(), nil
 		})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
@@ -5400,6 +5444,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}),
 			PROXYSigner:               proxySigner,
 			NodeWatcher:               nodeWatcher,
+			AppServerWatcher:          appServerWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
@@ -6222,7 +6267,6 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
 			publicAddrs:   process.Config.Proxy.PublicAddrs,
-			clt:           conn.Client,
 			clusterGetter: tsrv,
 			clusterName:   conn.ClusterName(),
 		})

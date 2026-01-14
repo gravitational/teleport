@@ -202,6 +202,7 @@ const colors: ThemeColors = {
   tooltip: {
     background: 'rgba(0, 0, 0, 0.80)',
     inverseBackground: 'rgba(255, 255, 255, 0.5)',
+    inverseLinkDefault: '#009EFF',
   },
 
   progressBarColor: '#007D6B',
@@ -503,6 +504,12 @@ const colors: ThemeColors = {
         seeking: 'rgba(0, 0, 0, 0.15)',
         progress: '#9F85FF',
       },
+    },
+    riskLevels: {
+      low: '#007D6B',
+      medium: '#FFAB00',
+      high: '#CC372D',
+      critical: '#A32C24',
     },
   },
 

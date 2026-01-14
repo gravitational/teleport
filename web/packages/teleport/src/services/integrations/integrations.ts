@@ -505,8 +505,11 @@ export const integrationService = {
       });
   },
 
-  fetchUserTask(name: string): Promise<UserTaskDetail> {
-    return api.get(cfg.getUserTaskUrl(name)).then(resp => {
+  fetchUserTask(
+    name: string,
+    abortSignal?: AbortSignal
+  ): Promise<UserTaskDetail> {
+    return api.get(cfg.getUserTaskUrl(name), abortSignal).then(resp => {
       return {
         name: resp.name,
         taskType: resp.taskType,
@@ -517,20 +520,20 @@ export const integrationService = {
         description: resp.description,
         title: resp.title,
         discoverEc2: {
-          instances: resp.discoverEc2?.instances,
+          instances: resp.discoverEc2?.instances || {},
           account_id: resp.discoverEc2?.account_id,
           region: resp.discoverEc2?.region,
           ssm_document: resp.discoverEc2?.ssm_document,
           installer_script: resp.discoverEc2?.installer_script,
         },
         discoverEks: {
-          clusters: resp.discoverEks?.clusters,
+          clusters: resp.discoverEks?.clusters || {},
           account_id: resp.discoverEks?.account_id,
           region: resp.discoverEks?.region,
           app_auto_discover: resp.discoverEks?.app_auto_discover,
         },
         discoverRds: {
-          databases: resp.discoverRds?.databases,
+          databases: resp.discoverRds?.databases || {},
           account_id: resp.discoverRds?.account_id,
           region: resp.discoverRds?.region,
         },
@@ -626,7 +629,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc, github, awsra } = json;
+  const { name, subKind, awsoidc, github, awsra, isManagedByTerraform } = json;
 
   const commonFields = {
     name,
@@ -637,6 +640,7 @@ function makeIntegration(json: any): Integration {
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+    isManagedByTerraform,
   };
 
   if (subKind === IntegrationKind.AwsOidc) {

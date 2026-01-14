@@ -133,7 +133,7 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
             Learn more about application access `}
       <Link
         href={
-          'https://goteleport.com/docs/enroll-resources/application-access/introduction/'
+          'https://goteleport.com/docs/enroll-resources/application-access/getting-started/'
         }
         target="_blank"
       >

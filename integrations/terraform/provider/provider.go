@@ -530,6 +530,7 @@ func (p *Provider) configureLog() {
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
 		"teleport_app":                        resourceTeleportAppType{},
+		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
@@ -566,6 +567,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
 		"teleport_app":                        dataSourceTeleportAppType{},
+		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},

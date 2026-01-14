@@ -1,0 +1,110 @@
+---
+title: SAML IdP Service Provider V1 Reference
+description: Provides a reference of fields within the SAML IdP Service Provider V1 resource, which you can manage with tctl.
+sidebar_label: SAML IdP Service Provider V1
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: types/types.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `saml_idp_service_provider`<br/>
+**Version**: `v1`
+
+The representation of a SAML IdP service provider.
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|kind|A resource kind|string|
+|metadata|Resource metadata|[Metadata](#metadata)|
+|spec|The SAML IdP service provider spec.|[SAML IdP Service Provider Spec V1](#saml-idp-service-provider-spec-v1)|
+|sub_kind|An optional resource sub kind, used in some resources|string|
+|version|The API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by "v". For example: `v1`|string|
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+
+## SAML Attribute Mapping
+
+Represents SAML service provider requested attribute name, format and its values.
+
+
+Example:
+
+```yaml
+name: "string"
+name_format: "string"
+value: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Name is an attribute name.|string|
+|name_format|Name_format is an attribute name format.|string|
+|value|Value is an attribute value definable with predicate expression.|string|
+
+## SAML IdP Service Provider Spec V1
+
+The SAMLIdPServiceProviderV1 resource spec.
+
+
+Example:
+
+```yaml
+entity_descriptor: "string"
+entity_id: "string"
+acs_url: "string"
+attribute_mapping: 
+  - # [...]
+  - # [...]
+  - # [...]
+preset: "string"
+relay_state: "string"
+launch_urls: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|acs_url|The endpoint where SAML authentication response will be redirected.|string|
+|attribute_mapping|Used to map service provider requested attributes to username, role and traits in Teleport.|[][SAML Attribute Mapping](#saml-attribute-mapping)|
+|entity_descriptor|The entity descriptor for the service provider|string|
+|entity_id|The entity ID for the entity descriptor. If entity descriptor is provided, this value is checked that it matches the entity ID in the entity descriptor at upsert time to avoid having to parse the XML blob in the entity descriptor every time we need to use this resource.|string|
+|launch_urls|Used to configure custom landing URLs for service provider. It is useful in the following scenarios:  1. If a service provider does not support IdP initiated authentication, launch url can be     configured to launch users directly into the service provider authentication endpoint.  2. If a service provider does support IdP initiated authentication, it can be useful if     that service provider acts as a master authentication service provider for internal services.     In such case, Teleport administrator can configure launch URL, that lets user pick a specific     internal service URL from the Log In tile in the UI, which would take them to that particular     service for authentication instead of directly launching to the master service provider.  Each launch URL value must be an HTTPs endpoint.|[]string|
+|preset|Used to define service provider profile that will have a custom behavior processed by Teleport.|string|
+|relay_state|Used to add custom value in the SAML response as a relay_state HTTP parameter. The value can contain service provider specific redirect URL, static state token etc. The value is only applied in the IdP initiated SSO flow.|string|
+

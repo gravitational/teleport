@@ -45,6 +45,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -313,6 +315,10 @@ type InitConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
+
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
 
@@ -424,6 +430,9 @@ type InitConfig struct {
 	// AppAuthConfig is the service for storing and retrieving
 	// app auth config resources.
 	AppAuthConfig services.AppAuthConfig
+
+	// MFAService is the service that manages backend MFA resources.
+	MFAService MFAService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1750,6 +1759,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
+			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

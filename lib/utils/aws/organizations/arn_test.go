@@ -49,7 +49,7 @@ func TestOrganizationIDFromAccountARN(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			gotOrg, err := organizationIDFromAccountARN(tt.accountARN)
+			gotOrg, err := OrganizationIDFromAccountARN(tt.accountARN)
 			tt.errCheck(t, err)
 			require.Equal(t, tt.expectedOrg, gotOrg)
 		})

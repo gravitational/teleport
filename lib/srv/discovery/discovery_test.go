@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/url"
 	"os"
 	"regexp"
@@ -105,7 +106,6 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func TestMain(m *testing.M) {
@@ -1679,6 +1679,7 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				eksClusters: newPopulatedEKSMock().clusters,
 			}
 
+			waitForReconcile := make(chan struct{})
 			discServer, err := New(
 				authz.ContextWithUser(ctx, identity.I),
 				&Config{
@@ -1696,55 +1697,33 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 					Emitter:        authClient,
 					Log:            logger,
 					DiscoveryGroup: mainDiscoveryGroup,
+					onKubernetesClusterReconcile: func() {
+						waitForReconcile <- struct{}{}
+					},
 				})
 			require.NoError(t, err)
 
 			require.NoError(t, discServer.Start())
 			t.Cleanup(discServer.Stop)
 
-			clustersNotUpdatedMap := set.New(tc.clustersNotUpdated...)
-			clustersFoundInAuth := false
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
-			loop:
-				for {
-					select {
-					case cluster := <-clustersNotUpdated:
-						if !clustersNotUpdatedMap.Contains(cluster) {
-							require.Failf(c, "expected Action for cluster %s but got no action from reconciler", cluster)
-						}
-						clustersNotUpdatedMap.Remove(cluster)
-					default:
-						kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
-						require.NoError(c, err)
-						if len(kubeClusters) == len(tc.expectedClustersToExistInAuth) {
-							c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
-							c2 := types.KubeClusters(kubeClusters).ToMap()
-							for k := range c1 {
-								if services.CompareResources(c1[k], c2[k]) != services.Equal {
-									require.Equal(c, c1[k], c2[k], "expected no differences")
-								}
-							}
-							clustersFoundInAuth = true
-						}
-						break loop
+			select {
+			case <-waitForReconcile:
+				kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
+				require.NoError(t, err)
+
+				c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
+				c2 := types.KubeClusters(kubeClusters).ToMap()
+				for k := range c1 {
+					if services.CompareResources(c1[k], c2[k]) != services.Equal {
+						require.Equal(t, c1[k], c2[k], "expected no differences")
 					}
 				}
-				require.Empty(c, clustersNotUpdated)
-				require.True(c, clustersFoundInAuth)
-			}, 5*time.Second, 200*time.Millisecond)
+			case <-time.After(10 * time.Second):
+				require.FailNow(t, "Didn't receive reconcile event after 10s")
+			}
 
 			require.ElementsMatch(t, tc.expectedAssumedRoles, mockedClients.STSClient.GetAssumedRoleARNs(), "roles incorrectly assumed")
 			require.ElementsMatch(t, tc.expectedExternalIDs, mockedClients.STSClient.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
-
-			if tc.wantEvents > 0 {
-				require.Eventually(t, func() bool {
-					return reporter.ResourceCreateEventCount() == tc.wantEvents
-				}, time.Second, 100*time.Millisecond)
-			} else {
-				require.Never(t, func() bool {
-					return reporter.ResourceCreateEventCount() != 0
-				}, time.Second, 100*time.Millisecond)
-			}
 
 			// verify usage of integration credentials.
 			for _, matcher := range tc.azureMatchers {
@@ -1754,6 +1733,8 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				})
 				require.NoError(t, err)
 			}
+
+			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
 		})
 	}
 }
@@ -2710,17 +2691,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(10 * time.Second):
-				require.FailNow(t, "Didn't receive reconcile event after 1s")
-			}
-
-			if tc.wantEvents > 0 {
-				require.Eventually(t, func() bool {
-					return reporter.ResourceCreateEventCount() == tc.wantEvents
-				}, 10*time.Second, 100*time.Millisecond)
-			} else {
-				require.Never(t, func() bool {
-					return reporter.ResourceCreateEventCount() != 0
-				}, 10*time.Second, 100*time.Millisecond)
+				require.FailNow(t, "Didn't receive reconcile event after 10s")
 			}
 
 			if tc.discoveryConfigStatusCheck != nil {
@@ -2746,6 +2717,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 				})
 				require.NoError(t, err)
 			}
+
+			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
 		})
 	}
 }
@@ -2993,10 +2966,26 @@ func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV
 	return database
 }
 
-type mockAzureRunCommandClient struct{}
+type mockAzureRunCommandClient struct {
+	mu                 sync.Mutex
+	installedInstances map[string]struct{}
+}
 
-func (m *mockAzureRunCommandClient) Run(_ context.Context, _ azure.RunCommandRequest) error {
+func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) error {
+	m.mu.Lock()
+	if m.installedInstances == nil {
+		m.installedInstances = make(map[string]struct{})
+	}
+	m.installedInstances[req.VMName] = struct{}{}
+	m.mu.Unlock()
 	return nil
+}
+
+func (m *mockAzureRunCommandClient) getInstalled() []string {
+	m.mu.Lock()
+	elems := slices.Sorted(maps.Keys(m.installedInstances))
+	m.mu.Unlock()
+	return elems
 }
 
 type mockAzureClient struct {
@@ -3013,30 +3002,6 @@ func (m *mockAzureClient) GetByVMID(_ context.Context, _ string) (*azure.Virtual
 
 func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*armcompute.VirtualMachine, error) {
 	return m.vms, nil
-}
-
-type mockAzureInstaller struct {
-	mu                 sync.Mutex
-	installedInstances map[string]struct{}
-}
-
-func (m *mockAzureInstaller) Run(_ context.Context, req server.AzureRunRequest) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, inst := range req.Instances {
-		m.installedInstances[*inst.Name] = struct{}{}
-	}
-	return nil
-}
-
-func (m *mockAzureInstaller) GetInstalledInstances() []string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	keys := make([]string, 0, len(m.installedInstances))
-	for k := range m.installedInstances {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -3174,21 +3139,33 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			runClient := &mockAzureRunCommandClient{}
+
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
 						vms: foundAzureVMs(),
 					},
-					AzureRunCommand: &mockAzureRunCommandClient{},
+					AzureRunCommand: runClient,
 				}, nil
 			}
 
-			ctx := context.Background()
 			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 				Dir: t.TempDir(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			err = testAuthServer.AuthServer.UpsertProxy(t.Context(), &types.ServerV2{
+				Kind: types.KindProxy,
+				Metadata: types.Metadata{
+					Name: "proxy",
+				},
+				Spec: types.ServerSpecV2{
+					PublicAddrs: []string{"proxy.example.com:443"},
+				},
+			})
+			require.NoError(t, err)
 
 			tlsServer, err := testAuthServer.NewTestTLSServer()
 			require.NoError(t, err)
@@ -3201,7 +3178,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 			for _, instance := range tc.presentVMs {
-				_, err := tlsServer.Auth().UpsertNode(ctx, instance)
+				_, err := tlsServer.Auth().UpsertNode(t.Context(), instance)
 				require.NoError(t, err)
 			}
 
@@ -3210,9 +3187,6 @@ func TestAzureVMDiscovery(t *testing.T) {
 
 			emitter := &mockEmitter{}
 			reporter := &mockUsageReporter{}
-			installer := &mockAzureInstaller{
-				installedInstances: make(map[string]struct{}),
-			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				initAzureClients: initAzureClients,
@@ -3226,14 +3200,13 @@ func TestAzureVMDiscovery(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			server.azureInstaller = installer
 			emitter.server = server
 			emitter.t = t
 
 			if tc.discoveryConfig != nil {
 				sub := server.newDiscoveryConfigChangedSub()
 
-				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(t.Context(), tc.discoveryConfig)
 				require.NoError(t, err)
 
 				// wait for discovery config update
@@ -3250,8 +3223,11 @@ func TestAzureVMDiscovery(t *testing.T) {
 			t.Cleanup(server.Stop)
 
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
-				require.ElementsMatch(c, tc.wantInstalledInstances, installer.GetInstalledInstances())
-
+				if len(tc.wantInstalledInstances) == 0 {
+					require.Empty(c, runClient.getInstalled())
+				} else {
+					require.Equal(c, tc.wantInstalledInstances, runClient.getInstalled())
+				}
 				// all current tests install at least one VM, so this cannot be zero.
 				// multiple installations will trigger just one event.
 				const expectedEventCount = 1
@@ -4064,4 +4040,45 @@ func (f fakeAWSClients) GetRedshiftClient(cfg aws.Config, optFns ...func(*redshi
 
 func (f fakeAWSClients) GetRedshiftServerlessClient(cfg aws.Config, optFns ...func(*rss.Options)) db.RSSClient {
 	return f.rssClient
+}
+
+func TestGenInstancesLogStr(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected string
+	}{
+		{
+			name:     "empty slice",
+			input:    []string{},
+			expected: "[]",
+		},
+		{
+			name:     "single item",
+			input:    []string{"a"},
+			expected: "[a]",
+		},
+		{
+			name:     "few items",
+			input:    []string{"a", "b", "c"},
+			expected: "[a, b, c]",
+		},
+		{
+			name:     "exactly 10 items",
+			input:    []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"},
+			expected: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]",
+		},
+		{
+			name:     "truncated",
+			input:    []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
+			expected: "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10... + 2 instance IDs truncated]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := genInstancesLogStr(tt.input, func(s string) string { return s })
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

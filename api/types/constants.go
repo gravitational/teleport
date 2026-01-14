@@ -690,6 +690,9 @@ const (
 	// KindAppAuthConfig is the resource kind for app auth configs.
 	KindAppAuthConfig = "app_auth_config"
 
+	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
+	KindValidatedMFAChallenge = "validated_mfa_challenge"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -779,6 +782,8 @@ const (
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
+	// CreatedByIaCLabel is a resource metadata label name used to identify if resource was created by IaC tooling.
+	CreatedByIaCLabel = TeleportNamespace + "/iac-tool"
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = common.OriginDefaults

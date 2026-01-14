@@ -93,6 +93,7 @@
     "barebones",
     "Bartosz",
     "bazel",
+    "BCDEF",
     "behaviour",
     "behaviours",
     "benchtime",
@@ -162,6 +163,7 @@
     "createrole",
     "credentialprocess",
     "creds",
+    "crls",
     "cryptographical",
     "cslint",
     "csrs",
@@ -577,6 +579,7 @@
     "PKCE",
     "PKCS",
     "pkey",
+    "PKINIT",
     "PKISVC",
     "PKIX",
     "plantuml",
@@ -799,6 +802,7 @@
     "structpb",
     "structs",
     "stscreds",
+    "subca",
     "subcases",
     "subcondition",
     "Subconditions",
@@ -981,6 +985,7 @@
     "Zdunek",
     "zdvik",
     "Zilla",
+    "zarquon",
     "ZLMR"
   ]
 }

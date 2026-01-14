@@ -828,6 +828,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
+					types.NewRule(types.KindAppAuthConfig, RW()),
 				},
 			},
 		},

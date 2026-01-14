@@ -948,7 +948,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Integration %q removed\n", rc.ref.Name)
-
+	case types.KindOktaAssignment:
+		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
 	case types.KindOktaImportRule:
 		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -993,11 +997,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
-	case types.KindRelayServer:
-		if err := client.DeleteRelayServer(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("relay_server %+q has been deleted\n", rc.ref.Name)
 	case types.KindInferencePolicy:
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
@@ -1520,22 +1519,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &scopedRoleAssignmentCollection{items: items}, nil
-	case types.KindRelayServer:
-		if rc.ref.Name != "" {
-			rs, err := client.GetRelayServer(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return namedResourceCollection{types.ProtoResource153ToLegacy(rs)}, nil
-		}
-		var c namedResourceCollection
-		for rs, err := range clientutils.Resources(ctx, client.ListRelayServers) {
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			c = append(c, types.ProtoResource153ToLegacy(rs))
-		}
-		return c, nil
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)

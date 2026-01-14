@@ -1,0 +1,145 @@
+should match the snapshot (full):
+  1: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      labels:
+        app.kubernetes.io/name: RELEASE-NAME
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+      namespace: NAMESPACE
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: tbot-spiffe-daemon-set
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: tbot-spiffe-daemon-set
+      template:
+        metadata:
+          annotations: null
+          labels:
+            app.kubernetes.io/component: tbot-spiffe-daemon-set
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: tbot-spiffe-daemon-set
+            helm.sh/chart: tbot-spiffe-daemon-set-19.0.0-dev
+        spec:
+          containers:
+          - args:
+            - start
+            - -c
+            - /config/tbot.yaml
+            - --log-format
+            - json
+            - --debug
+            env:
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: tbot
+            securityContext:
+              privileged: true
+            volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+            - mountPath: /run/tbot/sockets
+              name: tbot-sockets
+              readOnly: false
+          hostPID: true
+          securityContext:
+            runAsGroup: 0
+            runAsUser: 0
+          serviceAccountName: RELEASE-NAME-tbot-spiffe-daemon-set
+          volumes:
+          - hostPath:
+              path: /run/tbot/sockets
+              type: DirectoryOrCreate
+            name: tbot-sockets
+          - configMap:
+              name: RELEASE-NAME-tbot-spiffe-daemon-set
+            name: config
+          - name: join-sa-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: example.teleport.sh
+                  expirationSeconds: 600
+                  path: join-sa-token
+should match the snapshot (simple):
+  1: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      labels:
+        app.kubernetes.io/name: RELEASE-NAME
+      name: RELEASE-NAME-tbot-spiffe-daemon-set
+      namespace: NAMESPACE
+    spec:
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: tbot-spiffe-daemon-set
+          app.kubernetes.io/instance: RELEASE-NAME
+          app.kubernetes.io/name: tbot-spiffe-daemon-set
+      template:
+        metadata:
+          annotations: null
+          labels:
+            app.kubernetes.io/component: tbot-spiffe-daemon-set
+            app.kubernetes.io/instance: RELEASE-NAME
+            app.kubernetes.io/managed-by: Helm
+            app.kubernetes.io/name: tbot-spiffe-daemon-set
+            helm.sh/chart: tbot-spiffe-daemon-set-19.0.0-dev
+        spec:
+          containers:
+          - args:
+            - start
+            - -c
+            - /config/tbot.yaml
+            - --log-format
+            - json
+            env:
+            - name: TELEPORT_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: KUBERNETES_TOKEN_PATH
+              value: /var/run/secrets/tokens/join-sa-token
+            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-dev
+            imagePullPolicy: IfNotPresent
+            name: tbot
+            securityContext:
+              privileged: true
+            volumeMounts:
+            - mountPath: /config
+              name: config
+            - mountPath: /var/run/secrets/tokens
+              name: join-sa-token
+            - mountPath: /run/tbot/sockets
+              name: tbot-sockets
+              readOnly: false
+          hostPID: true
+          securityContext:
+            runAsGroup: 0
+            runAsUser: 0
+          serviceAccountName: RELEASE-NAME-tbot-spiffe-daemon-set
+          volumes:
+          - hostPath:
+              path: /run/tbot/sockets
+              type: DirectoryOrCreate
+            name: tbot-sockets
+          - configMap:
+              name: RELEASE-NAME-tbot-spiffe-daemon-set
+            name: config
+          - name: join-sa-token
+            projected:
+              sources:
+              - serviceAccountToken:
+                  audience: example.teleport.sh
+                  expirationSeconds: 600
+                  path: join-sa-token
