@@ -125,6 +125,7 @@ type ServerConfig struct {
 	OracleHTTPClient   utils.HTTPDoClient
 	Logger             *slog.Logger
 	Modules            modules.Modules
+	Emitter            apievents.Emitter
 }
 
 // Server implements cluster joining for nodes and bots.

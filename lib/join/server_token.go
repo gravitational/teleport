@@ -17,10 +17,14 @@
 package join
 
 import (
+	"context"
 	"crypto/subtle"
 
 	"github.com/gravitational/trace"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/internal/authz"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
@@ -68,10 +72,64 @@ func (s *Server) handleTokenJoin(
 	// considered a join failure.
 	if scopedToken, ok := joining.GetScopedToken(token); ok {
 		publicKey := tokenInit.ClientParams.HostParams.PublicKeys.PublicTLSKey
+		hostID := "unknown"
+		hostResult, ok := result.(*messages.HostResult)
+		if ok {
+			hostID = hostResult.HostID
+		}
+
 		if _, err := s.cfg.ScopedTokenService.UseScopedToken(stream.Context(), scopedToken, publicKey); err != nil {
+			s.emitScopedTokenEvent(stream.Context(), events.ScopedTokenFailEvent, scopedToken, hostID)
 			return nil, trace.Wrap(err)
 		}
+		s.emitScopedTokenEvent(stream.Context(), events.ScopedTokenUseEvent, scopedToken, hostID)
 	}
 
 	return result, nil
+}
+
+// emitScopedTokenEvent emits the "use" or "fail" events depending on whether or not a scoped token successfully
+// provisioned a resource.
+func (s *Server) emitScopedTokenEvent(ctx context.Context, kind string, token *joiningv1.ScopedToken, hostID string) {
+	var event apievents.AuditEvent
+	switch kind {
+	case events.ScopedTokenUseEvent:
+		event = &apievents.ScopedTokenUse{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenUseEvent,
+				Code: events.ScopedTokenUseCode,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:    token.GetMetadata().GetName(),
+				Expires: token.GetMetadata().GetExpires().AsTime(),
+			},
+			Roles:         token.GetSpec().GetRoles(),
+			JoinMethod:    token.GetSpec().GetJoinMethod(),
+			Scope:         token.GetScope(),
+			AssignedScope: token.GetSpec().GetAssignedScope(),
+			HostId:        hostID,
+		}
+	case events.ScopedTokenFailEvent:
+		event = &apievents.ScopedTokenFail{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenFailEvent,
+				Code: events.ScopedTokenFailCode,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:    token.GetMetadata().GetName(),
+				Expires: token.GetMetadata().GetExpires().AsTime(),
+			},
+			Roles:         token.GetSpec().GetRoles(),
+			JoinMethod:    token.GetSpec().GetJoinMethod(),
+			Scope:         token.GetScope(),
+			AssignedScope: token.GetSpec().GetAssignedScope(),
+			HostId:        hostID,
+		}
+	default:
+		return
+	}
+
+	if err := s.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		s.cfg.Logger.WarnContext(ctx, "failed to emit scoped token event", "error", err, "type", kind)
+	}
 }
