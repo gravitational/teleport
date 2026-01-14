@@ -36,13 +36,7 @@ import (
 
 func TestAWSOrganizationsClientUsingAmbientCredentials(t *testing.T) {
 	t.Run("when running in cloud, the client getter returns an error (ambient credentials can't be used in cloud)", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud: true,
-			},
-		})
-
-		clientGetter, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), clockwork.NewFakeClock(), nil)
+		clientGetter, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), clockwork.NewFakeClock(), &modulestest.Modules{TestFeatures: modules.Features{Cloud: true}}, nil)
 		require.NoError(t, err)
 
 		_, err = clientGetter.Get(t.Context())
@@ -50,16 +44,10 @@ func TestAWSOrganizationsClientUsingAmbientCredentials(t *testing.T) {
 	})
 
 	t.Run("when running in non-cloud, the getter returns a valid client", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud: false,
-			},
-		})
-
 		fakeClock := clockwork.NewFakeClock()
 		mockOrganizationsAPI := &mockOrganizationsAPI{}
 
-		clientGetter, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+		clientGetter, err := awsOrganizationsClientUsingAmbientCredentials(t.Context(), fakeClock, &modulestest.Modules{TestFeatures: modules.Features{Cloud: false}}, func(c aws.Config) iamjoin.OrganizationsAPI {
 			return mockOrganizationsAPI
 		})
 		require.NoError(t, err)

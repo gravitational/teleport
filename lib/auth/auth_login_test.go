@@ -1834,19 +1834,15 @@ func TestSSOPasswordBypass(t *testing.T) {
 // TestSSOAccountRecoveryProhibited tests that SSO users cannot perform account
 // recovery.
 func TestSSOAccountRecoveryProhibited(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	clock := testServer.Clock()
-	ctx := context.Background()
-
-	// Enable RecoveryCodes feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
+	ctx := t.Context()
 
 	// Make second factor mandatory.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{

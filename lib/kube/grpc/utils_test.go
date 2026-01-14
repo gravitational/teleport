@@ -128,9 +128,10 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	kubeConfigLocation := newKubeConfigFile(t, cfg.Clusters...)
 
+	clock := clockwork.NewFakeClockAt(time.Now())
 	// Create and start test auth server.
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:       clockwork.NewFakeClockAt(time.Now()),
+		Clock:       clock,
 		ClusterName: testCtx.ClusterName,
 		Dir:         t.TempDir(),
 	})

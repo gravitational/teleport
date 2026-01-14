@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutil "github.com/gravitational/teleport/lib/utils/log"
@@ -496,7 +495,7 @@ func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !modules.GetModules().Features().RecoveryCodes {
+	if !a.modules.Features().RecoveryCodes {
 		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
 	}
 

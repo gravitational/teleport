@@ -24,24 +24,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 // TestDesktopAccessDisabled makes sure desktop access can be disabled via modules.
 // Since desktop connections require a cert, this is mediated via the cert generating function.
 func TestDesktopAccessDisabled(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Desktop: {Enabled: false}, // Explicitly turn off desktop access.
-			},
-		},
-	})
-
 	ctx := t.Context()
-	p := newAuthSuite(t)
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir: t.TempDir(),
+		Modules: modulestest.OSSModules(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if p.bk != nil {
+			p.bk.Close()
+		}
+	})
 
 	r, err := p.a.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{})
 	require.Nil(t, r)

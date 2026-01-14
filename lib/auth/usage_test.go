@@ -62,9 +62,10 @@ func TestAccessRequestLimit(t *testing.T) {
 }
 
 func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
+	t.Parallel()
 	username := "alice"
 	rolename := "access"
-	ctx := context.Background()
+	ctx := t.Context()
 
 	s := setUpAccessRequestLimitForJulyAndAugust(t, username, rolename)
 
@@ -75,18 +76,12 @@ func TestAccessRequest_WithAndWithoutLimit(t *testing.T) {
 	require.Error(t, err, "expected access request creation to fail due to the monthly limit")
 
 	// Lift limit, expect no limit error.
-	s.features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 0}
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: s.features,
-	})
+	s.modules.TestFeatures.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 0}
 	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
 	require.NoError(t, err)
 
 	// Put back limit, expect limit error.
-	s.features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 1}
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: s.features,
-	})
+	s.modules.TestFeatures.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Enabled: true, Limit: 1}
 	_, err = s.testpack.a.CreateAccessRequestV2(ctx, req, tlsca.Identity{})
 	require.Error(t, err, "expected access request creation to fail due to the monthly limit")
 }
@@ -95,7 +90,7 @@ type setupAccessRequestLimist struct {
 	monthlyLimit int
 	testpack     testPack
 	clock        *clockwork.FakeClock
-	features     modules.Features
+	modules      *modulestest.Modules
 }
 
 func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, rolename string) setupAccessRequestLimist {
@@ -111,12 +106,12 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 		}
 	}
 
-	features := modules.GetModules().Features()
+	features := modulestest.OSSModules().Features()
 	features.IsUsageBasedBilling = true
 	features.Entitlements[entitlements.AccessRequests] = modules.EntitlementInfo{Limit: monthlyLimit, Enabled: true}
-	modulestest.SetTestModules(t, modulestest.Modules{
+	modules := &modulestest.Modules{
 		TestFeatures: features,
-	})
+	}
 
 	// Create a clock in the middle of the month for easy manipulation
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 07, 15, 1, 2, 3, 0, time.UTC))
@@ -124,6 +119,7 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	p, err := newTestPack(ctx, testPackOptions{
 		DataDir: t.TempDir(),
 		Clock:   clock,
+		Modules: modules,
 	})
 	require.NoError(t, err)
 
@@ -176,7 +172,7 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	return setupAccessRequestLimist{
 		testpack:     p,
 		monthlyLimit: int(monthlyLimit),
-		features:     features,
+		modules:      modules,
 		clock:        clock,
 	}
 }

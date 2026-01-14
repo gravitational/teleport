@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -610,7 +609,7 @@ func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[
 			types.WithAlertLabel(types.AlertPermitAll, "yes"))
 		msg += "The Auth Service is currently unable to sign certificates and degraded service is expected. "
 	} else {
-		if modules.GetModules().Features().Cloud {
+		if a.modules.Features().Cloud {
 			// Don't create this alert on Cloud. This avoids alerting all
 			// customers if Cloud ends up enabling an HSM/KMS by default in
 			// existing configurations. It's fine to never rotate in this case

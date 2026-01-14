@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -92,6 +93,7 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
+		Modules:                modulestest.OSSModules(),
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		Authority:              a,
 		SkipPeriodicOperations: true,

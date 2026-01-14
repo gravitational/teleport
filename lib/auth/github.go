@@ -180,7 +180,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 
 // upsertGithubConnector creates or updates a Github connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.modules.BuildType(), a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	upserted, err := a.UpsertGithubConnector(ctx, connector)
@@ -206,7 +206,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 
 // createGithubConnector creates a new Github connector.
 func (a *Server) createGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.modules.BuildType(), a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -233,7 +233,7 @@ func (a *Server) createGithubConnector(ctx context.Context, connector types.Gith
 
 // updateGithubConnector updates an existing Github connector.
 func (a *Server) updateGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
-	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.modules.BuildType(), a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	updated, err := a.UpdateGithubConnector(ctx, connector)
@@ -269,9 +269,8 @@ type httpRequester interface {
 // If userTeams is not nil, only organizations that are both specified
 // in conn and in userTeams will be checked. If client is nil a
 // net/http.Client will be used.
-func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
-	version := modules.GetModules().BuildType()
-	if version == modules.BuildEnterprise {
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, buildType string, orgCache *utils.FnCache, client httpRequester) error {
+	if buildType == modules.BuildEnterprise {
 		return nil
 	}
 
@@ -814,7 +813,7 @@ func (a *Server) getGithubUserAndTeams(
 	// This is checked when Github auth connectors get created or updated, but
 	// check again here in case the organization enabled external SSO after
 	// the auth connector was created.
-	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
+	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.modules.BuildType(), a.githubOrgSSOCache, nil); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 

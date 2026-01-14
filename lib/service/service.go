@@ -2407,7 +2407,9 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer, err := auth.Init(
 		process.ExitContext(),
 		auth.InitConfig{
-			Backend:                     b,
+			Backend: b,
+			// TODO(tross): pull the modules from cfg.Modules when it exists.
+			Modules:                     modules.GetModules(),
 			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                   cfg.Keygen,

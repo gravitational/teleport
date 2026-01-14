@@ -336,6 +336,8 @@ type InstanceConfig struct {
 	Listeners *InstanceListeners
 
 	Fds []*servicecfg.FileDescriptor
+
+	Modules modules.Modules
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -371,8 +373,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	fatalIf(err)
 
 	clock := cmp.Or(cfg.Clock, clockwork.NewRealClock())
-	// TODO(tross): replace modules.GetModules with cfg.Modules
-	authority, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	authority, err := testauthority.NewKeygen(cfg.Modules.BuildType(), clock.Now)
 	fatalIf(err)
 
 	hostCert, err := authority.GenerateHostCert(sshca.HostCertificateRequest{
