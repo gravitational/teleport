@@ -33,9 +33,18 @@ discovery_service:
   discovery_group: <Var name="aws-prod" />
 ```
 
+Create a matcher for the resources you want to enroll.
+
+<Admonition type="tip">
+Dynamic configuration uses Discovery Configs which can be managed using Terraform.
+See the [Terraform `discovery_config` reference](../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
+
+Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
+</Admonition>
+
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
-  Create a Discovery Config resource, that has the same discovery group as above, to enable EC2 instance discovery.
+  Create a Discovery Config resource, that has the same discovery group you configured earlier, to enable EC2 instance discovery.
 
   Create a file named `discovery-aws-prod.yaml` with the following content:
   ```yaml
@@ -68,18 +77,9 @@ discovery_service:
   Matching instances will be added to the Teleport cluster automatically.
 
   You can update the Discovery Config at any time, and the service will automatically re-apply the changes.
-
-  <Admonition type="tip">
-  Discovery Config can be managed using terraform, see the [terraform `discovery_config` reference](../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
-  </Admonition>
-
 </TabItem>
 
 <TabItem label="Static configuration">
-  <Admonition type="note">
-  While simpler at first, this method has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
-  </Admonition>
-
   In order to enable EC2 instance discovery the `discovery_service.aws` section
   of `teleport.yaml` must include at least one entry:
 
