@@ -92,7 +92,11 @@ describe('connectToApp', () => {
       jest.spyOn(window, 'open').mockImplementation();
       const appContext = new MockAppContext();
       setTestCluster(appContext);
-      const app = makeApp({ subKind: AppSubKind.AwsIcAccount });
+      const app = makeApp({
+        subKind: AppSubKind.AwsIcAccount,
+        publicAddr:
+          'https://f-139847a43e.awsapps.com/start/#/console?account_id=12312312312',
+      });
 
       await connectToApp(
         appContext,
@@ -102,7 +106,7 @@ describe('connectToApp', () => {
         { arnForAwsAppOrRoleForAwsIc: 'foo-role' }
       );
       expect(window.open).toHaveBeenCalledWith(
-        'local-app.example.com&role_name=foo-role',
+        'https://f-139847a43e.awsapps.com/start/#/console?account_id=12312312312&role_name=foo-role',
         '_blank',
         'noreferrer,noopener'
       );
