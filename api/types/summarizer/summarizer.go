@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+const CloudDefaultInferenceModelName = "teleport-cloud-default"
+
 // NewInferenceModel creates a new InferenceModel resource with the given name
 // and spec.
 func NewInferenceModel(name string, spec *summarizerv1.InferenceModelSpec) *summarizerv1.InferenceModel {
@@ -56,8 +58,6 @@ func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
 		return trace.BadParameter("metadata is required")
 	case m.GetMetadata().GetName() == "":
 		return trace.BadParameter("metadata.name is required")
-	case m.GetMetadata().GetName() == "teleport-cloud-default":
-		return trace.BadParameter("metadata.name \"teleport-cloud-default\" is reserved")
 
 	case m.GetSpec() == nil:
 		return trace.BadParameter("spec is required")

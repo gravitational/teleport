@@ -41,11 +41,22 @@ import (
 // NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
 // approve any Access Request. This is restricted to Teleport Enterprise, and
 // returns nil in non-Enterproise builds.
-func NewSystemAutomaticAccessApproverRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
-	if !enterprise {
+func NewSystemAutomaticAccessApproverRole(buildTypes ...string) types.Role {
+	// TODO(tross): make this take a single buildType after all uses are updated.
+	var buildType string
+	switch len(buildTypes) {
+	case 0:
+		buildType = modules.GetModules().BuildType()
+	case 1:
+		buildType = buildTypes[0]
+	default:
 		return nil
 	}
+
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -79,9 +90,19 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 //   - Show up in user lists in WebUI
 //
 // TODO(tcsc): Implement/enforce above restrictions on this user
-func NewSystemAutomaticAccessBotUser() types.User {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
-	if !enterprise {
+func NewSystemAutomaticAccessBotUser(buildTypes ...string) types.User {
+	// TODO(tross): make this take a single buildType after all uses are updated.
+	var buildType string
+	switch len(buildTypes) {
+	case 0:
+		buildType = modules.GetModules().BuildType()
+	case 1:
+		buildType = buildTypes[0]
+	default:
+		return nil
+	}
+
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -378,8 +399,8 @@ func NewPresetAuditorRole() types.Role {
 
 // NewPresetReviewerRole returns a new pre-defined role for reviewer. The
 // reviewer will be able to review all access requests.
-func NewPresetReviewerRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetReviewerRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -405,8 +426,19 @@ func NewPresetReviewerRole() types.Role {
 
 // NewPresetRequesterRole returns a new pre-defined role for requester. The
 // requester will be able to request all resources.
-func NewPresetRequesterRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetRequesterRole(buildTypes ...string) types.Role {
+	// TODO(tross): make this take a single buildType after all uses are updated.
+	var buildType string
+	switch len(buildTypes) {
+	case 0:
+		buildType = modules.GetModules().BuildType()
+	case 1:
+		buildType = buildTypes[0]
+	default:
+		return nil
+	}
+
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -432,8 +464,8 @@ func NewPresetRequesterRole() types.Role {
 
 // NewPresetGroupAccessRole returns a new pre-defined role for group access -
 // a role used for requesting and reviewing user group access.
-func NewPresetGroupAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetGroupAccessRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -466,8 +498,8 @@ func NewPresetGroupAccessRole() types.Role {
 // NewPresetDeviceAdminRole returns the preset "device-admin" role, or nil for
 // non-Enterprise builds.
 // The role is used to administer trusted devices.
-func NewPresetDeviceAdminRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetDeviceAdminRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -495,8 +527,8 @@ func NewPresetDeviceAdminRole() types.Role {
 // NewPresetDeviceEnrollRole returns the preset "device-enroll" role, or nil for
 // non-Enterprise builds.
 // The role is used to grant device enrollment powers to users.
-func NewPresetDeviceEnrollRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetDeviceEnrollRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -525,8 +557,8 @@ func NewPresetDeviceEnrollRole() types.Role {
 // role, or nil for non-Enterprise builds.
 // The role is used as a basis for requiring trusted device access to
 // resources.
-func NewPresetRequireTrustedDeviceRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewPresetRequireTrustedDeviceRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -677,8 +709,19 @@ func NewPresetListAccessRequestResourcesRole() types.Role {
 // SystemOktaAccessRoleName is the name of the system role that allows
 // access to Okta resources. This will be used by the Okta requester role to
 // search for Okta resources.
-func NewSystemOktaAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewSystemOktaAccessRole(buildTypes ...string) types.Role {
+	// TODO(tross): make this take a single buildType after all uses are updated.
+	var buildType string
+	switch len(buildTypes) {
+	case 0:
+		buildType = modules.GetModules().BuildType()
+	case 1:
+		buildType = buildTypes[0]
+	default:
+		return nil
+	}
+
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -713,8 +756,19 @@ func NewSystemOktaAccessRole() types.Role {
 // SystemOktaRequesterRoleName is a name of a system role that allows
 // for requesting access to Okta resources. This differs from the requester role
 // in that it allows for requesting longer lived access.
-func NewSystemOktaRequesterRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewSystemOktaRequesterRole(buildTypes ...string) types.Role {
+	// TODO(tross): make this take a single buildType after all uses are updated.
+	var buildType string
+	switch len(buildTypes) {
+	case 0:
+		buildType = modules.GetModules().BuildType()
+	case 1:
+		buildType = buildTypes[0]
+	default:
+		return nil
+	}
+
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
 
@@ -741,10 +795,11 @@ func NewSystemOktaRequesterRole() types.Role {
 
 // NewSystemIdentityCenterAccessRole creates a role that allows access to AWS
 // IdentityCenter resources via Access Requests
-func NewSystemIdentityCenterAccessRole() types.Role {
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+func NewSystemIdentityCenterAccessRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
 		return nil
 	}
+
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V7,
@@ -1064,7 +1119,7 @@ func defaultAllowAccountAssignments(enterprise bool) map[string][]types.Identity
 
 // AddRoleDefaults adds default role attributes to a preset role.
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
-func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
+func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (types.Role, error) {
 	changed := false
 
 	oldLabels := role.GetAllLabels()
@@ -1129,7 +1184,7 @@ func AddRoleDefaults(ctx context.Context, role types.Role) (types.Role, error) {
 		}
 	}
 
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	enterprise := buildType == modules.BuildEnterprise
 
 	// Labels
 	defaultLabels, ok := defaultAllowLabels(enterprise)[role.GetName()]

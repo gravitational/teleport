@@ -403,7 +403,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						eksClusters:       eksMockClusters[:2],
 					},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(),
+					KubernetesClient: fake.NewClientset(),
 					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
