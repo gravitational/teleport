@@ -461,11 +461,12 @@ func (x *RouteToApp) GetTargetPort() uint32 {
 // Defines a permission set that is available on an IdentityCenter account app.
 type IdentityCenterPermissionSet struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Human-readable name of the permission set.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// AWS-assigned ARN of the permission set.
-	Arn string `protobuf:"bytes,2,opt,name=arn,proto3" json:"arn,omitempty"`
-	// Assignment resource ID that will provision an Account assignment for this permission set on the enclosing account.
+	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
+	// Human-readable name of the permission set.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// ID of the Teleport Account Assignment resource that represents this permission being assigned
+	// on the enclosing Account.
 	AssignmentId  string `protobuf:"bytes,3,opt,name=assignment_id,json=assignmentId,proto3" json:"assignment_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -501,16 +502,16 @@ func (*IdentityCenterPermissionSet) Descriptor() ([]byte, []int) {
 	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *IdentityCenterPermissionSet) GetName() string {
+func (x *IdentityCenterPermissionSet) GetArn() string {
 	if x != nil {
-		return x.Name
+		return x.Arn
 	}
 	return ""
 }
 
-func (x *IdentityCenterPermissionSet) GetArn() string {
+func (x *IdentityCenterPermissionSet) GetName() string {
 	if x != nil {
-		return x.Arn
+		return x.Name
 	}
 	return ""
 }
@@ -563,9 +564,9 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\x03uri\x18\x04 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_port\x18\x05 \x01(\rR\n" +
 	"targetPort\"h\n" +
-	"\x1bIdentityCenterPermissionSet\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x10\n" +
-	"\x03arn\x18\x02 \x01(\tR\x03arn\x12#\n" +
+	"\x1bIdentityCenterPermissionSet\x12\x10\n" +
+	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
 	"\rassignment_id\x18\x03 \x01(\tR\fassignmentIdBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var (
