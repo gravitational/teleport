@@ -3,6 +3,7 @@ package modules
 import (
 	"github.com/gravitational/trace"
 
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	etypes "github.com/gravitational/teleport/e/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -50,6 +51,13 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return rsc, nil
+	})
+	services.RegisterResourceUnmarshaler(types.KindInferenceModel, func(b []byte, options ...services.MarshalOption) (types.Resource, error) {
+		model, err := services.UnmarshalProtoResource[*summarizerv1.InferenceModel](b, options...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(model), nil
 	})
 
 	// Register functions to create enterprise GitHub auth connectors.

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -24,6 +25,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -47,10 +51,10 @@ import (
 )
 
 type summarizerTestPlugin struct {
-	clock         *clockwork.FakeClock
-	enableBedrock bool
-	decrypter     events.DecryptionWrapper
-	encrypter     events.EncryptionWrapper
+	clock                            *clockwork.FakeClock
+	enableBedrockWithoutRestrictions bool
+	decrypter                        events.DecryptionWrapper
+	encrypter                        events.EncryptionWrapper
 }
 
 func (p *summarizerTestPlugin) GetName() string {
@@ -84,6 +88,11 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 	}
 	summarizerv1pb.RegisterSummarizerServiceServer(srv, svc)
 
+	cfgCache, err := createCache()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	openAIClientFactory := &fakeOpenAIClientFactory{
 		clock: p.clock,
 	}
@@ -91,14 +100,15 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Clock: p.clock,
 	}
 	summarizer, err := NewSessionSummarizer(SummarizerConfig{
-		Backend:              authServer.AuthServer,
-		Streamer:             authServer.AuthServer,
-		SummaryUploader:      authServer.AuthServer,
-		OpenAIClientFactory:  openAIClientFactory,
-		BedrockClientFactory: bedrockClientFactory,
-		Clock:                authServer.AuthServer.GetClock(),
-		EnableBedrock:        p.enableBedrock,
-		Encrypter:            p.encrypter,
+		Backend:                          authServer.AuthServer,
+		Streamer:                         authServer.AuthServer,
+		SummaryUploader:                  authServer.AuthServer,
+		OpenAIClientFactory:              openAIClientFactory,
+		BedrockClientFactory:             bedrockClientFactory,
+		Clock:                            authServer.AuthServer.GetClock(),
+		EnableBedrockWithoutRestrictions: p.enableBedrockWithoutRestrictions,
+		Encrypter:                        p.encrypter,
+		AWSConfigCache:                   cfgCache,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -109,10 +119,10 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 }
 
 type summarizerTestTLSServerConfig struct {
-	uploader      events.MultipartHandler
-	enableBedrock bool
-	encrypter     events.EncryptionWrapper
-	decrypter     events.DecryptionWrapper
+	uploader                         events.MultipartHandler
+	enableBedrockWithoutRestrictions bool
+	encrypter                        events.EncryptionWrapper
+	decrypter                        events.DecryptionWrapper
 }
 
 func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
@@ -138,10 +148,10 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 	srv, err := as.NewTestTLSServer(func(cfg *authtest.TLSServerConfig) {
 		cfg.APIConfig.PluginRegistry = plugin.NewRegistry()
 		err = cfg.APIConfig.PluginRegistry.Add(&summarizerTestPlugin{
-			clock:         clock,
-			enableBedrock: scfg.enableBedrock,
-			decrypter:     scfg.decrypter,
-			encrypter:     scfg.encrypter,
+			clock:                            clock,
+			enableBedrockWithoutRestrictions: scfg.enableBedrockWithoutRestrictions,
+			decrypter:                        scfg.decrypter,
+			encrypter:                        scfg.encrypter,
 		})
 		require.NoError(t, err)
 	})
@@ -396,8 +406,8 @@ func TestSummarizer(t *testing.T) {
 
 	ctx := t.Context()
 	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
-		uploader:      eventstest.NewMemoryUploader(),
-		enableBedrock: true,
+		uploader:                         eventstest.NewMemoryUploader(),
+		enableBedrockWithoutRestrictions: true,
 	})
 
 	createTestUser(t, srv, "alice")
@@ -525,16 +535,7 @@ func TestSummarizer(t *testing.T) {
 				sessionID := uuid.NewString()
 				sessEvents := tc.setup(providerName+"-cluster", sessionID)
 
-				// Ingest an example session.
-				stream, err := srv.Auth().CreateAuditStream(ctx, session.ID(sessionID))
-				require.NoError(t, err)
-				for _, event := range sessEvents {
-					err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-					require.NoError(t, err)
-				}
-				err = stream.Complete(ctx)
-				require.NoError(t, err)
-
+				ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
 				summary := waitForSummary(t, ctx, sclt, sessionID)
 
 				sef, err := events.ToEventFields(sessEvents[len(sessEvents)-1])
@@ -561,12 +562,12 @@ func TestSummarizer(t *testing.T) {
 	}
 }
 
-func TestSummarizer_BedrockDisabled(t *testing.T) {
+func TestSummarizer_BedrockRestricted(t *testing.T) {
 	ctx := t.Context()
 
 	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
-		uploader:      eventstest.NewMemoryUploader(),
-		enableBedrock: false,
+		uploader:                         eventstest.NewMemoryUploader(),
+		enableBedrockWithoutRestrictions: false,
 	})
 
 	// What we test here is a secondary line of defense in case a Bedrock
@@ -575,36 +576,56 @@ func TestSummarizer_BedrockDisabled(t *testing.T) {
 	// creating a separate summarizer service with the same backend, but Bedrock
 	// enabled.
 	ssrvWithBedrock, err := local.NewSummarizerService(local.SummarizerServiceConfig{
-		Backend:       srv.AuthServer.Backend,
-		EnableBedrock: true,
+		Backend:                          srv.AuthServer.Backend,
+		EnableBedrockWithoutRestrictions: true,
 	})
 	require.NoError(t, err)
 
+	// Create a model that uses default AWS authentication.
+	modelSpec := &summarizerv1pb.InferenceModelSpec{
+		Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
+			Bedrock: &summarizerv1pb.BedrockProvider{
+				BedrockModelId: "amazon.nova-lite-v1:0",
+				Region:         "us-west-2",
+			},
+		},
+	}
 	_, err = ssrvWithBedrock.CreateInferenceModel(ctx, apisummarizer.NewInferenceModel(
-		"bedrock-model",
-		&summarizerv1pb.InferenceModelSpec{
-			Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
-				Bedrock: &summarizerv1pb.BedrockProvider{
-					BedrockModelId: "amazon.nova-lite-v1:0",
-					Region:         "us-west-2",
-				},
-			},
-		}),
-	)
+		"bedrock-model", modelSpec,
+	))
 	require.NoError(t, err)
 
+	// Create a model that uses authentication via OIDC.
+	oidcModelSpec := proto.CloneOf(modelSpec)
+	oidcModelSpec.GetBedrock().Integration = "dummy-integration"
+	_, err = ssrvWithBedrock.CreateInferenceModel(ctx, apisummarizer.NewInferenceModel(
+		"bedrock-oidc-model", oidcModelSpec,
+	))
+	require.NoError(t, err)
+
+	// Create a policy that uses default AWS authentication.
+	policySpec := &summarizerv1pb.InferencePolicySpec{
+		Kinds: []string{
+			string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
+		},
+		Filter: `session.cluster_name == "bedrock-cluster"`,
+		Model:  "bedrock-model",
+	}
 	_, err = ssrvWithBedrock.CreateInferencePolicy(ctx, apisummarizer.NewInferencePolicy(
-		"bedrock-policy",
-		&summarizerv1pb.InferencePolicySpec{
-			Kinds: []string{
-				string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
-			},
-			Filter: `session.cluster_name == "bedrock-cluster"`,
-			Model:  "bedrock-model",
-		}),
-	)
+		"bedrock-policy", policySpec,
+	))
 	require.NoError(t, err)
 
+	// Create a policy that uses authentication via OIDC.
+	oidcPolicySpec := proto.CloneOf(policySpec)
+	oidcPolicySpec.Filter = `session.cluster_name == "bedrock-oidc-cluster"`
+	oidcPolicySpec.Model = "bedrock-oidc-model"
+	_, err = ssrvWithBedrock.CreateInferencePolicy(ctx, apisummarizer.NewInferencePolicy(
+		"bedrock-oidc-policy", oidcPolicySpec,
+	))
+	require.NoError(t, err)
+
+	// Test a model without OIDC. This should be forbidden.
 	sessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 		ClusterName: "bedrock-cluster",
 	})
@@ -612,7 +633,25 @@ func TestSummarizer_BedrockDisabled(t *testing.T) {
 	err = srv.AuthServer.SessionSummarizerProvider.SessionSummarizer().SummarizeSSH(
 		ctx, sessEvents[len(sessEvents)-1].(*apievents.SessionEnd))
 	require.Error(t, err)
-	assert.ErrorIs(t, err, trace.AccessDenied("Amazon Bedrock models are unavailable in Teleport Cloud"))
+	assert.ErrorIs(t, err, trace.AccessDenied(
+		"only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud",
+	))
+
+	// Test a model with OIDC integration. This should be allowed.
+	oidcSID := uuid.NewString()
+	oidcSessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		ClusterName: "bedrock-oidc-cluster",
+		SessionID:   oidcSID,
+		PrintData:   []string{"ls"},
+	})
+	ingestSession(t, ctx, srv.Auth(), oidcSID, oidcSessEvents)
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+	summary := waitForSummary(t, ctx, sclt, oidcSID)
+	assert.Equal(t, "The user wrote: ls", summary.Content)
 }
 
 func TestSummarizerEncrypedDecrypted(t *testing.T) {
@@ -639,9 +678,6 @@ func TestSummarizerEncrypedDecrypted(t *testing.T) {
 	startTime := srv.Clock().Now()
 
 	// Ingest an example session.
-	stream, err := srv.Auth().CreateAuditStream(ctx, session.ID(encryptedSessionID))
-	require.NoError(t, err)
-
 	eventsData := eventstest.GenerateTestSession(eventstest.SessionParams{
 		ClusterName: "openai-cluster",
 		UserName:    "alice",
@@ -650,12 +686,7 @@ func TestSummarizerEncrypedDecrypted(t *testing.T) {
 		ServerID:  "9d68b09f-8c0c-49a3-b54d-f8791f0c3941.testcluster",
 		PrintData: []string{"net", "stat"},
 	})
-	for _, event := range eventsData {
-		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-		require.NoError(t, err)
-	}
-	err = stream.Complete(ctx)
-	require.NoError(t, err)
+	ingestSession(t, ctx, srv.Auth(), encryptedSessionID, eventsData)
 
 	summary := waitForSummary(t, ctx, sclt, encryptedSessionID)
 
@@ -763,8 +794,8 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 
 	ctx := t.Context()
 	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
-		uploader:      eventstest.NewMemoryUploader(),
-		enableBedrock: true,
+		uploader:                         eventstest.NewMemoryUploader(),
+		enableBedrockWithoutRestrictions: true,
 	})
 
 	createTestUser(t, srv, "alice")
@@ -902,4 +933,40 @@ func (b *memBuffer) Bytes() []byte {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.Bytes()
+}
+
+func ingestSession(
+	t *testing.T, ctx context.Context, asrv *auth.Server, sid string, sessEvents []apievents.AuditEvent,
+) {
+	stream, err := asrv.CreateAuditStream(ctx, session.ID(sid))
+	require.NoError(t, err)
+	for _, event := range sessEvents {
+		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
+		require.NoError(t, err)
+	}
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+}
+
+func createCache() (*awsconfig.Cache, error) {
+	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: "dummy-integration"},
+		&types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:sts::123456789012:role/TestRole",
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	oidcIntegrationClient := mocks.FakeOIDCIntegrationClient{
+		Integration: awsOIDCIntegration,
+	}
+	return awsconfig.NewCache(
+		awsconfig.WithDefaults(
+			awsconfig.WithOIDCIntegrationClient(&oidcIntegrationClient),
+			awsconfig.WithSTSClientProvider(func(c aws.Config) awsconfig.STSClient {
+				return &mocks.STSClient{}
+			}),
+		),
+	)
 }

@@ -79,7 +79,8 @@ type ProviderConfig struct {
 	// ModelResourceName is the name of an inference model this configuration is
 	// derived from.
 	ModelResourceName string
-	CfgCache          *awsconfig.Cache
+	// AWSConfigCache is used to retrieve AWS OIDC tokens for Amazon Bedrock.
+	AWSConfigCache *awsconfig.Cache
 }
 
 // ClientFactory is an interface for creating Bedrock clients.
@@ -120,7 +121,7 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 	if cfg.Spec.GetRegion() == "" {
 		return nil, trace.BadParameter("region is required")
 	}
-	if cfg.CfgCache == nil {
+	if cfg.AWSConfigCache == nil {
 		return nil, trace.BadParameter("AWS config cache is required")
 	}
 
@@ -134,7 +135,7 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 		maxSessionLength = defaultMaxSessionLength
 	}
 
-	awscfg, err := cfg.CfgCache.GetConfig(
+	awscfg, err := cfg.AWSConfigCache.GetConfig(
 		ctx,
 		cfg.Spec.GetRegion(),
 		awsconfig.WithCredentialsMaybeIntegration(

@@ -355,16 +355,23 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			serverID:          p.authServer.AuthServer.ServerID,
 			clock:             p.authServer.AuthServer.GetClock(),
 		}
+		cfgCache, err := awsconfig.NewCache(
+			awsconfig.WithDefaults(
+				awsconfig.WithOIDCIntegrationClient(&oidcClient),
+			),
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
-			Backend:         p.authServer.AuthServer,
-			Streamer:        p.authServer.AuthServer,
-			SummaryUploader: p.authServer.AuthServer,
-			Clock:           p.authServer.AuthServer.GetClock(),
-			// TODO(bl-nero): Relax this condition once we implement spend controls.
-			EnableBedrock:         !modules.GetModules().Features().Cloud,
-			Encrypter:             p.authServer.AuthServer.EncryptedIO,
-			OIDCIntegrationClient: &oidcClient,
+			Backend:                          p.authServer.AuthServer,
+			Streamer:                         p.authServer.AuthServer,
+			SummaryUploader:                  p.authServer.AuthServer,
+			Clock:                            p.authServer.AuthServer.GetClock(),
+			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
+			Encrypter:                        p.authServer.AuthServer.EncryptedIO,
+			AWSConfigCache:                   cfgCache,
 		})
 		if err != nil {
 			return trace.Wrap(err)

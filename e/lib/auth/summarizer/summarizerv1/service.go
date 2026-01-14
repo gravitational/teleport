@@ -12,6 +12,7 @@ import (
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/authz"
@@ -76,6 +77,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // CRUD operations for models
 
+func rejectReservedInferenceModelName(m *pb.InferenceModel) error {
+	if m.GetMetadata().GetName() == apisummarizer.CloudDefaultInferenceModelName {
+		return trace.BadParameter(
+			"metadata.name %q is reserved", apisummarizer.CloudDefaultInferenceModelName,
+		)
+	}
+	return nil
+}
+
 // CreateInferenceModel creates a new InferenceModel.
 func (s *Service) CreateInferenceModel(
 	ctx context.Context, req *pb.CreateInferenceModelRequest,
@@ -87,6 +97,10 @@ func (s *Service) CreateInferenceModel(
 
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := rejectReservedInferenceModelName(req.Model); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -126,6 +140,10 @@ func (s *Service) UpdateInferenceModel(
 		return nil, trace.Wrap(err)
 	}
 
+	if err := rejectReservedInferenceModelName(req.Model); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	model, err := s.backend.UpdateInferenceModel(ctx, req.Model)
 	return &pb.UpdateInferenceModelResponse{Model: model}, trace.Wrap(err)
 }
@@ -141,6 +159,10 @@ func (s *Service) UpsertInferenceModel(
 
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := rejectReservedInferenceModelName(req.Model); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -160,6 +182,14 @@ func (s *Service) DeleteInferenceModel(
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.Name == apisummarizer.CloudDefaultInferenceModelName {
+		// TODO(bl-nero): Add a link to the documentation on default Bedrock model
+		// once it's released.
+		return nil, trace.BadParameter(
+			"deleting the default Amazon Bedrock model is not supported in Teleport Cloud; edit or delete inference_policy resources that use it instead",
+		)
 	}
 
 	err = s.backend.DeleteInferenceModel(ctx, req.Name)

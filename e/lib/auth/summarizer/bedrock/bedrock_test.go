@@ -86,7 +86,7 @@ func TestInferenceProvider(t *testing.T) {
 				},
 				ModelResourceName: "claude",
 				ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-				CfgCache:          cache,
+				AWSConfigCache:    cache,
 			})
 			require.NoError(t, err)
 
@@ -113,7 +113,7 @@ func TestSummarizeCommand(t *testing.T) {
 		},
 		ModelResourceName: "claude",
 		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
-		CfgCache:          cache,
+		AWSConfigCache:    cache,
 	})
 	require.NoError(t, err)
 

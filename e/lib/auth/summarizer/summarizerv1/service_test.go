@@ -151,6 +151,17 @@ func newTestResources(t *testing.T, suffix string) (
 	return secret, model, policy
 }
 
+func newBedrockModel(name string) *summarizerv1pb.InferenceModel {
+	return summarizer.NewInferenceModel(name, &summarizerv1pb.InferenceModelSpec{
+		Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
+			Bedrock: &summarizerv1pb.BedrockProvider{
+				Region:         "us-west-2",
+				BedrockModelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+			},
+		},
+	})
+}
+
 // assertResourceEquals asserts that two resources are equal, ignoring the
 // revision field.
 func assertResourceEquals[T types.Resource153](t *testing.T, expected T, actual T) {
@@ -236,6 +247,37 @@ func TestService_CreateAndGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assertResourceEquals(t, expectedModel, gotModel.Model)
+
+	// Test a valid Bedrock model. This one should be accepted.
+	validBedrockModel := newBedrockModel("valid-bedrock-model")
+	createdModel, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		Model: validBedrockModel,
+	})
+	require.NoError(t, err)
+	assertResourceEquals(t, validBedrockModel, createdModel.Model)
+
+	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+		Name: "valid-bedrock-model",
+	})
+	require.NoError(t, err)
+	assertResourceEquals(t, validBedrockModel, gotModel.Model)
+
+	// Test a Bedrock model that has a reserved name. This one should be
+	// rejected.
+	invalidBedrockModel := newBedrockModel(summarizer.CloudDefaultInferenceModelName)
+	createdModel, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		Model: invalidBedrockModel,
+	})
+	assert.ErrorIs(t, err, &trace.BadParameterError{
+		Message: `metadata.name "teleport-cloud-default" is reserved`,
+	})
+	assert.Nil(t, createdModel)
+
+	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+		Name: summarizer.CloudDefaultInferenceModelName,
+	})
+	assert.ErrorAs(t, err, new(*trace.NotFoundError))
+	assert.Nil(t, gotModel)
 }
 
 func TestService_Update(t *testing.T) {
@@ -250,6 +292,7 @@ func TestService_Update(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 
 	secret, expectedModel, expectedPolicy := newTestResources(t, "1")
+	cloudDefaultModel := newBedrockModel("teleport-cloud-default")
 
 	// Create the resources.
 	createdSecret, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
@@ -265,6 +308,11 @@ func TestService_Update(t *testing.T) {
 	createdPolicy, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
 		Policy: expectedPolicy,
 	})
+	require.NoError(t, err)
+
+	// Create the cloud default model directly in the backend, as it can't be
+	// created via an API.
+	_, err = srv.AuthServer.AuthServer.Summarizer.CreateInferenceModel(ctx, cloudDefaultModel)
 	require.NoError(t, err)
 
 	// Test updating the secret.
@@ -305,6 +353,20 @@ func TestService_Update(t *testing.T) {
 	require.NoError(t, err)
 	assertResourceEquals(t, createdModel.Model, gotModel.Model)
 
+	// Test attempting to update the cloud default model (should fail).
+	modifiedCloudDefaultModel := proto.CloneOf(cloudDefaultModel)
+	modifiedCloudDefaultModel.Spec.GetBedrock().Temperature = 0.2
+	_, err = sclt.UpdateInferenceModel(ctx, &summarizerv1pb.UpdateInferenceModelRequest{
+		Model: modifiedCloudDefaultModel,
+	})
+	assert.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+		Name: "teleport-cloud-default",
+	})
+	require.NoError(t, err)
+	assertResourceEquals(t, cloudDefaultModel, gotModel.Model)
+
 	// Test updating the policy.
 	createdPolicy.Policy.Spec.Filter = `equals(resource.metadata.labels["env"], "dev")`
 	updatedPolicy, err := sclt.UpdateInferencePolicy(ctx, &summarizerv1pb.UpdateInferencePolicyRequest{
@@ -332,6 +394,12 @@ func TestService_Upsert(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 
 	secret, expectedModel, expectedPolicy := newTestResources(t, "1")
+	cloudDefaultModel := newBedrockModel("teleport-cloud-default")
+
+	// Create the cloud default model directly in the backend, as it can't be
+	// created via an API.
+	_, err = srv.AuthServer.AuthServer.Summarizer.CreateInferenceModel(ctx, cloudDefaultModel)
+	require.NoError(t, err)
 
 	// Test creating by upserting resources.
 	createdSecret, err := sclt.UpsertInferenceSecret(ctx, &summarizerv1pb.UpsertInferenceSecretRequest{
@@ -390,6 +458,20 @@ func TestService_Upsert(t *testing.T) {
 	require.NoError(t, err)
 	assertResourceEquals(t, createdModel.Model, gotModel.Model)
 
+	// Test attempting to update the cloud default model (should fail).
+	modifiedCloudDefaultModel := proto.CloneOf(cloudDefaultModel)
+	modifiedCloudDefaultModel.Spec.GetBedrock().Temperature = 0.2
+	_, err = sclt.UpsertInferenceModel(ctx, &summarizerv1pb.UpsertInferenceModelRequest{
+		Model: modifiedCloudDefaultModel,
+	})
+	assert.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+		Name: "teleport-cloud-default",
+	})
+	require.NoError(t, err)
+	assertResourceEquals(t, cloudDefaultModel, gotModel.Model)
+
 	// Test updating the policy.
 	createdPolicy.Policy.Spec.Filter = `equals(resource.metadata.labels["env"], "dev")`
 	updatedPolicy, err := sclt.UpsertInferencePolicy(ctx, &summarizerv1pb.UpsertInferencePolicyRequest{
@@ -417,6 +499,7 @@ func TestService_Delete(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 
 	secret, expectedModel, expectedPolicy := newTestResources(t, "1")
+	cloudDefaultModel := newBedrockModel("teleport-cloud-default")
 
 	// Create the resources.
 	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
@@ -432,6 +515,11 @@ func TestService_Delete(t *testing.T) {
 	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
 		Policy: expectedPolicy,
 	})
+	require.NoError(t, err)
+
+	// Create the cloud default model directly in the backend, as it can't be
+	// created via an API.
+	_, err = srv.AuthServer.AuthServer.Summarizer.CreateInferenceModel(ctx, cloudDefaultModel)
 	require.NoError(t, err)
 
 	// Delete the resources.
@@ -468,6 +556,18 @@ func TestService_Delete(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// Test attempting to delete the cloud default model (should fail).
+	_, err = sclt.DeleteInferenceModel(ctx, &summarizerv1pb.DeleteInferenceModelRequest{
+		Name: "teleport-cloud-default",
+	})
+	assert.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	gotModel, err := sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+		Name: "teleport-cloud-default",
+	})
+	require.NoError(t, err)
+	assertResourceEquals(t, cloudDefaultModel, gotModel.Model)
 }
 
 func TestService_List(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
@@ -62,13 +63,12 @@ type SummarizerConfig struct {
 	BedrockClientFactory bedrock.ClientFactory
 	// Clock is used for time calculations. Defaults to a real clock.
 	Clock clockwork.Clock
-	// EnableBedrock enables access to Amazon Bedrock models. Currently, this
+	// EnableBedrockWithoutRestrictions enables access to Amazon Bedrock models. Currently, this
 	// should only be turned on outside Teleport Cloud. Setting it to true allows
 	// using inference_model resources for inference.
-	EnableBedrock bool
-	// OIDCIntegrationClient is used to generate AWS OIDC tokens for Amazon
-	// Bedrock.
-	OIDCIntegrationClient awsconfig.OIDCIntegrationClient
+	EnableBedrockWithoutRestrictions bool
+	// AWSConfigCache is used to retrieve AWS OIDC tokens for Amazon Bedrock.
+	AWSConfigCache *awsconfig.Cache
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -100,18 +100,18 @@ type InferenceProvider interface {
 // inference.
 type SessionSummarizer struct {
 	// TODO(bl-nero): use cache instead of raw backend.
-	backend              services.Summarizer
-	streamer             events.SessionStreamer
-	summaryUploader      SummaryUploader
-	openAIClientFactory  openai.ClientFactory
-	bedrockClientFactory bedrock.ClientFactory
-	clock                clockwork.Clock
-	logger               *slog.Logger
-	concurrencyLimiter   *semaphore.Weighted
-	enableBedrock        bool
-	encrypter            events.EncryptionWrapper
-	cfgCache             *awsconfig.Cache
-	pool                 *workerPool
+	backend                          services.Summarizer
+	streamer                         events.SessionStreamer
+	summaryUploader                  SummaryUploader
+	openAIClientFactory              openai.ClientFactory
+	bedrockClientFactory             bedrock.ClientFactory
+	clock                            clockwork.Clock
+	logger                           *slog.Logger
+	concurrencyLimiter               *semaphore.Weighted
+	enableBedrockWithoutRestrictions bool
+	encrypter                        events.EncryptionWrapper
+	awsConfigCache                   *awsconfig.Cache
+	pool                             *workerPool
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -128,34 +128,28 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	if cfg.SummaryUploader == nil {
 		return nil, trace.BadParameter("upload handler is required")
 	}
+	if cfg.AWSConfigCache == nil {
+		return nil, trace.BadParameter("AWS config cache is required")
+	}
 
 	clock := cfg.Clock
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
 
-	cfgCache, err := awsconfig.NewCache(
-		awsconfig.WithDefaults(
-			awsconfig.WithOIDCIntegrationClient(cfg.OIDCIntegrationClient),
-		),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &SessionSummarizer{
-		backend:              cfg.Backend,
-		streamer:             cfg.Streamer,
-		summaryUploader:      cfg.SummaryUploader,
-		openAIClientFactory:  cfg.OpenAIClientFactory,
-		bedrockClientFactory: cfg.BedrockClientFactory,
-		clock:                clock,
-		logger:               slog.With(teleport.ComponentKey, "summarizer"),
-		concurrencyLimiter:   semaphore.NewWeighted(concurrencyLimit),
-		enableBedrock:        cfg.EnableBedrock,
-		encrypter:            cfg.Encrypter,
-		cfgCache:             cfgCache,
-		pool:                 newWorkerPool(workerCount),
+		backend:                          cfg.Backend,
+		streamer:                         cfg.Streamer,
+		summaryUploader:                  cfg.SummaryUploader,
+		openAIClientFactory:              cfg.OpenAIClientFactory,
+		bedrockClientFactory:             cfg.BedrockClientFactory,
+		clock:                            clock,
+		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
+		concurrencyLimiter:               semaphore.NewWeighted(concurrencyLimit),
+		enableBedrockWithoutRestrictions: cfg.EnableBedrockWithoutRestrictions,
+		encrypter:                        cfg.Encrypter,
+		awsConfigCache:                   cfg.AWSConfigCache,
+		pool:                             newWorkerPool(workerCount),
 	}, nil
 }
 
@@ -612,8 +606,12 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 		return p, trace.Wrap(err)
 
 	case *summarizerv1pb.InferenceModelSpec_Bedrock:
-		if !s.enableBedrock {
-			return nil, trace.AccessDenied("Amazon Bedrock models are unavailable in Teleport Cloud")
+		if !s.enableBedrockWithoutRestrictions &&
+			modelName != apisummarizer.CloudDefaultInferenceModelName &&
+			model.GetSpec().GetBedrock().GetIntegration() == "" {
+			return nil, trace.AccessDenied(
+				"only the default model is allowed to use Amazon Bedrock without OIDC in Teleport Cloud",
+			)
 		}
 
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
@@ -621,7 +619,7 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: modelName,
-			CfgCache:          s.cfgCache,
+			AWSConfigCache:    s.awsConfigCache,
 		})
 		return p, trace.Wrap(err)
 	default:
