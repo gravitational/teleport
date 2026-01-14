@@ -225,16 +225,16 @@ func ValidateOracleJoinToken(token types.ProvisionToken) error {
 	return validateOracleJoinToken(token)
 }
 
-func CreatePresetUsers(ctx context.Context, um PresetUsers) error {
-	return createPresetUsers(ctx, um)
+func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
+	return createPresetUsers(ctx, buildType, um)
 }
 
-func CreatePresetRoles(ctx context.Context, um PresetRoleManager) error {
-	return createPresetRoles(ctx, um)
+func CreatePresetRoles(ctx context.Context, buildType string, um PresetRoleManager) error {
+	return createPresetRoles(ctx, buildType, um)
 }
 
-func GetPresetUsers() []types.User {
-	return getPresetUsers()
+func GetPresetUsers(buildType string) []types.User {
+	return getPresetUsers(buildType)
 }
 
 func CreatePresetDatabaseObjectImportRule(ctx context.Context, rules services.DatabaseObjectImportRules) error {
