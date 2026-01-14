@@ -831,6 +831,7 @@ resources: {}
 #
 # Jobs currently include config validation and potentially migration hooks.
 # The resource requirements are typically lower than for the main teleport deployment.
+# In most cases, you should leave these limits unset.
 jobResources: {}
 #  requests:
 #    cpu: "20m"
