@@ -56,20 +56,65 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: should not set resources on auth predeploy job when set in values
+  - it: should not set resources on auth predeploy job when resources set in values
     template: auth/predeploy_job.yaml
     values:
       - ../.lint/resources.yaml
     asserts:
       - isEmpty:
           path: spec.template.spec.containers[0].resources
-  - it: should not set resources on proxy predeploy job when set in values
+
+  - it: should not set resources on proxy predeploy job when resources set in values
     template: proxy/predeploy_job.yaml
     values:
       - ../.lint/resources.yaml
     asserts:
       - isEmpty:
           path: spec.template.spec.containers[0].resources
+
+  - it: should set resources on auth predeploy job when jobResources set in values
+    template: auth/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    set:
+      jobResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 512Mi
+          cpu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+
+  - it: should set resources on proxy predeploy job when jobResources set in values
+    template: proxy/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    set:
+      jobResources:
+        limits:
+          memory: 512Mi
+        requests:
+          memory: 512Mi
+          cpu: 1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 512Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
 
   - it: should set imagePullSecrets on proxy predeploy job when set in values
     template: proxy/predeploy_job.yaml
