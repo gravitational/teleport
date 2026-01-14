@@ -148,11 +148,12 @@ func TestEntraIDGroupFilters(t *testing.T) {
 				install: pluginInstallArgs{
 					name: "entra-id-default",
 					entraID: entraArgs{
-						authConnectorName:    "fake-saml-connector",
-						accessGraph:          false,
-						manualEntraIDSetup:   true,
-						useSystemCredentials: true,
-						groupFilters:         test.groupFilters,
+						authConnectorName:      "fake-saml-connector",
+						accessGraph:            false,
+						manualEntraIDSetup:     true,
+						useSystemCredentials:   true,
+						groupFilters:           test.groupFilters,
+						accessListOwnersSource: "plugin",
 					},
 				},
 				stdin:  inputs,
