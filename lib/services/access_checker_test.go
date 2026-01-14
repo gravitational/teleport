@@ -196,7 +196,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -248,7 +248,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			fields: fields{
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -293,7 +293,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindApp,
 							ClusterName: localCluster,
@@ -347,7 +347,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any"},
-					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindKubernetesCluster,
 							ClusterName: localCluster,
@@ -388,7 +388,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any"},
-					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:        types.KindKubernetesCluster,
 							ClusterName: localCluster,
@@ -436,7 +436,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 				roleSet: roleSet,
 				info: &AccessInfo{
 					Roles: []string{"any", "dev"},
-					AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{
 						{
 							Kind:            "pods",
 							ClusterName:     localCluster,
@@ -1092,7 +1092,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		{
 			name: "matches kind and subkind",
 			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceAccessID{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
 					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
 				},
 			},
@@ -1108,7 +1108,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		{
 			name: "unmatched subkind",
 			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceAccessID{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
 					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
 				},
 			},
@@ -1125,7 +1125,7 @@ func TestIdentityCenterAccountAccessRequestMatcher(t *testing.T) {
 		{
 			name: "unmatched kind",
 			info: &AccessInfo{
-				AllowedResourceIDs: []types.ResourceAccessID{
+				AllowedResourceAccessIDs: []types.ResourceAccessID{
 					{Id: types.ResourceID{Kind: types.KindIdentityCenterAccount, ClusterName: localCluster, Name: "aws-dev"}},
 				},
 			},
@@ -1202,7 +1202,7 @@ func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
 		},
 	}
 
-	info := &AccessInfo{AllowedResourceIDs: []types.ResourceAccessID{rid}}
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{rid}}
 
 	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
 

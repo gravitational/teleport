@@ -349,7 +349,7 @@ func (c *Context) WithExtraRoles(access services.RoleGetter, clusterName string,
 	accessInfo := &services.AccessInfo{
 		Roles:              newRoleNames,
 		Traits:             c.User.GetTraits(),
-		AllowedResourceIDs: c.Checker.GetAllowedResourceIDs(),
+		AllowedResourceAccessIDs: c.Checker.GetAllowedResourceAccessIDs(),
 	}
 	checker, err := services.NewAccessChecker(accessInfo, clusterName, access)
 	if err != nil {
@@ -861,7 +861,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roles,
 		Traits:             nil,
-		AllowedResourceIDs: nil,
+		AllowedResourceAccessIDs: nil,
 	}, a.clusterName, roleSet)
 	return &Context{
 		User:                  user,
@@ -1397,7 +1397,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 	checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 		Roles:              roles,
 		Traits:             nil,
-		AllowedResourceIDs: nil,
+		AllowedResourceAccessIDs: nil,
 	}, r.ClusterName, roleSet)
 	return &Context{
 		User:                  user,

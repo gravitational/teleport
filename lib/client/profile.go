@@ -295,9 +295,9 @@ type ProfileStatus struct {
 	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
 	GCPServiceAccounts []string
 
-	// AllowedResourceIDs is a list of resources the user can access. An empty
+	// AllowedResourceAccessIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
-	AllowedResourceIDs []types.ResourceAccessID
+	AllowedResourceAccessIDs []types.ResourceAccessID
 
 	// IsVirtual is set when this profile does not actually exist on disk,
 	// probably because it was constructed from an identity file. When set,
@@ -440,33 +440,33 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		RelayAddr:               opts.RelayAddr,
-		DefaultRelayAddr:        opts.DefaultRelayAddr,
-		Username:                opts.Username,
-		Logins:                  sshCert.ValidPrincipals,
-		ValidUntil:              validUntil,
-		Extensions:              extensions,
-		CriticalOptions:         sshCert.CriticalOptions,
-		Roles:                   roles,
-		Scope:                   scope,
-		ScopedRoles:             scopedRoles,
-		Cluster:                 opts.SiteName,
-		Traits:                  sshIdent.Traits,
-		ActiveRequests:          sshIdent.ActiveRequests,
-		KubeEnabled:             opts.KubeProxyAddr != "",
-		KubeUsers:               tlsID.KubernetesUsers,
-		KubeGroups:              tlsID.KubernetesGroups,
-		Databases:               databases,
-		Apps:                    apps,
-		AWSRolesARNs:            tlsID.AWSRoleARNs,
-		AzureIdentities:         tlsID.AzureIdentities,
-		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
-		IsVirtual:               opts.IsVirtual,
-		AllowedResourceIDs:      types.CombineAsResourceAccessIDs(sshIdent.AllowedResourceIDs, sshIdent.AllowedResourceAccessIDs),
-		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
-		SSOHost:                 opts.SSOHost,
-		GitHubIdentity:          gitHubIdentity,
-		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
+		RelayAddr:                opts.RelayAddr,
+		DefaultRelayAddr:         opts.DefaultRelayAddr,
+		Username:                 opts.Username,
+		Logins:                   sshCert.ValidPrincipals,
+		ValidUntil:               validUntil,
+		Extensions:               extensions,
+		CriticalOptions:          sshCert.CriticalOptions,
+		Roles:                    roles,
+		Scope:                    scope,
+		ScopedRoles:              scopedRoles,
+		Cluster:                  opts.SiteName,
+		Traits:                   sshIdent.Traits,
+		ActiveRequests:           sshIdent.ActiveRequests,
+		KubeEnabled:              opts.KubeProxyAddr != "",
+		KubeUsers:                tlsID.KubernetesUsers,
+		KubeGroups:               tlsID.KubernetesGroups,
+		Databases:                databases,
+		Apps:                     apps,
+		AWSRolesARNs:             tlsID.AWSRoleARNs,
+		AzureIdentities:          tlsID.AzureIdentities,
+		GCPServiceAccounts:       tlsID.GCPServiceAccounts,
+		IsVirtual:                opts.IsVirtual,
+		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(sshIdent.AllowedResourceIDs, sshIdent.AllowedResourceAccessIDs),
+		SAMLSingleLogoutEnabled:  opts.SAMLSingleLogoutEnabled,
+		SSOHost:                  opts.SSOHost,
+		GitHubIdentity:           gitHubIdentity,
+		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
 	}, nil
 }
 
@@ -742,6 +742,6 @@ func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
 		Username:           p.Username,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
-		AllowedResourceIDs: p.AllowedResourceIDs,
+		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 	}
 }

@@ -2207,10 +2207,10 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 		roleNames[i] = role.GetName()
 	}
 	accessInfo := &AccessInfo{
-		Username:           "alice",
-		Roles:              roleNames,
-		Traits:             nil,
-		AllowedResourceIDs: nil,
+		Username:                 "alice",
+		Roles:                    roleNames,
+		Traits:                   nil,
+		AllowedResourceAccessIDs: nil,
 	}
 	return NewAccessCheckerWithRoleSet(accessInfo, "clustername", roleSet)
 }
@@ -10942,7 +10942,7 @@ func TestSessionRecordingRBAC(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.context.AccessChecker = NewAccessCheckerWithRoleSet(&AccessInfo{AllowedResourceIDs: types.ResourceIDsToResourceAccessIDs(tc.accessRequestResourceIds)}, "local", tc.roles)
+			tc.context.AccessChecker = NewAccessCheckerWithRoleSet(&AccessInfo{AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs(tc.accessRequestResourceIds)}, "local", tc.roles)
 			result := tc.roles.CheckAccessToRule(&tc.context, apidefaults.Namespace, types.KindSession, types.VerbRead)
 			tc.errCheck(t, result)
 		})

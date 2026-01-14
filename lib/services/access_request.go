@@ -1462,7 +1462,7 @@ func validateRequestedResourcesLength(req types.AccessRequest) error {
 }
 
 // deduplicateRequestedResources deduplicates both requestedResourceIDs and requestedResourceAccessIDs,
-// ensuring there are no duplicate entries in either or across both.
+// ensuring there are no duplicate entries in either or across both. Constrained resources take precedence.
 func deduplicateRequestedResources(req types.AccessRequest) {
 	var deduplicatedResourceIDs []types.ResourceID
 	var deduplicatedResourceAccessIDs []types.ResourceAccessID
@@ -1724,17 +1724,17 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	allowedResourceIDs := types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs)
+	allowedResourceAccessIDs := types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs)
 
 	cluster, err := m.getter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	accessChecker, err := NewAccessChecker(&AccessInfo{
-		Roles:              m.getResourceViewingRoles(),
-		Traits:             m.userState.GetTraits(),
-		Username:           m.userState.GetName(),
-		AllowedResourceIDs: allowedResourceIDs,
+		Roles:                    m.getResourceViewingRoles(),
+		Traits:                   m.userState.GetTraits(),
+		Username:                 m.userState.GetName(),
+		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1758,9 +1758,6 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		roleAllowsAccess := true
 		for _, resource := range filteredResources {
 			var extraMatchers []RoleMatcher
-
-			// TODO(kiosion): This feels really bad / not deterministic. Should return some kind of bi-directional mapping from 'getUnderlyingResourcesByResourceIDs';
-			// for any provided resourceID there should always either be a returned underlying resource, or, an err.
 			for _, raid := range resourceAccessIDs {
 				if rid := raid.GetResourceID(); rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
 					continue

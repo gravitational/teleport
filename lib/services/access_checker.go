@@ -229,10 +229,10 @@ type AccessChecker interface {
 	// GetAllLogins returns all valid unix logins for the AccessChecker.
 	GetAllLogins() []string
 
-	// GetAllowedResourceIDs returns the list of allowed resources the identity for
+	// GetAllowedResourceAccessIDs returns the list of allowed resources the identity for
 	// the AccessChecker is allowed to access. An empty or nil list indicates that
 	// there are no resource-specific restrictions.
-	GetAllowedResourceIDs() []types.ResourceAccessID
+	GetAllowedResourceAccessIDs() []types.ResourceAccessID
 
 	// SessionRecordingMode returns the recording mode for a specific service.
 	SessionRecordingMode(service constants.SessionRecordingService) constants.SessionRecordingMode
@@ -315,11 +315,11 @@ type AccessInfo struct {
 	Roles []string
 	// Traits is the set of traits for the identity.
 	Traits wrappers.Traits
-	// AllowedResourceIDs is the list of resource IDs the identity is allowed to
+	// AllowedResourceAccessIDs is the list of resource IDs the identity is allowed to
 	// access. A nil or empty list indicates that no resource-specific
 	// access restrictions should be applied. Used for search-based access
 	// requests.
-	AllowedResourceIDs []types.ResourceAccessID
+	AllowedResourceAccessIDs []types.ResourceAccessID
 	// Username is the Teleport username.
 	Username string
 }
@@ -330,7 +330,7 @@ type accessChecker struct {
 	localCluster string
 
 	// RoleSet is embedded to use the existing implementation for most
-	// AccessChecker methods. Methods which require AllowedResourceIDs (relevant
+	// AccessChecker methods. Methods which require AllowedResourceAccessIDs (relevant
 	// to search-based access requests) will be implemented by
 	// accessChecker.
 	RoleSet
@@ -431,8 +431,8 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 		// Will fill this in with the names of the remote/mapped roles we got
 		// from GetCurrentUserRoles.
 		Roles: make([]string, 0, len(remoteRoles)),
-		// AllowedResourceIDs are always the same across clusters.
-		AllowedResourceIDs: localAccessInfo.AllowedResourceIDs,
+		// AllowedResourceAccessIDs are always the same across clusters.
+		AllowedResourceAccessIDs: localAccessInfo.AllowedResourceAccessIDs,
 	}
 
 	for i := range remoteRoles {
@@ -458,7 +458,7 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 }
 
 func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.ResourceAccessID, error) {
-	if len(a.info.AllowedResourceIDs) == 0 {
+	if len(a.info.AllowedResourceAccessIDs) == 0 {
 		// certificate does not contain a list of specifically allowed
 		// resources, only role-based access control is used
 		return nil, nil
@@ -470,7 +470,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.Resourc
 	ctx := context.Background()
 	isLoggingEnabled := rbacLogger.Enabled(ctx, logutils.TraceLevel)
 
-	for _, resourceID := range a.info.AllowedResourceIDs {
+	for _, resourceID := range a.info.AllowedResourceAccessIDs {
 		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
 			// Allowed to access this resource by resource ID, move on to role checks.
 
@@ -486,7 +486,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.Resourc
 
 	if isLoggingEnabled {
 		// We just want to log allowed IDs here; discarding additional info is ok.
-		allowedResources, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(a.info.AllowedResourceIDs))
+		allowedResources, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(a.info.AllowedResourceAccessIDs))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -536,7 +536,7 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
-	// Enforce AllowedResourceIDs if present; capture match
+	// Enforce AllowedResourceAccessIDs if present; capture match
 	var matchedRID *types.ResourceAccessID
 	var err error
 
@@ -563,7 +563,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 }
 
 func (a *accessChecker) matchAllowedRID(r AccessCheckable) (*types.ResourceAccessID, bool) {
-	for _, resourceID := range a.info.AllowedResourceIDs {
+	for _, resourceID := range a.info.AllowedResourceAccessIDs {
 		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
 			return &resourceID, true
 		}
@@ -586,7 +586,7 @@ func (a *accessChecker) CheckAccessToSAMLIdP(r AccessCheckable, authPref readonl
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
 // for a user.
 func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
-	if len(a.info.AllowedResourceIDs) == 0 {
+	if len(a.info.AllowedResourceAccessIDs) == 0 {
 		return a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	}
 	var err error
@@ -594,8 +594,8 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 
 	// If we have a legacy 'namespace' in the allowedResourceIDs, we need to add the new 'namespaces' one.
 	// The old one will get mapped to wildcard later.
-	allowedResourceIDs := slices.Clone(a.info.AllowedResourceIDs)
-	for _, elem := range a.info.AllowedResourceIDs {
+	allowedResourceIDs := slices.Clone(a.info.AllowedResourceAccessIDs)
+	for _, elem := range a.info.AllowedResourceAccessIDs {
 		if rid := elem.GetResourceID(); rid.Kind == types.KindKubeNamespace {
 			allowedResourceIDs = append(allowedResourceIDs, types.ResourceAccessID{Id: types.ResourceID{
 				ClusterName:     rid.ClusterName,
@@ -711,11 +711,11 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 	return verbs, nil
 }
 
-// GetAllowedResourceIDs returns the list of allowed resources the identity for
+// GetAllowedResourceAccessIDs returns the list of allowed resources the identity for
 // the AccessChecker is allowed to access. An empty or nil list indicates that
 // there are no resource-specific restrictions.
-func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceAccessID {
-	return a.info.AllowedResourceIDs
+func (a *accessChecker) GetAllowedResourceAccessIDs() []types.ResourceAccessID {
+	return a.info.AllowedResourceAccessIDs
 }
 
 // Traits returns the set of user traits
@@ -1378,11 +1378,11 @@ func (a *accessChecker) HostSudoers(s types.Server) ([]string, error) {
 // will not be mapped.
 func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 	return &AccessInfo{
-		Username:           ident.Username,
-		ScopePin:           ident.ScopePin,
-		Roles:              ident.Roles,
-		Traits:             ident.Traits,
-		AllowedResourceIDs: types.CombineAsResourceAccessIDs(ident.AllowedResourceIDs, ident.AllowedResourceAccessIDs),
+		Username:                 ident.Username,
+		ScopePin:                 ident.ScopePin,
+		Roles:                    ident.Roles,
+		Traits:                   ident.Traits,
+		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(ident.AllowedResourceIDs, ident.AllowedResourceAccessIDs),
 	}
 }
 
@@ -1420,10 +1420,10 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 	)
 
 	return &AccessInfo{
-		Username:           unmappedIdentity.Username,
-		Roles:              roles,
-		Traits:             traits,
-		AllowedResourceIDs: types.CombineAsResourceAccessIDs(unmappedIdentity.AllowedResourceIDs, unmappedIdentity.AllowedResourceAccessIDs),
+		Username:                 unmappedIdentity.Username,
+		Roles:                    roles,
+		Traits:                   traits,
+		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(unmappedIdentity.AllowedResourceIDs, unmappedIdentity.AllowedResourceAccessIDs),
 	}, nil
 }
 
@@ -1436,11 +1436,11 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 	}
 
 	return &AccessInfo{
-		Username:           identity.Username,
-		ScopePin:           identity.ScopePin,
-		Roles:              identity.Groups,
-		Traits:             identity.Traits,
-		AllowedResourceIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
+		Username:                 identity.Username,
+		ScopePin:                 identity.ScopePin,
+		Roles:                    identity.Groups,
+		Traits:                   identity.Traits,
+		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
 	}, nil
 }
 
@@ -1494,10 +1494,10 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 	)
 
 	return &AccessInfo{
-		Username:           identity.Username,
-		Roles:              roles,
-		Traits:             traits,
-		AllowedResourceIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
+		Username:                 identity.Username,
+		Roles:                    roles,
+		Traits:                   traits,
+		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
 	}, nil
 }
 

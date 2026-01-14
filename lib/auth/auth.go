@@ -3587,7 +3587,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	}
 
 	if unscopedChecker, ok := req.checker.Unscoped(); ok {
-		if len(unscopedChecker.GetAllowedResourceIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
+		if len(unscopedChecker.GetAllowedResourceAccessIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 		}
 	}
@@ -3777,9 +3777,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 	// collect fields which are mutually exclusive to scoped or unscoped certs
 	var (
-		scopePin           *scopesv1.Pin
-		roleNames          []string
-		allowedResourceIDs []types.ResourceAccessID
+		scopePin                 *scopesv1.Pin
+		roleNames                []string
+		allowedResourceAccessIDs []types.ResourceAccessID
 	)
 
 	if scopedChecker, ok := req.checker.Scoped(); ok {
@@ -3788,10 +3788,10 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 
 	if unscopedChecker, ok := req.checker.Unscoped(); ok {
 		roleNames = unscopedChecker.RoleNames()
-		allowedResourceIDs = unscopedChecker.GetAllowedResourceIDs()
+		allowedResourceAccessIDs = unscopedChecker.GetAllowedResourceAccessIDs()
 	}
 
-	resourceIDs, resourceAccessIDs := types.UnwrapResourceAccessIDs(allowedResourceIDs)
+	resourceIDs, resourceAccessIDs := types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
@@ -5034,7 +5034,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	}
 	roles := accessInfo.Roles
 	traits := accessInfo.Traits
-	allowedResourceIDs := accessInfo.AllowedResourceIDs
+	allowedResourceAccessIDs := accessInfo.AllowedResourceAccessIDs
 	accessRequests := identity.ActiveRequests
 
 	if req.ReloadUser {
@@ -5071,10 +5071,10 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 			// There's not a consistent way to merge multiple resource access
 			// requests, a user may be able to request access to different resources
 			// with different roles which should not overlap.
-			if len(allowedResourceIDs) > 0 {
+			if len(allowedResourceAccessIDs) > 0 {
 				return nil, trace.BadParameter("user is already logged in with a resource access request, cannot assume another")
 			}
-			allowedResourceIDs = accessRequest.GetAllRequestedResourceIDs()
+			allowedResourceAccessIDs = accessRequest.GetAllRequestedResourceIDs()
 		}
 
 		webSessionTTL := a.getWebSessionTTL(accessRequest)
@@ -5095,7 +5095,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		}
 
 		// Reset any search-based access requests
-		allowedResourceIDs = nil
+		allowedResourceAccessIDs = nil
 
 		// Calculate expiry time.
 		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
@@ -5135,15 +5135,15 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, _, err := a.newWebSession(ctx, NewWebSessionRequest{
-		User:                 req.User,
-		LoginIP:              identity.LoginIP,
-		Roles:                roles,
-		Traits:               traits,
-		SessionTTL:           sessionTTL,
-		AccessRequests:       accessRequests,
-		RequestedResourceIDs: allowedResourceIDs,
-		SSHPrivateKey:        prevSSHKey,
-		TLSPrivateKey:        prevTLSKey,
+		User:                       req.User,
+		LoginIP:                    identity.LoginIP,
+		Roles:                      roles,
+		Traits:                     traits,
+		SessionTTL:                 sessionTTL,
+		AccessRequests:             accessRequests,
+		RequestedResourceAccessIDs: allowedResourceAccessIDs,
+		SSHPrivateKey:              prevSSHKey,
+		TLSPrivateKey:              prevTLSKey,
 	}, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

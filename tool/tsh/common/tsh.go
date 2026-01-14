@@ -5484,8 +5484,8 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if len(p.Databases) != 0 {
 		fmt.Fprintf(w, "  Databases:          %v\n", strings.Join(p.Databases, ", "))
 	}
-	if len(p.AllowedResourceIDs) > 0 {
-		allowedResourcesStr, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(p.AllowedResourceIDs))
+	if len(p.AllowedResourceAccessIDs) > 0 {
+		allowedResourcesStr, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(p.AllowedResourceAccessIDs))
 		if err != nil {
 			logger.WarnContext(context.Background(), "failed to marshal allowed resource IDs to string", "error", err)
 		} else {
@@ -5640,27 +5640,27 @@ func onStatus(cf *CLIConf) error {
 }
 
 type profileInfo struct {
-	ProxyURL           string                   `json:"profile_url"`
-	RelayAddr          string                   `json:"relay_addr,omitempty"`
-	DefaultRelayAddr   string                   `json:"default_relay_addr,omitempty"`
-	Username           string                   `json:"username"`
-	ActiveRequests     []string                 `json:"active_requests,omitempty"`
-	Cluster            string                   `json:"cluster"`
-	Roles              []string                 `json:"roles,omitempty"`
-	Scope              string                   `json:"scope,omitempty"`
-	ScopedRoles        map[string][]string      `json:"scoped_roles,omitempty"`
-	Traits             wrappers.Traits          `json:"traits,omitempty"`
-	Logins             []string                 `json:"logins,omitempty"`
-	KubernetesEnabled  bool                     `json:"kubernetes_enabled"`
-	KubernetesCluster  string                   `json:"kubernetes_cluster,omitempty"`
-	KubernetesUsers    []string                 `json:"kubernetes_users,omitempty"`
-	KubernetesGroups   []string                 `json:"kubernetes_groups,omitempty"`
-	Databases          []string                 `json:"databases,omitempty"`
-	ValidUntil         time.Time                `json:"valid_until"`
-	Extensions         []string                 `json:"extensions,omitempty"`
-	CriticalOptions    map[string]string        `json:"critical_options,omitempty"`
-	AllowedResourceIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
-	GitHubIdentity     *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	ProxyURL                 string                   `json:"profile_url"`
+	RelayAddr                string                   `json:"relay_addr,omitempty"`
+	DefaultRelayAddr         string                   `json:"default_relay_addr,omitempty"`
+	Username                 string                   `json:"username"`
+	ActiveRequests           []string                 `json:"active_requests,omitempty"`
+	Cluster                  string                   `json:"cluster"`
+	Roles                    []string                 `json:"roles,omitempty"`
+	Scope                    string                   `json:"scope,omitempty"`
+	ScopedRoles              map[string][]string      `json:"scoped_roles,omitempty"`
+	Traits                   wrappers.Traits          `json:"traits,omitempty"`
+	Logins                   []string                 `json:"logins,omitempty"`
+	KubernetesEnabled        bool                     `json:"kubernetes_enabled"`
+	KubernetesCluster        string                   `json:"kubernetes_cluster,omitempty"`
+	KubernetesUsers          []string                 `json:"kubernetes_users,omitempty"`
+	KubernetesGroups         []string                 `json:"kubernetes_groups,omitempty"`
+	Databases                []string                 `json:"databases,omitempty"`
+	ValidUntil               time.Time                `json:"valid_until"`
+	Extensions               []string                 `json:"extensions,omitempty"`
+	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
+	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
+	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5694,27 +5694,27 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 
 	selectedKubeCluster, _ := kubeconfig.SelectedKubeCluster("", p.Cluster)
 	out := &profileInfo{
-		ProxyURL:           p.ProxyURL.String(),
-		RelayAddr:          p.RelayAddr,
-		DefaultRelayAddr:   p.DefaultRelayAddr,
-		Username:           p.Username,
-		ActiveRequests:     p.ActiveRequests,
-		Cluster:            p.Cluster,
-		Roles:              p.Roles,
-		Scope:              p.Scope,
-		ScopedRoles:        p.ScopedRoles,
-		Traits:             p.Traits,
-		Logins:             logins,
-		KubernetesEnabled:  p.KubeEnabled,
-		KubernetesCluster:  selectedKubeCluster,
-		KubernetesUsers:    p.KubeUsers,
-		KubernetesGroups:   p.KubeGroups,
-		Databases:          p.DatabaseServices(),
-		ValidUntil:         p.ValidUntil,
-		Extensions:         p.Extensions,
-		CriticalOptions:    p.CriticalOptions,
-		AllowedResourceIDs: p.AllowedResourceIDs,
-		GitHubIdentity:     p.GitHubIdentity,
+		ProxyURL:                 p.ProxyURL.String(),
+		RelayAddr:                p.RelayAddr,
+		DefaultRelayAddr:         p.DefaultRelayAddr,
+		Username:                 p.Username,
+		ActiveRequests:           p.ActiveRequests,
+		Cluster:                  p.Cluster,
+		Roles:                    p.Roles,
+		Scope:                    p.Scope,
+		ScopedRoles:              p.ScopedRoles,
+		Traits:                   p.Traits,
+		Logins:                   logins,
+		KubernetesEnabled:        p.KubeEnabled,
+		KubernetesCluster:        selectedKubeCluster,
+		KubernetesUsers:          p.KubeUsers,
+		KubernetesGroups:         p.KubeGroups,
+		Databases:                p.DatabaseServices(),
+		ValidUntil:               p.ValidUntil,
+		Extensions:               p.Extensions,
+		CriticalOptions:          p.CriticalOptions,
+		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
+		GitHubIdentity:           p.GitHubIdentity,
 	}
 
 	// update active profile info from env
