@@ -37,10 +37,6 @@ We plan to release the following versions in the coming months:
 
 ### 18.7.0
 
-#### VNet for Linux
-
-Teleport VNet support will be extended to Linux workstations.
-
 #### Session timeline view for Identity Security
 
 Session player for Identity Security users will receive an enhanced timeline view with
@@ -51,6 +47,14 @@ per-command session breakdown.
 Teleport will provide guided in-product UX for creating common types of access lists
 centered around granting users permissions to resources and permissions to request
 access to resources.
+
+#### Organization-level auto-discovery for AWS EC2 instances
+
+AWS auto-discovery will support EC2 instance enrollment from all or a subset of accounts
+of an AWS organization without having to configure per-account discovery.
+
+Organization-level discovery for other resources within AWS (RDS, EKS) as well as other
+for cloud providers will follow in future releases.
 
 #### Terraform-native flow for configuration of AWS EC2 auto-discovery
 
@@ -69,14 +73,18 @@ Teleport users will be able to see specific IAM roles available to them when req
 elevated access to AWS CLI/console. Future releases will extend support for specific
 principal selection to access requests for other resource types as well.
 
-#### RoleV8 support in terraform provider
-
-Teleport terraform provider will support RoleV8 out of the box.
-
 #### Entra ID integration status page
 
 Teleport users will be able to see status of the configured Entra ID integration in the
 web UI.
+
+### 18.8.0
+
+#### VNet for Linux
+
+Teleport VNet support will be extended to Linux workstations.
+
+*Delayed from 18.7.0.*
 
 ## Teleport Cloud
 
@@ -84,8 +92,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                  |
 |--------------------|--------------------------------------------------------------|
-| December 29, 2025   | Teleport 18.6 will begin rollout on Cloud.                   |
-| December 29, 2025   | Teleport 18.6 agents will begin rollout to eligible tenants. |
+| February 2, 2026   | Teleport 18.7 will begin rollout on Cloud.                   |
+| February 2, 2026   | Teleport 18.7 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
