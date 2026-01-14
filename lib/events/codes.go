@@ -387,6 +387,19 @@ const (
 	// [github.com/gravitational/teleport/api/types.ProvisionToken].
 	ProvisionTokenCreateCode = "TJT00I"
 
+	// ScopedTokenCreateCode is the event code for creating
+	// a scoped token.
+	ScopedTokenCreateCode = "TSC00I"
+	// ScopedTokenDeleteCode is the event code for deleting
+	// a scoped token.
+	ScopedTokenDeleteCode = "TSC01I"
+	// ScopedTokenUseCode is the event code for using
+	// a scoped token.
+	ScopedTokenUseCode = "TSC02I"
+	// ScopedTokenFailCode is the event code for failing
+	// to provision a resource with a scoped token..
+	ScopedTokenFailCode = "TSC03I"
+
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.

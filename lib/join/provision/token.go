@@ -44,8 +44,9 @@ type Token interface {
 	Expiry() time.Time
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
-	// GetAssignedScope returns the scope that will be assigned to provisioned resources
-	// provisioned using the wrapped [joiningv1.ScopedToken].
+	// GetScope returns the scope of the token itself.
+	GetScope() string
+	// GetAssignedScope returns the scope that will be assigned to provisioned resources.
 	GetAssignedScope() string
 	// GetAllowRules returns the list of allow rules.
 	GetAllowRules() []*types.TokenRule

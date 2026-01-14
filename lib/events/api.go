@@ -376,6 +376,16 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
+	// ScopedTokenCreateEvent is the event for creating a scoped token.
+	ScopedTokenCreateEvent = "scoped_token.create"
+	// ScopedTokenDeleteEvent is the event for deleting a scoped token.
+	ScopedTokenDeleteEvent = "scoped_token.delete"
+	// ScopedTokenUseEvent is the event for using a scoped token.
+	ScopedTokenUseEvent = "scoped_token.use"
+	// ScopedTokenFailEvent is the event for failing to provision a resource
+	// with a scoped token.
+	ScopedTokenFailEvent = "scoped_token.fail"
+
 	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
 	// GithubConnectorUpdatedEvent fires when a Github connector is updated.

@@ -228,6 +228,11 @@ func (t *Token) GetBotName() string {
 	return ""
 }
 
+// GetScope returns the scope of the wrapped [joiningv1.ScopedToken] itself.
+func (t *Token) GetScope() string {
+	return t.scoped.GetScope()
+}
+
 // GetAssignedScope returns the scope that will be assigned to resources
 // provisioned using the wrapped [joiningv1.ScopedToken].
 func (t *Token) GetAssignedScope() string {
