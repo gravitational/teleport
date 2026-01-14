@@ -408,4 +408,6 @@ const baseProps: RequestCheckoutWithSliderProps = {
   requestKind: RequestKind.ShortTerm,
   setRequestKind: () => null,
   onStartTimeChange: () => null,
+  addedResourceConstraints: {},
+  setResourceConstraints: () => null,
 };

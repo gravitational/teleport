@@ -268,30 +268,21 @@ export function RequestCheckout<T extends PendingListItem>({
 
     if (!addedResourceConstraints) return base;
 
-    const out: DisplayRow<T>[] = [];
-    for (const row of base) {
-      const rc =
-        addedResourceConstraints[
-          getResourceIDString({
-            cluster: row.clusterName,
-            kind: row.kind,
-            name: row.id,
-          })
-        ];
-      out.push(rc ? { ...row, constraints: rc } : row);
-    }
-    return out;
+    return base.map(row => {
+      const rcId = getResourceIDString({
+        cluster: row.clusterName,
+        kind: row.kind,
+        name: row.id,
+      });
+      const rc = addedResourceConstraints[rcId];
+      return rc ? { ...row, constraints: rc } : row;
+    }) satisfies DisplayRow<T>[];
   }, [pendingAccessRequests, addedResourceConstraints]);
 
-  // TODO(kiosion): This should not be the concern of this component, just here temporarily. Also not the best way to handle this.
+  // Clear added constraints when switching to Long-Term requests.
   useEffect(() => {
-    // Clear added constraints when switching to Long-Term requests.
-    if (
-      isLongTerm &&
-      addedResourceConstraints &&
-      Object.entries(addedResourceConstraints).length > 0
-    ) {
-      for (const [key] of Object.entries(addedResourceConstraints)) {
+    if (isLongTerm && addedResourceConstraints) {
+      for (const key of Object.keys(addedResourceConstraints)) {
         setResourceConstraints(key as ResourceIDString, undefined);
       }
     }
@@ -381,12 +372,15 @@ export function RequestCheckout<T extends PendingListItem>({
       ];
     }
     return [false, undefined];
-  }, [
-    isResourceRequest,
-    isLongTerm,
-    dryRunResponse?.longTermResourceGrouping,
-    displayRows,
-  ]);
+  }, [isResourceRequest, isLongTerm, dryRunResponse?.longTermResourceGrouping]);
+
+  const longTermButtonTooltipText =
+    longTermDisabledReason ||
+    (addedResourceConstraints &&
+    Object.entries(addedResourceConstraints).length &&
+    !isLongTerm
+      ? 'Selecting Permanent access will remove added resource constraints'
+      : undefined);
 
   const numPendingAccessRequests = pendingAccessRequests.filter(
     item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
@@ -415,7 +409,7 @@ export function RequestCheckout<T extends PendingListItem>({
   const renderAfter = (item: DisplayRow<T>) => {
     if (hasResourceConstraints(item, 'aws_console')) {
       return (
-        <tr style={{ borderTop: 'none' }}>
+        <tr css={{ borderTop: 'none' }}>
           <td colSpan={showClusterNameColumn ? 4 : 3}>
             <Flex justifyContent="space-between" alignItems="center" mt={-2}>
               <AWSConsoleConstraintsList
@@ -689,14 +683,7 @@ export function RequestCheckout<T extends PendingListItem>({
                               value: RequestKind.LongTerm,
                               label: 'Permanent',
                               disabled: longTermDisabled,
-                              tooltip:
-                                longTermDisabledReason ||
-                                (addedResourceConstraints &&
-                                Object.entries(addedResourceConstraints)
-                                  .length &&
-                                !isLongTerm
-                                  ? 'Selecting Permanent access will remove added resource constraints'
-                                  : undefined),
+                              tooltip: longTermButtonTooltipText,
                             },
                           ]}
                           activeValue={
@@ -1255,8 +1242,8 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     startTime: Date;
     requestKind?: RequestKind;
     setRequestKind?: React.Dispatch<React.SetStateAction<RequestKind>>;
-    addedResourceConstraints?: ResourceConstraintsMap;
-    setResourceConstraints?: (
+    addedResourceConstraints: ResourceConstraintsMap;
+    setResourceConstraints: (
       key: ResourceIDString,
       rc?: ResourceConstraints
     ) => void;

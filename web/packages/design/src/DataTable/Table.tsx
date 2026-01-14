@@ -110,7 +110,7 @@ export default function Table<T>(props: TableProps<T>) {
     ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
-    data.map((item, rowIdx) => {
+    data.forEach((item, rowIdx) => {
       const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
         <tr
           key={rowIdx}
@@ -123,11 +123,9 @@ export default function Table<T>(props: TableProps<T>) {
 
       const customRow = row?.customRow?.(item);
       const renderAfter = row?.renderAfter?.(item);
+
       if (customRow) {
         rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
-        if (!renderAfter) {
-          return;
-        }
       } else {
         const cells = columns.flatMap((column, columnIdx) => {
           if (column.isNonRender) {
