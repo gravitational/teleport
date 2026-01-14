@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-- Engineering: @ravicious && @avatus && @zmb3
+- Engineering: @ravicious && (@avatus || @zmb3)
 
 ## What
 
