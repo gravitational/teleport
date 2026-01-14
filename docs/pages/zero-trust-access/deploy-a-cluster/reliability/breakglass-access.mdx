@@ -55,14 +55,23 @@ Certificate Authority (CA).
 On the Teleport Agent machine, run the following command. Replace `teleport.example.com` with the address of your Teleport Proxy Service:
 
 ```bash
-export KEY=$(curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=user' | sed "s/cert-authority\ //g")
-echo "$KEY" | sudo tee /etc/ssh/teleport_user_ca.pub
+export KEY=$(curl -fsSL 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=user' | sed "s/cert-authority\ //g")
+echo "${KEY:?}" | sudo tee /etc/ssh/teleport_user_ca.pub
 ```
 
 2. Ensure the following line is added and/or uncommented in your `/etc/ssh/sshd_config` file:
 
 ```
 Include /etc/ssh/sshd_config.d/*.conf
+```
+
+3. Add an `/etc/ssh/authorized_principals/breakglass` file to set the only authorized principal for login to `breakglass`, and limit its permissions:
+
+```bash
+sudo mkdir -p /etc/ssh/authorized_principals
+sudo chmod 755 /etc/ssh/authorized_principals
+echo "breakglass" | sudo tee /etc/ssh/authorized_principals/breakglass
+sudo chmod 644 /etc/ssh/authorized_principals/breakglass
 ```
 
 3. Create a `teleport-breakglass.conf` file under `/etc/ssh/sshd_config.d`:
@@ -73,8 +82,8 @@ sudo tee /etc/ssh/sshd_config.d/teleport-breakglass.conf > /dev/null <<'EOF'
 Match User breakglass
     # Trust the Teleport user CA for connections as this user
     TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
-    # Explicitly use sshd's default behaviour: the username being used to connect must match a principal on the certificate
-    AuthorizedPrincipalsFile none
+    # Only allow principals listed in the file to connect (i.e. breakglass)
+    AuthorizedPrincipalsFile /etc/ssh/authorized_principals/breakglass
     # Don't allow SSH key authentication as this user
     AuthorizedKeysFile /dev/null
 EOF
@@ -88,7 +97,7 @@ sudo sshd -t
 
 5. Restart the sshd service:
 
-```bash
+```shell
 # This unit may also be called ssh.service depending on your distribution
 # Check with 'systemctl list-unit-files | grep ssh | grep service'
 sudo systemctl restart sshd
@@ -111,12 +120,12 @@ sudo adduser --disabled-password breakglass
 
 <Admonition type="note">
 As a general security principle, it is highly recommended to limit `root` permissions through `sudo`. Because `breakglass` will need
-ability to gain elevated access to the system to troubleshoot and recover access, however, any use of break-glass access should always be audited
-via `sshd` access logs.
+ability to gain elevated access to the system to troubleshoot and recover access, however, any use of break-glass access should always
+be audited via `sshd` access logs.
 </Admonition>
 
 
-## Step 3/5. Create `breakglass` Role in Teleport
+## Step 3/5. Create `breakglass` Role, Bot and Join Method in Teleport
 
 **This step is completed on your local machine.**
 
@@ -156,7 +165,7 @@ Create the role by applying with:
 tctl create -f breakglass-role.yaml
 ```
 
-3. Create a `breakglass` bot which will run in the background to continually refresh a certificate which is valid for break-glass usage:
+3. Define a `breakglass` bot which will run in the background to continually refresh a certificate which is valid for break-glass usage:
 
 Define the bot in a file named `breakglass-bot.yaml`:
 
@@ -171,7 +180,9 @@ spec:
   roles: ['breakglass-role']
 ```
 
-4. Create the bot using `tctl`:
+We will set up the bot on the target machine in the next step.
+
+4. Register the bot using `tctl`:
 
 ```bash
 tctl create -f breakglass-bot.yaml
@@ -204,14 +215,14 @@ spec:
 tctl create -f breakglass-token.yaml
 ```
 
-7. Get the `registration_secret` for the bot using `tctl` - this is needed to create the bot's config file in the next step.
+7. Get the `registration_secret` for the bot using `tctl` - we will write this to a file in the next step to be read by the Machine ID bot.
 
 ```bash
 tctl get token/breakglass-bot-join-token --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
 ```
 
 
-## Step 4/5. Create a Teleport Machine ID bot to issue an SSH Key and Certificate for the `breakglass` user using Teleport's CA
+## Step 4/5. Set up a Teleport Machine ID bot to issue an SSH Key and Certificate for the `breakglass` user using Teleport's CA
 
 **This step is completed on the machine where you will make use of the certificates for break-glass access.**
 
@@ -230,7 +241,32 @@ security (longer-lived certificates are less secure, as the period where they co
 
 This assumes `jq` is installed. If not, run `tctl get token/breakglass-bot-join-token` and inspect the `.status.bound_keypair.registration_secret` field.
 
-1. Write a config file for the bot.
+1. Create a `teleport-breakglass` user and needed storage paths on this machine:
+
+```bash
+sudo useradd -s /sbin/nologin teleport-breakglass
+```
+
+You must also create the bot's storage and output directories:
+
+```bash
+sudo mkdir -p /var/lib/teleport-breakglass /opt/teleport-breakglass/output
+```
+
+2. Write the `registration_secret` you gathered during the previous step to a file on this machine:
+
+```bash
+echo "REGISTRATION-SECRET-FROM-PREVIOUS-STEP" | sudo tee /var/lib/teleport-breakglass/registration-secret
+```
+
+Now, we change ownership of these directories to the `teleport-breakglass` user and prevent access by other system users:
+
+```bash
+sudo chown -R teleport-breakglass:teleport-breakglass /var/lib/teleport-breakglass /opt/teleport-breakglass/output
+sudo chmod 700 /var/lib/teleport-breakglass /opt/teleport-breakglass/output
+```
+
+3. Write a config file for the bot.
 
 Define the config in a file named `/etc/tbot-teleport-breakglass.yaml`:
 
@@ -245,7 +281,7 @@ onboarding:
   token: breakglass-bot-join-token
   bound_keypair:
     # replace this with the value of `registration_secret` from the previous step
-    registration_secret: REGISTRATION-SECRET-VALUE-FROM-PREVIOUS-STEP
+    registration_secret_path: /var/lib/teleport-breakglass/registration-secret
 storage:
   type: directory
   # change to a directory to use to store the bot's own identity for communicating with the Teleport cluster
@@ -269,22 +305,7 @@ sudo tbot install systemd \
   --group teleport-breakglass
 ```
 
-The user and group you specify here must already exist on the server running the `tbot` service. If you do not already have a `teleport-breakglass` user
-and group, create one:
-
-```bash
-sudo useradd -s /sbin/nologin teleport-breakglass
-```
-
-You must also create the bot's storage and output directories, and give the `teleport-breakglass` user permissions.
-
-```bash
-sudo mkdir -p /var/lib/teleport-breakglass /opt/teleport-breakglass/output
-sudo chown -R teleport-breakglass:teleport-breakglass /var/lib/teleport-breakglass /opt/teleport-breakglass/output
-sudo chmod 700 /var/lib/teleport-breakglass /opt/teleport-breakglass/output
-```
-
-You also need to modify the path to the PID file used, as non-root users do not have access to the default location (`/run`):
+You will also need to modify the path to the PID file used, as non-root users do not have access to the default location (`/run`):
 
 ```bash
 sudo sed -i "s_PIDFile=/run/_PIDFile=/var/lib/teleport-breakglass/_g" /etc/systemd/system/tbot-teleport-breakglass.service
