@@ -3038,3 +3038,23 @@ func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
 func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *ScopedTokenCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ScopedTokenUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ScopedTokenDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ScopedTokenUse) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ScopedTokenFail) TrimToMaxSize(int) AuditEvent {
+	return m
+}
