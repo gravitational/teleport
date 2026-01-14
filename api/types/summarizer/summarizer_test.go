@@ -43,8 +43,15 @@ func TestValidateInferenceModel(t *testing.T) {
 			},
 		},
 	})
+	validBedrockCloudDefault := NewInferenceModel(CloudDefaultInferenceModelName,
+		&summarizerv1.InferenceModelSpec{
+			Provider: &summarizerv1.InferenceModelSpec_Bedrock{
+				Bedrock: &summarizerv1.BedrockProvider{},
+			},
+		})
 	require.NoError(t, ValidateInferenceModel(validOpenAI))
 	require.NoError(t, ValidateInferenceModel(validBedrock))
+	require.NoError(t, ValidateInferenceModel(validBedrockCloudDefault))
 
 	cases := []struct {
 		base *summarizerv1.InferenceModel
