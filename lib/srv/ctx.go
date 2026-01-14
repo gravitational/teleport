@@ -1436,12 +1436,12 @@ func (c *ServerContext) GetChildError() error {
 	// an error message like "Failed to launch: ..."
 	errMsg := new(strings.Builder)
 	if _, err := io.Copy(errMsg, c.stderrR); err != nil {
-		c.Logger.DebugContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
+		c.Logger.ErrorContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
 		return nil
 	}
 
 	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
-		c.Logger.DebugContext(c.CancelContext(), "Unexpected error message from child process", "err_msg", errMsg.String())
+		c.Logger.ErrorContext(c.CancelContext(), "Unexpected error message from child process", "err_msg", errMsg.String())
 		return nil
 	}
 
