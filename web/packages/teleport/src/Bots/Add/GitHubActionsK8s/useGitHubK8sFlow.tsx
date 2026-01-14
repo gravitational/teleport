@@ -272,7 +272,8 @@ type Action =
         | 'workflow-changed'
         | 'environment-changed'
         | 'slug-changed'
-        | 'jwks-changed';
+        | 'jwks-changed'
+        | 'kubernetes-cluster-changed';
       value: string;
     }
   | {
@@ -290,10 +291,6 @@ type Action =
   | {
       type: 'kubernetes-labels-changed';
       value: KubernetesLabel[];
-    }
-  | {
-      type: 'kubernetes-cluster-changed';
-      value: string;
     };
 
 type State = {

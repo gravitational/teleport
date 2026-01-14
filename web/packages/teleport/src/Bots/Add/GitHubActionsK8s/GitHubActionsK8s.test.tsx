@@ -138,16 +138,6 @@ describe('GitHubActionsK8s', () => {
       screen.getByRole('heading', { name: 'Configure Access' })
     ).toBeInTheDocument();
 
-    const select = screen.getByLabelText('Select a cluster to access');
-    await selectEvent.select(select, 'kube-lon-staging-01.example.com');
-
-    await act(() => jest.advanceTimersByTimeAsync(1000));
-    tracking.assertField(
-      'test-tracking-event-id',
-      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
-      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME'
-    );
-
     const input = screen.getByLabelText('Kubernetes Groups');
     await user.type(input, 'viewers{enter}');
 
@@ -162,6 +152,16 @@ describe('GitHubActionsK8s', () => {
     expect(
       screen.getByRole('heading', { name: 'Setup Workflow' })
     ).toBeInTheDocument();
+
+    const select = screen.getByLabelText('Select a cluster to access');
+    await selectEvent.select(select, 'kube-lon-staging-01.example.com');
+
+    await act(() => jest.advanceTimersByTimeAsync(1000));
+    tracking.assertField(
+      'test-tracking-event-id',
+      'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
+      'INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME'
+    );
 
     await user.click(screen.getByRole('button', { name: 'Close' }));
 

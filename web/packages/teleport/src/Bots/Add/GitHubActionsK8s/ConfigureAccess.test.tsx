@@ -94,9 +94,6 @@ describe('ConfigureAccess', () => {
       screen.getByRole('heading', { name: 'Configure Access' })
     ).toBeInTheDocument();
 
-    expect(
-      screen.getByLabelText('Select a cluster to access')
-    ).toBeInTheDocument();
     expect(screen.getByLabelText('Teleport Labels')).toBeInTheDocument();
     expect(screen.getByLabelText('Kubernetes Users')).toBeInTheDocument();
     expect(screen.getByLabelText('Kubernetes Groups')).toBeInTheDocument();
@@ -161,36 +158,6 @@ describe('ConfigureAccess', () => {
     expect(
       screen.getAllByText('A Kubernetes group or user is required')
     ).toHaveLength(2);
-  });
-
-  test('validates that a cluster is provided', async () => {
-    withListUnifiedResourcesSuccess();
-
-    const { onNextStep, user } = renderComponent({
-      initialState: {
-        allowAnyBranch: false,
-        branch: 'main',
-        enterpriseJwks: '{"keys":[]}',
-        enterpriseSlug: 'octo-enterprise',
-        environment: 'production',
-        gitHubUrl: 'https://github.com/gravitational/teleport',
-        isBranchDisabled: false,
-        ref: 'main',
-        refType: 'branch',
-        workflow: 'my-workflow',
-        kubernetesGroups: ['viewers'],
-        kubernetesLabels: [{ name: '*', values: ['*'] }],
-        kubernetesUsers: [],
-        kubernetesCluster: '',
-      },
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-
-    expect(onNextStep).not.toHaveBeenCalled();
-    expect(
-      screen.getAllByText('A Kubernetes cluster is required')
-    ).toHaveLength(1);
   });
 
   test('input groups', async () => {

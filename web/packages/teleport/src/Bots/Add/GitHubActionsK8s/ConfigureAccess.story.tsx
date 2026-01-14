@@ -56,7 +56,7 @@ export const Happy: Story = {
   parameters: {
     msw: {
       handlers: [
-        genWizardCiCdSuccess(),
+        genWizardCiCdSuccess({ prettyFormat: true }),
         fetchUnifiedResourcesSuccess(),
         userEventCaptureSuccess(),
       ],
@@ -92,7 +92,7 @@ export const ClustersFetchFailed: Story = {
   parameters: {
     msw: {
       handlers: [
-        genWizardCiCdSuccess(),
+        genWizardCiCdSuccess({ prettyFormat: true }),
         fetchUnifiedResourcesError(500, 'something went wrong'),
         userEventCaptureSuccess(),
       ],
@@ -104,7 +104,7 @@ export const ClustersFetching: Story = {
   parameters: {
     msw: {
       handlers: [
-        genWizardCiCdSuccess(),
+        genWizardCiCdSuccess({ prettyFormat: true }),
         fetchUnifiedResourcesForever(),
         userEventCaptureSuccess(),
       ],
