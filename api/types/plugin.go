@@ -364,7 +364,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		// backfill the Access List owners source if it's not set.
 		if settings.EntraId.SyncSettings.AccessListOwnersSource == EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
-			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_DEFAULT_OWNERS
+			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
 		}
 
 	case *PluginSpecV1_Scim:

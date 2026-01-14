@@ -7516,9 +7516,8 @@ enum EntraIDCredentialsSource {
 enum EntraIDAccessListOwnersSource {
   // Source is unspecified.
   ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED = 0;
-  // Use configured PluginEntraIDSyncSettings default
-  // owners as Access List owners.
-  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_DEFAULT_OWNERS = 1;
+  // Use default owners configured in this plugin spec as the Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN = 1;
   // Use Microsoft Entra ID group owners as Access List owners.
   ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID = 2;
 }
