@@ -113,11 +113,14 @@ jobs:
             # - GO-2022-0646: https://github.com/gravitational/teleport/issues/62442
             # TODO(codingllama): Remove ignores once sigstore/timestamp-authority is updated to v2.
             # - GO-2025-4192: https://github.com/gravitational/teleport/issues/62441
+            # TODO(codingllama): Remove ignores once sigstore/cosign is updated.
+            # - GO-2026-4309: https://github.com/gravitational/teleport/issues/62806
             GOOS=${MOD_GOOS[${MODULE_DIRECTORY_PATH}]:-${DEFAULT_GOOS}} \
             govulncheck-report \
                 --ignore=GO-2022-0635 \
                 --ignore=GO-2022-0646 \
                 --ignore=GO-2025-4192 \
+                --ignore=GO-2026-4309 \
                 -- \
                 -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... 2>&1; \
               EXIT_CODE=$?
