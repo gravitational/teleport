@@ -1711,14 +1711,14 @@ dateLoop:
 				"iterator", l.checkpoint.Iterator,
 			)
 
-			result, stopped, err := l.processQueryOutput(out)
+			result, limitReached, err := l.processQueryOutput(out)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			values = append(values, result...)
 
 			// Return all currently processed events.
-			if stopped {
+			if limitReached {
 				return values, nil
 			}
 			// An empty iterator indicates that there are no more events to fetch from the current date.
