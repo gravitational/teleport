@@ -395,7 +395,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	}
 
 	if !authz.HasBuiltinRole(*authCtx, types.RoleNode.String()) {
-		return nil, trace.AccessDenied("only SSH nodes can verify validated MFA challenges")
+		return nil, trace.NotImplemented("MFA challenge verification is only implemented for SSH nodes")
 	}
 
 	if err := checkVerifyValidatedMFAChallengeRequest(req); err != nil {
@@ -408,14 +408,17 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	}
 
 	// Ensure the payload that was initially used to create the challenge matches the payload provided in the request.
-	switch payload := chal.GetSpec().GetPayload().GetPayload().(type) {
+	switch storedPayload := chal.GetSpec().GetPayload().GetPayload().(type) {
 	case *mfav1.SessionIdentifyingPayload_SshSessionId:
-		if !bytes.Equal(req.GetPayload().GetSshSessionId(), payload.SshSessionId) {
+		if !bytes.Equal(req.GetPayload().GetSshSessionId(), storedPayload.SshSessionId) {
 			return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 		}
 
+	case nil:
+		return nil, trace.BadParameter("missing payload in validated challenge retrieved from storage")
+
 	default:
-		return nil, trace.BadParameter("unknown ValidatedMFAChallenge payload type %T retrieved from storage", payload)
+		return nil, trace.BadParameter("unknown or unsupported payload type %T in validated challenge retrieved from storage (this is a bug)", storedPayload)
 	}
 
 	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
@@ -668,12 +671,22 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest name")
 	}
 
-	switch payload := req.GetPayload(); {
-	case payload == nil:
+	payload := req.GetPayload()
+	if payload == nil {
 		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest payload")
+	}
 
-	case len(payload.GetSshSessionId()) == 0:
-		return trace.BadParameter("empty SshSessionId in payload")
+	switch p := payload.GetPayload().(type) {
+	case *mfav1.SessionIdentifyingPayload_SshSessionId:
+		if len(p.SshSessionId) == 0 {
+			return trace.BadParameter("empty SshSessionId in payload")
+		}
+
+	case nil:
+		return trace.BadParameter("missing SessionIdentifyingPayload in request")
+
+	default:
+		return trace.BadParameter("unknown or unsupported SessionIdentifyingPayload type %T", p)
 	}
 
 	return nil

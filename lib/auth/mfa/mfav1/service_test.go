@@ -864,8 +864,8 @@ func TestVerifyValidatedMFAChallenge_NonNodeDenied(t *testing.T) {
 		SourceCluster: sourceCluster,
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-	require.ErrorContains(t, err, "only SSH nodes can verify validated MFA challenges")
+	require.True(t, trace.IsNotImplemented(err))
+	require.ErrorContains(t, err, "MFA challenge verification is only implemented for SSH nodes")
 	require.Nil(t, resp)
 }
 

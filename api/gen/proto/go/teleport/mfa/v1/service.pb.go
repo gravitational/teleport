@@ -383,9 +383,10 @@ type VerifyValidatedMFAChallengeRequest struct {
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	// Name of the cluster where the validated challenge originated.
 	SourceCluster string `protobuf:"bytes,3,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
-	// Username of the user for whom the challenge was issued. The client MUST determine this value by authenticating the
-	// user before calling this method. The server will verify that it matches the user associated with the validated
-	// challenge to ensure the challenge is tied to the correct user.
+	// Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
+	// login name) and must correspond to a user in the cluster specified by source_cluster. The client MUST determine this
+	// value by authenticating the Teleport user before calling this method. The server will verify that it matches the
+	// Teleport user associated with the validated challenge to ensure the challenge is tied to the correct user.
 	Username             string   `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
