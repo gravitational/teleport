@@ -1196,6 +1196,8 @@ Flags:
 |`--as`|none|Configure custom Kubernetes user impersonation.|
 |`--as-groups`|none|Configure custom Kubernetes group impersonation.|
 |`-c`, `--cluster`|none|Specify the Teleport cluster to connect.|
+|`--exec-arg`|none|Arguments to pass to the executed command (can be specified multiple times).|
+|`--exec-cmd`|none|Command to execute when --exec is enabled. If not specified, defaults to $SHELL or /bin/bash. Implicitly enables exec mode.|
 |`-f`, `--format`|`unix`|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
 |`--labels`|none|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2).|
 |`-n`, `--namespace`|none|Configure the default Kubernetes namespace.|

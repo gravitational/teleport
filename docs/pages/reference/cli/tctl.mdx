@@ -202,6 +202,22 @@ Arguments:
 |---|---|---|
 |message|none (required)|Alert body message.|
 
+## tctl alerts delete
+
+Deletes a cluster alert.
+
+Usage:
+
+```code
+$ tctl alerts delete <id>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|none (required)|The cluster alert ID.|
+
 ## tctl alerts list
 
 List cluster alerts.
@@ -467,7 +483,7 @@ Flags:
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
 |`--phase`|none|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|none|Certificate authority to rotate, one of: host, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
+|`--type`|none|Certificate authority to rotate, one of: host, windows, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
 
 ## tctl auth sign
 
