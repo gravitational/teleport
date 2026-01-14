@@ -263,19 +263,20 @@ export interface RouteToApp {
  */
 export interface IdentityCenterPermissionSet {
     /**
-     * Human-readable name of the permission set.
-     *
-     * @generated from protobuf field: string name = 1;
-     */
-    name: string;
-    /**
      * AWS-assigned ARN of the permission set.
      *
-     * @generated from protobuf field: string arn = 2;
+     * @generated from protobuf field: string arn = 1;
      */
     arn: string;
     /**
-     * Assignment resource ID that will provision an Account assignment for this permission set on the enclosing account.
+     * Human-readable name of the permission set.
+     *
+     * @generated from protobuf field: string name = 2;
+     */
+    name: string;
+    /**
+     * ID of the Teleport Account Assignment resource that represents this permission being assigned
+     * on the enclosing Account.
      *
      * @generated from protobuf field: string assignment_id = 3;
      */
@@ -641,15 +642,15 @@ export const RouteToApp = new RouteToApp$Type();
 class IdentityCenterPermissionSet$Type extends MessageType<IdentityCenterPermissionSet> {
     constructor() {
         super("teleport.lib.teleterm.v1.IdentityCenterPermissionSet", [
-            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 1, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "assignment_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<IdentityCenterPermissionSet>): IdentityCenterPermissionSet {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.name = "";
         message.arn = "";
+        message.name = "";
         message.assignmentId = "";
         if (value !== undefined)
             reflectionMergePartial<IdentityCenterPermissionSet>(this, message, value);
@@ -660,11 +661,11 @@ class IdentityCenterPermissionSet$Type extends MessageType<IdentityCenterPermiss
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string name */ 1:
-                    message.name = reader.string();
-                    break;
-                case /* string arn */ 2:
+                case /* string arn */ 1:
                     message.arn = reader.string();
+                    break;
+                case /* string name */ 2:
+                    message.name = reader.string();
                     break;
                 case /* string assignment_id */ 3:
                     message.assignmentId = reader.string();
@@ -681,12 +682,12 @@ class IdentityCenterPermissionSet$Type extends MessageType<IdentityCenterPermiss
         return message;
     }
     internalBinaryWrite(message: IdentityCenterPermissionSet, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string name = 1; */
-        if (message.name !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.name);
-        /* string arn = 2; */
+        /* string arn = 1; */
         if (message.arn !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.arn);
+            writer.tag(1, WireType.LengthDelimited).string(message.arn);
+        /* string name = 2; */
+        if (message.name !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.name);
         /* string assignment_id = 3; */
         if (message.assignmentId !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.assignmentId);
