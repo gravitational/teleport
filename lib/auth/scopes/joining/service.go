@@ -32,8 +32,10 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -48,6 +50,7 @@ type Config struct {
 	Logger           *slog.Logger
 	Backend          services.ScopedTokenService
 	MaxPageSize      int
+	Emitter          apievents.Emitter
 }
 
 // Server is the [scopedjoiningv1.ScopedJoiningServiceServer] returned by [New].
@@ -57,6 +60,7 @@ type Server struct {
 	authorizer  authz.ScopedAuthorizer
 	logger      *slog.Logger
 	backend     services.ScopedTokenService
+	emitter     apievents.Emitter
 	maxPageSize uint32
 }
 
@@ -71,6 +75,10 @@ func New(c Config) (*Server, error) {
 		return nil, trace.BadParameter("missing Backend")
 	}
 
+	if c.Emitter == nil {
+		return nil, trace.BadParameter("missing Emitter")
+	}
+
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "scopes")
 	}
@@ -79,6 +87,7 @@ func New(c Config) (*Server, error) {
 		authorizer:  c.ScopedAuthorizer,
 		logger:      c.Logger,
 		backend:     c.Backend,
+		emitter:     c.Emitter,
 		maxPageSize: cmp.Or(uint32(c.MaxPageSize), defaultTokenPageSize),
 	}, nil
 }
@@ -126,7 +135,12 @@ func (s *Server) CreateScopedToken(ctx context.Context, req *scopedjoiningv1.Cre
 	}
 
 	res, err := s.backend.CreateScopedToken(ctx, req)
-	return res, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.emitEvent(ctx, events.ScopedTokenCreateEvent, res.GetToken())
+	return res, nil
 }
 
 // DeleteScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -163,7 +177,12 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	}
 
 	res, err := s.backend.DeleteScopedToken(ctx, req)
-	return res, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.emitEvent(ctx, events.ScopedTokenDeleteEvent, preAuthzRes.GetToken())
+	return res, nil
 }
 
 // GetScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -286,4 +305,47 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 // UpdateScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
 func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.UpdateScopedTokenRequest) (*scopedjoiningv1.UpdateScopedTokenResponse, error) {
 	return nil, trace.NotImplemented("scoped tokens must be recreated, they cannot be updated")
+}
+
+func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoiningv1.ScopedToken) {
+	userMetadata := authz.ClientUserMetadata(ctx)
+	var event apievents.AuditEvent
+	switch kind {
+	case events.ScopedTokenCreateEvent:
+		event = &apievents.ScopedTokenCreate{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenCreateEvent,
+				Code: events.ScopedTokenCreateCode,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      token.GetMetadata().GetName(),
+				Expires:   token.GetMetadata().GetExpires().AsTime(),
+				UpdatedBy: userMetadata.GetUser(),
+			},
+			UserMetadata:  userMetadata,
+			Roles:         token.GetSpec().GetRoles(),
+			JoinMethod:    token.GetSpec().GetJoinMethod(),
+			Scope:         token.GetScope(),
+			AssignedScope: token.GetSpec().GetAssignedScope(),
+		}
+	case events.ScopedTokenDeleteEvent:
+		event = &apievents.ScopedTokenDelete{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenDeleteEvent,
+				Code: events.ScopedTokenDeleteCode,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:      token.GetMetadata().GetName(),
+				Expires:   token.GetMetadata().GetExpires().AsTime(),
+				UpdatedBy: userMetadata.GetUser(),
+			},
+			UserMetadata: userMetadata,
+		}
+	default:
+		return
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, event); err != nil {
+		s.logger.WarnContext(ctx, "failed to emit scoped token event", "error", err, "type", kind)
+	}
 }

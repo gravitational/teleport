@@ -153,6 +153,7 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 		}
 
 		scoped, scopedErr = joining.NewToken(tok)
+		s.emitTokenEvent(ctx, events.ScopedTokenUseEvent, scoped)
 	})
 	wg.Go(func() {
 		// Fetch the provision token and validate that it is not expired.
@@ -240,6 +241,12 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	defer func() {
+		if err != nil {
+			s.emitTokenEvent(ctx, events.ScopedTokenFailEvent, token)
+		}
+	}()
 
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
@@ -756,6 +763,52 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 		Attributes:   attributesStruct,
+	}
+}
+
+func (s *Server) emitTokenEvent(ctx context.Context, kind string, token provision.Token) {
+	if token.GetAssignedScope() == "" {
+		return
+	}
+
+	var event apievents.AuditEvent
+	switch kind {
+	case events.ScopedTokenUseEvent:
+		event = &apievents.ScopedTokenUse{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenUseEvent,
+				Code: events.ScopedTokenUseCode,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:    token.GetName(),
+				Expires: token.Expiry(),
+			},
+			Roles:         token.GetRoles().StringSlice(),
+			JoinMethod:    string(token.GetJoinMethod()),
+			Scope:         token.GetScope(),
+			AssignedScope: token.GetAssignedScope(),
+		}
+	case events.ScopedTokenFailEvent:
+		event = &apievents.ScopedTokenFail{
+			Metadata: apievents.Metadata{
+				Type: events.ScopedTokenFailEvent,
+				Code: events.ScopedTokenFailCode,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name:    token.GetName(),
+				Expires: token.Expiry(),
+			},
+			Roles:         token.GetRoles().StringSlice(),
+			JoinMethod:    string(token.GetJoinMethod()),
+			Scope:         token.GetScope(),
+			AssignedScope: token.GetAssignedScope(),
+		}
+	default:
+		return
+	}
+
+	if err := s.cfg.AuthService.EmitAuditEvent(ctx, event); err != nil {
+		log.WarnContext(ctx, "failed to emit scoped token event", "error", err, "type", kind)
 	}
 }
 
