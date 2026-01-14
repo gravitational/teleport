@@ -55,7 +55,7 @@ Certificate Authority (CA).
 On the Teleport Agent machine, run the following command. Replace `teleport.example.com` with the address of your Teleport Proxy Service:
 
 ```bash
-export KEY=$(curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=user' | sed "s/cert-authority\ /g/")
+export KEY=$(curl 'https://<Var name="teleport.example.com" />/webapi/auth/export?type=user' | sed "s/cert-authority\ //g")
 echo "$KEY" | sudo tee /etc/ssh/teleport_user_ca.pub
 ```
 
@@ -156,25 +156,7 @@ Create the role by applying with:
 tctl create -f breakglass-role.yaml
 ```
 
-
-## Step 4/5. Create a Teleport Machine ID bot to issue an SSH Key and Certificate for the `breakglass` user using Teleport's CA
-
-**This step is completed on the machine where you will make use of the certificates for break-glass access.**
-
-This step will configure and start a [Teleport Machine ID bot](../../../machine-workload-identity/deployment/deployment.mdx) as a background
-daemon (managed by `systemd`), which will continually generate and refresh a short-lived key and certificate for break-glass access on the machine
-where it runs.
-
-This guide will join the Teleport Machine ID bot to the cluster using a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx)
-which is a secure, optionally single-use join method based on public key cryptography, providing a strong guarantee of security and protection against
-credential theft.
-
-The configuration below generates a certificate which is valid for 24 hours from the time of issuance, refreshed every 2 hours. This means that
-depending on the exact time of usage, the certificate will be usable for break-glass access for between 22 and 24 hours. This validity period was
-chosen as a sane default to strike a good balance between usability (shorter-lived certificates may be invalid by the time they are needed) and
-security (longer-lived certificates are less secure, as the period where they could be used if compromised is longer).
-
-1. Create a `breakglass` bot which will run in the background to continually refresh a certificate which is valid for break-glass usage:
+3. Create a `breakglass` bot which will run in the background to continually refresh a certificate which is valid for break-glass usage:
 
 Define the bot in a file named `breakglass-bot.yaml`:
 
@@ -189,13 +171,13 @@ spec:
   roles: ['breakglass-role']
 ```
 
-2. Create the bot using `tctl`:
+4. Create the bot using `tctl`:
 
 ```bash
 tctl create -f breakglass-bot.yaml
 ```
 
-3. Create a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx) to use as a join method for running instances of the bot:
+5. Create a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/bound-keypair.mdx) to use as a join method for running instances of the bot:
 
 Define the join method in a file named `breakglass-token.yaml`:
 
@@ -216,21 +198,39 @@ spec:
       limit: 1
 ```
 
-4. Create the token using `tctl`:
+6. Create the token using `tctl`:
 
 ```bash
 tctl create -f breakglass-token.yaml
 ```
 
-5. Get the `registration_secret` for the bot using `tctl` - this is needed to create the bot's config file in the next step.
+7. Get the `registration_secret` for the bot using `tctl` - this is needed to create the bot's config file in the next step.
 
 ```bash
 tctl get token/breakglass-bot-join-token --format=json | jq -r '.[0].status.bound_keypair.registration_secret'
 ```
 
+
+## Step 4/5. Create a Teleport Machine ID bot to issue an SSH Key and Certificate for the `breakglass` user using Teleport's CA
+
+**This step is completed on the machine where you will make use of the certificates for break-glass access.**
+
+This step will configure and start a [Teleport Machine ID bot](../../../machine-workload-identity/deployment/deployment.mdx) as a background
+daemon (managed by `systemd`), which will continually generate and refresh a short-lived key and certificate for break-glass access on the machine
+where it runs.
+
+This guide will join the Teleport Machine ID bot to the cluster using a [bound keypair](../../../reference/machine-workload-identity/bound-keypair/concepts.mdx)
+which is a secure, optionally single-use join method based on public key cryptography, providing a strong guarantee of security and protection against
+credential theft.
+
+The configuration below generates a certificate which is valid for 24 hours from the time of issuance, refreshed every 2 hours. This means that
+depending on the exact time of usage, the certificate will be usable for break-glass access for between 22 and 24 hours. This validity period was
+chosen as a sane default to strike a good balance between usability (shorter-lived certificates may be invalid by the time they are needed) and
+security (longer-lived certificates are less secure, as the period where they could be used if compromised is longer).
+
 This assumes `jq` is installed. If not, run `tctl get token/breakglass-bot-join-token` and inspect the `.status.bound_keypair.registration_secret` field.
 
-6. Write a config file for the bot.
+1. Write a config file for the bot.
 
 Define the config in a file named `/etc/tbot-teleport-breakglass.yaml`:
 
@@ -249,16 +249,16 @@ onboarding:
 storage:
   type: directory
   # change to a directory to use to store the bot's own identity for communicating with the Teleport cluster
-  path: /var/lib/teleport/breakglass-bot
+  path: /var/lib/teleport-breakglass
 outputs:
 - type: identity
   destination:
     type: directory
     # change to the output directory you'd like to use to store the bot's outputted OpenSSH private key and certificate
-    path: /opt/teleport-breakglass-output
+    path: /opt/teleport-breakglass/output
 ```
 
-7. To configure the bot to run in the background, write out a systemd unit file for the bot:
+2. To configure the bot to run in the background, write out a systemd unit file for the bot:
 
 ```bash
 sudo tbot install systemd \
@@ -280,23 +280,30 @@ You must also create the bot's storage and output directories, and give the `tel
 
 ```bash
 sudo mkdir -p /var/lib/teleport-breakglass /opt/teleport-breakglass/output
-sudo chown teleport-breakglass:teleport-breakglass /var/lib/teleport-breakglass /opt/teleport-breakglass /opt/teleport-breakglass/output
-sudo chmod 700 /var/lib/teleport-breakglass /opt/teleport-breakglass /opt/teleport-breakglass/output
+sudo chown -R teleport-breakglass:teleport-breakglass /var/lib/teleport-breakglass /opt/teleport-breakglass/output
+sudo chmod 700 /var/lib/teleport-breakglass /opt/teleport-breakglass/output
 ```
 
-8. Reload the systemd configuration:
+You also need to modify the path to the PID file used, as non-root users do not have access to the default location (`/run`):
+
+```bash
+sudo sed -i "s_PIDFile=/run/_PIDFile=/var/lib/teleport-breakglass/_g" /etc/systemd/system/tbot-teleport-breakglass.service
+sudo sed -i "s_--pid-file=/run/_--pid-file=/var/lib/teleport-breakglass/_g" /etc/systemd/system/tbot-teleport-breakglass.service
+```
+
+3. Reload the systemd configuration:
 
 ```bash
 sudo systemctl daemon-reload
 ```
 
-9. Configure the bot to start when the machine boots, and start it immediately:
+4. Configure the bot to start when the machine boots, and start it immediately:
 
 ```bash
 sudo systemctl enable --now tbot-teleport-breakglass
 ```
 
-10. Check that the bot has started successfully:
+5. Check that the bot has started successfully:
 
 ```bash
 $ sudo systemctl status tbot-teleport-breakglass
@@ -311,10 +318,10 @@ $ sudo systemctl status tbot-teleport-breakglass
              └─2437534 /usr/local/bin/tbot start -c /etc/tbot-teleport-breakglass.yaml
 ```
 
-11. Check that the bot has correctly outputted a certificate:
+6. Check that the bot has correctly outputted a certificate (you must use `sudo`, as these certificates are only readable by the `teleport-breakglass` user):
 
 ```bash
-$ ls -l /opt/teleport-breakglass/output/
+$ sudo -u teleport-breakglass ls -l /opt/teleport-breakglass/output/
 total 60
 -rw------- 1 teleport-breakglass teleport-breakglass 5513 Nov 27 10:32 identity
 -rw------- 1 teleport-breakglass teleport-breakglass  241 Nov 27 10:32 key
@@ -328,7 +335,7 @@ total 60
 -rw------- 1 teleport-breakglass teleport-breakglass 1375 Nov 27 10:32 tlscert
 ```
 
-12. Check the validity of the certificate to see that it is valid for ~24 hours from now:
+7. Check the validity of the certificate to see that it is valid for ~24 hours from now:
 
 ```bash
 $ date
