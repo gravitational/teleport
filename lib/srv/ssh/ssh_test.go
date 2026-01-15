@@ -41,22 +41,24 @@ const (
 	teleportUsername = "alice"
 )
 
-var authPromptsWithMFAOnly = []*sshpb.AuthPrompt{{
-	Prompt: &sshpb.AuthPrompt_MfaPrompt{
-		MfaPrompt: &sshpb.MFAPrompt{},
+var keyboardInteractiveCallbackParams = srvssh.KeyboardInteractiveCallbackParams{
+	Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
+	Challenge:     mockKeyboardInteractiveChallengeSuccess(challengeName),
+	Permissions:   &ssh.Permissions{Extensions: map[string]string{"foo": "bar"}},
+	Verifier:      &mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
+	SourceCluster: sourceCluster,
+	Username:      teleportUsername,
+	Prompts: []*sshpb.AuthPrompt{
+		{
+			Prompt: &sshpb.AuthPrompt_MfaPrompt{
+				MfaPrompt: &sshpb.MFAPrompt{},
+			},
+		},
 	},
-}}
+}
 
 func TestKeyboardInteractiveCallback_SuccessfulMFA(t *testing.T) {
-	params := srvssh.KeyboardInteractiveCallbackParams{
-		Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-		Challenge:     mockKeyboardInteractiveChallengeSuccess(challengeName),
-		Permissions:   &ssh.Permissions{Extensions: map[string]string{"foo": "bar"}},
-		Verifier:      &mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
-		SourceCluster: sourceCluster,
-		Username:      teleportUsername,
-		Prompts:       authPromptsWithMFAOnly,
-	}
+	params := keyboardInteractiveCallbackParams
 
 	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 	require.NoError(t, err)
@@ -64,15 +66,8 @@ func TestKeyboardInteractiveCallback_SuccessfulMFA(t *testing.T) {
 }
 
 func TestKeyboardInteractiveCallback_FailedMFA(t *testing.T) {
-	params := srvssh.KeyboardInteractiveCallbackParams{
-		Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-		Challenge:     mockKeyboardInteractiveChallengeFailure("a-wild-error-appeared!"),
-		Permissions:   &ssh.Permissions{},
-		Verifier:      &mockValidatedMFAChallengeVerifier{},
-		SourceCluster: sourceCluster,
-		Username:      teleportUsername,
-		Prompts:       authPromptsWithMFAOnly,
-	}
+	params := keyboardInteractiveCallbackParams
+	params.Challenge = mockKeyboardInteractiveChallengeFailure("a-wild-error-appeared!")
 
 	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 	require.ErrorContains(t, err, "a-wild-error-appeared!")
@@ -80,15 +75,8 @@ func TestKeyboardInteractiveCallback_FailedMFA(t *testing.T) {
 }
 
 func TestKeyboardInteractiveCallback_NonProtoAnswer(t *testing.T) {
-	params := srvssh.KeyboardInteractiveCallbackParams{
-		Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-		Challenge:     mockKeyboardInteractiveChallengeRaw([]string{"non-proto-answer"}),
-		Permissions:   &ssh.Permissions{},
-		Verifier:      &mockValidatedMFAChallengeVerifier{},
-		SourceCluster: sourceCluster,
-		Username:      teleportUsername,
-		Prompts:       authPromptsWithMFAOnly,
-	}
+	params := keyboardInteractiveCallbackParams
+	params.Challenge = mockKeyboardInteractiveChallengeRaw([]string{"non-proto-answer"})
 
 	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 	require.ErrorContains(t, err, "invalid value non-proto-answer")
@@ -96,15 +84,8 @@ func TestKeyboardInteractiveCallback_NonProtoAnswer(t *testing.T) {
 }
 
 func TestKeyboardInteractiveCallback_TooManyAnswers(t *testing.T) {
-	params := srvssh.KeyboardInteractiveCallbackParams{
-		Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-		Challenge:     mockKeyboardInteractiveChallengeRaw([]string{"answer1", "answer2"}),
-		Permissions:   &ssh.Permissions{},
-		Verifier:      &mockValidatedMFAChallengeVerifier{},
-		SourceCluster: sourceCluster,
-		Username:      teleportUsername,
-		Prompts:       authPromptsWithMFAOnly,
-	}
+	params := keyboardInteractiveCallbackParams
+	params.Challenge = mockKeyboardInteractiveChallengeRaw([]string{"answer1", "answer2"})
 
 	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 	require.ErrorIs(t, err, trace.BadParameter("expected exactly 1 answers, got 2 answers"))
@@ -118,15 +99,8 @@ func TestKeyboardInteractiveCallback_NilReferenceField(t *testing.T) {
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
-	params := srvssh.KeyboardInteractiveCallbackParams{
-		Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-		Challenge:     mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)}),
-		Permissions:   &ssh.Permissions{},
-		Verifier:      &mockValidatedMFAChallengeVerifier{},
-		SourceCluster: sourceCluster,
-		Username:      teleportUsername,
-		Prompts:       authPromptsWithMFAOnly,
-	}
+	params := keyboardInteractiveCallbackParams
+	params.Challenge = mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)})
 
 	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 	require.ErrorIs(t, err, trace.BadParameter("received sshpb.MFAPromptResponse with nil Response field"))
@@ -144,15 +118,8 @@ func TestKeyboardInteractiveCallback_EmptyReferenceField(t *testing.T) {
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
-	params := srvssh.KeyboardInteractiveCallbackParams{
-		Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-		Challenge:     mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)}),
-		Permissions:   &ssh.Permissions{},
-		Verifier:      &mockValidatedMFAChallengeVerifier{},
-		SourceCluster: sourceCluster,
-		Username:      teleportUsername,
-		Prompts:       authPromptsWithMFAOnly,
-	}
+	params := keyboardInteractiveCallbackParams
+	params.Challenge = mockKeyboardInteractiveChallengeRaw([]string{string(respJSON)})
 
 	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 	require.ErrorIs(t, err, trace.BadParameter("received sshpb.MFAPromptResponseReference with empty ChallengeName field"))
@@ -162,71 +129,62 @@ func TestKeyboardInteractiveCallback_EmptyReferenceField(t *testing.T) {
 func TestKeyboardInteractiveCallback_CheckParams(t *testing.T) {
 	for _, testCase := range []struct {
 		name    string
-		modify  func(params *srvssh.KeyboardInteractiveCallbackParams)
+		mutate  func(params *srvssh.KeyboardInteractiveCallbackParams)
 		wantErr error
 	}{
 		{
 			name: "missing Metadata",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.Metadata = nil
 			},
 			wantErr: trace.BadParameter("params Metadata must be set"),
 		},
 		{
 			name: "missing Challenge",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.Challenge = nil
 			},
 			wantErr: trace.BadParameter("params Challenge must be set"),
 		},
 		{
 			name: "missing Permissions",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.Permissions = nil
 			},
 			wantErr: trace.BadParameter("params Permissions must be set"),
 		},
 		{
 			name: "missing Verifier",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.Verifier = nil
 			},
 			wantErr: trace.BadParameter("params Verifier must be set"),
 		},
 		{
 			name: "missing SourceCluster",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.SourceCluster = ""
 			},
 			wantErr: trace.BadParameter("params SourceCluster must be set"),
 		},
 		{
 			name: "missing Username",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.Username = ""
 			},
 			wantErr: trace.BadParameter("params Username must be set"),
 		},
 		{
 			name: "missing Prompts",
-			modify: func(params *srvssh.KeyboardInteractiveCallbackParams) {
+			mutate: func(params *srvssh.KeyboardInteractiveCallbackParams) {
 				params.Prompts = nil
 			},
 			wantErr: trace.BadParameter("params Prompts must be set and contain at least one prompt"),
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			params := srvssh.KeyboardInteractiveCallbackParams{
-				Metadata:      &mockConnMetadata{sessionID: []byte(sessionID), user: osUsername},
-				Challenge:     mockKeyboardInteractiveChallengeSuccess(challengeName),
-				Permissions:   &ssh.Permissions{},
-				Verifier:      &mockValidatedMFAChallengeVerifier{},
-				SourceCluster: sourceCluster,
-				Username:      teleportUsername,
-				Prompts:       authPromptsWithMFAOnly,
-			}
-
-			testCase.modify(&params)
+			params := keyboardInteractiveCallbackParams
+			testCase.mutate(&params)
 
 			perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
 			require.ErrorIs(t, err, testCase.wantErr)
