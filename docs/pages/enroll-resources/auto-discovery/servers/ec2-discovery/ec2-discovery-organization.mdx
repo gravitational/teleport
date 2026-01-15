@@ -1,6 +1,6 @@
 ---
 title: EC2 Auto-Discovery Configuration for AWS Organizations for self-hosted Teleport
-sidebar_label: AWS Organizations for Self-Hosted
+sidebar_label: Organization-level Discovery
 description: How to configure Teleport EC2 auto-discovery for discovering instances in the AWS Organization
 tags:
  - how-to
@@ -33,7 +33,7 @@ receive commands from the Discovery Service. For a list of permissions included
 in the policy, see the [AWS
 documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
 
-## Step 1/6. Create an EC2 invite token in Teleport
+## Step 1/7. Create an EC2 invite token in Teleport
 
 When discovering EC2 instances, Teleport makes use of IAM invite tokens for authenticating joining Nodes.
 
@@ -70,7 +70,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Allow the Auth Service to verify organization membership
+## Step 2/7. Allow the Auth Service to verify organization membership
 
 The Auth Service must be able to verify that joining instances belong to the specified AWS Organization, by calling the [`organizations:DescribeAccount`](https://docs.aws.amazon.com/organizations/latest/APIReference/API_DescribeAccount.html) API.
 
@@ -101,7 +101,7 @@ If your Auth Service already has access to an IAM Role, you can attach the follo
 
 If your Auth Service does not have access to an IAM Role, create one with the above policy and attach it to the Auth Service's running instance.
 
-## Step 3/6. Allow the Discovery Service to list accounts in the organization and assume roles in the target accounts
+## Step 3/7. Allow the Discovery Service to list accounts in the organization and assume roles in the target accounts
 
 We'll start by creating the required AWS permissions for the Discovery Service.
 
@@ -138,7 +138,7 @@ Allow the role to assume other roles in each target account by adding the follow
 }
 ```
 
-## Step 4/6. Configure IAM Roles in each target account
+## Step 4/7. Configure IAM Roles in each target account
 
 Each target AWS account must have an IAM Role which can be assumed by the Discovery Service's IAM role, and which has permissions to discover EC2 instances.
 
@@ -176,7 +176,7 @@ Add the following trust relationship, which allows the <Var name="Discovery Serv
 }
 ```
 
-## Step 5/6. Install Teleport on the Discovery Node
+## Step 5/7. Install Teleport on the Discovery Node
 <Admonition type="tip">
 If you plan on running the Discovery Service on the same Node already running another Teleport service (Auth or Proxy, for example), you can skip this step.
 </Admonition>
@@ -185,7 +185,7 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 6/6. Configure Teleport to discover EC2 instances
+## Step 6/7. Configure Teleport to discover EC2 instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -226,7 +226,7 @@ Create a matcher for the resources you want to enroll.
 
 <Admonition type="tip">
 Dynamic configuration uses Discovery Configs which can be managed using Terraform.
-See the [Terraform `discovery_config` reference](../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
+See the [Terraform `discovery_config` reference](../../../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
 
 Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
 </Admonition>
