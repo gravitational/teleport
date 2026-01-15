@@ -348,6 +348,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.VNET_CONFIG_CREATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

@@ -369,6 +369,9 @@ export const eventCodes = {
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
+  WORKLOAD_CLUSTER_CREATE: 'WC001I',
+  WORKLOAD_CLUSTER_UPDATE: 'WC002I',
+  WORKLOAD_CLUSTER_DELETE: 'WC003I',
 } as const;
 
 /**
@@ -2161,6 +2164,18 @@ export type RawEvents = {
   >;
   [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
     typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_DELETE,
     HasName
   >;
 };
