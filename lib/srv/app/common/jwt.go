@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -42,6 +43,7 @@ func GenerateJWTAndTraits(
 	identity *tlsca.Identity,
 	app types.Application,
 	generator AppTokenGenerator,
+	expires time.Time,
 ) (string, wrappers.Traits, error) {
 	roles, traits := RolesAndTraitsForAppToken(identity, app)
 
@@ -51,7 +53,7 @@ func GenerateJWTAndTraits(
 		Roles:    roles,
 		Traits:   traits,
 		URI:      app.GetURI(),
-		Expires:  identity.Expires,
+		Expires:  expires,
 	})
 	if err != nil {
 		return "", nil, trace.Wrap(err)

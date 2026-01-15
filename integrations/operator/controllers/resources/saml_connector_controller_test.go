@@ -20,7 +20,9 @@ package resources_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -131,17 +134,65 @@ func (g *samlTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 	return diff == "", diff
 }
 
+// SAML tests are flaky in the CI for some reason.
+// To troubleshoot them, samlTestingPrimitives supports the optional debug logger.
+// This is only called in case of failed update test.
+func (g *samlTestingPrimitives) DebugDrifts(t *testing.T, name string) {
+	if g.setup.TeleportServer == nil {
+		return
+	}
+	testClient := g.setup.TeleportClient
+	uncachedClient := g.setup.TeleportServer.Process.GetAuthServer().Services
+	cachedClient := g.setup.TeleportServer.Process.GetAuthServer()
+
+	// t.Context() is already expired when this function is called by t.Cleanup().
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	testResource, err := testClient.GetSAMLConnector(ctx, name, false)
+	if err != nil {
+		t.Log("Failed to get SAML Connector via the test client", err)
+		return
+	}
+	uncachedResource, err := uncachedClient.GetSAMLConnector(ctx, name, false)
+	if err != nil {
+		t.Log("Failed to get SAML Connector via the uncached client", err)
+		return
+	}
+	cachedResource, err := cachedClient.GetSAMLConnector(ctx, name, false)
+	if err != nil {
+		t.Log("Failed to get SAML Connector via the cached client", err)
+		return
+	}
+	testJson, err := json.Marshal(testResource)
+	if err != nil {
+		t.Log("Failed to marshal test client SAML Connector", err)
+		return
+	}
+	uncachedJson, err := json.Marshal(uncachedResource)
+	if err != nil {
+		t.Log("Failed to marshal uncached SAML Connector", err)
+		return
+	}
+	cachedJson, err := json.Marshal(cachedResource)
+	if err != nil {
+		t.Log("Failed to marshal cached SAML Connector", err)
+	}
+
+	t.Log(testJson, uncachedJson, cachedJson)
+}
+
 func TestSAMLConnectorCreation(t *testing.T) {
 	test := &samlTestingPrimitives{}
-	testlib.ResourceCreationTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, test)
+	testlib.ResourceCreationSynchronousTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, resources.NewSAMLConnectorReconciler, test)
 }
 
 func TestSAMLConnectorDeletionDrift(t *testing.T) {
 	test := &samlTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, resources.NewSAMLConnectorReconciler, test)
 }
 
 func TestSAMLConnectorUpdate(t *testing.T) {
 	test := &samlTestingPrimitives{}
-	testlib.ResourceUpdateTest[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, test)
+	testlib.ResourceUpdateTestSynchronous[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](t, resources.NewSAMLConnectorReconciler, test)
 }
