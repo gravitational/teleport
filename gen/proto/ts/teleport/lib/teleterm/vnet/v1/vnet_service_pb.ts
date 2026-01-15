@@ -119,6 +119,20 @@ export interface GetBackgroundItemStatusResponse {
     status: BackgroundItemStatus;
 }
 /**
+ * Request for GetWindowsSystemServiceRequest.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest
+ */
+export interface GetWindowsSystemServiceRequest {
+}
+/**
+ * Response for GetWindowsSystemServiceResponse.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse
+ */
+export interface GetWindowsSystemServiceResponse {
+}
+/**
  * Request for RunDiagnostics.
  *
  * @generated from protobuf message teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest
@@ -454,6 +468,56 @@ class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItem
  */
 export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class GetWindowsSystemServiceRequest$Type extends MessageType<GetWindowsSystemServiceRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest", []);
+    }
+    create(value?: PartialMessage<GetWindowsSystemServiceRequest>): GetWindowsSystemServiceRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetWindowsSystemServiceRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetWindowsSystemServiceRequest): GetWindowsSystemServiceRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetWindowsSystemServiceRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest
+ */
+export const GetWindowsSystemServiceRequest = new GetWindowsSystemServiceRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetWindowsSystemServiceResponse$Type extends MessageType<GetWindowsSystemServiceResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse", []);
+    }
+    create(value?: PartialMessage<GetWindowsSystemServiceResponse>): GetWindowsSystemServiceResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetWindowsSystemServiceResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetWindowsSystemServiceResponse): GetWindowsSystemServiceResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetWindowsSystemServiceResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse
+ */
+export const GetWindowsSystemServiceResponse = new GetWindowsSystemServiceResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
     constructor() {
         super("teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest", []);
@@ -582,6 +646,7 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
+    { name: "GetWindowsSystemService", options: {}, I: GetWindowsSystemServiceRequest, O: GetWindowsSystemServiceResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
     { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
 ]);

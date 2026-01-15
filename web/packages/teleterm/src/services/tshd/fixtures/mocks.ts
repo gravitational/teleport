@@ -129,6 +129,7 @@ export class MockVnetClient implements VnetClient {
         '/Users/user/Library/Application Support/Teleport Connect/tsh/vnet_ssh_config',
     });
   getBackgroundItemStatus = () => new MockedUnaryCall({ status: 0 });
+  getWindowsSystemService = () => new MockedUnaryCall({});
   runDiagnostics() {
     return new MockedUnaryCall({
       report: {
