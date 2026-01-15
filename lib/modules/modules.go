@@ -422,6 +422,9 @@ func (p *defaultModules) Features() Features {
 			entitlements.Desktop:            {Enabled: true, Limit: 0},
 			entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
 			entitlements.K8s:                {Enabled: true, Limit: 0},
+			// Enable OIDC and SAML for community edition (normally enterprise-only)
+			entitlements.OIDC:               {Enabled: true, Limit: 0},
+			entitlements.SAML:               {Enabled: true, Limit: 0},
 		},
 	}
 }

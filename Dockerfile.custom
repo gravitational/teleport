@@ -1,0 +1,45 @@
+# Custom Teleport Community Edition with OIDC/SAML enabled
+# Build from pre-compiled binaries
+#
+# Usage:
+#   1. Build teleport binaries: make build/teleport build/tctl
+#   2. Build image: docker build -f Dockerfile.custom -t teleport:custom .
+#   3. Push to registry: docker push <registry>/teleport:custom
+
+FROM debian:12-slim
+
+# Install runtime dependencies
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates \
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy pre-built binaries
+COPY build/teleport /usr/local/bin/teleport
+COPY build/tctl /usr/local/bin/tctl
+
+# Create teleport user and directories
+RUN useradd -r -s /bin/false teleport && \
+    mkdir -p /etc/teleport /var/lib/teleport && \
+    chown -R teleport:teleport /var/lib/teleport
+
+# Default config location
+VOLUME /etc/teleport
+
+# Expose ports
+# 3023 - SSH proxy
+# 3024 - Reverse tunnel
+# 3025 - Auth service
+# 3080 - HTTPS proxy
+EXPOSE 3023 3024 3025 3080
+
+# Used to track install method
+ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true
+
+# Attempt a graceful shutdown by default
+STOPSIGNAL SIGQUIT
+
+# Include 'start' in entrypoint so Kubernetes args are passed to 'start' subcommand
+ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start"]
+CMD ["-c", "/etc/teleport/teleport.yaml"]
