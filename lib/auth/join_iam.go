@@ -100,12 +100,13 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
-		Challenge:              challenge,
-		ProvisionToken:         provisionToken,
-		STSIdentityRequest:     req.StsIdentityRequest,
-		HTTPClient:             a.GetHTTPClientForAWSSTS(),
-		FIPS:                   a.fips,
-		OrganizationsAPIGetter: a.GetAWSOrganizationsClientGetter(),
+		Challenge:                challenge,
+		ProvisionToken:           provisionToken,
+		STSIdentityRequest:       req.StsIdentityRequest,
+		HTTPClient:               a.GetHTTPClientForAWSSTS(),
+		FIPS:                     a.fips,
+		OrganizationsAPIGetter:   a.GetAWSOrganizationsClientGetter(),
+		AWSOIDCIntegrationClient: a,
 	})
 	if verifiedIdentity != nil {
 		joinFailureMetadata = verifiedIdentity
