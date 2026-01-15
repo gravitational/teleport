@@ -27,7 +27,10 @@ import {
 } from 'react';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeTshdRpcError,
+} from 'teleterm/services/tshd/testHelpers';
 import {
   makeReport,
   makeReportWithIssuesFound,
@@ -104,10 +107,39 @@ describe('autostart', () => {
       ...appContext.statePersistenceService.getState(),
       vnet: { autoStart: false, hasEverStarted: false },
     });
-
+    const { promise, resolve } = Promise.withResolvers();
+    appContext.vnet.getWindowsSystemService = async () => {
+      const response = new MockedUnaryCall({});
+      resolve(response);
+      return response;
+    };
     const { result } = renderHook(() => useVnetContext(), {
       wrapper: createWrapper(Wrapper, { appContext }),
     });
+    await act(() => promise);
+
+    expect(result.current.startAttempt.status).toEqual('');
+  });
+
+  it('does not start VNet if Windows system service does not exist', async () => {
+    const appContext = new MockAppContext();
+    appContext.workspacesService.setState(draft => {
+      draft.isInitialized = true;
+    });
+    appContext.statePersistenceService.putState({
+      ...appContext.statePersistenceService.getState(),
+      vnet: { autoStart: true, hasEverStarted: true },
+    });
+    const { promise, reject } = Promise.withResolvers();
+    appContext.vnet.getWindowsSystemService = async () => {
+      const error = makeTshdRpcError({ code: 'NOT_FOUND' });
+      reject(error);
+      throw error;
+    };
+    const { result } = renderHook(() => useVnetContext(), {
+      wrapper: createWrapper(Wrapper, { appContext }),
+    });
+    await act(() => promise.catch(() => {}));
 
     expect(result.current.startAttempt.status).toEqual('');
   });

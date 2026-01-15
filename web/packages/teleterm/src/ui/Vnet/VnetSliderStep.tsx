@@ -25,6 +25,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
@@ -43,6 +44,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     status,
     startAttempt,
     stopAttempt,
+    getWindowsSystemServiceAttempt,
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
@@ -88,6 +90,27 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           }
         `}
       >
+        {getWindowsSystemServiceAttempt.status === 'error' && (
+          <>
+            {isTshdRpcError(
+              getWindowsSystemServiceAttempt.error,
+              'NOT_FOUND'
+            ) ? (
+              <ErrorText>
+                VNet system service is not installed. <br />
+                To use VNet, reinstall Teleport Connect selecting &apos;Anyone
+                who uses this computer&apos; option. Administrator privileges
+                will be required.
+              </ErrorText>
+            ) : (
+              <ErrorText>
+                Could not check VNet system service status:{' '}
+                {getWindowsSystemServiceAttempt.statusText}
+              </ErrorText>
+            )}
+          </>
+        )}
+
         {startAttempt.status === 'error' && (
           <ErrorText>Could not start VNet: {startAttempt.statusText}</ErrorText>
         )}

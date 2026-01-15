@@ -114,6 +114,7 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
+    getWindowsSystemServiceAttempt,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -122,7 +123,9 @@ const VnetConnectionItemBase = forwardRef<
   );
   const isUserInWorkspace = !!rootClusterUri;
   const isProcessing =
-    startAttempt.status === 'processing' || stopAttempt.status === 'processing';
+    startAttempt.status === 'processing' ||
+    stopAttempt.status === 'processing' ||
+    getWindowsSystemServiceAttempt.status === 'processing';
   const disabledDiagnosticsReason =
     getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus: ConnectionStatus = useMemo(() => {
@@ -130,6 +133,7 @@ const VnetConnectionItemBase = forwardRef<
     if (
       startAttempt.status === 'error' ||
       stopAttempt.status === 'error' ||
+      getWindowsSystemServiceAttempt.status === 'error' ||
       (status.value === 'stopped' &&
         status.reason.value === 'unexpected-shutdown')
     ) {
@@ -145,7 +149,13 @@ const VnetConnectionItemBase = forwardRef<
     }
 
     return 'on';
-  }, [startAttempt, stopAttempt, status, showDiagWarningIndicator]);
+  }, [
+    startAttempt,
+    stopAttempt,
+    status,
+    showDiagWarningIndicator,
+    getWindowsSystemServiceAttempt,
+  ]);
 
   const onEnterPress = (event: React.KeyboardEvent) => {
     if (
@@ -361,6 +371,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
+                disabled={getWindowsSystemServiceAttempt.status === 'error'}
                 title=""
                 onClick={e => {
                   e.stopPropagation();
@@ -373,6 +384,7 @@ const VnetConnectionItemBase = forwardRef<
               <ButtonIcon
                 key={toggleVnetButtonKey}
                 title="Start VNet"
+                disabled={getWindowsSystemServiceAttempt.status === 'error'}
                 onClick={e => {
                   e.stopPropagation();
                   start();
