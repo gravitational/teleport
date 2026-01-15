@@ -94,6 +94,7 @@ func TestBackfillFeatures(t *testing.T) {
 					string(AccessGraphDemoMode):        {Enabled: true},
 					string(UnrestrictedManagedUpdates): {Enabled: true},
 					string(ClientIPRestrictions):       {Enabled: true},
+					string(WorkloadClusters):           {Enabled: true},
 				},
 			},
 			expected: map[string]*proto.EntitlementInfo{
@@ -124,6 +125,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(AccessGraphDemoMode):        {Enabled: true},
 				string(UnrestrictedManagedUpdates): {Enabled: true},
 				string(ClientIPRestrictions):       {Enabled: true},
+				string(WorkloadClusters):           {Enabled: true},
 			},
 		},
 		{
@@ -203,6 +205,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(AccessGraphDemoMode):        {Enabled: false},
 				string(UnrestrictedManagedUpdates): {Enabled: false},
 				string(ClientIPRestrictions):       {Enabled: false},
+				string(WorkloadClusters):           {Enabled: false},
 			},
 		},
 		{
@@ -279,6 +282,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(AccessGraphDemoMode):        {Enabled: false},
 				string(UnrestrictedManagedUpdates): {Enabled: false},
 				string(ClientIPRestrictions):       {Enabled: false},
+				string(WorkloadClusters):           {Enabled: false},
 				// Identity off, fields false
 				string(Identity):     {Enabled: false},
 				string(SessionLocks): {Enabled: false},
