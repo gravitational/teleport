@@ -26,18 +26,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib"
@@ -60,6 +60,32 @@ func (r *trustedClusterV2TestingPrimitives) Init(setup *testSetup) {
 }
 
 func (r *trustedClusterV2TestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
+	// Create trusted cluster join token
+	token := "secret_token"
+	tokenResource, err := types.NewProvisionToken(token, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	r.remoteCluster.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+
+	// Create required role
+	localDev := "local-dev"
+	if err := teleportCreateDummyRole(ctx, localDev, r.setup.TeleportClient); err != nil {
+		return trace.Wrap(err, "creating dummy role")
+	}
+
+	r.trustedClusterSpec = types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Token:                token,
+		ProxyAddress:         r.remoteCluster.Web,
+		ReverseTunnelAddress: r.remoteCluster.ReverseTunnel,
+		RoleMap: []types.RoleMapping{
+			{
+				Remote: "remote-dev",
+				Local:  []string{localDev},
+			},
+		},
+	}
 	return nil
 }
 
@@ -130,9 +156,9 @@ func (r *trustedClusterV2TestingPrimitives) CompareTeleportAndKubernetesResource
 }
 
 // setupTest initializes a remote cluster for testing trusted clusters.
+// This runs before we start any test.
+// Init() runs after the standardized test suite setup is done.
 func (r *trustedClusterV2TestingPrimitives) setupTest(t *testing.T, clusterName string) {
-	ctx := context.Background()
-
 	remoteCluster := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
 		HostID:      uuid.New().String(),
@@ -154,173 +180,52 @@ func (r *trustedClusterV2TestingPrimitives) setupTest(t *testing.T, clusterName 
 	require.NoError(t, remoteCluster.CreateEx(t, nil, rcConf))
 	require.NoError(t, remoteCluster.Start())
 	t.Cleanup(func() { require.NoError(t, remoteCluster.StopAll()) })
-
-	// Create trusted cluster join token
-	token := "secret_token"
-	tokenResource, err := types.NewProvisionToken(token, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
-	require.NoError(t, err)
-	remoteCluster.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
-
-	// Create required role
-	localDev := "local-dev"
-	require.NoError(t, teleportCreateDummyRole(ctx, localDev, r.setup.TeleportClient))
-
-	r.trustedClusterSpec = types.TrustedClusterSpecV2{
-		Enabled:              true,
-		Token:                token,
-		ProxyAddress:         remoteCluster.Web,
-		ReverseTunnelAddress: remoteCluster.ReverseTunnel,
-		RoleMap: []types.RoleMapping{
-			{
-				Remote: "remote-dev",
-				Local:  []string{localDev},
-			},
-		},
-	}
 }
 
 func TestTrustedClusterV2Creation(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
-	setup := testlib.SetupTestEnv(t)
-	test.Init(setup)
-	ctx := context.Background()
-
-	resourceName := "remote.example.com"
-	test.setupTest(t, resourceName)
-
-	require.NoError(t, test.CreateKubernetesResource(ctx, resourceName))
-
-	var resource types.TrustedCluster
-	var err error
-	testlib.FastEventually(t, func() bool {
-		resource, err = test.GetTeleportResource(ctx, resourceName)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-	require.Equal(t, resourceName, test.GetResourceName(resource))
-	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(resource))
-
-	err = test.DeleteKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	testlib.FastEventually(t, func() bool {
-		_, err = test.GetTeleportResource(ctx, resourceName)
-		return trace.IsNotFound(err)
-	})
+	const remoteClusterName = "remote.example.com"
+	test.setupTest(t, remoteClusterName)
+	testlib.ResourceCreationSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
+		t,
+		resources.NewTrustedClusterV2Reconciler,
+		test,
+		testlib.WithResourceName(remoteClusterName),
+	)
 }
 
 func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
-	setup := testlib.SetupTestEnv(t)
-	test.Init(setup)
-	ctx := context.Background()
-
-	resourceName := "remote.example.com"
-	test.setupTest(t, resourceName)
-
-	require.NoError(t, test.CreateKubernetesResource(ctx, resourceName))
-
-	var resource types.TrustedCluster
-	var err error
-	testlib.FastEventually(t, func() bool {
-		resource, err = test.GetTeleportResource(ctx, resourceName)
-		return !trace.IsNotFound(err)
-	})
-	require.NoError(t, err)
-	require.Equal(t, resourceName, test.GetResourceName(resource))
-	require.Equal(t, types.OriginKubernetes, test.GetResourceOrigin(resource))
-
-	// We cause a drift by altering the Teleport resource.
-	// To make sure the operator does not reconcile while we're finished we suspend the operator
-	setup.StopKubernetesOperator()
-
-	err = test.DeleteTeleportResource(ctx, resourceName)
-	require.NoError(t, err)
-	testlib.FastEventually(t, func() bool {
-		_, err = test.GetTeleportResource(ctx, resourceName)
-		return trace.IsNotFound(err)
-	})
-
-	// We flag the resource for deletion in Kubernetes (it won't be fully removed until the operator has processed it and removed the finalizer)
-	err = test.DeleteKubernetesResource(ctx, resourceName)
-	require.NoError(t, err)
-
-	// Test section: We resume the operator, it should reconcile and recover from the drift
-	setup.StartKubernetesOperator(t)
-
-	// The operator should handle the failed Teleport deletion gracefully and unlock the Kubernetes resource deletion
-	testlib.FastEventually(t, func() bool {
-		_, err = test.GetKubernetesResource(ctx, resourceName)
-		return kerrors.IsNotFound(err)
-	})
+	const remoteClusterName = "remote.example.com"
+	test.setupTest(t, remoteClusterName)
+	testlib.ResourceDeletionDriftSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
+		t,
+		resources.NewTrustedClusterV2Reconciler,
+		test,
+		testlib.WithResourceName(remoteClusterName),
+	)
 }
 
-func TestTrustedClusterV2Update(t *testing.T) {
+func TestTrustedClusterUpdate(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
-	setup := testlib.SetupTestEnv(t)
-	test.Init(setup)
-	ctx := context.Background()
-
-	resourceName := "remote.example.com"
-	test.setupTest(t, resourceName)
-
-	// The resource is created in Teleport
-	require.NoError(t, test.CreateTeleportResource(ctx, resourceName))
-
-	// The resource is created in Kubernetes, with at least a field altered
-	require.NoError(t, test.CreateKubernetesResource(ctx, resourceName))
-
-	logger := t.Logf
-	// Check the resource was updated in Teleport
-	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
-
-		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
-
-		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		if !equal {
-			logger("Kubernetes and Teleport resources not sync-ed yet: %s", diff)
-		}
-		assert.True(t, equal)
-	})
-
-	// Updating the resource in Kubernetes
-	// The modification can fail because of a conflict with the resource controller. We retry if that happens.
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		return test.ModifyKubernetesResource(ctx, resourceName)
-	})
-	require.NoError(t, err)
-
-	// Check the resource was updated in Teleport
-	testlib.FastEventuallyWithT(t, func(t *assert.CollectT) {
-		kubeResource, err := test.GetKubernetesResource(ctx, resourceName)
-		require.NoError(t, err)
-
-		tResource, err := test.GetTeleportResource(ctx, resourceName)
-		require.NoError(t, err)
-
-		// Kubernetes and Teleport resources are in-sync
-		equal, diff := test.CompareTeleportAndKubernetesResource(tResource, kubeResource)
-		require.True(t, equal)
-		require.Empty(t, diff)
-	})
-
-	// Delete the resource to avoid leftover state.
-	err = test.DeleteTeleportResource(ctx, resourceName)
-	require.NoError(t, err)
+	const remoteClusterName = "remote.example.com"
+	test.setupTest(t, remoteClusterName)
+	testlib.ResourceUpdateTestSynchronous[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
+		t,
+		resources.NewTrustedClusterV2Reconciler,
+		test,
+		testlib.WithResourceName(remoteClusterName),
+	)
 }
 
 func TestTrustedClusterV2SecretLookup(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
-	setup := testlib.SetupTestEnv(t)
+	const remoteClusterName = "remote.example.com"
+	test.setupTest(t, remoteClusterName)
+	setup := testlib.SetupFakeKubeTestEnv(t)
 	test.Init(setup)
-	ctx := context.Background()
-
-	resourceName := "remote.example.com"
-	test.setupTest(t, resourceName)
+	ctx := t.Context()
+	require.NoError(t, test.SetupTeleportFixtures(ctx))
 
 	secretName := validRandomResourceName("trusted-cluster-secret")
 	secretKey := "token"
@@ -331,11 +236,13 @@ func TestTrustedClusterV2SecretLookup(t *testing.T) {
 			Name:      secretName,
 			Namespace: setup.Namespace.Name,
 			Annotations: map[string]string{
-				secretlookup.AllowLookupAnnotation: resourceName,
+				secretlookup.AllowLookupAnnotation: remoteClusterName,
 			},
 		},
-		StringData: map[string]string{
-			secretKey: secretValue,
+		// Real kube servers convert stringData into data.
+		// The fake client does not, so we must use Data instead.
+		Data: map[string][]byte{
+			secretKey: []byte(secretValue),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -343,13 +250,40 @@ func TestTrustedClusterV2SecretLookup(t *testing.T) {
 	require.NoError(t, kubeClient.Create(ctx, secret))
 
 	test.trustedClusterSpec.Token = "secret://" + secretName + "/" + secretKey
-	require.NoError(t, test.CreateKubernetesResource(ctx, resourceName))
+	require.NoError(t, test.CreateKubernetesResource(ctx, remoteClusterName))
+
+	reconciler, err := resources.NewTrustedClusterV2Reconciler(kubeClient, setup.TeleportClient)
+	require.NoError(t, err)
+
+	// Test execution: Kick off the reconciliation.
+	req := reconcile.Request{
+		NamespacedName: apimachinerytypes.NamespacedName{
+			Namespace: setup.Namespace.Name,
+			Name:      remoteClusterName,
+		},
+	}
+	// First reconciliation should set the finalizer and exit.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	// Second reconciliation should create the Teleport resource.
+	// In a real cluster we should receive the event of our own finalizer change
+	// and this wakes us for a second round.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
 
 	testlib.FastEventually(t, func() bool {
-		trustedCluster, err := test.GetTeleportResource(ctx, resourceName)
+		trustedCluster, err := test.GetTeleportResource(ctx, remoteClusterName)
 		if err != nil {
 			return false
 		}
 		return trustedCluster.GetToken() == secretValue
 	})
+
+	// Test cleanup: Delete the resource to avoid leftover state if we were running on a real instance.
+	require.NoError(t, test.DeleteKubernetesResource(ctx, remoteClusterName))
+	require.NoError(t, kubeClient.Delete(ctx, secret))
+	require.NoError(t, test.DeleteTeleportResource(ctx, remoteClusterName))
+	// Kicking of a reconciliation to remove the finalizer and let Kube remove the resource.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
 }
