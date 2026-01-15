@@ -599,6 +599,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.WorkloadClusterService == nil {
+		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating WorkloadClusterService")
+		}
+	}
+
 	scopedAccessCache, err := scopedaccesscache.NewCache(scopedaccesscache.CacheConfig{
 		Events: cfg.Events,
 		Reader: cfg.ScopedAccess,
@@ -666,6 +673,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
+		WorkloadClusterService:          cfg.WorkloadClusterService,
 	}
 
 	as = &Server{
@@ -939,6 +947,7 @@ type Services struct {
 	services.Summarizer
 	RecordingEncryptionManager
 	services.ScopedTokenService
+	services.WorkloadClusterService
 }
 
 // GetWebSession returns existing web session described by req.
