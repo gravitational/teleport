@@ -229,10 +229,15 @@ module.exports = {
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
-    // Use a per-machine installation to support VNet.
-    // VNet installs a Windows service per-machine, and tsh.exe must be
-    // installed in a path that is not user-writable.
-    perMachine: true,
+    // Per-machine and per-user modes differ in features.
+    // VNet is available only in per-machine mode.
+    perMachine: false,
+    oneClick: false,
+    selectPerMachineByDefault: true,
+    // In installer.nsh, the `selectUserMode` message is overridden to display information
+    // about VNet availability. The message is only in English, so the multi-language
+    // installer should be disabled to avoid mixing languages in the installation wizard.
+    multiLanguageInstaller: false,
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
