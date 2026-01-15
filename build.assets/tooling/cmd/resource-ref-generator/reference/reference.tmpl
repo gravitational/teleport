@@ -8,6 +8,14 @@ sidebar_label: {{ .Resource.SectionName }}
 {/* Automatically generated from: {{ .Resource.SourcePath}} */}
 {/* DO NOT EDIT */}
 
+{{- if gt (len .Resource.ResourceExample) 0 }}
+
+Example definition:
+```yaml
+{{ .Resource.ResourceExample }}
+```
+{{- end }}
+
 **Kind**: `{{ .Resource.Kind }}`<br/>
 **Version**: `{{ .Resource.Version }}`
 

@@ -1,5 +1,6 @@
 source: "../../../../api"
 destination: "../../../../docs/pages/reference/infrastructure-as-code/teleport-resources"
+examples_directory: "./resource_examples"
 
 # Please alphabetize the resource list by type name.
 resources:
