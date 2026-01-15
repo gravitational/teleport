@@ -32,13 +32,13 @@ func (m *mockAuth) GetClusterName(_ context.Context) (types.ClusterName, error) 
 }
 
 type mockRegistrator struct {
-	register         func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error
+	register         func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem [][]byte, clusterName string) error
 	registerCalled   int
 	replaceCAs       func(config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error
 	replaceCAsCalled int
 }
 
-func (m *mockRegistrator) Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error {
+func (m *mockRegistrator) Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem [][]byte, clusterName string) error {
 	m.registerCalled++
 	if m.register != nil {
 		return m.register(config, getCreds, hostCAPem, clusterName)
@@ -130,12 +130,12 @@ func TestRegister_CallsReplaceCAsInAllCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			certSentinel := new(tls.Certificate)
 			registrator := &mockRegistrator{
-				register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, name string) error {
+				register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem [][]byte, name string) error {
 					require.Equal(t, testConfig, config)
 					c, err := getCreds()
 					require.NoError(t, err)
 					require.Same(t, certSentinel, c)
-					require.Equal(t, ca.GetActiveKeys().TLS[0].Cert, hostCAPem)
+					require.Equal(t, ca.GetActiveKeys().TLS[0].Cert, hostCAPem[0])
 					require.Equal(t, clusterName.GetClusterName(), name)
 					return tc.registerError
 				},
@@ -195,7 +195,7 @@ func TestRegister_Cloud_UsesLicenseIdentity(t *testing.T) {
 
 	certSentinel := new(tls.Certificate)
 	registrator := &mockRegistrator{
-		register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, name string) error {
+		register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem [][]byte, name string) error {
 			require.Equal(t, testConfig, config)
 			c, err := getCreds()
 			require.NoError(t, err)
@@ -230,18 +230,18 @@ func TestRegister_CARotation(t *testing.T) {
 	testCases := []struct {
 		rotationPhase      string
 		additionalKeyPair  *types.TLSKeyPair
-		expectedRegisterCA []byte
+		expectedRegisterCA [][]byte
 		expectedCAs        [][]byte
 	}{
 		{
 			rotationPhase:      types.RotationPhaseStandby,
-			expectedRegisterCA: testActiveKeyPair.Cert,
+			expectedRegisterCA: [][]byte{testActiveKeyPair.Cert},
 			expectedCAs:        [][]byte{testActiveKeyPair.Cert},
 		},
 		{
 			rotationPhase:      types.RotationPhaseInit,
 			additionalKeyPair:  additionalKeyPair,
-			expectedRegisterCA: testActiveKeyPair.Cert,
+			expectedRegisterCA: [][]byte{testActiveKeyPair.Cert},
 			expectedCAs:        [][]byte{testActiveKeyPair.Cert},
 		},
 		{
@@ -249,12 +249,12 @@ func TestRegister_CARotation(t *testing.T) {
 			// Expect to register with the additional ("old") CA, but add both old and new CAs as trusted.
 			rotationPhase:      types.RotationPhaseUpdateClients,
 			additionalKeyPair:  additionalKeyPair,
-			expectedRegisterCA: additionalKeyPair.Cert,
+			expectedRegisterCA: [][]byte{testActiveKeyPair.Cert, additionalKeyPair.Cert},
 			expectedCAs:        [][]byte{testActiveKeyPair.Cert, additionalKeyPair.Cert},
 		},
 		{
 			rotationPhase:      types.RotationPhaseRollback,
-			expectedRegisterCA: testActiveKeyPair.Cert,
+			expectedRegisterCA: [][]byte{testActiveKeyPair.Cert},
 			expectedCAs:        [][]byte{testActiveKeyPair.Cert},
 		},
 	}
@@ -270,7 +270,7 @@ func TestRegister_CARotation(t *testing.T) {
 
 			certSentinel := new(tls.Certificate)
 			registrator := &mockRegistrator{
-				register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, name string) error {
+				register: func(config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem [][]byte, name string) error {
 					require.Equal(t, testConfig, config)
 					c, err := getCreds()
 					require.NoError(t, err)

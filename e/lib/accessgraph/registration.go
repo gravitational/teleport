@@ -15,7 +15,7 @@ import (
 // Registrator is a thin layer around methods of the same name in the accessgraphv1alpha service.
 // Its purpose is to help decouple the logic from concrete transport (gRPC).
 type Registrator interface {
-	Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error
+	Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPems [][]byte, clusterName string) error
 	ReplaceCAs(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, caPEMs [][]byte) error
 }
 
@@ -23,16 +23,20 @@ type Registrator interface {
 type registrator struct{}
 
 // Register implements Registrator.
-func (*registrator) Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPem []byte, clusterName string) error {
+func (*registrator) Register(ctx context.Context, config ServiceClientConfig, getCreds ClientCredentialsGetter, hostCAPems [][]byte, clusterName string) error {
 	conn, err := NewAccessGraphClient(ctx, config, getCreds)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer conn.Close()
 	client := accessgraphv1.NewAccessGraphServiceClient(conn)
-
+	if len(hostCAPems) == 0 {
+		return trace.BadParameter("expected at least one Host CA PEM to register")
+	}
 	_, err = client.Register(ctx, &accessgraphv1.RegisterRequest{
-		HostCaPem:   hostCAPem,
+		// Keep compatibility with older TAG versions that expect a single Host CA PEM.
+		HostCaPem:   hostCAPems[0],
+		HostCaPems:  hostCAPems,
 		ClusterName: clusterName,
 	})
 	return trace.Wrap(err)
@@ -83,9 +87,11 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 	if len(activeKeys.TLS) == 0 {
 		return trace.BadParameter("expected the active keyset to not be empty")
 	}
-	var activeCA = activeKeys.TLS[0].Cert
-	var additionalCA []byte
-	caToRegister := activeCA
+	var casToRegister [][]byte
+	for _, keyPair := range activeKeys.TLS {
+		casToRegister = append(casToRegister, keyPair.Cert)
+	}
+
 	if hostCA.GetRotation().Phase == types.RotationPhaseUpdateClients {
 		// In the UpdateClients phase, we're starting up with the new CA as "active",
 		// but since the new CA has not yet been submitted to TAG,
@@ -94,8 +100,9 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 		if len(additionalKeys.TLS) == 0 {
 			return trace.BadParameter("expected the additional CA keypair to exist")
 		}
-		additionalCA = additionalKeys.TLS[0].Cert
-		caToRegister = additionalCA
+		for _, keyPair := range additionalKeys.TLS {
+			casToRegister = append(casToRegister, keyPair.Cert)
+		}
 	}
 
 	// credentials used to invoke Register()
@@ -115,14 +122,9 @@ func Register(ctx context.Context, reg Registrator, config ServiceClientConfig, 
 	// but the user might not have updated `registration_cas` in the TAG service config.
 	// We should only raise this as a hard error if subsequent ReplaceCAs() call fails,
 	// as it indicates that authentication with this Host CA fails in general (i.e. the Host CA is not trusted).
-	regErr := reg.Register(ctx, config, func() (*tls.Certificate, error) { return regCreds, nil }, caToRegister, clusterName.GetClusterName())
+	regErr := reg.Register(ctx, config, func() (*tls.Certificate, error) { return regCreds, nil }, casToRegister, clusterName.GetClusterName())
 
-	cas := [][]byte{activeCA}
-	if additionalCA != nil {
-		cas = append(cas, additionalCA)
-	}
-
-	err = reg.ReplaceCAs(ctx, config, func() (*tls.Certificate, error) { return adminCreds, nil }, cas)
+	err = reg.ReplaceCAs(ctx, config, func() (*tls.Certificate, error) { return adminCreds, nil }, casToRegister)
 	if err != nil {
 		return trace.NewAggregate(regErr, err)
 	}
