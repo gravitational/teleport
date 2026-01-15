@@ -713,7 +713,7 @@ Examples:
 		// Validate binary modules against the device trust configuration.
 		// Catches errors in file-based configs.
 		if conf.Auth.Enabled {
-			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust()); err != nil {
+			if err := dtconfig.ValidateConfigAgainstModules(conf.Auth.Preference.GetDeviceTrust(), modules.GetModules()); err != nil {
 				utils.FatalError(err)
 			}
 		}
