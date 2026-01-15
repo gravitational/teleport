@@ -1,0 +1,352 @@
+---
+title: EC2 Auto-Discovery Configuration for AWS Organizations for self-hosted Teleport
+sidebar_label: Organization-level Discovery
+description: How to configure Teleport EC2 auto-discovery for discovering instances in the AWS Organization
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
+---
+
+This guide shows how to configure Teleport to automatically enroll EC2 instances from an AWS Organization in your cluster.
+
+## How it works
+
+The Teleport Discovery Service runs on an EC2 instance and queries the AWS API to list instances in all the accounts under an AWS Organization.
+For any new EC2 instance that you deploy, the Discovery Service uses AWS Systems Manager (SSM) to install Teleport on the instance and join it to the cluster as a Teleport-protected server.
+
+If you only have a single AWS Account, read [Manual EC2 Auto-Discovery Configuration](ec2-discovery-manual.mdx).
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- AWS Organization with EC2 instances and permissions to create and attach IAM policies.
+- EC2 instances running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and SSM agent version 3.1 or greater if making use of the
+default Teleport install script. (For other Linux distributions, you can install Teleport manually.)
+- (!docs/pages/includes/tctl.mdx!)
+
+All EC2 instances that are to be added to the Teleport cluster by the Discovery 
+Service must include the `AmazonSSMManagedInstanceCore` IAM policy in order to
+receive commands from the Discovery Service. For a list of permissions included
+in the policy, see the [AWS
+documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
+
+## Step 1/7. Create an EC2 invite token in Teleport
+
+When discovering EC2 instances, Teleport makes use of IAM invite tokens for authenticating joining Nodes.
+
+The Organization ID starts with "o-" followed by a series of alphanumeric characters,
+and can be found on the left side of the [AWS Organizations console](https://console.aws.amazon.com/organizations/v2/home/accounts).
+
+Assign the <Var name="o-organisation" /> to your Organization ID.
+
+Create a file called `token.yaml`:
+
+```yaml
+# token.yaml
+kind: token
+version: v2
+metadata:
+  # the token name is not a secret because instances must prove that they are
+  # running in your AWS Organization to use this token
+  name: aws-discovery-iam-token
+spec:
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
+  roles: [Node]
+
+  # set the join method allowed for this token
+  join_method: iam
+
+  allow:
+  # specify the AWS Organization ID which Nodes may join from
+  - aws_organization_id: <Var name="o-organisation" />
+```
+
+Add the token to the Teleport cluster with:
+
+```code
+$ tctl create -f token.yaml
+```
+
+## Step 2/7. Allow the Auth Service to verify organization membership
+
+The Auth Service must be able to verify that joining instances belong to the specified AWS Organization, by calling the [`organizations:DescribeAccount`](https://docs.aws.amazon.com/organizations/latest/APIReference/API_DescribeAccount.html) API.
+
+<Admonition type="tip">
+Auth Service must be run in the AWS Organization management account or in a member account that is a delegated administrator.
+
+The required AWS APIs are part of the AWS Organizations service, and can only be called from the management account or a member account that is a delegated administrator.
+</Admonition>
+
+If your Auth Service already has access to an IAM Role, you can attach the following policy to it:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "organizations:DescribeAccount"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+```
+
+If your Auth Service does not have access to an IAM Role, create one with the above policy and attach it to the Auth Service's running instance.
+
+## Step 3/7. Allow the Discovery Service to list accounts in the organization and assume roles in the target accounts
+
+We'll start by creating the required AWS permissions for the Discovery Service.
+
+The Discovery Service must be able to list all the accounts in the AWS Organization.
+Then, for each account, it will assume a role in order to discover EC2 instances and enroll them in the Teleport cluster.
+
+<Admonition type="tip">
+Discovery Service must be run in the AWS Organization management account or in a member account that is a delegated administrator.
+
+The required AWS APIs are part of the AWS Organizations service, and can only be called from the management account or a member account that is a delegated administrator.
+</Admonition>
+
+Create a new IAM Role, <Var name="Discovery Service role's ARN" />, which will be used by Discovery Service.
+
+Allow the role to list accounts by adding the following IAM Policy:
+```json
+{
+    "Effect": "Allow",
+    "Action": [
+        "organizations:ListAccountsForParent",
+        "organizations:ListChildren",
+        "organizations:ListRoots"
+    ],
+    "Resource": "*"
+}
+```
+
+Allow the role to assume other roles in each target account by adding the following IAM Policy:
+```json
+{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "*"
+}
+```
+
+## Step 4/7. Configure IAM Roles in each target account
+
+Each target AWS account must have an IAM Role which can be assumed by the Discovery Service's IAM role, and which has permissions to discover EC2 instances.
+
+Create an IAM Role named <Var name="DiscoverEC2AssumedRole" /> in each target AWS account, including the one where the Discovery Service is running, with the following permissions:
+
+```json
+{
+    "Effect": "Allow",
+    "Action": [
+        "account:ListRegions",
+        "ec2:DescribeInstances",
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetCommandInvocation",
+        "ssm:ListCommandInvocations",
+        "ssm:SendCommand"
+    ],
+    "Resource": "*"
+}
+```
+
+Add the following trust relationship, which allows the <Var name="Discovery Service role's ARN" /> to assume it:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "<Var name="Discovery Service role's ARN" />"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+## Step 5/7. Install Teleport on the Discovery Node
+<Admonition type="tip">
+If you plan on running the Discovery Service on the same Node already running another Teleport service (Auth or Proxy, for example), you can skip this step.
+</Admonition>
+
+Install Teleport on the EC2 instance that will run the Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 6/7. Configure Teleport to discover EC2 instances
+
+If you are running the Discovery Service on its own host, the service requires a
+valid invite token to connect to the cluster. Generate one by running the
+following command against your Teleport Auth Service:
+
+```code
+$ tctl tokens add --type=discovery
+```
+
+Save the generated token in `/tmp/token` on the Node (EC2 instance) that will
+run the Discovery Service.
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+Assign <Var name="teleport.example.com:443" /> to the host and port of the Teleport Proxy Service in your cluster,
+and <Var name="aws-prod" /> to a name that identifies a group of resources that you will enroll:
+
+```yaml
+# teleport.yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+discovery_service:
+  enabled: true
+  discovery_group: <Var name="aws-prod" />
+```
+
+Create a matcher for the resources you want to enroll.
+
+<Admonition type="tip">
+Dynamic configuration uses Discovery Configs which can be managed using Terraform.
+See the [Terraform `discovery_config` reference](../../../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
+
+Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
+</Admonition>
+
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+  Create a Discovery Config resource, that has the same discovery group you configured earlier, to enable EC2 instance discovery.
+
+  Create a file named `discovery-aws-prod.yaml` with the following content:
+  ```yaml
+  kind: discovery_config
+  version: v1
+  metadata:
+    name: example-discovery-config
+  spec:
+    discovery_group: <Var name="aws-prod" />
+    aws:
+    - types: ["ec2"]
+      regions: ["*"]
+      ssm:
+        document_name: "AWS-RunShellScript"
+      install:
+        join_params:
+          token_name: aws-discovery-iam-token
+          method: iam
+      assume_role:
+        role_name: <Var name="DiscoverEC2AssumedRole" />
+      organization:
+        organization_id: <Var name="o-organisation" />
+        organizational_units:
+            # Include is a list of AWS Organizational Unit IDs and children OUs to include.
+            # Accounts that belong to these OUs, and their children, will be included.
+            # Only exact matches or wildcard (*) are supported.
+            # Required.
+            include: ["*"]
+            # Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+            # Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+            # Only exact matches are supported.
+            # Optional. If empty, no OUs are excluded.
+            exclude: []
+        tags:
+            "env": "prod" # Match EC2 instances where tag:env=prod
+  ```
+  Adjust the keys under `spec.aws` to match your EC2 environment,
+  specifically the tags you want to associate with the Discovery Service.
+
+  Create the Discovery Config by running the following command:
+  ```code
+  $ tctl create -f discovery-aws-prod.yaml
+  ```
+
+  You can update the Discovery Config at any time, and the service will automatically re-apply the changes.
+</TabItem>
+
+<TabItem label="Static configuration">
+  In order to enable EC2 instance discovery the `discovery_service.aws` section
+  of `teleport.yaml` must include at least one entry:
+
+  ```yaml
+  # teleport.yaml
+  # ...
+  discovery_service:
+    enabled: true
+    discovery_group: <Var name="aws-prod" />
+    aws:
+    - types: ["ec2"]
+      regions: ["*"]
+      ssm:
+        document_name: "AWS-RunShellScript"
+      install:
+          join_params:
+            token_name: aws-discovery-iam-token
+            method: iam
+      assume_role_name: <Var name="DiscoverEC2AssumedRole" />
+      organization:
+        organization_id: <Var name="o-organisation" />
+        organizational_units:
+            # Include is a list of AWS Organizational Unit IDs and children OUs to include.
+            # Accounts that belong to these OUs, and their children, will be included.
+            # Only exact matches or wildcard (*) are supported.
+            # Required.
+            include: ["*"]
+            # Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
+            # Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
+            # Only exact matches are supported.
+            # Optional. If empty, no OUs are excluded.
+            exclude: []
+        tags:
+            "env": "prod" # Match EC2 instances where tag:env=prod
+      tags:
+        "env": "prod" # Match EC2 instances where tag:env=prod
+  ```
+  
+  Adjust the keys under `discovery_service.aws` to match your EC2 environment, 
+  specifically the tags you want to associate with the Discovery Service.
+</TabItem>
+
+</Tabs>
+
+## Step 7/7. Start Teleport
+
+(!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+Once you have started the Discovery Service, EC2 instances matching the tags you
+specified earlier will begin to be added to the Teleport cluster automatically.
+
+## Auto-discovery labels
+
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/aws-ec2-advanced-config.mdx!)
+
+## Troubleshooting
+
+(!docs/pages/includes/auto-discovery/ec2-troubleshooting.mdx!)
+
+## Next steps
+
+(!docs/pages/includes/auto-discovery/ec2-next-steps.mdx!)
