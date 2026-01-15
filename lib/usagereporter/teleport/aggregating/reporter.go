@@ -198,6 +198,7 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.AccessRequestReviewEvent,
 			*usagereporter.AccessListReviewCreateEvent,
 			*usagereporter.AccessListGrantsToUserEvent,
+			*usagereporter.TagExecuteQueryEvent,
 			*usagereporter.SessionSummaryCreateEvent,
 			*usagereporter.SessionSummaryAccessEvent:
 			filtered = append(filtered, event)
@@ -541,6 +542,8 @@ Ingest:
 			if te.Success {
 				incrementSessionSummariesGenerated(te.SessionType, te.ResourceName, te.TotalInputTokens, te.TotalOutputTokens)
 			}
+		case *usagereporter.TagExecuteQueryEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessGraphQueries++
 		}
 
 		if ae != nil && r.ingested != nil {
