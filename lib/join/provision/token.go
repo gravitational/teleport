@@ -55,4 +55,7 @@ type Token interface {
 	// GetImmutableLabels returns labels that must be applied to resources
 	// provisioned with this token.
 	GetImmutableLabels() *joiningv1.ImmutableLabels
+	// GetIntegration returns the integration name that provides credentials to validate allow rules.
+	// Currently, this is only used to validate the AWS Organization.
+	GetIntegration() string
 }
