@@ -155,6 +155,22 @@ sequenceDiagram
   Host-->>SSH: SSH connection established
   SSH-->>Proxy: SSH connection established
   Proxy-->>Client: SSH session established
+```
+
+```mermaid
+---
+title: SSH MFA Connection Flow (Leaf Cluster)
+---
+sequenceDiagram
+  autoNumber
+
+  participant Client
+  participant Proxy as Proxy Service
+  participant rMFA as Root MFA Service
+  participant lMFA as Leaf MFA Service
+  participant SSH as SSH Service
+  participant Dec as Decision Service
+  participant Host as Target SSH Host
 
   Client->>Proxy: Dial SSH
   Proxy->>Dec: EvaluateSSHAccess
@@ -244,7 +260,8 @@ message SSHAccessPermit {
   // ... existing fields ...
 
   // Preconditions is a list of conditions that must be satisfied before access is granted.
- repeated Precondition preconditions = 26;
+  // If any precondition is not satisfied, access must be denied.
+  repeated Precondition preconditions = 26;
 }
 
 // Precondition represents a condition that must be satisfied before access is granted.
@@ -255,7 +272,8 @@ message Precondition {
 
 // PreconditionKind defines the types of preconditions that can be specified.
 enum PreconditionKind {
-  // PreconditionKindUnspecified is an unspecified precondition. This value has no effect.
+  // PreconditionKindUnspecified is the default value and indicates that no precondition is specified.
+  // This value should be treated as an error if encountered in required contexts.
   PRECONDITION_KIND_UNSPECIFIED = 0;
   // PreconditionKindInBandMFA requires in-band MFA to be completed.
   PRECONDITION_KIND_IN_BAND_MFA = 1;
@@ -594,6 +612,10 @@ after which all components must support the in‑band MFA flow exclusively.
 Example: if this RFD is implemented in Teleport 20.0.0, the transition period covers releases 20.x and 19.x and will end
 with the release of 21.0.0. Starting with 21.0.0, all components must support in‑band MFA enforcement only.
 
+This transition period might be too long for some environments that want to enforce in-band MFA sooner for improved
+security. To accommodate these environments, an [opt-in configuration option](#early-adopters--opt-in-feature-gate) will
+be provided to allow early adopters to enable in-band MFA enforcement before the end of the transition period.
+
 #### SSH Service
 
 The SSH service will continue to support legacy clients that rely on per-session MFA SSH certificates during the
@@ -644,6 +666,28 @@ A modern client can differentiate between legacy and modern agents by checking i
 authentication whether the SSH service sends a keyboard-interactive prompt indicating that MFA is required. If an SSH
 authentication error is received, the client can assume it is connecting to a legacy agent and must generate a
 per-session MFA SSH certificate in order to complete MFA verification.
+
+#### Early Adopters / Opt-In Feature Gate
+
+By default, the system behaves as described in the previous sections supporting both legacy and modern clients and
+agents during the transition period.
+
+Set the environment variable `TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA=yes` on all components to force exclusive use of the
+in‑band MFA flow for testing and early adoption. To disable the flag, unset the environment variable.
+
+For environments deploying a fresh Teleport cluster during the transition period, it is recommended to enable this flag
+to ensure that all components use the in‑band MFA flow from the start.
+
+When the flag is set, the following changes occur:
+
+1. Modern clients will not request per-session MFA certificates and will use the in‑band MFA flow.
+1. Modern agents will reject per-session MFA certificates and require in‑band MFA for connections that need MFA.
+1. All clients will no longer be able to request per-session MFA certificates from the Auth service.
+
+> Warning: intended for testing/early adopters only. Enabling this will break connections from legacy clients or legacy
+> agents that still rely on per-session MFA certificates. Remove the flag once the environment has completed migration
+> to the in‑band flow. Once the transition period is over, the flag will be removed and modern clients and agents will
+> exclusively use the in‑band MFA flow.
 
 ### Audit Events
 

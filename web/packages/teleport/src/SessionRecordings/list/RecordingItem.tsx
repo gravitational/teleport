@@ -21,8 +21,8 @@ import {
   Suspense,
   useMemo,
   type ComponentType,
+  type MouseEventHandler,
   type PropsWithChildren,
-  type ReactNode,
 } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Link } from 'react-router-dom';
@@ -31,6 +31,7 @@ import styled, { css } from 'styled-components';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import {
+  Application,
   ArrowRight,
   Database,
   Desktop,
@@ -55,12 +56,17 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { RecordingThumbnail } from './RecordingThumbnail';
 import { Density, ViewMode } from './ViewSwitcher';
 
-// ActionSlot is a function that takes a sessionId and the type of the recording,
-// and returns a ReactNode, for placing a button on each session recording.
-export type ActionSlot = (sessionId: string, type: RecordingType) => ReactNode;
+export interface RecordingActionProps {
+  durationMs: number;
+  recordingType: RecordingType;
+  createdDate: Date;
+  sessionId: string;
+  username: string;
+  hostname: string;
+}
 
 export interface RecordingItemProps {
-  actionSlot?: ActionSlot;
+  actionComponent?: ComponentType<RecordingActionProps>;
   density: Density;
   recording: Recording;
   thumbnailStyles: string;
@@ -68,7 +74,7 @@ export interface RecordingItemProps {
 }
 
 export function RecordingItem({
-  actionSlot,
+  actionComponent: ActionComponent,
   density,
   recording,
   thumbnailStyles,
@@ -94,14 +100,15 @@ export function RecordingItem({
     }
   );
 
-  const actions = useMemo(
-    () => actionSlot?.(recording.sid, recording.recordingType),
-    [actionSlot, recording.sid, recording.recordingType]
-  );
-
   const hasThumbnail = RECORDING_TYPES_WITH_THUMBNAILS.includes(
     recording.recordingType
   );
+
+  const handleClick: MouseEventHandler<HTMLAnchorElement> = e => {
+    if (!recording.playable) {
+      e.preventDefault();
+    }
+  };
 
   return (
     <RecordingItemContainer
@@ -111,6 +118,7 @@ export function RecordingItem({
       playable={recording.playable}
       density={density}
       viewMode={viewMode}
+      onClick={handleClick}
     >
       <ThumbnailContainer density={density} viewMode={viewMode}>
         {recording.playable ? (
@@ -176,7 +184,16 @@ export function RecordingItem({
             <Box flex="1">
               <CopyButton value={recording.sid} ml={2} />
             </Box>
-            {recording.playable && actions}
+            {recording.playable && ActionComponent && (
+              <ActionComponent
+                durationMs={recording.duration}
+                createdDate={recording.createdDate}
+                recordingType={recording.recordingType}
+                sessionId={recording.sid}
+                username={recording.user}
+                hostname={recording.hostname}
+              />
+            )}
           </Flex>
         </RecordingDetails>
       </Flex>
@@ -195,10 +212,9 @@ const RecordingItemContainer = styled(Link).withConfig({
     overflow: hidden; // Needed to keep the rectangular contents from bleeding out of the round corners.
     display: flex;
     flex-grow: 0;
-    cursor: pointer;
+    cursor: ${p.playable ? 'pointer' : 'default'};
     text-decoration: none;
     color: ${p.theme.colors.text.main};
-    pointer-events: ${p.playable ? 'all' : 'none'};
 
     &:hover {
       background: ${p.theme.colors.levels.surface};
@@ -363,6 +379,12 @@ export function getRecordingTypeInfo(type: RecordingType): {
       return {
         icon: Desktop,
         label: 'Desktop Session',
+      };
+
+    case 'app':
+      return {
+        icon: Application,
+        label: 'Application Session Chunk',
       };
   }
 }

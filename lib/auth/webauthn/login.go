@@ -78,18 +78,18 @@ func isReuseAllowedForScope(scope mfav1.ChallengeScope) bool {
 	}
 }
 
-func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*wantypes.CredentialAssertion, error) {
-	if challengeExtensions == nil {
+func (f *loginFlow) begin(ctx context.Context, params BeginParams) (*wantypes.CredentialAssertion, error) {
+	if params.ChallengeExtensions == nil {
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	if challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && !isReuseAllowedForScope(challengeExtensions.Scope) {
-		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", challengeExtensions.Scope)
+	if params.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && !isReuseAllowedForScope(params.ChallengeExtensions.Scope) {
+		return nil, trace.BadParameter("mfa challenges with scope %s cannot allow reuse", params.ChallengeExtensions.Scope)
 	}
 
 	// discoverableLogin identifies logins started with an unknown/empty user.
-	discoverableLogin := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
-	if user == "" && !discoverableLogin {
+	discoverableLogin := params.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+	if params.User == "" && !discoverableLogin {
 		return nil, trace.BadParameter("user required")
 	}
 
@@ -97,13 +97,13 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	if discoverableLogin {
 		u = &webUser{} // Issue anonymous challenge.
 	} else {
-		webID, err := f.getWebID(ctx, user)
+		webID, err := f.getWebID(ctx, params.User)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// Use existing devices to set the allowed credentials.
-		devices, err := f.identity.GetMFADevices(ctx, user, false /* withSecrets */)
+		devices, err := f.identity.GetMFADevices(ctx, params.User, false /* withSecrets */)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -120,7 +120,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. " +
 				"Consider reverting the change or reset your users so they may register their devices again."
 			log.ErrorContext(ctx, msg,
-				"user", user,
+				"user", params.User,
 				"device", devices[i].GetName(),
 				"rpid", webDev.CredentialRpId,
 			)
@@ -143,7 +143,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 		})
 
 		u = newWebUser(webUserOpts{
-			name:             user,
+			name:             params.User,
 			webID:            webID,
 			devices:          devices,
 			credentialIDOnly: true,
@@ -155,7 +155,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 			if foundInvalid {
 				return nil, trace.Wrap(ErrInvalidCredentials)
 			}
-			return nil, trace.NotFound("found no credentials for user %q", user)
+			return nil, trace.NotFound("found no credentials for user %q", params.User)
 		}
 	}
 
@@ -170,8 +170,8 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 	// Set the user verification requirement, if present, only for
 	// non-discoverable logins.
 	// For discoverable logins we rely on the wan.WebAuthn default set below.
-	if !discoverableLogin && challengeExtensions.UserVerificationRequirement != "" {
-		uvr := protocol.UserVerificationRequirement(challengeExtensions.UserVerificationRequirement)
+	if !discoverableLogin && params.ChallengeExtensions.UserVerificationRequirement != "" {
+		uvr := protocol.UserVerificationRequirement(params.ChallengeExtensions.UserVerificationRequirement)
 		opts = append(opts, wan.WithUserVerification(uvr))
 	}
 
@@ -202,12 +202,22 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 		return nil, trace.Wrap(err)
 	}
 	sd.ChallengeExtensions = &mfatypes.ChallengeExtensions{
-		Scope:                       challengeExtensions.Scope,
-		AllowReuse:                  challengeExtensions.AllowReuse,
-		UserVerificationRequirement: challengeExtensions.UserVerificationRequirement,
+		Scope:                       params.ChallengeExtensions.Scope,
+		AllowReuse:                  params.ChallengeExtensions.AllowReuse,
+		UserVerificationRequirement: params.ChallengeExtensions.UserVerificationRequirement,
 	}
 
-	if err := f.sessionData.Upsert(ctx, user, sd); err != nil {
+	// Attach SIP if provided.
+	if params.SessionIdentifyingPayload != nil {
+		sd.Payload = &mfatypes.SessionIdentifyingPayload{
+			SSHSessionID: params.SessionIdentifyingPayload.GetSshSessionId(),
+		}
+	}
+
+	// Attach source and target cluster names.
+	sd.SourceCluster, sd.TargetCluster = params.SourceCluster, params.TargetCluster
+
+	if err := f.sessionData.Upsert(ctx, params.User, sd); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -234,6 +244,12 @@ type LoginData struct {
 	// AllowReuse is whether the webauthn challenge used for this login
 	// can be reused by the user for subsequent logins, until it expires.
 	AllowReuse mfav1.ChallengeAllowReuse
+	// Payload is the optional session identifying payload to attach to the login.
+	Payload *mfatypes.SessionIdentifyingPayload
+	// SourceCluster is the source cluster name associated with this login.
+	SourceCluster string
+	// TargetCluster is the target cluster name associated with this login.
+	TargetCluster string
 }
 
 func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
@@ -429,9 +445,12 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	}
 
 	return &LoginData{
-		User:       user,
-		Device:     dev,
-		AllowReuse: sd.ChallengeExtensions.AllowReuse,
+		User:          user,
+		Device:        dev,
+		AllowReuse:    sd.ChallengeExtensions.AllowReuse,
+		Payload:       sd.Payload,
+		SourceCluster: sd.SourceCluster,
+		TargetCluster: sd.TargetCluster,
 	}, nil
 }
 

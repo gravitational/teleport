@@ -1,5 +1,6 @@
 ---
 title: Protect Azure CLIs and APIs with Teleport
+sidebar_label: Azure
 description: How to enable secure access to Azure CLIs.
 tags:
  - teleport-as-idp
@@ -21,8 +22,7 @@ In this guide, you will:
 
 (!docs/pages/includes/application-access/azure-how-it-works.mdx deployment="on an Azure VM" credential="managed identities"!)
 
-Alternatively, you can use the [Teleport SAML IdP](
-../../../identity-governance/idps/saml-microsoft-entra-external-id.mdx)-based
+Alternatively, you can use the [Teleport SAML IdP](../../../identity-governance/idps/usage/saml-microsoft-entra-external-id.mdx)-based
 integration to manage access to Azure Portal and CLI applications.  In this
 approach, users [interactively sign in](
 https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively)
@@ -240,7 +240,7 @@ Application Service host.
   longstanding admin roles for attackers to hijack. View our documentation on
   [Role Access
   Requests](../../../identity-governance/access-requests/role-requests.mdx) and
-  [Access Request plugins](../../../identity-governance/access-request-plugins/access-request-plugins.mdx).
+  [Access Request plugins](../../../identity-governance/access-requests/plugins/plugins.mdx).
 - Consult the Azure documentation for information about [Azure managed
   identities](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   and how to [manage user-assigned managed

@@ -403,7 +403,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 						eksClusters:       eksMockClusters[:2],
 					},
 					ClusterFeatures:  func() proto.Features { return proto.Features{} },
-					KubernetesClient: fake.NewSimpleClientset(),
+					KubernetesClient: fake.NewClientset(),
 					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
 					Matchers: Matchers{
 						AWS: tc.awsMatchers,
@@ -519,6 +519,11 @@ func (m *mockIntegrationsTokenGenerator) GetIntegration(ctx context.Context, nam
 // GetProxies returns a list of registered proxies.
 func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
+}
+
+// ListProxyServers returns a paginated list of registered proxies.
+func (m *mockIntegrationsTokenGenerator) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return m.proxies, "", nil
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.

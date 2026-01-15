@@ -17,6 +17,7 @@
  */
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -137,15 +138,19 @@ interface Props<K> {
  */
 export interface Action {
   content: React.ReactNode;
+  /**
+   * a link that takes user out of the app (new tab)
+   */
   href?: string;
+  /**
+   * a link that takes you to a different route within the app
+   */
+  linkTo?: string;
   onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps
-  extends Props<AlertKind>,
-    SpaceProps,
-    WidthProps,
-    ColorProps {
+  extends Props<AlertKind>, SpaceProps, WidthProps, ColorProps {
   linkColor?: string;
   /**
    * If specified, the alert's contents will wrap for narrower screens
@@ -188,7 +193,7 @@ export const Alert = ({
   wrapContents = false,
   ...otherProps
 }: AlertProps) => {
-  const alertIconSize = kind === 'neutral' ? 'large' : 'small';
+  const alertIconSize = 'small';
   const [dismissed, setDismissed] = useState(false);
 
   const onDismissClick = () => {
@@ -319,7 +324,8 @@ const iconContainerStyles = ({
     case 'neutral':
       return {
         color: theme.colors.text.main,
-        background: 'none',
+        background: theme.colors.interactive.tonal.neutral[0],
+        padding: `${theme.space[2]}px`,
       };
   }
 };
@@ -382,7 +388,7 @@ const ActionButtons = ({
       )}
       {secondaryAction && (
         <ActionButton
-          fill="minimal"
+          fill={kind === 'neutral' ? 'filled' : 'minimal'}
           intent="neutral"
           action={secondaryAction}
         />
@@ -398,7 +404,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick },
+  action: { href, content, onClick, linkTo },
   fill,
   intent,
   inputAlignment = false,
@@ -411,33 +417,36 @@ export const ActionButton = ({
   inputAlignment?: boolean;
   disabled?: boolean;
   title?: string;
-}) =>
-  href ? (
-    <Button
-      as="a"
-      href={href}
-      target="_blank"
-      fill={fill}
-      intent={intent}
-      onClick={onClick}
-      inputAlignment={inputAlignment}
-      disabled={disabled}
-      title={title}
-    >
-      {content}
-    </Button>
-  ) : (
-    <Button
-      fill={fill}
-      intent={intent}
-      onClick={onClick}
-      inputAlignment={inputAlignment}
-      disabled={disabled}
-      title={title}
-    >
-      {content}
-    </Button>
-  );
+}) => {
+  const sharedProps = {
+    fill,
+    intent,
+    onClick,
+    disabled,
+    title,
+    // Prevent props being passed to underlying React element
+    // and removes "React does not recognize <field> on a DOM element"
+    // error.
+    $inputAlignment: inputAlignment,
+  };
+
+  if (href) {
+    return (
+      <Button {...sharedProps} as="a" href={href} target="_blank">
+        {content}
+      </Button>
+    );
+  }
+
+  if (linkTo) {
+    return (
+      <Button {...sharedProps} as={Link} to={linkTo}>
+        {content}
+      </Button>
+    );
+  }
+  return <Button {...sharedProps}>{content}</Button>;
+};
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;

@@ -54,7 +54,12 @@ $ {{.Name}}{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]
 ---
 title: {{.App.Name}} Reference
 description: Provides a comprehensive list of commands, arguments, and flags for {{.App.Name}}.
+sidebar_label: {{.App.Name}}
+tags:
+  - reference
+  - {{if eq .App.Name "tbot"}}mwi{{else}}platform-wide{{end}}
 ---
+{/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
 {{.App.Name}}: {{ if .App.Help -}}
@@ -62,7 +67,7 @@ This guide provides a comprehensive list of commands, arguments, and flags for
 {{ end -}}
 
 {{template "FormatUsage" .App -}}
-{{if .Context.Flags -}}
+{{if .Context.Flags|AnyVisibleFlags -}}
 Global flags:
 
 |Flag|Default|Description|

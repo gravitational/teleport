@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -92,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 type testPack struct {
@@ -215,14 +217,19 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 		return testPack{}, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
-		return testPack{}, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
-		return testPack{}, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
-		return testPack{}, trace.Wrap(err)
+	clusterName := p.clusterName.GetClusterName()
+	for _, caType := range []types.CertAuthType{
+		types.UserCA,
+		types.HostCA,
+		types.OpenSSHCA,
+	} {
+		ca, err := authcatest.NewCA(caType, clusterName)
+		if err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
+		if err := p.a.UpsertCertAuthority(ctx, ca); err != nil {
+			return testPack{}, trace.Wrap(err)
+		}
 	}
 
 	return p, nil
@@ -519,7 +526,7 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	const pass2 = "supersecretpassword!!2!"
 
 	// Create the require-trusted-device role.
-	rtdRole := services.NewPresetRequireTrustedDeviceRole()
+	rtdRole := services.NewPresetRequireTrustedDeviceRole(modules.BuildEnterprise)
 	require.NotNil(t, rtdRole, "require-trusted-device role is nil, are the modules set to Enterprise?")
 	_, err := authServer.UpsertRole(ctx, rtdRole)
 	require.NoError(t, err, "UpsertRole(%q) failed", rtdRole.GetName())
@@ -1314,8 +1321,12 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, authtest.NewTestCA(types.HostCA, "test")))
+	userCA, err := authcatest.NewCA(types.UserCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, userCA))
+	hostCA, err := authcatest.NewCA(types.HostCA, "test")
+	require.NoError(t, err)
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, hostCA))
 
 	err = s.a.CreateReverseTunnel(ctx, tc)
 	require.NoError(t, err)
@@ -3200,7 +3211,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	deleteReqUsingToken := func(tokenReq authclient.CreateUserTokenRequest) func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
 		return func(t *testing.T) *proto.DeleteMFADeviceSyncRequest {
-			token, err := authServer.NewUserToken(tokenReq)
+			token, err := authServer.NewUserToken(ctx, tokenReq)
 			require.NoError(t, err, "newUserToken")
 
 			_, err = authServer.CreateUserToken(ctx, token)
@@ -3405,7 +3416,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 			deleteReq := test.deleteReq
 
 			if test.tokenRequest != nil {
-				token, err := authServer.NewUserToken(*test.tokenRequest)
+				token, err := authServer.NewUserToken(ctx, *test.tokenRequest)
 				require.NoError(t, err)
 				_, err = authServer.CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
@@ -3623,7 +3634,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 			wantErr: true,
 			getReq: func(t *testing.T, deviceName string) *proto.AddMFADeviceSyncRequest {
 				// Obtain a non privilege token.
-				token, err := authServer.NewUserToken(authclient.CreateUserTokenRequest{
+				token, err := authServer.NewUserToken(ctx, authclient.CreateUserTokenRequest{
 					Name: u.username,
 					TTL:  5 * time.Minute,
 					Type: authclient.UserTokenTypeResetPassword,
@@ -3812,7 +3823,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 			tokenID := "test-token-not-found"
 
 			if tc.tokenRequest != nil {
-				token, err := srv.Auth().NewUserToken(*tc.tokenRequest)
+				token, err := srv.Auth().NewUserToken(ctx, *tc.tokenRequest)
 				require.NoError(t, err)
 				_, err = srv.Auth().CreateUserToken(context.Background(), token)
 				require.NoError(t, err)
@@ -4046,7 +4057,9 @@ func TestCAGeneration(t *testing.T) {
 
 	for _, caType := range types.CertAuthTypes {
 		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := authtest.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
+			ca, err := authcatest.NewCA(caType, clusterName, privKey)
+			require.NoError(t, err)
+			testKeySet := ca.Spec.ActiveKeys
 			keySet, err := auth.NewKeySet(ctx, keyStoreManager, types.CertAuthID{Type: caType, DomainName: clusterName})
 			require.NoError(t, err)
 
@@ -4280,8 +4293,11 @@ func TestAccessRequestNotifications(t *testing.T) {
 		Clock: fakeClock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
 	testTLSServer, err := testAuthServer.NewTestTLSServer()
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testTLSServer.Close()) })
 
 	reviewerUsername := "reviewer"
 	requesterUsername := "requester"
@@ -4523,6 +4539,7 @@ func TestCleanupNotifications(t *testing.T) {
 		CacheEnabled: true,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	srv, err := authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -4720,24 +4737,31 @@ func TestCreateAccessListReminderNotifications(t *testing.T) {
 	}
 
 	// Run CreateAccessListReminderNotifications()
-	authServer.CreateAccessListReminderNotifications(ctx)
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
+
+	reminderNotificationSubKind := func(n *notificationsv1.Notification) string { return n.GetSubKind() }
+	expectedSubKinds := []string{
+		"access-list-review-overdue-7d",
+		"access-list-review-overdue-3d",
+		"access-list-review-due-0d",
+		"access-list-review-due-3d",
+		"access-list-review-due-7d",
+		"access-list-review-due-14d",
+	}
 
 	// Check notifications
-	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize: 50,
-	})
+	resp, err := client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 6)
+	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind))
 
-	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created if it's run again.
-	authServer.CreateAccessListReminderNotifications(ctx)
+	// Run CreateAccessListReminderNotifications() again to verify no duplicates are created
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond))
 
 	// Check notifications again, counts should remain the same.
-	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{
-		PageSize: 50,
-	})
+	resp, err = client.ListNotifications(ctx, &notificationsv1.ListNotificationsRequest{})
 	require.NoError(t, err)
-	require.Len(t, resp.Notifications, 6)
+	require.ElementsMatch(t, expectedSubKinds, slices.Map(resp.Notifications, reminderNotificationSubKind),
+		"notifications should not have changed after second reconciliation")
 }
 
 type createAccessListOptions struct {
@@ -4795,6 +4819,84 @@ func createAccessList(t *testing.T, authServer *auth.Server, name string, opts .
 
 	_, err = authServer.UpsertAccessList(ctx, al)
 	require.NoError(t, err)
+}
+
+func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
+	ctx := t.Context()
+
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+		},
+	})
+
+	// Setup test auth server
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
+
+	testRole, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:         []string{"user"},
+			ReviewRequests: &types.AccessReviewConditions{},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, testRole)
+	require.NoError(t, err)
+
+	testUsername := "user1"
+	user, err := types.NewUser(testUsername)
+	require.NoError(t, err)
+	user.SetRoles([]string{"test"})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Create 2001 overdue access lists
+	// All are overdue by 10 days, which should trigger "overdue by more than 7 days" notification
+	const numAccessLists = 2001
+	overdueBy := -10 // 10 days overdue
+	nextAuditDate := authServer.GetClock().Now().Add(time.Duration(overdueBy) * 24 * time.Hour)
+
+	for i := range numAccessLists {
+		createAccessList(t, authServer, fmt.Sprintf("al-overdue-%d", i),
+			withOwners([]accesslist.Owner{{Name: testUsername}}),
+			withNextAuditDate(nextAuditDate),
+		)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		lists, err := testServer.Auth().Cache.GetAccessLists(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, lists, numAccessLists, "should have created all %d overdue access lists", numAccessLists)
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// Run CreateAccessListReminderNotifications()
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond), auth.WithAccessListsPageReadInterval(time.Nanosecond))
+
+	identifiers := collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
+	require.Len(t, identifiers, numAccessLists,
+		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
+
+	// Run CreateAccessListReminderNotifications() again to verify it can read multiple pages of identifiers without memory leak
+	authServer.CreateAccessListReminderNotifications(ctx, auth.WithCreateNotificationInterval(time.Nanosecond), auth.WithAccessListsPageReadInterval(time.Nanosecond))
+
+	identifiers = collectAllUniqueNotificationIdentifiers(t, ctx, authServer, types.NotificationIdentifierPrefixAccessListOverdue7d)
+	require.Len(t, identifiers, numAccessLists,
+		"should have created unique identifiers for all %d overdue access lists", numAccessLists)
+}
+
+func collectAllUniqueNotificationIdentifiers(t *testing.T, ctx context.Context, authServer *auth.Server, prefix string) []*notificationsv1.UniqueNotificationIdentifier {
+	t.Helper()
+
+	identifiers, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+		return authServer.ListUniqueNotificationIdentifiersForPrefix(ctx, prefix, pageSize, pageKey)
+	}))
+	require.NoError(t, err, "listing unique notification identifiers for prefix %q", prefix)
+
+	return identifiers
 }
 
 func TestServer_GetAnonymizationKey(t *testing.T) {
@@ -4910,6 +5012,7 @@ func TestServerHostnameSanitization(t *testing.T) {
 	ctx := context.Background()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	cases := []struct {
 		name            string

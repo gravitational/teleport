@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -178,6 +179,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 		out.Resource = &proto.Event_RelayServer{
 			RelayServer: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
+		out.Resource = &proto.Event_AppAuthConfig{
+			AppAuthConfig: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -687,6 +692,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetPlugin(); r != nil {
 		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAppAuthConfig(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetLinuxDesktop(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)

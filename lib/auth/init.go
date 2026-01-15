@@ -45,6 +45,7 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -281,7 +283,7 @@ type InitConfig struct {
 	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
@@ -315,6 +317,10 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
+	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
+	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 
 	// Tracer used to create spans.
 	Tracer oteltrace.Tracer
@@ -423,6 +429,13 @@ type InitConfig struct {
 
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
+
+	// AppAuthConfig is the service for storing and retrieving
+	// app auth config resources.
+	AppAuthConfig services.AppAuthConfig
+
+	// MFAService is the service that manages backend MFA resources.
+	MFAService MFAService
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -672,13 +685,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	// Create presets - convenience and example resources.
 	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		span.AddEvent("creating preset roles")
-		if err := createPresetRoles(ctx, asrv); err != nil {
+		if err := createPresetRoles(ctx, modules.GetModules().BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset roles")
 
 		span.AddEvent("creating preset users")
-		if err := createPresetUsers(ctx, asrv); err != nil {
+		if err := createPresetUsers(ctx, modules.GetModules().BuildType(), asrv); err != nil {
 			return trace.Wrap(err)
 		}
 		span.AddEvent("completed creating preset users")
@@ -1315,22 +1328,33 @@ type PresetRoleManager interface {
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
 // this cluster.
-func GetPresetRoles() []types.Role {
+func GetPresetRoles(buildTypes ...string) []types.Role {
+	// TODO(tross): make this take a single buildType after all uses are updated.
+	var buildType string
+	switch len(buildTypes) {
+	case 0:
+		buildType = modules.GetModules().BuildType()
+	case 1:
+		buildType = buildTypes[0]
+	default:
+		return nil
+	}
+
 	presets := []types.Role{
-		services.NewPresetGroupAccessRole(),
+		services.NewPresetGroupAccessRole(buildType),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
-		services.NewPresetReviewerRole(),
-		services.NewPresetRequesterRole(),
-		services.NewSystemAutomaticAccessApproverRole(),
-		services.NewPresetDeviceAdminRole(),
-		services.NewPresetDeviceEnrollRole(),
-		services.NewPresetRequireTrustedDeviceRole(),
-		services.NewSystemOktaAccessRole(),
-		services.NewSystemOktaRequesterRole(),
+		services.NewPresetReviewerRole(buildType),
+		services.NewPresetRequesterRole(buildType),
+		services.NewSystemAutomaticAccessApproverRole(buildType),
+		services.NewPresetDeviceAdminRole(buildType),
+		services.NewPresetDeviceEnrollRole(buildType),
+		services.NewPresetRequireTrustedDeviceRole(buildType),
+		services.NewSystemOktaAccessRole(buildType),
+		services.NewSystemOktaRequesterRole(buildType),
 		services.NewPresetTerraformProviderRole(),
-		services.NewSystemIdentityCenterAccessRole(),
+		services.NewSystemIdentityCenterAccessRole(buildType),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
@@ -1344,8 +1368,8 @@ func GetPresetRoles() []types.Role {
 }
 
 // createPresetRoles creates preset role resources
-func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
-	roles := GetPresetRoles()
+func createPresetRoles(ctx context.Context, buildType string, rm PresetRoleManager) error {
+	roles := GetPresetRoles(buildType)
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, role := range roles {
@@ -1377,7 +1401,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 					return trace.Wrap(err)
 				}
 
-				role, err := services.AddRoleDefaults(gctx, currentRole)
+				role, err := services.AddRoleDefaults(gctx, buildType, currentRole)
 				if trace.IsAlreadyExists(err) {
 					return nil
 				}
@@ -1410,9 +1434,9 @@ type PresetUsers interface {
 
 // getPresetUsers returns a list of all preset users expected to be available on
 // this cluster.
-func getPresetUsers() []types.User {
+func getPresetUsers(buildType string) []types.User {
 	presets := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
+		services.NewSystemAutomaticAccessBotUser(buildType),
 	}
 
 	// Certain `New$FooUser()` functions will return a nil role if the
@@ -1423,8 +1447,8 @@ func getPresetUsers() []types.User {
 
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
-func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := getPresetUsers()
+func createPresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
+	users := getPresetUsers(buildType)
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped
@@ -1749,6 +1773,8 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
+			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

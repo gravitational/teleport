@@ -53,9 +53,8 @@ BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
 BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -gcflags=all="-N -l" -buildvcs=false
 else
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
-# teleport-update builds with disabled cgo, buildmode=pie is not required.
 BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
@@ -321,9 +320,8 @@ ifneq ("$(ARCH)","amd64")
 $(error "Building for windows requires ARCH=amd64")
 endif
 CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildmode=pie -buildvcs=false
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
-# teleport-update builds with disabled cgo, buildmode=pie is not required.
 BUILDFLAGS_TELEPORT_UPDATE = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath -buildvcs=false
 endif
 
@@ -404,8 +402,6 @@ $(BUILDDIR)/tsh:
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
 # We force cgo to be disabled, else the compiler might decide to enable it.
 $(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG),CGO_ENABLED=0)
-# Build mode pie requires CGO
-$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(findstring CGO_ENABLED=1,$(TBOT_CGO_FLAGS)), -buildmode=pie)
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) $(TOOLS_LDFLAGS) ./tool/tbot
 
@@ -919,6 +915,7 @@ test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/access/*
 	helm unittest -3 --with-subchart=false examples/chart/event-handler
 	helm unittest -3 --with-subchart=false examples/chart/tbot
+	helm unittest -3 --with-subchart=false examples/chart/tbot-spiffe-daemon-set
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
@@ -929,6 +926,7 @@ test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/access/*
 	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
 	helm unittest -3 -u --with-subchart=false examples/chart/tbot
+	helm unittest -3 -u --with-subchart=false examples/chart/tbot-spiffe-daemon-set
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -1267,7 +1265,7 @@ lint-go:
 
 .PHONY: fix-imports
 fix-imports:
-	$(MAKE) -C build.assets/ fix-imports
+	$(MAKE) -C build.assets fix-imports
 
 .PHONY: fix-imports/host
 fix-imports/host:
@@ -1324,7 +1322,7 @@ lint-helm:
 		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot ./examples/chart/tbot-spiffe-daemon-set; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
@@ -2013,9 +2011,30 @@ audit-event-reference-up-to-date: must-start-clean/host audit-event-reference
 		exit 1; \
 	fi
 
+.PHONY: access-monitoring-reference
+access-monitoring-reference:
+	cd ./build.assets/tooling/cmd/gen-athena-docs && go run main.go > ../../../../docs/pages/includes/access-monitoring-events.mdx
+
+.PHONY: access-monitoring-reference-up-to-date
+access-monitoring-reference-up-to-date: access-monitoring-reference
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "Access Monitoring event reference docs" "make access-monitoring-reference"; \
+		exit 1; \
+	fi
+
 .PHONY: gen-docs
-gen-docs:
+gen-docs: gen-resource-docs audit-event-reference
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
-	$(MAKE) audit-event-reference
+
+.PHONY: gen-resource-docs
+gen-resource-docs:
+	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
+
+.PHONY: resource-docs-up-to-date
+resource-docs-up-to-date: must-start-clean/host gen-resource-docs
+	@if ! git diff --quiet; then \
+		./build.assets/please-run.sh "tctl resource reference docs" "make gen-resource-docs"; \
+		exit 1; \
+	fi

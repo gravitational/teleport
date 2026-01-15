@@ -63,6 +63,8 @@ type User interface {
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected SAML identities
 	GetSAMLIdentities() []ExternalIdentity
+	// SetSAMLIdentities sets a list of connected SAML identities
+	SetSAMLIdentities([]ExternalIdentity)
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
 	// SetGithubIdentities sets the list of connected GitHub identities
@@ -258,6 +260,7 @@ func (u *UserV2) SetStaticLabels(sl map[string]string) {
 // match against the list of search values.
 func (u *UserV2) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(u.Metadata.Labels), u.GetName())
+	fieldVals = append(fieldVals, u.GetRoles()...)
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -455,6 +458,11 @@ func (u *UserV2) GetOIDCIdentities() []ExternalIdentity {
 // GetSAMLIdentities returns a list of connected SAML identities
 func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 	return u.Spec.SAMLIdentities
+}
+
+// SetSAMLIdentities sets a list of connected SAML identities
+func (u *UserV2) SetSAMLIdentities(identities []ExternalIdentity) {
+	u.Spec.SAMLIdentities = identities
 }
 
 // GetGithubIdentities returns a list of connected Github identities

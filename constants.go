@@ -132,6 +132,10 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDatabaseHealth is the endpoint health checking component of the
+	// database proxy service.
+	ComponentDatabaseHealth = "db:health"
+
 	// ComponentDiscovery is the Discovery service.
 	ComponentDiscovery = "discovery:service"
 

@@ -812,6 +812,26 @@ const (
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
 
+	// AppAuthConfigCreateCode is the app auth config create event code.
+	AppAuthConfigCreateCode = "TAAC001I"
+	// AppAuthConfigUpdateCode is the app auth config update event code.
+	AppAuthConfigUpdateCode = "TAAC002I"
+	// AppAuthConfigDeleteCode is the app auth config delete event code.
+	AppAuthConfigDeleteCode = "TAAC003I"
+	// AppAuthConfigVerifySuccessCode is the app auth verification success event
+	// code.
+	AppAuthConfigVerifySuccessCode = "TAAC004I"
+	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
+	// code.
+	AppAuthConfigVerifyFailureCode = "TAAC004E"
+
+	// VnetConfigCreateCode is the Vnet config create event code.
+	VnetConfigCreateCode = "TVNET001I"
+	// VnetConfigUpdateCode is the Vnet config update event code.
+	VnetConfigUpdateCode = "TVNET002I"
+	// VnetConfigDeleteCode is the Vnet config delete event code.
+	VnetConfigDeleteCode = "TVNET003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

@@ -3,6 +3,7 @@
     "type": "object",
     "required": [
         "proxyAddr",
+        "relayAddr",
         "roles",
         "joinParams",
         "kubeClusterName",
@@ -47,6 +48,11 @@
         },
         "proxyAddr": {
             "$id": "#/properties/proxyAddr",
+            "type": "string",
+            "default": ""
+        },
+        "relayAddr": {
+            "$id": "#/properties/relayAddr",
             "type": "string",
             "default": ""
         },
@@ -266,13 +272,19 @@
             "$id": "#/properties/tls",
             "type": "object",
             "required": [
-                "existingCASecretName"
+                "existingCASecretName",
+                "existingCASecretKeyName"
             ],
             "properties": {
                 "existingCASecretName": {
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
+                },
+                "existingCASecretKeyName": {
+                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
+                    "type": "string",
+                    "default": "ca.pem"
                 }
             }
         },

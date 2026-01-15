@@ -248,6 +248,50 @@ type Application interface {
 
 var _ Application = types.Application(nil)
 
+// ProxiedService is a read only variant of [types.ProxiedService].
+type ProxiedService interface {
+	// GetProxyIDs returns a list of proxy ids this service is connected to.
+	GetProxyIDs() []string
+}
+
+var _ ProxiedService = types.ProxiedService(nil)
+
+// AppServer is a read only variant of [types.AppServer].
+type AppServer interface {
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
+	// GetNamespace returns server namespace.
+	GetNamespace() string
+	// GetTeleportVersion returns the teleport version the server is running on.
+	GetTeleportVersion() string
+	// GetHostname returns the server hostname.
+	GetHostname() string
+	// GetHostID returns ID of the host the server is running on.
+	GetHostID() string
+	// GetRotation gets the state of certificate authority rotation.
+	GetRotation() types.Rotation
+	// String returns string representation of the server.
+	String() string
+	// Copy returns a copy of this app server object.
+	Copy() types.AppServer
+	// GetApp returns the app this app server proxies.
+	GetApp() types.Application
+	// GetTunnelType returns the tunnel type associated with the app server.
+	GetTunnelType() types.TunnelType
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the app server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the app server is
+	// connected to.
+	GetRelayIDs() []string
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
+}
+
+var _ AppServer = types.AppServer(nil)
+
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {
 	// ResourceWithLabels provides common resource methods.
@@ -465,6 +509,9 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *types.GitHubServerMetadata
+
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
 }
 
 var _ Server = types.Server(nil)
@@ -489,3 +536,40 @@ type DynamicWindowsDesktop interface {
 }
 
 var _ DynamicWindowsDesktop = types.DynamicWindowsDesktop(nil)
+
+// CertAuthority represents a teleport certificate authority.
+type CertAuthority interface {
+	// ResourceWithSecrets sets common resource properties
+	types.ResourceWithSecrets
+	// GetID returns certificate authority ID -
+	// combined type and name
+	GetID() types.CertAuthID
+	// GetType returns user or host certificate authority
+	GetType() types.CertAuthType
+	// GetClusterName returns cluster name this cert authority
+	// is associated with
+	GetClusterName() string
+
+	GetActiveKeys() types.CAKeySet
+	GetAdditionalTrustedKeys() types.CAKeySet
+
+	GetTrustedSSHKeyPairs() []*types.SSHKeyPair
+	GetTrustedTLSKeyPairs() []*types.TLSKeyPair
+	GetTrustedJWTKeyPairs() []*types.JWTKeyPair
+
+	// CombinedMapping is used to specify combined mapping from legacy property Roles
+	// and new property RoleMap
+	CombinedMapping() types.RoleMap
+	// GetRoleMap returns role map property
+	GetRoleMap() types.RoleMap
+	// GetRoles returns a list of roles assumed by users signed by this CA
+	GetRoles() []string
+	// String returns human readable version of the CertAuthority
+	String() string
+	// GetRotation returns rotation state.
+	GetRotation() types.Rotation
+	// AllKeyTypes returns the set of all different key types in the CA.
+	AllKeyTypes() []string
+	// Clone returns a copy of the cert authority object.
+	Clone() types.CertAuthority
+}

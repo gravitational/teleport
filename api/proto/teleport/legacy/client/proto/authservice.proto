@@ -25,6 +25,8 @@ import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
 import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
+import "teleport/legacy/types/metadata.proto";
+import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -799,6 +801,9 @@ message GenerateAppTokenRequest {
   ];
   // Traits are the traits assigned to the user within Teleport.
   map<string, wrappers.StringValues> Traits = 5 [(gogoproto.jsontag) = "traits"];
+  // AuthorityType configures which Teleport authority issues the JWT token.
+  // Defaults to JWTSigner ("jwt") if empty.
+  string authority_type = 6;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -1794,6 +1799,20 @@ message WindowsDesktopCertRequest {
   int64 TTL = 3 [(gogoproto.casttype) = "Duration"];
   // CRLDomain is the Active Directory domain where CRLs are published.
   string CRLDomain = 4;
+  // Set by callers that fully support the new Windows CA.
+  //
+  // Auth issues certificates differently according to this parameter:
+  // - false issues certificates using the UserCA
+  //   (Teleport agent versions < 18.x, where 18.x marks the initial release of
+  //   the Windows CA split).
+  // - true issues certificates using the WindowsCA
+  //   (Teleport agent version >= 18.x)
+  //
+  // Transitional. To be removed on Teleport 20, when all agents are expected
+  // to support the Windows CA.
+  //
+  // TODO(codingllama): DELETE IN 20. Explained above.
+  bool SupportsWindowsCA = 5;
 }
 
 // WindowsDesktopCertResponse contains the signed Windows RDP certificate.

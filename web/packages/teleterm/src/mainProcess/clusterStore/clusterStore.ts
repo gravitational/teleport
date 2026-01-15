@@ -107,10 +107,13 @@ export class ClusterStore {
   }
 
   /**
-   * Synchronizes a root cluster.
+   * Synchronizes the root cluster and returns its state before and after the update.
    * Makes network calls to get cluster details and its leaf clusters.
+   * Should only be called via ClusterLifecycleManager.
    */
-  async sync(uri: RootClusterUri): Promise<void> {
+  async sync(
+    uri: RootClusterUri
+  ): Promise<{ previous: Cluster | undefined; next: Cluster }> {
     let cluster: Cluster;
     let leafs: Cluster[];
     const client = await this.getTshdClient();
@@ -132,12 +135,14 @@ export class ClusterStore {
       throw error;
     }
 
+    const previous = this.state.get(uri);
     await this.update(draft => {
       draft.set(cluster.uri, cluster);
       leafs.forEach(leaf => {
         draft.set(leaf.uri, leaf);
       });
     });
+    return { previous, next: cluster };
   }
 
   async set(cluster: Cluster): Promise<void> {

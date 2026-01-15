@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -88,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
@@ -176,6 +178,9 @@ type Handler struct {
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// appServerWatcher ia a app server watcher to speed up app look up.
+	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
 
@@ -225,12 +230,15 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string
 	// GetProxyClientCertificate returns the proxy client certificate.
 	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -304,6 +312,9 @@ type Config struct {
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// AppServerWatcher ia a app server watcher to speed up app look up.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
@@ -344,6 +355,8 @@ func (c *Config) SetDefaults() {
 		c.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
 
+	c.ProxyGroupID = cmp.Or(c.ProxyGroupID, os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"))
+
 	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
@@ -364,7 +377,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := h.handler.appServerWatcher.CurrentResourcesWithFilter(r.Context(), app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -625,6 +638,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		h.nodeWatcher = cfg.NodeWatcher
 	}
 
+	if cfg.AppServerWatcher != nil {
+		h.appServerWatcher = cfg.AppServerWatcher
+	}
+
 	const v1Prefix = "/v1"
 	notFoundRoutingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request is going to the API?
@@ -855,6 +872,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 	h.POST("/webapi/sites/:site/nodes", h.WithClusterAuth(h.handleNodeCreate))
 
+	h.GET("/webapi/sites/:site/instances", h.WithClusterAuth(h.clusterUnifiedInstancesGet))
+
 	// get login alerts
 	h.GET("/webapi/sites/:site/alerts", h.WithClusterAuth(h.clusterLoginAlertsGet))
 
@@ -990,7 +1009,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
+	// TODO(kimlisa): DELETE IN 20.0 along with the api path defined in `config.ts`
+	// Replaced by its v2 endpoint
 	h.GET("/webapi/roles", h.WithAuth(h.listRolesHandle))
+	// v2 introduces a query param for optionally including system roles
+	// in the list and optionally include returning the object version
+	// of resource (only supported for roles).
+	h.GET("/v2/webapi/roles", h.WithAuth(h.listRolesHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.createRoleHandle))
 	h.GET("/webapi/roles/:name", h.WithAuth(h.getRole))
 	h.PUT("/webapi/roles/:name", h.WithAuth(h.updateRoleHandle))
@@ -1211,6 +1236,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessionthumbnail/:session_id", h.WithClusterAuth(h.getSessionRecordingThumbnail))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/metadata/ws", h.WithClusterAuthWebSocket(h.getSessionRecordingMetadata))
 	h.GET("/webapi/sites/:site/sessionrecording/:session_id/playback/ws", h.WithClusterAuthWebSocket(h.recordingPlaybackWS))
+
+	// MWI IaC Wizards
+	h.POST("/webapi/sites/:site/machine-id/wizards/ci-cd", h.WithClusterAuth(h.machineIDWizardGenerateIaC))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1978,15 +2006,10 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	disableRoleVisualizer, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER"))
 
 	sessionSummarizerEnabled := false
-	isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
-		r.Context(), &summarizerv1.IsEnabledRequest{},
-	)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(),
-			"Cannot tell if the session summarizer is enabled, session summarizations won't show up in the UI",
-			"error", err,
-		)
-	} else {
+	if isEnabledRes, err := h.cfg.ProxyClient.SummarizerServiceClient().IsEnabled(
+		r.Context(),
+		&summarizerv1.IsEnabledRequest{},
+	); err == nil {
 		sessionSummarizerEnabled = isEnabledRes.Enabled
 	}
 
@@ -2375,6 +2398,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		RouteToCluster:          req.RouteToCluster,
 		KubernetesCluster:       req.KubernetesCluster,
 		ClientLoginIP:           remoteAddr,
+		Scope:                   req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Failed to create GitHub auth request", "error", err)
@@ -2568,7 +2592,7 @@ type AuthParams struct {
 	HostSigners []types.CertAuthority
 	// ClientRedirectURL is a URL to redirect client to
 	ClientRedirectURL string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 	// MFAToken is an SSO MFA token.
@@ -2747,6 +2771,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	var webSession types.WebSession
 	switch {
@@ -2785,9 +2810,20 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 }
 
 func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
+	var maxTouchPoints int
+	// The frontend client sends Max-Touch-Points only to endpoints that lead to the Device Trust
+	// prompt in the Web UI.
+	rawMaxTouchPoints := r.Header.Get("Max-Touch-Points")
+	if rawMaxTouchPoints != "" {
+		if value, err := strconv.Atoi(rawMaxTouchPoints); err == nil {
+			maxTouchPoints = value
+		}
+	}
+
 	return &authclient.ForwardedClientMetadata{
-		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
+		UserAgent:      r.UserAgent(),
+		RemoteAddr:     r.RemoteAddr,
+		MaxTouchPoints: maxTouchPoints,
 	}
 }
 
@@ -3132,6 +3168,8 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3156,6 +3194,8 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 	}
 
 	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
+
 	session, err := h.auth.AuthenticateWebUser(r.Context(), req, clientMeta)
 	switch {
 	// Since checking for private key policy meant that they passed authn,
@@ -3410,6 +3450,8 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 	getUserGroupLookup := h.getUserGroupLookup(request.Context(), clt)
 
+	clusterAuthProxyFeatures := h.getAuthProxyComponentFeaturesIntersection(request.Context())
+
 	unifiedResources := make([]any, 0, len(page))
 	for _, enriched := range page {
 		switch r := enriched.ResourceWithLabels.(type) {
@@ -3442,6 +3484,11 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				proxyDNSName = utils.FindMatchingProxyDNS(request.Host, h.proxyDNSNames())
 			}
 
+			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
+			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
+			// along the request path.
+			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyFeatures)
+
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
 				LocalProxyDNSName:     proxyDNSName,
@@ -3450,6 +3497,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 				UserGroupLookup:       getUserGroupLookup(),
 				Logger:                h.logger,
 				RequiresRequest:       enriched.RequiresRequest,
+				SupportedFeatures:     appComponentFeatures,
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.SAMLIdPServiceProvider:
@@ -3487,6 +3535,51 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
+}
+
+// getAuthProxyComponentFeaturesIntersection returns an intersection of supported ComponentFeatures
+// from all cluster Proxy and Auth servers.
+func (h *Handler) getAuthProxyComponentFeaturesIntersection(ctx context.Context) *componentfeaturesv1.ComponentFeatures {
+	ap := h.GetAccessPoint()
+	features := make([]*componentfeaturesv1.ComponentFeatures, 0)
+
+	allProxies, err := clientutils.CollectWithFallback(
+		ctx,
+		ap.ListProxyServers,
+		func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
+			return ap.GetProxies()
+		},
+	)
+	if err != nil {
+		// If we fail to get proxies & can't be sure about feature support,
+		// intersecting on `nil` ensures any intersection of ComponentFeatures will be empty.
+		h.logger.ErrorContext(ctx, "Failed to get proxy servers to collect ComponentFeatures", "error", err)
+		features = append(features, nil)
+	} else {
+		for _, srv := range allProxies {
+			features = append(features, srv.GetComponentFeatures())
+		}
+	}
+
+	allAuthServers, err := clientutils.CollectWithFallback(
+		ctx,
+		ap.ListAuthServers,
+		func(context.Context) ([]types.Server, error) {
+			//nolint:staticcheck // TODO(kiosion): DELETE IN 21.0.0
+			return ap.GetAuthServers()
+		},
+	)
+	if err != nil {
+		h.logger.ErrorContext(ctx, "Failed to get auth servers to collect ComponentFeatures", "error", err)
+		features = append(features, nil)
+	} else {
+		for _, srv := range allAuthServers {
+			features = append(features, srv.GetComponentFeatures())
+		}
+	}
+
+	return componentfeatures.Intersect(features...)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.
@@ -4691,13 +4784,15 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+	clientMeta := clientMetaFromReq(r)
+	clientMeta.ProxyGroupID = h.cfg.ProxyGroupID
 
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
-			ClientMetadata:           clientMetaFromReq(r),
+			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},
 		CompatibilityMode:       req.Compatibility,
@@ -5132,7 +5227,7 @@ func (h *Handler) WithSession(fn ContextHandler) httprouter.Handle {
 // This is a good default to use as both Cluster and User auth are checked here, but `WithLimiter` can be used if
 // you're certain that no authenticated requests will be made.
 func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.limiter)
 }
 
 // WithUnauthenticatedHighLimiter adds a conditional IP-based rate limiting that will limit only unauthenticated
@@ -5140,20 +5235,75 @@ func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.
 // This higher rate limit should only be used on endpoints which are only CPU constrained
 // (no file or other resources used).
 func (h *Handler) WithUnauthenticatedHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
-	return h.unauthenticatedLimiterFunc(fn, h.WithHighLimiterHandlerFunc)
+	return h.unauthenticatedLimiterFunc(fn, h.highLimiter)
 }
 
-func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, rateFunc func(fn httplib.HandlerFunc) httplib.HandlerFunc) httprouter.Handle {
+func (h *Handler) unauthenticatedLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		// check if the request remote is rate limited before attempting authentication.
+		isLimited, err := isRequestRateLimited(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if isLimited {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
 		if _, _, err := h.authenticateRequestWithCluster(w, r, p); err != nil {
 			// retry with user auth
 			if _, err = h.AuthenticateRequest(w, r, true /* check token */); err != nil {
 				// no auth passed, limit request
-				return rateFunc(fn)(w, r, p)
+				return withLimiterHandlerFunc(fn, limiter)(w, r, p)
 			}
 		}
 		// auth passed, call directly
 		return fn(w, r, p)
+	})
+}
+
+func withLimiterHandlerFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter) httplib.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		err := rateLimitRequest(r, limiter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p)
+	}
+}
+
+// WithAccessDeniedLimiter adds conditional IP-based rate limiting that only applies
+// when the request handler returns an access denied error.
+//
+// This is different from WithUnauthenticatedLimiter in an important way:
+//   - WithUnauthenticatedLimiter: Checks authentication BEFORE executing the handler using local
+//     authentication mechanisms (user auth session cookie). If authentication fails locally, it
+//     applies rate limiting BEFORE executing the handler.
+//   - WithAccessDeniedLimiter: Executes the handler first, delegates authentication
+//     to the handler, then applies rate limiting ONLY if the handler returns an access denied error.
+//
+// Use this limiter for endpoints where authentication happens downstream (e.g., SCIM
+// endpoints where auth is handled by the auth server, not in the proxy).
+func (h *Handler) WithAccessDeniedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return h.conditionalLimiterFunc(fn, h.limiter, trace.IsAccessDenied)
+}
+
+func (h *Handler) conditionalLimiterFunc(fn httplib.HandlerFunc, limiter *limiter.RateLimiter, shouldLimit func(error) bool) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		remoteAddr, err := getRemoteAddressFromRequest(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if limiter.IsRateLimited(remoteAddr) {
+			return nil, trace.LimitExceeded("rate limit exceeded")
+		}
+		result, err := fn(w, r, p)
+		if err != nil {
+			if shouldLimit(err) {
+				if err := limiter.RegisterRequest(remoteAddr, nil); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+		return result, err
 	})
 }
 
@@ -5177,34 +5327,39 @@ func (h *Handler) WithHighLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // WithLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		err := rateLimitRequest(r, h.limiter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return fn(w, r, p)
-	}
+	return withLimiterHandlerFunc(fn, h.limiter)
 }
 
 // WithHighLimiterHandlerFunc adds IP-based rate limiting to a HandlerFunc. This is similar to WithLimiterHandlerFunc
 // but provides a higher rate limit.  This should only be used for requests which are only CPU bound (no disk or other
 // resources used).
 func (h *Handler) WithHighLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		err := rateLimitRequest(r, h.highLimiter)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return fn(w, r, p)
+	return withLimiterHandlerFunc(fn, h.highLimiter)
+}
+
+// isRequestRateLimited checks if the request would be rate-limited without consuming any tokens.
+// Returns true if the request is rate-limited, false otherwise.
+func isRequestRateLimited(r *http.Request, limiter *limiter.RateLimiter) (bool, error) {
+	remote, err := getRemoteAddressFromRequest(r)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
+	return limiter.IsRateLimited(remote), nil
+}
+
+func getRemoteAddressFromRequest(r *http.Request) (string, error) {
+	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return remote, nil
 }
 
 func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
-	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	remote, err := getRemoteAddressFromRequest(r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	return trace.Wrap(limiter.RegisterRequest(remote, nil /* customRate */))
 }
 
@@ -5592,44 +5747,4 @@ func readEtagFromAppHash(fs http.FileSystem) (string, error) {
 	etag := fmt.Sprintf("%q", versionWithHash)
 
 	return etag, nil
-}
-
-// WithAuthCookieAndCSRF ensures that a request is authenticated
-// for plain old non-AJAX requests (does not check the Bearer header).
-// It enforces CSRF checks.
-//
-// TODO(kimlisa): DELETE IN v19.0 (csrf)
-// Deprecated: do not use (only here to support backwards compat for old plugin endpoints)
-func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
-	// formFieldName is the default form field to inspect.
-	const formFieldName = "csrf_token"
-
-	// verifyFormField checks if HTTP form value matches the cookie.
-	verifyFormField := func(r *http.Request) error {
-		token := r.FormValue(formFieldName)
-		if len(token) == 0 {
-			return trace.BadParameter("cannot retrieve CSRF token from form field %q", formFieldName)
-		}
-
-		err := csrf.VerifyToken(token, r)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	}
-
-	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, err := h.AuthenticateRequest(w, r, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		errForm := verifyFormField(r)
-		if errForm != nil {
-			slog.WarnContext(r.Context(), "unable to validate CSRF token", "form_error", errForm)
-			return nil, trace.AccessDenied("access denied")
-		}
-		return fn(w, r, p, sctx)
-	})
 }

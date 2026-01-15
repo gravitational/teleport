@@ -1,5 +1,6 @@
 ---
-title: Database Access for MCP
+title: Access Teleport Databases over MCP
+sidebar_label: Databases
 description: How to configure MCP clients to use Teleport databases as MCP servers.
 tags:
  - mcp
@@ -10,14 +11,16 @@ tags:
 
 This guide explains how to connect to your **PostgreSQL** Teleport databases with MCP clients.
 
-### Prerequisites
+{/* lint ignore page-structure remark-lint */}
+
+## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx clients="\`tsh\` client"!)
 
 - Teleport Database Service with a PostgreSQL database enrolled. See our [guides](../../enroll-resources/database-access/database-access.mdx)
   for options on how to enroll PostgreSQL databases with Teleport, such as
-  the [AWS RDS PostgreSQL](../../enroll-resources/database-access/enroll-aws-databases/rds.mdx)
-  and [self-hosted PostgreSQL](../../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) guides.
+  the [AWS RDS PostgreSQL](../../enroll-resources/database-access/enrollment/aws/rds/mysql-postgres-mariadb.mdx)
+  and [self-hosted PostgreSQL](../../enroll-resources/database-access/enrollment/self-hosted/postgres-self-hosted.mdx) guides.
 
 <Admonition type="warning" title="Security considerations">
 Since language models can execute any query on your database, we advise creating
@@ -46,7 +49,7 @@ provisioning](../../enroll-resources/database-access/auto-user-provisioning/post
 or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 </Admonition>
 
-### Step 1/2. Installation
+## Step 1/2. Configure MCP clients
 
 First, sign in into your Teleport cluster using `tsh login`:
 
@@ -148,7 +151,7 @@ teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-d
 </TabItem>
 </Tabs>
 
-### Step 2/2. Usage
+## Step 2/2. Access Teleport-protected resources over MCP
 
 After configuring your MCP client, the following tools will be available:
 
@@ -165,9 +168,9 @@ Claude Desktop:
 
 ![Database access usage example](../../../img/connect-your-client/model-context-protocol/usage-example-database-access.png)
 
-### Troubleshooting
+## Troubleshooting
 
-#### Empty list of databases or missing `teleport_postgres_query` tool
+### Empty list of databases or missing `teleport_postgres_query` tool
 
 This occurs if the MCP server command (`tsh mcp db start`) has an invalid list
 of databases or options. Make sure the database URI list is correct. You can
@@ -176,7 +179,7 @@ generate it using the `tsh mcp db config` command.
 In this case, you'll still be able to see and call `teleport_list_databases`,
 which will provide instructions on how to proceed.
 
-#### Expired `tsh` session
+### Expired `tsh` session
 
 There must be a valid `tsh` session during the MCP server startup, or it won't
 start.
@@ -185,7 +188,7 @@ If your session expires while the MCP server is running, the next tool calls
 will fail. You need to run `tsh login` again and retry the failed requests. In
 such cases, you don't have to restart the MCP client or the MCP server.
 
-#### Access denied errors
+### Access denied errors
 
 If, while executing queries, you receive access denied responses, verify that
 your user has permission to access the configured database. You can confirm by

@@ -359,6 +359,14 @@ export const eventCodes = {
   SCIM_RESOURCE_LIST: 'TSCIM005I',
   SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005IE',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
+  APPAUTHCONFIG_CREATE: 'TAAC001I',
+  APPAUTHCONFIG_UPDATE: 'TAAC002I',
+  APPAUTHCONFIG_DELETE: 'TAAC003I',
+  APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
+  APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
+  VNET_CONFIG_CREATE: 'TVNET001I',
+  VNET_CONFIG_UPDATE: 'TVNET002I',
+  VNET_CONFIG_DELETE: 'TVNET003I',
 } as const;
 
 /**
@@ -2108,6 +2116,44 @@ export type RawEvents = {
       client_ip_restrictions: string[];
       success: boolean;
     }
+  >;
+  [eventCodes.APPAUTHCONFIG_CREATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_DELETE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS,
+    {
+      app_auth_config: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_FAILURE,
+    {
+      app_auth_config: string;
+      error: string;
+    }
+  >;
+  [eventCodes.VNET_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
   >;
 };
 

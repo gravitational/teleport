@@ -21,10 +21,13 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -299,6 +302,69 @@ func TestMatchToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProvisioningServiceTokenNameConflict(t *testing.T) {
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service := local.NewProvisioningService(bk)
+	scopedTokenService, err := local.NewScopedTokenService(bk)
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	token := &types.ProvisionTokenV2{
+		Metadata: types.Metadata{
+			Name: "testtoken",
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{
+				types.RoleAdmin,
+			},
+		},
+	}
+	// create initial token
+	err = service.CreateToken(ctx, token)
+	require.NoError(t, err)
+
+	// assert that creating another token with the same name fails
+	err = service.CreateToken(ctx, token)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	// assert that upserting a token with the same name still succeeds
+	err = service.UpsertToken(ctx, token)
+	require.NoError(t, err)
+
+	// create a scoped token
+	scopedToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "testtoken2",
+		},
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			AssignedScope: "/test/one",
+			JoinMethod:    "token",
+			Roles:         []string{types.RoleNode.String()},
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+	_, err = scopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: scopedToken,
+	})
+	require.NoError(t, err)
+
+	token.SetName(scopedToken.GetMetadata().GetName())
+	// assert that creating or upserting an unscoped token with a name that conflicts
+	// with a scoped token fails
+	err = service.CreateToken(ctx, token)
+	require.True(t, trace.IsAlreadyExists(err))
+	err = service.UpsertToken(ctx, token)
+	require.True(t, trace.IsAlreadyExists(err))
 }
 
 func newProvisioningService(t *testing.T, clock clockwork.Clock) *local.ProvisioningService {

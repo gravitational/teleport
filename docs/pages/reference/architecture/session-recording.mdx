@@ -1,5 +1,6 @@
 ---
 title: Teleport Session Recording
+sidebar_label: Session Recording
 description: An overview of Teleport's session recording and its configuration
 tags:
  - session-recording
@@ -48,7 +49,7 @@ informally referred to as "chunks."
 
 ### Database sessions
 
-Teleport captures database queries and a stream of audit events 
+Teleport captures database queries and a stream of audit events
 related to the database being accessed.
 
 ## Session recording configurations
@@ -69,7 +70,7 @@ Teleport cluster. It can be configured by setting `session_recording`
 in the `auth_service` section of your `teleport.yaml`, or dynamically using
 the `session_recording_config` resource. If you need to apply different
 recording configurations to different sets of resources, you can set up
-[trusted clusters](../../zero-trust-access/management/admin/trustedclusters.mdx) with their own
+[trusted clusters](../../zero-trust-access/deploy-a-cluster/trustedclusters.mdx) with their own
 recording configurations.
 
 <Admonition type="note">
@@ -140,7 +141,7 @@ The Proxy Service then establishes its own connection to the destination server 
 - For [OpenSSH servers](../../enroll-resources/server-access/openssh/openssh-agentless.mdx), the Proxy Service requests a certificate signed by the Teleport OpenSSH CA, which will be trusted by the OpenSSH server.
 
 With both sides of the connections decrypted, the Proxy Service acts as a pipe between the client
-and the destination server, performing RBAC checks, recording the session, and emitting audit events 
+and the destination server, performing RBAC checks, recording the session, and emitting audit events
 in the process as shown below:
 
 ![recording-proxy](../../../img/recording-proxy.svg)
@@ -256,6 +257,18 @@ This is sometimes surprising to Teleport users, because even though the recordin
 and audit log are stored in separate backends, both need to be operational in
 order to play recordings.
 
+## Download
+
+Session recordings can be downloaded from the cluster storage using the
+[`tctl recordings download`](../cli/tctl.mdx#tctl-recordings-download) command.
+
+```code
+$ tctl recordings download [--output-dir <output-dir>] <session_id>
+```
+
+All downloaded recordings are decrypted during the streaming process if session
+recording encryption is enabled.
+
 ## Upload completer
 
 Every Teleport process runs a service called the *upload completer* which periodically
@@ -336,6 +349,6 @@ viewed using the Teleport web app.
 
 - [RBAC for session recordings](../access-controls/roles.mdx#rbac-for-session-recordings)
 - [SSH recording modes](../deployment/monitoring/audit.mdx)
-- [Session recording for desktops](../agent-services/desktop-access-reference/sessions.mdx)
+- [Session recording for desktops](../../enroll-resources/desktop-access/reference/sessions.mdx)
 - [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx)
-- [Session recording summaries](../../identity-security/session-summaries.mdx) 
+- [Session recording summaries](../../identity-security/session-summaries.mdx)

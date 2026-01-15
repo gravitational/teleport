@@ -46,20 +46,20 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/azuredevops"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/join/azuredevops"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
-	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -78,6 +78,19 @@ type AzureParams struct {
 	// ClientID is the client ID of the managed identity for Teleport to assume
 	// when authenticating a node.
 	ClientID string
+	// IMDSClient overrides the client used to fetch data from Azure IMDS.
+	IMDSClient AzureIMDSClient
+	// IssuerHTTPClient, if set, overrides the default HTTP client used to
+	// fetch the intermediate CA which issued the attested data document
+	// signing certificate. Only used when joining via the new join service.
+	IssuerHTTPClient utils.HTTPDoClient
+}
+
+// AzureIMDSClient is a client to Azure's IMDS.
+type AzureIMDSClient interface {
+	IsAvailable(context.Context) bool
+	GetAttestedData(ctx context.Context, nonce string) ([]byte, error)
+	GetAccessToken(ctx context.Context, clientID string) (string, error)
 }
 
 // GitlabParams is the parameters specific to the gitlab join method.
@@ -120,8 +133,10 @@ type BoundKeypairParams struct {
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
-	// Token is a secure token to join the cluster
+	// Token is the name of a secure token to join the cluster
 	Token string
+	// TokenSecret is the secret value required when using the token join method with a scoped token.
+	TokenSecret string
 	// ID is identity ID
 	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial
@@ -161,7 +176,7 @@ type RegisterParams struct {
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	// Ignored if AuthClient is provided.
 	CircuitBreakerConfig breaker.Config
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	// Ignored if AuthClient is provided.
 	FIPS bool
 	// IDToken is a token retrieved from a workload identity provider for
@@ -199,6 +214,8 @@ type RegisterParams struct {
 	// OracleIMDSClient overrides the HTTP client used to make requests to the
 	// OCI Instance Metadata Service.
 	OracleIMDSClient utils.HTTPDoClient
+	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
+	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
@@ -228,6 +245,10 @@ func (r *RegisterParams) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if r.AttestTPM == nil {
+		r.AttestTPM = tpm.Attest
 	}
 
 	return nil
@@ -343,9 +364,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodKubernetes:
-		params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodGCP:
 		if params.IDToken == "" {
@@ -355,14 +378,18 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodSpacelift:
-		params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = spacelift.NewIDTokenSource(os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodTerraformCloud:
-		params.IDToken, err = terraformcloud.NewIDTokenSource(params.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = terraformcloud.NewIDTokenSource(params.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodBitbucket:
 		if params.IDToken == "" {
@@ -372,9 +399,11 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodAzureDevops:
-		params.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		if params.IDToken == "" {
+			params.IDToken, err = azuredevops.NewIDTokenSource(os.Getenv).GetIDToken(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.JoinMethodBoundKeypair:
 		if params.BoundKeypairParams == nil {
@@ -861,7 +890,10 @@ func registerUsingAzureMethod(
 	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
 	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
-		imds := azure.NewInstanceMetadataClient()
+		imds := params.AzureParams.IMDSClient
+		if imds == nil {
+			imds = azure.NewInstanceMetadataClient()
+		}
 		if !imds.IsAvailable(ctx) {
 			return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
 		}
@@ -898,7 +930,7 @@ func registerUsingTPMMethod(
 		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 	}
 
-	attestation, close, err := tpm.Attest(ctx, log)
+	attestation, close, err := params.AttestTPM(ctx, log)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

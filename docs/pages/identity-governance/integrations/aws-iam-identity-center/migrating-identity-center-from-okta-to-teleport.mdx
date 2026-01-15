@@ -1,11 +1,13 @@
 ---
 title: Migrating AWS IAM Identity Center from Okta to Teleport
+sidebar_label: Okta to Teleport Migration
 description: Explains how to migrate an Identity Center instance from Okta control to Teleport control.
 tags:
  - how-to
  - identity-governance
  - privileged-access
  - aws
+enterprise: Identity Governance
 ---
 
 This guide describes how to introduce Teleport into an existing Okta-managed AWS
@@ -103,7 +105,7 @@ Specifically:
 ### Step 1/6. Install Okta SAML connector
 
 Install Okta SAML connector into Teleport as per the Teleport
-[Okta as an SSO provider](../../../zero-trust-access/sso/okta.mdx) guide.
+[Okta as an SSO provider](../../../zero-trust-access/sso/integrate-idp/okta.mdx) guide.
 
 <Admonition type="note">
  For the integration to function properly, both AWS IAM Identity Center and Teleport must view the

@@ -190,6 +190,7 @@ const cfg = {
     bots: '/web/bots',
     bot: '/web/bot/:botName',
     botInstances: '/web/bots/instances',
+    instances: '/web/instances',
     botsNew: '/web/bots/new/:type?',
     workloadIdentities: '/web/workloadidentities',
     console: '/web/cluster/:clusterId/console',
@@ -218,6 +219,7 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
+    integrationOverview: '/web/integrations/overview/:type/:name',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -296,6 +298,8 @@ const cfg = {
       list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
     },
 
+    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
+
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
@@ -338,7 +342,10 @@ const cfg = {
       get: '/v1/webapi/roles/:name',
       delete: '/v1/webapi/roles/:name',
       update: '/v1/webapi/roles/:name',
+      // TODO(kimlisa): DELETE IN 20.0 along with its backend endpoint in `apiserver.go`
       list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+      listV2:
+        '/v2/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?&includeSystemRoles=:includeSystemRoles?&includeObject=:includeObject?',
       listWithoutQueryParam: '/v1/webapi/roles',
     },
 
@@ -508,6 +515,7 @@ const cfg = {
       updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
       updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
       delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      genWizardCiCd: '/v1/webapi/sites/:clusterId/machine-id/wizards/ci-cd',
     },
 
     botInstance: {
@@ -761,6 +769,10 @@ const cfg = {
     return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
   },
 
+  getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
   getIntegrationStatusResourcesRoute(
     type: PluginKind | IntegrationKind,
     name: string,
@@ -895,6 +907,10 @@ const cfg = {
       search.set('tab', options.activeTab);
     }
     return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
+  },
+
+  getInstancesRoute() {
+    return generatePath(cfg.routes.instances);
   },
 
   getWorkloadIdentitiesRoute() {
@@ -1190,6 +1206,13 @@ const cfg = {
     });
   },
 
+  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.instancesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getYamlParseUrl(kind: YamlSupportedResourceKind) {
     return generatePath(cfg.api.yaml.parse, { kind });
   },
@@ -1317,7 +1340,7 @@ const cfg = {
           action: 'get' | 'delete' | 'update';
           name: string;
         }
-      | { action: 'list'; params?: UrlListRolesParams }
+      | { action: 'list' | 'listv2'; params?: UrlListRolesParams }
   ) {
     const action = req.action;
     switch (action) {
@@ -1327,13 +1350,24 @@ const cfg = {
         return generatePath(cfg.api.role.delete, { name: req.name });
       case 'update':
         return generatePath(cfg.api.role.update, { name: req.name });
-      case 'list':
+      case 'list': {
         const params = req.params;
         return generatePath(cfg.api.role.list, {
           search: params?.search || undefined,
           startKey: params?.startKey || undefined,
           limit: params?.limit || undefined,
         });
+      }
+      case 'listv2': {
+        const params = req.params;
+        return generatePath(cfg.api.role.listV2, {
+          search: params?.search || undefined,
+          startKey: params?.startKey || undefined,
+          limit: params?.limit || undefined,
+          includeSystemRoles: params?.includeSystemRoles || undefined,
+          includeObject: params?.includeObject || undefined,
+        });
+      }
       default:
         action satisfies never;
     }
@@ -1724,7 +1758,7 @@ const cfg = {
 
   getBotUrl(
     req: (
-      | { action: 'list' | 'create' }
+      | { action: 'list' | 'create' | 'gen-wizard-cicd' }
       | {
           action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
           botName: string;
@@ -1765,6 +1799,10 @@ const cfg = {
         return generatePath(cfg.api.bot.delete, {
           clusterId,
           botName: req.botName,
+        });
+      case 'gen-wizard-cicd':
+        return generatePath(cfg.api.bot.genWizardCiCd, {
+          clusterId,
         });
       default:
         req satisfies never;
@@ -1959,6 +1997,18 @@ export interface UrlListRolesParams {
   search?: string;
   limit?: number;
   startKey?: string;
+  /**
+   * default is without system roles.
+   * Only supported with v2 endpoint.
+   */
+  includeSystemRoles?: 'yes' | '';
+  /**
+   * default is without the object.
+   * (only a string content of the resource for yaml purposes)
+   *
+   * Only supported with v2 endpoint and role resource.
+   */
+  includeObject?: 'yes' | '';
 }
 
 export interface UrlListUsersParams {

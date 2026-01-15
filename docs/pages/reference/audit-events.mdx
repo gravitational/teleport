@@ -711,6 +711,107 @@ Example:
 }
 ```
 
+## app_auth_config.create
+
+App Auth Config created
+
+Example:
+
+```json
+{
+  "cluster_name": "dev",
+  "code": "TAAC001I",
+  "ei": 0,
+  "event": "app_auth_config.create",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0cb8a020-46ee-4938-833a-69bc03a7a831",
+  "user": "alice"
+}
+```
+
+## app_auth_config.delete
+
+App Auth Config deleted
+
+Example:
+
+```json
+{
+  "cluster_name": "dev",
+  "code": "TAAC003I",
+  "ei": 0,
+  "event": "app_auth_config.delete",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0cb8a020-46ee-4938-833a-69bc03a7a831",
+  "user": "alice"
+}
+```
+
+## app_auth_config.update
+
+App Auth Config updated
+
+Example:
+
+```json
+{
+  "cluster_name": "dev",
+  "code": "TAAC002I",
+  "ei": 0,
+  "event": "app_auth_config.update",
+  "expires": "0001-01-01T00:00:00Z",
+  "name": "example",
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "0cb8a020-46ee-4938-833a-69bc03a7a831",
+  "user": "alice"
+}
+```
+
+## app_auth_config.verify.failure
+
+App authentication failed
+
+Example:
+
+```json
+{
+  "cluster_name": "dev",
+  "code": "TAAC004E",
+  "ei": 0,
+  "event": "app_auth_config.verify.failure",
+  "expires": "0001-01-01T00:00:00Z",
+  "time": "2025-03-04T15:49:21.869Z",
+  "app_auth_config": "example",
+  "app_name": "mcp-everything",
+  "error": "Invalid token: audience mismatch"
+}
+```
+
+## app_auth_config.verify.success
+
+App authentication succeeded
+
+Example:
+
+```json
+{
+  "cluster_name": "dev",
+  "code": "TAAC004I",
+  "ei": 0,
+  "event": "app_auth_config.verify.success",
+  "expires": "0001-01-01T00:00:00Z",
+  "time": "2025-03-04T15:49:21.869Z",
+  "user": "alice",
+  "success": true,
+  "app_auth_config": "example",
+  "app_name": "mcp-everything"
+}
+```
+
 ## auth
 
 Auth Attempt Failed
@@ -6759,6 +6860,81 @@ Example:
   "user_task_integration": "teleportdev",
   "user_task_issue_type": "ec2-ssm-invocation-failure",
   "user_task_type": "discover-ec2"
+}
+```
+
+## vnet.config.create
+
+VNet config created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "TVNET001I",
+  "ei": 0,
+  "event": "vnet.config.create",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## vnet.config.delete
+
+VNet config deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "TVNET003I",
+  "ei": 0,
+  "event": "vnet.config.delete",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## vnet.config.update
+
+VNet config updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "TVNET002I",
+  "ei": 0,
+  "event": "vnet.config.update",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
 }
 ```
 

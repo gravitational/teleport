@@ -20,26 +20,66 @@ import type {
   ToastNotificationItem,
   ToastNotificationItemContent,
 } from 'shared/components/ToastNotification';
-import { useStore } from 'shared/libs/stores';
 
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { unique } from 'teleterm/ui/utils/uid';
 
-export class NotificationsService extends ImmutableStore<
-  ToastNotificationItem[]
-> {
-  state: ToastNotificationItem[] = [];
+export type NotificationContent = ToastNotificationItemContent & {
+  key?: NotificationKey;
+};
+export type NotificationKey = string | (string | number)[];
 
-  notifyError(content: ToastNotificationItemContent): string {
-    return this.notify({ severity: 'error', content });
+type State = Map<string, ToastNotificationItem>;
+
+export class NotificationsService extends ImmutableStore<State> {
+  state: State = new Map();
+
+  /**
+   * Adds a notification with error severity.
+   *
+   * If key is passed, replaces any previous notification with equal key. If an array is passed as
+   * a key, the array is joined with '-'.
+   */
+  notifyError(rawContent: NotificationContent): string {
+    const severity = 'error';
+    if (typeof rawContent === 'string') {
+      return this.notify({ severity, content: rawContent });
+    }
+
+    const { key, ...content } = rawContent;
+    return this.notify({ severity, content, key });
   }
 
-  notifyWarning(content: ToastNotificationItemContent): string {
-    return this.notify({ severity: 'warn', content });
+  /**
+   * Adds a notification with warn severity.
+   *
+   * If key is passed, replaces any previous notification with equal key. If an array is passed as
+   * a key, the array is joined with '-'.
+   */
+  notifyWarning(rawContent: NotificationContent): string {
+    const severity = 'warn';
+    if (typeof rawContent === 'string') {
+      return this.notify({ severity, content: rawContent });
+    }
+
+    const { key, ...content } = rawContent;
+    return this.notify({ severity, content, key });
   }
 
-  notifyInfo(content: ToastNotificationItemContent): string {
-    return this.notify({ severity: 'info', content });
+  /**
+   * Adds a notification with info severity.
+   *
+   * If key is passed, replaces any previous notification with equal key. If an array is passed as
+   * a key, the array is joined with '-'.
+   */
+  notifyInfo(rawContent: NotificationContent): string {
+    const severity = 'info';
+    if (typeof rawContent === 'string') {
+      return this.notify({ severity, content: rawContent });
+    }
+
+    const { key, ...content } = rawContent;
+    return this.notify({ severity, content, key });
   }
 
   removeNotification(id: string): void {
@@ -47,32 +87,34 @@ export class NotificationsService extends ImmutableStore<
       return;
     }
 
-    if (!this.state.length) {
+    if (this.state.size === 0) {
       return;
     }
 
-    this.setState(draftState =>
-      draftState.filter(stateItem => stateItem.id !== id)
-    );
+    this.setState(draftState => {
+      draftState.delete(id);
+    });
   }
 
   getNotifications(): ToastNotificationItem[] {
-    return this.state;
+    return [...this.state.values()];
   }
 
   hasNotification(id: string): boolean {
-    return !!this.state.find(n => n.id === id);
+    return this.state.has(id);
   }
 
-  useState(): ToastNotificationItem[] {
-    return useStore(this).state;
-  }
-
-  private notify(options: Omit<ToastNotificationItem, 'id'>): string {
-    const id = unique();
+  private notify(
+    options: Omit<ToastNotificationItem, 'id'> & { key?: NotificationKey }
+  ): string {
+    const id = options.key
+      ? typeof options.key === 'string'
+        ? options.key
+        : options.key.join('-')
+      : unique();
 
     this.setState(draftState => {
-      draftState.push({
+      draftState.set(id, {
         severity: options.severity,
         content: options.content,
         id,
