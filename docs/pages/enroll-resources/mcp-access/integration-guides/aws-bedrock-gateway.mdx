@@ -1,50 +1,59 @@
 ---
-title: Connect an AWS Bedrock AgentCore Gateway to Teleport
-sidebar_label: AWS Bedrock AgentCore Gateway
-description: Set up an AWS Bedrock AgentCore Gateway for access through Teleport
+title: Connect an Amazon Bedrock AgentCore Gateway to Teleport
+sidebar_label: Amazon Bedrock AgentCore Gateway
+description: Set up an Amazon Bedrock AgentCore Gateway for access through Teleport
 tags:
 - how-to
 - mcp
 - zero-trust
 ---
 
-(!docs/pages/includes/mcp-access/integration-intro.mdx serviceName="AWS Bedrock AgentCore Gateway" !)
+(!docs/pages/includes/mcp-access/integration-intro.mdx serviceName="Amazon Bedrock AgentCore Gateway" !)
 
 ## How it works
 
-The AWS Bedrock AgentCore Gateway is configured to trust Teleport as its inbound
-identity provider. Teleport authenticates client requests and proxies them to
-the AgentCore Gateway, which then forwards the requests to the target MCP
-servers.
+The Amazon Bedrock AgentCore Gateway is configured to trust Teleport as its
+inbound identity provider. Teleport authenticates client requests and proxies
+them to the AgentCore Gateway, which then forwards the requests to the target
+MCP servers.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.7.0 or higher)" clients="\`tsh\` client"!)
-- Ability to configure your AWS Bedrock AgentCore Gateway
+- Ability to configure your Amazon Bedrock AgentCore Gateway
 - A running Teleport Application Service. If you have not yet done this, follow
   the [Getting Started guide](../getting-started.mdx).
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
-## Step 1/2. Configure Inbound Auth Configuration for AWS Bedrock AgentCore Gateway
+## Step 1/2. Configure Inbound Auth Configurations for Amazon Bedrock AgentCore Gateway
 
-When creating the gateway, configure inbound authentication as follow:
-- Select **Use JSON Web Tokens (JWT)** as the **Inbound Auth type**.
-- Select **Use existing Identity provider configurations** for **JWT schema configuration**.
-- Set the **Discovery URL** to:
+Go to your gateway in AWS Management Console. Click the **Edit** button in the
+**Inbound Identity** section.
+
+Select **Use JSON Web Tokens (JWT)** as the **Inbound Auth type** and select
+**Use existing Identity provider configurations** for **JWT schema
+configuration**. Note that creating a new gateway may be required if they cannot
+be modified after gateway creation.
+
+Use the following as **Discovery URL**:
 ```code
-https://<Var name="CLUSTER" initial_value="teleport.example.com"/>/.well-known/openid-configuration`
+https://<Var name="teleport.example.com" />/.well-known/openid-configuration
 ```
-Replace <Var name="CLUSTER"/> with your Teleport cluster name.
+Replace <Var name="teleport.example.com"/> with your Teleport cluster name.
 
-After the gateway is created, copy the Gateway resource URL. The Teleport
-application URI will be:
+Use the following for **Allowed audiences** under **JWT Authorization Configuration**:
 ```code
-mcp+<Var name="GATEWAY_URL" initial_value="https://your-mcp-gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp" />
+mcp+<Var name="https://your-mcp-gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp" />
 ```
+Replace <Var name="https://your-mcp-gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp" />
+with your Gateway resource URL, which is available after the gateway is created.
+Note that this value is also the application URI you will use to create the
+Teleport application.
 
-This URI is also used as the audience claim in the token that the gateway should
-validate:
+All other settings under **JWT Authorization Configuration** like **Allowed
+clients** should not be selected.
+
 ![Gateway Inbound Identity](../../../../img/mcp-access/aws-bedrock-gateway-inbound-identity.png)
 
 ## Step 2/2. Connect via Teleport
@@ -60,7 +69,7 @@ app_service:
   enabled: "yes"
   apps:
   - name: "bedrock-mcp"
-    uri: "mcp+<Var name="GATEWAY_URL"/>
+    uri: "mcp+<Var name="https://your-mcp-gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"/>"
     labels:
       env: dev
       service: "bedrock"
@@ -84,7 +93,7 @@ metadata:
     env: dev
     service: "bedrock"
 spec:
-  uri: "mcp+<Var name="GATEWAY_URL"/>
+  uri: "mcp+<Var name="https://your-mcp-gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"/>"
   rewrite:
     headers:
     - name: "Authorization"
@@ -112,7 +121,7 @@ resource "teleport_app" "bedrock" {
   }
 
   spec = {
-    uri = "mcp+<Var name="GATEWAY_URL"/>
+    uri = "mcp+<Var name="https://your-mcp-gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp"/>"
     rewrite = {
       headers = [{
         name  = "Authorization"
@@ -141,11 +150,12 @@ spec:
     app_labels:
       'service': 'bedrock'
     mcp:
+      # Adjust this list based on the MCP tools exposed by the gateway’s targets.
       tools:
       - ^(get|query|list|search|find)_.*$
 ```
 
-(!docs/pages/includes/mcp-access/integration-tsh.mdx service="bedrock" serviceName="AWS Bedrock AgentCore Gateway" !)
+(!docs/pages/includes/mcp-access/integration-tsh.mdx service="bedrock" serviceName="Amazon Bedrock AgentCore Gateway" !)
 
 ## Next steps
 
