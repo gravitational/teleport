@@ -85,6 +85,10 @@ export type VnetContext = {
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
   /**
+   * Checks if the Windows VNet service is installed.
+   */
+  getWindowsSystemServiceAttempt: Attempt<void>;
+  /**
    * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
    * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
    *
@@ -168,6 +172,23 @@ export const VnetContextProvider: FC<
     [mainProcessClient]
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
+
+  const [getWindowsSystemServiceAttempt, getWindowsSystemService] = useAsync(
+    useCallback(async () => {
+      try {
+        await vnet.getWindowsSystemService({});
+      } catch (error) {
+        if (!isTshdRpcError(error, 'UNIMPLEMENTED')) {
+          throw error;
+        }
+      }
+    }, [vnet])
+  );
+
+  // Check if the Windows service exists when the app starts.
+  useEffect(() => {
+    getWindowsSystemService();
+  }, [getWindowsSystemService]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -339,7 +360,8 @@ export const VnetContextProvider: FC<
         // Accessing resources through VNet might trigger the MFA modal,
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
-        startAttempt.status === ''
+        startAttempt.status === '' &&
+        getWindowsSystemServiceAttempt.status === 'success'
       ) {
         const [, error] = await start();
 
@@ -352,7 +374,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized]);
+  }, [isWorkspaceStateInitialized, getWindowsSystemServiceAttempt.status]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -533,6 +555,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
+        getWindowsSystemServiceAttempt,
       }}
     >
       {children}
