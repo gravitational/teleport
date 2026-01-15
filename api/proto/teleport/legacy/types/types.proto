@@ -7520,6 +7520,9 @@ enum EntraIDAccessListOwnersSource {
   ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN = 1;
   // Use Microsoft Entra ID group owners as Access List owners.
   ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID = 2;
+  // Merge plugin default owners and Microsoft Entra ID group
+  // owners as Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID = 3;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.

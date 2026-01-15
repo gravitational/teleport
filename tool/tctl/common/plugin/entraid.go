@@ -419,13 +419,15 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 
 func toAccessListOwnersSource(in string) (types.EntraIDAccessListOwnersSource, error) {
 	switch in {
-	case "entra-id":
+	case "entraid":
 		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID, nil
 	case "plugin":
 		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN, nil
+	case "plugin-and-entraid":
+		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID, nil
 	default:
 		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED,
-			trace.BadParameter(`unknown value %s received for the Access List owners source, expected "entra-id" or 'plugin"`, in)
+			trace.BadParameter(`unknown value %s received for the Access List owners source, expected "plugin", "entraid" or "plugin-and-entraid"`, in)
 	}
 }
 

@@ -192,8 +192,14 @@ func TestEntraIDAccessListOwners(t *testing.T) {
 			errorAssertion:                 require.NoError,
 		},
 		{
+			name:                           "plugin and entraid source source",
+			accessListOwnersSource:         "plugin-and-entraid",
+			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID,
+			errorAssertion:                 require.NoError,
+		},
+		{
 			name:                           "entra-id source",
-			accessListOwnersSource:         "entra-id",
+			accessListOwnersSource:         "entraid",
 			expectedAccessListOwnersSource: types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID,
 			errorAssertion:                 require.NoError,
 		},
