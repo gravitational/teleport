@@ -1,0 +1,324 @@
+---
+title: Teleport Agentic Identity Framework
+template: landing-page
+---
+
+{/* cspell:disable */}
+
+import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
+import EnrollmentMethods, { Method } from '@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods';
+import Resources from '@site/src/components/Pages/Homepage/Resources';
+import Integrations from "@site/src/components/Pages/Homepage/Integrations";
+
+import agenticAiImg from '@version/docs/img/agentic-ai/agentic-ai-hero.png';
+import shieldCheckSvg from "@site/src/components/Icon/svg/shield-check2.svg";
+import keySvg from "@site/src/components/Icon/svg/key.svg";
+import gaugeSvg from "@site/src/components/Icon/svg/gauge.svg";
+import shieldWarningSvg from "@site/src/components/Icon/svg/shield-warning.svg";
+import flowArrowSvg from "@site/src/components/Icon/teleport-svg/flow-arrow.svg";
+import serverSvg from "@site/src/components/Icon/teleport-svg/linux-servers.svg";
+import googleCloudSvg from "@site/src/components/Icon/svg/googleCloud.svg";
+import awsSvg from "@site/src/components/Icon/teleport-svg/aws.svg";
+import azureSvg from "@site/src/components/Icon/teleport-svg/azure.svg";
+import snowflakeSvg from "@site/src/components/Icon/teleport-svg/snowflake.svg";
+import gRPCSvg from "@site/src/components/Icon/svg/grpc.svg";
+import grafanaSvg from "@site/src/components/Icon/svg/grafana.svg";
+import postgresSvg from "@site/src/components/Icon/svg/postgresql.svg";
+import ubuntuSvg from "@site/src/components/Icon/svg/ubuntu.svg";
+import mongoDBSvg from "@site/src/components/Icon/svg/mongodb.svg";
+import kubernetesSvg from "@site/src/components/Icon/svg/kubernetes2.svg";
+import jenkinsSvg from "@site/src/components/Icon/svg/jenkins.svg";
+import jupyterhubSvg from "@site/src/components/Icon/svg/jupyterhub.svg";
+import redisSvg from "@site/src/components/Icon/svg/redis.svg";
+import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
+
+<LandingHero
+  title="Teleport Agentic Identity Framework"
+  subTitle="Agentic Identity • Agentic Access • Agentic Security • Scheduling and Orchestration"
+  image={agenticAiImg}
+  links={[
+    {
+      title: "Deploy agents safely across infrastructure",
+      description: (
+        <ul>
+          <li>Give each agent a strong identity, from ephemeral to long-standing workloads</li>
+          <li>Enforce least-privileged access to services, databases, and infrastructure</li>
+          <li>Maintain audit trails for agent actions</li>
+        </ul>
+      ),
+      icon: shieldCheckSvg,
+    },
+    {
+      title: "Govern MCP-based access",
+      description: (
+        <ul>
+          <li>Secure agent calls to tools via MCP proxy with authorization and visibility</li>
+          <li>Discover and track MCP servers to reduce drift and shadow deployments</li>
+          <li>Standardize how teams publish and consume MCP endpoints</li>
+        </ul>
+      ),
+      icon: keySvg,
+    },
+    {
+      title: "Control and observe LLM usage",
+      description: (
+        <ul>
+          <li>Enforce rate limits, budgets, and model routing</li>
+          <li>Apply “guardrails” with prompt/response tracking</li>
+          <li>Quantify usage and cost by team</li>
+        </ul>
+      ),
+      icon: gaugeSvg,
+    },
+    {
+      title: "Detect shadow agents and misbehavior",
+      description: (
+        <ul>
+          <li>Discover unmanaged agents and MCP servers</li>
+          <li>Detect compromised or policy-violating agents</li>
+          <li>Improve incident response with centralized visibility</li>
+        </ul>
+      ),
+      icon: shieldWarningSvg,
+    },
+    {
+      title: "Operationalize agent workflows in production",
+      description: (
+        <ul>
+          <li>Orchestrate agents on Kubernetes and Temporal with repeatable patterns</li>
+          <li>Use retries/limits/cascading tasks to reduce fragility</li>
+          <li>Improve debugging and developer experience for agent deployments</li>
+        </ul>
+      ),
+      icon: flowArrowSvg,
+    },
+  ]}
+>
+  The Teleport Agentic Identity Framework is a standards-driven security architecture and a reference implementation for deploying AI agents across infrastructure. It provides designs and reference implementations for safe agent adoption across infrastructure with built-in security invariants, observability, and governance. The framework is architected for the pace and scale of AI, enabling engineers to integrate security into agentic systems from the initial design phase.
+</LandingHero>
+
+<EnrollmentMethods 
+  title="Agentic Identity" 
+  description="You can use Teleport to issue and manage cryptographic identities for agents, including delegated identities and identities for long-running agents across all of your infrastructure." 
+  desktopColumnsCount={3}
+  linkColor="purple"
+  fontSize="xl"
+>
+  <Method
+    title="Digital Twins"
+    progressStatus="Started"
+  >
+    Agents operate on behalf of principals while preserving approval/authorization workflows.
+   <hr />
+    Delegation flows  
+    Session management  
+    Access Requests
+  </Method>
+  <Method
+    title="Identity for long-running agents"
+    progressStatus="In-progress"
+  >
+    Durable identity for long-running agents with verification and rotation patterns.
+    <hr />
+    Attestation
+    Renewal/issuance
+  </Method>
+  <Method
+    title="Identity for LLM apps"
+    progressStatus="Started"
+  >
+    Every agent has a unique cryptographic identity that can be audited.
+    <hr />
+    Framework integration
+    Identity provider integration
+  </Method>
+</EnrollmentMethods>
+
+<EnrollmentMethods 
+  title="Agentic Access" 
+  description="You can use Teleport to manage authorization to infrastructure, services, and data with discovery of MCP servers and LLM controls, including rate limiting, load balancing, budgets, prompt/response tracking, and guardrails."
+  desktopColumnsCount={3}
+  linkColor="purple"
+  fontSize="xl"
+>
+  <Method
+    title="MCP Access"
+    progressStatus="In-progress"
+  >
+   Securely authorize and observe agent calls to databases, services, and infrastructure using MCP.
+   <hr />
+    Client and server proxying  
+    Authorization
+    Authentication
+  </Method>
+  <Method
+    title="MCP Catalog"
+    progressStatus="In-progress"
+  >
+    Discover MCP servers across infrastructure, track drift over time, and reduce unmanaged endpoints.
+    <hr />
+    Discovery  
+    Tracking changes and provenance  
+    Access control
+  </Method>
+  <Method
+    title="LLM Access"
+    progressStatus="In-progress"
+  >
+    Control and observe LLM usage across teams with rate limiting, budgeting, model routing, and prompt/response tracking.
+    <hr />
+    Guardrails  
+    Rate limiting  
+    Budgeting  
+    Multiplexing
+  </Method>
+</EnrollmentMethods>
+
+<EnrollmentMethods 
+  title="Agentic Security" 
+  description="Teleport provides discovery, detection, and analytics for AI agents and MCP servers to reduce shadow deployments and context poisoning attacks."
+  desktopColumnsCount={3}
+  linkColor="purple"
+  fontSize="xl"
+>
+  <Method
+    title="Visibility & Discovery"
+    progressStatus="Started"
+  >
+   Continuous discovery, detection, and policy violation insights for agents and MCP endpoints.
+   <hr />
+    Analytics  
+    Discovery
+  </Method>
+  <Method
+    title="Audit & Security"
+    progressStatus="Started"
+  >
+    Comprehensive audit trails and behavior analysis for agent actions across infrastructure.
+    <hr />
+    Session Recording and audit  
+    Behavior analysis  
+  </Method>
+</EnrollmentMethods>
+
+<EnrollmentMethods 
+  title="Scheduling & Orchestration" 
+  description="Integrations and SDKs for modern agentic orchestration tools enable secure identities for agentic workflows accessing resources like databases and git repositories, as well as file sharing and developer tooling."
+  desktopColumnsCount={3}
+  linkColor="purple"
+  fontSize="xl"
+  additionalNote={`
+    <p>
+      We're building the future of Agentic AI. <a href="https://goteleport.com/community/">Join us</a> and collaborate on what's next.
+    </p>
+  `}
+  additionalNoteIcon="chat"
+  >
+  <Method
+    title="Data Sharing"
+    progressStatus="Not started"
+  >
+    Mechanisms for securely passing data between agents, tasks, and workflows.
+  </Method>
+  <Method
+    title="Workflows"
+    progressStatus="Not started"
+  >
+    Multi-step agent workflows with retries, limits, and reusable execution patterns.
+  </Method>
+  <Method
+    title="Developer Experience"
+    progressStatus="Not started"
+  >
+    Primitives and tooling - including loops, retries, limits, and debugging - to build and operate agent systems reliably.
+  </Method>
+</EnrollmentMethods>
+
+<Resources
+  title="Cloud providers"
+  variant="doc"
+  resources={[
+    {
+      title: "Bare Metal",
+      iconComponent: postgresSvg,
+    },
+    {
+      title: "Google Cloud",
+      iconComponent: googleCloudSvg,
+    },
+    {
+      title: "AWS",
+      iconComponent: awsSvg,
+    },
+    {
+      title: "Microsoft Azure",
+      iconComponent: azureSvg,
+    },
+  ]}
+/>
+
+<Integrations
+  integrations={[
+    {
+      title: 'Snowflake',
+      iconColor: '#29B5E81A',
+      iconComponent: snowflakeSvg,
+    },
+    {
+      title: 'gRPC',
+      iconColor: '#5AC4C34D',
+      iconComponent: gRPCSvg,
+    },
+    {
+      title: 'Grafana',
+      iconColor: '#0078D41A',
+      iconComponent: grafanaSvg,
+    },
+    {
+      title: 'PostgreSQL',
+      iconColor: '#0000001A',
+      iconComponent: postgresSvg,
+    },
+    {
+      title: 'SSH',
+      iconColor: '#ECB22E1A',
+      iconComponent: serverSvg,
+    },
+    {
+      title: 'Ubuntu',
+      iconColor: '#06AC381A',
+      iconComponent: ubuntuSvg,
+    },
+    {
+      title: 'MongoDB',
+      iconColor: '#00ED641A',
+      iconComponent: mongoDBSvg,
+    },
+    {
+      title: 'Kubernetes',
+      iconColor: '#326DE61A',
+      iconComponent: kubernetesSvg,
+    },
+    {
+      title: 'Jenkins',
+      iconColor: '#D338331A',
+      iconComponent: jenkinsSvg,
+    },
+    {
+      title: 'Jupyterhub',
+      iconColor: '#A56EFF1A',
+      iconComponent: jupyterhubSvg,
+    },
+    {
+      title: 'Redis',
+      iconColor: '#FF45391A',
+      iconComponent: redisSvg,
+    }, 
+    {
+      title: 'Elasticsearch',
+      iconColor: '#1BA9F51A',
+      iconComponent: elasticsearchSvg,
+    }, 
+  ]}
+  noBackgroundColor={true}
+/>
