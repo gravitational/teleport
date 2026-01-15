@@ -85,7 +85,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
 		CipherSuites:  utils.DefaultCipherSuites(),
-		AuthClient:    mockAuthClient{},
+		AuthClient:    &mockAuthClient{},
 	})
 
 	require.NoError(t, err)
