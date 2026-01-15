@@ -417,8 +417,10 @@ type UserActivityRecord struct {
 	SamlIdpSessions uint64 `protobuf:"varint,24,opt,name=saml_idp_sessions,json=samlIdpSessions,proto3" json:"saml_idp_sessions,omitempty"`
 	// counter of session summaries accessed by this user per session type and resource name.
 	SessionSummariesAccessed []*SessionSummariesAccessedRecord `protobuf:"bytes,25,rep,name=session_summaries_accessed,json=sessionSummariesAccessed,proto3" json:"session_summaries_accessed,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// counter of access graph queries by this user.
+	AccessGraphQueries uint64 `protobuf:"varint,26,opt,name=access_graph_queries,json=accessGraphQueries,proto3" json:"access_graph_queries,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UserActivityRecord) Reset() {
@@ -625,6 +627,13 @@ func (x *UserActivityRecord) GetSessionSummariesAccessed() []*SessionSummariesAc
 		return x.SessionSummariesAccessed
 	}
 	return nil
+}
+
+func (x *UserActivityRecord) GetAccessGraphQueries() uint64 {
+	if x != nil {
+		return x.AccessGraphQueries
+	}
+	return 0
 }
 
 type ResourcePresenceReport struct {
@@ -1238,6 +1247,232 @@ func (x *SessionSummariesGeneratedRecord) GetTotalOutputTokens() uint64 {
 	return 0
 }
 
+// IdentitySecurityReport is a report of Identity Security non-user usage. It currently
+// includes the size of the access graph by provider and count of audit logs ingested
+// by provider.
+type IdentitySecurityReport struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// randomly generated UUID for this specific report, 16 bytes (in string order)
+	//
+	// PostHog property: tp.report_uuid (in 8-4-4-4-12 string form)
+	ReportUuid []byte `protobuf:"bytes,1,opt,name=report_uuid,json=reportUuid,proto3" json:"report_uuid,omitempty"`
+	// cluster name, anonymized, 32 bytes (HMAC-SHA-256)
+	//
+	// PostHog property: tp.cluster_name (in base64)
+	ClusterName []byte `protobuf:"bytes,2,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
+	// hostid of the auth that collected this report, anonymized, 32 bytes (HMAC-SHA-256)
+	//
+	// PostHog property: tp.reporter_hostid (in base64)
+	ReporterHostid []byte `protobuf:"bytes,3,opt,name=reporter_hostid,json=reporterHostid,proto3" json:"reporter_hostid,omitempty"`
+	// beginning of the time window for this data; ending is not specified but is
+	// intended to be at most 60 minutes
+	//
+	// PostHog timestamp (not a property, the ingest time is tp.report_time instead)
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// graph_size contains the size of each provider's graph: count of identities and
+	// count of resources.
+	GraphSizeRecords []*IdentitySecurityGraphSize `protobuf:"bytes,5,rep,name=graph_size_records,json=graphSizeRecords,proto3" json:"graph_size_records,omitempty"`
+	// audit_logs contains the counts of audit logs ingested from each provider.
+	AuditLogRecords []*IdentitySecurityAuditLogsIngested `protobuf:"bytes,6,rep,name=audit_log_records,json=auditLogRecords,proto3" json:"audit_log_records,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *IdentitySecurityReport) Reset() {
+	*x = IdentitySecurityReport{}
+	mi := &file_prehog_v1_teleport_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IdentitySecurityReport) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IdentitySecurityReport) ProtoMessage() {}
+
+func (x *IdentitySecurityReport) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1_teleport_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IdentitySecurityReport.ProtoReflect.Descriptor instead.
+func (*IdentitySecurityReport) Descriptor() ([]byte, []int) {
+	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *IdentitySecurityReport) GetReportUuid() []byte {
+	if x != nil {
+		return x.ReportUuid
+	}
+	return nil
+}
+
+func (x *IdentitySecurityReport) GetClusterName() []byte {
+	if x != nil {
+		return x.ClusterName
+	}
+	return nil
+}
+
+func (x *IdentitySecurityReport) GetReporterHostid() []byte {
+	if x != nil {
+		return x.ReporterHostid
+	}
+	return nil
+}
+
+func (x *IdentitySecurityReport) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *IdentitySecurityReport) GetGraphSizeRecords() []*IdentitySecurityGraphSize {
+	if x != nil {
+		return x.GraphSizeRecords
+	}
+	return nil
+}
+
+func (x *IdentitySecurityReport) GetAuditLogRecords() []*IdentitySecurityAuditLogsIngested {
+	if x != nil {
+		return x.AuditLogRecords
+	}
+	return nil
+}
+
+// IdentitySecurityGraphSize is submitted by Access Graph for each provider
+// for which it has a graph.
+type IdentitySecurityGraphSize struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// provider is the system containing the identities and resources being counted.
+	// It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
+	Provider string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	// total_identities is the number of identities in the graph.
+	TotalIdentities uint64 `protobuf:"varint,2,opt,name=total_identities,json=totalIdentities,proto3" json:"total_identities,omitempty"`
+	// total_resources is the number of resources in the graph.
+	TotalResources uint64 `protobuf:"varint,3,opt,name=total_resources,json=totalResources,proto3" json:"total_resources,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *IdentitySecurityGraphSize) Reset() {
+	*x = IdentitySecurityGraphSize{}
+	mi := &file_prehog_v1_teleport_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IdentitySecurityGraphSize) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IdentitySecurityGraphSize) ProtoMessage() {}
+
+func (x *IdentitySecurityGraphSize) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1_teleport_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IdentitySecurityGraphSize.ProtoReflect.Descriptor instead.
+func (*IdentitySecurityGraphSize) Descriptor() ([]byte, []int) {
+	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *IdentitySecurityGraphSize) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *IdentitySecurityGraphSize) GetTotalIdentities() uint64 {
+	if x != nil {
+		return x.TotalIdentities
+	}
+	return 0
+}
+
+func (x *IdentitySecurityGraphSize) GetTotalResources() uint64 {
+	if x != nil {
+		return x.TotalResources
+	}
+	return 0
+}
+
+// IdentitySecurityAuditLogsIngested tracks the count of log entries ingested by
+// identity activity center.
+type IdentitySecurityAuditLogsIngested struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// provider is the system emitting audit logs. It is one of
+	// teleport, cloudtrail, kubernetes, github or okta.
+	Provider string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
+	// logs_ingested is a count of log entries ingested into Identity Security.
+	LogsIngested  uint64 `protobuf:"varint,2,opt,name=logs_ingested,json=logsIngested,proto3" json:"logs_ingested,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IdentitySecurityAuditLogsIngested) Reset() {
+	*x = IdentitySecurityAuditLogsIngested{}
+	mi := &file_prehog_v1_teleport_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IdentitySecurityAuditLogsIngested) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IdentitySecurityAuditLogsIngested) ProtoMessage() {}
+
+func (x *IdentitySecurityAuditLogsIngested) ProtoReflect() protoreflect.Message {
+	mi := &file_prehog_v1_teleport_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IdentitySecurityAuditLogsIngested.ProtoReflect.Descriptor instead.
+func (*IdentitySecurityAuditLogsIngested) Descriptor() ([]byte, []int) {
+	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *IdentitySecurityAuditLogsIngested) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
+func (x *IdentitySecurityAuditLogsIngested) GetLogsIngested() uint64 {
+	if x != nil {
+		return x.LogsIngested
+	}
+	return 0
+}
+
 type SubmitUsageReportsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// at most 10 reports of all kinds in a single RPC, each shouldn't exceed 128KiB or so
@@ -1250,13 +1485,15 @@ type SubmitUsageReportsRequest struct {
 	BotInstanceActivity []*BotInstanceActivityReport `protobuf:"bytes,3,rep,name=bot_instance_activity,json=botInstanceActivity,proto3" json:"bot_instance_activity,omitempty"`
 	// encoded as a separate tp.identity_security.summaries_generated PostHog event
 	IdentitySecuritySummariesReport []*IdentitySecuritySummariesGeneratedReport `protobuf:"bytes,4,rep,name=identity_security_summaries_report,json=identitySecuritySummariesReport,proto3" json:"identity_security_summaries_report,omitempty"`
-	unknownFields                   protoimpl.UnknownFields
-	sizeCache                       protoimpl.SizeCache
+	// encoded as a separate tp.identity_security.usage PostHog event
+	IdentitySecurityReport []*IdentitySecurityReport `protobuf:"bytes,5,rep,name=identity_security_report,json=identitySecurityReport,proto3" json:"identity_security_report,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *SubmitUsageReportsRequest) Reset() {
 	*x = SubmitUsageReportsRequest{}
-	mi := &file_prehog_v1_teleport_proto_msgTypes[10]
+	mi := &file_prehog_v1_teleport_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1268,7 +1505,7 @@ func (x *SubmitUsageReportsRequest) String() string {
 func (*SubmitUsageReportsRequest) ProtoMessage() {}
 
 func (x *SubmitUsageReportsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1_teleport_proto_msgTypes[10]
+	mi := &file_prehog_v1_teleport_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1281,7 +1518,7 @@ func (x *SubmitUsageReportsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitUsageReportsRequest.ProtoReflect.Descriptor instead.
 func (*SubmitUsageReportsRequest) Descriptor() ([]byte, []int) {
-	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{10}
+	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SubmitUsageReportsRequest) GetUserActivity() []*UserActivityReport {
@@ -1312,6 +1549,13 @@ func (x *SubmitUsageReportsRequest) GetIdentitySecuritySummariesReport() []*Iden
 	return nil
 }
 
+func (x *SubmitUsageReportsRequest) GetIdentitySecurityReport() []*IdentitySecurityReport {
+	if x != nil {
+		return x.IdentitySecurityReport
+	}
+	return nil
+}
+
 type SubmitUsageReportsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// randomly generated UUID for this specific batch, 16 bytes (in string order)
@@ -1324,7 +1568,7 @@ type SubmitUsageReportsResponse struct {
 
 func (x *SubmitUsageReportsResponse) Reset() {
 	*x = SubmitUsageReportsResponse{}
-	mi := &file_prehog_v1_teleport_proto_msgTypes[11]
+	mi := &file_prehog_v1_teleport_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1336,7 +1580,7 @@ func (x *SubmitUsageReportsResponse) String() string {
 func (*SubmitUsageReportsResponse) ProtoMessage() {}
 
 func (x *SubmitUsageReportsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_prehog_v1_teleport_proto_msgTypes[11]
+	mi := &file_prehog_v1_teleport_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1349,7 +1593,7 @@ func (x *SubmitUsageReportsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitUsageReportsResponse.ProtoReflect.Descriptor instead.
 func (*SubmitUsageReportsResponse) Descriptor() ([]byte, []int) {
-	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{11}
+	return file_prehog_v1_teleport_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *SubmitUsageReportsResponse) GetBatchUuid() []byte {
@@ -1371,7 +1615,7 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x127\n" +
-	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\x99\t\n" +
+	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xcb\t\n" +
 	"\x12UserActivityRecord\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\fR\buserName\x120\n" +
 	"\tuser_kind\x18\x0e \x01(\x0e2\x13.prehog.v1.UserKindR\buserKind\x12\x16\n" +
@@ -1401,7 +1645,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x15access_lists_reviewed\x18\x16 \x01(\x04R\x13accessListsReviewed\x12.\n" +
 	"\x13access_lists_grants\x18\x17 \x01(\x04R\x11accessListsGrants\x12*\n" +
 	"\x11saml_idp_sessions\x18\x18 \x01(\x04R\x0fsamlIdpSessions\x12g\n" +
-	"\x1asession_summaries_accessed\x18\x19 \x03(\v2).prehog.v1.SessionSummariesAccessedRecordR\x18sessionSummariesAccessed\"\x9b\x02\n" +
+	"\x1asession_summaries_accessed\x18\x19 \x03(\v2).prehog.v1.SessionSummariesAccessedRecordR\x18sessionSummariesAccessed\x120\n" +
+	"\x14access_graph_queries\x18\x1a \x01(\x04R\x12accessGraphQueries\"\x9b\x02\n" +
 	"\x16ResourcePresenceReport\x12\x1f\n" +
 	"\vreport_uuid\x18\x01 \x01(\fR\n" +
 	"reportUuid\x12!\n" +
@@ -1446,12 +1691,29 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\fsession_type\x18\x01 \x01(\tR\vsessionType\x12#\n" +
 	"\rresource_name\x18\x02 \x01(\tR\fresourceName\x12,\n" +
 	"\x12total_input_tokens\x18\x04 \x01(\x04R\x10totalInputTokens\x12.\n" +
-	"\x13total_output_tokens\x18\x05 \x01(\x04R\x11totalOutputTokens\"\x8c\x03\n" +
+	"\x13total_output_tokens\x18\x05 \x01(\x04R\x11totalOutputTokens\"\xee\x02\n" +
+	"\x16IdentitySecurityReport\x12\x1f\n" +
+	"\vreport_uuid\x18\x01 \x01(\fR\n" +
+	"reportUuid\x12!\n" +
+	"\fcluster_name\x18\x02 \x01(\fR\vclusterName\x12'\n" +
+	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
+	"\n" +
+	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12R\n" +
+	"\x12graph_size_records\x18\x05 \x03(\v2$.prehog.v1.IdentitySecurityGraphSizeR\x10graphSizeRecords\x12X\n" +
+	"\x11audit_log_records\x18\x06 \x03(\v2,.prehog.v1.IdentitySecurityAuditLogsIngestedR\x0fauditLogRecords\"\x8b\x01\n" +
+	"\x19IdentitySecurityGraphSize\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12)\n" +
+	"\x10total_identities\x18\x02 \x01(\x04R\x0ftotalIdentities\x12'\n" +
+	"\x0ftotal_resources\x18\x03 \x01(\x04R\x0etotalResources\"d\n" +
+	"!IdentitySecurityAuditLogsIngested\x12\x1a\n" +
+	"\bprovider\x18\x01 \x01(\tR\bprovider\x12#\n" +
+	"\rlogs_ingested\x18\x02 \x01(\x04R\flogsIngested\"\xe9\x03\n" +
 	"\x19SubmitUsageReportsRequest\x12B\n" +
 	"\ruser_activity\x18\x01 \x03(\v2\x1d.prehog.v1.UserActivityReportR\fuserActivity\x12N\n" +
 	"\x11resource_presence\x18\x02 \x03(\v2!.prehog.v1.ResourcePresenceReportR\x10resourcePresence\x12X\n" +
 	"\x15bot_instance_activity\x18\x03 \x03(\v2$.prehog.v1.BotInstanceActivityReportR\x13botInstanceActivity\x12\x80\x01\n" +
-	"\"identity_security_summaries_report\x18\x04 \x03(\v23.prehog.v1.IdentitySecuritySummariesGeneratedReportR\x1fidentitySecuritySummariesReport\";\n" +
+	"\"identity_security_summaries_report\x18\x04 \x03(\v23.prehog.v1.IdentitySecuritySummariesGeneratedReportR\x1fidentitySecuritySummariesReport\x12[\n" +
+	"\x18identity_security_report\x18\x05 \x03(\v2!.prehog.v1.IdentitySecurityReportR\x16identitySecurityReport\";\n" +
 	"\x1aSubmitUsageReportsResponse\x12\x1d\n" +
 	"\n" +
 	"batch_uuid\x18\x01 \x01(\fR\tbatchUuid*c\n" +
@@ -1495,7 +1757,7 @@ func file_prehog_v1_teleport_proto_rawDescGZIP() []byte {
 }
 
 var file_prehog_v1_teleport_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_prehog_v1_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_prehog_v1_teleport_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_prehog_v1_teleport_proto_goTypes = []any{
 	(UserKind)(0),                                    // 0: prehog.v1.UserKind
 	(UserOrigin)(0),                                  // 1: prehog.v1.UserOrigin
@@ -1510,35 +1772,42 @@ var file_prehog_v1_teleport_proto_goTypes = []any{
 	(*SPIFFEIDRecord)(nil),                           // 10: prehog.v1.SPIFFEIDRecord
 	(*IdentitySecuritySummariesGeneratedReport)(nil), // 11: prehog.v1.IdentitySecuritySummariesGeneratedReport
 	(*SessionSummariesGeneratedRecord)(nil),          // 12: prehog.v1.SessionSummariesGeneratedRecord
-	(*SubmitUsageReportsRequest)(nil),                // 13: prehog.v1.SubmitUsageReportsRequest
-	(*SubmitUsageReportsResponse)(nil),               // 14: prehog.v1.SubmitUsageReportsResponse
-	(*timestamppb.Timestamp)(nil),                    // 15: google.protobuf.Timestamp
+	(*IdentitySecurityReport)(nil),                   // 13: prehog.v1.IdentitySecurityReport
+	(*IdentitySecurityGraphSize)(nil),                // 14: prehog.v1.IdentitySecurityGraphSize
+	(*IdentitySecurityAuditLogsIngested)(nil),        // 15: prehog.v1.IdentitySecurityAuditLogsIngested
+	(*SubmitUsageReportsRequest)(nil),                // 16: prehog.v1.SubmitUsageReportsRequest
+	(*SubmitUsageReportsResponse)(nil),               // 17: prehog.v1.SubmitUsageReportsResponse
+	(*timestamppb.Timestamp)(nil),                    // 18: google.protobuf.Timestamp
 }
 var file_prehog_v1_teleport_proto_depIdxs = []int32{
-	15, // 0: prehog.v1.UserActivityReport.start_time:type_name -> google.protobuf.Timestamp
+	18, // 0: prehog.v1.UserActivityReport.start_time:type_name -> google.protobuf.Timestamp
 	4,  // 1: prehog.v1.UserActivityReport.records:type_name -> prehog.v1.UserActivityRecord
 	0,  // 2: prehog.v1.UserActivityRecord.user_kind:type_name -> prehog.v1.UserKind
 	10, // 3: prehog.v1.UserActivityRecord.spiffe_ids_issued:type_name -> prehog.v1.SPIFFEIDRecord
 	1,  // 4: prehog.v1.UserActivityRecord.user_origin:type_name -> prehog.v1.UserOrigin
 	7,  // 5: prehog.v1.UserActivityRecord.session_summaries_accessed:type_name -> prehog.v1.SessionSummariesAccessedRecord
-	15, // 6: prehog.v1.ResourcePresenceReport.start_time:type_name -> google.protobuf.Timestamp
+	18, // 6: prehog.v1.ResourcePresenceReport.start_time:type_name -> google.protobuf.Timestamp
 	6,  // 7: prehog.v1.ResourcePresenceReport.resource_kind_reports:type_name -> prehog.v1.ResourceKindPresenceReport
 	2,  // 8: prehog.v1.ResourceKindPresenceReport.resource_kind:type_name -> prehog.v1.ResourceKind
-	15, // 9: prehog.v1.BotInstanceActivityReport.start_time:type_name -> google.protobuf.Timestamp
+	18, // 9: prehog.v1.BotInstanceActivityReport.start_time:type_name -> google.protobuf.Timestamp
 	9,  // 10: prehog.v1.BotInstanceActivityReport.records:type_name -> prehog.v1.BotInstanceActivityRecord
-	15, // 11: prehog.v1.IdentitySecuritySummariesGeneratedReport.start_time:type_name -> google.protobuf.Timestamp
+	18, // 11: prehog.v1.IdentitySecuritySummariesGeneratedReport.start_time:type_name -> google.protobuf.Timestamp
 	12, // 12: prehog.v1.IdentitySecuritySummariesGeneratedReport.records:type_name -> prehog.v1.SessionSummariesGeneratedRecord
-	3,  // 13: prehog.v1.SubmitUsageReportsRequest.user_activity:type_name -> prehog.v1.UserActivityReport
-	5,  // 14: prehog.v1.SubmitUsageReportsRequest.resource_presence:type_name -> prehog.v1.ResourcePresenceReport
-	8,  // 15: prehog.v1.SubmitUsageReportsRequest.bot_instance_activity:type_name -> prehog.v1.BotInstanceActivityReport
-	11, // 16: prehog.v1.SubmitUsageReportsRequest.identity_security_summaries_report:type_name -> prehog.v1.IdentitySecuritySummariesGeneratedReport
-	13, // 17: prehog.v1.TeleportReportingService.SubmitUsageReports:input_type -> prehog.v1.SubmitUsageReportsRequest
-	14, // 18: prehog.v1.TeleportReportingService.SubmitUsageReports:output_type -> prehog.v1.SubmitUsageReportsResponse
-	18, // [18:19] is the sub-list for method output_type
-	17, // [17:18] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	18, // 13: prehog.v1.IdentitySecurityReport.start_time:type_name -> google.protobuf.Timestamp
+	14, // 14: prehog.v1.IdentitySecurityReport.graph_size_records:type_name -> prehog.v1.IdentitySecurityGraphSize
+	15, // 15: prehog.v1.IdentitySecurityReport.audit_log_records:type_name -> prehog.v1.IdentitySecurityAuditLogsIngested
+	3,  // 16: prehog.v1.SubmitUsageReportsRequest.user_activity:type_name -> prehog.v1.UserActivityReport
+	5,  // 17: prehog.v1.SubmitUsageReportsRequest.resource_presence:type_name -> prehog.v1.ResourcePresenceReport
+	8,  // 18: prehog.v1.SubmitUsageReportsRequest.bot_instance_activity:type_name -> prehog.v1.BotInstanceActivityReport
+	11, // 19: prehog.v1.SubmitUsageReportsRequest.identity_security_summaries_report:type_name -> prehog.v1.IdentitySecuritySummariesGeneratedReport
+	13, // 20: prehog.v1.SubmitUsageReportsRequest.identity_security_report:type_name -> prehog.v1.IdentitySecurityReport
+	16, // 21: prehog.v1.TeleportReportingService.SubmitUsageReports:input_type -> prehog.v1.SubmitUsageReportsRequest
+	17, // 22: prehog.v1.TeleportReportingService.SubmitUsageReports:output_type -> prehog.v1.SubmitUsageReportsResponse
+	22, // [22:23] is the sub-list for method output_type
+	21, // [21:22] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_prehog_v1_teleport_proto_init() }
@@ -1552,7 +1821,7 @@ func file_prehog_v1_teleport_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_prehog_v1_teleport_proto_rawDesc), len(file_prehog_v1_teleport_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   12,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
