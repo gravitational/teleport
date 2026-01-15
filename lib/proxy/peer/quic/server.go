@@ -500,8 +500,6 @@ type sessionTicketRefresher struct {
 	mu sync.Mutex
 }
 
-func _() { new(tls.Config).SetSessionTicketKeys(new(sessionTicketRefresher).getSessionTicketKeys()) }
-
 // getSessionTicketKeys returns a slice of session tickets, potentially adding a
 // new one and rotating out expired old ones. A new ticket is created when the
 // most recent is a day old, and tickets are rotated away after a week or so.
