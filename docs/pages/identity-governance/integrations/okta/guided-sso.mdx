@@ -30,7 +30,7 @@ Provider](../../../zero-trust-access/sso/integrate-idp/okta.mdx).
 - (!docs/pages/includes/tctl.mdx!)
 - An Okta organization with admin access.
 
-## Step 1/4. Create new or choose an existing authentication connector
+## Step 1/4. Choose an authentication connector
 
 1. Visit the Teleport Web UI and from the left sidebar, navigate to **Add New** -> **Integration**.
 
@@ -40,7 +40,7 @@ Provider](../../../zero-trust-access/sso/integrate-idp/okta.mdx).
 
 3. In the **Choose Your Auth Connector** view, select an existing connector or create a new one by selecting an option from the dropdown menu.
 
-Tip: an existing connector can be inspected with the `tctl` command:
+You can inspect an existing connector with the `tctl` command. Replace <Var name="okta" /> with the name of your connector.
 
 ```code
 $ tctl get saml/<Var name="okta" />
