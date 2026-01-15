@@ -814,6 +814,11 @@ highAvailability:
   # cluster on its first startup.
   replicaCount: 1
 
+  # highAvailability.podManagementPolicy(string) -- sets the StatefulSets'
+  # [podManagementPolicy](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#pod-management-policies).
+  # `Parallel` will scale all replicas up / down in parallel.
+  podManagementPolicy: OrderedReady
+
   # highAvailability.requireAntiAffinity(bool) -- configures Kubernetes `requiredDuringSchedulingIgnoredDuringExecution`
   # to require that multiple Teleport pods must not be scheduled on the same physical host.
   #
