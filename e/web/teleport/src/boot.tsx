@@ -5,6 +5,7 @@ import history from 'teleport/services/history';
 import 'teleport/lib/polyfillRandomUuid';
 
 import cfg from 'e-teleport/config';
+import { KeysEnum } from 'teleport/services/storageService';
 
 import TeleportContextE from './teleportContextE';
 import TeleportE from './TeleportE';
@@ -15,7 +16,7 @@ cfg.init(window['GRV_CONFIG']);
 // use browser history
 history.init();
 
-if (localStorage.getItem('enable-telemetry') === 'true') {
+if (localStorage.getItem(KeysEnum.ENABLE_TELEMETRY) === 'true') {
   import('teleport/telemetry-boot').then(m => m.instantiateTelemetry());
 }
 
