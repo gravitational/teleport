@@ -340,13 +340,14 @@ If `crd.create` is set to true, then a TeleportProvisionToken will be created wi
 
 ## `crd`
 
-`crd` controls whether the chart creates custom resources managed by the Teleport Operator.
-If enabled, the chart will create TeleportRoleV7, TeleportBotV1, and TeleportProvisionToken
+`crd` controls whether the chart creates custom resources managed by the Teleport Kubernetes Operator.
+If enabled, the chart will create TeleportRoleV8, TeleportBotV1, and TeleportProvisionToken
 resources to automatically connect the plugin to Teleport.
 
-<Admonition type="warning" title="Interaction with Teleport Operator">
-The Teleport Operator must already be enabled in the Teleport cluster
-for the custom resources to be applied successfully.
+<Admonition type="warning" title="Interaction with Teleport Kubernetes Operator">
+The Teleport Kubernetes Operator must already be enabled in the Teleport cluster
+for the custom resources to be applied successfully. In addition,
+the custom resources must be deployed in the same namespace as the Teleport Kubernetes Operator.
 </Admonition>
 
 ### `crd.create`
@@ -398,6 +399,16 @@ tokenSpecOverride:
       # cluster and cloud provider.
       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
 ```
+
+### `crd.namespace`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`crd.namespace` optionally overrides the Kubernetes namespace that the
+custom resources are created in. This should match the namespace in which the
+Teleport Kubernetes Operator is running. Defaults to the current namespace.
 
 ## `annotations`
 

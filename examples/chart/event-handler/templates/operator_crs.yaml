@@ -1,8 +1,12 @@
 {{- if .Values.crd.create -}}
+{{- if not .Values.tbot.enabled -}}
+{{- fail "Custom resources cannot be deployed without tbot enabled" -}}
+{{- end -}}
 apiVersion: resources.teleport.dev/v1
-kind: TeleportRoleV7
+kind: TeleportRoleV8
 metadata:
   name: {{ include "event-handler.fullname" . }}
+  namespace: {{ include "event-handler.crd.namespace" . }}
 spec:
   allow:
     rules:
@@ -13,6 +17,7 @@ apiVersion: resources.teleport.dev/v1
 kind: TeleportBotV1
 metadata:
   name: {{ include "event-handler.fullname" . }}
+  namespace: {{ include "event-handler.crd.namespace" . }}
 spec:
   roles:
     - {{ include "event-handler.fullname" . }}
@@ -21,6 +26,7 @@ apiVersion: resources.teleport.dev/v2
 kind: TeleportProvisionToken
 metadata:
   name: {{ include "event-handler.crd.tokenName" . }}
+  namespace: {{ include "event-handler.crd.namespace" . }}
 spec:
   roles: [Bot]
   bot_name: {{ include "event-handler.fullname" . }}
