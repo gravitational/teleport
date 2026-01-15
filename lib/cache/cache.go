@@ -794,6 +794,8 @@ type Config struct {
 	Plugin services.Plugins
 	// AppAuthConfig is a app auth config service.
 	AppAuthConfig services.AppAuthConfigReader
+	// WorkloadClusterService is a workload cluster service
+	WorkloadClusterService services.WorkloadClusterService
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
