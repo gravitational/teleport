@@ -77,6 +77,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkSPIFFECA(ca)
 	case types.AWSRACA:
 		err = checkAWSRACA(ca)
+	case types.WindowsCA:
+		err = checkWindowsCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -209,6 +211,15 @@ func checkJWTKeys(cai types.CertAuthority) error {
 // checkSAMLIDPCA checks if provided certificate authority contains a valid TLS key pair.
 // This function is used to verify the SAML IDP CA.
 func checkSAMLIDPCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	return trace.Wrap(checkTLSKeys(ca))
+}
+
+func checkWindowsCA(cai types.CertAuthority) error {
 	ca, ok := cai.(*types.CertAuthorityV2)
 	if !ok {
 		return trace.BadParameter("unknown CA type %T", cai)
