@@ -313,3 +313,21 @@ func onIntegrationConfAWSRATrustAnchor(ctx context.Context, clf config.CommandLi
 	}
 	return trace.Wrap(awsra.ConfigureRolesAnywhereIAM(ctx, rolesAnywhereConfigClient, confReq))
 }
+
+func onIntegrationConfSessionSummariesBedrock(ctx context.Context, params config.IntegrationConfSessionSummariesBedrock) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	iamClient, err := awsoidc.NewBedrockSessionSummariesIAMConfigureClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	confReq := awsoidc.BedrockSessionSummariesIAMConfigureRequest{
+		IntegrationRole: params.Role,
+		Resource:        params.Resource,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	return trace.Wrap(awsoidc.ConfigureBedrockSessionSummariesIAM(ctx, iamClient, confReq))
+}
