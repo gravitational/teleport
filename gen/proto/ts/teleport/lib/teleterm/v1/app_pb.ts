@@ -145,6 +145,19 @@ export interface App {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 12;
      */
     tcpPorts: PortRange[];
+    /**
+     * Subkind of the app resource. Used to differentiate different flavors of app.
+     *
+     * @generated from protobuf field: string sub_kind = 13;
+     */
+    subKind: string;
+    /**
+     * Defines a permission set that is available on an IdentityCenter account app.
+     * Such apps can be recognized by sub_kind == 'aws_ic_account'.
+     *
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.IdentityCenterPermissionSet permission_sets = 14;
+     */
+    permissionSets: IdentityCenterPermissionSet[];
 }
 /**
  * AwsRole describes AWS IAM role.
@@ -243,6 +256,32 @@ export interface RouteToApp {
      */
     targetPort: number;
 }
+/**
+ * Defines a permission set that is available on an IdentityCenter account app.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.IdentityCenterPermissionSet
+ */
+export interface IdentityCenterPermissionSet {
+    /**
+     * AWS-assigned ARN of the permission set.
+     *
+     * @generated from protobuf field: string arn = 1;
+     */
+    arn: string;
+    /**
+     * Human-readable name of the permission set.
+     *
+     * @generated from protobuf field: string name = 2;
+     */
+    name: string;
+    /**
+     * ID of the Teleport Account Assignment resource that represents this permission being assigned
+     * on the enclosing Account.
+     *
+     * @generated from protobuf field: string assignment_id = 3;
+     */
+    assignmentId: string;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class App$Type extends MessageType<App> {
     constructor() {
@@ -258,7 +297,9 @@ class App$Type extends MessageType<App> {
             { no: 9, name: "labels", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Label },
             { no: 10, name: "fqdn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 11, name: "aws_roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => AWSRole },
-            { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange }
+            { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange },
+            { no: 13, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 14, name: "permission_sets", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentityCenterPermissionSet }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -275,6 +316,8 @@ class App$Type extends MessageType<App> {
         message.fqdn = "";
         message.awsRoles = [];
         message.tcpPorts = [];
+        message.subKind = "";
+        message.permissionSets = [];
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -319,6 +362,12 @@ class App$Type extends MessageType<App> {
                     break;
                 case /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports */ 12:
                     message.tcpPorts.push(PortRange.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string sub_kind */ 13:
+                    message.subKind = reader.string();
+                    break;
+                case /* repeated teleport.lib.teleterm.v1.IdentityCenterPermissionSet permission_sets */ 14:
+                    message.permissionSets.push(IdentityCenterPermissionSet.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -368,6 +417,12 @@ class App$Type extends MessageType<App> {
         /* repeated teleport.lib.teleterm.v1.PortRange tcp_ports = 12; */
         for (let i = 0; i < message.tcpPorts.length; i++)
             PortRange.internalBinaryWrite(message.tcpPorts[i], writer.tag(12, WireType.LengthDelimited).fork(), options).join();
+        /* string sub_kind = 13; */
+        if (message.subKind !== "")
+            writer.tag(13, WireType.LengthDelimited).string(message.subKind);
+        /* repeated teleport.lib.teleterm.v1.IdentityCenterPermissionSet permission_sets = 14; */
+        for (let i = 0; i < message.permissionSets.length; i++)
+            IdentityCenterPermissionSet.internalBinaryWrite(message.permissionSets[i], writer.tag(14, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -583,3 +638,66 @@ class RouteToApp$Type extends MessageType<RouteToApp> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.RouteToApp
  */
 export const RouteToApp = new RouteToApp$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IdentityCenterPermissionSet$Type extends MessageType<IdentityCenterPermissionSet> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.IdentityCenterPermissionSet", [
+            { no: 1, name: "arn", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "assignment_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IdentityCenterPermissionSet>): IdentityCenterPermissionSet {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.arn = "";
+        message.name = "";
+        message.assignmentId = "";
+        if (value !== undefined)
+            reflectionMergePartial<IdentityCenterPermissionSet>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentityCenterPermissionSet): IdentityCenterPermissionSet {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string arn */ 1:
+                    message.arn = reader.string();
+                    break;
+                case /* string name */ 2:
+                    message.name = reader.string();
+                    break;
+                case /* string assignment_id */ 3:
+                    message.assignmentId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IdentityCenterPermissionSet, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string arn = 1; */
+        if (message.arn !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.arn);
+        /* string name = 2; */
+        if (message.name !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.name);
+        /* string assignment_id = 3; */
+        if (message.assignmentId !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.assignmentId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.IdentityCenterPermissionSet
+ */
+export const IdentityCenterPermissionSet = new IdentityCenterPermissionSet$Type();
