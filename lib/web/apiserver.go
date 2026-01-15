@@ -1076,6 +1076,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
+	h.GET("/webapi/scripts/integrations/configure/aws-oidc-bedrock.sh", h.WithLimiter(h.awsBedrockSummarizerOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
 	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
@@ -2053,7 +2054,8 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-}) (isMatch bool, isFallback bool, err error) {
+},
+) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)
@@ -3757,7 +3759,6 @@ func (h *Handler) getClusterLocks(
 			return clt.GetLocks(ctx, inForceOnlyFalse)
 		},
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

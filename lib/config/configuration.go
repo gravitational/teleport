@@ -266,6 +266,10 @@ type CommandLineFlags struct {
 	// `teleport integration configure awsra-trust-anchor` command
 	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
 
+	// IntegrationConfSessionSummariesBedrockArguments contains the arguments of
+	// `teleport integration configure session-summaries bedrock` command
+	IntegrationConfSessionSummariesBedrockArguments IntegrationConfSessionSummariesBedrock
+
 	// LogLevel is the new application's log level.
 	LogLevel string
 
@@ -459,6 +463,20 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfSessionSummariesBedrock contains the arguments of
+// `teleport integration configure session-summaries bedrock` command
+type IntegrationConfSessionSummariesBedrock struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// Resource is the AWS Bedrock resource to grant access to.
+	// Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).
+	Resource string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
