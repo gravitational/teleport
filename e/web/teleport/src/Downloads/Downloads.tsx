@@ -7,7 +7,7 @@ import {
 } from 'teleport/components/Layout';
 
 import { License } from './License/License';
-import { TeleportReleases } from './TeleportReleases/TeleportReleases';
+import { PublicPageLinks } from './TeleportReleases/PublicPageLinks';
 import { State, useDownloads } from './useDownloads';
 
 export function Downloads() {
@@ -21,22 +21,14 @@ export const LICENSE_FILE_GUIDE_LINK =
   'https://goteleport.com/docs/admin-guides/deploy-a-cluster/license/';
 
 export const DownloadsView = ({
-  attempt,
-  releases,
-  availableVersions,
-  selectedVersion,
-  setSelectedVersion,
-  selectedKind,
-  setSelectedKind,
-  selectedOS,
-  setSelectedOS,
+  canDownloadReleaseAssets,
+  authVersion,
+  canGenerateLicense,
   generateLicense,
   saveLicense,
   licenseAttempt,
-  canGenerateLicense,
   showSaveLicenseDialog,
   closeSaveLicenseDialog,
-  canDownloadReleaseAssets,
   license,
 }: State) => {
   return (
@@ -56,18 +48,9 @@ export const DownloadsView = ({
           expiry={license?.expiry}
         />
       )}
-      <TeleportReleases
-        canDownloadReleaseAssets={canDownloadReleaseAssets}
-        releases={releases}
-        attempt={attempt}
-        availableVersions={availableVersions}
-        selectedVersion={selectedVersion}
-        setSelectedVersion={setSelectedVersion}
-        selectedOS={selectedOS}
-        setSelectedOS={setSelectedOS}
-        selectedKind={selectedKind}
-        setSelectedKind={setSelectedKind}
-      />
+      {canDownloadReleaseAssets && (
+        <PublicPageLinks authVersion={authVersion} />
+      )}
     </FeatureBox>
   );
 };
