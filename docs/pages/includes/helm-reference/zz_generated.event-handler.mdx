@@ -359,6 +359,16 @@ the custom resources must be deployed in the same namespace as the Teleport Kube
 `crd.create` controls if the chart should create
 the Operator custom resources to automatically bootstrap the plugin.
 
+### `crd.namespace`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`crd.namespace` optionally overrides the Kubernetes namespace that the
+custom resources are created in. This should match the namespace in which the
+Teleport Kubernetes Operator is running. Defaults to the current namespace.
+
 ### `crd.tokenSpecOverride`
 
 `crd.tokenSpecOverride` optionally overrides the join token spec for tbot to use to join the Teleport cluster.
@@ -399,16 +409,6 @@ tokenSpecOverride:
       # cluster and cloud provider.
       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
 ```
-
-### `crd.namespace`
-
-| Type | Default |
-|------|---------|
-| `string` | `""` |
-
-`crd.namespace` optionally overrides the Kubernetes namespace that the
-custom resources are created in. This should match the namespace in which the
-Teleport Kubernetes Operator is running. Defaults to the current namespace.
 
 ## `annotations`
 
