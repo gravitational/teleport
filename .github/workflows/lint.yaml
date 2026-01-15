@@ -71,7 +71,9 @@ jobs:
               - 'docs/pages/enroll-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/operator-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/terraform-provider/**'
+              - 'docs/pages/reference/infrastructure-as-code/teleport-resources/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
+              - 'build.assets/tooling/cmd/resource-ref-generator/**'
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'

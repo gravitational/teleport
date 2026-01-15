@@ -24,3 +24,14 @@ resources:
     yaml_kind: saml
     yaml_version: v2
 
+camel_case_exceptions:
+  - AWS
+  - CORS
+  - EKS
+  - GCP
+  - HTTP
+  - ID
+  - MFA
+  - OIDC
+  - SAML
+  - SSO
