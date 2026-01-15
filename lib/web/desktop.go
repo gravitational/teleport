@@ -690,14 +690,15 @@ func (d desktopPinger) intercept(msg tdp.Message) ([]tdp.Message, error) {
 	return nil, nil
 }
 
-func (d desktopPinger) ping(ctx context.Context, msg tdp.Message) error {
+func (d desktopPinger) ping(ctx context.Context, ping []byte, msg tdp.Message) error {
+	// The provided 'ping' byte slice should match the UUID contained in 'msg'
 	if err := d.server.WriteMessage(msg); err != nil {
 		return trace.Wrap(err)
 	}
 	for {
 		select {
 		case pong := <-d.ch:
-			if bytes.Equal(pong, pong) {
+			if bytes.Equal(ping, pong) {
 				return nil
 			}
 		case <-ctx.Done():
@@ -721,12 +722,13 @@ func (d desktopPinger) reportTDP(_ context.Context, stats latency.Statistics) er
 }
 
 func (d desktopPinger) pingTDP(ctx context.Context) error {
-	return d.ping(ctx, legacy.Ping{UUID: uuid.New()})
+	ping := uuid.New()
+	return d.ping(ctx, ping[:], legacy.Ping{UUID: ping})
 }
 
 func (d desktopPinger) pingTDPB(ctx context.Context) error {
 	uuid := uuid.New()
-	return d.ping(ctx, &tdpb.Ping{
+	return d.ping(ctx, uuid[:], &tdpb.Ping{
 		Uuid: uuid[:],
 	})
 }
