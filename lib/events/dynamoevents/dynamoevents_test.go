@@ -900,6 +900,7 @@ func TestStartKeyBackCompat(t *testing.T) {
 
 	// we must check the iterator field equality separately because it's a string
 	// containing a JSON-encoded event and field ordering might not be consistent.
+	require.Equal(t, oldCP.EventKey, newCP.EventKey)
 	require.Equal(t, oldCP.Date, newCP.Date)
 
 	var oldIterator, newIterator event

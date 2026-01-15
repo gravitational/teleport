@@ -20,6 +20,8 @@ package dynamoevents
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -746,6 +748,12 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator string `json:"iterator,omitempty"`
+
+	// EventKey is a derived identifier for an event used for resuming
+	// sub-page breaks due to size constraints.
+	// Deprecated: only here to support backwards compatibility for old checkpoints.
+	// New checkpoints set sub-page breaks via Iterator instead.
+	EventKey string `json:"event_key,omitempty"`
 }
 
 // legacyCheckpointKey is the old checkpoint key returned by older auth versions. Used to decode
@@ -1065,6 +1073,7 @@ func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
 	return checkpointKey{
 		Date:     checkpoint.Date,
 		Iterator: string(iterator),
+		EventKey: checkpoint.EventKey,
 	}, nil
 }
 
@@ -1082,6 +1091,17 @@ func getExprFilter(filter searchEventsFilter) *string {
 		filterExpr = aws.String(strings.Join(filterConds, " AND "))
 	}
 	return filterExpr
+}
+
+// Deprecated: only here to support backwards compatibility for old checkpoints using checkpointKey.EventKey.
+func getSubPageCheckpoint(e *event) (string, error) {
+	data, err := utils.FastMarshal(e)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:]), nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
@@ -1619,6 +1639,23 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 			return nil, false, trace.Wrap(err)
 		}
 
+		// Support reading old checkpoints that are using checkpointKey.EventKey.
+		// This field was used to resume processing events after a sub-page break.
+		// After we begin processing from the correct event,
+		// new checkpoints will not set EventKey and use Iterator instead.
+		if l.checkpoint.EventKey != "" {
+			key, err := getSubPageCheckpoint(&e)
+			if err != nil {
+				return nil, false, trace.Wrap(err)
+			}
+
+			if key != l.checkpoint.EventKey {
+				continue
+			}
+
+			// Found the correct event, reset the EventKey so new checkpoints don't use it.
+			l.checkpoint.EventKey = ""
+		}
 		// Stop early when the fetcher's total size exceeds the response size limit.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
 			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
