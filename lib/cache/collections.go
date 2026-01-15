@@ -789,6 +789,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.appAuthConfig = collect
 			out.byKind[resourceKind] = out.appAuthConfig
+		case types.KindWorkloadCluster:
+			collect, err := newWorkloadClusterCollection(c.WorkloadClusterService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.workloadClusters = collect
+			out.byKind[resourceKind] = out.workloadClusters
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
