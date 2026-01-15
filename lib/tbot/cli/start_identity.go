@@ -51,7 +51,7 @@ func NewIdentityCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode
 
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&c.Cluster)
+	cmd.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster.").StringVar(&c.Cluster)
 	cmd.Flag("allow-reissue", "Allow the credentials output by this command to be reissued.").BoolVar(&c.AllowReissue)
 	// Note: roles and ssh_config mode are excluded for now.
 
