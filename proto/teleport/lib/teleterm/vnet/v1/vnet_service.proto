@@ -37,6 +37,11 @@ service VnetService {
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
 
+  // GetWindowsSystemService verifies the existence of the VNet system service, which is installed only in per-machine setups.
+  // If the service doesn't exist, a standard gRPC Not Found error is returned.
+  // Windows only.
+  rpc GetWindowsSystemService(GetWindowsSystemServiceRequest) returns (GetWindowsSystemServiceResponse);
+
   // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
   // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
   rpc RunDiagnostics(RunDiagnosticsRequest) returns (RunDiagnosticsResponse);
@@ -96,6 +101,12 @@ enum BackgroundItemStatus {
   BACKGROUND_ITEM_STATUS_NOT_FOUND = 4;
   BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
 }
+
+// Request for GetWindowsSystemServiceRequest.
+message GetWindowsSystemServiceRequest {}
+
+// Response for GetWindowsSystemServiceResponse.
+message GetWindowsSystemServiceResponse {}
 
 // Request for RunDiagnostics.
 message RunDiagnosticsRequest {}
