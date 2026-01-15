@@ -81,11 +81,11 @@ type ByteReader interface {
 	io.ByteReader
 }
 
-// decoderFunc is a function that decodes incoming data
+// Decoder is a function that decodes incoming data
 // into a Message.
 type Decoder func(ByteReader) (Message, error)
 
-// DecodeAdapter adapts a Decoder that works with a standard io.Reader
+// DecoderAdapter adapts a Decoder that works with a standard io.Reader
 func DecoderAdapter(f func(io.Reader) (Message, error)) Decoder {
 	return func(br ByteReader) (Message, error) {
 		return f(br)
@@ -130,7 +130,7 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// PeekNextByte peaks at the next byte without consuming it.
+// PeekNextByte peeks at the next byte without consuming it.
 func (c *Conn) PeekNextByte() (byte, error) {
 	b, err := c.bufr.ReadByte()
 	if err != nil {

@@ -101,6 +101,7 @@ func TestTDPBMFAFlow(t *testing.T) {
 }
 
 func expectTDPBMessage[T any](t *testing.T, c *tdp.Conn) T {
+	t.Helper()
 	var zero T
 	msg, err := c.ReadMessage()
 	require.NoError(t, err)

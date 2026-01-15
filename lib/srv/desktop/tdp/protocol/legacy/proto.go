@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package tdp implements the Teleport desktop protocol (TDP)
-// encoder/decoder.
+// Package legacy implements the original Teleport desktop protocol (TDP)
+// encoder/decoder. It exists for backwards compatibility.
+// Newer versions of Teleport use TDPB instead.
 // See https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 package legacy
 
