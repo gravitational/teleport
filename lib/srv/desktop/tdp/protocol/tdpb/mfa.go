@@ -17,7 +17,6 @@
 package tdpb
 
 import (
-	"errors"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -35,26 +34,23 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 	return func(channelID string) mfa.PromptFunc {
 		convert := func(challenge *proto.MFAAuthenticateChallenge) (tdp.Message, error) {
 			if challenge == nil {
-				return nil, errors.New("empty MFA challenge")
+				return nil, trace.Errorf("empty MFA challenge")
 			}
 
 			mfaMsg := &MFA{
 				ChannelId: channelID,
+				Challenge: &mfav1.AuthenticateChallenge{},
 			}
 
 			if challenge.WebauthnChallenge != nil {
-				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
-					WebauthnChallenge: challenge.WebauthnChallenge,
-				}
+				mfaMsg.Challenge.WebauthnChallenge = challenge.WebauthnChallenge
 			}
 
 			if challenge.SSOChallenge != nil {
-				mfaMsg.Challenge = &mfav1.AuthenticateChallenge{
-					SsoChallenge: &mfav1.SSOChallenge{
-						RequestId:   challenge.SSOChallenge.RequestId,
-						RedirectUrl: challenge.SSOChallenge.RedirectUrl,
-						Device:      challenge.SSOChallenge.Device,
-					},
+				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{
+					RequestId:   challenge.SSOChallenge.RequestId,
+					RedirectUrl: challenge.SSOChallenge.RedirectUrl,
+					Device:      challenge.SSOChallenge.Device,
 				}
 			}
 
@@ -65,7 +61,7 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 			return mfaMsg, nil
 		}
 
-		isResponse := func(msg tdp.Message) (*proto.MFAAuthenticateResponse, error) {
+		asResponse := func(msg tdp.Message) (*proto.MFAAuthenticateResponse, error) {
 			mfaMsg, ok := msg.(*MFA)
 			if !ok {
 				return nil, tdp.ErrUnexpectedTDPMessageType
@@ -96,6 +92,6 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 			}
 		}
 
-		return tdp.NewMfaPrompt(rw, isResponse, convert, withheld, log)
+		return tdp.NewMFAPrompt(rw, asResponse, convert, withheld, log)
 	}
 }

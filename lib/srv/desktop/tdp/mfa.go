@@ -35,16 +35,16 @@ var (
 // a non-nil error if the conversion fails
 type convertChallenge func(*proto.MFAAuthenticateChallenge) (Message, error)
 
-// isMFAResponse returns:
+// asMFAResponse returns:
 //   - ErrUnexpectedTDPMessageType if a valid messages was received but was not an MFA message.
-//   - Any other non-nil error if there was an error intepreeting the message.
+//   - Any other non-nil error if there was an error interpreting the message.
 //   - nil if a valid, non-nil MFA messages was found.
-type isMFAResponse func(Message) (*proto.MFAAuthenticateResponse, error)
+type asMFAResponse func(Message) (*proto.MFAAuthenticateResponse, error)
 
-// newMfaPrompt constructs a function that reads, encodes, and sends an MFA challenge to the client,
+// NewMfaPrompt constructs a function that reads, encodes, and sends an MFA challenge to the client,
 // then waits for the corresponding MFA response message. It caches any non-MFA messages received so
 // that they may be forwarded to the server later on.
-func NewMfaPrompt(rw MessageReadWriter, isResponse isMFAResponse, toMessage convertChallenge, withheld *[]Message, log *slog.Logger) mfa.PromptFunc {
+func NewMFAPrompt(rw MessageReadWriter, asResponse asMFAResponse, toMessage convertChallenge, withheld *[]Message, log *slog.Logger) mfa.PromptFunc {
 	return func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 		challengeMsg, err := toMessage(chal)
 		if err != nil {
@@ -61,7 +61,7 @@ func NewMfaPrompt(rw MessageReadWriter, isResponse isMFAResponse, toMessage conv
 				return nil, trace.Wrap(err)
 			}
 
-			resp, err := isResponse(msg)
+			resp, err := asResponse(msg)
 			if err != nil {
 				if errors.Is(err, ErrUnexpectedTDPMessageType) {
 					// Withhold this non-MFA message and try reading again

@@ -66,6 +66,6 @@ func NewTDPMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *slo
 			}
 		}
 
-		return tdp.NewMfaPrompt(rw, isResponse, convert, withheld, log)
+		return tdp.NewMFAPrompt(rw, isResponse, convert, withheld, log)
 	}
 }
