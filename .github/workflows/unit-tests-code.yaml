@@ -80,7 +80,7 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go test-sh test-api
+        run: make -j"$(nproc)" test-go-unit
 
       # - name: Normalize Test Results # TODO: move to a common file somewhere
       #   id: normalize_test_results
@@ -104,7 +104,7 @@ jobs:
           role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@b8fd48496a921fd2aae732215bc8bc670080c942
+        uses: gravitational/shared-workflows/tools/ci-normalize@4390c626d1fdae362c08215dba78d8f2960585b9
         if: always()
         continue-on-error: true
         with:
