@@ -49,3 +49,13 @@ type WorkloadClusterService interface {
 	// DeleteWorkloadCluster deletes the requested WorkloadCluster resource.
 	DeleteWorkloadCluster(ctx context.Context, name string) error
 }
+
+// MarshalWorkloadCluster marshals the WorkloadCluster object into a JSON byte array.
+func MarshalWorkloadCluster(object *workloadcluster.WorkloadCluster, opts ...MarshalOption) ([]byte, error) {
+	return MarshalProtoResource(object, opts...)
+}
+
+// UnmarshalWorkloadCluster unmarshals the WorkloadCluster object from a JSON byte array.
+func UnmarshalWorkloadCluster(data []byte, opts ...MarshalOption) (*workloadcluster.WorkloadCluster, error) {
+	return UnmarshalProtoResource[*workloadcluster.WorkloadCluster](data, opts...)
+}
