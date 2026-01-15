@@ -794,11 +794,11 @@ const (
 	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
 	// deleted via SCIM
 	SCIMResourceDeleteSuccessCode = "TSCIM003I"
-	// SCIMResourceDeleteFailureCode indicates a indicates a failed attempt to
-	// update a resource via SCIM
+	// SCIMResourceDeleteFailureCode indicates a failed attempt to
+	// delete a resource via SCIM
 	SCIMResourceDeleteFailureCode = "TSCIM003E"
 	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
-	// fron Teleport via SCIM
+	// from Teleport via SCIM
 	SCIMGetResourceSuccessCode = "TSCIM004I"
 	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
 	// resource via SCIM
@@ -809,6 +809,13 @@ const (
 	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
 	// via SCIM
 	SCIMListResourcesFailureCode = "TSCIM005E"
+	// SCIMResourcePatchSuccessCode indicates a resource was successfully patched
+	// via SCIM
+	SCIMResourcePatchSuccessCode = "TSCIM006I"
+	// SCIMResourcePatchFailureCode indicates a failed attempt to patch a resource
+	// via SCIM
+	SCIMResourcePatchFailureCode = "TSCIM006E"
+
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
 
