@@ -54,6 +54,7 @@ spec:
       {{- if .Values.terminationGracePeriodSeconds }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- end }}
+      podManagementPolicy: Parallel
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
