@@ -51,4 +51,7 @@ type Token interface {
 	GetAllowRules() []*types.TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() types.Duration
+	// GetIntegration returns the integration name that provides credentials to validate allow rules.
+	// Currently, this is only used to validate the AWS Organization.
+	GetIntegration() string
 }

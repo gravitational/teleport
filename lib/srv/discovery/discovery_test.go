@@ -2589,6 +2589,15 @@ func TestDiscoveryDatabase(t *testing.T) {
 				},
 			}
 
+			// Upsert a fake proxy to ensure we have a public address to use for the
+			// AWS OIDC integration.
+			proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+				PublicAddrs: []string{"teleport.example.com"},
+			})
+			require.NoError(t, err)
+			err = tlsServer.Auth().UpsertProxy(ctx, proxy)
+			require.NoError(t, err)
+
 			_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
 			require.NoError(t, err)
 

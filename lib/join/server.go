@@ -92,6 +92,8 @@ type AuthService interface {
 	GetClock() clockwork.Clock
 	GetHTTPClientForAWSSTS() utils.HTTPDoClient
 	GetAWSOrganizationsClientGetter() iamjoin.OrganizationsAPIGetter
+	GenerateAWSOIDCToken(ctx context.Context, integrationName string) (string, error)
+	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 	GetAzureDevopsIDTokenValidator() azuredevops.Validator
 	GetBitbucketIDTokenValidator() bitbucket.Validator
 	GetEC2ClientForEC2JoinMethod() ec2join.EC2Client
