@@ -79,10 +79,10 @@ func migrateWindowsCAOnCluster(
 	// Query dst CA.
 	switch _, err := trust.GetCertAuthority(ctx, dst, false /* loadSigningKeys */); {
 	case err == nil:
-		logger.DebugContext(ctx, "dst CA already exists, nothing to do")
+		logger.DebugContext(ctx, "Windows CA already exists, nothing to do")
 		return nil // dst already exists.
 	case !trace.IsNotFound(err):
-		logger.DebugContext(ctx, "src CA not found (new cluster)")
+		logger.DebugContext(ctx, "User CA not found (new cluster)")
 		return trace.Wrap(err, "read %q CA", dst.Type)
 	}
 
