@@ -1,0 +1,466 @@
+package web
+
+import (
+	"net/http"
+
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/e/lib/web/ui"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/web"
+)
+
+func (p *Plugin) registerInferenceHandlers() {
+	// Inference Model handlers
+	p.h.GET("/webapi/sites/:site/inference/models", p.h.WithClusterAuth(p.listInferenceModels))
+	p.h.GET("/webapi/sites/:site/inference/models/:name", p.h.WithClusterAuth(p.getInferenceModel))
+	p.h.POST("/webapi/sites/:site/inference/models", p.h.WithClusterAuth(p.createInferenceModel))
+	p.h.PUT("/webapi/sites/:site/inference/models/:name", p.h.WithClusterAuth(p.updateInferenceModel))
+	p.h.DELETE("/webapi/sites/:site/inference/models/:name", p.h.WithClusterAuth(p.deleteInferenceModel))
+
+	// Inference Secret handlers
+	p.h.GET("/webapi/sites/:site/inference/secrets", p.h.WithClusterAuth(p.listInferenceSecrets))
+	p.h.GET("/webapi/sites/:site/inference/secrets/:name", p.h.WithClusterAuth(p.getInferenceSecret))
+	p.h.POST("/webapi/sites/:site/inference/secrets", p.h.WithClusterAuth(p.createInferenceSecret))
+	p.h.PUT("/webapi/sites/:site/inference/secrets/:name", p.h.WithClusterAuth(p.updateInferenceSecret))
+	p.h.DELETE("/webapi/sites/:site/inference/secrets/:name", p.h.WithClusterAuth(p.deleteInferenceSecret))
+
+	// Inference Policy handlers
+	p.h.GET("/webapi/sites/:site/inference/policies", p.h.WithClusterAuth(p.listInferencePolicies))
+	p.h.GET("/webapi/sites/:site/inference/policies/:name", p.h.WithClusterAuth(p.getInferencePolicy))
+	p.h.POST("/webapi/sites/:site/inference/policies", p.h.WithClusterAuth(p.createInferencePolicy))
+	p.h.PUT("/webapi/sites/:site/inference/policies/:name", p.h.WithClusterAuth(p.updateInferencePolicy))
+	p.h.DELETE("/webapi/sites/:site/inference/policies/:name", p.h.WithClusterAuth(p.deleteInferencePolicy))
+}
+
+// listInferenceModels lists all inference models.
+func (h *Plugin) listInferenceModels(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	query := r.URL.Query()
+	pageSize, err := web.QueryLimitAsInt32(query, "limit", 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().ListInferenceModels(
+		r.Context(),
+		&summarizerv1.ListInferenceModelsRequest{
+			PageSize:  pageSize,
+			PageToken: query.Get("startKey"),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListInferenceModelsResponse{
+		Items:   ui.MakeInferenceModels(response.Models),
+		NextKey: response.NextPageToken,
+	}, nil
+}
+
+// getInferenceModel retrieves a specific inference model.
+func (h *Plugin) getInferenceModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().GetInferenceModel(
+		r.Context(),
+		&summarizerv1.GetInferenceModelRequest{Name: name},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferenceModel(response.Model), nil
+}
+
+// createInferenceModel creates a new inference model.
+func (h *Plugin) createInferenceModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var uiModel ui.InferenceModel
+	if err := httplib.ReadJSON(r, &uiModel); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().CreateInferenceModel(
+		r.Context(),
+		&summarizerv1.CreateInferenceModelRequest{Model: uiModel.ToProto()},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferenceModel(response.Model), nil
+}
+
+// updateInferenceModel updates an existing inference model.
+func (h *Plugin) updateInferenceModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	var uiModel ui.InferenceModel
+	if err := httplib.ReadJSON(r, &uiModel); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Ensure the name in the URL matches the model name
+	if uiModel.Name != "" && uiModel.Name != name {
+		return nil, trace.BadParameter("model name in URL does not match model name in body")
+	}
+	uiModel.Name = name
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().UpsertInferenceModel(
+		r.Context(),
+		&summarizerv1.UpsertInferenceModelRequest{Model: uiModel.ToProto()},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferenceModel(response.Model), nil
+}
+
+// deleteInferenceModel deletes an inference model.
+func (h *Plugin) deleteInferenceModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.SummarizerServiceClient().DeleteInferenceModel(
+		r.Context(),
+		&summarizerv1.DeleteInferenceModelRequest{Name: name},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
+}
+
+// listInferenceSecrets lists all inference secrets.
+func (h *Plugin) listInferenceSecrets(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	query := r.URL.Query()
+	pageSize, err := web.QueryLimitAsInt32(query, "limit", 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().ListInferenceSecrets(
+		r.Context(),
+		&summarizerv1.ListInferenceSecretsRequest{
+			PageSize:  pageSize,
+			PageToken: query.Get("startKey"),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListInferenceSecretsResponse{
+		Items:   ui.MakeInferenceSecrets(response.Secrets),
+		NextKey: response.NextPageToken,
+	}, nil
+}
+
+// getInferenceSecret retrieves a specific inference secret.
+func (h *Plugin) getInferenceSecret(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().GetInferenceSecret(
+		r.Context(),
+		&summarizerv1.GetInferenceSecretRequest{Name: name},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferenceSecret(response.Secret), nil
+}
+
+// createInferenceSecret creates a new inference secret.
+func (h *Plugin) createInferenceSecret(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var uiSecret ui.InferenceSecret
+	if err := httplib.ReadJSON(r, &uiSecret); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().CreateInferenceSecret(
+		r.Context(),
+		&summarizerv1.CreateInferenceSecretRequest{Secret: uiSecret.ToProto()},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferenceSecret(response.Secret), nil
+}
+
+// updateInferenceSecret updates an existing inference secret.
+func (h *Plugin) updateInferenceSecret(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	var uiSecret ui.InferenceSecret
+	if err := httplib.ReadJSON(r, &uiSecret); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Ensure the name in the URL matches the secret name
+	if uiSecret.Name != "" && uiSecret.Name != name {
+		return nil, trace.BadParameter("secret name in URL does not match secret name in body")
+	}
+	uiSecret.Name = name
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().UpsertInferenceSecret(
+		r.Context(),
+		&summarizerv1.UpsertInferenceSecretRequest{Secret: uiSecret.ToProto()},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferenceSecret(response.Secret), nil
+}
+
+// deleteInferenceSecret deletes an inference secret.
+func (h *Plugin) deleteInferenceSecret(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.SummarizerServiceClient().DeleteInferenceSecret(
+		r.Context(),
+		&summarizerv1.DeleteInferenceSecretRequest{Name: name},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
+}
+
+// listInferencePolicies lists all inference policies.
+func (h *Plugin) listInferencePolicies(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	query := r.URL.Query()
+	pageSize, err := web.QueryLimitAsInt32(query, "limit", 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().ListInferencePolicies(
+		r.Context(),
+		&summarizerv1.ListInferencePoliciesRequest{
+			PageSize:  pageSize,
+			PageToken: query.Get("startKey"),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.ListInferencePoliciesResponse{
+		Items:   ui.MakeInferencePolicies(response.Policies),
+		NextKey: response.NextPageToken,
+	}, nil
+}
+
+// getInferencePolicy retrieves a specific inference policy.
+func (h *Plugin) getInferencePolicy(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().GetInferencePolicy(
+		r.Context(),
+		&summarizerv1.GetInferencePolicyRequest{Name: name},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferencePolicy(response.Policy), nil
+}
+
+// createInferencePolicy creates a new inference policy.
+func (h *Plugin) createInferencePolicy(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var uiPolicy ui.InferencePolicy
+	if err := httplib.ReadJSON(r, &uiPolicy); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().CreateInferencePolicy(
+		r.Context(),
+		&summarizerv1.CreateInferencePolicyRequest{Policy: uiPolicy.ToProto()},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferencePolicy(response.Policy), nil
+}
+
+// updateInferencePolicy updates an existing inference policy.
+func (h *Plugin) updateInferencePolicy(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	var uiPolicy ui.InferencePolicy
+	if err := httplib.ReadJSON(r, &uiPolicy); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Ensure the name in the URL matches the policy name
+	if uiPolicy.Name != "" && uiPolicy.Name != name {
+		return nil, trace.BadParameter("policy name in URL does not match policy name in body")
+	}
+	uiPolicy.Name = name
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().UpsertInferencePolicy(
+		r.Context(),
+		&summarizerv1.UpsertInferencePolicyRequest{Policy: uiPolicy.ToProto()},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeInferencePolicy(response.Policy), nil
+}
+
+// deleteInferencePolicy deletes an inference policy.
+func (h *Plugin) deleteInferencePolicy(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt.SummarizerServiceClient().DeleteInferencePolicy(
+		r.Context(),
+		&summarizerv1.DeleteInferencePolicyRequest{Name: name},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return web.OK(), nil
+}

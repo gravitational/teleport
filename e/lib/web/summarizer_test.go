@@ -16,11 +16,8 @@ import (
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -46,15 +43,7 @@ func uploadSummary(t *testing.T, s *webSuite, summary *summarizerv1.Summary) {
 }
 
 func TestGetRecordingSummary(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-			},
-		},
-	})
-	t.Setenv("TELEPORT_UNSTABLE_ENABLE_SESSION_SUMMARIZER", "true")
+	t.Parallel()
 
 	ctx := t.Context()
 	s := newWebSuite(t, withUploadHandler(eventstest.NewMemoryUploader()))

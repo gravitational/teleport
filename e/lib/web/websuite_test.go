@@ -527,6 +527,9 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindAccessMonitoringRule, services.RW()),
 		types.NewRule(types.KindCrownJewel, services.RW()),
 		types.NewRule(types.KindIdentityCenter, services.RW()),
+		types.NewRule(types.KindInferenceModel, services.RW()),
+		types.NewRule(types.KindInferenceSecret, services.RW()),
+		types.NewRule(types.KindInferencePolicy, services.RW()),
 	}
 	rules = append(rules, extraRules...)
 	role, err := authtest.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{
