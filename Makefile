@@ -85,7 +85,7 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
-GOEXPERIMENT = boringcrypto
+GOEXPERIMENT = boringcrypto,greenteagc
 OPENSSL_FIPS = 1
 export GOEXPERIMENT OPENSSL_FIPS
 ifeq ($(BUILDBOX_MODE),cross)
