@@ -62,10 +62,9 @@ tags:
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
-{{.App.Name}}: {{ if .App.Help -}}
-{{- .App.Help|Wrap 0 }}
-{{ end -}}
+{{.App.Name}}.
 
+{{ .App.Help|Wrap 0 }}
 {{template "FormatUsage" .App -}}
 {{if .Context.Flags|AnyVisibleFlags -}}
 Global flags:
