@@ -77,12 +77,13 @@ be trusted. This endpoint is `https://[cluster-name]/.well-known/openid-configur
 }
 ```
 
-In ID tokens, the issuer (`iss`) follows the OIDC specification in the form
-`https://[cluster-name]`. The audience (`aud`) and all other claims remain the
-same as in classic JWTs, with the audience set to the Teleport application URI.
+In ID tokens, the issuer claim `iss` follows the OIDC specification in the form
+`https://[cluster-name]`. All other claims remain the same as in classic JWTs,
+with the audience claim `aud` set to the Teleport application URI.
 
 See the [example](./integration-guides/aws-bedrock-gateway.mdx) for
-configuring an AWS Bedrock AgentCore MCP Gateway to accept Teleport-generated ID tokens.
+configuring an Amazon Bedrock AgentCore MCP Gateway to accept Teleport-generated
+ID tokens.
 
 ## Troubleshooting
 
