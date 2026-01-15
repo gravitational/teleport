@@ -845,13 +845,14 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 	require.Nil(t, resp)
 }
 
-func TestVerifyValidatedMFAChallenge_NonNodeDenied(t *testing.T) {
+func TestVerifyValidatedMFAChallenge_NonServerDenied(t *testing.T) {
 	t.Parallel()
 
 	_, service, _, user := setupAuthServer(t, nil)
 
-	// Use a context with a non-node role.
+	// Use a context with a non-server role.
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
+	// require.Empty(t, user.GetRoles())
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
 		Username: user.GetName(),
@@ -864,8 +865,8 @@ func TestVerifyValidatedMFAChallenge_NonNodeDenied(t *testing.T) {
 		SourceCluster: sourceCluster,
 	})
 	require.Error(t, err)
-	require.True(t, trace.IsNotImplemented(err))
-	require.ErrorContains(t, err, "MFA challenge verification is only implemented for SSH nodes")
+	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorContains(t, err, "only server identities can verify validated MFA challenge")
 	require.Nil(t, resp)
 }
 

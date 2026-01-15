@@ -394,8 +394,8 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, types.RoleNode.String()) {
-		return nil, trace.NotImplemented("MFA challenge verification is only implemented for SSH nodes")
+	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || (ok && !b.IsServer()) {
+		return nil, trace.AccessDenied("only server identities can verify validated MFA challenges")
 	}
 
 	if err := checkVerifyValidatedMFAChallengeRequest(req); err != nil {
