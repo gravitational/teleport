@@ -76,7 +76,9 @@ cloud platforms, Linux distributions, etc.
 ### Overview of All Components with Customer-Managed Operational Lifecycle
 
 Teleport includes a large number of independently installable components that require dedicated installation
-instructions for an even larger number of target platforms:
+instructions for an even larger number of target platforms.
+
+This is an enumeration of all possible installation targets (not a suggested organization, see further below):
 
 1. Cluster Installation
    1. Self-Hosted on Linux
@@ -155,7 +157,9 @@ The top-level subsection names will be verbose to avoid misnavigation.
 
 ### Proposed Organization
 
-The following organization is proposed as an ideal, nested under a top-level "Install Teleport" section:
+The following organization is proposed as an ideal, long-term plan.
+These sections would be nested under a top-level "Install Teleport" section.
+(See further below for a short-term plan using existing content.)
 
 1. Installing Self-Hosted Teleport Clusters
    1. Installing Teleport Clusters on Kubernetes
