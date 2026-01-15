@@ -1,9 +1,10 @@
 should match the snapshot (tokenSpecOverride set):
   1: |
     apiVersion: resources.teleport.dev/v1
-    kind: TeleportRoleV7
+    kind: TeleportRoleV8
     metadata:
       name: RELEASE-NAME-teleport-plugin-event-handler
+      namespace: NAMESPACE
     spec:
       allow:
         rules:
@@ -18,6 +19,7 @@ should match the snapshot (tokenSpecOverride set):
     kind: TeleportBotV1
     metadata:
       name: RELEASE-NAME-teleport-plugin-event-handler
+      namespace: NAMESPACE
     spec:
       roles:
       - RELEASE-NAME-teleport-plugin-event-handler
@@ -26,6 +28,7 @@ should match the snapshot (tokenSpecOverride set):
     kind: TeleportProvisionToken
     metadata:
       name: test-token
+      namespace: NAMESPACE
     spec:
       bot_name: RELEASE-NAME-teleport-plugin-event-handler
       join_method: kubernetes
