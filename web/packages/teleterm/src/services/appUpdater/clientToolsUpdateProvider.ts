@@ -21,7 +21,6 @@ import {
   AppUpdater,
   DebUpdater,
   MacUpdater,
-  NsisUpdater,
   Provider,
   ResolvedUpdateFileInfo,
   RpmUpdater,
@@ -32,6 +31,7 @@ import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider'
 import { compare, major } from 'shared/utils/semVer';
 
 import { UnsupportedVersionError } from './errors';
+import { NsisDualModeUpdater } from './nsisDualModeUpdater';
 
 const CHECKSUM_FETCH_TIMEOUT = 5_000;
 // Example: 99a2fe26681073de56de4229dd9cd6655fef22759579b7b9bc359e018ea1007099a2fe26681073de56de4229dd9cd6655fef22759579b7b9bc359e018ea10070  Teleport Connect-17.5.4-mac.zip
@@ -72,7 +72,10 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
     }
 
     const { baseUrl, version } = clientTools;
-    const updatesSupport = areManagedUpdatesSupportedInConnect(version);
+    const updatesSupport = areManagedUpdatesSupportedInConnect(
+      this.nativeUpdater,
+      version
+    );
     if (updatesSupport.supported === false) {
       throw new UnsupportedVersionError(version, updatesSupport.minVersion);
     }
@@ -87,8 +90,6 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
       sha512: '',
       files: [
         {
-          // Effective only on Windows.
-          isAdminRightsRequired: true,
           url: fileUrl,
           sha512,
         },
@@ -124,7 +125,7 @@ function makeDownloadFilename(updater: AppUpdater, version: string): string {
   if (updater instanceof MacUpdater) {
     return `Teleport Connect-${version}-mac.zip`;
   }
-  if (updater instanceof NsisUpdater) {
+  if (updater instanceof NsisDualModeUpdater) {
     return `Teleport Connect Setup-${version}.exe`;
   }
   if (updater instanceof RpmUpdater) {
@@ -158,12 +159,19 @@ async function fetchChecksum(fileUrl: string): Promise<string> {
 
 // TODO(gzdunek) DELETE IN v20.0.0
 function areManagedUpdatesSupportedInConnect(
+  updater: AppUpdater,
   version: string
 ): { supported: true } | { supported: false; minVersion: string } {
   const thresholds = {
     18: '18.2.0',
     17: '17.7.3',
   };
+
+  if (updater instanceof NsisDualModeUpdater) {
+    // TODO(gzdunek): Update the thresholds to disallow downgrades
+    // to versions that don't support the per-user mode or don't
+    // install per-machine updates through the update service.
+  }
 
   const majorVersion = major(version);
   if (majorVersion >= 19) {

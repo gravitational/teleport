@@ -27,7 +27,6 @@ import {
   UpdateInfo as ElectronUpdateInfo,
   MacUpdater,
   AppUpdater as NativeUpdater,
-  NsisUpdater,
   ProgressInfo,
   RpmUpdater,
   UpdateCheckResult,
@@ -51,6 +50,7 @@ import {
   ClientToolsUpdateProvider,
   ClientToolsVersionGetter,
 } from './clientToolsUpdateProvider';
+import { NsisDualModeUpdater } from './nsisDualModeUpdater';
 
 export const TELEPORT_TOOLS_VERSION_ENV_VAR = 'TELEPORT_TOOLS_VERSION';
 
@@ -83,6 +83,10 @@ export class AppUpdater {
         };
       }
     };
+
+    if (process.platform === 'win32') {
+      this.nativeUpdater = new NsisDualModeUpdater();
+    }
 
     this.nativeUpdater.setFeedURL({
       provider: 'custom',
@@ -135,7 +139,7 @@ export class AppUpdater {
   supportsUpdates(): boolean {
     return (
       this.nativeUpdater instanceof MacUpdater ||
-      this.nativeUpdater instanceof NsisUpdater ||
+      this.nativeUpdater instanceof NsisDualModeUpdater ||
       this.nativeUpdater instanceof DebUpdater ||
       this.nativeUpdater instanceof RpmUpdater
     );
