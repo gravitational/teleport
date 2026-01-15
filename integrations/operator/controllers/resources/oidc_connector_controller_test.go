@@ -28,11 +28,14 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
@@ -128,22 +131,22 @@ func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestOIDCConnectorCreation(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceCreationTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+	testlib.ResourceCreationSynchronousTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorDeletionDrift(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceUpdateTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+	testlib.ResourceUpdateTestSynchronous[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorSecretLookup(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	setup := testlib.SetupTestEnv(t)
+	setup := testlib.SetupFakeKubeTestEnv(t)
 	test.Init(setup)
 	ctx := context.Background()
 
@@ -160,8 +163,10 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 				secretlookup.AllowLookupAnnotation: crName,
 			},
 		},
-		StringData: map[string]string{
-			secretKey: secretValue,
+		// Real kube servers convert stringData into data.
+		// The fake client does not, so we must use Data instead.
+		Data: map[string][]byte{
+			secretKey: []byte(secretValue),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -177,8 +182,25 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 	}
 
 	oidc.Spec.ClientSecret = "secret://" + secretName + "/" + secretKey
-
 	require.NoError(t, kubeClient.Create(ctx, oidc))
+
+	reconciler, err := resources.NewOIDCConnectorReconciler(kubeClient, setup.TeleportClient)
+	require.NoError(t, err)
+	// Test execution: Kick off the reconciliation.
+	req := reconcile.Request{
+		NamespacedName: apimachinerytypes.NamespacedName{
+			Namespace: setup.Namespace.Name,
+			Name:      crName,
+		},
+	}
+	// First reconciliation should set the finalizer and exit.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	// Second reconciliation should create the Teleport resource.
+	// In a real cluster we should receive the event of our own finalizer change
+	// and this wakes us for a second round.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
 
 	testlib.FastEventually(t, func() bool {
 		oidc, err := test.GetTeleportResource(ctx, crName)
