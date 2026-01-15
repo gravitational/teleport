@@ -418,7 +418,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.BadParameter("missing payload in validated challenge retrieved from storage")
 
 	default:
-		return nil, trace.BadParameter("unknown or unsupported payload type %T in validated challenge retrieved from storage (this is a bug)", storedPayload)
+		return nil, trace.BadParameter("unsupported payload type %T in validated challenge retrieved from storage (this is a bug)", storedPayload)
 	}
 
 	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
