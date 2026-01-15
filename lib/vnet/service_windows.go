@@ -139,6 +139,25 @@ func ServiceMain() error {
 	return trace.Wrap(closeFn(), "closing logger")
 }
 
+// VerifyServiceInstalled returns nil if the service is installed and an error otherwise.
+func VerifyServiceInstalled() error {
+	// Avoid [mgr.Connect] because it requests elevated permissions.
+	scManager, err := windows.OpenSCManager(nil /*machine*/, nil /*database*/, windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return trace.Wrap(err, "opening Windows service manager")
+	}
+	defer windows.CloseServiceHandle(scManager)
+	serviceNamePtr, err := syscall.UTF16PtrFromString(serviceName)
+	if err != nil {
+		return trace.Wrap(err, "converting service name to UTF16")
+	}
+	_, err = windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return trace.NotFound("service does not exist %v", serviceName)
+	}
+	return trace.Wrap(err, "opening Windows service %v", serviceName)
+}
+
 // windowsService implements [svc.Handler].
 type windowsService struct{}
 
