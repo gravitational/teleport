@@ -26,7 +26,10 @@ import {
 import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import {
+  makeRootCluster,
+  makeTshdRpcError,
+} from 'teleterm/services/tshd/testHelpers';
 import { makeReport } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -50,6 +53,7 @@ type StoryProps = {
   diagReport: 'ok' | 'issues-found' | 'failed-checks';
   isWorkspacePresent: boolean;
   unexpectedShutdown: boolean;
+  windowsVNetServiceNotFound: boolean;
 };
 
 const defaultArgs: StoryProps = {
@@ -63,6 +67,7 @@ const defaultArgs: StoryProps = {
   diagReport: 'ok',
   isWorkspacePresent: true,
   unexpectedShutdown: false,
+  windowsVNetServiceNotFound: false,
 };
 
 const meta: Meta<StoryProps> = {
@@ -109,6 +114,10 @@ const meta: Meta<StoryProps> = {
       description:
         "If there's no workspace, the button to open the diag report is disabled.",
     },
+    windowsVNetServiceNotFound: {
+      description:
+        'When the app is installed in a per-user mode, the VNet service is not installed.',
+    },
   },
   render: props => <VnetSliderStep {...props} />,
 };
@@ -116,6 +125,11 @@ export default meta;
 
 function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
+
+  if (props.windowsVNetServiceNotFound) {
+    appContext.vnet.getWindowsSystemService = () =>
+      new MockedUnaryCall({}, makeTshdRpcError({ code: 'NOT_FOUND' }));
+  }
 
   if (props.isWorkspacePresent) {
     appContext.addRootCluster(makeRootCluster());
@@ -306,5 +320,12 @@ export const SelfHostedWithManyLeavesAndZones: StoryObj<StoryProps> = {
       'teleport-leaf',
       'second-leaf.example.com',
     ],
+  },
+};
+
+export const WindowsServiceNotInstalled: StoryObj<StoryProps> = {
+  args: {
+    ...defaultArgs,
+    windowsVNetServiceNotFound: true,
   },
 };
