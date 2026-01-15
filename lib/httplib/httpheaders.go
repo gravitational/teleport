@@ -184,6 +184,10 @@ func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
 // which is a route to a desktop session that uses WASM.
 var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
+// desktopSessionRe is a regex that matches /web/cluster/:clusterId/linux_desktops/:desktopName/:username/:xsessionname
+// which is a route to a Linux desktop session that uses WASM.
+var linuxDesktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/linux_desktops/[^/]+/[^/]+/[^/]+$`)
+
 // regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
 // which is a route to a desktop recording that uses WASM.
 var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
@@ -201,7 +205,7 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 	}
 
 	// Nothing found in cache, calculate regex and result
-	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath)
+	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath) || linuxDesktopSessionRe.MatchString(urlPath)
 	cspString := GetContentSecurityPolicyString(
 		getIndexContentSecurityPolicy(withWasm),
 	)

@@ -227,7 +227,7 @@ func (h *Handler) createLinuxDesktopConnection(
 	// this blocks until the connection is closed
 	handleProxyWebsocketConnErr(
 		ctx,
-		proxyWebsocketConn(ctx, ws, serviceConnTLS, log, "18.0.0"),
+		proxyWebsocketConn(ctx, ws, serviceConnTLS, "18.0.0"),
 		log,
 	)
 
