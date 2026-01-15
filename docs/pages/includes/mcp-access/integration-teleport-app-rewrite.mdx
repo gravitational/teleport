@@ -34,12 +34,12 @@ metadata:
   labels:
     env: dev
     service: {{service}}
+spec:
+  uri: "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
   rewrite:
     headers:
     - name: "{{headerName}}"
       value: "{{headerValue}}"
-spec:
-  uri: "mcp+http://<Var name="MCP_HOST" />:{{port}}/mcp"
 ```
 
 Create the `app` resource with:
