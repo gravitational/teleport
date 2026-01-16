@@ -29,7 +29,7 @@ Most macOS users install Teleport to connect to an existing cluster. Teleport pr
 
 Choose one of the following methods to install the Teleport client tools.
 
-#### Teleport Connect (recommended for most users)
+#### Teleport Connect
 
 Teleport Connect is a desktop application that provides a graphical interface for connecting to SSH servers, databases, Kubernetes clusters, and web applications.
 
@@ -39,7 +39,9 @@ Download Teleport Connect from the [Downloads page](https://goteleport.com/downl
 
 Open the `.dmg` file and drag Teleport Connect to your Applications folder.
 
-Teleport Connect includes `tsh`, so you can also use the command line after installing.
+Teleport Connect includes `tsh` as an installation option:
+
+![Connect tsh](../../img/deploy-a-cluster/connect-tsh-option.png)
 
 <Checkpoint
   title="Verify Teleport Connect installation"
@@ -48,7 +50,7 @@ Teleport Connect includes `tsh`, so you can also use the command line after inst
 
 1. Open Teleport Connect from your Applications folder.
 2. Click **Connect** and enter your Teleport cluster address (e.g., `example.teleport.sh`).
-3. Complete the login flow in your browser.
+3. Complete the login flow.
 4. Verify you can see available resources in the Teleport Connect window.
 
 Here are some troubleshooting tips:
@@ -114,18 +116,20 @@ For more information on Teleport Connect, see [Using Teleport Connect](../connec
 
 ## Running Teleport services on macOS
 
-If you need to run Teleport services on macOS (such as for local development or running an agent), the PKG installer also includes the `teleport` daemon and `tbot`.
+The client tools above (`tsh`, `tctl`, Teleport Connect) are used to *connect to* a Teleport cluster on demand—you run them when you want to access a resource, 
+then they exit when you're done.
+
+Teleport *services* are different: they run continuously as background daemons. The `teleport` daemon can run cluster components (Auth Service, Proxy Service) 
+or agent services that enroll resources like servers, databases, or applications into your cluster. The `tbot` daemon provides machine identity for automated workloads.
+Most macOS users only need the client tools. You would install Teleport services on macOS primarily for:
+
+- Local development and testing of Teleport configurations
+- Running a Teleport Agent to enroll your Mac as a resource in a cluster
 
 | Binary | Description |
 | - | - |
 | `teleport` | The Teleport daemon for running cluster services or agents |
-| `tbot` | Machine ID client for workload identity |
-
-<Admonition type="note">
-
-Running Teleport services in production is typically done on Linux servers. macOS is primarily used for client access and local development. For production deployments, see [Installing Teleport on Linux](./linux.mdx).
-
-</Admonition>
+| `tbot` | Teleport Machine & Workload Identity issues and renews short-lived certificates so your machines can access Teleport protected resources in the same way your engineers do. |
 
 ### Install Teleport services
 
@@ -135,14 +139,27 @@ If you haven't already, download and run the PKG installer:
 ```code
 $ curl -O https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
 $ sudo installer -pkg teleport-(=teleport.version=).pkg -target /
+# Password
+# installer: Package name is teleport-(=teleport.version=)
+# installer: Upgrading at base path /
+# installer: The upgrade was successful.
+$ which teleport
+# /usr/local/bin/teleport
 ```
 
 ### Verify Teleport is installed
 ```code
 $ teleport version
 ```
+<Admonition type="note">
+
+Running Teleport services in production is typically done on Linux servers. 
+macOS is primarily used for client access and local development. For production deployments, see [Installing Teleport on Linux](./linux.mdx).
+
+</Admonition>
 
 For guidance on configuring and running Teleport, see:
+- [Teleport daemon on macOS via launchd](../zero-trust-access/deploy-a-cluster/macos-launchd.mdx)
 - [Deploy a Cluster](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) for self-hosted deployments
 - [Machine ID Getting Started](../machine-workload-identity/workload-identity/getting-started.mdx) for workload identity
 
