@@ -36,7 +36,7 @@ func NewProxyCommand(app KingpinClause, action func(*ProxyCommand) error) *Proxy
 	c := &ProxyCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-	cmd.Flag("proxy-server", "The address of Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
+	cmd.Flag("proxy-server", "The address of the Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
 	cmd.Flag("destination-dir", "The destination directory to provide tsh for authentication.").StringVar(&c.DestinationDir)
 	cmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&c.Cluster)
 	c.ProxyRemaining = RemainingArgs(cmd.Arg(
