@@ -8,6 +8,11 @@ sidebar_label: {{ .Resource.SectionName }}
 {/* Automatically generated from: {{ .Resource.SourcePath}} */}
 {/* DO NOT EDIT */}
 
+**Kind**: `{{ .Resource.Kind }}`<br/>
+**Version**: `{{ .Resource.Version }}`
+
+{{ .Resource.Description }}
+
 {{- if gt (len .Resource.ResourceExample) 0 }}
 
 Example definition:
@@ -16,24 +21,18 @@ Example definition:
 ```
 {{- end }}
 
-**Kind**: `{{ .Resource.Kind }}`<br/>
-**Version**: `{{ .Resource.Version }}`
-
-{{ .Resource.Description }}
+## Top-level fields
 
 Example:
 
 ```yaml
 {{ .Resource.YAMLExample -}}
 ```
-
-{{- if gt (len .Resource.Fields) 0 }}
 |Field Name|Description|Type|
 |---|---|---|
 {{ range .Resource.Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
-{{ end }} 
-{{- end }}
+{{ end }}
 
 {{- range .Fields }}
 ## {{ .SectionName }}
