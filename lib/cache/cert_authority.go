@@ -64,7 +64,7 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 		},
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.CertAuthority, error) {
 			var authorities []types.CertAuthority
-			for _, caType := range types.CertAuthTypes {
+			for _, caType := range types.CertAuthTypesExtended {
 				cas, err := t.GetCertAuthorities(ctx, caType, loadSecrets)
 				// if caType was added in this major version we might get a BadParameter
 				// error if we're connecting to an older upstream that doesn't know about it

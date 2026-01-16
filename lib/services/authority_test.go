@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -363,6 +364,123 @@ func TestCheckOIDCIdP(t *testing.T) {
 			})
 			require.NoError(t, err)
 			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+		})
+	}
+}
+
+func TestValidateCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "zarquon"
+	keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		nil,         /* dnsNames */
+		time.Minute, /* ttl */
+	)
+	require.NoError(t, err)
+
+	winCA := &types.CertAuthoritySpecV2{
+		Type:        types.WindowsCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert:    certPEM,
+					Key:     keyPEM,
+					KeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	}
+
+	// Add your new CA to the table below!
+	// If you are using checkTLSKeys() you don't need to duplicate every test case
+	// of WindowsCA, just add a single test that exercises that function call.
+
+	// TODO(codingllama): Unify CA validation tests here.
+	tests := []struct {
+		name    string
+		spec    *types.CertAuthoritySpecV2
+		wantErr string
+	}{
+		{
+			name: "valid WindowsCA",
+			spec: winCA,
+		},
+		{
+			name: "valid WindowsCA (Cert only)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := *winCA
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{Cert: certPEM},
+				}
+				return &spec
+			}(),
+		},
+		{
+			name: "WindowsCA empty TLS keys",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := *winCA
+				spec.ActiveKeys.TLS = nil
+				return &spec
+			}(),
+			wantErr: "missing TLS",
+		},
+		{
+			name: "WindowsCA TLS key invalid",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := *winCA
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert: certPEM,
+						Key:  []byte("ceci n'est pas a private key"),
+					},
+				}
+				return &spec
+			}(),
+			wantErr: "private key and certificate",
+		},
+		{
+			name: "WindowsCA TLS cert invalid (Cert and Key)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := *winCA
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert: []byte("ceci n'est pas a certificate"),
+						Key:  keyPEM,
+					},
+				}
+				return &spec
+			}(),
+			wantErr: "private key and certificate",
+		},
+		{
+			name: "WindowsCA TLS cert invalid (Cert only)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := *winCA
+				spec.ActiveKeys.TLS = []*types.TLSKeyPair{
+					{
+						Cert: []byte("ceci n'est pas a certificate"),
+					},
+				}
+				return &spec
+			}(),
+			wantErr: "certificate",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ca, err := types.NewCertAuthority(*test.spec)
+			require.NoError(t, err)
+
+			err = ValidateCertAuthority(ca)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ValidateCertAuthority")
+				return
+			}
+			assert.NoError(t, err, "ValidateCertAuthority")
 		})
 	}
 }
