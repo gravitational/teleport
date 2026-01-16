@@ -17,7 +17,6 @@ limitations under the License.
 package testlib
 
 import (
-	"context"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,7 +36,7 @@ type nextAuditDateComparer struct {
 
 func (c *nextAuditDateComparer) CaptureNextAuditDate(name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
-		al, err := c.client.AccessListClient().GetAccessList(context.TODO(), name)
+		al, err := c.client.AccessListClient().GetAccessList(t.Context(), name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -48,7 +47,7 @@ func (c *nextAuditDateComparer) CaptureNextAuditDate(name string) resource.TestC
 
 func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
-		al, err := c.client.AccessListClient().GetAccessList(context.TODO(), name)
+		al, err := c.client.AccessListClient().GetAccessList(t.Context(), name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -67,7 +66,7 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 	)
 
 	checkAccessListDestroyed := func(state *terraform.State) error {
-		_, err := s.client.AccessListClient().GetAccessList(context.TODO(), "test")
+		_, err := s.client.AccessListClient().GetAccessList(t.Context(), "test")
 		if trace.IsNotFound(err) {
 			return nil
 		}
