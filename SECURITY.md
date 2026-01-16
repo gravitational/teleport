@@ -16,7 +16,7 @@ Teleport undergoes regular security reviews by internal teams and third-party fi
 These reviews occasionally uncover high- and critical-severity issues that need prompt patching.
 
 Immediately committing a fix to our public open source repository can expose implementation
-details that allow attacker to develop exploits before users have time to install patches.
+details that allow attackers to develop exploits before users have time to install patches.
 To reduce that risk, we may publish a private security release.
 
 Release artifacts (binaries, Helm charts, Docker images, Linux packages, etc.) are
