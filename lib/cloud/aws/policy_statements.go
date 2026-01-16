@@ -613,7 +613,7 @@ func StatementForBedrockSessionSummaries(accountID, resource string) *Statement 
 	var resourceARN string
 
 	// Check if the resource is already an ARN
-	if parsedARN, err := arn.Parse(resource); err == nil && parsedARN.Service == "bedrock" {
+	if parsedARN, err := arn.Parse(resource); err == nil && parsedARN.Service == "bedrock" || resource == types.Wildcard {
 		resourceARN = resource
 	} else {
 		// If it's a model ID, create an ARN with wildcard region
