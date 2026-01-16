@@ -87,8 +87,8 @@ export function ConfigureAccess(props: FlowStepProps) {
 
           <Text mb={3}>
             Choose a cluster to access. Then fine tune the access your workflow
-            needs. Restrict <i>which</i> clusters can be accessed using labels
-            and <i>what</i> level of access using groups and users.
+            needs. Restrict <em>which</em> clusters can be accessed using labels
+            and <em>what</em> level of access using groups and users.
           </Text>
         </Box>
 
