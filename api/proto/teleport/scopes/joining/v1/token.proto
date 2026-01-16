@@ -186,4 +186,8 @@ message AWS {
   // The TTL to use for AWS EC2 Instance Identity Documents used
   // to join the cluster with this token.
   int64 aws_iid_ttl = 2;
+
+  // Integration name which provides credentials for validating join attempts.
+  // Currently only in use for validating the AWS Organization ID in the IAM Join method.
+  string integration = 3;
 }
