@@ -40,7 +40,7 @@ details remain private until after customers have had time to upgrade.
   on severity, but most tenants receive the update within 7 days.
 - Enterprise Notification: after Teleport Cloud has been upgraded, Teleport Enterprise
   customers are notified with details about the vulnerability and guidance for remediation.
-- Public Disclosure (one week later):  we merge the fixes to the public repository and
+- Public Disclosure (one week later): we merge the fixes to the public repository and
   publish a new public release containing the security patches and any accumulated non-security changes.
 
 ### FAQ
