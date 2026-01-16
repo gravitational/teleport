@@ -86,7 +86,7 @@ jobs:
 
 
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@6d1b5ba214e5b4ee7827a9608d50c50111c7a8e6
+        uses: gravitational/shared-workflows/tools/ci-normalize@a98c20a167a4f0b532629fd065fac6470f569688
         if: always()
         continue-on-error: true
         with:
