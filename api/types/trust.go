@@ -85,6 +85,7 @@ const (
 // CertAuthTypes lists all certificate authority types.
 var CertAuthTypes = []CertAuthType{
 	HostCA,
+	// TODO(codingllama): Add WindowsCA to the list.
 	UserCA,
 	DatabaseCA,
 	DatabaseClientCA,
@@ -96,13 +97,24 @@ var CertAuthTypes = []CertAuthType{
 	OktaCA,
 	AWSRACA,
 	BoundKeypairCA,
-	// TODO(codingllama): Add WindowsCA to the list.
 }
 
-// CertAuthTypesExtended is `append(CertAuthTypes, WindowsCA)`.
+// CertAuthTypesExtended is the union of `CertAuthTypes` and `{WindowsCA}`.
+// WindowsCA is always placed before UserCA.
 //
 // TODO(codingllama): Remove once WindowsCA is listed on CertAuthTypes.
-var CertAuthTypesExtended = append(CertAuthTypes, WindowsCA)
+var CertAuthTypesExtended = makeCertAuthTypesExtended()
+
+func makeCertAuthTypesExtended() []CertAuthType {
+	dst := make([]CertAuthType, 0, len(CertAuthTypes)+1)
+	for _, caType := range CertAuthTypes {
+		if caType == UserCA {
+			dst = append(dst, WindowsCA)
+		}
+		dst = append(dst, caType)
+	}
+	return dst
+}
 
 // NewlyAdded should return true for CA types that were added in the current
 // major version, so that we can avoid erroring out when a potentially older
