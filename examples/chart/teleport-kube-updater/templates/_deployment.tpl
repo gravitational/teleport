@@ -47,7 +47,7 @@ spec:
 {{- if .imagePullPolicy }}
         imagePullPolicy: {{ toYaml .imagePullPolicy }}
 {{- end }}
-{{- if or .extraEnv (dig "tls" "existingCASecretName" .) }}
+{{- if or .extraEnv (and .tls .tls.existingCASecretName) }}
         env:
   {{- if (gt (len .extraEnv) 0) }}
     {{- toYaml .extraEnv | nindent 8 }}
