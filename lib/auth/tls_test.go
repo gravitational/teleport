@@ -2503,7 +2503,7 @@ func TestPluginData(t *testing.T) {
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// make sure we can parse the private and public key
@@ -3283,7 +3283,7 @@ func TestClusterConfigContext(t *testing.T) {
 	proxy, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// try and generate a host cert, this should succeed because although

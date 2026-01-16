@@ -2383,7 +2383,7 @@ func newRawNode(t *testing.T, authSrv *auth.Server) *rawNode {
 	hostname, err := os.Hostname()
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3131,7 +3131,7 @@ type upack struct {
 
 func newUpack(ctx context.Context, testSvr *authtest.Server, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := testSvr.Auth()
-	upriv, upub, err := testauthority.New().GenerateKeyPair()
+	upriv, upub, err := testauthority.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3266,7 +3266,7 @@ func newAppServerWatcher(ctx context.Context, t *testing.T, client *authclient.C
 func newSigner(t testing.TB, ctx context.Context, testServer *authtest.Server) ssh.Signer {
 	t.Helper()
 
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	tlsPub, err := authtest.PrivateKeyToPublicKeyTLS(priv)
