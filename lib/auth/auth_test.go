@@ -4059,7 +4059,7 @@ func TestCAGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for _, caType := range types.CertAuthTypes {
+	for _, caType := range types.CertAuthTypesExtended {
 		t.Run(string(caType), func(t *testing.T) {
 			ca, err := authcatest.NewCA(caType, clusterName, privKey)
 			require.NoError(t, err)

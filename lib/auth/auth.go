@@ -8272,7 +8272,7 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/auth/authcatest.NewTestCAWithConfig().
+// Keep this function in sync with lib/auth/authcatest.NewCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	switch caID.Type {
 	case
@@ -8287,7 +8287,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.SPIFFECA,
 		types.OktaCA,
 		types.AWSRACA,
-		types.BoundKeypairCA:
+		types.BoundKeypairCA,
+		types.WindowsCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8308,7 +8309,14 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA,
+		types.HostCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.SAMLIDPCA,
+		types.SPIFFECA,
+		types.AWSRACA,
+		types.WindowsCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8327,7 +8335,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 	}
 
 	// Sanity check that the key set has at least one key.
-	if len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0 {
+	if keySet.Empty() {
 		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
 	}
 
@@ -8362,6 +8370,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SPIFFECATLS
 	case types.AWSRACA:
 		return cryptosuites.AWSRACATLS
+	case types.WindowsCA:
+		return cryptosuites.WindowsCARDP
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }
