@@ -32,9 +32,10 @@ var rolesSupportingScopes = types.SystemRoles{
 }
 
 var joinMethodsSupportingScopes = map[string]struct{}{
-	string(types.JoinMethodToken): {},
-	string(types.JoinMethodEC2):   {},
-	string(types.JoinMethodIAM):   {},
+	string(types.JoinMethodToken):  {},
+	string(types.JoinMethodEC2):    {},
+	string(types.JoinMethodIAM):    {},
+	string(types.JoinMethodGitHub): {},
 }
 
 // TokenUsageMode represents the possible usage modes of a scoped token.
@@ -303,4 +304,33 @@ func GetScopedToken(token provision.Token) (*joiningv1.ScopedToken, bool) {
 	}
 
 	return wrapper.scoped, true
+}
+
+// GetGithubRules returns the Github-specific configuration used with the "github"
+// join method.
+func (t *Token) GetGithubRules() *types.ProvisionTokenSpecV2GitHub {
+	gh := t.scoped.GetSpec().GetGithub()
+	if gh == nil {
+		return nil
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GitHub_Rule, len(gh.GetAllow()))
+	for i, rule := range gh.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GitHub_Rule{
+			Sub:             rule.GetSub(),
+			Repository:      rule.GetRepository(),
+			RepositoryOwner: rule.GetRepositoryOwner(),
+			Workflow:        rule.GetWorkflow(),
+			Environment:     rule.GetEnvironment(),
+			Actor:           rule.GetActor(),
+			Ref:             rule.GetRef(),
+			RefType:         rule.GetRefType(),
+		}
+	}
+	return &types.ProvisionTokenSpecV2GitHub{
+		Allow:                allow,
+		EnterpriseServerHost: gh.GetEnterpriseServerHost(),
+		EnterpriseSlug:       gh.GetEnterpriseSlug(),
+		StaticJWKS:           gh.GetStaticJwks(),
+	}
 }
