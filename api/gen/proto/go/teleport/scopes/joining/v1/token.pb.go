@@ -150,7 +150,9 @@ type ScopedTokenSpec struct {
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// The joining method required in order to use this token.
 	// Supported joining methods for scoped tokens only include 'token'.
-	JoinMethod    string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
+	// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+	Aws           *AWS `protobuf:"bytes,4,opt,name=aws,proto3" json:"aws,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -206,6 +208,13 @@ func (x *ScopedTokenSpec) GetJoinMethod() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetAws() *AWS {
+	if x != nil {
+		return x.Aws
+	}
+	return nil
+}
+
 // The status of a scoped token.
 type ScopedTokenStatus struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -253,6 +262,150 @@ func (x *ScopedTokenStatus) GetSecret() string {
 	return ""
 }
 
+// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+type AWS struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*AWS_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// The TTL to use for AWS EC2 Instance Identity Documents used
+	// to join the cluster with this token.
+	AwsIidTtl     int64 `protobuf:"varint,2,opt,name=aws_iid_ttl,json=awsIidTtl,proto3" json:"aws_iid_ttl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AWS) Reset() {
+	*x = AWS{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWS) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWS) ProtoMessage() {}
+
+func (x *AWS) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AWS.ProtoReflect.Descriptor instead.
+func (*AWS) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AWS) GetAllow() []*AWS_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *AWS) GetAwsIidTtl() int64 {
+	if x != nil {
+		return x.AwsIidTtl
+	}
+	return 0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with AWS join methods.
+type AWS_Rule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The AWS account ID.
+	AwsAccount string `protobuf:"bytes,1,opt,name=aws_account,json=awsAccount,proto3" json:"aws_account,omitempty"`
+	// List of AWS regions a node is allowed to join from when using the
+	// EC2 join method.
+	AwsRegions []string `protobuf:"bytes,2,rep,name=aws_regions,json=awsRegions,proto3" json:"aws_regions,omitempty"`
+	// The ARN of the role the Auth Service will assume in order to call the
+	// EC2 API when using the EC2 join method.
+	AwsRole string `protobuf:"bytes,3,opt,name=aws_role,json=awsRole,proto3" json:"aws_role,omitempty"`
+	// The ARN of the joining identity for use with the IAM join method.
+	// Supports wildcards "*" and "?".
+	AwsArn string `protobuf:"bytes,4,opt,name=aws_arn,json=awsArn,proto3" json:"aws_arn,omitempty"`
+	// The organization ID that the joining AWS identity must belong to
+	// when using the IAM join method.
+	AwsOrganizationId string `protobuf:"bytes,5,opt,name=aws_organization_id,json=awsOrganizationId,proto3" json:"aws_organization_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AWS_Rule) Reset() {
+	*x = AWS_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWS_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWS_Rule) ProtoMessage() {}
+
+func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AWS_Rule.ProtoReflect.Descriptor instead.
+func (*AWS_Rule) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{3, 0}
+}
+
+func (x *AWS_Rule) GetAwsAccount() string {
+	if x != nil {
+		return x.AwsAccount
+	}
+	return ""
+}
+
+func (x *AWS_Rule) GetAwsRegions() []string {
+	if x != nil {
+		return x.AwsRegions
+	}
+	return nil
+}
+
+func (x *AWS_Rule) GetAwsRole() string {
+	if x != nil {
+		return x.AwsRole
+	}
+	return ""
+}
+
+func (x *AWS_Rule) GetAwsArn() string {
+	if x != nil {
+		return x.AwsArn
+	}
+	return ""
+}
+
+func (x *AWS_Rule) GetAwsOrganizationId() string {
+	if x != nil {
+		return x.AwsOrganizationId
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -265,14 +418,26 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"o\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xa2\x01\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
-	"joinMethod\"+\n" +
+	"joinMethod\x121\n" +
+	"\x03aws\x18\x04 \x01(\v2\x1f.teleport.scopes.joining.v1.AWSR\x03aws\"+\n" +
 	"\x11ScopedTokenStatus\x12\x16\n" +
-	"\x06secret\x18\x01 \x01(\tR\x06secretBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x06secret\x18\x01 \x01(\tR\x06secret\"\x90\x02\n" +
+	"\x03AWS\x12:\n" +
+	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.AWS.RuleR\x05allow\x12\x1e\n" +
+	"\vaws_iid_ttl\x18\x02 \x01(\x03R\tawsIidTtl\x1a\xac\x01\n" +
+	"\x04Rule\x12\x1f\n" +
+	"\vaws_account\x18\x01 \x01(\tR\n" +
+	"awsAccount\x12\x1f\n" +
+	"\vaws_regions\x18\x02 \x03(\tR\n" +
+	"awsRegions\x12\x19\n" +
+	"\baws_role\x18\x03 \x01(\tR\aawsRole\x12\x17\n" +
+	"\aaws_arn\x18\x04 \x01(\tR\x06awsArn\x12.\n" +
+	"\x13aws_organization_id\x18\x05 \x01(\tR\x11awsOrganizationIdBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -286,22 +451,26 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),       // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil),   // 1: teleport.scopes.joining.v1.ScopedTokenSpec
 	(*ScopedTokenStatus)(nil), // 2: teleport.scopes.joining.v1.ScopedTokenStatus
-	(*v1.Metadata)(nil),       // 3: teleport.header.v1.Metadata
+	(*AWS)(nil),               // 3: teleport.scopes.joining.v1.AWS
+	(*AWS_Rule)(nil),          // 4: teleport.scopes.joining.v1.AWS.Rule
+	(*v1.Metadata)(nil),       // 5: teleport.header.v1.Metadata
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	3, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	5, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	2, // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	3, // 3: teleport.scopes.joining.v1.ScopedTokenSpec.aws:type_name -> teleport.scopes.joining.v1.AWS
+	4, // 4: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -315,7 +484,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

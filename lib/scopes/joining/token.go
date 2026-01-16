@@ -32,6 +32,7 @@ var rolesSupportingScopes = types.SystemRoles{
 
 var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
+	string(types.JoinMethodEC2):   {},
 }
 
 // StrongValidateToken checks if the scoped token is well-formed according to
@@ -236,12 +237,23 @@ func (t *Token) GetAssignedScope() string {
 
 // GetAllowRules returns the list of allow rules.
 func (t *Token) GetAllowRules() []*types.TokenRule {
-	return nil
+	allow := make([]*types.TokenRule, len(t.scoped.GetSpec().GetAws().GetAllow()))
+	for i, rule := range t.scoped.GetSpec().GetAws().GetAllow() {
+		allow[i] = &types.TokenRule{
+			AWSAccount:        rule.GetAwsAccount(),
+			AWSRegions:        rule.GetAwsRegions(),
+			AWSRole:           rule.GetAwsRole(),
+			AWSARN:            rule.GetAwsArn(),
+			AWSOrganizationID: rule.GetAwsOrganizationId(),
+		}
+	}
+
+	return allow
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (t *Token) GetAWSIIDTTL() types.Duration {
-	return types.NewDuration(0)
+	return types.Duration(t.scoped.GetSpec().GetAws().GetAwsIidTtl())
 }
 
 // GetIntegration returns the Integration field which is used to provide

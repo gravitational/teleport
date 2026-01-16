@@ -60,6 +60,9 @@ message ScopedTokenSpec {
   // The joining method required in order to use this token.
   // Supported joining methods for scoped tokens only include 'token'.
   string join_method = 3;
+
+  // The AWS-specific configuration used with the "ec2" and "iam" join methods.
+  AWS aws = 4;
 }
 
 // The status of a scoped token.
@@ -67,4 +70,34 @@ message ScopedTokenStatus {
   // The secret that must be provided as part of the challenge when joining using
   // the token join method.
   string secret = 1;
+}
+
+// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+message AWS {
+  // A rule that a joining node must match in order to use the associated token
+  // with AWS join methods.
+  message Rule {
+    // The AWS account ID.
+    string aws_account = 1;
+    // List of AWS regions a node is allowed to join from when using the
+    // EC2 join method.
+    repeated string aws_regions = 2;
+    // The ARN of the role the Auth Service will assume in order to call the
+    // EC2 API when using the EC2 join method.
+    string aws_role = 3;
+    // The ARN of the joining identity for use with the IAM join method.
+    // Supports wildcards "*" and "?".
+    string aws_arn = 4;
+    // The organization ID that the joining AWS identity must belong to
+    // when using the IAM join method.
+    string aws_organization_id = 5;
+  }
+
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+
+  // The TTL to use for AWS EC2 Instance Identity Documents used
+  // to join the cluster with this token.
+  int64 aws_iid_ttl = 2;
 }
