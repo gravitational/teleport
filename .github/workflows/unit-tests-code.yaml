@@ -76,6 +76,7 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        id: aws-setup
         if: always()
         continue-on-error: true
         with:
@@ -86,9 +87,9 @@ jobs:
 
 
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@a98c20a167a4f0b532629fd065fac6470f569688
-        if: always()
-        continue-on-error: true
+        uses: gravitational/shared-workflows/tools/ci-normalize@a0438cf305088a3bce3052016f30e2f42c3a3895
+        if: steps.aws-setup.outcome == 'success'
+        continue-on-error: true   # Do not fail the workflow
         with:
           s3-bucket: "s3://tp-278576220453-ci-test-artifacts-storage/ci-metrics"
           junit-files: "$GITHUB_WORKSPACE/test-logs/*.xml"
