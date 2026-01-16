@@ -85,7 +85,7 @@ jobs:
           role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@6b76d6a1ecf87d23f601cecb000adb78043033ee
+        uses: gravitational/shared-workflows/tools/ci-normalize@788f18fec4523908f3af25cd4953aba4092ac949
         if: always()
         continue-on-error: true
         with:
