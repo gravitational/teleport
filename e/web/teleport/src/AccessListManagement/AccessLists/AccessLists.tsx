@@ -22,7 +22,7 @@ import { ArrowRight, Magnifier, Refresh } from 'design/Icon';
 import { ShimmerBox } from 'design/ShimmerBox';
 import { HoverTooltip } from 'design/Tooltip';
 import { ViewMode } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import { SortMenu } from 'shared/components/Controls/SortMenuV2';
 import { ViewModeSwitch } from 'shared/components/Controls/ViewModeSwitch';
 import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsTooltip';
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
@@ -293,11 +293,29 @@ function MainContent({
           />
           {!backendCacheUnhealthy && (
             <SortMenu
-              current={currentSort}
-              onChange={newSort => updateSearchParams({ sort: newSort })}
-              fields={[
-                { value: 'title', label: 'Title' },
-                { value: 'auditNextDate', label: 'Next Review' },
+              selectedKey={currentSort.fieldName}
+              selectedOrder={currentSort.dir}
+              onChange={(key, order) =>
+                updateSearchParams({ sort: { fieldName: key, dir: order } })
+              }
+              items={[
+                {
+                  key: 'title',
+                  label: 'Title',
+                  ascendingLabel: 'Title, A - Z',
+                  descendingLabel: 'Title, Z - A',
+                  ascendingOptionLabel: 'Alphabetical, A - Z',
+                  descendingOptionLabel: 'Alphabetical, Z - A',
+                  defaultOrder: 'ASC',
+                },
+                {
+                  key: 'auditNextDate',
+                  label: 'Next review',
+                  ascendingOptionLabel: 'Soonest',
+                  descendingOptionLabel: 'Farthest',
+                  disableSort: true,
+                  defaultOrder: 'ASC',
+                },
               ]}
             />
           )}
