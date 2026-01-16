@@ -1061,13 +1061,17 @@ export class TdpbCodec implements Codec {
   }
 }
 
-// TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
-// Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
+// TdpCodec provides an api for encoding and decoding teleport desktop access protocol messages
+// [1] Buffers in TdpCodec are manipulated as DataView's [2] in order to give us low level control
 // of endianness (defaults to big endian, which is what we want), as opposed to using *Array
 // objects [3] which use the platform's endianness.
 // [1] https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
+//
+// This legacy protocol is superseded by TDPB (see TdpbCodec) and remains here for backwards
+// compatibility.
+// TODO(rhammmonds): DELETE IN v20.0.0
 export class TdpCodec implements Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();

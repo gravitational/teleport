@@ -90,10 +90,10 @@ export enum TdpClientEvent {
   // TDP_INFO corresponds with the TDP info message
   TDP_INFO = 'tdp info',
   CONNECTION_OPEN = 'connection open',
-  // TRANSPORT_CLOSE is emitted when a connection ends due to the transport layer being closed.
+  // CONNECTION_CLOSE is emitted when a connection ends due to the transport layer being closed.
   // This can occur with or without an error.
   // If an error is present, it will be displayed in the UI.
-  TRANSPORT_CLOSE = 'transport close',
+  CONNECTION_CLOSE = 'connection close',
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
@@ -109,7 +109,7 @@ type EventMap = {
   [TdpClientEvent.CLIENT_WARNING]: [string];
   [TdpClientEvent.TDP_INFO]: [string];
   [TdpClientEvent.CONNECTION_OPEN]: [void];
-  [TdpClientEvent.TRANSPORT_CLOSE]: [Error | undefined];
+  [TdpClientEvent.CONNECTION_CLOSE]: [Error | undefined];
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
@@ -244,9 +244,9 @@ export class TdpClient extends EventEmitter<EventMap> {
       // If the connection was closed intentionally by the user (aborted),
       // do not treat it as an error in the UI.
     } else if (connectionError && !isAbortError(connectionError)) {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
+      this.emit(TdpClientEvent.CONNECTION_CLOSE, connectionError);
     } else {
-      this.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
+      this.emit(TdpClientEvent.CONNECTION_CLOSE, undefined);
     }
 
     this.logger.info('Transport is closed');
@@ -296,8 +296,8 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   onTransportClose = (listener: (error?: Error) => void) => {
-    this.on(TdpClientEvent.TRANSPORT_CLOSE, listener);
-    return () => this.off(TdpClientEvent.TRANSPORT_CLOSE, listener);
+    this.on(TdpClientEvent.CONNECTION_CLOSE, listener);
+    return () => this.off(TdpClientEvent.CONNECTION_CLOSE, listener);
   };
 
   onTransportOpen = (listener: () => void) => {
@@ -455,17 +455,17 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleClientScreenSpec(spec: ClientScreenSpec) {
     void spec;
-    this.logger.warn(`received unexpected client screen spec message`);
+    this.logger.warn('received unexpected client screen spec message');
   }
 
   handleMouseButton(button: MouseButtonState) {
     void button;
-    this.logger.warn(`received unexpected mouse button message`);
+    this.logger.warn('received unexpected mouse button message');
   }
 
   handleMouseMove(move: MouseMove) {
     void move;
-    this.logger.warn(`received unexpected mouse move message`);
+    this.logger.warn('received unexpected mouse move message');
   }
 
   handleClipboardData(data: ClipboardData) {
