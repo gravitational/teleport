@@ -23,27 +23,23 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/encoding/protojson"
-
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
 
-// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
-// completed MFA.
-type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest) error
+// PromptVerifier defines an interface for marshaling authentication prompts and verifying answers.
+type PromptVerifier interface {
+	// MarshalPrompt marshals the prompt to a UTF-8 encoded string and returns the echo flag.
+	MarshalPrompt() (prompt string, echo bool, err error)
+
+	// VerifyAnswer verifies the UTF-8 encoded answer provided by the client.
+	VerifyAnswer(ctx context.Context, answer string) error
 }
 
 // KeyboardInteractiveCallbackParams contains required parameters for KeyboardInteractiveCallback.
 type KeyboardInteractiveCallbackParams struct {
-	Metadata      ssh.ConnMetadata
-	Challenge     ssh.KeyboardInteractiveChallenge
-	Permissions   *ssh.Permissions
-	Verifier      ValidatedMFAChallengeVerifier
-	SourceCluster string
-	Username      string
-	Prompts       []*sshpb.AuthPrompt
+	Metadata        ssh.ConnMetadata
+	Challenge       ssh.KeyboardInteractiveChallenge
+	Permissions     *ssh.Permissions
+	PromptVerifiers []PromptVerifier
 }
 
 // KeyboardInteractiveCallback implements an authentication layer on top of the SSH keyboard-interactive authentication
@@ -58,51 +54,38 @@ func KeyboardInteractiveCallback(
 		return nil, trace.Wrap(err)
 	}
 
-	questions, echos, err := buildQuestions(params.Prompts)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Prepare the questions and echo flags for each PromptVerifier.
+	questions := make([]string, 0, len(params.PromptVerifiers))
+	echos := make([]bool, 0, len(params.PromptVerifiers))
+
+	for _, verifier := range params.PromptVerifiers {
+		question, echo, err := verifier.MarshalPrompt()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		questions = append(questions, question)
+		echos = append(echos, echo)
 	}
 
-	// Send the auth prompts to the client and collect answers.
+	// Send the questions to the client and collect answers.
 	answers, err := params.Challenge(params.Metadata.User(), "", questions, echos)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if len(answers) != len(questions) {
-		return nil, trace.BadParameter("expected exactly %d answers, got %d answers", len(questions), len(answers))
+		return nil, trace.BadParameter("expected exactly %d answer(s), got %d answer(s)", len(questions), len(answers))
 	}
 
-	// Process each answer from the client.
-	for _, answer := range answers {
-		resp := &sshpb.MFAPromptResponse{}
-
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(answer), resp); err != nil {
+	// Process each answer using its corresponding PromptVerifier.
+	for i, answer := range answers {
+		if err := params.PromptVerifiers[i].VerifyAnswer(ctx, answer); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		switch resp.GetResponse().(type) {
-		case *sshpb.MFAPromptResponse_Reference:
-			if err := handleMFAPromptResponse(
-				ctx,
-				resp,
-				params.Verifier,
-				params.Metadata.SessionID(),
-				params.SourceCluster,
-				params.Username,
-			); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-		case nil:
-			return nil, trace.BadParameter("received sshpb.MFAPromptResponse with nil Response field")
-
-		default:
-			return nil, trace.BadParameter("received sshpb.AuthResponse with unknown response type")
-		}
 	}
 
-	// Return the original permissions upon successful MFA verification to signal success.
+	// Return the original permissions upon successful verification to signal success.
 	return params.Permissions, nil
 }
 
@@ -117,74 +100,10 @@ func checkKeyboardInteractiveCallbackParams(params KeyboardInteractiveCallbackPa
 	case params.Permissions == nil:
 		return trace.BadParameter("params Permissions must be set")
 
-	case params.Verifier == nil:
-		return trace.BadParameter("params Verifier must be set")
-
-	case params.SourceCluster == "":
-		return trace.BadParameter("params SourceCluster must be set")
-
-	case params.Username == "":
-		return trace.BadParameter("params Username must be set")
-
-	case len(params.Prompts) == 0:
-		return trace.BadParameter("params Prompts must be set and contain at least one prompt")
+	case len(params.PromptVerifiers) == 0:
+		return trace.BadParameter("params PromptVerifiers must be set and contain at least one PromptVerifier")
 
 	default:
 		return nil
 	}
-}
-
-func buildQuestions(prompts []*sshpb.AuthPrompt) ([]string, []bool, error) {
-	// Marshal each prompt to JSON since the authentication method only supports UTF-8 strings.
-	questions := make([]string, 0, len(prompts))
-
-	for _, prompt := range prompts {
-		bytes, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(prompt)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		questions = append(questions, string(bytes))
-	}
-
-	// All false by default for now since the only supported prompt type is MFA which doesn't require echoing.
-	echos := make([]bool, len(prompts))
-
-	return questions, echos, nil
-}
-
-func handleMFAPromptResponse(
-	ctx context.Context,
-	resp *sshpb.MFAPromptResponse,
-	verifier ValidatedMFAChallengeVerifier,
-	sessionID []byte,
-	sourceCluster,
-	username string,
-) error {
-	ref := resp.GetReference()
-	if ref == nil {
-		return trace.BadParameter("received sshpb.MFAPromptResponse with nil Reference field")
-	}
-
-	challengeName := ref.GetChallengeName()
-	if challengeName == "" {
-		return trace.BadParameter("received sshpb.MFAPromptResponseReference with empty ChallengeName field")
-	}
-
-	// Call the verifier to ensure the validated MFA challenge exists and is tied to the correct user and session.
-	return trace.Wrap(
-		verifier.VerifyValidatedMFAChallenge(
-			ctx,
-			&mfav1.VerifyValidatedMFAChallengeRequest{
-				Name: challengeName,
-				Payload: &mfav1.SessionIdentifyingPayload{
-					Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
-						SshSessionId: sessionID,
-					},
-				},
-				SourceCluster: sourceCluster,
-				Username:      username,
-			},
-		),
-	)
 }
