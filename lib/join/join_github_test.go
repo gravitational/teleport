@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -444,6 +446,49 @@ func TestJoinGHA(t *testing.T) {
 			require.NoError(t, authServer.Auth().CreateToken(t.Context(), token))
 			tt.request.Token = tt.name
 
+			convertRules := func(rules []*types.ProvisionTokenSpecV2GitHub_Rule) []*joiningv1.Github_Rule {
+				t.Helper()
+				out := make([]*joiningv1.Github_Rule, len(rules))
+				for i, rule := range rules {
+					out[i] = &joiningv1.Github_Rule{
+						Sub:             rule.Sub,
+						Repository:      rule.Repository,
+						RepositoryOwner: rule.RepositoryOwner,
+						Workflow:        rule.Workflow,
+						Environment:     rule.Environment,
+						Actor:           rule.Actor,
+						Ref:             rule.Ref,
+						RefType:         rule.RefType,
+					}
+				}
+
+				return out
+			}
+
+			scopedToken := &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Scope:   "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					JoinMethod:    string(types.JoinMethodGitHub),
+					Roles:         []string{types.RoleNode.String()},
+					Github: &joiningv1.Github{
+						Allow:                convertRules(token.GetGithubRules().Allow),
+						EnterpriseServerHost: token.GetGithubRules().EnterpriseServerHost,
+						EnterpriseSlug:       token.GetGithubRules().EnterpriseSlug,
+						StaticJwks:           token.GetGithubRules().StaticJWKS,
+					},
+				},
+			}
+			_, err = authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+
 			nopClient, err := authServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
@@ -470,6 +515,25 @@ func TestJoinGHA(t *testing.T) {
 			t.Run("new joinclient", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
+			})
+
+			t.Run("scoped joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      "scoped_" + tt.request.Token,
 					JoinMethod: types.JoinMethodGitHub,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed

@@ -54,4 +54,7 @@ type Token interface {
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
 	// Currently, this is only used to validate the AWS Organization.
 	GetIntegration() string
+	// GetGithubRules returns the Github-specific configuration used with the "github"
+	// join method.
+	GetGithubRules() *types.ProvisionTokenSpecV2GitHub
 }

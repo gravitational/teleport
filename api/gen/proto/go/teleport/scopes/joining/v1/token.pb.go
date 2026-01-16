@@ -152,7 +152,9 @@ type ScopedTokenSpec struct {
 	// Supported joining methods for scoped tokens only include 'token'.
 	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// The AWS-specific configuration used with the "ec2" and "iam" join methods.
-	Aws           *AWS `protobuf:"bytes,4,opt,name=aws,proto3" json:"aws,omitempty"`
+	Aws *AWS `protobuf:"bytes,4,opt,name=aws,proto3" json:"aws,omitempty"`
+	// The GitHub-specific configuration used with the "github" join method.
+	Github        *Github `protobuf:"bytes,5,opt,name=github,proto3" json:"github,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +213,13 @@ func (x *ScopedTokenSpec) GetJoinMethod() string {
 func (x *ScopedTokenSpec) GetAws() *AWS {
 	if x != nil {
 		return x.Aws
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetGithub() *Github {
+	if x != nil {
+		return x.Github
 	}
 	return nil
 }
@@ -329,6 +338,98 @@ func (x *AWS) GetIntegration() string {
 	return ""
 }
 
+// The GitHub-specific configuration used with the "github" join method.
+type Github struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Github_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// Allows joining from runners associated with a GitHub Enterprise Server instance.
+	// When unconfigured, tokens will be validated against github.com, but when configured
+	// to the host of a GHES instance, then the tokens will be validated against host.
+	//
+	// This value should be the hostname of the GHES instance, and should not
+	// include the scheme or a path. The instance must be accessible over HTTPS
+	// at this hostname and the certificate must be trusted by the Auth Service.
+	EnterpriseServerHost string `protobuf:"bytes,2,opt,name=enterprise_server_host,json=enterpriseServerHost,proto3" json:"enterprise_server_host,omitempty"`
+	// Allows the slug of a GitHub Enterprise organisation to be
+	// included in the expected issuer of the OIDC tokens. This is for
+	// compatibility with the `include_enterprise_slug` option in GHE.
+	//
+	// This field should be set to the slug of your enterprise if this is enabled. If
+	// this is not enabled, then this field must be left empty. This field cannot
+	// be specified if `enterprise_server_host` is specified.
+	//
+	// See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+	// for more information about customized issuer values.
+	EnterpriseSlug string `protobuf:"bytes,3,opt,name=enterprise_slug,json=enterpriseSlug,proto3" json:"enterprise_slug,omitempty"`
+	// Disables fetching of the GHES signing keys via the JWKS/OIDC
+	// endpoints, and allows them to be directly specified. This allows joining
+	// from GitHub Actions in GHES instances that are not reachable by the
+	// Teleport Auth Service.
+	StaticJwks    string `protobuf:"bytes,4,opt,name=static_jwks,json=staticJwks,proto3" json:"static_jwks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Github) Reset() {
+	*x = Github{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Github) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Github) ProtoMessage() {}
+
+func (x *Github) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Github.ProtoReflect.Descriptor instead.
+func (*Github) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Github) GetAllow() []*Github_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *Github) GetEnterpriseServerHost() string {
+	if x != nil {
+		return x.EnterpriseServerHost
+	}
+	return ""
+}
+
+func (x *Github) GetEnterpriseSlug() string {
+	if x != nil {
+		return x.EnterpriseSlug
+	}
+	return ""
+}
+
+func (x *Github) GetStaticJwks() string {
+	if x != nil {
+		return x.StaticJwks
+	}
+	return ""
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -353,7 +454,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[4]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +466,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[4]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -416,6 +517,120 @@ func (x *AWS_Rule) GetAwsOrganizationId() string {
 	return ""
 }
 
+// The fields mapped from `lib/githubactions.IDToken`. Not all fields should be included,
+// only ones that we expect to be useful when trying to create rules around which workflows
+// should be allowed to authenticate against a cluster.
+type Github_Rule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Sub, also known as Subject, is a string that roughly uniquely identifies
+	// the workload. The format of this varies depending on the type of github
+	// action run.
+	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	// The repository from where the workflow is running.
+	// This includes the name of the owner e.g `gravitational/teleport`
+	Repository string `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
+	// The name of the organization in which the repository is stored.
+	RepositoryOwner string `protobuf:"bytes,3,opt,name=repository_owner,json=repositoryOwner,proto3" json:"repository_owner,omitempty"`
+	// The name of the workflow.
+	Workflow string `protobuf:"bytes,4,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	// The name of the environment used by the job.
+	Environment string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The personal account that initiated the workflow run.
+	Actor string `protobuf:"bytes,6,opt,name=actor,proto3" json:"actor,omitempty"`
+	// The git ref that triggered the workflow run.
+	Ref string `protobuf:"bytes,7,opt,name=ref,proto3" json:"ref,omitempty"`
+	// The type of ref, for example: "branch".
+	RefType       string `protobuf:"bytes,8,opt,name=ref_type,json=refType,proto3" json:"ref_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Github_Rule) Reset() {
+	*x = Github_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Github_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Github_Rule) ProtoMessage() {}
+
+func (x *Github_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Github_Rule.ProtoReflect.Descriptor instead.
+func (*Github_Rule) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{4, 0}
+}
+
+func (x *Github_Rule) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRepositoryOwner() string {
+	if x != nil {
+		return x.RepositoryOwner
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetWorkflow() string {
+	if x != nil {
+		return x.Workflow
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetActor() string {
+	if x != nil {
+		return x.Actor
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRefType() string {
+	if x != nil {
+		return x.RefType
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -428,13 +643,14 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xa2\x01\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xde\x01\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
 	"joinMethod\x121\n" +
-	"\x03aws\x18\x04 \x01(\v2\x1f.teleport.scopes.joining.v1.AWSR\x03aws\"+\n" +
+	"\x03aws\x18\x04 \x01(\v2\x1f.teleport.scopes.joining.v1.AWSR\x03aws\x12:\n" +
+	"\x06github\x18\x05 \x01(\v2\".teleport.scopes.joining.v1.GithubR\x06github\"+\n" +
 	"\x11ScopedTokenStatus\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\"\xb2\x02\n" +
 	"\x03AWS\x12:\n" +
@@ -448,7 +664,24 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"awsRegions\x12\x19\n" +
 	"\baws_role\x18\x03 \x01(\tR\aawsRole\x12\x17\n" +
 	"\aaws_arn\x18\x04 \x01(\tR\x06awsArn\x12.\n" +
-	"\x13aws_organization_id\x18\x05 \x01(\tR\x11awsOrganizationIdBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x13aws_organization_id\x18\x05 \x01(\tR\x11awsOrganizationId\"\xae\x03\n" +
+	"\x06Github\x12=\n" +
+	"\x05allow\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.Github.RuleR\x05allow\x124\n" +
+	"\x16enterprise_server_host\x18\x02 \x01(\tR\x14enterpriseServerHost\x12'\n" +
+	"\x0fenterprise_slug\x18\x03 \x01(\tR\x0eenterpriseSlug\x12\x1f\n" +
+	"\vstatic_jwks\x18\x04 \x01(\tR\n" +
+	"staticJwks\x1a\xe4\x01\n" +
+	"\x04Rule\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x02 \x01(\tR\n" +
+	"repository\x12)\n" +
+	"\x10repository_owner\x18\x03 \x01(\tR\x0frepositoryOwner\x12\x1a\n" +
+	"\bworkflow\x18\x04 \x01(\tR\bworkflow\x12 \n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\x12\x14\n" +
+	"\x05actor\x18\x06 \x01(\tR\x05actor\x12\x10\n" +
+	"\x03ref\x18\a \x01(\tR\x03ref\x12\x19\n" +
+	"\bref_type\x18\b \x01(\tR\arefTypeBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -462,26 +695,30 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),       // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil),   // 1: teleport.scopes.joining.v1.ScopedTokenSpec
 	(*ScopedTokenStatus)(nil), // 2: teleport.scopes.joining.v1.ScopedTokenStatus
 	(*AWS)(nil),               // 3: teleport.scopes.joining.v1.AWS
-	(*AWS_Rule)(nil),          // 4: teleport.scopes.joining.v1.AWS.Rule
-	(*v1.Metadata)(nil),       // 5: teleport.header.v1.Metadata
+	(*Github)(nil),            // 4: teleport.scopes.joining.v1.Github
+	(*AWS_Rule)(nil),          // 5: teleport.scopes.joining.v1.AWS.Rule
+	(*Github_Rule)(nil),       // 6: teleport.scopes.joining.v1.Github.Rule
+	(*v1.Metadata)(nil),       // 7: teleport.header.v1.Metadata
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	5, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	7, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	2, // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	3, // 3: teleport.scopes.joining.v1.ScopedTokenSpec.aws:type_name -> teleport.scopes.joining.v1.AWS
-	4, // 4: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 4: teleport.scopes.joining.v1.ScopedTokenSpec.github:type_name -> teleport.scopes.joining.v1.Github
+	5, // 5: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	6, // 6: teleport.scopes.joining.v1.Github.allow:type_name -> teleport.scopes.joining.v1.Github.Rule
+	7, // [7:7] is the sub-list for method output_type
+	7, // [7:7] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -495,7 +732,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
