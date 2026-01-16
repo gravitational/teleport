@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 )
 
@@ -168,30 +167,6 @@ type mockConnMetadata struct {
 func (m *mockConnMetadata) SessionID() []byte { return m.sessionID }
 func (m *mockConnMetadata) User() string      { return m.user }
 
-type mockValidatedMFAChallengeVerifier struct {
-	expectedChallengeName string
-	err                   error
-}
-
-func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
-	_ context.Context,
-	req *mfav1.VerifyValidatedMFAChallengeRequest,
-) error {
-	if m.err != nil {
-		return m.err
-	}
-
-	if m.expectedChallengeName != "" && req.Name != m.expectedChallengeName {
-		return trace.Errorf(
-			"unexpected challenge name: got %q, want %q",
-			req.Name,
-			m.expectedChallengeName,
-		)
-	}
-
-	return nil
-}
-
 func mockKeyboardInteractiveChallengeRaw(answers []string) ssh.KeyboardInteractiveChallenge {
 	return func(_ string, _ string, _ []string, _ []bool) ([]string, error) {
 		return answers, nil
@@ -208,7 +183,6 @@ type mockPromptVerifier struct {
 	Prompt         string
 	Echo           bool
 	ExpectedAnswer string
-	VerifyFn       func(ctx context.Context, answer string) error
 }
 
 var _ srvssh.PromptVerifier = (*mockPromptVerifier)(nil)
@@ -218,10 +192,6 @@ func (m *mockPromptVerifier) MarshalPrompt() (string, bool, error) {
 }
 
 func (m *mockPromptVerifier) VerifyAnswer(ctx context.Context, answer string) error {
-	if m.VerifyFn != nil {
-		return m.VerifyFn(ctx, answer)
-	}
-
 	if answer != m.ExpectedAnswer {
 		return trace.BadParameter("got %q, want %q", answer, m.ExpectedAnswer)
 	}

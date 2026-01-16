@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 )
@@ -193,4 +194,28 @@ func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
 
 	err = verifier.VerifyAnswer(context.Background(), string(respJSON))
 	require.ErrorContains(t, err, "missing ChallengeName in MFAPromptResponseReference")
+}
+
+type mockValidatedMFAChallengeVerifier struct {
+	expectedChallengeName string
+	err                   error
+}
+
+func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
+	_ context.Context,
+	req *mfav1.VerifyValidatedMFAChallengeRequest,
+) error {
+	if m.err != nil {
+		return m.err
+	}
+
+	if m.expectedChallengeName != "" && req.Name != m.expectedChallengeName {
+		return trace.Errorf(
+			"unexpected challenge name: got %q, want %q",
+			req.Name,
+			m.expectedChallengeName,
+		)
+	}
+
+	return nil
 }
