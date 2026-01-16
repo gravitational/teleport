@@ -33,6 +33,7 @@ var rolesSupportingScopes = types.SystemRoles{
 var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodToken): {},
 	string(types.JoinMethodEC2):   {},
+	string(types.JoinMethodIAM):   {},
 }
 
 // StrongValidateToken checks if the scoped token is well-formed according to
@@ -259,7 +260,7 @@ func (t *Token) GetAWSIIDTTL() types.Duration {
 // GetIntegration returns the Integration field which is used to provide
 // credentials that will be used when validating the AWS Organization if required by an IAM Token.
 func (t *Token) GetIntegration() string {
-	return ""
+	return t.scoped.GetSpec().GetAws().GetIntegration()
 }
 
 // GetSecret returns the token's secret value.
