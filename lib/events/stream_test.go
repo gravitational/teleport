@@ -733,31 +733,33 @@ func TestMergeStreamer(t *testing.T) {
 	}
 	tests := []struct {
 		name           string
-		events         [][]apievents.AuditEvent
+		current        []apievents.AuditEvent
+		incoming       []apievents.AuditEvent
 		startIndex     int64
 		expectedEvents []apievents.AuditEvent
 	}{
 		{
-			name: "empty stream",
-			events: [][]apievents.AuditEvent{
-				{},
-			},
+			name:           "empty streams",
+			current:        []apievents.AuditEvent{},
+			incoming:       []apievents.AuditEvent{},
 			expectedEvents: []apievents.AuditEvent{},
 		},
 		{
-			name: "single stream",
-			events: [][]apievents.AuditEvent{
-				{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
-			},
+			name:           "only current events",
+			current:        []apievents.AuditEvent{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
+			incoming:       []apievents.AuditEvent{},
 			expectedEvents: []apievents.AuditEvent{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
 		},
 		{
-			name: "multiple streams",
-			events: [][]apievents.AuditEvent{
-				{mkEvent(2, "b"), mkEvent(6, "f"), mkEvent(9, "i")},
-				{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e")},
-				{mkEvent(3, "c"), mkEvent(7, "g"), mkEvent(8, "h")},
-			},
+			name:           "only incoming events",
+			current:        []apievents.AuditEvent{},
+			incoming:       []apievents.AuditEvent{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
+			expectedEvents: []apievents.AuditEvent{mkEvent(1, "foo"), mkEvent(2, "bar"), mkEvent(3, "baz"), mkEvent(4, "quux")},
+		},
+		{
+			name:     "multiple streams",
+			current:  []apievents.AuditEvent{mkEvent(2, "b"), mkEvent(3, "c"), mkEvent(6, "f"), mkEvent(9, "i")},
+			incoming: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(7, "g"), mkEvent(8, "h")},
 			expectedEvents: []apievents.AuditEvent{
 				mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c"),
 				mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
@@ -765,24 +767,15 @@ func TestMergeStreamer(t *testing.T) {
 			},
 		},
 		{
-			name: "prioritize events from earlier streams",
-			events: [][]apievents.AuditEvent{
-				{mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(4, "d1")},
-				{mkEvent(1, "a2"), mkEvent(3, "c2"), mkEvent(4, "d2")},
-				{mkEvent(2, "b3"), mkEvent(3, "c3"), mkEvent(5, "e3")},
-			},
-			expectedEvents: []apievents.AuditEvent{
-				mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(3, "c2"),
-				mkEvent(4, "d1"), mkEvent(5, "e3"),
-			},
+			name:           "prioritize current events",
+			current:        []apievents.AuditEvent{mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(4, "d1")},
+			incoming:       []apievents.AuditEvent{mkEvent(1, "a2"), mkEvent(3, "c2"), mkEvent(4, "d2")},
+			expectedEvents: []apievents.AuditEvent{mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(3, "c2"), mkEvent(4, "d1")},
 		},
 		{
-			name: "nonzero start index",
-			events: [][]apievents.AuditEvent{
-				{mkEvent(2, "b"), mkEvent(6, "f"), mkEvent(9, "i")},
-				{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e")},
-				{mkEvent(3, "c"), mkEvent(7, "g"), mkEvent(8, "h")},
-			},
+			name:       "nonzero start index",
+			current:    []apievents.AuditEvent{mkEvent(2, "b"), mkEvent(3, "c"), mkEvent(6, "f"), mkEvent(7, "g"), mkEvent(9, "i")},
+			incoming:   []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(8, "h")},
 			startIndex: 4,
 			expectedEvents: []apievents.AuditEvent{
 				mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
@@ -792,11 +785,10 @@ func TestMergeStreamer(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			auditLogs := make([]events.SessionStreamer, 0, len(tc.events))
-			for _, events := range tc.events {
-				auditLogs = append(auditLogs, &eventstest.MockAuditLog{SessionEvents: events})
+			streamer := events.MergeStreamer{
+				Current:  &eventstest.MockAuditLog{SessionEvents: tc.current},
+				Incoming: &eventstest.MockAuditLog{SessionEvents: tc.incoming},
 			}
-			streamer := events.MergeStreamer{Streamers: auditLogs}
 			events, errors := streamer.StreamSessionEvents(t.Context(), "", tc.startIndex)
 			gotEvents := make([]apievents.AuditEvent, 0, len(tc.expectedEvents))
 			for event := range events {
@@ -814,11 +806,10 @@ func TestMergeStreamer(t *testing.T) {
 
 	t.Run("propagate errors", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			streamer := events.MergeStreamer{Streamers: []events.SessionStreamer{
-				&eventstest.MockAuditLog{SessionEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c")}},
-				errorSessionStreamer{},
-				&eventstest.MockAuditLog{SessionEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c")}},
-			}}
+			streamer := events.MergeStreamer{
+				Current:  &eventstest.MockAuditLog{SessionEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c")}},
+				Incoming: errorSessionStreamer{},
+			}
 			_, errors := streamer.StreamSessionEvents(t.Context(), "", 0)
 			synctest.Wait()
 			select {

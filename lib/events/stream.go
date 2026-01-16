@@ -1439,86 +1439,88 @@ func isReserveUploadPartError(err error) bool {
 }
 
 type MergeStreamer struct {
-	Streamers []SessionStreamer
+	Current  SessionStreamer
+	Incoming SessionStreamer
 }
 
 func (m MergeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	events := make(chan apievents.AuditEvent)
-	errors := make(chan error, len(m.Streamers))
+	errors := make(chan error, 2)
 	go func() {
 		defer close(events)
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		streams := make([]chan apievents.AuditEvent, 0, len(m.Streamers))
-		currentEvents := make([]apievents.AuditEvent, len(m.Streamers))
-		wg := &sync.WaitGroup{}
-		for i, streamer := range m.Streamers {
-			stream, errCh := streamer.StreamSessionEvents(ctx, sessionID, startIndex)
-			streams = append(streams, stream)
-			// Forward errors.
-			go func() {
-				var err error
+		forwardErrors := func(errCh chan error) {
+			select {
+			case <-ctx.Done():
+			case err := <-errCh:
 				select {
-				case err = <-errCh:
 				case <-ctx.Done():
-					return
-				}
-				select {
 				case errors <- err:
-				case <-ctx.Done():
 				}
-			}()
-			// Collect first event from each stream.
-			wg.Go(func() {
-				select {
-				case firstEvent := <-stream:
-					currentEvents[i] = firstEvent
-				case <-ctx.Done():
-				}
-			})
+			}
 		}
+		currentStream, currentErrors := m.Current.StreamSessionEvents(ctx, sessionID, startIndex)
+		go forwardErrors(currentErrors)
+		incomingStream, incomingErrors := m.Incoming.StreamSessionEvents(ctx, sessionID, startIndex)
+		go forwardErrors(incomingErrors)
+
+		wg := &sync.WaitGroup{}
+		var nextCurrentEvent apievents.AuditEvent
+		getNextCurrent := func() {
+			select {
+			case <-ctx.Done():
+			case nextCurrentEvent = <-currentStream:
+			}
+		}
+		var nextIncomingEvent apievents.AuditEvent
+		getNextIncoming := func() {
+			select {
+			case <-ctx.Done():
+			case nextIncomingEvent = <-incomingStream:
+			}
+		}
+
+		// Populate initial currentOld and currentNew.
+		wg.Go(getNextCurrent)
+		wg.Go(getNextIncoming)
 		wg.Wait()
 
 		for {
-			// Find next event by index.
-			var nextEventIndex int64 = -1
-			for _, event := range currentEvents {
-				if event == nil {
-					continue
-				}
-				if nextEventIndex == -1 || event.GetIndex() < nextEventIndex {
-					nextEventIndex = event.GetIndex()
-				}
-			}
-			if nextEventIndex == -1 {
-				// All events sent.
+			if nextCurrentEvent == nil && nextIncomingEvent == nil {
 				return
 			}
-
-			seen := false
-			for i, event := range currentEvents {
-				if event == nil || event.GetIndex() != nextEventIndex {
-					continue
+			switch {
+			// There are no incoming events or the current event is next by index.
+			case nextIncomingEvent == nil || (nextCurrentEvent != nil && nextCurrentEvent.GetIndex() < nextIncomingEvent.GetIndex()):
+				select {
+				case events <- nextCurrentEvent:
+				case <-ctx.Done():
+					return
 				}
-				if !seen {
-					seen = true
-					wg.Go(func() {
-						select {
-						case events <- event:
-						case <-ctx.Done():
-						}
-					})
+				wg.Go(getNextCurrent)
+				// There are no current events or the incoming event is next by index.
+			case nextCurrentEvent == nil || (nextIncomingEvent != nil && nextIncomingEvent.GetIndex() < nextCurrentEvent.GetIndex()):
+				select {
+				case events <- nextIncomingEvent:
+				case <-ctx.Done():
+					return
 				}
-				wg.Go(func() {
-					select {
-					case currentEvents[i] = <-streams[i]:
-					case <-ctx.Done():
-					}
-				})
+				wg.Go(getNextIncoming)
+				// Duplicate event. Send the current event, replace both.
+			case nextCurrentEvent.GetIndex() == nextIncomingEvent.GetIndex():
+				select {
+				case events <- nextCurrentEvent:
+				case <-ctx.Done():
+					return
+				}
+				wg.Go(getNextCurrent)
+				wg.Go(getNextIncoming)
 			}
 			wg.Wait()
 		}
+
 	}()
 	return events, errors
 }
