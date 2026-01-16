@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -478,6 +480,58 @@ func TestJoinEC2(t *testing.T) {
 			err = testServer.Auth().UpsertToken(t.Context(), token)
 			require.NoError(t, err)
 
+			convertRules := func(rules []*types.TokenRule) []*joiningv1.AWS_Rule {
+				t.Helper()
+				out := make([]*joiningv1.AWS_Rule, len(rules))
+				for i, rule := range rules {
+					out[i] = &joiningv1.AWS_Rule{
+						AwsAccount:        rule.AWSAccount,
+						AwsRegions:        rule.AWSRegions,
+						AwsRole:           rule.AWSRole,
+						AwsArn:            rule.AWSARN,
+						AwsOrganizationId: rule.AWSOrganizationID,
+					}
+				}
+
+				return out
+			}
+
+			// scoped tokens don't support upserts natively, so we fake it
+			// by deleting and recreating the token
+			upsertScopedToken := func(token *joiningv1.ScopedToken) {
+				t.Helper()
+				_, err = testServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: token.GetMetadata().GetName(),
+				})
+				if err != nil {
+					require.True(t, trace.IsNotFound(err))
+				}
+
+				_, err = testServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+					Token: token,
+				})
+				require.NoError(t, err)
+			}
+
+			scopedToken := &joiningv1.ScopedToken{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Scope:   "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_token",
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					JoinMethod:    string(types.JoinMethodEC2),
+					Roles:         []string{types.RoleNode.String()},
+					Aws: &joiningv1.AWS{
+						Allow:     convertRules(token.GetAllowRules()),
+						AwsIidTtl: int64(token.GetAWSIIDTTL()),
+					},
+				},
+			}
+			upsertScopedToken(scopedToken)
+
 			testServer.Auth().SetEC2ClientForEC2JoinMethod(tc.ec2Client)
 
 			t.Run("new", func(t *testing.T) {
@@ -508,6 +562,26 @@ func TestJoinEC2(t *testing.T) {
 						Role:     types.RoleNode,
 						NodeName: "testnode",
 						HostUUID: tc.requestHostID,
+					},
+					AuthClient: nopClient,
+					GetInstanceIdentityDocumentFunc: func(_ context.Context) ([]byte, error) {
+						return tc.document, nil
+					},
+				})
+				tc.expectError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				if tc.requestHostID == badInstanceID {
+					// New join method does not allow the client so request a
+					// specific host ID, so the join would pass and fail the
+					// error assertion.
+					t.Skip()
+				}
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: scopedToken.GetMetadata().GetName(),
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
 					},
 					AuthClient: nopClient,
 					GetInstanceIdentityDocumentFunc: func(_ context.Context) ([]byte, error) {
