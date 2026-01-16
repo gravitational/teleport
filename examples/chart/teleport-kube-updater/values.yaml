@@ -1,4 +1,4 @@
-# Those 4 vars are not exposed to the user.
+# These 5 vars are not exposed to the user.
 releaseName: ""
 releaseNamespace: ""
 versionServerOverride: false
