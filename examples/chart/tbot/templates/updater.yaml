@@ -1,0 +1,27 @@
+{{- if .Values.updater.enabled -}}
+{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater }}
+{{/* Pass additional value from outside of updater. */}}
+{{- $_ := set $updater "releaseName" .Release.Name }}
+{{- $_ = set $updater "releaseNamespace" .Release.Namespace }}
+
+{{/* Unset updater-specific values so we don't accidentally pick up tbot-specific things. */}}
+{{- if not .Values.updater.extraArgs }}
+  {{- $_ = unset $updater "extraArgs" }}
+{{- end }}
+{{- if not .Values.updater.extraVolumes }}
+  {{- $_ = unset $updater "extraVolumes" }}
+{{- end }}
+{{- if not .Values.updater.extraVolumeMounts }}
+  {{- $_ = unset $updater "extraVolumeMounts" }}
+{{- end }}
+{{/* Compute dynamic values (depending on other teleport-kube agent values). */}}
+{{- $_ = set $updater.serviceAccount "name" (coalesce .Values.updater.serviceAccount.name (include "tbot.serviceAccountName" . | printf "%s-updater")) }}
+{{/* This is a backward compatibility trick to detect and honour MUv1 deployments that might have been replying on a custom version server. */}}
+{{- $_ = set $updater "versionServerOverride" (and $updater.versionServer (ne $updater.versionServer "https://{{ .Values.teleportProxyAddress }}/v1/webapi/automaticupgrades/channel")) }}
+{{/* Template the version server on the parent chart side as this is depends on its values. */}}
+{{- $_ = set $updater "versionServer" (tpl $updater.versionServer .) }}
+{{- $_ = set $updater "version" (include "tbot.version" .)}}
+{{- $_ = set $updater "proxyAddr" .Values.teleportProxyAddress }}
+{{- $_ = set $updater "baseImage" .Values.image }}
+{{ include "teleport-kube-updater.all" $updater }}
+{{- end -}}
