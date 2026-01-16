@@ -8,6 +8,10 @@ discovery_service:
     # same discovery group.
     # If two Discovery Services match different resources, they must be in
     # different discovery groups.
+    #
+    # It is also used to watch DiscoveryConfig resources.
+    # The Discovery Configs that have a matching discovery_group will be added to
+    # this Discovery Service matchers.
     discovery_group: "disc-group"
     # poll_interval is the cadence at which the discovery server will run each of its
     # discovery cycles. The default is 5m.
