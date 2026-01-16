@@ -352,6 +352,13 @@ export class TdpClient extends EventEmitter<EventMap> {
   // so that its internal await-or-not logic is obeyed.
   async processMessage(buffer: ArrayBufferLike): Promise<void> {
     const result = this.codec.decodeMessage(buffer);
+    if (!result) {
+      // Codec implementations *should* return an 'unknown' result kind
+      // instead of undefined, but double check anyway for safety.
+      this.logger.warn('message decoder returned undefined result');
+      return;
+    }
+
     switch (result.kind) {
       case 'pngFrame':
         this.handlePngFrame(result.data);
@@ -423,8 +430,21 @@ export class TdpClient extends EventEmitter<EventMap> {
       case 'mouseMove':
         this.handleMouseMove(result.data);
         break;
+      case 'unknown':
+        // Truly unknown message types. The envelope is empty or
+        // or the server's schema is ahead of ours.
+        this.logger.debug(`received unknown message type`);
+        break;
+      case 'unsupported':
+        // Message types that we know about, but deliberately do no support on the client.
+        // 'data' should be the unsupported message kind.
+        this.logger.debug(
+          `received message type not supported by this client ${result.data}`
+        );
+        break;
       default:
-        this.logger.warn(`received unknown or unsupported message type`);
+        const exhaustiveCheck: never = result;
+        throw new Error(`Message type: ${exhaustiveCheck}`);
     }
   }
 

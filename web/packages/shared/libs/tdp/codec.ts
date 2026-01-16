@@ -481,6 +481,7 @@ export type DecodedMessage =
   | { kind: 'clientScreenSpec'; data: ClientScreenSpec }
   | { kind: 'mouseButton'; data: MouseButtonState }
   | { kind: 'mouseMove'; data: MouseMove }
+  | { kind: 'unsupported'; data: string }
   | { kind: 'unknown'; data: unknown };
 
 // Assists with type narrowing on SharedDirectory messages by
@@ -525,7 +526,8 @@ export class TdpbCodec implements Codec {
     // Possibly due to 'strictNullChecks' being disabled, the compiler can't seem to narrow
     // the discriminated union using control flow analysis alone.
     if (!hasOneof(op)) {
-      return;
+      this.logger.debug('unknown shared directory operation');
+      return { kind: 'unknown', data: null };
     }
 
     switch (op.oneofKind) {
@@ -607,7 +609,8 @@ export class TdpbCodec implements Codec {
           },
         };
       default:
-        this.logger.debug('received unsupported shared directory request');
+        const exhaustiveCheck: never = op;
+        throw new Error(`Unhandled operation: ${exhaustiveCheck}`);
     }
   }
 
@@ -617,8 +620,16 @@ export class TdpbCodec implements Codec {
     // framing header redundant. Still, to avoid leaking TDPB details to the client implementation,
     // we'll quietly discard that header here.
     const envelope = Envelope.fromBinary(
-      new Uint8Array(buffer, 4 /* ignore TDPB header */)
+      new Uint8Array(buffer, 4 /* ignore TDPB header */),
+      { readUnknownField: true }
     );
+
+    if (!envelope.payload) {
+      // Either the server sent an empty Envelope, or the payload contains a
+      // new message type that this implementation doesn't understand.
+      this.logger.debug('received empty or unknown message payload');
+      return { kind: 'unknown', data: null };
+    }
 
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
@@ -721,9 +732,7 @@ export class TdpbCodec implements Codec {
           'Invalid MFA type - Only SSO or Webauthn are supported'
         );
       default:
-        this.logger.debug(
-          `received unsupported message type", ${envelope.payload.oneofKind}`
-        );
+        return { kind: 'unsupported', data: envelope.payload.oneofKind };
     }
   }
 

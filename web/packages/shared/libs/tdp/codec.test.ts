@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
+import { BinaryWriter, WireType } from '@protobuf-ts/runtime';
+
+import {
+  Envelope,
+  SharedDirectoryRequest,
+} from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 
 import {
   ButtonState,
@@ -214,4 +219,63 @@ test('tdpb encode/decode', () => {
   expect(hello.screenSpec.width).toEqual(1920);
   expect(hello.screenSpec.height).toEqual(1080);
   expect(hello.keyboardLayout).toEqual(1);
+});
+
+test('tdpb decode known but unsupported message', () => {
+  const hello_data = tdpbCodec.encodeClientHello({
+    screenSpec: {
+      width: 1,
+      height: 2,
+    },
+    keyboardLayout: 10,
+  });
+  // Known but unsupported message data
+  const result = tdpbCodec.decodeMessage(hello_data);
+  expect(result.kind).toEqual('unsupported');
+  expect(result.data).toEqual('clientHello');
+});
+
+test('tdpb forward compatibility', () => {
+  // Create an Envelope message with unknown payload member
+  // field 100, length-delimited, string
+  const writer = new BinaryWriter();
+  writer.tag(100, WireType.LengthDelimited).string('future payload');
+  const data = writer.finish();
+  let finalMessage = new Uint8Array(data.length + 4);
+  let view = new DataView(finalMessage.buffer);
+  view.setUint32(0, data.length, false);
+  finalMessage.set(data, 4);
+
+  const unknownResult = tdpbCodec.decodeMessage(finalMessage.buffer);
+  expect(unknownResult.kind).toEqual('unsupported');
+});
+
+test('tdpb shared directory unknown op', () => {
+  const writer = new BinaryWriter();
+  // Create a SharedDirectoryRequest with an operation that is not known.
+  let msg = SharedDirectoryRequest.create({
+    completionId: 1,
+    directoryId: 2,
+  });
+
+  const partialMsg = SharedDirectoryRequest.toBinary(msg);
+  let newSharedDirectoryRequest = new Uint8Array([
+    ...partialMsg,
+    // pick field number 50 for this "new" operation type.
+    ...writer.tag(50, WireType.LengthDelimited).string('future op').finish(),
+  ]);
+
+  // SharedDirectoryRequest has tag 17 in the envelope
+  const env = writer
+    .tag(17, WireType.LengthDelimited)
+    .bytes(newSharedDirectoryRequest)
+    .finish();
+
+  let finalMessage = new Uint8Array(env.length + 4);
+  let view = new DataView(finalMessage.buffer);
+  view.setUint32(0, env.length, false);
+  finalMessage.set(env, 4);
+
+  const unknownResult = tdpbCodec.decodeMessage(finalMessage.buffer);
+  expect(unknownResult.kind).toEqual('unknown');
 });
