@@ -97,7 +97,7 @@ export function CodePanel(props: {
         <DialogContent mb={4}>
           <Text>
             The code templates may not be complete yet. Continue to the end of
-            the guide to ensure you&apos;ve added all the details required.
+            the guide to ensure you&apos;ve added all the required details.
           </Text>
         </DialogContent>
         <DialogFooter>
