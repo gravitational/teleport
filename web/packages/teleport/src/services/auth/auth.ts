@@ -235,9 +235,10 @@ const auth = {
   headlessSsoGet(transactionId: string) {
     return api.get(cfg.getHeadlessSsoPath(transactionId)).then((json: any) => {
       json = json || {};
-
       return {
         clientIpAddress: json.client_ip_address,
+        authType: json.type,
+        state: json.state,
       };
     });
   },
@@ -261,6 +262,12 @@ const auth = {
     };
 
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+  },
+
+  getClientIp() {
+    return api.get(cfg.api.clientIpPath).then((json: any) => {
+      return json?.remote_ip || '';
+    });
   },
 
   // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req

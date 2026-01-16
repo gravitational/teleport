@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/browser"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -368,6 +369,9 @@ type Config struct {
 
 	// PreferSSO prefers SSO in favor of other MFA methods.
 	PreferSSO bool
+
+	// PreferBrowserMFA prefers Browser MFA in favor of other MFA methods.
+	PreferBrowserMFA bool
 
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
@@ -3781,6 +3785,13 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("" +
 				"Headless login is not supported for this command. " +
 				"Only 'tsh ls', 'tsh ssh', and 'tsh scp' are supported.")
+		case constants.BrowserConnector:
+			if !pr.Auth.AllowBrowser {
+				return nil, trace.BadParameter("browser auth disallowed by cluster settings")
+			}
+			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+				return tc.browserLogin(ctx, keyRing)
+			}, nil
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
 			// registered, we can try to go with passwordless login even though
@@ -3790,8 +3801,15 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return tc.pwdlessLogin, nil
 			}
 
+			// Return a login function that tries local login first, then falls back to browser login
+			// if no security keys are found.
 			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
+				resp, err := tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
+				if err != nil && errors.Is(err, wancli.ErrNoSecurityKeysFound) {
+					fmt.Printf("Local MFA attempt failed, falling back to browser-based authentication\n")
+					return tc.browserLogin(ctx, keyRing)
+				}
+				return resp, err
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
@@ -4264,6 +4282,7 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 			KubernetesCluster: tc.KubernetesCluster,
 		},
 		User:                     tc.Username,
+		RemoteAuthenticationType: types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_HEADLESS,
 		HeadlessAuthenticationID: headlessAuthenticationID,
 	})
 	if err != nil {
@@ -4340,7 +4359,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = browser.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)

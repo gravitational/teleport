@@ -31,8 +31,6 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
-	"os/exec"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -41,12 +39,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client/browser"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/saml"
 	"github.com/gravitational/teleport/lib/secret"
@@ -267,7 +265,7 @@ func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
 	clickableURL := rd.clickableURL(redirectURL, postForm)
 
 	// If a command was found to launch the browser, create and start it.
-	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
+	if err := browser.OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
 		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\n", err)
 	}
 
@@ -343,40 +341,6 @@ func (rd *Redirector) baseURL() string {
 		return rd.CallbackAddr
 	}
 	return rd.server.URL
-}
-
-// OpenURLInBrowser opens a URL in a web browser.
-func OpenURLInBrowser(browser string, URL string) error {
-	var execCmd *exec.Cmd
-	if browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // WaitForResponse waits for a response from the callback handler.

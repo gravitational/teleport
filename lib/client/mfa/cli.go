@@ -48,6 +48,12 @@ const (
 	cliMFATypeSSO = "SSO"
 )
 
+var (
+	// ErrBrowserMFAPreferred is returned when the user explicitly prefers Browser MFA
+	// and the ceremony should be skipped in favor of browser-based authentication.
+	ErrBrowserMFAPreferred = &trace.BadParameterError{Message: "browser MFA preferred by user"}
+)
+
 // CLIPromptConfig contains CLI prompt config options.
 type CLIPromptConfig struct {
 	PromptConfig
@@ -65,6 +71,9 @@ type CLIPromptConfig struct {
 	// PreferSSO favors SSO challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferSSO bool
+	// PreferBrowserMFA favors Browser MFA challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferBrowserMFA bool
 	// StdinFunc allows tests to override prompt.Stdin().
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
@@ -140,7 +149,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA
 	if c.cfg.PreferOTP && promptOTP && isPerSessionMFA {
-		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, can not specify --mfa-mode=otp")
+		return nil, trace.AccessDenied("only WebAuthn, SSO, and Browser MFA methods are supported with per-session MFA, can not specify --mfa-mode=otp")
 	}
 
 	// Prefer whatever method is requested by the client.
@@ -151,6 +160,8 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		chosenMethods = []string{cliMFATypeSSO}
 		promptWebauthn, promptOTP = false, false
 		userSpecifiedMethod = true
+	case c.cfg.PreferBrowserMFA:
+		return nil, trace.Wrap(ErrBrowserMFAPreferred)
 	case c.cfg.PreferOTP && promptOTP:
 		chosenMethods = []string{cliMFATypeOTP}
 		promptWebauthn, promptSSO = false, false
@@ -211,7 +222,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return resp, trace.Wrap(err)
 	case promptOTP:
 		if isPerSessionMFA {
-			return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA")
+			return nil, trace.AccessDenied("only WebAuthn, SSO, and Browser MFA methods are supported with per-session MFA")
 		}
 
 		resp, err := c.promptOTP(ctx, c.cfg.Quiet)

@@ -562,6 +562,9 @@ type AuthenticationSettings struct {
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for
 	// the cluster.
 	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
+	// AllowBrowser specifies if users are allowed to login and session MFA
+	// using the browser.
+	AllowBrowser bool `json:"allow_browser,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.

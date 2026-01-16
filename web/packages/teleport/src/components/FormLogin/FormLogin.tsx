@@ -17,6 +17,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 
 import {
@@ -70,6 +71,8 @@ export default function LoginForm(props: Props) {
     ssoTitle = 'Sign in to Teleport with SSO',
   } = props;
 
+  const location = useLocation();
+
   const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
     cfg?.auth?.identifierFirstLoginEnabled
   );
@@ -109,6 +112,8 @@ export default function LoginForm(props: Props) {
     );
   }
 
+  const username = new URLSearchParams(location.search).get('user') || '';
+
   // Everything below requires local auth to be enabled.
   return (
     <Card my="5" mx="auto" maxWidth={500} minWidth={300} py={4}>
@@ -127,6 +132,7 @@ export default function LoginForm(props: Props) {
           currFlow={'default'}
           otherAuthTypes={otherAuthTypes}
           {...props}
+          initialUsername={username}
           setShowIdentifierFirstLogin={setShowIdentifierFirstLogin}
           primaryAuthType={actualPrimaryType}
         />
@@ -225,10 +231,11 @@ const LocalForm = ({
   clearAttempt,
   hasTransitionEnded,
   autoFocus = false,
-}: Props & { hasTransitionEnded: boolean }) => {
+  initialUsername = '',
+}: Props & { hasTransitionEnded: boolean; initialUsername?: string }) => {
   const { isProcessing } = attempt;
   const [pass, setPass] = useState('');
-  const [user, setUser] = useState('');
+  const [user, setUser] = useState(initialUsername);
   const [token, setToken] = useState('');
 
   const mfaOptions = useMemo(
@@ -511,6 +518,7 @@ export type Props = {
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;
   setShowIdentifierFirstLogin?: (value: boolean) => void;
+  initialUsername?: string;
 };
 
 type AttemptState = ReturnType<typeof useAttempt>[0];

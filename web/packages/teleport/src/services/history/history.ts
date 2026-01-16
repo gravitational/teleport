@@ -68,6 +68,14 @@ const history = {
       const knownRedirect = this.ensureBaseUrl(knownRoute);
       const query = search ? encodeURIComponent(search) : '';
       params.push(`redirect_uri=${knownRedirect}${query}`);
+      
+      // If the user param is present, extract it and use it
+      // as the username for the login
+      const searchParams = new URLSearchParams(search);
+      const userParam = searchParams.get('user');
+      if (userParam) {
+        params.push(`user=${encodeURIComponent(userParam)}`);
+      }
     }
 
     const queryString = params.join('&');

@@ -132,6 +132,11 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
+	// GetAllowBrowser returns if browser is allowed by cluster settings.
+	GetAllowBrowser() bool
+	// SetAllowHeadless sets the value of the allow browser setting.
+	SetAllowBrowser(b bool)
+
 	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
 	SetRequireMFAType(RequireMFAType)
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
@@ -465,6 +470,14 @@ func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
+func (c *AuthPreferenceV2) GetAllowBrowser() bool {
+	return c.Spec.AllowBrowser != nil && c.Spec.AllowBrowser.Value
+}
+
+func (c *AuthPreferenceV2) SetAllowBrowser(b bool) {
+	c.Spec.AllowBrowser = NewBoolOption(b)
 }
 
 // SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
@@ -807,6 +820,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
 		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
+	// Set/validate AllowBrowserMFA. We need Webauthn first to do this properly.
+	switch {
+	case c.Spec.AllowBrowser == nil:
+		c.Spec.AllowBrowser = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowBrowser.Value:
+		return trace.BadParameter("missing required Webauthn configuration for browserMFA=true")
 	}
 
 	// Prevent local lockout by disabling local second factor methods.

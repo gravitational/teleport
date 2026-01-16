@@ -129,6 +129,9 @@ const (
 	mfaModeOTP = "otp"
 	// mfaModeSSO utilizes only SSO devices.
 	mfaModeSSO = "sso"
+	// mfaModeBrowser uses browser-based MFA (Browser MFA) rather than the
+	// challenge-response ceremony.
+	mfaModeBrowser = "browser"
 )
 
 const (
@@ -583,6 +586,9 @@ type CLIConf struct {
 	// Headless uses headless login for the client session.
 	Headless bool
 
+	// BrowserAuth uses browser to login
+	BrowserAuth bool
+
 	// MlockMode determines whether the process memory will be locked, and whether errors will be enforced.
 	// Allowed values include false, strict, and best_effort.
 	MlockMode string
@@ -781,6 +787,7 @@ const (
 	proxyEnvVar               = "TELEPORT_PROXY"
 	relayEnvVar               = "TELEPORT_RELAY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
+	browserAuthEnvVar         = "TELEPORT_BROWSER_AUTH"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
@@ -930,12 +937,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins.").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO, mfaModeBrowser}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v).", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
 	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
+	app.Flag("authbrowser", "Use browser login. Shorthand for --auth=browser.").Envar(browserAuthEnvVar).BoolVar(&cf.BrowserAuth)
 	app.Flag("mlock", fmt.Sprintf("Determines whether process memory will be locked and whether failure to do so will be accepted (%v).", strings.Join(mlockModes, ", "))).
 		Default(mlockModeAuto).
 		Envar(mlockModeEnvVar).
@@ -4860,8 +4868,16 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		cf.AuthConnector = constants.HeadlessConnector
 	}
 
-	if cf.AuthConnector == constants.HeadlessConnector {
-		// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
+	if cf.BrowserAuth {
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.BrowserConnector {
+			return nil, trace.BadParameter("either --browserauth or --auth can be specified, not both")
+		}
+
+		cf.AuthConnector = constants.BrowserConnector
+	}
+
+	if cf.AuthConnector == constants.HeadlessConnector || cf.AuthConnector == constants.BrowserConnector {
+		// When using Headless or Browser authentication, check for missing proxy/user/cluster values from the teleport session env variables.
 		if cf.Proxy == "" {
 			cf.Proxy = os.Getenv(teleport.SSHSessionWebProxyAddr)
 		}
@@ -4872,9 +4888,9 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			cf.SiteName = os.Getenv(teleport.SSHTeleportClusterName)
 		}
 
-		// When using Headless, user must be provided.
+		// When using Headless or Browser authentication, user must be provided.
 		if cf.Username == "" {
-			return nil, trace.BadParameter("user must be provided for headless login")
+			return nil, trace.BadParameter("user must be provided for %s login", cf.AuthConnector)
 		}
 	}
 
@@ -4994,6 +5010,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
 	c.PreferSSO = mfaOpts.PreferSSO
+	c.PreferBrowserMFA = mfaOpts.PreferBrowserMFA
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -5216,6 +5233,7 @@ type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	PreferOTP               bool
 	PreferSSO               bool
+	PreferBrowserMFA        bool
 }
 
 func parseMFAMode(mode string) (*mfaModeOpts, error) {
@@ -5230,6 +5248,8 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 		opts.PreferOTP = true
 	case mfaModeSSO:
 		opts.PreferSSO = true
+	case mfaModeBrowser:
+		opts.PreferBrowserMFA = true
 	default:
 		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}

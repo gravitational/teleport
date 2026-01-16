@@ -29,16 +29,58 @@ import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
 import { shouldShowMfaPrompt, useMfa } from 'teleport/lib/useMfa';
 import auth from 'teleport/services/auth';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { getActionFromAuthType, getHeadlessAuthTypeLabel, HeadlessAuthenticationType } from './types';
+import { capitalizeFirstLetter } from 'shared/utils/text';
+import { HeadlessAuthenticationState } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb';
 
 export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
 
   const [state, setState] = useState({
     ipAddress: '',
-    status: 'pending',
+    requestStatus: 'pending',
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
+    authType: HeadlessAuthenticationType.UNSPECIFIED,
+    state: HeadlessAuthenticationState.UNSPECIFIED,
   });
+  const [loading, setLoading] = useState(true);
+  const [browserIpAddress, setBrowserIpAddress] = useState('');
+
+  useEffect(() => {
+    const setAuthState = (response: { clientIpAddress: string, authType: number, state: number }) => {
+      console.log(response);
+      setState({
+        ...state,
+        requestStatus: 'loaded',
+        ipAddress: response.clientIpAddress,
+        authType: response.authType,
+        state: response.state
+      });
+    };
+
+    auth
+      .headlessSsoGet(requestId)
+      .then(setAuthState)
+      .catch(e => {
+        setState({
+          ...state,
+          errorText: e.toString(),
+        });
+      })
+      .finally(() => setLoading(false));;
+  }, [requestId]);
+
+  useEffect(() => {
+    if (
+      state.authType === HeadlessAuthenticationType.BROWSER ||
+      state.authType === HeadlessAuthenticationType.SESSION
+    ) {
+      auth.getClientIp().then(setBrowserIpAddress).catch((err) => {
+        console.error('Failed to fetch browser IP address:', err);
+      });
+    }
+  }, [state.authType])
 
   const mfa = useMfa({
     req: {
@@ -47,36 +89,15 @@ export function HeadlessRequest() {
     isMfaRequired: true,
   });
 
-  useEffect(() => {
-    const setIpAddress = (response: { clientIpAddress: string }) => {
-      setState({
-        ...state,
-        status: 'loaded',
-        ipAddress: response.clientIpAddress,
-      });
-    };
-
-    auth
-      .headlessSsoGet(requestId)
-      .then(setIpAddress)
-      .catch(e => {
-        setState({
-          ...state,
-          status: 'error',
-          errorText: e.toString(),
-        });
-      });
-  }, [requestId]);
-
   const setSuccess = () => {
-    setState({ ...state, status: 'success' });
+    setState({ ...state, state: HeadlessAuthenticationState.APPROVED });
   };
 
   const setRejected = () => {
-    setState({ ...state, status: 'rejected' });
+    setState({ ...state, state: HeadlessAuthenticationState.DENIED });
   };
 
-  if (state.status == 'pending') {
+  if (loading) {
     return (
       <Flex
         css={`
@@ -93,15 +114,15 @@ export function HeadlessRequest() {
     );
   }
 
-  if (state.status == 'success') {
+  if (state.state == HeadlessAuthenticationState.APPROVED) {
     return (
-      <CardAccept title="Command has been approved">
+      <CardAccept title={`${capitalizeFirstLetter(getActionFromAuthType(state.authType))} has been approved`}>
         You can now return to your terminal.
       </CardAccept>
     );
   }
 
-  if (state.status == 'rejected') {
+  if (state.state == HeadlessAuthenticationState.DENIED) {
     return (
       <CardDenied title="Request has been rejected">
         The request has been rejected.
@@ -118,35 +139,31 @@ export function HeadlessRequest() {
         ) : (
           <HeadlessRequestDialog
             ipAddress={state.ipAddress}
+            browserIpAddress={browserIpAddress}
             onAccept={() => {
-              setState({ ...state, status: 'in-progress' });
-
               auth
                 .headlessSsoAccept(mfa, requestId)
                 .then(setSuccess)
                 .catch(e => {
                   setState({
                     ...state,
-                    status: 'error',
                     errorText: e.toString(),
                   });
                 });
             }}
             onReject={() => {
-              setState({ ...state, status: 'in-progress' });
-
               auth
                 .headlessSSOReject(requestId)
                 .then(setRejected)
                 .catch(e => {
                   setState({
                     ...state,
-                    status: 'error',
                     errorText: e.toString(),
                   });
                 });
             }}
             errorText={state.errorText}
+            action={getActionFromAuthType(state.authType)}
           />
         )
       }
@@ -159,3 +176,4 @@ const Spin = styled(Box)`
   font-size: 24px;
   animation: ${rotate360} 1s linear infinite;
 `;
+

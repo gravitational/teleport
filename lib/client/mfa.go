@@ -20,13 +20,20 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"net/url"
+	"path"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client/browser"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/client/sso"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
@@ -64,6 +71,7 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 		Writer:           tc.Stderr,
 		PreferOTP:        tc.PreferOTP,
 		PreferSSO:        tc.PreferSSO,
+		PreferBrowserMFA: tc.PreferBrowserMFA,
 		AllowStdinHijack: tc.AllowStdinHijack,
 		StdinFunc:        tc.StdinFunc,
 	})
@@ -103,4 +111,81 @@ func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACere
 	}
 
 	return sso.NewCLIMFACeremony(rd), nil
+}
+
+// browserLoginWithType performs browser-based authentication by opening the user's
+// browser to complete the authentication flow. This is the shared implementation
+// used by browserLogin (for initial login) and browserMFA (for per-session MFA).
+//
+// The authType parameter specifies the type of headless authentication to perform.
+// The message parameter customizes the prompt displayed to the user before opening
+// the browser.
+func (tc *TeleportClient) browserLoginWithType(ctx context.Context, keyRing *KeyRing, authType types.HeadlessAuthenticationType, message string) (*authclient.SSHLoginResponse, error) {
+	browserAuthenticationID := services.NewHeadlessAuthenticationID(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
+
+	u := &url.URL{
+		Scheme: "https",
+		Host:   tc.WebProxyAddr,
+		Path:   path.Join("web", "headless", browserAuthenticationID),
+	}
+	if tc.Username != "" {
+		u.RawQuery = url.Values{"user": []string{tc.Username}}.Encode()
+	}
+	webUILink := u.String()
+
+	_ = browser.OpenURLInBrowser(tc.Browser, webUILink)
+	fmt.Fprintf(tc.Stderr, "%s:\n\n%s\n", message, webUILink)
+
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+			TLSPubKey:         tlsPub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Compatibility:     tc.CertificateFormat,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:                     tc.Username,
+		RemoteAuthenticationType: authType,
+		HeadlessAuthenticationID: browserAuthenticationID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
+// browserLogin performs browser-based MFA authentication for getting user certs
+func (tc *TeleportClient) browserLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+	return tc.browserLoginWithType(ctx, keyRing, types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_BROWSER, "Complete login in your web browser")
+}
+
+// browserMFA performs browser-based MFA authentication for per-session MFA.
+// This is an alternative to the challenge-response MFA ceremony and is used when
+// the server supports the Browser MFA.
+// Unlike the ceremony flow, this method returns certificates directly rather than
+// an MFAAuthenticateResponse, as authentication happens out-of-band via the browser.
+func (tc *TeleportClient) browserMFA(ctx context.Context, keyRing *KeyRing) (*PerformSessionMFACeremonyResult, error) {
+	response, err := tc.browserLoginWithType(ctx, keyRing, types.HeadlessAuthenticationType_HEADLESS_AUTHENTICATION_TYPE_SESSION, "Complete MFA authentication in your web browser")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs := &proto.Certs{
+		SSH: response.Cert,
+		TLS: response.TLSCert,
+	}
+
+	keyRing.Cert = certs.SSH
+	keyRing.TLSCert = certs.TLS
+
+	return &PerformSessionMFACeremonyResult{
+		KeyRing:  keyRing,
+		NewCerts: certs,
+	}, nil
 }

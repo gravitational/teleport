@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -65,20 +66,18 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	if req.MFAResponse == nil && req.WebauthnAssertionResponse != nil {
-		req.MFAResponse = &client.MFAChallengeResponse{
-			WebauthnResponse: req.WebauthnAssertionResponse,
-		}
-	}
-
-	mfaResp, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var action types.HeadlessAuthenticationState
+	var mfaResp *proto.MFAAuthenticateResponse
 	switch req.Action {
 	case "accept":
+		var err error
+		if req.MFAResponse != nil {
+			mfaResp, err = req.MFAResponse.GetOptionalMFAResponseProtoReq()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 	case "denied":
 		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
