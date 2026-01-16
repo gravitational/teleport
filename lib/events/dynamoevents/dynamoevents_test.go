@@ -37,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -1027,11 +1028,31 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 			AppName: "app-4",
 		},
 	}
+	bigUntrimmableEvent := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+		},
+	}
+	bigTrimmableEvent := &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+	}
+	bigTrimmedEvent := bigTrimmableEvent.TrimToMaxSize(events.MaxEventBytesInResponse)
 
 	// have a deterministic session ID (UID) when used in test cases
 	key1 := eventToKey(event1)
 	key3 := eventToKey(event3)
 	key4 := eventToKey(event4)
+	keyTrimmed := eventToKey(bigTrimmedEvent)
 
 	tests := []struct {
 		name          string
@@ -1039,6 +1060,7 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 		mockResponses map[EventKey]mockResponse
 		wantEvents    []apievents.AuditEvent
 		wantKey       *EventKey
+		wantErrorMsg  string
 	}{
 		{
 			name:  "no data returned from query, return empty results",
@@ -1096,6 +1118,65 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 			wantEvents: []apievents.AuditEvent{event1, event2, event3},
 			wantKey:    &key3,
 		},
+		{
+			name:  "events with big untrimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we don't expect bigUntrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "only 1 big untrimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			wantErrorMsg: fmt.Sprintf(
+				"app.create event %s is 5.0 MiB and cannot be returned because it exceeds the maximum response size of %s",
+				bigUntrimmableEvent.Metadata.ID, humanize.IBytes(events.MaxEventBytesInResponse)),
+		},
+		{
+			name:  "events with big trimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we don't expect bigTrimmedEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "only 1 big trimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{bigTrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			wantEvents: []apievents.AuditEvent{bigTrimmedEvent},
+			wantKey:    &keyTrimmed,
+		},
 	}
 
 	for _, test := range tests {
@@ -1116,6 +1197,10 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 			}
 
 			gotRawEvents, err := ef.QueryByDateIndex(t.Context(), getExprFilter(ef.filter))
+			if test.wantErrorMsg != "" {
+				require.ErrorContains(t, err, test.wantErrorMsg)
+				return
+			}
 			require.NoError(t, err)
 
 			if test.wantKey != nil {

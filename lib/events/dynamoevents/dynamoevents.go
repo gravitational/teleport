@@ -42,6 +42,7 @@ import (
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1621,10 +1622,53 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 
 		// Stop early when the fetcher's total size exceeds the response size limit.
 		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+			// Encountered an event that would push the total page over the size limit.
+			// Return all processed events, and the next event will be picked up on the next page.
+			if len(out) > 0 {
+				if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+					return nil, false, trace.Wrap(err)
+				}
+				return out, true, nil
+			}
+
+			// A single event is larger than the max page size - the best we can
+			// do is try to trim it.
+			e.FieldsMap, err = trimToMaxSize(e.FieldsMap)
+			if err != nil {
+				return nil, false, trace.Wrap(err, "failed to trim event to max size")
+			}
+			trimmedData, err := json.Marshal(e.FieldsMap)
+			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			return out, true, nil
+
+			if l.totalSize+len(trimmedData) <= events.MaxEventBytesInResponse {
+				events.MetricQueriedTrimmedEvents.Inc()
+				l.totalSize += len(trimmedData)
+				out = append(out, e)
+				l.left--
+
+				// Since we reach the response size limit, simply return the trimmed event.
+				if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+					return nil, false, trace.Wrap(err)
+				}
+				return out, true, nil
+			}
+
+			// Failed to trim the event to size.
+			// If this condition is reached it should be considered a bug, any
+			// event that can possibly exceed the maximum size should implement
+			// TrimToMaxSize (until we can one day implement an API for storing
+			// and retrieving large events).
+			l.log.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
+				"event_type", e.FieldsMap.GetType(),
+				"event_id", e.FieldsMap.GetID(),
+				"event_size", len(data),
+			)
+			return nil, false, trace.Errorf(
+				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
+				e.FieldsMap.GetType(), e.FieldsMap.GetID(), humanize.IBytes(uint64(len(data))), humanize.IBytes(events.MaxEventBytesInResponse))
+
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
@@ -1638,6 +1682,25 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 		}
 	}
 	return out, false, nil
+}
+
+// trimToMaxSize attempts to trim the event to fit into the maximum response size (MaxEventBytesInResponse).
+// If the event is larger than the maximum response size, it will be trimmed
+// to the maximum size, which may result in loss of data.
+// Trimming requires unmarshalling the event to apievents.AuditEvent and then
+// calling TrimToMaxSize on it.
+// This is not an efficient operation, but it is executed once per page,
+// so it should not be a problem in practice.
+func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
+	event, err := events.FromEventFields(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	fields, err = events.ToEventFields(event)
+	return fields, trace.Wrap(err)
 }
 
 // saveCheckpointAtEvent updates the checkpoint iterator at the given event.
