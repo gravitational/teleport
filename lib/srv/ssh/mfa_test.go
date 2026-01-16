@@ -74,6 +74,14 @@ func TestNewMFAPromptVerifier_InvalidParams(t *testing.T) {
 			wantErr:       trace.BadParameter("params Username must be set"),
 		},
 		{
+			name:          "nil sessionID",
+			verifier:      &mockValidatedMFAChallengeVerifier{},
+			sourceCluster: sourceCluster,
+			username:      teleportUsername,
+			sessionID:     nil,
+			wantErr:       trace.BadParameter("params SessionID must be set and be non-empty"),
+		},
+		{
 			name:          "empty sessionID",
 			verifier:      &mockValidatedMFAChallengeVerifier{},
 			sourceCluster: sourceCluster,
@@ -168,7 +176,7 @@ func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.ErrorContains(t, err, "missing Response in MFAPromptResponse")
+	require.ErrorIs(t, err, trace.BadParameter("missing Response in MFAPromptResponse"))
 }
 
 func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
@@ -193,7 +201,7 @@ func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
 	require.NoError(t, err)
 
 	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.ErrorContains(t, err, "missing ChallengeName in MFAPromptResponseReference")
+	require.ErrorIs(t, err, trace.BadParameter("missing ChallengeName in MFAPromptResponseReference"))
 }
 
 type mockValidatedMFAChallengeVerifier struct {
