@@ -89,7 +89,7 @@ func TestValidateInferenceModel(t *testing.T) {
 		{
 			base: validOpenAI,
 			fn:   func(m *summarizerv1.InferenceModel) { m.Spec.Provider = nil },
-			msg:  "missing or unsupported inference provider in spec, supported providers: openai",
+			msg:  "missing or unsupported inference provider in spec, supported providers: openai, bedrock",
 		},
 		{
 			base: validOpenAI,
