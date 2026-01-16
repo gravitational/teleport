@@ -2401,6 +2401,18 @@ export const formatters: Formatters = {
     format: ({ integration, resource_type, teleport_id, external_id }) =>
       `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
+  [eventCodes.SCIM_RESOURCE_PATCH]: {
+    type: 'scim.patch',
+    desc: 'SCIM Patch Succeeded',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
+  },
+  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: {
+    type: 'scim.patch',
+    desc: 'SCIM Patch Failed',
+    format: ({ integration, resource_type, teleport_id, external_id }) =>
+      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
+  },
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
