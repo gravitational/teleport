@@ -154,7 +154,9 @@ type ScopedTokenSpec struct {
 	// The AWS-specific configuration used with the "ec2" and "iam" join methods.
 	Aws *AWS `protobuf:"bytes,4,opt,name=aws,proto3" json:"aws,omitempty"`
 	// The GitHub-specific configuration used with the "github" join method.
-	Github        *Github `protobuf:"bytes,5,opt,name=github,proto3" json:"github,omitempty"`
+	Github *Github `protobuf:"bytes,5,opt,name=github,proto3" json:"github,omitempty"`
+	// The GitLab-specific configuration used with the "gitlab" join method.
+	Gitlab        *GitLab `protobuf:"bytes,6,opt,name=gitlab,proto3" json:"gitlab,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -220,6 +222,13 @@ func (x *ScopedTokenSpec) GetAws() *AWS {
 func (x *ScopedTokenSpec) GetGithub() *Github {
 	if x != nil {
 		return x.Github
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetGitlab() *GitLab {
+	if x != nil {
+		return x.Gitlab
 	}
 	return nil
 }
@@ -430,6 +439,75 @@ func (x *Github) GetStaticJwks() string {
 	return ""
 }
 
+// The GitLab-specific configuration used with the "gitlab" join method.
+type GitLab struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Allow is a list of TokenRules, nodes using this token must match one
+	// allow rule to use this token.
+	Allow []*GitLab_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// The domain of your GitLab instance. This will default to `gitlab.com` - but can
+	// be set to the domain of your self-hosted GitLab
+	// e.g `gitlab.example.com`.
+	Domain string `protobuf:"bytes,2,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and
+	// allows them to be directly specified. This allows joining from GitLab CI instances
+	// that are not reachable by the Teleport Auth Service.
+	StaticJwks    string `protobuf:"bytes,3,opt,name=static_jwks,json=staticJwks,proto3" json:"static_jwks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GitLab) Reset() {
+	*x = GitLab{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GitLab) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GitLab) ProtoMessage() {}
+
+func (x *GitLab) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GitLab.ProtoReflect.Descriptor instead.
+func (*GitLab) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GitLab) GetAllow() []*GitLab_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *GitLab) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *GitLab) GetStaticJwks() string {
+	if x != nil {
+		return x.StaticJwks
+	}
+	return ""
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -454,7 +532,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[5]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -466,7 +544,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[5]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -547,7 +625,7 @@ type Github_Rule struct {
 
 func (x *Github_Rule) Reset() {
 	*x = Github_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -559,7 +637,7 @@ func (x *Github_Rule) String() string {
 func (*Github_Rule) ProtoMessage() {}
 
 func (x *Github_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,6 +709,219 @@ func (x *Github_Rule) GetRefType() string {
 	return ""
 }
 
+// The fields mapped from `lib/join/gitlab.IDTokenClaims`. Not all fields should be included,
+// only ones that we expect to be useful when trying to create rules around which workflows
+// should be allowed to authenticate against a cluster.
+type GitLab_Rule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Roughly uniquely identifies the workload. Example:
+	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
+	// project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	// Allows access to be limited to jobs triggered by a specific git ref.
+	// Ensure this is used in combination with ref_type.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	Ref string `protobuf:"bytes,2,opt,name=ref,proto3" json:"ref,omitempty"`
+	// Allows access to be limited to jobs triggered by a specific git
+	// ref type. Example:
+	// `branch` or `tag`
+	RefType string `protobuf:"bytes,3,opt,name=ref_type,json=refType,proto3" json:"ref_type,omitempty"`
+	// Used to limit access to jobs in a group or user's projects.
+	// Example:
+	// `mygroup`
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	NamespacePath string `protobuf:"bytes,4,opt,name=namespace_path,json=namespacePath,proto3" json:"namespace_path,omitempty"`
+	// Used to limit access to jobs belonging to an individual project.
+	// Example:
+	// `mygroup/myproject`
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ProjectPath string `protobuf:"bytes,5,opt,name=project_path,json=projectPath,proto3" json:"project_path,omitempty"`
+	// Limits access by the job pipeline source type.
+	// https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
+	// Example: `web`
+	PipelineSource string `protobuf:"bytes,6,opt,name=pipeline_source,json=pipelineSource,proto3" json:"pipeline_source,omitempty"`
+	// Limits access by the environment the job deploys to
+	// (if one is associated)
+	Environment string `protobuf:"bytes,7,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The username of the user executing the job
+	UserLogin string `protobuf:"bytes,8,opt,name=user_login,json=userLogin,proto3" json:"user_login,omitempty"`
+	// The ID of the user executing the job
+	UserId string `protobuf:"bytes,9,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// The email of the user executing the job
+	UserEmail string `protobuf:"bytes,10,opt,name=user_email,json=userEmail,proto3" json:"user_email,omitempty"`
+	// True if the Git ref is protected, false otherwise.
+	RefProtected *bool `protobuf:"varint,11,opt,name=ref_protected,json=refProtected,proto3,oneof" json:"ref_protected,omitempty"`
+	// True if the Git ref is protected, false otherwise.
+	EnvironmentProtected *bool `protobuf:"varint,12,opt,name=environment_protected,json=environmentProtected,proto3,oneof" json:"environment_protected,omitempty"`
+	// The git commit SHA for the ci_config_ref_uri.
+	CiConfigSha string `protobuf:"bytes,13,opt,name=ci_config_sha,json=ciConfigSha,proto3" json:"ci_config_sha,omitempty"`
+	// The ref path to the top-level pipeline definition, for example,
+	// gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+	CiConfigRefUri string `protobuf:"bytes,14,opt,name=ci_config_ref_uri,json=ciConfigRefUri,proto3" json:"ci_config_ref_uri,omitempty"`
+	// The deployment tier of the environment the job specifies
+	DeploymentTier string `protobuf:"bytes,15,opt,name=deployment_tier,json=deploymentTier,proto3" json:"deployment_tier,omitempty"`
+	// The visibility of the project where the pipeline is running.
+	// Can be internal, private, or public.
+	ProjectVisibility string `protobuf:"bytes,16,opt,name=project_visibility,json=projectVisibility,proto3" json:"project_visibility,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GitLab_Rule) Reset() {
+	*x = GitLab_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GitLab_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GitLab_Rule) ProtoMessage() {}
+
+func (x *GitLab_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GitLab_Rule.ProtoReflect.Descriptor instead.
+func (*GitLab_Rule) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *GitLab_Rule) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetRefType() string {
+	if x != nil {
+		return x.RefType
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetNamespacePath() string {
+	if x != nil {
+		return x.NamespacePath
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetProjectPath() string {
+	if x != nil {
+		return x.ProjectPath
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetPipelineSource() string {
+	if x != nil {
+		return x.PipelineSource
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetUserLogin() string {
+	if x != nil {
+		return x.UserLogin
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetUserEmail() string {
+	if x != nil {
+		return x.UserEmail
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetRefProtected() bool {
+	if x != nil && x.RefProtected != nil {
+		return *x.RefProtected
+	}
+	return false
+}
+
+func (x *GitLab_Rule) GetEnvironmentProtected() bool {
+	if x != nil && x.EnvironmentProtected != nil {
+		return *x.EnvironmentProtected
+	}
+	return false
+}
+
+func (x *GitLab_Rule) GetCiConfigSha() string {
+	if x != nil {
+		return x.CiConfigSha
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetCiConfigRefUri() string {
+	if x != nil {
+		return x.CiConfigRefUri
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetDeploymentTier() string {
+	if x != nil {
+		return x.DeploymentTier
+	}
+	return ""
+}
+
+func (x *GitLab_Rule) GetProjectVisibility() string {
+	if x != nil {
+		return x.ProjectVisibility
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -643,14 +934,15 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xde\x01\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x9a\x02\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
 	"\vjoin_method\x18\x03 \x01(\tR\n" +
 	"joinMethod\x121\n" +
 	"\x03aws\x18\x04 \x01(\v2\x1f.teleport.scopes.joining.v1.AWSR\x03aws\x12:\n" +
-	"\x06github\x18\x05 \x01(\v2\".teleport.scopes.joining.v1.GithubR\x06github\"+\n" +
+	"\x06github\x18\x05 \x01(\v2\".teleport.scopes.joining.v1.GithubR\x06github\x12:\n" +
+	"\x06gitlab\x18\x06 \x01(\v2\".teleport.scopes.joining.v1.GitLabR\x06gitlab\"+\n" +
 	"\x11ScopedTokenStatus\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\"\xb2\x02\n" +
 	"\x03AWS\x12:\n" +
@@ -681,7 +973,34 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\venvironment\x18\x05 \x01(\tR\venvironment\x12\x14\n" +
 	"\x05actor\x18\x06 \x01(\tR\x05actor\x12\x10\n" +
 	"\x03ref\x18\a \x01(\tR\x03ref\x12\x19\n" +
-	"\bref_type\x18\b \x01(\tR\arefTypeBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\bref_type\x18\b \x01(\tR\arefType\"\xeb\x05\n" +
+	"\x06GitLab\x12=\n" +
+	"\x05allow\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.GitLab.RuleR\x05allow\x12\x16\n" +
+	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x1f\n" +
+	"\vstatic_jwks\x18\x03 \x01(\tR\n" +
+	"staticJwks\x1a\xe8\x04\n" +
+	"\x04Rule\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x10\n" +
+	"\x03ref\x18\x02 \x01(\tR\x03ref\x12\x19\n" +
+	"\bref_type\x18\x03 \x01(\tR\arefType\x12%\n" +
+	"\x0enamespace_path\x18\x04 \x01(\tR\rnamespacePath\x12!\n" +
+	"\fproject_path\x18\x05 \x01(\tR\vprojectPath\x12'\n" +
+	"\x0fpipeline_source\x18\x06 \x01(\tR\x0epipelineSource\x12 \n" +
+	"\venvironment\x18\a \x01(\tR\venvironment\x12\x1d\n" +
+	"\n" +
+	"user_login\x18\b \x01(\tR\tuserLogin\x12\x17\n" +
+	"\auser_id\x18\t \x01(\tR\x06userId\x12\x1d\n" +
+	"\n" +
+	"user_email\x18\n" +
+	" \x01(\tR\tuserEmail\x12(\n" +
+	"\rref_protected\x18\v \x01(\bH\x00R\frefProtected\x88\x01\x01\x128\n" +
+	"\x15environment_protected\x18\f \x01(\bH\x01R\x14environmentProtected\x88\x01\x01\x12\"\n" +
+	"\rci_config_sha\x18\r \x01(\tR\vciConfigSha\x12)\n" +
+	"\x11ci_config_ref_uri\x18\x0e \x01(\tR\x0eciConfigRefUri\x12'\n" +
+	"\x0fdeployment_tier\x18\x0f \x01(\tR\x0edeploymentTier\x12-\n" +
+	"\x12project_visibility\x18\x10 \x01(\tR\x11projectVisibilityB\x10\n" +
+	"\x0e_ref_protectedB\x18\n" +
+	"\x16_environment_protectedBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -695,30 +1014,34 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),       // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil),   // 1: teleport.scopes.joining.v1.ScopedTokenSpec
 	(*ScopedTokenStatus)(nil), // 2: teleport.scopes.joining.v1.ScopedTokenStatus
 	(*AWS)(nil),               // 3: teleport.scopes.joining.v1.AWS
 	(*Github)(nil),            // 4: teleport.scopes.joining.v1.Github
-	(*AWS_Rule)(nil),          // 5: teleport.scopes.joining.v1.AWS.Rule
-	(*Github_Rule)(nil),       // 6: teleport.scopes.joining.v1.Github.Rule
-	(*v1.Metadata)(nil),       // 7: teleport.header.v1.Metadata
+	(*GitLab)(nil),            // 5: teleport.scopes.joining.v1.GitLab
+	(*AWS_Rule)(nil),          // 6: teleport.scopes.joining.v1.AWS.Rule
+	(*Github_Rule)(nil),       // 7: teleport.scopes.joining.v1.Github.Rule
+	(*GitLab_Rule)(nil),       // 8: teleport.scopes.joining.v1.GitLab.Rule
+	(*v1.Metadata)(nil),       // 9: teleport.header.v1.Metadata
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	7, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	9, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	2, // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	3, // 3: teleport.scopes.joining.v1.ScopedTokenSpec.aws:type_name -> teleport.scopes.joining.v1.AWS
 	4, // 4: teleport.scopes.joining.v1.ScopedTokenSpec.github:type_name -> teleport.scopes.joining.v1.Github
-	5, // 5: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	6, // 6: teleport.scopes.joining.v1.Github.allow:type_name -> teleport.scopes.joining.v1.Github.Rule
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	5, // 5: teleport.scopes.joining.v1.ScopedTokenSpec.gitlab:type_name -> teleport.scopes.joining.v1.GitLab
+	6, // 6: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	7, // 7: teleport.scopes.joining.v1.Github.allow:type_name -> teleport.scopes.joining.v1.Github.Rule
+	8, // 8: teleport.scopes.joining.v1.GitLab.allow:type_name -> teleport.scopes.joining.v1.GitLab.Rule
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -726,13 +1049,14 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	if File_teleport_scopes_joining_v1_token_proto != nil {
 		return
 	}
+	file_teleport_scopes_joining_v1_token_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

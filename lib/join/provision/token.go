@@ -57,4 +57,7 @@ type Token interface {
 	// GetGithubRules returns the Github-specific configuration used with the "github"
 	// join method.
 	GetGithubRules() *types.ProvisionTokenSpecV2GitHub
+	// GetGitlabRules returns the Gitlab-specific configuration used with the "gitlab"
+	// join method.
+	GetGitlabRules() *types.ProvisionTokenSpecV2GitLab
 }

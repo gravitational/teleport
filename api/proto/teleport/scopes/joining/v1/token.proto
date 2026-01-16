@@ -66,6 +66,9 @@ message ScopedTokenSpec {
 
   // The GitHub-specific configuration used with the "github" join method.
   Github github = 5;
+
+  // The GitLab-specific configuration used with the "gitlab" join method.
+  GitLab gitlab = 6;
 }
 
 // The status of a scoped token.
@@ -164,4 +167,103 @@ message Github {
   // from GitHub Actions in GHES instances that are not reachable by the
   // Teleport Auth Service.
   string static_jwks = 4;
+}
+
+// The GitLab-specific configuration used with the "gitlab" join method.
+message GitLab {
+  // The fields mapped from `lib/join/gitlab.IDTokenClaims`. Not all fields should be included,
+  // only ones that we expect to be useful when trying to create rules around which workflows
+  // should be allowed to authenticate against a cluster.
+  message Rule {
+    // Roughly uniquely identifies the workload. Example:
+    // `project_path:mygroup/my-project:ref_type:branch:ref:main`
+    // project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string sub = 1;
+
+    // Allows access to be limited to jobs triggered by a specific git ref.
+    // Ensure this is used in combination with ref_type.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string ref = 2;
+
+    // Allows access to be limited to jobs triggered by a specific git
+    // ref type. Example:
+    // `branch` or `tag`
+    string ref_type = 3;
+
+    // Used to limit access to jobs in a group or user's projects.
+    // Example:
+    // `mygroup`
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string namespace_path = 4;
+
+    // Used to limit access to jobs belonging to an individual project.
+    // Example:
+    // `mygroup/myproject`
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string project_path = 5;
+
+    // Limits access by the job pipeline source type.
+    // https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
+    // Example: `web`
+    string pipeline_source = 6;
+
+    // Limits access by the environment the job deploys to
+    // (if one is associated)
+    string environment = 7;
+
+    // The username of the user executing the job
+    string user_login = 8;
+
+    // The ID of the user executing the job
+    string user_id = 9;
+
+    // The email of the user executing the job
+    string user_email = 10;
+
+    // True if the Git ref is protected, false otherwise.
+    optional bool ref_protected = 11;
+
+    // True if the Git ref is protected, false otherwise.
+    optional bool environment_protected = 12;
+
+    // The git commit SHA for the ci_config_ref_uri.
+    string ci_config_sha = 13;
+
+    // The ref path to the top-level pipeline definition, for example,
+    // gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
+    string ci_config_ref_uri = 14;
+
+    // The deployment tier of the environment the job specifies
+    string deployment_tier = 15;
+    // The visibility of the project where the pipeline is running.
+    // Can be internal, private, or public.
+    string project_visibility = 16;
+  }
+
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule allow = 1;
+
+  // The domain of your GitLab instance. This will default to `gitlab.com` - but can
+  // be set to the domain of your self-hosted GitLab
+  // e.g `gitlab.example.com`.
+  string domain = 2;
+
+  // Disables fetching of the GitLab signing keys via the JWKS/OIDC endpoints, and
+  // allows them to be directly specified. This allows joining from GitLab CI instances
+  // that are not reachable by the Teleport Auth Service.
+  string static_jwks = 3;
 }

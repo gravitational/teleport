@@ -35,6 +35,7 @@ var joinMethodsSupportingScopes = map[string]struct{}{
 	string(types.JoinMethodEC2):    {},
 	string(types.JoinMethodIAM):    {},
 	string(types.JoinMethodGitHub): {},
+	string(types.JoinMethodGitLab): {},
 }
 
 // StrongValidateToken checks if the scoped token is well-formed according to
@@ -295,5 +296,49 @@ func (t *Token) GetGithubRules() *types.ProvisionTokenSpecV2GitHub {
 		EnterpriseServerHost: gh.GetEnterpriseServerHost(),
 		EnterpriseSlug:       gh.GetEnterpriseSlug(),
 		StaticJWKS:           gh.GetStaticJwks(),
+	}
+}
+
+// GetGitlabRules returns the GitLab-specific fields of the scoped token in a form
+// that the join flow can use.
+func (t *Token) GetGitlabRules() *types.ProvisionTokenSpecV2GitLab {
+	gl := t.scoped.GetSpec().GetGitlab()
+	if gl == nil {
+		return nil
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GitLab_Rule, len(gl.GetAllow()))
+	for i, rule := range gl.GetAllow() {
+		var refProtected, environmentProtected *types.BoolOption
+		if rule.RefProtected != nil {
+			refProtected = &types.BoolOption{Value: *rule.RefProtected}
+		}
+		if rule.EnvironmentProtected != nil {
+			environmentProtected = &types.BoolOption{Value: *rule.EnvironmentProtected}
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GitLab_Rule{
+			Sub:                  rule.GetSub(),
+			Ref:                  rule.GetRef(),
+			RefType:              rule.GetRefType(),
+			NamespacePath:        rule.GetNamespacePath(),
+			ProjectPath:          rule.GetProjectPath(),
+			PipelineSource:       rule.GetPipelineSource(),
+			Environment:          rule.GetEnvironment(),
+			UserLogin:            rule.GetUserLogin(),
+			UserID:               rule.GetUserId(),
+			UserEmail:            rule.GetUserEmail(),
+			RefProtected:         refProtected,
+			EnvironmentProtected: environmentProtected,
+			CIConfigSHA:          rule.GetCiConfigSha(),
+			CIConfigRefURI:       rule.GetCiConfigRefUri(),
+			DeploymentTier:       rule.GetDeploymentTier(),
+			ProjectVisibility:    rule.GetProjectVisibility(),
+		}
+	}
+	return &types.ProvisionTokenSpecV2GitLab{
+		Allow:      allow,
+		Domain:     gl.GetDomain(),
+		StaticJWKS: gl.GetStaticJwks(),
 	}
 }
