@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/modules"
 	. "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -186,97 +185,6 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
 }
 
-func TestCheckOIDCIdP(t *testing.T) {
-	ta, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	require.NoError(t, err)
-
-	pub, priv, err := ta.GenerateJWT()
-	require.NoError(t, err)
-
-	pub2, priv2, err := ta.GenerateJWT()
-	require.NoError(t, err)
-
-	tests := []struct {
-		name             string
-		keyset           types.CAKeySet
-		errAssertionFunc require.ErrorAssertionFunc
-	}{
-		{
-			name:             "no active keys",
-			keyset:           types.CAKeySet{},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "multiple active keys",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{
-					{
-						PublicKey:  pub,
-						PrivateKey: priv,
-					},
-					{
-						PublicKey:  pub2,
-						PrivateKey: priv2,
-					},
-				},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "empty private key",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  pub,
-					PrivateKey: []byte{},
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "unparseable private key",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  pub,
-					PrivateKey: bytes.Repeat([]byte{49}, 1222),
-				}},
-			},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "unparseable public key",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  bytes.Repeat([]byte{49}, 1222),
-					PrivateKey: priv,
-				}},
-			},
-			errAssertionFunc: require.Error,
-		},
-		{
-			name: "valid key pair",
-			keyset: types.CAKeySet{
-				JWT: []*types.JWTKeyPair{{
-					PublicKey:  pub,
-					PrivateKey: priv,
-				}},
-			},
-			errAssertionFunc: require.NoError,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-				Type:        types.OIDCIdPCA,
-				ClusterName: "cluster1",
-				ActiveKeys:  test.keyset,
-			})
-			require.NoError(t, err)
-			test.errAssertionFunc(t, ValidateCertAuthority(ca))
-		})
-	}
-}
-
 func TestValidateCertAuthority(t *testing.T) {
 	t.Parallel()
 
@@ -292,6 +200,8 @@ func TestValidateCertAuthority(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	jwtPubPEM, jwtPrivPEM, err := testauthority.GenerateJWT()
+	require.NoError(t, err)
 
 	winCA := &types.CertAuthoritySpecV2{
 		Type:        types.WindowsCA,
@@ -318,6 +228,20 @@ func TestValidateCertAuthority(t *testing.T) {
 					Cert:    certPEM,
 					Key:     keyPEM,
 					KeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	}
+
+	oidcIDPCA := &types.CertAuthoritySpecV2{
+		Type:        types.OIDCIdPCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			JWT: []*types.JWTKeyPair{
+				{
+					PublicKey:      jwtPubPEM,
+					PrivateKey:     jwtPrivPEM,
+					PrivateKeyType: types.PrivateKeyType_RAW,
 				},
 			},
 		},
@@ -444,6 +368,73 @@ func TestValidateCertAuthority(t *testing.T) {
 				return spec
 			}(),
 			wantErr: "missing TLS",
+		},
+
+		// OIDCIdPCA.
+		{
+			name: "valid OIDCIdPCA",
+			spec: oidcIDPCA,
+		},
+		{
+			name: "valid OIDCIdPCA (multiple active keys)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				// GenerateJWT() returns hard-coded keys, so this set is the same as
+				// jwtPubPEM/jwtPrivPEM.
+				// This is OK for this test and we retain the call to GenerateJWT() in
+				// case it ever returns distinct keys.
+				pub2, priv2, err := testauthority.GenerateJWT()
+				require.NoError(t, err)
+
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = append(spec.ActiveKeys.JWT, &types.JWTKeyPair{
+					PublicKey:      pub2,
+					PrivateKey:     priv2,
+					PrivateKeyType: types.PrivateKeyType_RAW,
+				})
+				return spec
+			}(),
+		},
+		{
+			name: "valid OIDCIdPCA (empty private key)",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = []*types.JWTKeyPair{
+					{
+						PublicKey: jwtPubPEM,
+					},
+				}
+				return spec
+			}(),
+		},
+		{
+			name: "OIDCIdPCA JWT PrivateKey invalid",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = []*types.JWTKeyPair{
+					{
+						PublicKey:      jwtPubPEM,
+						PrivateKey:     []byte(`ceci n'est pas a private key`),
+						PrivateKeyType: types.PrivateKeyType_RAW,
+					},
+				}
+				return spec
+			}(),
+			wantErr: "private key",
+		},
+		{
+			name: "OIDCIdPCA JWT PublicKey invalid",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(oidcIDPCA)
+				spec.ActiveKeys.JWT = []*types.JWTKeyPair{
+					{
+						PublicKey:      []byte(`ceci n'est pas a public key`),
+						PrivateKey:     jwtPrivPEM,
+						PrivateKeyType: types.PrivateKeyType_RAW,
+					},
+				}
+				return spec
+			}(),
+			wantErr: "public key",
 		},
 	}
 	for _, test := range tests {
