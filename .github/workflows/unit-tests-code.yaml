@@ -72,7 +72,7 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 20
-        run: make -j"$(nproc)" test-go-unit
+        run: make -j"$(nproc)" test-go test-sh test-api
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
