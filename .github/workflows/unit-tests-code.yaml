@@ -70,28 +70,9 @@ jobs:
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
-      # - name: Checkout shared-workflows
-      #   uses: actions/checkout@v6
-      #   with:
-      #     repository: gravitational/shared-workflows
-      #     path: .github/shared-workflows
-      #     ref: 697d17be923e0182e6632be1fbc11c66a2dc72d5 # okraport experiment
-
-
       - name: Run tests
         timeout-minutes: 20
         run: make -j"$(nproc)" test-go-unit
-
-      # - name: Normalize Test Results # TODO: move to a common file somewhere
-      #   id: normalize_test_results
-      #   if: always()
-      #   continue-on-error: true
-      #   run: |
-      #     cd .github/shared-workflows/tools/ci-normalize && go run ./cmd junit \
-      #       --meta $GITHUB_WORKSPACE/test-logs/ci-job-meta.json \
-      #       --testcase $GITHUB_WORKSPACE/test-logs/testcase.jsonl \
-      #       --suite $GITHUB_WORKSPACE/test-logs/suite.jsonl \
-            # $GITHUB_WORKSPACE/test-logs/*.xml
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
@@ -104,62 +85,9 @@ jobs:
           role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@4b2a77af9bed381c8979fc6a08549f07f9ef9c5e
+        uses: gravitational/shared-workflows/tools/ci-normalize@6b76d6a1ecf87d23f601cecb000adb78043033ee
         if: always()
         continue-on-error: true
         with:
           s3-bucket: "s3://tp-278576220453-ci-test-artifacts-storage/ci-metrics"
           junit-files: "$GITHUB_WORKSPACE/test-logs/*.xml"
-
-
-      #   # Install aws cli for testing
-      # - name: Install AWS CLI v2
-      #   if: always()
-      #   continue-on-error: true
-      #   run: |
-      #     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-      #     unzip awscliv2.zip
-      #     ./aws/install
-      #     aws --version
-      #     echo "outcome=${{ steps.normalize_test_results.outcome }}"
-      #     echo "conclusion=${{ steps.normalize_test_results.conclusion }}"
-
-      # - name: Upload test artifacts
-      #   if: always() && steps.normalize_test_results.outcome == 'success'
-      #   continue-on-error: true
-      #   # In the future perhaps the CLI could pipe the results directly to s3.
-      #   run: |
-      #     META_FILE="$GITHUB_WORKSPACE/test-logs/ci-job-meta.json"
-
-      #     urlencode() {
-      #         string="$1"
-      #         i=1
-      #         while [ "$i" -le "$(printf "%s" "$string" | wc -c)" ]; do
-      #             c=$(printf "%s" "$string" | cut -c "$i")
-      #             case "$c" in
-      #                 [a-zA-Z0-9.~_-])
-      #                     printf "%s" "$c"
-      #                     ;;
-      #                 *)
-      #                     printf '%%%02X' "'$c"
-      #                     ;;
-      #             esac
-      #             i=$((i + 1))
-      #         done
-      #         printf "\n"
-      #     }
-
-      #     repo_raw=$(jq -r '.repository' $META_FILE)
-      #     REPO=$(urlencode "$repo_raw")
-      #     ID=$(jq -r '.id' $META_FILE)
-      #     META_VERSION=$(jq -r '.canonical_meta_schema_version' $META_FILE)
-
-      #     TIMESTAMP=$(jq -r '.timestamp' $META_FILE)
-      #     YEAR=$(date -u -d "$TIMESTAMP" +"%Y")
-      #     MONTH=$(date -u -d "$TIMESTAMP" +"%m")
-      #     DAY=$(date -u -d "$TIMESTAMP" +"%d")
-
-      #     BUCKET=tp-278576220453-ci-test-artifacts-storage
-      #     aws s3 cp ${GITHUB_WORKSPACE}/test-logs/ci-job-meta.json "s3://tp-278576220453-ci-test-artifacts-storage/ci-metrics/jsonl/${META_VERSION}/jobs/repository=${REPO}/year=${YEAR}/month=${MONTH}/day=${DAY}/${TIMESTAMP}-job-${ID}.json"
-      #     aws s3 cp ${GITHUB_WORKSPACE}/test-logs/testcase.jsonl "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/tests/repository=${REPO}/year=${YEAR}/month=${MONTH}/day=${DAY}/${TIMESTAMP}-tests-${ID}.jsonl"
-      #     aws s3 cp ${GITHUB_WORKSPACE}/test-logs/suite.jsonl "s3://${BUCKET}/ci-metrics/jsonl/${META_VERSION}/suites/repository=${REPO}/year=${YEAR}/month=${MONTH}/day=${DAY}/${TIMESTAMP}-suites-${ID}.jsonl"
