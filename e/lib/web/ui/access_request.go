@@ -269,3 +269,37 @@ func convertResourceID(id types.ResourceID) ResourceID {
 		SubResourceName: id.SubResourceName,
 	}
 }
+
+// AccessRequestParameters describes parameters for creating or reviewing an access request.
+type AccessRequestParameters struct {
+	// Reason is the AccessRequest request reason.
+	// Used interchangeably between reason why request is made and resolved reason.
+	Reason string `json:"reason"`
+	// State is the AccessRequest state.
+	State string `json:"state"`
+	// ID is the request ID.
+	ID string `json:"id"`
+	// Roles is the list of roles.
+	// Used interchangeably between roles requested by user and overriding roles.
+	Roles []string `json:"roles"`
+	// SuggestedReviewers is a suggested list of reviewers to review a request.
+	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// ResourceID is a unique identifier for a teleport resource.
+	ResourceIDs []ResourceID `json:"resourceIds"`
+	// MaxDuration is the maximum duration for which the request is valid.
+	MaxDuration time.Time `json:"maxDuration"`
+	// RequestTTL is the expiration time of the request (how long it will await
+	// approval).
+	RequestTTL time.Time `json:"requestTTL"`
+	// DryRun is a flag that indicates whether the request is a dry run to check and set defaults,
+	// and return before actually creating the request in the backend.
+	DryRun bool `json:"dryRun,omitempty"`
+	// PromotedAccessListTitle is the title of the access list that this request
+	// was promoted to. Used by WebUI to display the title of the access list.
+	// This field is only populated when the request is in the PROMOTED state.
+	PromotedAccessListTitle string `json:"promotedAccessListTitle,omitempty"`
+	// AssumeStartTime is the time the requested roles can be assumed.
+	AssumeStartTime *time.Time `json:"assumeStartTime"`
+	// RequestKind is the kind of request (short/long-term).
+	RequestKind types.AccessRequestKind `json:"requestKind"`
+}

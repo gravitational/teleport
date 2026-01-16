@@ -42,7 +42,7 @@ func TestCreateAccessRequest_RoleBased(t *testing.T) {
 		return nil
 	}
 
-	request := accessRequestParameters{
+	request := ui.AccessRequestParameters{
 		Reason: "some reason",
 	}
 
@@ -82,7 +82,7 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 		return nil
 	}
 
-	request := accessRequestParameters{
+	request := ui.AccessRequestParameters{
 		Reason:      "some reason",
 		ResourceIDs: []ui.ResourceID{{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}},
 	}
@@ -169,7 +169,7 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		request      accessRequestParameters
+		request      ui.AccessRequestParameters
 		createProdAL bool
 		createDevAL  bool
 		expectError  bool
@@ -178,7 +178,7 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 	}{
 		{
 			name: "successful long-term request for production node",
-			request: accessRequestParameters{
+			request: ui.AccessRequestParameters{
 				Reason:      "need long term access to prod",
 				RequestKind: types.AccessRequestKind_LONG_TERM,
 				ResourceIDs: []ui.ResourceID{
@@ -198,7 +198,7 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 		},
 		{
 			name: "long-term dry run request",
-			request: accessRequestParameters{
+			request: ui.AccessRequestParameters{
 				Reason:      "testing long term access",
 				RequestKind: types.AccessRequestKind_LONG_TERM,
 				DryRun:      true,
@@ -217,7 +217,7 @@ func TestCreateAccessRequest_LongTerm(t *testing.T) {
 		},
 		{
 			name: "long-term request where only one of the requested resources is grantable",
-			request: accessRequestParameters{
+			request: ui.AccessRequestParameters{
 				Reason:      "attempt mixed access with missing access list",
 				RequestKind: types.AccessRequestKind_LONG_TERM,
 				ResourceIDs: []ui.ResourceID{
@@ -382,14 +382,14 @@ func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		request     accessRequestParameters
+		request     ui.AccessRequestParameters
 		user        string
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "long-term request with no suitable access lists",
-			request: accessRequestParameters{
+			request: ui.AccessRequestParameters{
 				Reason:      "need access to inaccessible resource",
 				RequestKind: types.AccessRequestKind_LONG_TERM,
 				ResourceIDs: []ui.ResourceID{
@@ -402,7 +402,7 @@ func TestCreateAccessRequest_LongTerm_ValidationErrors(t *testing.T) {
 		},
 		{
 			name: "long-term request with nonexistent resource",
-			request: accessRequestParameters{
+			request: ui.AccessRequestParameters{
 				Reason:      "need access to nonexistent resource",
 				RequestKind: types.AccessRequestKind_LONG_TERM,
 				ResourceIDs: []ui.ResourceID{
@@ -544,7 +544,7 @@ func TestCreateAccessRequest_LongTerm_ConflictingResources(t *testing.T) {
 	_, err = accessListClient.UpsertAccessList(ctx, devOnlyList)
 	require.NoError(t, err)
 
-	request := accessRequestParameters{
+	request := ui.AccessRequestParameters{
 		Reason:      "need access to both prod and dev",
 		RequestKind: types.AccessRequestKind_LONG_TERM,
 		ResourceIDs: []ui.ResourceID{
@@ -701,7 +701,7 @@ func TestCreateAccessRequest_LongTerm_OptimalSelection(t *testing.T) {
 
 	// request for access to both web and db servers
 	// should succeed and choose the full-stack access list as optimal
-	request := accessRequestParameters{
+	request := ui.AccessRequestParameters{
 		Reason:      "need access to full stack",
 		RequestKind: types.AccessRequestKind_LONG_TERM,
 		ResourceIDs: []ui.ResourceID{
@@ -845,7 +845,7 @@ func TestCreateAccessRequest_LongTerm_InheritedAccessListMembership(t *testing.T
 	_, err = accessListClient.UpsertAccessListMember(ctx, childMember)
 	require.NoError(t, err)
 
-	req, err := createAccessRequest(ctx, authClient, accessRequestParameters{
+	req, err := createAccessRequest(ctx, authClient, ui.AccessRequestParameters{
 		Reason:      "request with inherited grants",
 		RequestKind: types.AccessRequestKind_LONG_TERM,
 		ResourceIDs: []ui.ResourceID{
@@ -1235,7 +1235,7 @@ func TestReviewAccessRequest(t *testing.T) {
 		return fakeReq, nil
 	}
 
-	reviewSubmission := accessRequestParameters{
+	reviewSubmission := ui.AccessRequestParameters{
 		State:  "DENIED",
 		Reason: "Not today",
 		ID:     fakeReq.GetMetadata().Name,
@@ -1279,7 +1279,7 @@ func TestReviewAccessRequest_Approved(t *testing.T) {
 		return fakeReq, nil
 	}
 
-	reviewSubmission := accessRequestParameters{
+	reviewSubmission := ui.AccessRequestParameters{
 		State:           "APPROVED",
 		ID:              fakeReq.GetMetadata().Name,
 		AssumeStartTime: &validStartTime,

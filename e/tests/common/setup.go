@@ -73,6 +73,7 @@ func InitSUT(t *testing.T, opts ...option) *SUT {
 	serviceConfig.Testing.HTTPTransport = options.HTTPTransport
 	serviceConfig.Auth.Preference.SetSecondFactor(constants.SecondFactorOptional)
 	serviceConfig.Auth.Preference.SetWebauthn(&types.Webauthn{RPID: "127.0.0.1"})
+	serviceConfig.Apps = options.appConfig
 
 	err := teleport.CreateEx(t, nil, serviceConfig)
 	require.NoError(t, err)

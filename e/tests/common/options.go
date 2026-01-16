@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 type sutOptions struct {
@@ -19,6 +20,7 @@ type sutOptions struct {
 	HTTPTransport http.RoundTripper
 	clock         clockwork.Clock
 	logger        *slog.Logger
+	appConfig     servicecfg.AppsConfig
 }
 
 type option func(*sutOptions)
@@ -26,6 +28,19 @@ type option func(*sutOptions)
 func WithClusterName(name string) func(*sutOptions) {
 	return func(o *sutOptions) {
 		o.clusterName = name
+	}
+}
+
+// WithApp adds an apps service to the configuration allowing to run SUT with
+// application access layer.
+func WithApp(name, uri string, labels map[string]string) func(*sutOptions) {
+	return func(o *sutOptions) {
+		o.appConfig.Enabled = true
+		o.appConfig.Apps = append(o.appConfig.Apps, servicecfg.App{
+			Name:         name,
+			URI:          uri,
+			StaticLabels: labels,
+		})
 	}
 }
 
