@@ -95,7 +95,7 @@ func TestBackend_Exists(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
+			k8sClient := fake.NewClientset(tt.fields.objects...)
 			b, err := NewWithClient(ctx, k8sClient)
 			if err != nil && !tt.wantErr {
 				require.NoError(t, err)
@@ -232,7 +232,7 @@ func TestBackend_Get(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
+			k8sClient := fake.NewClientset(tt.fields.objects...)
 			b, err := NewWithClient(ctx, k8sClient)
 			require.NoError(t, err)
 
@@ -315,7 +315,7 @@ func TestBackend_Put(t *testing.T) {
 			for _, o := range tt.fields.objects {
 				o.(*corev1.Secret).ResourceVersion = "1"
 			}
-			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
+			k8sClient := fake.NewClientset(tt.fields.objects...)
 
 			b, err := NewWithClient(ctx, k8sClient)
 			require.NoError(t, err)
@@ -370,6 +370,7 @@ func TestBackend_Put(t *testing.T) {
 			got, err := b.getSecret(ctx)
 			require.NoError(t, err)
 			got.ResourceVersion = tt.want.ResourceVersion // ignore resource version
+			got.ManagedFields = tt.want.ManagedFields     // ignore ManagedFields
 			require.Equal(t, tt.want, got)
 		})
 	}

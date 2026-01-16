@@ -98,10 +98,15 @@ agents use the Windows CA.
    // (Existing fields omitted.)
 +
 +  // Set by callers that fully support the new Windows CA.
-+  // Auth will fail requests from callers that do not support the Windows CA if
-+  // the CA deviated from the User CA (ie, a rotation happened).
 +  //
-+  // Transitional. To be removed on version N+1, when all callers are expected
++  // Auth issues certificates differently according to this parameter:
++  // - false issues certificates using the UserCA
++  //   (Teleport agent versions < 18.x, where 18.x marks the initial release of
++  //   the Windows CA split).
++  // - true issues certificates using the WindowsCA
++  //   (Teleport agent version >= 18.x)
++  //
++  // Transitional. To be removed on Teleport 20, when all agents are expected
 +  // to support the Windows CA.
 +  bool SupportsWindowsCA = n;
  }

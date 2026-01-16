@@ -826,6 +826,19 @@ resources: {}
 #  limits:
 #    memory: "2Gi"
 
+# Resources to request for the teleport pre-deploy jobs.
+# https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+#
+# Jobs currently include config validation and potentially migration hooks.
+# The resource requirements are typically lower than for the main teleport deployment.
+# In most cases, you should leave these limits unset.
+jobResources: {}
+#  requests:
+#    cpu: "20m"
+#    memory: "500Mi"
+#  limits:
+#    memory: "500Mi"
+
 # goMemLimitRatio configures the GOMEMLIMIT env var set by the chart.
 # GOMEMLIMIT instructs the go garbage collector to try to keep allocated memory
 # below a given threshold. This is a best-effort attempt, but this helps

@@ -1,14 +1,23 @@
 ---
 title: "AWS Multi-Region Proxy Service Deployment"
 sidebar_label: Multi-Region Proxy Service
-description: "Deploying a high-availability multi-region Teleport cluster using Proxy Peering and Route 53."
+description: "Deploying a high-availability Teleport cluster with proxies in multiple AWS regions."
 tags:
  - conceptual
  - platform-wide
  - aws
 ---
 
-This deployment architecture features two important design decisions:
+This deployment architecture describes how to deploy a Teleport cluster with Proxy Service instances
+spread across multiple AWS regions.
+
+<Admonition type="note">
+The Teleport Auth Service instances are deployed in a single region with this architecture.
+For details on the supported architecture for multi-region Auth Service instances, refer to
+the [Multi-region Blueprint](./multi-region-blueprint.mdx)
+</Admonition>
+
+It features two important design decisions:
 
 - Amazon Route 53 latency-based routing is used to ensure that users and agents connect to the closest available proxy.
 - Teleport's [Proxy Peering](../reliability/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
