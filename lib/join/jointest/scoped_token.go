@@ -121,6 +121,26 @@ func ScopedTokenFromProvisionToken(base provision.Token, override *joiningv1.Sco
 		scopedToken.Spec.Oracle = &joiningv1.Oracle{
 			Allow: allow,
 		}
+	case types.JoinMethodGitHub:
+		allow := make([]*joiningv1.Github_Rule, len(base.GetGithub().Allow))
+		for i, rule := range base.GetGithub().Allow {
+			allow[i] = &joiningv1.Github_Rule{
+				Sub:             rule.Sub,
+				Repository:      rule.Repository,
+				RepositoryOwner: rule.RepositoryOwner,
+				Workflow:        rule.Workflow,
+				Environment:     rule.Environment,
+				Actor:           rule.Actor,
+				Ref:             rule.Ref,
+				RefType:         rule.RefType,
+			}
+		}
+		scopedToken.Spec.Github = &joiningv1.Github{
+			Allow:                allow,
+			EnterpriseServerHost: base.GetGithub().EnterpriseServerHost,
+			EnterpriseSlug:       base.GetGithub().EnterpriseSlug,
+			StaticJwks:           base.GetGithub().StaticJWKS,
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.GetJoinMethod())
 	}

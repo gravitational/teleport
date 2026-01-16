@@ -82,6 +82,9 @@ message ScopedTokenSpec {
   AzureDevops azure_devops = 9;
   // The Oracle-specific configuration used with the "oracle" join method.
   Oracle oracle = 10;
+
+  // The GitHub-specific configuration used with the "github" join method.
+  Github github = 11;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -301,4 +304,61 @@ message Oracle {
   // A list of Rules for allowing use of this token. A node must match at least one
   // allow rule in order to use this token.
   repeated Rule allow = 1;
+}
+
+// The GitHub-specific configuration used with the "github" join method.
+message Github {
+  // The fields mapped from `lib/githubactions.IDToken`. Not all fields should be included,
+  // only ones that we expect to be useful when trying to create rules around which workflows
+  // should be allowed to authenticate against a cluster.
+  message Rule {
+    // Sub, also known as Subject, is a string that roughly uniquely identifies
+    // the workload. The format of this varies depending on the type of github
+    // action run.
+    string sub = 1;
+    // The repository from where the workflow is running.
+    // This includes the name of the owner e.g `gravitational/teleport`
+    string repository = 2;
+    // The name of the organization in which the repository is stored.
+    string repository_owner = 3;
+    // The name of the workflow.
+    string workflow = 4;
+    // The name of the environment used by the job.
+    string environment = 5;
+    // The personal account that initiated the workflow run.
+    string actor = 6;
+    // The git ref that triggered the workflow run.
+    string ref = 7;
+    // The type of ref, for example: "branch".
+    string ref_type = 8;
+  }
+  // A list of Rules for allowing use of this token. A node must match at least one
+  // allow rule in order to use this token.
+  repeated Rule allow = 1;
+
+  // Allows joining from runners associated with a GitHub Enterprise Server instance.
+  // When unconfigured, tokens will be validated against github.com, but when configured
+  // to the host of a GHES instance, then the tokens will be validated against host.
+  //
+  // This value should be the hostname of the GHES instance, and should not
+  // include the scheme or a path. The instance must be accessible over HTTPS
+  // at this hostname and the certificate must be trusted by the Auth Service.
+  string enterprise_server_host = 2;
+
+  // Allows the slug of a GitHub Enterprise organisation to be
+  // included in the expected issuer of the OIDC tokens. This is for
+  // compatibility with the `include_enterprise_slug` option in GHE.
+  //
+  // This field should be set to the slug of your enterprise if this is enabled. If
+  // this is not enabled, then this field must be left empty. This field cannot
+  // be specified if `enterprise_server_host` is specified.
+  //
+  // See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+  // for more information about customized issuer values.
+  string enterprise_slug = 3;
+  // Disables fetching of the GHES signing keys via the JWKS/OIDC
+  // endpoints, and allows them to be directly specified. This allows joining
+  // from GitHub Actions in GHES instances that are not reachable by the
+  // Teleport Auth Service.
+  string static_jwks = 4;
 }

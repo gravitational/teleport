@@ -168,7 +168,9 @@ type ScopedTokenSpec struct {
 	// The AzureDevops-specific configuration used with the "azure_devops" join method.
 	AzureDevops *AzureDevops `protobuf:"bytes,9,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
 	// The Oracle-specific configuration used with the "oracle" join method.
-	Oracle        *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	Oracle *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	// The GitHub-specific configuration used with the "github" join method.
+	Github        *Github `protobuf:"bytes,11,opt,name=github,proto3" json:"github,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -269,6 +271,13 @@ func (x *ScopedTokenSpec) GetAzureDevops() *AzureDevops {
 func (x *ScopedTokenSpec) GetOracle() *Oracle {
 	if x != nil {
 		return x.Oracle
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetGithub() *Github {
+	if x != nil {
+		return x.Github
 	}
 	return nil
 }
@@ -1010,6 +1019,98 @@ func (x *Oracle) GetAllow() []*Oracle_Rule {
 	return nil
 }
 
+// The GitHub-specific configuration used with the "github" join method.
+type Github struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Github_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// Allows joining from runners associated with a GitHub Enterprise Server instance.
+	// When unconfigured, tokens will be validated against github.com, but when configured
+	// to the host of a GHES instance, then the tokens will be validated against host.
+	//
+	// This value should be the hostname of the GHES instance, and should not
+	// include the scheme or a path. The instance must be accessible over HTTPS
+	// at this hostname and the certificate must be trusted by the Auth Service.
+	EnterpriseServerHost string `protobuf:"bytes,2,opt,name=enterprise_server_host,json=enterpriseServerHost,proto3" json:"enterprise_server_host,omitempty"`
+	// Allows the slug of a GitHub Enterprise organisation to be
+	// included in the expected issuer of the OIDC tokens. This is for
+	// compatibility with the `include_enterprise_slug` option in GHE.
+	//
+	// This field should be set to the slug of your enterprise if this is enabled. If
+	// this is not enabled, then this field must be left empty. This field cannot
+	// be specified if `enterprise_server_host` is specified.
+	//
+	// See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
+	// for more information about customized issuer values.
+	EnterpriseSlug string `protobuf:"bytes,3,opt,name=enterprise_slug,json=enterpriseSlug,proto3" json:"enterprise_slug,omitempty"`
+	// Disables fetching of the GHES signing keys via the JWKS/OIDC
+	// endpoints, and allows them to be directly specified. This allows joining
+	// from GitHub Actions in GHES instances that are not reachable by the
+	// Teleport Auth Service.
+	StaticJwks    string `protobuf:"bytes,4,opt,name=static_jwks,json=staticJwks,proto3" json:"static_jwks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Github) Reset() {
+	*x = Github{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Github) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Github) ProtoMessage() {}
+
+func (x *Github) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Github.ProtoReflect.Descriptor instead.
+func (*Github) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Github) GetAllow() []*Github_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *Github) GetEnterpriseServerHost() string {
+	if x != nil {
+		return x.EnterpriseServerHost
+	}
+	return ""
+}
+
+func (x *Github) GetEnterpriseSlug() string {
+	if x != nil {
+		return x.EnterpriseSlug
+	}
+	return ""
+}
+
+func (x *Github) GetStaticJwks() string {
+	if x != nil {
+		return x.StaticJwks
+	}
+	return ""
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -1034,7 +1135,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1046,7 +1147,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1113,7 +1214,7 @@ type GCP_Rule struct {
 
 func (x *GCP_Rule) Reset() {
 	*x = GCP_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1125,7 +1226,7 @@ func (x *GCP_Rule) String() string {
 func (*GCP_Rule) ProtoMessage() {}
 
 func (x *GCP_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1176,7 +1277,7 @@ type Azure_Rule struct {
 
 func (x *Azure_Rule) Reset() {
 	*x = Azure_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1188,7 +1289,7 @@ func (x *Azure_Rule) String() string {
 func (*Azure_Rule) ProtoMessage() {}
 
 func (x *Azure_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1260,7 +1361,7 @@ type AzureDevops_Rule struct {
 
 func (x *AzureDevops_Rule) Reset() {
 	*x = AzureDevops_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1373,7 @@ func (x *AzureDevops_Rule) String() string {
 func (*AzureDevops_Rule) ProtoMessage() {}
 
 func (x *AzureDevops_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1365,7 +1466,7 @@ type Oracle_Rule struct {
 
 func (x *Oracle_Rule) Reset() {
 	*x = Oracle_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1377,7 +1478,7 @@ func (x *Oracle_Rule) String() string {
 func (*Oracle_Rule) ProtoMessage() {}
 
 func (x *Oracle_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1421,6 +1522,120 @@ func (x *Oracle_Rule) GetInstances() []string {
 	return nil
 }
 
+// The fields mapped from `lib/githubactions.IDToken`. Not all fields should be included,
+// only ones that we expect to be useful when trying to create rules around which workflows
+// should be allowed to authenticate against a cluster.
+type Github_Rule struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Sub, also known as Subject, is a string that roughly uniquely identifies
+	// the workload. The format of this varies depending on the type of github
+	// action run.
+	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	// The repository from where the workflow is running.
+	// This includes the name of the owner e.g `gravitational/teleport`
+	Repository string `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
+	// The name of the organization in which the repository is stored.
+	RepositoryOwner string `protobuf:"bytes,3,opt,name=repository_owner,json=repositoryOwner,proto3" json:"repository_owner,omitempty"`
+	// The name of the workflow.
+	Workflow string `protobuf:"bytes,4,opt,name=workflow,proto3" json:"workflow,omitempty"`
+	// The name of the environment used by the job.
+	Environment string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The personal account that initiated the workflow run.
+	Actor string `protobuf:"bytes,6,opt,name=actor,proto3" json:"actor,omitempty"`
+	// The git ref that triggered the workflow run.
+	Ref string `protobuf:"bytes,7,opt,name=ref,proto3" json:"ref,omitempty"`
+	// The type of ref, for example: "branch".
+	RefType       string `protobuf:"bytes,8,opt,name=ref_type,json=refType,proto3" json:"ref_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Github_Rule) Reset() {
+	*x = Github_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Github_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Github_Rule) ProtoMessage() {}
+
+func (x *Github_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Github_Rule.ProtoReflect.Descriptor instead.
+func (*Github_Rule) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{14, 0}
+}
+
+func (x *Github_Rule) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRepositoryOwner() string {
+	if x != nil {
+		return x.RepositoryOwner
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetWorkflow() string {
+	if x != nil {
+		return x.Workflow
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetActor() string {
+	if x != nil {
+		return x.Actor
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *Github_Rule) GetRefType() string {
+	if x != nil {
+		return x.RefType
+	}
+	return ""
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
@@ -1433,7 +1648,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\x8d\x04\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xc9\x04\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -1447,7 +1662,8 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x05azure\x18\b \x01(\v2!.teleport.scopes.joining.v1.AzureR\x05azure\x12J\n" +
 	"\fazure_devops\x18\t \x01(\v2'.teleport.scopes.joining.v1.AzureDevopsR\vazureDevops\x12:\n" +
 	"\x06oracle\x18\n" +
-	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\"\xb6\x01\n" +
+	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\x12:\n" +
+	"\x06github\x18\v \x01(\v2\".teleport.scopes.joining.v1.GithubR\x06github\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
@@ -1523,7 +1739,24 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\atenancy\x18\x01 \x01(\tR\atenancy\x12/\n" +
 	"\x13parent_compartments\x18\x02 \x03(\tR\x12parentCompartments\x12\x18\n" +
 	"\aregions\x18\x03 \x03(\tR\aregions\x12\x1c\n" +
-	"\tinstances\x18\x04 \x03(\tR\tinstancesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\tinstances\x18\x04 \x03(\tR\tinstances\"\xae\x03\n" +
+	"\x06Github\x12=\n" +
+	"\x05allow\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.Github.RuleR\x05allow\x124\n" +
+	"\x16enterprise_server_host\x18\x02 \x01(\tR\x14enterpriseServerHost\x12'\n" +
+	"\x0fenterprise_slug\x18\x03 \x01(\tR\x0eenterpriseSlug\x12\x1f\n" +
+	"\vstatic_jwks\x18\x04 \x01(\tR\n" +
+	"staticJwks\x1a\xe4\x01\n" +
+	"\x04Rule\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x02 \x01(\tR\n" +
+	"repository\x12)\n" +
+	"\x10repository_owner\x18\x03 \x01(\tR\x0frepositoryOwner\x12\x1a\n" +
+	"\bworkflow\x18\x04 \x01(\tR\bworkflow\x12 \n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\x12\x14\n" +
+	"\x05actor\x18\x06 \x01(\tR\x05actor\x12\x10\n" +
+	"\x03ref\x18\a \x01(\tR\x03ref\x12\x19\n" +
+	"\bref_type\x18\b \x01(\tR\arefTypeBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
 var (
 	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
@@ -1537,7 +1770,7 @@ func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_joining_v1_token_proto_rawDescData
 }
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),            // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil),        // 1: teleport.scopes.joining.v1.ScopedTokenSpec
@@ -1553,17 +1786,19 @@ var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*Azure)(nil),                  // 11: teleport.scopes.joining.v1.Azure
 	(*AzureDevops)(nil),            // 12: teleport.scopes.joining.v1.AzureDevops
 	(*Oracle)(nil),                 // 13: teleport.scopes.joining.v1.Oracle
-	nil,                            // 14: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	(*AWS_Rule)(nil),               // 15: teleport.scopes.joining.v1.AWS.Rule
-	(*GCP_Rule)(nil),               // 16: teleport.scopes.joining.v1.GCP.Rule
-	(*Azure_Rule)(nil),             // 17: teleport.scopes.joining.v1.Azure.Rule
-	(*AzureDevops_Rule)(nil),       // 18: teleport.scopes.joining.v1.AzureDevops.Rule
-	(*Oracle_Rule)(nil),            // 19: teleport.scopes.joining.v1.Oracle.Rule
-	(*v1.Metadata)(nil),            // 20: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 21: google.protobuf.Timestamp
+	(*Github)(nil),                 // 14: teleport.scopes.joining.v1.Github
+	nil,                            // 15: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	(*AWS_Rule)(nil),               // 16: teleport.scopes.joining.v1.AWS.Rule
+	(*GCP_Rule)(nil),               // 17: teleport.scopes.joining.v1.GCP.Rule
+	(*Azure_Rule)(nil),             // 18: teleport.scopes.joining.v1.Azure.Rule
+	(*AzureDevops_Rule)(nil),       // 19: teleport.scopes.joining.v1.AzureDevops.Rule
+	(*Oracle_Rule)(nil),            // 20: teleport.scopes.joining.v1.Oracle.Rule
+	(*Github_Rule)(nil),            // 21: teleport.scopes.joining.v1.Github.Rule
+	(*v1.Metadata)(nil),            // 22: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),  // 23: google.protobuf.Timestamp
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	20, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	22, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	6,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
@@ -1572,25 +1807,27 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	11, // 6: teleport.scopes.joining.v1.ScopedTokenSpec.azure:type_name -> teleport.scopes.joining.v1.Azure
 	12, // 7: teleport.scopes.joining.v1.ScopedTokenSpec.azure_devops:type_name -> teleport.scopes.joining.v1.AzureDevops
 	13, // 8: teleport.scopes.joining.v1.ScopedTokenSpec.oracle:type_name -> teleport.scopes.joining.v1.Oracle
-	21, // 9: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
-	21, // 10: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
-	2,  // 11: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
-	3,  // 12: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
-	4,  // 13: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	14, // 14: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	20, // 15: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	8,  // 16: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 17: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	15, // 18: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	16, // 19: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
-	17, // 20: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
-	18, // 21: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
-	19, // 22: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	14, // 9: teleport.scopes.joining.v1.ScopedTokenSpec.github:type_name -> teleport.scopes.joining.v1.Github
+	23, // 10: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
+	23, // 11: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2,  // 12: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
+	3,  // 13: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
+	4,  // 14: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
+	15, // 15: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	22, // 16: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	8,  // 17: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 18: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	16, // 19: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	17, // 20: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
+	18, // 21: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
+	19, // 22: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
+	20, // 23: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
+	21, // 24: teleport.scopes.joining.v1.Github.allow:type_name -> teleport.scopes.joining.v1.Github.Rule
+	25, // [25:25] is the sub-list for method output_type
+	25, // [25:25] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -1607,7 +1844,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

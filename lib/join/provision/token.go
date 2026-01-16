@@ -62,4 +62,7 @@ type Token interface {
 	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
 	// GetOracle returns the Oracle-specific configuration for this token.
 	GetOracle() *types.ProvisionTokenSpecV2Oracle
+	// GetGithub returns the Github-specific configuration used with the "github"
+	// join method.
+	GetGithub() *types.ProvisionTokenSpecV2GitHub
 }

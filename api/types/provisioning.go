@@ -151,8 +151,8 @@ type ProvisionToken interface {
 	GetIntegration() string
 	// GetGCP will return the GCP rules within this token.
 	GetGCP() *ProvisionTokenSpecV2GCP
-	// GetGithubRules will return the GitHub rules within this token.
-	GetGithubRules() *ProvisionTokenSpecV2GitHub
+	// GetGithub will return the GitHub rules within this token.
+	GetGithub() *ProvisionTokenSpecV2GitHub
 	// GetGitlabRules will return the GitLab rules within this token.
 	GetGitlabRules() *ProvisionTokenSpecV2GitLab
 	// GetAzure will return the Azure specific configuration for this token.
@@ -528,8 +528,8 @@ func (p *ProvisionTokenV2) GetGCP() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
 
-// GetGithubRules will return the GitHub rules within this token.
-func (p *ProvisionTokenV2) GetGithubRules() *ProvisionTokenSpecV2GitHub {
+// GetGithub will return the GitHub rules within this token.
+func (p *ProvisionTokenV2) GetGithub() *ProvisionTokenSpecV2GitHub {
 	return p.Spec.GitHub
 }
 
