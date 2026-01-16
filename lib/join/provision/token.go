@@ -48,8 +48,8 @@ type Token interface {
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
-	// GetAllowRules returns the list of allow rules.
-	GetAllowRules() []*types.TokenRule
+	// GetAWSAllowRules returns the list of AWS-specific allow rules.
+	GetAWSAllowRules() []*types.TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() types.Duration
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
