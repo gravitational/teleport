@@ -86,6 +86,29 @@ func TestKeyboardInteractiveCallback_TooManyAnswers(t *testing.T) {
 	require.Nil(t, perms)
 }
 
+func TestKeyboardInteractiveCallback_MultiplePromptVerifiers(t *testing.T) {
+	t.Parallel()
+
+	params := keyboardInteractiveCallbackParams
+	params.PromptVerifiers = []srvssh.PromptVerifier{
+		&mockPromptVerifier{
+			Prompt:         "test-prompt-1",
+			Echo:           false,
+			ExpectedAnswer: "test-answer-1",
+		},
+		&mockPromptVerifier{
+			Prompt:         "test-prompt-2",
+			Echo:           false,
+			ExpectedAnswer: "test-answer-2",
+		},
+	}
+	params.Challenge = mockKeyboardInteractiveChallengeRaw([]string{"test-answer-1", "test-answer-2"})
+
+	perms, err := srvssh.KeyboardInteractiveCallback(t.Context(), params)
+	require.NoError(t, err)
+	require.Equal(t, params.Permissions, perms)
+}
+
 func TestKeyboardInteractiveCallback_CheckParams(t *testing.T) {
 	t.Parallel()
 
