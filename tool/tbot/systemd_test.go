@@ -71,6 +71,7 @@ func TestInstallSystemdCmd(t *testing.T) {
 				"--group", "llamas",
 				"--user", "llama",
 				"--anonymous-telemetry",
+				"--pid-file", "/run/fake/pid.pid",
 			},
 			wantUnitName: "my-farm-bot",
 		},
