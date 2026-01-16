@@ -1,5 +1,16 @@
 # Changelog
 
+## 17.7.14 (01/06/26)
+
+* Updated Go to 1.24.12. [#62886](https://github.com/gravitational/teleport/pull/62886)
+* Fixed launching AWS Identity Center from Teleport Connect. [#62870](https://github.com/gravitational/teleport/pull/62870)
+* Fixed renewed X509-SVIDs not being proactively sent to Envoy instances. [#62829](https://github.com/gravitational/teleport/pull/62829)
+* Updated rustcrypto/rsa dependency to fix potential panic (CVE-2026-21895). [#62769](https://github.com/gravitational/teleport/pull/62769)
+* Fixed an issue that would prevent tsh from working when the 1password SSH agent is running. [#62737](https://github.com/gravitational/teleport/pull/62737)
+
+Enterprise:
+* Fixed an issue in the Entra ID integration where a user account with an unsupported username character `/` could prevent other valid users and groups to be synced to Teleport. Such user accounts are now filtered.
+
 ## 17.7.13 (01/08/26)
 
 * Fixed an issue where logging in to the Web UI with Device Trust would lose query params of the redirect URL. [#62678](https://github.com/gravitational/teleport/pull/62678)
