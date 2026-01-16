@@ -7471,6 +7471,9 @@ message PluginEntraIDSyncSettings {
 
   // GroupFilters configures which groups should be included or exlcuded.
   repeated PluginSyncFilter group_filters = 6;
+
+  // Source of the Access List owners.
+  EntraIDAccessListOwnersSource access_list_owners_source = 7;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
@@ -7506,6 +7509,20 @@ enum EntraIDCredentialsSource {
   // ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS means the plugin will rely on system-provided credentials
   // for authentication with Azure Entra ID, especially for clusters with no internet access.
   ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS = 2;
+}
+
+// EntraIDAccessListOwnersSource defines the source of Access List owners
+// for the Access Lists created by importing Microsoft Entra ID groups.
+enum EntraIDAccessListOwnersSource {
+  // Source is unspecified.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED = 0;
+  // Use default owners configured in this plugin spec as the Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN = 1;
+  // Use Microsoft Entra ID group owners as Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID = 2;
+  // Merge plugin default owners and Microsoft Entra ID group
+  // owners as Access List owners.
+  ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID = 3;
 }
 
 // AccessGraphSettings controls settings for syncing access graph specific data.
