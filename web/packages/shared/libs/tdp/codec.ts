@@ -389,15 +389,7 @@ export type MfaResponse = {
 };
 
 // We're not allowed to import from teleport/services/mfa/types, so just
-// define the MFA challenge structure here.
-type MfaAuthenticateChallengeJson = {
-  sso_challenge?: MfaSsoChallenge;
-  totp_challenge?: boolean;
-  webauthn_challenge?: {
-    publicKey: PublicKeyCredentialRequestOptionsJSON;
-  };
-};
-
+// define the MfaSsoChallenge structure here.
 type MfaSsoChallenge = {
   channelId: string;
   redirectUrl: string;
@@ -702,62 +694,66 @@ export class TdpbCodec implements Codec {
           throw new Error('received empty MFA challenge');
         }
 
-        if (challenge.webauthnChallenge) {
-          return {
-            kind: 'mfaChallenge',
-            data: {
-              mfaType: 'n',
-              jsonString: JSON.stringify(
-                this.toMfaWebauthnChallenge(challenge.webauthnChallenge)
-              ),
-            },
+        let challengeData: {
+          webauthn_challenge?: {
+            publicKey: PublicKeyCredentialRequestOptionsJSON;
           };
+          sso_challenge?: MfaSsoChallenge;
+        } = {};
+
+        if (challenge.webauthnChallenge) {
+          challengeData.webauthn_challenge = this.toMfaWebauthnChallenge(
+            challenge.webauthnChallenge
+          );
         }
 
         if (challenge.ssoChallenge) {
-          return {
-            kind: 'mfaChallenge',
-            data: {
-              mfaType: 'n',
-              jsonString: JSON.stringify({
-                sso_challenge: this.toMfaSsoChallenge(
-                  challenge.ssoChallenge,
-                  mfa.channelId
-                ),
-              }),
-            },
-          };
+          challengeData.sso_challenge = this.toMfaSsoChallenge(
+            challenge.ssoChallenge,
+            mfa.channelId
+          );
         }
-        throw new Error(
-          'Invalid MFA type - Only SSO or Webauthn are supported'
-        );
+
+        if (
+          challengeData.sso_challenge === undefined &&
+          challengeData.webauthn_challenge === undefined
+        ) {
+          throw new Error(
+            'Invalid MFA type - Only SSO or Webauthn are supported'
+          );
+        }
+
+        return {
+          kind: 'mfaChallenge',
+          data: {
+            mfaType: 'n',
+            jsonString: JSON.stringify(challengeData),
+          },
+        };
+
       default:
         return { kind: 'unsupported', data: envelope.payload.oneofKind };
     }
   }
 
-  toMfaWebauthnChallenge(
-    challenge: CredentialAssertion
-  ): MfaAuthenticateChallengeJson {
+  toMfaWebauthnChallenge(challenge: CredentialAssertion): {
+    publicKey: PublicKeyCredentialRequestOptionsJSON;
+  } {
     return {
-      webauthn_challenge: {
-        publicKey: {
-          challenge: btoa(
-            String.fromCharCode(...challenge.publicKey.challenge)
-          ),
-          rpId: challenge.publicKey.rpId,
-          timeout: Number(challenge.publicKey.timeoutMs),
-          userVerification: challenge.publicKey.userVerification,
-          extensions: challenge.publicKey.extensions,
-          allowCredentials: challenge.publicKey.allowCredentials.map(
-            (cred): PublicKeyCredentialDescriptorJSON => {
-              return {
-                id: btoa(String.fromCharCode(...cred.id)),
-                type: cred.type,
-              };
-            }
-          ),
-        },
+      publicKey: {
+        challenge: btoa(String.fromCharCode(...challenge.publicKey.challenge)),
+        rpId: challenge.publicKey.rpId,
+        timeout: Number(challenge.publicKey.timeoutMs),
+        userVerification: challenge.publicKey.userVerification,
+        extensions: challenge.publicKey.extensions,
+        allowCredentials: challenge.publicKey.allowCredentials.map(
+          (cred): PublicKeyCredentialDescriptorJSON => {
+            return {
+              id: btoa(String.fromCharCode(...cred.id)),
+              type: cred.type,
+            };
+          }
+        ),
       },
     };
   }
