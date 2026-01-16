@@ -103,6 +103,15 @@ spec:
               hostname:
                 description: Hostname is server hostname
                 type: string
+              immutable_labels:
+                description: The immutable labels encoded on the server's host certificate.
+                nullable: true
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: string
+                type: object
               peer_addr:
                 description: PeerAddr is the address a proxy server is reachable at
                   by its peer proxies.
