@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
@@ -92,12 +93,12 @@ func TestIdentityConversion(t *testing.T) {
 		GitHubUserID:           "github",
 		GitHubUsername:         "ghuser",
 		AgentScope:             "/foo",
-		ImmutableLabels: &joiningv1.ImmutableLabels{
+		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
-		},
+		}),
 	}
 
 	ignores := []string{
