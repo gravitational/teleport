@@ -56,11 +56,10 @@ type SecretDestination struct {
 	// When using the Helm chart, you'll need to additionally grant the tbot
 	// service account permissions to read/write to the other namespace.
 	Namespace string `yaml:"namespace,omitempty"`
-	// KubeconfigPath is the path to a Kubeconfig to use for reaching and
+	// KubeconfigPath is the path to a kubeconfig to use for reaching and
 	// authenticating to the Kubernetes API server. When running tbot inside a
-	// Kubernetes cluster, configuring this is unnecessary as the pod will be
-	// autoconfigured for access to the cluster with the service account
-	// credentials.
+	// Kubernetes cluster, configuring this is unnecessary as the in-cluster
+	// credentials can be used.
 	//
 	// This can be useful when running tbot outside a Kubernetes cluster or
 	// when tbot needs to write secrets to a Kubernetes cluster that differs
@@ -70,8 +69,7 @@ type SecretDestination struct {
 	// here within the configuration file will take precedence over the
 	// environment variable.
 	KubeconfigPath string `yaml:"kubeconfig_path,omitempty"`
-	// Context overrides which context to use from the Kubernetes API client
-	// configuration.
+	// KubeconfigContext overrides which context to use from the kubeconfig.
 	//
 	// This has no effect when relying on the default in-cluster config and can
 	// only be used when the KUBECONFIG environment variable or the
