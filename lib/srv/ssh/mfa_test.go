@@ -132,7 +132,7 @@ func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(context.Background(), string(respJSON))
+	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
 	require.NoError(t, err)
 }
 
@@ -147,7 +147,7 @@ func TestMFAPromptVerifier_VerifyAnswer_InvalidJSON(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(context.Background(), "not-json")
+	err = verifier.VerifyAnswer(t.Context(), "not-json")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid value not-json")
 }
@@ -167,7 +167,7 @@ func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(context.Background(), string(respJSON))
+	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
 	require.ErrorContains(t, err, "missing Response in MFAPromptResponse")
 }
 
@@ -192,7 +192,7 @@ func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
-	err = verifier.VerifyAnswer(context.Background(), string(respJSON))
+	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
 	require.ErrorContains(t, err, "missing ChallengeName in MFAPromptResponseReference")
 }
 

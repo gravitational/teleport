@@ -42,10 +42,12 @@ type KeyboardInteractiveCallbackParams struct {
 	PromptVerifiers []PromptVerifier
 }
 
-// KeyboardInteractiveCallback implements an authentication layer on top of the SSH keyboard-interactive authentication
-// method for SSH servers. It enables MFA after the user has already authenticated with a primary method (e.g., public
-// key). Upon successful MFA verification, it returns the user's granted permissions. Intended for use with the
-// x/crypto/ssh#ServerAuthCallbacks.KeyboardInteractiveCallback field.
+// KeyboardInteractiveCallback implements an extra authentication layer on top of the keyboard-interactive
+// authentication method for SSH servers after the user has already authenticated with a primary method (e.g., public
+// key). The callback presents one or more prompts to the client, as defined by the provided PromptVerifier
+// implementations, and verifies the user's answers. Upon successful verification of all prompts, the user's granted
+// permissions are returned. Intended for use with the x/crypto/ssh#ServerAuthCallbacks.KeyboardInteractiveCallback
+// field.
 func KeyboardInteractiveCallback(
 	ctx context.Context,
 	params KeyboardInteractiveCallbackParams,
