@@ -27,12 +27,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type mockGitLabTokenValidator struct {
@@ -553,6 +557,29 @@ func TestJoinGitlab(t *testing.T) {
 			require.NoError(t, auth.CreateToken(ctx, token))
 			tt.request.Token = tt.name
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionToken(token, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = authServer.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := authServer.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			nopClient, err := authServer.NewClient(authtest.TestNop())
 			require.NoError(t, err)
 
@@ -599,6 +626,23 @@ func TestJoinGitlab(t *testing.T) {
 			t.Run("new joinclient", func(t *testing.T) {
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token:      tt.request.Token,
+					JoinMethod: types.JoinMethodGitLab,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance, // RoleNode is not allowed
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+			})
+
+			t.Run("scoped joinclient", func(t *testing.T) {
+				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      "scoped_" + tt.request.Token,
 					JoinMethod: types.JoinMethodGitLab,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed

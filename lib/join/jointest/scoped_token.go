@@ -141,6 +141,41 @@ func ScopedTokenFromProvisionToken(base provision.Token, override *joiningv1.Sco
 			EnterpriseSlug:       base.GetGithub().EnterpriseSlug,
 			StaticJwks:           base.GetGithub().StaticJWKS,
 		}
+	case types.JoinMethodGitLab:
+		allow := make([]*joiningv1.GitLab_Rule, len(base.GetGitlab().Allow))
+		for i, rule := range base.GetGitlab().Allow {
+			var refProtected, environmentProtected *bool
+			if rule.RefProtected != nil {
+				refProtected = &rule.RefProtected.Value
+			}
+
+			if rule.EnvironmentProtected != nil {
+				environmentProtected = &rule.EnvironmentProtected.Value
+			}
+			allow[i] = &joiningv1.GitLab_Rule{
+				Sub:                  rule.Sub,
+				Ref:                  rule.Ref,
+				RefType:              rule.RefType,
+				NamespacePath:        rule.NamespacePath,
+				ProjectPath:          rule.ProjectPath,
+				PipelineSource:       rule.PipelineSource,
+				Environment:          rule.Environment,
+				UserLogin:            rule.UserLogin,
+				UserId:               rule.UserID,
+				UserEmail:            rule.UserEmail,
+				RefProtected:         refProtected,
+				EnvironmentProtected: environmentProtected,
+				CiConfigSha:          rule.CIConfigSHA,
+				CiConfigRefUri:       rule.CIConfigRefURI,
+				DeploymentTier:       rule.DeploymentTier,
+				ProjectVisibility:    rule.ProjectVisibility,
+			}
+		}
+		scopedToken.Spec.Gitlab = &joiningv1.GitLab{
+			Allow:      allow,
+			Domain:     base.GetGitlab().Domain,
+			StaticJwks: base.GetGitlab().StaticJWKS,
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.GetJoinMethod())
 	}

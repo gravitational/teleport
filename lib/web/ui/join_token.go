@@ -87,7 +87,7 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 	}
 
 	if uiToken.Method == types.JoinMethodGitLab {
-		uiToken.Gitlab = token.GetGitlabRules()
+		uiToken.Gitlab = token.GetGitlab()
 	}
 
 	return uiToken, nil

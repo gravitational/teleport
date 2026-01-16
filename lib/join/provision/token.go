@@ -65,4 +65,7 @@ type Token interface {
 	// GetGithub returns the Github-specific configuration used with the "github"
 	// join method.
 	GetGithub() *types.ProvisionTokenSpecV2GitHub
+	// GetGitlab returns the Gitlab-specific configuration used with the "gitlab"
+	// join method.
+	GetGitlab() *types.ProvisionTokenSpecV2GitLab
 }
