@@ -107,7 +107,7 @@ func TestMFAPromptVerifier_MarshalPrompt(t *testing.T) {
 	prompt, echo, err := verifier.MarshalPrompt()
 	require.NoError(t, err)
 	require.False(t, echo)
-	require.Contains(t, prompt, "MFA is required")
+	require.Contains(t, prompt, srvssh.MFAPromptMessage)
 }
 
 func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {

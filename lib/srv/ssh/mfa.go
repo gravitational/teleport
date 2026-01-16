@@ -73,12 +73,15 @@ func NewMFAPromptVerifier(
 	}, nil
 }
 
+// MFAPromptMessage is the message displayed to users when they are prompted for MFA.
+const MFAPromptMessage = "Multi-factor authentication (MFA) is required. Complete the MFA challenge in order to proceed."
+
 // MarshalPrompt returns a JSON-marshaled MFA prompt and an echo flag set to false.
 func (pv *MFAPromptVerifier) MarshalPrompt() (string, bool, error) {
 	prompt := &sshpb.AuthPrompt{
 		Prompt: &sshpb.AuthPrompt_MfaPrompt{
 			MfaPrompt: &sshpb.MFAPrompt{
-				Message: "Multi-factor authentication (MFA) is required. Complete the MFA challenge in order to proceed.",
+				Message: MFAPromptMessage,
 			},
 		},
 	}
