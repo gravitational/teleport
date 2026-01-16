@@ -1621,7 +1621,7 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]even
 		}
 
 		// Stop early when the fetcher's total size exceeds the response size limit.
-		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
+		if l.totalSize+len(data) > events.MaxEventBytesInResponse {
 			// Encountered an event that would push the total page over the size limit.
 			// Return all processed events, and the next event will be picked up on the next page.
 			if len(out) > 0 {
