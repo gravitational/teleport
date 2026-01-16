@@ -971,11 +971,6 @@
       "permanent": true
     },
     {
-      "source": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
-      "destination": "/identity-governance/access-lists/terraform/",
-      "permanent": true
-    },
-    {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "permanent": true
@@ -3479,12 +3474,7 @@
     },
     {
       "source": "/identity-governance/access-lists/terraform/",
-      "destination": "/identity-governance/access-lists/terraform/",
-      "permanent": true
-    },
-    {
-      "source": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
-      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/",
+      "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     }
   ]

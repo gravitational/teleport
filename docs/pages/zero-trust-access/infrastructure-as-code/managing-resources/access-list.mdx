@@ -13,7 +13,7 @@ managed within Teleport. With Access Lists, administrators can regularly audit a
 traits, which then tie easily back into Teleport's existing RBAC system.
 
 In this guide, we'll follow up
-on [the IaC users and roles guide](../../zero-trust-access/infrastructure-as-code/managing-resources/user-and-role.mdx) by allowing users with
+on [the IaC users and roles guide](user-and-role.mdx) by allowing users with
 the `manager` role to grant the `support-engineer` role to users meeting
 specific criteria.
 
@@ -38,7 +38,7 @@ ensures access grants are periodically reviewed.
 ## Prerequisites
 
 To follow this guide, you must follow
-first [the basic users and roles IaC guide](../../zero-trust-access/infrastructure-as-code/managing-resources/user-and-role.mdx). We will reuse
+first [the basic users and roles IaC guide](user-and-role.mdx). We will reuse
 its users and roles for our Access List.
 
 ## Step 1/3 - Write manifests
@@ -282,7 +282,7 @@ You can log in as alice and add `bob` to the `support-engineers` Access List.
 Log in as `alice` in the Web UI, Zero Trust Access, select Access Lists, and click on your Access List. 
 Click "Add new Members or Access Lists or Access Lists" and add `bob`.
 
-![Screenshot of the Web UI showing the Access List and the "Enroll Member" button](../../../img/management/access-list-web-ui.png)
+![Screenshot of the Web UI showing the Access List and the "Enroll Member" button](../../../../img/management/access-list-web-ui.png)
 
 </TabItem>
 <TabItem label="CLI">
@@ -433,9 +433,9 @@ a nested Access List within `support-engineers`.
 ### Give access to an Okta or Microsoft Entra ID group
 
 The Okta integration allows [synchronizing Okta groups and
-apps](../integrations/okta/app-and-group-sync.mdx) as Teleport Access Lists, while the
+apps](../../../identity-governance/integrations/okta/app-and-group-sync.mdx) as Teleport Access Lists, while the
 Microsoft Entra ID integration allows [synchronizing
-groups](../integrations/entra-id/entra-id.mdx) as Teleport Access Lists. 
+groups](../../../identity-governance/integrations/entra-id/entra-id.mdx) as Teleport Access Lists. 
 
 To give permissions to an Access List based on these integrations in Terraform,
 navigate to the Access List in the Web UI, and from its URL (e.g.
@@ -471,8 +471,8 @@ It is usually not possible to import Access Lists created using the Web UI into
 a Terraform module. Any Access List can be imported, but Access Lists created in
 the UI are not of the static type, so their members can't be managed with Terraform.
 The same applies to Access Lists created by an integration (e.g.
-[Okta](../integrations/okta/app-and-group-sync.mdx) or
-[Microsoft Entra ID](../integrations/entra-id/entra-id.mdx)).  An
+[Okta](../../../identity-governance/integrations/okta/app-and-group-sync.mdx) or
+[Microsoft Entra ID](../../../identity-governance/integrations/entra-id/entra-id.mdx)).  An
 existing static list created by another Terraform setup (with a different state)
 could be imported, and its members can be managed by Terraform, but this
 situation is unusual.
@@ -485,4 +485,4 @@ of the existing Access List.
 ## Next steps
 
 You can see all supported Access List fields
-[in the Access List reference](../../reference/access-controls/access-lists.mdx).
+[in the Access List reference](../../../reference/access-controls/access-lists.mdx).
