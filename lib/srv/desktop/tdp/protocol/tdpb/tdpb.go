@@ -35,6 +35,9 @@ import (
 
 // ErrUnknownMessage is returned when an unknown message is decoded.
 var ErrUnknownMessage = errors.New("decoded unknown TDPB message")
+
+// ErrIsTDP is returned when a legacy TDP message is received
+// during or after a connection upgrade to TDPB.
 var ErrIsTDP = errors.New("message is TDP, not TDPB")
 
 const (
