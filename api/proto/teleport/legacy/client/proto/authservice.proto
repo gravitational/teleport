@@ -3871,4 +3871,18 @@ service AuthService {
   // by the proxy on behalf of a cluster that wishes to join to this one as a
   // leaf cluster.
   rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
+
+  // ValidateBrowserMFAChallengeResponse ...
+  rpc ValidateBrowserMFAChallengeResponse(ValidateBrowserMFAChallengeResponseRequest) returns (ValidateBrowserMFAChallengeResponseResponse);
+}
+
+// ValidateBrowserMFAChallengeResponseRequest ...
+message ValidateBrowserMFAChallengeResponseRequest {
+  string RequestID = 1 [(gogoproto.jsontag) = "request_id,omitempty"];
+  MFAAuthenticateResponse MFAAuthenticateResponse = 2 [(gogoproto.jsontag) = "mfa_authenticate_response,omitempty"];
+}
+
+// ValidateBrowserMFAChallengeResponseResponse ...
+message ValidateBrowserMFAChallengeResponseResponse {
+  string ClientRedirectURL = 1 [(gogoproto.jsontag) = "client_redirect_url,omitempty"];
 }

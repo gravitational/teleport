@@ -5587,6 +5587,17 @@ func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id strin
 	return nil
 }
 
+func (c *Client) ValidateBrowserMFAChallengeResponse(ctx context.Context, requestID string, mfaResponse *proto.MFAAuthenticateResponse) (string, error) {
+	resp, err := c.grpc.ValidateBrowserMFAChallengeResponse(ctx, &proto.ValidateBrowserMFAChallengeResponseRequest{
+		RequestID:               requestID,
+		MFAAuthenticateResponse: mfaResponse,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.ClientRedirectURL, nil
+}
+
 // GetHeadlessAuthentication retrieves a headless authentication by id.
 func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := c.grpc.GetHeadlessAuthentication(ctx, &proto.GetHeadlessAuthenticationRequest{

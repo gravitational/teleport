@@ -311,6 +311,7 @@ const (
 	AuthService_UpdateClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/UpdateClusterMaintenanceConfig"
 	AuthService_DeleteClusterMaintenanceConfig_FullMethodName      = "/proto.AuthService/DeleteClusterMaintenanceConfig"
 	AuthService_ValidateTrustedCluster_FullMethodName              = "/proto.AuthService/ValidateTrustedCluster"
+	AuthService_ValidateBrowserMFAChallengeResponse_FullMethodName = "/proto.AuthService/ValidateBrowserMFAChallengeResponse"
 )
 
 // AuthServiceClient is the client API for AuthService service.
@@ -1074,6 +1075,8 @@ type AuthServiceClient interface {
 	// by the proxy on behalf of a cluster that wishes to join to this one as a
 	// leaf cluster.
 	ValidateTrustedCluster(ctx context.Context, in *ValidateTrustedClusterRequest, opts ...grpc.CallOption) (*ValidateTrustedClusterResponse, error)
+	// ValidateBrowserMFAChallengeResponse ...
+	ValidateBrowserMFAChallengeResponse(ctx context.Context, in *ValidateBrowserMFAChallengeResponseRequest, opts ...grpc.CallOption) (*ValidateBrowserMFAChallengeResponseResponse, error)
 }
 
 type authServiceClient struct {
@@ -3997,6 +4000,16 @@ func (c *authServiceClient) ValidateTrustedCluster(ctx context.Context, in *Vali
 	return out, nil
 }
 
+func (c *authServiceClient) ValidateBrowserMFAChallengeResponse(ctx context.Context, in *ValidateBrowserMFAChallengeResponseRequest, opts ...grpc.CallOption) (*ValidateBrowserMFAChallengeResponseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateBrowserMFAChallengeResponseResponse)
+	err := c.cc.Invoke(ctx, AuthService_ValidateBrowserMFAChallengeResponse_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthServiceServer is the server API for AuthService service.
 // All implementations should embed UnimplementedAuthServiceServer
 // for forward compatibility.
@@ -4758,6 +4771,8 @@ type AuthServiceServer interface {
 	// by the proxy on behalf of a cluster that wishes to join to this one as a
 	// leaf cluster.
 	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+	// ValidateBrowserMFAChallengeResponse ...
+	ValidateBrowserMFAChallengeResponse(context.Context, *ValidateBrowserMFAChallengeResponseRequest) (*ValidateBrowserMFAChallengeResponseResponse, error)
 }
 
 // UnimplementedAuthServiceServer should be embedded to have
@@ -5591,6 +5606,9 @@ func (UnimplementedAuthServiceServer) DeleteClusterMaintenanceConfig(context.Con
 }
 func (UnimplementedAuthServiceServer) ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateTrustedCluster not implemented")
+}
+func (UnimplementedAuthServiceServer) ValidateBrowserMFAChallengeResponse(context.Context, *ValidateBrowserMFAChallengeResponseRequest) (*ValidateBrowserMFAChallengeResponseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateBrowserMFAChallengeResponse not implemented")
 }
 func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
 
@@ -10408,6 +10426,24 @@ func _AuthService_ValidateTrustedCluster_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_ValidateBrowserMFAChallengeResponse_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateBrowserMFAChallengeResponseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ValidateBrowserMFAChallengeResponse(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ValidateBrowserMFAChallengeResponse_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ValidateBrowserMFAChallengeResponse(ctx, req.(*ValidateBrowserMFAChallengeResponseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthService_ServiceDesc is the grpc.ServiceDesc for AuthService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -11442,6 +11478,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateTrustedCluster",
 			Handler:    _AuthService_ValidateTrustedCluster_Handler,
+		},
+		{
+			MethodName: "ValidateBrowserMFAChallengeResponse",
+			Handler:    _AuthService_ValidateBrowserMFAChallengeResponse_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

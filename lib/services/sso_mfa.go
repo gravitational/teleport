@@ -40,5 +40,6 @@ type SSOMFASessionData struct {
 	// SourceCluster is the optional cluster where the authentication originated.
 	SourceCluster string `json:"source_cluster,omitempty"`
 	// TargetCluster is the optional cluster where the authentication is targeted.
-	TargetCluster string `json:"target_cluster,omitempty"`
+	TargetCluster     string `json:"target_cluster,omitempty"`
+	ClientRedirectURL string `json"client_redirect_url,omitempty"`
 }

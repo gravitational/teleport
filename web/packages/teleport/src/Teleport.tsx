@@ -22,6 +22,7 @@ import React, { Suspense, useEffect } from 'react';
 
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
+import { BrowserMFA } from 'teleport/BrowserMFA/BrowserMFA';
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
 import { Route, Router, Switch } from 'teleport/components/Router';
@@ -221,6 +222,11 @@ export function getSharedPrivateRoutes() {
       key="headlessSSO"
       path={cfg.routes.headlessSso}
       component={HeadlessRequest}
+    />,
+    <Route
+      key="browserMFA"
+      path={cfg.routes.browserMfa}
+      component={BrowserMFA}
     />,
   ];
 }

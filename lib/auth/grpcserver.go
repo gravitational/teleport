@@ -21,12 +21,14 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	goslices "slices"
 	"strconv"
@@ -144,6 +146,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -5781,6 +5784,64 @@ func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req 
 
 	err = auth.UpdateHeadlessAuthenticationState(ctx, req.Id, req.State, req.MfaResponse)
 	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+func (g *GRPCServer) ValidateBrowserMFAChallengeResponse(ctx context.Context, req *authpb.ValidateBrowserMFAChallengeResponseRequest) (*authpb.ValidateBrowserMFAChallengeResponseResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaSession, err := auth.authServer.GetSSOMFASession(ctx, req.RequestID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := auth.authServer.ValidateMFAAuthResponse(ctx, req.MFAAuthenticateResponse, auth.User.GetName(), &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := auth.authServer.UpsertSSOMFASessionWithToken(ctx, mfaSession)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	u, err := url.Parse(mfaSession.ClientRedirectURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	consoleResponse := authclient.SSHLoginResponse{
+		MFAToken: token,
+	}
+	out, err := json.Marshal(consoleResponse)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract secret out of the request.
+	secretKey := u.Query().Get("secret_key")
+	if secretKey == "" {
+		return nil, trace.BadParameter("missing secret_key")
+	}
+
+	var ciphertext []byte
+
+	// AES-GCM based symmetric cipher.
+	key, err := secret.ParseKey([]byte(secretKey))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ciphertext, err = key.Seal(out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Place ciphertext into the redirect URL.
+	u.RawQuery = url.Values{"response": {string(ciphertext)}}.Encode()
+
+	return &authpb.ValidateBrowserMFAChallengeResponseResponse{
+		ClientRedirectURL: u.String(),
+	}, nil
 }
 
 // GetHeadlessAuthentication retrieves a headless authentication.

@@ -263,6 +263,16 @@ const auth = {
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
+  browserMFA(mfa: MfaState, requestId: string) {
+    return mfa.getChallengeResponse().then((res: MfaChallengeResponse) => {
+      const request = {
+        ...res,
+      };
+
+      return api.put(cfg.getBrowserMfaPath(requestId), request);
+    });
+  },
+
   // getChallenge gets an MFA challenge for the provided parameters. If is_mfa_required_req
   // is provided and it is found that MFA is not required, returns undefined instead.
   async getMfaChallenge(

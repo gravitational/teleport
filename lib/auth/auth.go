@@ -8080,6 +8080,18 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	if res.SSO == nil && len(res.Webauthn) > 0 {
+		res.SSO = &types.MFADevice{
+			Device: &types.MFADevice_Sso{
+				Sso: &types.SSOMFADevice{
+					ConnectorId:   "webauthn",
+					ConnectorType: "webauthn",
+					DisplayName:   "webauthn",
+				},
+			},
+		}
+	}
 	return res
 }
 

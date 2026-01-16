@@ -1159,6 +1159,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
+	h.PUT("/webapi/mfa/:request_id", h.WithAuth(h.putBrowserMFA))
+
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
 	// Fetches the user's preferences

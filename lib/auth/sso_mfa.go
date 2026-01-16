@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/subtle"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,11 +71,18 @@ func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.Begin
 		}
 		chal.RequestId = resp.StateToken
 		chal.RedirectUrl = resp.RedirectURL
+	case "webauthn":
+		if err := sso.ValidateClientRedirect(params.SSOClientRedirectURL, sso.CeremonyTypeMFA, nil); err != nil {
+			return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
+		}
+
+		chal.RequestId = uuid.NewString()
+		chal.RedirectUrl = "https://root.example.com:3080/web/mfa/" + chal.RequestId
 	default:
 		return nil, trace.BadParameter("unsupported sso connector type %v", params.SSO.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, params.User, chal.RequestId, params.SSO.ConnectorId, params.SSO.ConnectorType, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster); err != nil {
+	if err := a.upsertSSOMFASession(ctx, params.User, chal.RequestId, params.SSO.ConnectorId, params.SSO.ConnectorType, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster, params.SSOClientRedirectURL); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -149,7 +158,7 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 
 // upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
 // sessionID, connector details, and challenge extensions.
-func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string) error {
+func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string, clientRedirectURL string) error {
 	data := &services.SSOMFASessionData{
 		Username:      user,
 		RequestID:     sessionID,
@@ -159,8 +168,9 @@ func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID
 			Scope:      ext.Scope,
 			AllowReuse: ext.AllowReuse,
 		},
-		SourceCluster: sourceCluster,
-		TargetCluster: targetCluster,
+		SourceCluster:     sourceCluster,
+		TargetCluster:     targetCluster,
+		ClientRedirectURL: clientRedirectURL,
 	}
 
 	if sip != nil {
