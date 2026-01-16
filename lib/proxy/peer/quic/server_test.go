@@ -19,7 +19,6 @@ package quic
 import (
 	"encoding/binary"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	quicpeeringv1a "github.com/gravitational/teleport/gen/proto/go/teleport/quicpeering/v1alpha"
+	"github.com/gravitational/teleport/lib/utils/testutils/synctest"
 )
 
 func TestDialResponseOKEncoding(t *testing.T) {
