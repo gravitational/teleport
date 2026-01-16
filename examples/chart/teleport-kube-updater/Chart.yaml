@@ -1,0 +1,15 @@
+.version: &version "19.0.0-dev"
+
+name: teleport-kube-updater
+apiVersion: v2
+version: *version
+appVersion: *version
+type: library
+description: |
+  Library chart containing all the templates to deploy a Teleport updater.
+  IMPORTANT: this chart is not meant for public consumption, stability and versioning guarantees do not apply here.
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport
+  - updater
+  - library
