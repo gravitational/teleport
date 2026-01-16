@@ -84,6 +84,7 @@ jobs:
           role-session-name: gha-ci-test-artifacts-${{ github.event.repository.name }}-${{ github.run_number }}
           role-duration-seconds: 900 # Minimum by policy, we don't need it to be that high.
 
+
       - name: Normalize test results and push to s3
         uses: gravitational/shared-workflows/tools/ci-normalize@6d1b5ba214e5b4ee7827a9608d50c50111c7a8e6
         if: always()
