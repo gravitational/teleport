@@ -10,9 +10,9 @@ Group=llamas
 Restart=always
 RestartSec=5
 Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml --pid-file=/run/fake/pid.pid
+ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml --pid-file=/run/my-farm-bot.pid
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/fake/pid.pid
+PIDFile=/run/my-farm-bot.pid
 LimitNOFILE=524288
 
 [Install]
