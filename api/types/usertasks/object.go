@@ -19,6 +19,7 @@
 package usertasks
 
 import (
+	"bytes"
 	"encoding/binary"
 	"slices"
 	"strconv"
@@ -130,6 +131,47 @@ func NewDiscoverRDSUserTask(spec *usertasksv1.UserTaskSpec, opts ...UserTaskOpti
 	return ut, nil
 }
 
+// TaskGroup is the minimal grouping of tasks: each task is expected to have issue type and integration set.
+type TaskGroup struct {
+	// Integration is integration name.
+	Integration string
+	// IssueType is one of recognized issue types.
+	IssueType string
+}
+
+// NewDiscoverAzureVMUserTask creates a new Discover Azure VM User Task..
+func NewDiscoverAzureVMUserTask(tg TaskGroup, expiryTime time.Time, data *usertasksv1.DiscoverAzureVM) (*usertasksv1.UserTask, error) {
+	taskName := taskNameForDiscoverAzureVM(tg, taskNameForDiscoverAzureVMParts{
+		SubscriptionID: data.GetSubscriptionId(),
+		ResourceGroup:  data.GetResourceGroup(),
+		Region:         data.GetRegion(),
+	})
+
+	ut := &usertasksv1.UserTask{
+		Kind:    types.KindUserTask,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name:    taskName,
+			Expires: timestamppb.New(expiryTime),
+		},
+		Spec: &usertasksv1.UserTaskSpec{
+			State:    TaskStateOpen,
+			TaskType: TaskTypeDiscoverAzureVM,
+
+			Integration: tg.Integration,
+			IssueType:   tg.IssueType,
+
+			DiscoverAzureVm: data,
+		},
+	}
+
+	if err := ValidateUserTask(ut); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ut, nil
+}
+
 const (
 	// TaskStateOpen identifies an issue with an instance that is not yet resolved.
 	TaskStateOpen = "OPEN"
@@ -154,6 +196,11 @@ const (
 	// when an auto-enrollment of an RDS database fails or needs attention.
 	// UserTasks that have this Task Type must include the DiscoverRDS field.
 	TaskTypeDiscoverRDS = "discover-rds"
+
+	// TaskTypeDiscoverAzureVM identifies a User Tasks that is created
+	// when an auto-enrollment of an Azure VM fails.
+	// UserTasks that have this Task Type must include the DiscoverAzureVM field.
+	TaskTypeDiscoverAzureVM = "discover-azure-vm"
 )
 
 // List of Auto Discover EC2 issues identifiers.
@@ -243,6 +290,34 @@ var DiscoverRDSIssueTypes = []string{
 	AutoDiscoverRDSIssueIAMAuthenticationDisabled,
 }
 
+// List of Auto Discover Azure VM issues identifiers.
+// This value is used to populate the UserTasks.Spec.IssueType for Discover Azure VM tasks.
+const (
+	// AutoDiscoverAzureVMIssueMissingRunCommandsPermission is used to identify VMs that failed to auto-enroll
+	// because the Azure integration is missing runCommands permissions (runCommands/write or runCommands/read).
+	AutoDiscoverAzureVMIssueMissingRunCommandsPermission = "azure-vm-missing-run-commands-permission"
+
+	// AutoDiscoverAzureVMIssueVMNotRunning is used to identify VMs that failed to auto-enroll
+	// because the VM is deallocated or stopped.
+	AutoDiscoverAzureVMIssueVMNotRunning = "azure-vm-not-running"
+
+	// AutoDiscoverAzureVMIssueVMAgentNotAvailable is used to identify VMs that failed to auto-enroll
+	// because the Azure VM agent is not running or not available.
+	AutoDiscoverAzureVMIssueVMAgentNotAvailable = "azure-vm-agent-not-available"
+
+	// AutoDiscoverAzureVMIssueEnrollmentError is a generic issue type for errors during VM enrollment
+	// when no more specific cause could be determined.
+	AutoDiscoverAzureVMIssueEnrollmentError = "azure-vm-enrollment-error"
+)
+
+// DiscoverAzureVMIssueTypes is a list of issue types that can occur when trying to auto enroll Azure VMs.
+var DiscoverAzureVMIssueTypes = []string{
+	AutoDiscoverAzureVMIssueMissingRunCommandsPermission,
+	AutoDiscoverAzureVMIssueVMNotRunning,
+	AutoDiscoverAzureVMIssueVMAgentNotAvailable,
+	AutoDiscoverAzureVMIssueEnrollmentError,
+}
+
 // ValidateUserTask validates the UserTask object without modifying it.
 func ValidateUserTask(ut *usertasksv1.UserTask) error {
 	switch {
@@ -273,6 +348,10 @@ func ValidateUserTask(ut *usertasksv1.UserTask) error {
 		}
 	case TaskTypeDiscoverRDS:
 		if err := validateDiscoverRDSTaskType(ut); err != nil {
+			return trace.Wrap(err)
+		}
+	case TaskTypeDiscoverAzureVM:
+		if err := validateDiscoverAzureVMTaskType(ut); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -450,6 +529,68 @@ func validateDiscoverRDSTaskType(ut *usertasksv1.UserTask) error {
 	return nil
 }
 
+func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
+	if ut.GetSpec().Integration == "" {
+		return trace.BadParameter("integration is required")
+	}
+	if ut.GetSpec().GetDiscoverAzureVm() == nil {
+		return trace.BadParameter("%s requires the discover_azure_vm field", TaskTypeDiscoverAzureVM)
+	}
+	if ut.GetSpec().GetDiscoverAzureVm().SubscriptionId == "" {
+		return trace.BadParameter("%s requires the discover_azure_vm.subscription_id field", TaskTypeDiscoverAzureVM)
+	}
+	if ut.GetSpec().GetDiscoverAzureVm().ResourceGroup == "" {
+		return trace.BadParameter("%s requires the discover_azure_vm.resource_group field", TaskTypeDiscoverAzureVM)
+	}
+	if ut.GetSpec().GetDiscoverAzureVm().Region == "" {
+		return trace.BadParameter("%s requires the discover_azure_vm.region field", TaskTypeDiscoverAzureVM)
+	}
+
+	expectedTaskName := taskNameForDiscoverAzureVM(
+		TaskGroup{
+			Integration: ut.GetSpec().Integration,
+			IssueType:   ut.GetSpec().IssueType,
+		},
+		taskNameForDiscoverAzureVMParts{
+			SubscriptionID: ut.GetSpec().GetDiscoverAzureVm().SubscriptionId,
+			ResourceGroup:  ut.GetSpec().GetDiscoverAzureVm().ResourceGroup,
+			Region:         ut.GetSpec().GetDiscoverAzureVm().Region,
+		})
+	if ut.GetMetadata().GetName() != expectedTaskName {
+		return trace.BadParameter("task name is pre-defined for discover-azure-vm types, expected %s, got %s",
+			expectedTaskName,
+			ut.Metadata.GetName(),
+		)
+	}
+
+	if !slices.Contains(DiscoverAzureVMIssueTypes, ut.GetSpec().GetIssueType()) {
+		return trace.BadParameter("invalid issue type state %q, allowed values: %v", ut.GetSpec().GetIssueType(), DiscoverAzureVMIssueTypes)
+	}
+
+	if len(ut.GetSpec().GetDiscoverAzureVm().GetInstances()) == 0 {
+		return trace.BadParameter("at least one instance is required")
+	}
+	for vmID, vmIssue := range ut.GetSpec().GetDiscoverAzureVm().GetInstances() {
+		if vmID == "" {
+			return trace.BadParameter("vm id in discover_azure_vm.instances map is required")
+		}
+		if vmIssue.VmId == "" {
+			return trace.BadParameter("vm id in discover_azure_vm.instances field is required")
+		}
+		if vmID != vmIssue.VmId {
+			return trace.BadParameter("vm id in discover_azure_vm.instances map and field are different")
+		}
+		if vmIssue.DiscoveryConfig == "" {
+			return trace.BadParameter("discovery config in discover_azure_vm.instances field is required")
+		}
+		if vmIssue.DiscoveryGroup == "" {
+			return trace.BadParameter("discovery group in discover_azure_vm.instances field is required")
+		}
+	}
+
+	return nil
+}
+
 // TaskNameForDiscoverEC2Parts are the fields that deterministically compute a Discover EC2 task name.
 // To be used with TaskNameForDiscoverEC2 function.
 type TaskNameForDiscoverEC2Parts struct {
@@ -540,3 +681,34 @@ func TaskNameForDiscoverRDS(parts TaskNameForDiscoverRDSParts) string {
 
 // discoverRDSNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverRDS User Task names.
 var discoverRDSNamespace = uuid.NewSHA1(uuid.Nil, []byte("discover-rds"))
+
+// taskNameForDiscoverAzureVMParts are the fields that deterministically compute a Discover Azure VM task name.
+// To be used with TaskNameForDiscoverAzureVM function.
+type taskNameForDiscoverAzureVMParts struct {
+	SubscriptionID string
+	ResourceGroup  string
+	Region         string
+}
+
+// taskNameForDiscoverAzureVM returns a deterministic name for the DiscoverAzureVM task type.
+// This method is used to ensure a single UserTask is created to report issues in enrolling Azure VMs for a given integration, issue type, subscription id, resource group and region.
+func taskNameForDiscoverAzureVM(tg TaskGroup, parts taskNameForDiscoverAzureVMParts) string {
+	return taskNameFromParts(discoverAzureVMNamespace,
+		tg.Integration, tg.IssueType,
+		parts.SubscriptionID, parts.ResourceGroup, parts.Region,
+	)
+}
+
+func taskNameFromParts(namespace uuid.UUID, parts ...string) string {
+	var buf bytes.Buffer
+
+	for _, part := range parts {
+		_ = binary.Write(&buf, binary.LittleEndian, uint64(len(part)))
+		buf.WriteString(part)
+	}
+
+	return uuid.NewSHA1(namespace, buf.Bytes()).String()
+}
+
+// discoverAzureVMNamespace is an UUID that represents the name space to be used for generating UUIDs for DiscoverAzureVM User Task names.
+var discoverAzureVMNamespace = uuid.NewSHA1(uuid.Nil, []byte("discover-azure-vm"))

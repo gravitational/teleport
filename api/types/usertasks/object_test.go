@@ -108,6 +108,32 @@ func TestValidateUserTask(t *testing.T) {
 		return userTask
 	}
 
+	exampleVMID := "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
+	baseAzureVMDiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
+		userTask, err := usertasks.NewDiscoverAzureVMUserTask(
+			usertasks.TaskGroup{
+				Integration: "my-integration",
+				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+			},
+			time.Now().Add(24*time.Hour),
+			&usertasksv1.DiscoverAzureVM{
+				SubscriptionId: "sub-123",
+				ResourceGroup:  "my-rg",
+				Region:         "eastus",
+				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
+					exampleVMID: {
+						VmId:            exampleVMID,
+						DiscoveryConfig: "dc01",
+						DiscoveryGroup:  "dg01",
+						SyncTime:        timestamppb.Now(),
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+		return userTask
+	}
+
 	tests := []struct {
 		name    string
 		task    func(t *testing.T) *usertasksv1.UserTask
@@ -477,6 +503,128 @@ func TestValidateUserTask(t *testing.T) {
 			},
 			wantErr: require.Error,
 		},
+		{
+			name:    "DiscoverAzureVM: valid",
+			task:    baseAzureVMDiscoverTask,
+			wantErr: require.NoError,
+		},
+		{
+			name: "DiscoverAzureVM: invalid issue type",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Spec.IssueType = "unknown error"
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: missing integration",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Spec.Integration = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: missing discover azure vm field",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Spec.DiscoverAzureVm = nil
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: wrong task name",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Metadata.Name = "another-name"
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: missing subscription id",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Spec.DiscoverAzureVm.SubscriptionId = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: missing resource group",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Spec.DiscoverAzureVm.ResourceGroup = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: missing region",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				ut.Spec.DiscoverAzureVm.Region = ""
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: instances - missing vm id in map key",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				origVMMetadata := ut.Spec.DiscoverAzureVm.Instances[exampleVMID]
+				ut.Spec.DiscoverAzureVm.Instances[""] = origVMMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: instances - missing vm id in instance metadata",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				origVMMetadata := ut.Spec.DiscoverAzureVm.Instances[exampleVMID]
+				origVMMetadata.VmId = ""
+				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: instances - different vm id",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				origVMMetadata := ut.Spec.DiscoverAzureVm.Instances[exampleVMID]
+				origVMMetadata.VmId = "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/other-vm"
+				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: instances - missing discovery config",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				origVMMetadata := ut.Spec.DiscoverAzureVm.Instances[exampleVMID]
+				origVMMetadata.DiscoveryConfig = ""
+				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "DiscoverAzureVM: instances - missing discovery group",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMDiscoverTask(t)
+				origVMMetadata := ut.Spec.DiscoverAzureVm.Instances[exampleVMID]
+				origVMMetadata.DiscoveryGroup = ""
+				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
+				return ut
+			},
+			wantErr: require.Error,
+		},
 	}
 
 	for _, tt := range tests {
@@ -660,6 +808,73 @@ func TestNewDiscoverRDSUserTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gotTask, err := usertasks.NewDiscoverRDSUserTask(tt.taskSpec, tt.taskOption...)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedTask, gotTask)
+		})
+	}
+}
+
+func TestNewDiscoverAzureVMUserTask(t *testing.T) {
+	t.Parallel()
+
+	userTaskExpirationTime := time.Now()
+	userTaskExpirationTimestamp := timestamppb.New(userTaskExpirationTime)
+	vmSyncTimestamp := userTaskExpirationTimestamp
+
+	exampleVMID := "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
+
+	baseAzureVMDiscoverData := &usertasksv1.DiscoverAzureVM{
+		SubscriptionId: "sub-123",
+		ResourceGroup:  "my-rg",
+		Region:         "eastus",
+		Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
+			exampleVMID: {
+				VmId:            exampleVMID,
+				DiscoveryConfig: "dc01",
+				DiscoveryGroup:  "dg01",
+				SyncTime:        vmSyncTimestamp,
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		taskGroup    usertasks.TaskGroup
+		expiryTime   time.Time
+		data         *usertasksv1.DiscoverAzureVM
+		expectedTask *usertasksv1.UserTask
+	}{
+		{
+			name: "valid task created",
+			taskGroup: usertasks.TaskGroup{
+				Integration: "my-integration",
+				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+			},
+			expiryTime: userTaskExpirationTime,
+			data:       baseAzureVMDiscoverData,
+			expectedTask: &usertasksv1.UserTask{
+				Kind:    "user_task",
+				Version: "v1",
+				Metadata: &headerv1.Metadata{
+					Name:    "d3672afc-63f5-5d8a-bf63-2a2f81d6fa61",
+					Expires: userTaskExpirationTimestamp,
+				},
+				Spec: &usertasksv1.UserTaskSpec{
+					State:    "OPEN",
+					TaskType: "discover-azure-vm",
+
+					Integration: "my-integration",
+					IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+
+					DiscoverAzureVm: baseAzureVMDiscoverData,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotTask, err := usertasks.NewDiscoverAzureVMUserTask(tt.taskGroup, tt.expiryTime, tt.data)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedTask, gotTask)
 		})
