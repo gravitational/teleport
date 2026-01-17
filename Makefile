@@ -131,6 +131,7 @@ CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_windows_amd64 := x86_64-pc-windows-gnu
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 CARGO_WASM_TARGET := wasm32-unknown-unknown

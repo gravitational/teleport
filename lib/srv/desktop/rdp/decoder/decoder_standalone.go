@@ -28,5 +28,8 @@ package decoder
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
 #cgo darwin LDFLAGS: -lrdp_decoder
+
+#cgo windows,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-pc-windows-gnu/release
+#cgo windows LDFLAGS: -lrdp_decoder
 */
 import "C"
