@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-dev.zac.1"
+const Version = "19.0.0-dev.zac.2"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "dev.zac.1"
+const VersionPreRelease = "dev.zac.2"
 const VersionMetadata = ""
