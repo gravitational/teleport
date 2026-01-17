@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/hex"
 	"slices"
 	"time"
 
@@ -327,9 +328,9 @@ func validateImmutableLabels(spec *joiningv1.ScopedTokenSpec) error {
 }
 
 // HashImmutableLabels returns a deterministic hash of the given [*joiningv1.ImmutableLabels].
-func HashImmutableLabels(labels *joiningv1.ImmutableLabels) []byte {
+func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 	if labels == nil {
-		return nil
+		return ""
 	}
 
 	hash := sha256.New()
@@ -348,12 +349,12 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) []byte {
 		}
 	}
 
-	return hash.Sum(nil)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // VerifyImmutableLabelsHash returns whether or not the given [*joiningv1.ImmutableLabels]
 // matches the given hash.
-func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash []byte) bool {
+func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash string) bool {
 	newHash := HashImmutableLabels(labels)
-	return slices.Equal(newHash, hash)
+	return newHash == hash
 }
