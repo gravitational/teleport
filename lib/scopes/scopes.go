@@ -258,7 +258,25 @@ func DescendingSegments(scope string) iter.Seq[string] {
 	if scope == "" || scope == separator {
 		return func(yield func(string) bool) {}
 	}
-	return strings.SplitSeq(strings.TrimSuffix(strings.TrimPrefix(scope, "/"), "/"), "/")
+	return strings.SplitSeq(trimForSplit(scope), separator)
+}
+
+// Split splits the scope into its component segments and returns them as a slice.
+// e.g. `Split("/a/b/c")` will return `[]string{"a", "b", "c"}`. `Split("/")` will return
+// an empty slice.
+//
+// Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func Split(scope string) []string {
+	if scope == "" || scope == separator {
+		return nil
+	}
+
+	return strings.Split(trimForSplit(scope), separator)
+}
+
+func trimForSplit(scope string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(scope, separator), separator)
 }
 
 // DescendingScopes produces an iterator over the canonical representations of the parents of
@@ -290,6 +308,35 @@ func DescendingScopes(scope string) iter.Seq[string] {
 			}
 		}
 	}
+}
+
+// AscendingScopes produces an iterator over the canonical representations of a scope and its
+// parents in ascending order, starting with the canonical representation of the scope itself
+// and ending with the canonical representation of the root scope.
+// e.g. `AscendingScopes("/a/b/c")` will result in an iterator that returns `/a/b/c`, `/a/b`, `/a`, and `/` in that order.
+// // Note that this function does not perform validation and is deliberately more relaxed about
+// its inputs than our validation functions allow.
+func AscendingScopes(scope string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if scope == "" {
+			return
+		}
+
+		segments := make([]string, 0, strings.Count(scope, separator))
+
+		// iterate over the segments in descending order, building the scope as we go
+		for segment := range DescendingSegments(scope) {
+			segments = append(segments, segment)
+		}
+
+		// now yield the scopes in ascending order
+		for i := len(segments); i >= 0; i-- {
+			if !yield(Join(segments[:i]...)) {
+				return
+			}
+		}
+	}
+
 }
 
 // Join joins the given segments into a single scope string. Note that this function

@@ -282,3 +282,299 @@ func TestAssignmentsForResourceScope(t *testing.T) {
 		})
 	}
 }
+
+// TestDescendAssignmentTree verifies the expected behavior of the DescendAssignmentTree helper. In particular, this test
+// is used to validate the fact that the DescendAssignmentTree function yields the correct role assignments in the correct
+// order for access-control decisions.
+func TestDescendAssignmentTree(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		pin    *scopesv1.Pin
+		scope  string
+		ok     bool
+		expect []RoleAssignment
+	}{
+		{
+			name: "single-role",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/foo": {
+						"/foo": {"r1"},
+					},
+				}),
+			},
+			scope: "/foo",
+			ok:    true,
+			expect: []RoleAssignment{
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "r1",
+				},
+			},
+		},
+		{
+			name: "hierarchical multi",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {
+						"/": {"r1"},
+					},
+					"/foo": {
+						"/foo": {"r2"},
+					},
+					"/foo/bar": {
+						"/foo/bar": {"r3"},
+					},
+				}),
+			},
+			scope: "/foo",
+			ok:    true,
+			expect: []RoleAssignment{
+				{
+					ScopeOfOrigin: "/",
+					ScopeOfEffect: "/",
+					RoleName:      "r1",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "r2",
+				},
+			},
+		},
+		{
+			name: "single scope multi",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {
+						"/":        {"r1"},
+						"/foo":     {"r2"},
+						"/foo/bar": {"r3"},
+					},
+				}),
+			},
+			scope: "/foo",
+			ok:    true,
+			expect: []RoleAssignment{
+				{
+					ScopeOfOrigin: "/",
+					ScopeOfEffect: "/foo",
+					RoleName:      "r2",
+				},
+				{
+					ScopeOfOrigin: "/",
+					ScopeOfEffect: "/",
+					RoleName:      "r1",
+				},
+			},
+		},
+		{
+			name: "partially orthogonal",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {
+						"/": {"r1"},
+					},
+					"/foo/bar": {
+						"/foo/bar": {"r2"},
+					},
+					"/foo/baz": {
+						"/foo/baz": {"r3"},
+					},
+				}),
+			},
+			scope: "/foo/bar",
+			ok:    true,
+			expect: []RoleAssignment{
+				{
+					ScopeOfOrigin: "/",
+					ScopeOfEffect: "/",
+					RoleName:      "r1",
+				},
+				{
+					ScopeOfOrigin: "/foo/bar",
+					ScopeOfEffect: "/foo/bar",
+					RoleName:      "r2",
+				},
+			},
+		},
+		{
+			name: "fully orthogonal",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/foo/bar": {
+						"/foo/bar": {"r1"},
+					},
+				}),
+			},
+			scope:  "/foo/baz",
+			ok:     true,
+			expect: nil,
+		},
+		{
+			name: "equivalent scoping",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/foo": {
+						"/foo": {"b", "c", "a", "x", "q"},
+					},
+				}),
+			},
+			scope: "/foo",
+			ok:    true,
+			expect: []RoleAssignment{
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "a",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "b",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "c",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "q",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "x",
+				},
+			},
+		},
+		{
+			name: "comprehensive",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {
+						"/":        {"rr1"},
+						"/foo/bar": {"rr2"},
+					},
+					"/foo": {
+						"/foo":         {"rf1"},
+						"/foo/bar":     {"rf3", "rf2"},
+						"/foo/bar/baz": {"rf4"},
+					},
+					"/foo/bar": {
+						"/foo/bar":     {"rb1"},
+						"/foo/bar/baz": {"rb2"},
+					},
+				}),
+			},
+			scope: "/foo/bar",
+			ok:    true,
+			expect: []RoleAssignment{
+				{
+					ScopeOfOrigin: "/",
+					ScopeOfEffect: "/foo/bar",
+					RoleName:      "rr2",
+				},
+				{
+					ScopeOfOrigin: "/",
+					ScopeOfEffect: "/",
+					RoleName:      "rr1",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo/bar",
+					RoleName:      "rf2",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo/bar",
+					RoleName:      "rf3",
+				},
+				{
+					ScopeOfOrigin: "/foo",
+					ScopeOfEffect: "/foo",
+					RoleName:      "rf1",
+				},
+				{
+					ScopeOfOrigin: "/foo/bar",
+					ScopeOfEffect: "/foo/bar",
+					RoleName:      "rb1",
+				},
+			},
+		},
+		{
+			name: "no assignments for scope",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/foo/bar": {
+						"/foo/bar": {"r1"},
+					},
+				}),
+			},
+			scope:  "/foo",
+			ok:     true,
+			expect: nil,
+		},
+		{
+			name: "orthogonal resource scope",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {
+						"/":    {"r1"},
+						"/foo": {"r2"},
+					},
+				}),
+			},
+			scope: "/bar",
+			ok:    false,
+		},
+		{
+			name: "parent resource scope",
+			pin: &scopesv1.Pin{
+				Scope: "/foo",
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {
+						"/":    {"r1"},
+						"/foo": {"r2"},
+					},
+				}),
+			},
+			scope: "/",
+			ok:    false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			// descend assignment tree
+			assignments, err := DescendAssignmentTree(tt.pin, tt.scope)
+			if tt.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				return
+			}
+
+			var gotAssignments []RoleAssignment
+			for assignment := range assignments {
+				gotAssignments = append(gotAssignments, assignment)
+			}
+
+			require.Equal(t, tt.expect, gotAssignments)
+		})
+	}
+}
