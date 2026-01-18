@@ -425,8 +425,9 @@ function Build-Tsh {
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
+        cargo build -p rdp-decoder --release --locked
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags "piv rust_rdp_decoder" -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
