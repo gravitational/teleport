@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -1145,7 +1146,7 @@ func getDatabaseServers(ctx context.Context, tc *client.TeleportClient, name str
 		matchName := makeNamePredicate(name)
 
 		var err error
-		predicate := makePredicateConjunction(matchName, tc.PredicateExpression)
+		predicate := common.MakePredicateConjunction(matchName, tc.PredicateExpression)
 		logger.DebugContext(ctx, "Listing databases with predicate and labels", "predicate", predicate, "labels", tc.Labels)
 
 		databases, err = tc.ListDatabaseServersWithFilters(ctx, &proto.ListResourcesRequest{
@@ -1208,7 +1209,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 	var databases []types.Database
 	err := client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
-		predicate := makePredicateConjunction(predicate, tc.PredicateExpression)
+		predicate := common.MakePredicateConjunction(predicate, tc.PredicateExpression)
 		logger.DebugContext(ctx, "Listing databases with predicate and labels", "predicate", predicate, "labels", tc.Labels)
 		databases, err = tc.ListDatabases(ctx, &proto.ListResourcesRequest{
 			Namespace:           apidefaults.Namespace,
@@ -1225,7 +1226,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 func makeDiscoveredNameOrNamePredicate(name string) string {
 	matchName := makeNamePredicate(name)
 	matchDiscoveredName := makeDiscoveredNamePredicate(name)
-	return makePredicateDisjunction(matchName, matchDiscoveredName)
+	return common.MakePredicateDisjunction(matchName, matchDiscoveredName)
 }
 
 func makeDiscoveredNamePredicate(name string) string {
@@ -1242,35 +1243,6 @@ func makeNamePredicate(name string) string {
 		return ""
 	}
 	return fmt.Sprintf(`name == %q`, name)
-}
-
-// makePredicateConjunction combines two predicate expressions into one
-// expression as a conjunction (logical AND) of the expressions.
-func makePredicateConjunction(a, b string) string {
-	return combinePredicateExpressions(a, b, "&&")
-}
-
-// makePredicateDisjunction combines two predicate expressions into one
-// expression as a disjunction (logical OR) of the expressions.
-func makePredicateDisjunction(a, b string) string {
-	return combinePredicateExpressions(a, b, "||")
-}
-
-// combinePredicateExpressions combines two predicate expressions into one
-// expression with the given operator.
-func combinePredicateExpressions(a, b, op string) string {
-	a = strings.TrimSpace(a)
-	b = strings.TrimSpace(b)
-	switch {
-	case a == "":
-		return b
-	case b == "":
-		return a
-	case a == b:
-		return a
-	default:
-		return fmt.Sprintf("(%v) %v (%v)", a, op, b)
-	}
 }
 
 // getDefaultDBUser enumerates the allowed database users for a given database

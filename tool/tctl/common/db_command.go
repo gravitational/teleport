@@ -20,7 +20,9 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"text/template"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -36,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -50,9 +53,7 @@ type DBCommand struct {
 	searchKeywords string
 	predicateExpr  string
 	labels         string
-
-	listUnregistered bool
-	listRegistered   bool
+	filterByStatus string
 
 	// verbose sets whether full table output should be shown for labels
 	verbose bool
@@ -72,8 +73,22 @@ func (c *DBCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFla
 	c.dbList.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.dbList.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.dbList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
-	c.dbList.Flag("unregistered", "List unregistered databases. Unregistered databases are dynamic database resources that have not been registered by any database services.").BoolVar(&c.listUnregistered)
-	c.dbList.Flag("registered", "List registered databases. Defaults to true.").Default("true").BoolVar(&c.listRegistered)
+
+	statusFlagDescription := fmt.Sprintf("If specified, list only databases with a specific status (%s).", strings.Join(dbStatuses, ", "))
+	c.dbList.Flag("status", statusFlagDescription).EnumVar(&c.filterByStatus, dbStatuses...)
+	c.dbList.Alias(`
+Examples:
+  Search databases with keywords:
+  $ tctl db ls --search foo,bar
+
+  Filter databases with labels:
+  $ tctl db ls key1=value1,key2=value2
+
+  Find databases that failed health check
+  $ tctl db ls --status unhealthy
+
+  Find dynamic database resources that are not claimed by any database service
+  $ tctl db ls --status unclaimed`)
 }
 
 // TryRun attempts to run subcommands like "db ls".
@@ -95,16 +110,23 @@ func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncli
 	return true, trace.Wrap(err)
 }
 
-func (c *DBCommand) listDatabases(ctx context.Context, clt authclient.ClientI) ([]types.DatabaseServer, error) {
+func (c *DBCommand) listClaimedDatabases(ctx context.Context, clt authclient.ClientI) ([]types.DatabaseServer, error) {
 	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	registered, err := client.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
+	// Add extra status filter if necessary.
+	predicateExpr := c.predicateExpr
+	if c.filterByStatus != "" && c.filterByStatus != dbStatusUnclaimed {
+		statusFilterExpr := fmt.Sprintf("health.status == \"%s\"", c.filterByStatus)
+		predicateExpr = common.MakePredicateConjunction(predicateExpr, statusFilterExpr)
+	}
+
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindDatabaseServer,
 		Labels:              labels,
-		PredicateExpression: c.predicateExpr,
+		PredicateExpression: predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	if err != nil {
@@ -113,52 +135,13 @@ func (c *DBCommand) listDatabases(ctx context.Context, clt authclient.ClientI) (
 		}
 		return nil, trace.Wrap(err)
 	}
+	return servers, nil
+}
 
-	unregistered, err := c.findUnregisteredDatabases(ctx, clt, registered, labels)
+func (c *DBCommand) listUnclaimedDatabases(ctx context.Context, clt services.DatabaseGetter, claimedDBs []types.DatabaseServer) ([]types.DatabaseServer, error) {
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	switch {
-	case c.listUnregistered && c.listRegistered:
-		return append(unregistered, registered...), nil
-	case c.listUnregistered && !c.listRegistered:
-		return unregistered, nil
-	case !c.listUnregistered && c.listRegistered:
-		return registered, nil
-	default:
-		return nil, trace.BadParameter("no database to list. Please ensure at least one of --registered or --unregistered is set.")
-	}
-}
-
-// ListDatabases prints the list of database proxies that have recently sent
-// heartbeats to the cluster.
-func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) error {
-	servers, err := c.listDatabases(ctx, clt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	coll := &databaseServerCollection{servers: servers}
-	switch c.format {
-	case teleport.Text:
-		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
-	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
-	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
-	default:
-		return trace.BadParameter("unknown format %q", c.format)
-	}
-}
-
-func (c *DBCommand) findUnregisteredDatabases(
-	ctx context.Context,
-	clt services.DatabaseGetter,
-	registeredDBs []types.DatabaseServer,
-	labels map[string]string,
-) ([]types.DatabaseServer, error) {
-	if !c.listUnregistered {
-		return nil, nil
 	}
 
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
@@ -179,14 +162,14 @@ func (c *DBCommand) findUnregisteredDatabases(
 		return nil, trace.Wrap(err)
 	}
 
-	registeredDBNames := make(map[string]struct{}, len(registeredDBs))
-	for name := range types.ResourceNames(registeredDBs) {
-		registeredDBNames[name] = struct{}{}
+	claimedDBNames := make(map[string]struct{}, len(claimedDBs))
+	for name := range types.ResourceNames(claimedDBs) {
+		claimedDBNames[name] = struct{}{}
 	}
 
-	var unregistered []types.DatabaseServer
+	var unclaimed []types.DatabaseServer
 	for _, db := range allDBs {
-		if _, registered := registeredDBNames[db.GetName()]; registered {
+		if _, claimed := claimedDBNames[db.GetName()]; claimed {
 			continue
 		}
 		if match, err := services.MatchResourceByFilters(db, filter, nil); err != nil {
@@ -195,29 +178,105 @@ func (c *DBCommand) findUnregisteredDatabases(
 			continue
 		}
 
-		dbServer, err := toUnregisteredDBServer(db)
+		dbServer, err := toUnclaimedDatabaseServer(db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		unregistered = append(unregistered, dbServer)
+		unclaimed = append(unclaimed, dbServer)
 	}
-	return unregistered, nil
+	return unclaimed, nil
 }
 
-func toUnregisteredDBServer(db types.Database) (types.DatabaseServer, error) {
+func (c *DBCommand) listDatabases(ctx context.Context, clt authclient.ClientI) ([]types.DatabaseServer, error) {
+	claimed, err := c.listClaimedDatabases(ctx, clt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch c.filterByStatus {
+	case "":
+		unclaimed, err := c.listUnclaimedDatabases(ctx, clt, claimed)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return append(unclaimed, claimed...), nil
+
+	case dbStatusUnclaimed:
+		return c.listUnclaimedDatabases(ctx, clt, claimed)
+
+	default:
+		return claimed, nil
+	}
+}
+
+// ListDatabases prints the list of database proxies that have recently sent
+// heartbeats to the cluster.
+func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) error {
+	servers, err := c.listDatabases(ctx, clt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	coll := &databaseServerCollection{
+		servers:             servers,
+		allowStatusFootnote: c.filterByStatus == "",
+	}
+	switch c.format {
+	case teleport.Text:
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
+	case teleport.JSON:
+		return trace.Wrap(coll.writeJSON(os.Stdout))
+	case teleport.YAML:
+		return trace.Wrap(coll.writeYAML(os.Stdout))
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
+	}
+}
+
+func toUnclaimedDatabaseServer(db types.Database) (types.DatabaseServer, error) {
 	dbV3, ok := db.(*types.DatabaseV3)
 	if !ok {
 		return nil, trace.BadParameter("expected types.DatabaseV3 but got %T", db)
 	}
-	return types.NewDatabaseServerV3(
+	dbServer, err := types.NewDatabaseServerV3(
 		types.Metadata{
 			Name: db.GetName(),
 		}, types.DatabaseServerSpecV3{
-			Version:  "<n/a>",
-			Hostname: "<unregistered>",
-			HostID:   "<n/a>",
+			Hostname: "placeholder",
+			HostID:   "placeholder",
 			Database: dbV3,
 		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbServer.Spec.Hostname = ""
+	dbServer.Spec.HostID = ""
+	dbServer.Spec.Version = ""
+	dbServer.SetTargetHealthStatus(dbStatusUnclaimed)
+	return dbServer, nil
+}
+
+const (
+	// dbStatusUnclaimed represents a database status for dynamic database
+	// resources that are not claimed by any database service. note that this is
+	// not an "official" target health status but a special status just used for
+	// "tctl db ls".
+	dbStatusUnclaimed = "unclaimed"
+)
+
+var dbStatuses = []string{
+	string(types.TargetHealthStatusHealthy),
+	string(types.TargetHealthStatusUnhealthy),
+	string(types.TargetHealthStatusUnknown),
+	dbStatusUnclaimed,
+}
+
+func maybeAddDBStatusFilter(predicateExpr, filterByStatus string) string {
+	statusFilterExpr := ""
+	if filterByStatus != "" && filterByStatus != dbStatusUnclaimed {
+		statusFilterExpr = "health.status == \"%s\""
+	}
+	return common.MakePredicateConjunction(predicateExpr, statusFilterExpr)
 }
 
 var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}

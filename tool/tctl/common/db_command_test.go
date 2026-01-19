@@ -77,14 +77,14 @@ func TestDBCommand_listDatabases(t *testing.T) {
 	db3 := mustCreateNewDatabase(t, "db3", "mysql", "localhost:5432", map[string]string{"env": "prod"})
 	db4 := mustCreateNewDatabase(t, "db4", "postgres", "localhost:5432", map[string]string{"env": "dev"})
 
-	db1Server1 := mustCreateDatabaseServerFromDB(t, db1, "server1")
-	db1Server2 := mustCreateDatabaseServerFromDB(t, db1, "server2")
-	db2Server1 := mustCreateDatabaseServerFromDB(t, db2, "server1")
+	db1Server1 := mustCreateDatabaseServerFromDB(t, db1, "server1", types.TargetHealthStatusHealthy)
+	db1Server2 := mustCreateDatabaseServerFromDB(t, db1, "server2", types.TargetHealthStatusUnhealthy)
+	db2Server1 := mustCreateDatabaseServerFromDB(t, db2, "server1", types.TargetHealthStatusUnhealthy)
 
 	// These don't exist in backend but used for validating output.
-	db3Server, err := toUnregisteredDBServer(db3)
+	db3Server, err := toUnclaimedDatabaseServer(db3)
 	require.NoError(t, err)
-	db4Server, err := toUnregisteredDBServer(db4)
+	db4Server, err := toUnclaimedDatabaseServer(db4)
 	require.NoError(t, err)
 
 	authClient := &mockAuthClientForDBCommand{
@@ -96,80 +96,79 @@ func TestDBCommand_listDatabases(t *testing.T) {
 		name      string
 		dbCommand *DBCommand
 		wantDBs   []types.DatabaseServer
-		wantErr   bool
 	}{
 		{
-			name: "registered",
-			dbCommand: &DBCommand{
-				listRegistered: true,
-			},
-			wantDBs: []types.DatabaseServer{db1Server1, db1Server2, db2Server1},
+			name:      "all",
+			dbCommand: &DBCommand{},
+			wantDBs:   []types.DatabaseServer{db1Server1, db1Server2, db2Server1, db3Server, db4Server},
 		},
 		{
-			name: "unregistered",
+			name: "healthy",
 			dbCommand: &DBCommand{
-				listUnregistered: true,
+				filterByStatus: string(types.TargetHealthStatusHealthy),
+			},
+			wantDBs: []types.DatabaseServer{db1Server1},
+		},
+		{
+			name: "unhealthy",
+			dbCommand: &DBCommand{
+				filterByStatus: string(types.TargetHealthStatusUnhealthy),
+			},
+			wantDBs: []types.DatabaseServer{db1Server2, db2Server1},
+		},
+		{
+			name: "unhealthy with predicate",
+			dbCommand: &DBCommand{
+				filterByStatus: string(types.TargetHealthStatusUnhealthy),
+				predicateExpr:  "labels[\"env\"] == \"staging\"",
+			},
+			wantDBs: []types.DatabaseServer{db2Server1},
+		},
+		{
+			name: "unclaimed",
+			dbCommand: &DBCommand{
+				filterByStatus: dbStatusUnclaimed,
 			},
 			wantDBs: []types.DatabaseServer{db3Server, db4Server},
 		},
 		{
-			name: "registered and unregistered",
+			name: "unclaimed with search keywords",
 			dbCommand: &DBCommand{
-				listRegistered:   true,
-				listUnregistered: true,
-			},
-			wantDBs: []types.DatabaseServer{db1Server1, db1Server2, db2Server1, db3Server, db4Server},
-		},
-		{
-			name: "unregistered with search keywords",
-			dbCommand: &DBCommand{
-				listUnregistered: true,
-				searchKeywords:   "mysql",
+				filterByStatus: dbStatusUnclaimed,
+				searchKeywords: "mysql",
 			},
 			wantDBs: []types.DatabaseServer{db3Server},
 		},
 		{
-			name: "unregistered with predicate",
+			name: "unclaimed with predicate",
 			dbCommand: &DBCommand{
-				listUnregistered: true,
-				predicateExpr:    `name == "db4"`,
+				filterByStatus: dbStatusUnclaimed,
+				predicateExpr:  `name == "db4"`,
 			},
 			wantDBs: []types.DatabaseServer{db4Server},
 		},
 		{
-			name: "registered and unregistered with label",
+			name: "with labels",
 			dbCommand: &DBCommand{
-				listUnregistered: true,
-				listRegistered:   true,
-				labels:           "env=dev",
+				labels: "env=dev",
 			},
 			wantDBs: []types.DatabaseServer{db1Server1, db1Server2, db4Server},
-		},
-		{
-			name:      "no registered or unregistered",
-			dbCommand: &DBCommand{},
-			wantErr:   true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			actualDBs, err := tt.dbCommand.listDatabases(t.Context(), authClient)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.ElementsMatch(t,
-					slices.Collect(types.ResourceNames(tt.wantDBs)),
-					slices.Collect(types.ResourceNames(actualDBs)),
-				)
-			}
+			require.NoError(t, err)
+			require.ElementsMatch(t,
+				slices.Collect(types.ResourceNames(tt.wantDBs)),
+				slices.Collect(types.ResourceNames(actualDBs)),
+			)
 		})
 	}
 }
 
-func mustCreateDatabaseServerFromDB(t *testing.T, db types.Database, host string) types.DatabaseServer {
+func mustCreateDatabaseServerFromDB(t *testing.T, db types.Database, host string, targetHealthStatus types.TargetHealthStatus) types.DatabaseServer {
 	t.Helper()
 	dbV3, ok := db.(*types.DatabaseV3)
 	require.True(t, ok)
@@ -185,5 +184,6 @@ func mustCreateDatabaseServerFromDB(t *testing.T, db types.Database, host string
 		},
 	)
 	require.NoError(t, err)
+	dbServer.SetTargetHealthStatus(targetHealthStatus)
 	return dbServer
 }

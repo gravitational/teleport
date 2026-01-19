@@ -178,7 +178,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 	databases := []types.Database{
 		mustCreateNewDatabase(t, "database-A", "mysql", "localhost:3306", nil),
 		mustCreateNewDatabase(t, "database-B", "postgres", "localhost:5432", longLabelFixture),
-		mustCreateNewDatabase(t, "afirstDatabase", "redis", "localhost:6379", longLabelFixture),
+		mustCreateNewDatabase(t, "after-unclaimed", "redis", "localhost:6379", longLabelFixture),
 		mustCreateNewDatabase(t, "database-rds-us-west-1-123456789012", "postgres",
 			rdsURI,
 			rdsDiscoveredNameLabel),
@@ -189,7 +189,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Name", "Protocol", "URI", "Labels"},
 				[][]string{
-					{"afirstDatabase", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, false)},
+					{"after-unclaimed", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, false)},
 					{"database", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, false)},
 					{"database-A", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, false)},
 					{"database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, false)},
@@ -200,7 +200,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
 				[]string{"Name", "Protocol", "URI", "Labels"},
-				[]string{"afirstDatabase", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
+				[]string{"after-unclaimed", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
 				[]string{"database-A", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, true)},
 				[]string{"database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
 				[]string{"database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true)},
@@ -216,6 +216,10 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 		types.DiscoveredNameLabel: "database",
 	}
 	rdsURI := "database.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432"
+
+	unclaimed, err := toUnclaimedDatabaseServer(mustCreateNewDatabase(t, "unclaimed-db", "mysql", "localhost:3306", nil))
+	require.NoError(t, err)
+
 	dbServers := []types.DatabaseServer{
 		mustCreateNewDatabaseServer(t, "database-A", "mysql", "localhost:3306", nil),
 		mustCreateNewDatabaseServer(t, "database-B", "postgres", "localhost:5432", longLabelFixture),
@@ -223,28 +227,35 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 		mustCreateNewDatabaseServer(t, "database-rds-us-west-1-123456789012", "postgres",
 			rdsURI,
 			rdsDiscoveredNameLabel),
+		unclaimed,
 	}
+	dbServers[0].SetTargetHealthStatus(types.TargetHealthStatusHealthy)
+	dbServers[1].SetTargetHealthStatus(types.TargetHealthStatusUnhealthy)
+	dbServers[2].SetTargetHealthStatus(types.TargetHealthStatusUnknown)
+
 	test := writeTextTest{
 		collection: &databaseServerCollection{servers: dbServers},
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
-				[]string{"Host", "Name", "Protocol", "URI", "Labels", "Version"},
+				[]string{"Host", "Name", "Status", "Protocol", "URI", "Labels", "Version"},
 				[][]string{
-					{"some-host", "afirstDatabase", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, false), api.Version},
-					{"some-host", "database", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, false), api.Version},
-					{"some-host", "database-A", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, false), api.Version},
-					{"some-host", "database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, false), api.Version},
+					{"", "unclaimed-db", "unclaimed", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, false), ""},
+					{"some-host", "afirstDatabase", "unknown", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, false), api.Version},
+					{"some-host", "database", "", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, false), api.Version},
+					{"some-host", "database-A", "healthy", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, false), api.Version},
+					{"some-host", "database-B", "unhealthy", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, false), api.Version},
 				},
 				"Labels")
 			return table.AsBuffer().String()
 		},
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
-				[]string{"Host", "Name", "Protocol", "URI", "Labels", "Version"},
-				[]string{"some-host", "afirstDatabase", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
-				[]string{"some-host", "database-A", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, true), api.Version},
-				[]string{"some-host", "database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
-				[]string{"some-host", "database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true), api.Version},
+				[]string{"Host", "Name", "Status", "Protocol", "URI", "Labels", "Version"},
+				[]string{"", "unclaimed-db", "unclaimed", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, true), ""},
+				[]string{"some-host", "afirstDatabase", "unknown", "redis", "localhost:6379", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
+				[]string{"some-host", "database-A", "healthy", "mysql", "localhost:3306", formatTestLabels(staticLabelsFixture, nil, true), api.Version},
+				[]string{"some-host", "database-B", "unhealthy", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
+				[]string{"some-host", "database-rds-us-west-1-123456789012", "", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true), api.Version},
 			)
 			return table.AsBuffer().String()
 		},
