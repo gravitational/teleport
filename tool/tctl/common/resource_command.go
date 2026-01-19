@@ -128,7 +128,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindDevice:                      rc.createDevice,
 		types.KindOktaImportRule:              rc.createOktaImportRule,
 		types.KindIntegration:                 rc.createIntegration,
-		types.KindAuditQuery:                  rc.createAuditQuery,
 		types.KindSecurityReport:              rc.createSecurityReport,
 		types.KindCrownJewel:                  rc.createCrownJewel,
 		types.KindVnetConfig:                  rc.createVnetConfig,
@@ -963,11 +962,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
-	case types.KindAuditQuery:
-		if err := client.SecReportsClient().DeleteSecurityAuditQuery(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Audit query %q has been deleted\n", rc.ref.Name)
 	case types.KindSecurityReport:
 		if err := client.SecReportsClient().DeleteSecurityReport(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1404,21 +1398,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &integrationCollection{integrations: resources}, nil
-	case types.KindAuditQuery:
-		if rc.ref.Name != "" {
-			auditQuery, err := client.SecReportsClient().GetSecurityAuditQuery(ctx, rc.ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &auditQueryCollection{auditQueries: []*secreports.AuditQuery{auditQuery}}, nil
-		}
-
-		resources, err := client.SecReportsClient().GetSecurityAuditQueries(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &auditQueryCollection{auditQueries: resources}, nil
 	case types.KindSecurityReport:
 		if rc.ref.Name != "" {
 
@@ -1555,22 +1534,6 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 	}
 
 	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
-}
-
-func (rc *ResourceCommand) createAuditQuery(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	in, err := services.UnmarshalAuditQuery(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := in.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err = client.SecReportsClient().UpsertSecurityAuditQuery(ctx, in); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
