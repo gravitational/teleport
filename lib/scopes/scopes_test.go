@@ -1201,3 +1201,80 @@ func TestGlobIsSubjectToPolicyResourceScope(t *testing.T) {
 		})
 	}
 }
+
+// TestEnforcementPointsForResourceScope verifies that EnforcementPointsForResourceScope yields all (ScopeOfOrigin, ScopeOfEffect)
+// pairs in the correct order, independent of any particular assignment tree.
+func TestEnforcementPointsForResourceScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		resourceScope string
+		expect        []EnforcementPoint
+	}{
+		{
+			name:          "root scope",
+			resourceScope: "/",
+			expect: []EnforcementPoint{
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+			},
+		},
+		{
+			name:          "single segment scope",
+			resourceScope: "/foo",
+			expect: []EnforcementPoint{
+				// Root origin, descending effects
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+				// Foo origin, foo effect
+				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo"},
+			},
+		},
+		{
+			name:          "two segment scope",
+			resourceScope: "/staging/west",
+			expect: []EnforcementPoint{
+				// Root origin, descending effects
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+				// Staging origin, descending effects
+				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west"},
+				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging"},
+				// West origin, west effect
+				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west"},
+			},
+		},
+		{
+			name:          "three segment scope",
+			resourceScope: "/prod/us/east",
+			expect: []EnforcementPoint{
+				// Root origin
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod/us/east"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod/us"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod"},
+				{ScopeOfOrigin: "/", ScopeOfEffect: "/"},
+				// Prod origin
+				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us/east"},
+				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us"},
+				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod"},
+				// US origin
+				{ScopeOfOrigin: "/prod/us", ScopeOfEffect: "/prod/us/east"},
+				{ScopeOfOrigin: "/prod/us", ScopeOfEffect: "/prod/us"},
+				// East origin
+				{ScopeOfOrigin: "/prod/us/east", ScopeOfEffect: "/prod/us/east"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []EnforcementPoint
+			for level := range EnforcementPointsForResourceScope(tt.resourceScope) {
+				got = append(got, level)
+			}
+
+			require.Equal(t, tt.expect, got, "scope hierarchy levels should match expected order")
+		})
+	}
+}

@@ -333,3 +333,127 @@ func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeS
 
 	return true
 }
+
+// GetRolesAtEnforcementPoint returns an iterator over role names assigned at the specified enforcement point
+// within the assignment tree. Returns an empty iterator if no roles are assigned at that combination.
+//
+// This function is intended to be composed with EnforcementPointsForResourceScope to allow callers to fetch roles
+// at each hierarchy level as they evaluate access. Note that it would be more efficient to build an iterator that
+// traverses the tree once in enforcement order rather than repeatedly navigating to specific points, but the decoupling
+// of reading from ordering results in better decoupling of concerns and keeps our options open for future policy
+// types to be added to higher level logic without needing to care about assignment tree internals.
+func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		if pin == nil || pin.AssignmentTree == nil {
+			return
+		}
+
+		if point.ScopeOfOrigin == "" || point.ScopeOfEffect == "" {
+			return
+		}
+
+		// navigate to the assignment node for the Scope of Origin
+		assignmentNode := pin.AssignmentTree
+		for segment := range scopes.DescendingSegments(point.ScopeOfOrigin) {
+			child, ok := assignmentNode.Children[segment]
+			if !ok {
+				// the scope of origin doesn't exist in the tree
+				return
+			}
+			assignmentNode = child
+		}
+
+		// navigate to the role node for the Scope of Effect within this assignment node
+		if assignmentNode.RoleTree == nil {
+			return
+		}
+
+		roleNode := assignmentNode.RoleTree
+		for segment := range scopes.DescendingSegments(point.ScopeOfEffect) {
+			child, ok := roleNode.Children[segment]
+			if !ok {
+				// the scope of effect doesn't exist in the tree
+				return
+			}
+			roleNode = child
+		}
+
+		// yield each role name in the order that they are stored. it is the responsibility
+		// of pin construction logic to ensure deterministic ordering.
+		for _, roleName := range roleNode.Roles {
+			if !yield(roleName) {
+				return
+			}
+		}
+	}
+}
+
+// EnumerateAllAssignments yields all role assignments contained in the pin's assignment tree,
+// regardless of any target resource scope. The order is undefined and should not be relied upon
+// for access control decisions. This is primarily useful for operations that need to examine
+// the full set of possible permissions (e.g. determining all possible logins a user might have).
+//
+// This function walks the entire assignment tree structure, yielding every (ScopeOfOrigin, ScopeOfEffect, RoleName)
+// tuple it encounters.
+func EnumerateAllAssignments(pin *scopesv1.Pin) iter.Seq[RoleAssignment] {
+	return func(yield func(RoleAssignment) bool) {
+		if pin == nil || pin.AssignmentTree == nil {
+			return
+		}
+
+		// Start enumeration at the root of the assignment tree with empty segment list (representing root scope)
+		enumerateAssignmentNode(pin.AssignmentTree, nil, yield)
+	}
+}
+
+// enumerateAssignmentNode recursively walks an assignment tree node and all its descendants,
+// yielding all role assignments found. The originSegments parameter tracks the scope of origin
+// path from root to the current node.
+func enumerateAssignmentNode(node *scopesv1.AssignmentNode, originSegments []string, yield func(RoleAssignment) bool) bool {
+	scopeOfOrigin := scopes.Join(originSegments...)
+
+	// Enumerate all roles in this node's role tree
+	if node.RoleTree != nil {
+		if !enumerateRoleNode(node.RoleTree, scopeOfOrigin, nil, yield) {
+			return false
+		}
+	}
+
+	// Recursively enumerate all child assignment nodes
+	for segment, child := range node.Children {
+		childOriginSegments := append(originSegments, segment)
+		if !enumerateAssignmentNode(child, childOriginSegments, yield) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// enumerateRoleNode recursively walks a role tree node and all its descendants, yielding all
+// role assignments found. The effectSegments parameter tracks the scope of effect path from
+// root to the current node.
+func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegments []string, yield func(RoleAssignment) bool) bool {
+	scopeOfEffect := scopes.Join(effectSegments...)
+
+	// Yield all roles at this node
+	for _, roleName := range node.Roles {
+		if !yield(RoleAssignment{
+			ScopeOfOrigin: scopeOfOrigin,
+			ScopeOfEffect: scopeOfEffect,
+			RoleName:      roleName,
+		}) {
+			return false
+		}
+	}
+
+	// Recursively enumerate all child role nodes
+	for segment, child := range node.Children {
+		childEffectSegments := append(effectSegments, segment)
+		if !enumerateRoleNode(child, scopeOfOrigin, childEffectSegments, yield) {
+			return false
+		}
+	}
+
+	return true
+}

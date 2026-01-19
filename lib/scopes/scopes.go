@@ -683,3 +683,67 @@ func globIsSubjectToPolicyResourceScope(glob string, scope string) bool {
 		}
 	}
 }
+
+// EnforcementPoint combines a Scope of Origin and Scope of Effect to define specific point or target that
+// one or more policies may be defined for. Since each policy has some scope it originates *from* and some
+// scope it applies *to*, any given scoped policy (e.g. a scoped role) should exist "at" a specific enforcement
+// point during access-control evaluation. Policy evaluation order is determined primarily by the enforcement
+// point at which the policy exists, with policies at more ancestral origin scopes taking precedence over
+// those at more descendant origin scopes, and within a given origin scope, policies at more specific effect
+// scopes taking precedence over those at more general effect scopes.
+//
+// This type is primarily intended to be used in conjunction with [EnforcementPointsForResourceScope] to
+// help determine ordering of policy evaluation during access checks.
+type EnforcementPoint struct {
+	// ScopeOfOrigin is the scope from which a policy originates. This represents the authority/provenance
+	// of the policy. Policies with more ancestral Scopes of Origin take precedence.
+	ScopeOfOrigin string
+
+	// ScopeOfEffect is the scope at which a policy's effects apply. Within a given Scope of Origin,
+	// policies with more descendant/specific Scopes of Effect take precedence.
+	ScopeOfEffect string
+}
+
+// EnforcementPointsForResourceScope yields all (ScopeOfOrigin, ScopeOfEffect) pairs that should be evaluated when
+// checking access to a resource at the given scope. The pairs are yielded in evaluation order:
+//   - First by Scope of Origin (root to resourceScope, preserving scope hierarchy)
+//   - Then by Scope of Effect (resourceScope to ScopeOfOrigin, most specific first)
+//
+// This iterator is intended to be the core building block for higher-level policy evaluation logic. Policy
+// evaluation logic should use this iterator to determine the primary order in which policies should be evaluated
+// (though it should be noted that multiple policies may exist at any given enforcement point).
+//
+// Ex: EnforcementPointsForResourceScope("/staging/west") yields:
+//   - (/,              /staging/west)  - root origin, specific effect
+//   - (/,              /staging)       - root origin, less specific effect
+//   - (/,              /)              - root origin, root effect
+//   - (/staging,       /staging/west)  - staging origin, specific effect
+//   - (/staging,       /staging)       - staging origin, staging effect
+//   - (/staging/west,  /staging/west)  - west origin, west effect
+func EnforcementPointsForResourceScope(resourceScope string) iter.Seq[EnforcementPoint] {
+	return func(yield func(EnforcementPoint) bool) {
+		// Iterate through all Scopes of Origin from root to resourceScope
+		for scopeOfOrigin := range DescendingScopes(resourceScope) {
+			// For each Scope of Origin, iterate through Scopes of Effect from resourceScope
+			// UP to (and including) the current Scope of Origin. This ensures more specific
+			// policies are evaluated before more general ones within each origin level.
+			// We use AscendingScopes to go from most specific (resourceScope) to least specific (scopeOfOrigin).
+			for scopeOfEffect := range AscendingScopes(resourceScope) {
+				// Only yield if the Scope of Effect is subject to the Scope of Origin.
+				// A scope of effect cannot be more ancestral than its origin (that would violate
+				// the rule that policies cannot reach up to affect parent scopes).
+				if !ResourceScope(scopeOfEffect).IsSubjectToPolicyScope(scopeOfOrigin) {
+					// we've reached scopes of effect that are too ancestral for this origin
+					break
+				}
+
+				if !yield(EnforcementPoint{
+					ScopeOfOrigin: scopeOfOrigin,
+					ScopeOfEffect: scopeOfEffect,
+				}) {
+					return
+				}
+			}
+		}
+	}
+}
