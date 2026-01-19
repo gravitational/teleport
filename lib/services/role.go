@@ -76,6 +76,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindDynamicWindowsDesktop, RO()),
+	types.NewRule(types.KindLinuxDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
@@ -490,6 +491,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, traits, "windows_login")
 		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
+
+		inLinuxDesktopLogins := r.GetWindowsLogins(condition)
+		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, traits, "linux_desktop_login")
+		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
+		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
 
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
@@ -2433,6 +2439,22 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 		return true, nil
 	}
 	return false, nil
+}
+
+type linuxLoginMatcher struct {
+	login string
+}
+
+// NewLinuxLoginMatcher creates a RoleMatcher that checks whether the role's
+// Linux desktop logins match the specified condition.
+func NewLinuxLoginMatcher(login string) RoleMatcher {
+	return &linuxLoginMatcher{login: login}
+}
+
+// Match matches a Linux Desktop login against a role.
+func (l *linuxLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetLinuxDesktopLogins(typ)
+	return slices.Contains(logins, l.login), nil
 }
 
 type awsAppLoginMatcher struct {

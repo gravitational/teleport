@@ -68,6 +68,7 @@ import (
 	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -112,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
+	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -6254,6 +6256,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
+
+	linuxDesktop, err := linuxdesktopv1.NewService(linuxdesktopv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	linuxdesktopv1pb.RegisterLinuxDesktopServiceServer(server, linuxDesktop)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer:       cfg.Authorizer,

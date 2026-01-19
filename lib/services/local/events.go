@@ -180,6 +180,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopsParser()
 		case types.KindDynamicWindowsDesktop:
 			parser = newDynamicWindowsDesktopsParser()
+		case types.KindLinuxDesktop:
+			parser = newLinuxDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -2131,6 +2133,46 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newLinuxDesktopsParser() *linuxDesktopParser {
+	return &linuxDesktopParser{
+		baseParser: newBaseParser(backend.NewKey(linuxDesktopKey)),
+	}
+}
+
+type linuxDesktopParser struct {
+	baseParser
+}
+
+func (p *linuxDesktopParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(linuxDesktopKey)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindLinuxDesktop,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		r, err := services.UnmarshalLinuxDesktop(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

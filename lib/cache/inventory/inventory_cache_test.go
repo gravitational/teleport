@@ -128,6 +128,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	databaseServices := local.NewDatabaseServicesService(bkWrapper)
 	windowsDesktops := local.NewWindowsDesktopService(bkWrapper)
 
+	linuxDesktops, err := local.NewLinuxDesktopService(bkWrapper)
+	require.NoError(t, err)
+
 	samlIDPServiceProviders, err := local.NewSAMLIdPServiceProviderService(bkWrapper)
 	require.NoError(t, err)
 
@@ -234,6 +237,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Databases:               databases,
 		WindowsDesktops:         windowsDesktops,
 		DynamicWindowsDesktops:  dynamicWindowsDesktopService,
+		LinuxDesktops:           linuxDesktops,
 		SAMLIdPServiceProviders: samlIDPServiceProviders,
 		UserGroups:              userGroups,
 		Okta:                    oktaSvc,

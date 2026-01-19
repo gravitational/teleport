@@ -27,6 +27,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
@@ -134,6 +135,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*autoupdate.AutoUpdateBotInstanceReport]:
 		out.Resource = &proto.Event_AutoUpdateBotInstanceReport{
 			AutoUpdateBotInstanceReport: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		out.Resource = &proto.Event_LinuxDesktop{
+			LinuxDesktop: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
@@ -689,6 +694,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAppAuthConfig(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetLinuxDesktop(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {

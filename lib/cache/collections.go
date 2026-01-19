@@ -31,6 +31,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
@@ -90,6 +91,7 @@ type collections struct {
 	windowsDesktops                    *collection[types.WindowsDesktop, windowsDesktopIndex]
 	windowsDesktopServices             *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
 	dynamicWindowsDesktops             *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
+	linuxDesktops                      *collection[*linuxdesktopv1.LinuxDesktop, linuxDesktopIndex]
 	userGroups                         *collection[types.UserGroup, userGroupIndex]
 	identityCenterAccounts             *collection[*identitycenterv1.Account, identityCenterAccountIndex]
 	identityCenterAccountAssignments   *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
@@ -335,6 +337,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.dynamicWindowsDesktops = collect
 			out.byKind[resourceKind] = out.dynamicWindowsDesktops
+		case types.KindLinuxDesktop:
+			collect, err := newLinuxDesktopCollection(c.LinuxDesktops, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.linuxDesktops = collect
+			out.byKind[resourceKind] = out.linuxDesktops
 		case types.KindUserGroup:
 			collect, err := newUserGroupCollection(c.UserGroups, watch)
 			if err != nil {

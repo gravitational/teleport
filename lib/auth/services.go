@@ -46,6 +46,7 @@ type Services struct {
 	services.DatabaseServices
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
+	services.LinuxDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService

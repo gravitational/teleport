@@ -244,6 +244,9 @@ type InitConfig struct {
 	// DynamicWindowsServices is a service that manages dynamic Windows desktop resources.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
 
+	// LinuxServices is a service that manages dynamic Windows desktop resources.
+	LinuxDesktops services.LinuxDesktops
+
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 

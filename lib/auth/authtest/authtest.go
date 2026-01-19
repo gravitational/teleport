@@ -601,6 +601,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		WebToken:                p.AuthServer.Services.Identity,
 		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
 		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
+		LinuxDesktops:           p.AuthServer.Services.LinuxDesktops,
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
