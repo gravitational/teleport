@@ -113,6 +113,27 @@ func TestSCIMGeneric(t *testing.T) {
 		}
 	})
 
+	t.Run("Listing and getting users should include groups", func(t *testing.T) {
+		expectedGroups := []any{
+			map[string]any{"value": "test-group-001"},
+		}
+
+		listResp, err := scimClient.ListUsers(t.Context())
+		require.NoError(t, err)
+		require.Len(t, listResp.Users, 2)
+		for _, u := range listResp.Users {
+			require.Equal(t, expectedGroups, u.Attributes["groups"], "user ID = %q", u.ID)
+		}
+
+		u1, err := scimClient.GetUser(t.Context(), scimUser1.UserName)
+		require.NoError(t, err)
+		require.Equal(t, expectedGroups, u1.Attributes["groups"])
+
+		u2, err := scimClient.GetUser(t.Context(), scimUser2.UserName)
+		require.NoError(t, err)
+		require.Equal(t, expectedGroups, u2.Attributes["groups"])
+	})
+
 	t.Run("Remove first member from group", func(t *testing.T) {
 		group, err := scimClient.GetGroup(t.Context(), createdGroup.ID)
 		require.NoError(t, err)
