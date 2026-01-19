@@ -138,28 +138,16 @@ func getOktaTrailsUserAttributes(user types.User) map[string]any {
 
 // ResourceToUser converts an Okta SCIM resource to a Teleport user
 func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (types.User, error) {
-	if !s.syncSettings().GetEnableUserSync() {
-		// Note: User traits can differ between SCIM user and user created
-		// by Okta sync service due to different okta user/app user attributes
-		// mapping.
-		// If periodic user sync is disabled, we don't care about keeping
-		// User data in sync between users originated from SCIM and created via OKTA
-		// sync service. If only SCIM integration was enabled we will treat user model
-		// from SCIM push as a single source of truth.
-		user, err := s.createUserFromResource(ctx, res)
-		return user, trace.Wrap(err)
-	}
-
-	var oktaUser oktaUserResource
-	if err := mapstructure.Decode(res.Attributes.AsMap(), &oktaUser); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	s.Logger.InfoContext(ctx, "Attempting to fetch user", "external_id", res.ExternalId, "username", oktaUser.UserName)
-
-	teleportUser, err := s.getOktaUser(ctx, res.ExternalId)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching Okta user from API")
+	var err error
+	var teleportUser types.User
+	if s.syncSettings().GetEnableUserSync() {
+		if teleportUser, err = s.getOktaUser(ctx, res.ExternalId); err != nil {
+			return nil, trace.Wrap(err, "fetching Okta user from API")
+		}
+	} else {
+		if teleportUser, err = s.createUserFromSCIMResource(res); err != nil {
+			return nil, trace.Wrap(err, "converting SCIM user to Teleport user")
+		}
 	}
 
 	if err := s.evaluateSAMLConnector(ctx, teleportUser); err != nil {
@@ -336,7 +324,7 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 
 // resourceToUser constructs an in-memory Teleport user from the supplied
 // SCIM resource
-func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resource) (types.User, error) {
+func (s *oktaShim) createUserFromSCIMResource(res *scimpb.Resource) (types.User, error) {
 	if res == nil {
 		return nil, trace.BadParameter("Resource may not be empty")
 	}
@@ -369,9 +357,6 @@ func (s *oktaShim) createUserFromResource(ctx context.Context, res *scimpb.Resou
 
 	user.SetRevision(res.GetMeta().GetVersion())
 
-	if err := s.evaluateSAMLConnector(ctx, user); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return user, nil
 }
 
