@@ -92,9 +92,11 @@ receives short-lived, MFA-verified certificates to connect to the resource.
 #### Login process
 
 This flow will be followed when a user first logs in to their cluster using
-`tsh`. It uses the [headless authentication](0105-headless-authentication.md)
-flow to authenticate the user with some modifications to the certificate that is
-returned.
+`tsh`. It follows the [headless authentication](0105-headless-authentication.md)
+flow to authenticate the user with some modifications:
+- There will be a new endpoint `/webapi/headless/browser` endpoint for `tsh` to
+  hit which will solely deal with login events.
+- The certificate is a typical user certificate with the standard TTL.
 
 ```mermaid
 sequenceDiagram
@@ -106,7 +108,7 @@ sequenceDiagram
     Note over tsh: tsh login --proxy proxy.example.com --user alice --auth=browser
     Note over tsh: print URL proxy.example.com/headless/<request_id>
     par headless client request
-        tsh->>Teleport Proxy: POST /webapi/login/headless
+        tsh->>Teleport Proxy: POST /webapi/headless/browser
         Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
         Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
 
@@ -156,13 +158,13 @@ When the user performs a `tsh login`, it will check for either an explicit
 available. This error is caught and the user is prompted to try attempt
 authentication through the browser.
 
-`tsh` will send an unauthenticated request to `POST /webapi/login/headless` that
-will remain open until the request is approved, denied, or times out. It will
-send the client's SSH public key, proxy address, and the authentication type
-etc. The Proxy forwards these details to the Auth server using
+`tsh` will send an unauthenticated request to `POST /webapi/headless/browser`
+that will remain open until the request is approved, denied, or times out. It
+will send the client's SSH public key, proxy address, and the authentication
+type etc. The Proxy forwards these details to the Auth server using
 `POST /:version/users/:user/ssh/authenticate`. The security of this
 unauthenticated endpoint will be discussed in the
-[security section](#unauthenticated-webapiloginbrowser-endpoint).
+[security section](#unauthenticated-webapiheadlessbrowser-endpoint).
 
 The auth service will store the Request ID on the backend under
 `/headless_authentication/<request_id>`. The record will have a short TTL of 5
@@ -203,70 +205,36 @@ and certificates with the standard user TTL will be generated and returned to
 
 #### Per-session MFA
 
-This flow will be followed when a user wants to connect to a resource that
-requires per-session MFA.
+When a user connects to a resource that requires per-session MFA (e.g.,
+`tsh ssh alice@node`), `tsh` follows the same headless authentication flow
+described in the [login process](#login-process) with the following differences:
 
-```mermaid
-sequenceDiagram
-    participant Web Browser
-    participant tsh
-    participant Teleport Proxy
-    participant Teleport Auth
+1. **Endpoint**: `tsh` makes an authenticated request to
+   `/webapi/headless/session`.
+1. **Authentication type**: The `HeadlessAuthentication` object is created with
+   `authType=session`.
+1. **Certificates**: Upon successful MFA verification, `tsh` receives
+   short-lived, MFA-verified certificates with a short TTL, which are kept
+   in-memory.
 
-    Note over tsh: tsh ssh alice@node
-    Note over tsh: print URL proxy.example.com/headless/<request_id>
-    par headless client request
-        tsh->>Teleport Proxy: POST /webapi/login/headless
-        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
-        Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
-
-    and local client request
-        tsh-->>Web Browser: web browser opens
-        Note over Web Browser: proxy.example.com/headless/<request_id>
-        opt user is not already logged in locally
-            Web Browser->>Teleport Proxy: user logs in normally e.g. password+MFA
-            Teleport Proxy->>Web Browser:
-        end
-        Web Browser->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
-        Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
-
-        par headless client request
-            Backend ->>- Teleport Auth: unblock on insert
-            Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=session}
-            Teleport Auth ->>+ Backend: wait for state change
-        end
-
-        Teleport Auth->>Web Browser: Headless Authentication details
-
-        Note over Web Browser: share request details with user
-        Web Browser->>Teleport Auth: rpc CreateAuthenticateChallenge
-        Teleport Auth->>Web Browser: MFA Challenge
-        Note over Web Browser: user completes MFA challenge
-        Web Browser->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
-        Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=session, state=approved, mfaDevice}
-    and headless client request
-        Backend ->>- Teleport Auth: unblock on state change
-        Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, short cert TTL)
-        Teleport Proxy->>tsh: user certificates<br/>(MFA-verified, short cert TTL)
-        Note over tsh: User is authenticated
-    end
-```
-
-The flow is similar to the [login flow](#login-flow) except for two key
-changes:
-1. The flow is started when a user connects to a per-session MFA protected
-   resource.
-1. The certificate that `tsh` receives is a short-lived "session" certificate,
-   which is kept in-memory
+The browser-based MFA ceremony proceeds identically to the login flow, with the
+user approving the request and completing the MFA challenge in their browser.
+The request details shown to the user will indicate this is a per-session MFA
+request rather than a login request.
 
 ### Security
 
-#### Unauthenticated `/webapi/login/headless` endpoint
+#### Unauthenticated `/webapi/headless/browser` endpoint
 
-The initial unauthenticated call from `tsh` to the proxy uses the existing
+The initial unauthenticated call from `tsh` to the proxy uses a new endpoint
+similar to the existing headless
 [endpoint](0105-headless-authentication.md#unauthenticated-headless-login-endpoint)
-that was introduced by the headless authentication method. This feature doesn't
-expand on this part of the flow.
+that was introduced by the headless authentication method. The security of this
+endpoint is explained in more detail in the linked documentation, but in short,
+it is a rate limited endpoint that will only write resources to the backend once
+a matching authenticated request is made from a user's browser. This new
+endpoint will only accept requests from the browser login flow and return
+certificates for a browser login request.
 
 #### IP restrictions
 
