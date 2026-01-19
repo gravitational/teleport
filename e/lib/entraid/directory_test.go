@@ -36,17 +36,28 @@ type fakeGraphClient struct {
 	users        []*msgraph.User
 	groups       []*msgraph.Group
 	groupMembers map[string][]msgraph.GroupMember
+	groupOwners  map[string][]*msgraph.User
 	applications []*msgraph.Application
 }
 
 func newFakeGraphClient() *fakeGraphClient {
 	return &fakeGraphClient{
 		groupMembers: make(map[string][]msgraph.GroupMember),
+		groupOwners:  make(map[string][]*msgraph.User),
 	}
 }
 
 func (c *fakeGraphClient) IterateGroupMembers(ctx context.Context, groupID string, f func(msgraph.GroupMember) bool, opts ...msgraph.IterateOpt) error {
 	for _, m := range c.groupMembers[groupID] {
+		if !f(m) {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (c *fakeGraphClient) IterateGroupOwners(ctx context.Context, groupID string, f func(*msgraph.User) bool, opts ...msgraph.IterateOpt) error {
+	for _, m := range c.groupOwners[groupID] {
 		if !f(m) {
 			return nil
 		}
@@ -176,7 +187,11 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamCEntra := entraGroup(t, uuid.NewString(), "Team C")
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
-	_, teamCTeleport, err := convertGroup(teamCEntra, env.cfg.TenantID, env.cfg.DefaultOwners)
+	aclOwnersCfg := aclOwnersConfig{
+		defaultOwners: env.cfg.DefaultOwners,
+		source:        env.cfg.AccessListOwnersSource,
+	}
+	_, teamCTeleport, err := convertGroup(ctx, teamCEntra, env.cfg.TenantID, aclOwnersCfg)
 	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 

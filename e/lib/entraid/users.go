@@ -161,10 +161,13 @@ func (r *DirectoryReconciler) listEntraUsers(ctx context.Context, usersMembershi
 	return result, trace.Wrap(err)
 }
 
-func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
+func processUsername(in *msgraph.User) (string, bool, error) {
+	if in == nil {
+		return "", false, trace.BadParameter("expected Entra ID user to be non-nil")
+	}
 	upn := in.UserPrincipalName
 	if upn == nil {
-		return nil, trace.BadParameter("expected Entra ID user to have a UPN")
+		return "", false, trace.BadParameter("expected Entra ID user to have a UPN")
 	}
 
 	username := in.Mail
@@ -173,14 +176,15 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 	}
 
 	isExternal := false
-
-	// entraID users have a suffix that indicates they are external users in B2B Guest scenarios.
+	// Entra ID  users may have a suffix that indicates they are external users in B2B Guest scenarios.
 	// This suffix is removed when the user logins via the SAML assertion so we need to remove it here.
 	// more info: https://docs.microsoft.com/en-us/azure/active-directory/external-identities/what-is-b2b
 	// and https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works
 	// Example: "user_theirdomain#EXT#@domain -> "user@theirdomain"
 	const externalUserSuffix = "#EXT#"
 	if idx := strings.Index(*username, externalUserSuffix); idx != -1 {
+		// Reformat Entra ID external username [username_domain.com#EXT#@yourtenant.onmicrosoft.com]
+		// to a Teleport supported username format [username@domain.com].
 		user := (*username)[:idx] // remove #EXT#@domain
 		if idx := strings.LastIndex(user, "_"); idx != -1 {
 			*username = user[:idx] + "@" + user[idx+1:] // replace the last _ with @
@@ -188,17 +192,26 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 		isExternal = true
 	}
 
-	samAccountName := in.OnPremisesSAMAccountName
-
 	if err := isValidUsername(*username); err != nil {
+		return "", false, trace.Wrap(err)
+	}
+
+	return *username, isExternal, nil
+}
+
+func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
+	username, isExternal, err := processUsername(in)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := types.NewUser(*username)
+	samAccountName := in.OnPremisesSAMAccountName
+	upn := *in.UserPrincipalName
+	out, err := types.NewUser(username)
 	labels := map[string]string{
 		types.EntraUniqueIDLabel:                                *in.ID,
 		types.EntraTenantIDLabel:                                tenantID,
-		types.EntraUPNLabel:                                     *upn,
+		types.EntraUPNLabel:                                     upn,
 		types.TeleportInternalLabelPrefix + "entra-is-external": strconv.FormatBool(isExternal),
 	}
 	if samAccountName != nil {
@@ -217,7 +230,7 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 		Connector: &types.ConnectorRef{
 			ID:       ssoConnectorID,
 			Type:     constants.SAML,
-			Identity: *upn,
+			Identity: upn,
 		},
 	})
 
@@ -234,7 +247,7 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string, users
 		displayNameClaim        = defaultSchemasNamespace + "displayname"
 	)
 	traits := map[string][]string{
-		entraIDSAMLClaimName:  {*username},
+		entraIDSAMLClaimName:  {username},
 		tenantIDClaim:         {tenantID},
 		objectIdentifierClaim: {*in.ID},
 	}

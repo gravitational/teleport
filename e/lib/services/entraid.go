@@ -17,6 +17,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/msgraph"
@@ -99,18 +100,19 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 	}
 
 	directoryReconciler, err := entraid.NewDirectoryReconciler(entraid.DirectoryReconcilerConfig{
-		Clock:           process.Clock,
-		Logger:          logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
-		MetricsRegistry: reg.Wrap("directory"),
-		GraphClient:     graphClient,
-		UserSvc:         authServer,
-		AccessListSvc:   authServer,
-		SAMLSvc:         authServer,
-		DefaultOwners:   owners,
-		TenantID:        tenantID,
-		EntraAppID:      appID,
-		SSOConnectorID:  spec.SyncSettings.SsoConnectorId,
-		GroupsFilter:    groupsFilters,
+		Clock:                  process.Clock,
+		Logger:                 logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
+		MetricsRegistry:        reg.Wrap("directory"),
+		GraphClient:            graphClient,
+		UserSvc:                authServer,
+		AccessListSvc:          authServer,
+		SAMLSvc:                authServer,
+		DefaultOwners:          owners,
+		TenantID:               tenantID,
+		EntraAppID:             appID,
+		SSOConnectorID:         spec.SyncSettings.SsoConnectorId,
+		GroupsFilter:           groupsFilters,
+		AccessListOwnersSource: spec.SyncSettings.AccessListOwnersSource,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -195,7 +197,10 @@ func constructGraphClient(pluginSpec *types.PluginEntraIDSettings, integrationSp
 
 	var httpClient *http.Client
 	if process.Config.Testing.HTTPTransport != nil {
-		clt := http.DefaultClient
+		clt, err := defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		clt.Transport = process.Config.Testing.HTTPTransport
 		httpClient = clt
 	}

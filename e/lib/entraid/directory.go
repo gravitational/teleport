@@ -76,6 +76,12 @@ type DirectoryReconciler struct {
 	importedGroups int
 	// groupsFilter specifies Entra ID group filters.
 	groupsFilter filter.Filters
+	// accessListOwnersSource specifies source of the owners for the
+	// Access Lists created for the Entra ID groups.
+	// If Entra ID is configured as the source, but there are zero
+	// owners configured for the group, default owners will be used
+	// as Access List owners.
+	accessListOwnersSource types.EntraIDAccessListOwnersSource
 }
 
 // DirectoryReconcilerConfig specifies dependencies and parameters for instantiating DirectoryReconciler.
@@ -103,6 +109,12 @@ type DirectoryReconcilerConfig struct {
 	TenantID string
 	// GroupsFilter specifies Entra ID group filters.
 	GroupsFilter filter.Filters
+	// accessListOwnersSource specifies source of the owners for the
+	// Access Lists created for the Entra ID groups.
+	// If Entra ID is configured as the source, but there are zero
+	// owners configured for the group, default owners will be used
+	// as Access List owners.
+	AccessListOwnersSource types.EntraIDAccessListOwnersSource
 }
 
 // Validate ensures that required values are set.
@@ -154,6 +166,10 @@ func (cfg *DirectoryReconcilerConfig) Validate() error {
 		cfg.MetricsRegistry = metrics.NoopRegistry()
 	}
 
+	if cfg.AccessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
+		cfg.AccessListOwnersSource = types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
+	}
+
 	return nil
 }
 
@@ -174,19 +190,20 @@ func NewDirectoryReconciler(cfg DirectoryReconcilerConfig) (*DirectoryReconciler
 	}
 
 	return &DirectoryReconciler{
-		clock:           cfg.Clock,
-		logger:          cfg.Logger,
-		metricsRegistry: cfg.MetricsRegistry,
-		graphClient:     cfg.GraphClient,
-		userSvc:         cfg.UserSvc,
-		accessListSvc:   cfg.AccessListSvc,
-		defaultOwners:   cfg.DefaultOwners,
-		tenantID:        cfg.TenantID,
-		samlService:     cfg.SAMLSvc,
-		ssoConnectorID:  cfg.SSOConnectorID,
-		entraAppID:      cfg.EntraAppID,
-		groupsFilter:    cfg.GroupsFilter,
-		metrics:         metrics,
+		clock:                  cfg.Clock,
+		logger:                 cfg.Logger,
+		metricsRegistry:        cfg.MetricsRegistry,
+		graphClient:            cfg.GraphClient,
+		userSvc:                cfg.UserSvc,
+		accessListSvc:          cfg.AccessListSvc,
+		defaultOwners:          cfg.DefaultOwners,
+		tenantID:               cfg.TenantID,
+		samlService:            cfg.SAMLSvc,
+		ssoConnectorID:         cfg.SSOConnectorID,
+		entraAppID:             cfg.EntraAppID,
+		groupsFilter:           cfg.GroupsFilter,
+		metrics:                metrics,
+		accessListOwnersSource: cfg.AccessListOwnersSource,
 	}, nil
 }
 
@@ -231,7 +248,7 @@ func (r *DirectoryReconciler) Reconcile(ctx context.Context) (err error) {
 	}
 
 	start = r.clock.Now()
-	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher)
+	groupsMap, err := listEntraGroups(ctx, r.graphClient, entraGroupMatcher, r.accessListOwnersSource)
 	if err != nil {
 		return trace.Wrap(err)
 	}

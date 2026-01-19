@@ -2,17 +2,23 @@ package entraid
 
 import (
 	"context"
+	"net/http"
 	"slices"
+	"testing"
 
 	"github.com/gravitational/trace"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/e/tests/common"
+	"github.com/gravitational/teleport/e/tests/common/idp"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -20,33 +26,71 @@ import (
 // in the Entra ID plugin.
 const connectorName = "entra-id"
 
-func createEntraIDPlugin(ctx context.Context, authClient authclient.ClientI) error {
-	request := &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			Metadata: types.Metadata{
-				Name: types.PluginTypeEntraID,
-				Labels: map[string]string{
-					types.HostedPluginLabel: "true",
-				},
+type testEnv struct {
+	fakeServer *msgraphtest.Server
+	authClient authclient.ClientI
+}
+
+func newTestEnv(t *testing.T, storage *msgraphtest.Storage) testEnv {
+	fakeServer := msgraphtest.NewServer(
+		msgraphtest.WithStorage(storage),
+	)
+	t.Cleanup(fakeServer.TLSServer.Close)
+
+	httpClient := &http.Client{
+		Transport: &msgraphtest.RewriteTransport{
+			Base: fakeServer.TLSServer.Client().Transport,
+			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
+		},
+	}
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.EntraIDSAMLConnector(connectorName)),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "user-editor", "editor"),
+		common.WithHTTPClient(httpClient.Transport),
+	)
+
+	return testEnv{
+		fakeServer: fakeServer,
+		authClient: sut.GetClusterClientForUser(t, "user-editor").AuthClient,
+	}
+}
+
+var defaultOwner = accesslist.Owner{
+	Name:             "admin",
+	MembershipKind:   accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+	IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+}
+
+func newDefaultPluginSpec(t *testing.T) *types.PluginV1 {
+	t.Helper()
+	return &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: types.PluginTypeEntraID,
+			Labels: map[string]string{
+				types.HostedPluginLabel: "true",
 			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_EntraId{
-					EntraId: &types.PluginEntraIDSettings{
-						SyncSettings: &types.PluginEntraIDSyncSettings{
-							DefaultOwners: []string{"admin"},
-							// CredentialsSource is not validated during tests.
-							CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS,
-							SsoConnectorId:    connectorName,
-							TenantId:          "bar",
-							EntraAppId:        "app1", // matches app name available in default [msgraphtest.PayloadGetApplication].
-						},
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_EntraId{
+				EntraId: &types.PluginEntraIDSettings{
+					SyncSettings: &types.PluginEntraIDSyncSettings{
+						DefaultOwners: []string{defaultOwner.Name},
+						// CredentialsSource is not validated during tests.
+						CredentialsSource: types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS,
+						SsoConnectorId:    connectorName,
+						TenantId:          "bar",
+						EntraAppId:        "app1", // matches app name available in default [msgraphtest.PayloadGetApplication].
 					},
 				},
 			},
 		},
 	}
+}
 
-	_, err := authClient.PluginsClient().CreatePlugin(ctx, request)
+func createEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plugin *types.PluginV1) error {
+	_, err := authClient.PluginsClient().CreatePlugin(ctx, &pluginspb.CreatePluginRequest{Plugin: plugin})
 	return trace.Wrap(err)
 }
 

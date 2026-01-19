@@ -65,7 +65,11 @@ func (r *DirectoryReconciler) reconcileAccessLists(ctx context.Context,
 	groupMembersMap map[string][]msgraph.GroupMember,
 	teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
 ) error {
-	entraAccessListWithMembersMap := convertEntraAccessListsWithMembers(ctx, usersByEntraID, groupsMap, groupMembersMap, r.tenantID, r.defaultOwners)
+	aclOwnersCfg := aclOwnersConfig{
+		defaultOwners: r.defaultOwners,
+		source:        r.accessListOwnersSource,
+	}
+	entraAccessListWithMembersMap := convertEntraAccessListsWithMembers(ctx, usersByEntraID, groupsMap, groupMembersMap, r.tenantID, aclOwnersCfg)
 
 	// It's crucial to sort the members for the CompareResources func in the Reconciler.
 	sortMembers(teleportAccessListsWithMembersMap)
@@ -196,19 +200,47 @@ func listTeleportAccessListsWithMembers(ctx context.Context, svc accessListAcces
 	return aclsWithMembersMap, nil
 }
 
+type aclOwnersConfig struct {
+	defaultOwners []accesslist.Owner
+	source        types.EntraIDAccessListOwnersSource
+}
+
+func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entraOwners []*msgraph.User) []accesslist.Owner {
+	if cfg.source == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN {
+		return cfg.defaultOwners
+	}
+
+	out := ToAclOwner(ctx, entraOwners)
+	if len(out) == 0 {
+		slog.DebugContext(ctx, `Empty group owners found when Entra ID is configured as the source of the Access List owner, `+
+			`falling back to default owners`, "group", groupID)
+		return cfg.defaultOwners
+	}
+
+	switch cfg.source {
+	case types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID:
+		return out
+	case types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID:
+		return slices.Concat(out, cfg.defaultOwners)
+	default:
+		// Unknown source should fallback to default owners for backward compatibility.
+		return cfg.defaultOwners
+	}
+}
+
 func convertEntraAccessListsWithMembers(
 	ctx context.Context,
 	usersByEntraID map[entraUniqueID]types.User,
 	groupsMap map[string]*msgraph.Group,
 	groupMembersMap map[string][]msgraph.GroupMember,
 	tenantID string,
-	defaultOwners []accesslist.Owner,
+	aclOwnersCfg aclOwnersConfig,
 ) map[string]*accessListWithMembers {
 	aclsWithMembersMap := make(map[string]*accessListWithMembers)
 	accessListsById := make(map[entraUniqueID]*accesslist.AccessList)
 
 	for _, g := range groupsMap {
-		entraUniqueID, al, err := convertGroup(g, tenantID, defaultOwners)
+		entraUniqueID, al, err := convertGroup(ctx, g, tenantID, aclOwnersCfg)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to convert Entra ID group to Teleport access list", "error", err)
 			continue
@@ -238,7 +270,7 @@ func convertEntraAccessListsWithMembers(
 	return aclsWithMembersMap
 }
 
-func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist.Owner) (entraUniqueID, *accesslist.AccessList, error) {
+func convertGroup(ctx context.Context, in *msgraph.Group, tenantID string, aclOwnersCfg aclOwnersConfig) (entraUniqueID, *accesslist.AccessList, error) {
 	if in == nil {
 		return "", nil, trace.BadParameter("provided Entra ID group is nil")
 	}
@@ -251,13 +283,15 @@ func convertGroup(in *msgraph.Group, tenantID string, defaultOwners []accesslist
 	}
 	id := *in.ID
 
+	owners := aclOwnersCfg.setupOwners(ctx, id, in.Owners)
+
 	out, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: accessListName(displayName, id),
 		},
 		accesslist.Spec{
 			Title:  displayName,
-			Owners: defaultOwners,
+			Owners: owners,
 			Grants: accesslist.Grants{
 				Traits: trait.Traits{
 					eteleport.EntraMemberOfGroupTrait: {id},
@@ -364,13 +398,51 @@ func accessListName(displayName string, id string) string {
 	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
 }
 
-func listEntraGroups(ctx context.Context, graphClient GraphClient, filterMatches func(g *msgraph.Group) bool) (map[string]*msgraph.Group, error) {
+func listEntraGroupOwners(
+	ctx context.Context,
+	graphClient GraphClient,
+	groupID string,
+) ([]*msgraph.User, error) {
+	var owners []*msgraph.User
+	if err := graphClient.IterateGroupOwners(ctx, groupID, func(o *msgraph.User) bool {
+		owners = append(owners, o)
+		return true
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return owners, nil
+}
+
+func listEntraGroups(
+	ctx context.Context,
+	graphClient GraphClient,
+	filterMatches func(g *msgraph.Group) bool,
+	accessListOwnersSource types.EntraIDAccessListOwnersSource,
+) (map[string]*msgraph.Group, error) {
 	isValidGroup := func(g *msgraph.Group) bool {
 		return g != nil && g.ID != nil && g.DisplayName != nil
 	}
+
+	setEntraOwners := func(g *msgraph.Group) {
+		if accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID ||
+			accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID {
+
+			entraOwners, err := listEntraGroupOwners(ctx, graphClient, *g.GetID())
+			if err != nil {
+				// error swallowed to let the sync continue.
+				slog.WarnContext(ctx, "error while fetching group owners", "group", g.GetID(), "error", err)
+				return
+			}
+			g.Owners = entraOwners
+		}
+	}
+
 	result := map[string]*msgraph.Group{}
 	err := graphClient.IterateGroups(ctx, func(g *msgraph.Group) bool {
 		if isValidGroup(g) && filterMatches(g) {
+			setEntraOwners(g)
+
 			result[*g.ID] = g
 		}
 
@@ -379,7 +451,6 @@ func listEntraGroups(ctx context.Context, graphClient GraphClient, filterMatches
 	})
 	return result, trace.Wrap(err)
 }
-
 func listEntraGroupsMembers(ctx context.Context, graphClient GraphClient, groups map[string]*msgraph.Group) (map[string][]msgraph.GroupMember, error) {
 	// membersPageSize is the maximum number of members to fetch per page.
 	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
@@ -572,4 +643,27 @@ func toCollection(in map[string]*accessListWithMembers) (*accesslists.Collection
 	}
 
 	return &c, nil
+}
+
+// ToAclOwner converts msgraph.User to accesslist.Owner.
+func ToAclOwner(ctx context.Context, in []*msgraph.User) []accesslist.Owner {
+	out := make([]accesslist.Owner, 0, len(in))
+	for _, u := range in {
+		username, _, err := processUsername(u)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to convert group owner, owner will be skipped", "error", err)
+			continue
+		}
+
+		out = append(out, accesslist.Owner{
+			Name:           username,
+			MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+			// Set IneligibleStatus to ELIGIBLE for user owners.
+			// This optimizes the reconciler by skipping ineligibility checks,
+			// since Entra ID access lists do not have owner eligibility requirements.
+			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
+		})
+	}
+
+	return out
 }
