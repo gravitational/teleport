@@ -1572,7 +1572,7 @@ configuration is required. However, you must ensure that:
   instance exists at any time. This is because multiple `tbot` agents configured
   with the same secret will compete to write to the secret and it may be left
   in an inconsistent state or the `tbot` agents may fail to write.
-- The `tbot` is must be configured with a service account that allows it to
+- The `tbot` pod is configured with a service account that allows it to
   read and write from the configured secret.
 - The `POD_NAMESPACE` environment variable is configured with the name of the
   namespace that `tbot` is running in. This is best achieved with
