@@ -381,6 +381,8 @@ Host *
     IdentityFile /opt/teleport-breakglass/output/key
     CertificateFile /opt/teleport-breakglass/output/key-cert.pub
     StrictHostKeyChecking no
+    # Only use identities explicitly set here, not those from any running ssh-agent.
+    IdentitiesOnly yes
 ```
 
 Make sure the permissions are set correctly:
