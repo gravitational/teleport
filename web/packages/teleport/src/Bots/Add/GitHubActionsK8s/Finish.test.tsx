@@ -83,7 +83,7 @@ describe('Finish', () => {
     });
 
     expect(
-      screen.getByRole('heading', { name: 'Setup Workflow' })
+      screen.getByRole('heading', { name: 'Set Up Workflow' })
     ).toBeInTheDocument();
 
     expect(
