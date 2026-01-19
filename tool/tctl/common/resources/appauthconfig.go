@@ -25,11 +25,13 @@ import (
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 type appAuthConfigCollection struct {
@@ -51,13 +53,22 @@ func (c *appAuthConfigCollection) Resources() []types.Resource {
 }
 
 func (c *appAuthConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Name", "Kind"}
+	headers := []string{"Name", "Kind", "Match labels"}
 
 	var rows [][]string
 	for _, item := range c.configs {
+		subKind := "undefined"
+		switch item.Spec.SubKindSpec.(type) {
+		case *appauthconfigv1.AppAuthConfigSpec_Jwt:
+			subKind = "JWT"
+		}
+
 		rows = append(rows, []string{
 			item.Metadata.Name,
-			item.SubKind,
+			subKind,
+			// Always format in verbose given that internal labels can be used
+			// as matchers and should be shown to the users.
+			common.FormatMultiValueLabels(label.ToMap(item.Spec.AppLabels), true),
 		})
 	}
 
