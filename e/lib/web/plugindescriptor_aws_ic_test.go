@@ -223,6 +223,9 @@ func TestAWSICPluginValidatePermissions(t *testing.T) {
 }
 
 func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
+	// TODO(tross): Forward enterprise module via config instead of using global variable.
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
+
 	wSuite, aPack, testServer := newAWSIdentityCenterPluginTestSuite(t)
 	authClient := wSuite.newAdminAuthClient(wSuite.ctx, t)
 	ctx := wSuite.ctx
