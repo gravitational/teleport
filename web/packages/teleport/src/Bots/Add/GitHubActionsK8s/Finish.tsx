@@ -139,7 +139,7 @@ export function Finish(props: FlowStepProps) {
         {({ validator }) => (
           <Box flex={4}>
             <H2 mb={3} mt={3}>
-              Setup Workflow
+              Set Up Workflow
             </H2>
 
             <FieldSelectCreatable

@@ -150,7 +150,7 @@ describe('GitHubActionsK8s', () => {
     );
 
     expect(
-      screen.getByRole('heading', { name: 'Setup Workflow' })
+      screen.getByRole('heading', { name: 'Set Up Workflow' })
     ).toBeInTheDocument();
 
     const select = screen.getByLabelText('Select a cluster to access');
