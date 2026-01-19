@@ -53,6 +53,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
@@ -145,6 +146,7 @@ type testPack struct {
 	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
+	linuxDesktops           *local.LinuxDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
 	userGroups              *local.UserGroupService
 	okta                    *local.OktaService
@@ -385,6 +387,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.linuxDesktops, err = local.NewLinuxDesktopService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
@@ -573,6 +579,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -845,6 +852,7 @@ func TestCompletenessInit(t *testing.T) {
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
 			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+			LinuxDesktops:           p.linuxDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -936,6 +944,7 @@ func TestCompletenessReset(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1098,6 +1107,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1201,6 +1211,7 @@ func initStrategy(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1932,6 +1943,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktopService:             &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:                    &types.WindowsDesktopV3{},
 		types.KindDynamicWindowsDesktop:             &types.DynamicWindowsDesktopV1{},
+		types.KindLinuxDesktop:                      types.ProtoResource153ToLegacy(newLinuxDesktop("linux-desktop")),
 		types.KindInstaller:                         &types.InstallerV1{},
 		types.KindKubernetesCluster:                 &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:            &types.SAMLIdPServiceProviderV1{},
@@ -2000,6 +2012,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				switch uw := event.Resource.(type) {
 				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
@@ -2501,6 +2515,20 @@ func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
 	})
 	require.NoError(t, err)
 	return r
+}
+
+func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
+	return &linuxdesktopv1.LinuxDesktop{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+			Addr:     "127.0.0.1:22",
+			Hostname: "host",
+		},
+	}
 }
 
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {

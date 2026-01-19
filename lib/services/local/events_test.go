@@ -26,6 +26,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -208,6 +210,94 @@ func TestWatchers(t *testing.T) {
 				principalState := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
 				require.NotNil(t, principalState.Spec)
 				require.Equal(subtestT, "foocorp", principalState.Spec.DownstreamId)
+			},
+		},
+		{
+			name: "linux desktop PUT",
+			kind: types.KindLinuxDesktop,
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
+				// GIVEN an empty backend, WHEN I create a new Linux desktop
+				svc, err := NewLinuxDesktopService(backend)
+				require.NoError(subtestT, err)
+
+				desktop := &linuxdesktopv1.LinuxDesktop{
+					Kind:    types.KindLinuxDesktop,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "desktop-1",
+						Labels: map[string]string{
+							"env":  "test",
+							"team": "engineering",
+						},
+					},
+					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+						Addr:     "127.0.0.1:22",
+						Hostname: "test-host",
+					},
+				}
+
+				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
+				require.NoError(subtestT, err)
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				// EXPECT that the watcher gets an event notifying us about the creation
+				event := fetchEvent(t, watcher, fetchTimeout)
+				require.Equal(t, types.OpPut, event.Type)
+
+				// EXPECT that the resource attached to the event is a Linux desktop
+				desktop := unwrapResource153[*linuxdesktopv1.LinuxDesktop](subtestT, event.Resource)
+				require.Equal(subtestT, "desktop-1", desktop.Metadata.Name)
+				require.Equal(subtestT, "127.0.0.1:22", desktop.Spec.Addr)
+				require.Equal(subtestT, "test-host", desktop.Spec.Hostname)
+				require.Equal(subtestT, map[string]string{
+					"env":  "test",
+					"team": "engineering",
+				}, desktop.Metadata.Labels)
+			},
+		},
+		{
+			name: "linux desktop DELETE",
+			kind: types.KindLinuxDesktop,
+			init: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
+				// GIVEN an existing Linux desktop
+				svc, err := NewLinuxDesktopService(backend)
+				require.NoError(subtestT, err)
+
+				desktop := &linuxdesktopv1.LinuxDesktop{
+					Kind:    types.KindLinuxDesktop,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "desktop-to-delete",
+						Labels: map[string]string{
+							"env": "staging",
+						},
+					},
+					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+						Addr:     "192.168.1.10:22",
+						Hostname: "delete-me",
+					},
+				}
+
+				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
+				require.NoError(subtestT, err)
+			},
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
+				// WHEN I delete the Linux desktop
+				svc, err := NewLinuxDesktopService(backend)
+				require.NoError(subtestT, err)
+				require.NoError(subtestT, svc.DeleteLinuxDesktop(subtestCtx, "desktop-to-delete"))
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				// EXPECT to receive a DELETE event
+				event := fetchEvent(t, watcher, fetchTimeout)
+				require.Equal(t, types.OpDelete, event.Type)
+
+				// EXPECT that the event targets our pre-created desktop
+				m := event.Resource.GetMetadata()
+				require.Equal(subtestT, "desktop-to-delete", m.Name)
+
+				// EXPECT that the resource is a ResourceHeader with the correct kind
+				require.Equal(subtestT, types.KindLinuxDesktop, event.Resource.GetKind())
 			},
 		},
 	}
