@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { withoutQuery } from 'web/packages/build/storybook';
+
+import { withoutQuery } from 'build/storybook';
 
 import cfg from 'e-teleport/config';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
