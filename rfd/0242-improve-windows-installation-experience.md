@@ -45,9 +45,9 @@ the app will provide a dual-mode installer:
 | System registry hive for updater settings | HKCU / HKLM (HKLM takes precedence) | HKLM                       |
 
 During the runtime, the app will detect the per-machine mode by checking if it has been installed in `%ProgramFiles%`.
-Although the installation path can be changed via the `/D=<path>` option, the system services are installed only if 
+Although the installation path can be changed via the `/D=<path>` option, the system services are installed only if
 the app is placed in `%ProgramFiles%` (to avoid privilege escalation).
-This also means that changing the path via `/D` will break the per-machine installations. 
+This also means that changing the path via `/D` will break the per-machine installations.
 
 ### Per-User Mode
 
@@ -105,27 +105,24 @@ the entire machine.
 
 #### Mitigation
 
-To mitigate the risk of malicious version changes, the privileged service can restrict update sources to authorized
-clusters only:
+To reduce the risk of malicious version changes, client tool updates in Connect will only permit upgrades (currently
+downgrades are allowed).
+This restriction will be enforced in both the user-space application and the privileged updater.
+Since most Connect users are logged into one (or at most two) clusters, frequent version switching is uncommon,
+and this change should be largely unnoticeable to them.
 
-* Teleport Cloud clusters under the `*.teleport.sh` domain are trusted by default, as Teleport manages their
-  `client_tools_version` directly.
-* Updates from self-hosted environments are blocked unless the cluster hostname is present in a system-level allowlist
-  located in the Windows Registry (in HKLM hive).
+Important: this measure does not fully eliminate the risk, as Teleport maintains two release branches simultaneously.
+As a result, a version having higher major number doesn't necessarily have to be a newer one, for example, the latest
+N-1.x.x release may be more recent than an N.0.0 version published months earlier.
+However, this change does make the auto-update system more predictable: once the application is on the latest version,
+it cannot downgrade to an older release.
 
-To prevent unprivileged users from bypassing these restrictions, the allowlist is protected: only users with local
-admin privileges (via the app, confirmed by a UAC prompt) or IT Admins (via Windows Group Policy) can modify the
-registry entries.
-
-The main drawback of this approach is that it increases complexity of the Teleport Managed Updates (with system registry
-configuration). On top of that, it only applies to per-machine Teleport Connect for Windows installations.
-This means extra work for IT staff; to keep updates working in self-hosted environments, they will need to set up
-Windows Group Policy rules in addition to the normal app install.
+Additionally, in case of a serious vulnerability, a patch release could
+modify [autoupdate thresholds for the app](https://github.com/gravitational/teleport/blob/07aa75612674e1f19a0f40ae61c9e370f25a876e/web/packages/teleterm/src/services/appUpdater/clientToolsUpdateProvider.ts#L163-L166)
+(and for the service) to disallow updates from a version N-1.x.x to release below certain N.x.x version.
 
 #### Update Process
 
-1. Teleport Connect (user-space) verifies that the managing cluster is on the allowlist; if not, an error is displayed
-   to the user.
 1. The app downloads the update binary to a standard, user-writeable directory.
 1. When the user clicks "Restart to Update" or closes the app, Connect triggers the privileged updater service, passing
    the file path and the managing cluster hostname.
@@ -133,7 +130,7 @@ Windows Group Policy rules in addition to the normal app install.
       handler is invoked, the tsh daemon has already quit. Because of that, it's not feasible to perform an
       authentication between Teleport Connect ⇔ Updater Service (like we have between Teleport Connect ⇔ VNet
       Service).
-      The app will only invoke `sc start TeleportUpdateService install-connect-update --path=... --cluster=...` and exit
+      The app will only invoke `sc start TeleportUpdateService install-connect-update --path=...` and exit
       immediately.
 1. The service copies the binary to a system-protected path (e.g., `%ProgramData%\TeleportConnect\Updates\<GUID>`) to
    prevent tampering during the validation phase. This directory will be locked down to Administrators and LocalSystem
@@ -147,13 +144,10 @@ Windows Group Policy rules in addition to the normal app install.
     * The `%ProgramData%` is user-writable by default so ensure the directory wasn't pre-created before and there aren't
       any planted DLLs suitable for DLL hijacking.
     * To prevent the directory size from expanding indefinitely, it will be cleared before copying the update file.
-1. The service re-validates that the passed cluster is either a Teleport Cloud instance or present in the system
-   registry allowlist.
 1. The service checks the signature to ensure the binary is signed by the same organization and extracts the version
    string directly from the signature.
     * If the service itself is not signed, it will not require an update file to be signed.
-1. The service pings the passed cluster to fetch its `client_tools_version` and confirms it matches the version
-   of the staged binary.
+1. The service verifies that the update version is higher than its own (`tsh.exe` binary) version.
 1. The service executes the update and exits.
 
 #### Updates Configuration in System Registry
@@ -173,11 +167,10 @@ Registry Paths:
 * `HKEY_CURRENT_USER\SOFTWARE\Policies\TeleportConnect` - must be used only in the context of per-user installations,
   will not affect per-machine behavior.
 
-| Setting                  | Type         | Description                                                                                                                                                                                |
-|--------------------------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ToolsVersion             | REG_SZ       | Pins the application to a specific `X.Y.Z` version or disables updates entirely (`off`). Replaces `TELEPORT_TOOLS_VERSION`.                                                                |
-| CdnBaseUrl               | REG_SZ       | Specifies a custom build source or CDN mirror in a private network. Replaces  `TELEPORT_CDN_BASE_URL`.                                                                                     | 
-| AuthorizedUpdateClusters | REG_MULTI_SZ | A list of Teleport cluster hostnames (e.g., `teleport.example.com`) authorized to provide per-machine updates. This is exclusive to per-machine installations and must be defined in HKLM. |
+| Setting      | Type   | Description                                                                                                                 |
+|--------------|--------|-----------------------------------------------------------------------------------------------------------------------------|
+| ToolsVersion | REG_SZ | Pins the application to a specific `X.Y.Z` version or disables updates entirely (`off`). Replaces `TELEPORT_TOOLS_VERSION`. |
+| CdnBaseUrl   | REG_SZ | Specifies a custom build source or CDN mirror in a private network. Replaces  `TELEPORT_CDN_BASE_URL`.                      | 
 
 ## Alternatives
 
@@ -191,6 +184,16 @@ Pros:
 
 Cons:
 
+* We would need to create and maintain another package, like `Teleport VNet.exe` that would consist of `tsh.exe`,
+  `wintun.dll` and `msgfile.dll`.
 * IT admins would have to manage and deploy two separate pieces of software instead of one.
-* This doesn't fix the update issue. To update the service, we would still have to choose between the UAC prompts or
-  leave the system open to the "service downgrade" security risk mentioned earlier.
+    * Technically, this could still be a single deployment if `Teleport VNet.exe` were executed as part of the Teleport
+      Connect installation.
+* If the app remained in the per-user scope while the service moved to the per-machine scope, they would be updated
+  independently.
+    * This could introduce issues in multi-user environments: one user might be running app version 1.0.0 while
+      another is on 1.0.1. The user on version 1.0.1 could trigger a VNet service auto-update, which would then prevent
+      the 1.0.0 user from starting VNet (unless we provide some compatibility between the app the service).
+    * On the other hand, updating a shared per-machine instance via the privileged updater in multi-user setups is also
+      not ideal. However, since only upgrades are allowed, both the application and the VNet service would eventually
+      update to the same latest version, avoiding version mismatches.
