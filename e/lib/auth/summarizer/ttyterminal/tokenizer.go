@@ -24,6 +24,8 @@ const (
 	tokenResize
 )
 
+const escapeChar = '\x1b'
+
 // tokenizer processes a stream of SSH/k8s session recording events and splits each event's data
 // into separate tokens. When control sequences (like alternate screen or bracketed paste
 // escape codes) are found within an event, the tokenizer emits multiple tokens: one for
@@ -31,10 +33,14 @@ const (
 // simplifies downstream processing by isolating special terminal behaviors from regular output.
 // This can be further extended to handle heuristic command detection and segmentation, for older
 // shells that do not emit bracketed paste sequences.
+// Note: any text before the first escape character is ignored, to skip over MOTD and other non-interactive output,
+// which means the full session could be read without emitting any tokens if no escape characters are found.
 type tokenizer struct {
-	tokenChan chan token
-	closeOnce sync.Once
-	startTime time.Time
+	tokenChan       chan token
+	closeOnce       sync.Once
+	startTime       time.Time
+	hasEscape       bool
+	inTitleSequence bool
 }
 
 type token struct {
@@ -114,6 +120,19 @@ func (t *tokenizer) processPrintEvent(ctx context.Context, e *apievents.SessionP
 	timestamp := time.Duration(e.DelayMilliseconds) * time.Millisecond
 	data := e.Data
 
+	if !t.hasEscape {
+		escapeIdx := bytes.IndexByte(data, escapeChar)
+		if escapeIdx == -1 {
+			// Ignore print events until we see an escape character, avoiding
+			// processing the MOTD or other non-interactive output.
+			return nil
+		}
+
+		// Skip any data before the first escape character
+		t.hasEscape = true
+		data = data[escapeIdx:]
+	}
+
 	return trace.Wrap(t.tokenizeData(ctx, data, timestamp))
 }
 
@@ -147,14 +166,46 @@ func (t *tokenizer) tokenizeData(ctx context.Context, data []byte, timestamp tim
 	pos := 0
 	searchPos := 0
 
+	if t.inTitleSequence {
+		if end := findTitleSequenceTerminator(data); end > 0 {
+			pos = end
+			searchPos = end
+			t.inTitleSequence = false
+		} else {
+			// We're still in a title sequence, skip all data
+			return nil
+		}
+	}
+
 	for searchPos < len(data) {
-		escapePos := bytes.IndexByte(data[searchPos:], '\x1b')
+		escapePos := bytes.IndexByte(data[searchPos:], escapeChar)
 		if escapePos == -1 {
 			break
 		}
 
 		escapePos += searchPos
 		matched := false
+
+		if titleEnd, complete := findTitleSequenceEnd(data[escapePos:]); titleEnd > 0 {
+			// If we found a title sequence, emit any preceding text
+			if escapePos > pos {
+				if err := t.emitToken(ctx, tokenText, data[pos:escapePos], timestamp); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
+			// Skip the entire title sequence
+			pos = escapePos + titleEnd
+			searchPos = pos
+
+			if !complete {
+				// Title sequence continues in next event
+				t.inTitleSequence = true
+				return nil
+			}
+
+			continue
+		}
 
 		for _, seq := range specialSequences {
 			if !bytes.HasPrefix(data[escapePos:], seq.pattern) {
@@ -212,4 +263,43 @@ func (t *tokenizer) close() {
 	t.closeOnce.Do(func() {
 		close(t.tokenChan)
 	})
+}
+
+// findTitleSequenceEnd checks if data starts with an OSC title sequence (\x1b]0; \x1b]1; or \x1b]2;)
+// and returns the length of the sequence to skip and whether the sequence is complete.
+func findTitleSequenceEnd(data []byte) (int, bool) {
+	// Title sequences start with \x1b]N where N is 0, 1, or 2
+	if len(data) < 3 {
+		return 0, false
+	}
+
+	if data[0] != escapeChar || data[1] != ']' {
+		return 0, false
+	}
+
+	if data[2] != '0' && data[2] != '1' && data[2] != '2' {
+		return 0, false
+	}
+
+	if end := findTitleSequenceTerminator(data[3:]); end > 0 {
+		return end + 3, true
+	}
+
+	return len(data), false
+}
+
+// findTitleSequenceTerminator looks for the terminator of an ongoing title sequence.
+// Returns the position after the terminator, or 0 if no terminator is found.
+func findTitleSequenceTerminator(data []byte) int {
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\x07' {
+			return i + 1
+		}
+
+		if data[i] == escapeChar && i+1 < len(data) && data[i+1] == '\\' {
+			return i + 2
+		}
+	}
+
+	return 0
 }

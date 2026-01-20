@@ -19,23 +19,23 @@ func TestTokenize(t *testing.T) {
 		description    string
 	}{
 		{
-			name: "basic_text_only",
+			name: "basic_text_with_escape",
 			events: []apievents.AuditEvent{
 				&apievents.SessionStart{
 					Metadata:     apievents.Metadata{Time: time.Now()},
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("Hello, World!"),
+					Data:              []byte("\x1b[32mHello, World!\x1b[0m"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("Hello, World!")},
+				{tokenType: tokenText, data: []byte("\x1b[32mHello, World!\x1b[0m")},
 			},
-			description: "Simple text without any escape sequences",
+			description: "Simple text with escape sequences (color codes)",
 		},
 		{
 			name: "bracketed_paste_mode",
@@ -45,14 +45,14 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("normal text\x1b[?2004hpasted content\x1b[?2004lmore text"),
+					Data:              []byte("\x1b[0mnormal text\x1b[?2004hpasted content\x1b[?2004lmore text"),
 					DelayMilliseconds: 200,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("normal text")},
+				{tokenType: tokenText, data: []byte("\x1b[0mnormal text")},
 				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
 				{tokenType: tokenText, data: []byte("pasted content")},
 				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
@@ -68,14 +68,14 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("before vim\x1b[?1049husing vim\x1b[?1049lafter vim"),
+					Data:              []byte("\x1b[0mbefore vim\x1b[?1049husing vim\x1b[?1049lafter vim"),
 					DelayMilliseconds: 300,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("before vim")},
+				{tokenType: tokenText, data: []byte("\x1b[0mbefore vim")},
 				{tokenType: tokenAlternateScreenEnter, data: []byte("\x1b[?1049h")},
 				{tokenType: tokenText, data: []byte("using vim")},
 				{tokenType: tokenAlternateScreenExit, data: []byte("\x1b[?1049l")},
@@ -113,7 +113,7 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "120:40",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("$ ls -la\x1b[?2004hfilename.txt\x1b[?2004l\n"),
+					Data:              []byte("\x1b[0m$ ls -la\x1b[?2004hfilename.txt\x1b[?2004l\n"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionPrint{
@@ -132,7 +132,7 @@ func TestTokenize(t *testing.T) {
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("120:40")},
-				{tokenType: tokenText, data: []byte("$ ls -la")},
+				{tokenType: tokenText, data: []byte("\x1b[0m$ ls -la")},
 				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
 				{tokenType: tokenText, data: []byte("filename.txt")},
 				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
@@ -153,7 +153,7 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("initial text"),
+					Data:              []byte("\x1b[0minitial text"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.Resize{
@@ -168,7 +168,7 @@ func TestTokenize(t *testing.T) {
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("initial text")},
+				{tokenType: tokenText, data: []byte("\x1b[0minitial text")},
 				{tokenType: tokenResize, data: []byte("120:40")},
 				{tokenType: tokenText, data: []byte("after resize")},
 			},
@@ -182,14 +182,14 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("text\x1b[?200not a complete sequence"),
+					Data:              []byte("\x1b[?200not a complete sequence"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("text\x1b[?200not a complete sequence")},
+				{tokenType: tokenText, data: []byte("\x1b[?200not a complete sequence")},
 			},
 			description: "Incomplete escape sequence should be treated as regular text",
 		},
@@ -201,7 +201,7 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("test\x1b[?1047hmode1047\x1b[?1047l"),
+					Data:              []byte("\x1b[?1047hmode1047\x1b[?1047l"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionPrint{
@@ -212,7 +212,6 @@ func TestTokenize(t *testing.T) {
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("test")},
 				{tokenType: tokenAlternateScreenEnter, data: []byte("\x1b[?1047h")},
 				{tokenType: tokenText, data: []byte("mode1047")},
 				{tokenType: tokenAlternateScreenExit, data: []byte("\x1b[?1047l")},
@@ -223,27 +222,26 @@ func TestTokenize(t *testing.T) {
 			description: "Different alternate screen mode sequences",
 		},
 		{
-			name: "escape_in_middle_of_text",
+			name: "ignores_text_before_first_escape_in_same_event",
 			events: []apievents.AuditEvent{
 				&apievents.SessionStart{
 					Metadata:     apievents.Metadata{Time: time.Now()},
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("before\x1b[?2004hmiddle\x1b[?2004lafter"),
+					Data:              []byte("ignored prefix\x1b[?2004hmiddle\x1b[?2004lafter"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("before")},
 				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
 				{tokenType: tokenText, data: []byte("middle")},
 				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
 				{tokenType: tokenText, data: []byte("after")},
 			},
-			description: "Escape sequences appearing in the middle of text",
+			description: "Text before first escape in the same event should be ignored",
 		},
 		{
 			name: "empty_events",
@@ -257,14 +255,14 @@ func TestTokenize(t *testing.T) {
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("not empty"),
+					Data:              []byte("\x1b[0mnot empty"),
 					DelayMilliseconds: 200,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("not empty")},
+				{tokenType: tokenText, data: []byte("\x1b[0mnot empty")},
 			},
 			description: "Empty print events should not generate tokens",
 		},
@@ -276,14 +274,14 @@ func TestTokenize(t *testing.T) {
 					TerminalSize: "80:24",
 				},
 				&apievents.SessionPrint{
-					Data:              []byte("こんにちは 🚀 emoji\x1b[?2004h世界\x1b[?2004l"),
+					Data:              []byte("\x1b[0mこんにちは 🚀 emoji\x1b[?2004h世界\x1b[?2004l"),
 					DelayMilliseconds: 100,
 				},
 				&apievents.SessionEnd{},
 			},
 			expectedTokens: []token{
 				{tokenType: tokenResize, data: []byte("80:24")},
-				{tokenType: tokenText, data: []byte("こんにちは 🚀 emoji")},
+				{tokenType: tokenText, data: []byte("\x1b[0mこんにちは 🚀 emoji")},
 				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
 				{tokenType: tokenText, data: []byte("世界")},
 				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
@@ -311,6 +309,150 @@ func TestTokenize(t *testing.T) {
 				{tokenType: tokenAlternateScreenExit, data: []byte("\x1b[?1049l")},
 			},
 			description: "Adjacent escape sequences without intervening text",
+		},
+		{
+			name: "ignores_text_until_escape_sequence",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("Welcome to Ubuntu 22.04 LTS\n"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("Last login: Mon Jan 15 10:00:00 2024\n"),
+					DelayMilliseconds: 200,
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("\x1b[?2004hls -la\x1b[?2004l"),
+					DelayMilliseconds: 300,
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("output after escape seen"),
+					DelayMilliseconds: 400,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
+				{tokenType: tokenText, data: []byte("ls -la")},
+				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
+				{tokenType: tokenText, data: []byte("output after escape seen")},
+			},
+			description: "Text without escape sequences (like MOTD) is ignored until first escape is seen",
+		},
+		{
+			name: "strips_title_bar_sequences_with_bel",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("\x1b[0mbefore\x1b]0;Window Title\x07after"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenText, data: []byte("\x1b[0mbefore")},
+				{tokenType: tokenText, data: []byte("after")},
+			},
+			description: "Title bar sequences terminated with BEL should be stripped",
+		},
+		{
+			name: "strips_title_bar_sequences_with_st",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("\x1b[0mbefore\x1b]2;Another Title\x1b\\after"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenText, data: []byte("\x1b[0mbefore")},
+				{tokenType: tokenText, data: []byte("after")},
+			},
+			description: "Title bar sequences terminated with ST (ESC \\) should be stripped",
+		},
+		{
+			name: "strips_multiple_title_sequences",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("\x1b]0;Title1\x07text\x1b]1;Icon\x07more\x1b]2;Title2\x1b\\end"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenText, data: []byte("text")},
+				{tokenType: tokenText, data: []byte("more")},
+				{tokenType: tokenText, data: []byte("end")},
+			},
+			description: "Multiple title sequences should all be stripped",
+		},
+		{
+			name: "title_sequences_with_special_sequences",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("\x1b]0;user@host:~/dir\x07\x1b[?2004hcommand\x1b[?2004l"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
+				{tokenType: tokenText, data: []byte("command")},
+				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
+			},
+			description: "Title sequences should be stripped while preserving bracketed paste",
+		},
+		{
+			name: "title_sequence_spans_multiple_events",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data:              []byte("\x1b[0mbefore\x1b]0;This is a very long title"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionPrint{
+					Data:              []byte(" that spans multiple events"),
+					DelayMilliseconds: 200,
+				},
+				&apievents.SessionPrint{
+					Data:              []byte(" and finally ends here\x07after"),
+					DelayMilliseconds: 300,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenText, data: []byte("\x1b[0mbefore")},
+				{tokenType: tokenText, data: []byte("after")},
+			},
+			description: "Title sequences spanning multiple events should be fully stripped",
 		},
 	}
 
@@ -400,7 +542,7 @@ func TestTokenizerTimestamps(t *testing.T) {
 			TerminalSize: "80:24",
 		},
 		&apievents.SessionPrint{
-			Data:              []byte("first"),
+			Data:              []byte("\x1b[0mfirst"),
 			DelayMilliseconds: 100,
 		},
 		&apievents.SessionPrint{
