@@ -19,21 +19,20 @@
 package mcputils
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/url"
-	"slices"
-	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ConnectSSEServer establishes an SSE stream with the MCP server and finds the
@@ -131,15 +130,26 @@ func (w *SSERequestWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMess
 // SSE stream with the MCP server.
 type SSEResponseReader struct {
 	io.Closer
-	scanner *bufio.Scanner
+	nextEvent func() (Event, error, bool)
 }
 
 // NewSSEResponseReader creates a new SSEResponseReader. Input reader is usually the
 // http body used for SSE stream.
 func NewSSEResponseReader(reader io.ReadCloser) *SSEResponseReader {
+	var mu sync.Mutex
+	nextEvent, stopFunc := iter.Pull2(scanEvents(reader))
 	return &SSEResponseReader{
-		Closer:  reader,
-		scanner: bufio.NewScanner(reader),
+		Closer: utils.CloseFunc(func() error {
+			mu.Lock()
+			stopFunc()
+			mu.Unlock()
+			return reader.Close()
+		}),
+		nextEvent: func() (Event, error, bool) {
+			mu.Lock()
+			defer mu.Unlock()
+			return nextEvent()
+		},
 	}
 }
 
@@ -147,14 +157,16 @@ func NewSSEResponseReader(reader io.ReadCloser) *SSEResponseReader {
 // This should be the first event after connecting to SSE server, and any error
 // is critical.
 func (r *SSEResponseReader) ReadEndpoint(ctx context.Context, baseURL *url.URL) (*url.URL, error) {
-	evt, err := r.nextEvent()
-	if err != nil {
+	evt, err, ok := r.nextEvent()
+	if !ok {
+		return nil, trace.Wrap(io.EOF, "reading SSE server message")
+	} else if err != nil {
 		return nil, trace.Wrap(err, "reading SSE server message")
 	}
-	if evt.name != sseEventEndpoint {
-		return nil, trace.BadParameter("expecting endpoint event, got %s", evt.name)
+	if evt.Name != sseEventEndpoint {
+		return nil, trace.BadParameter("expecting endpoint event, got %s", evt.Name)
 	}
-	endpointURI, err := baseURL.Parse(string(evt.data))
+	endpointURI, err := baseURL.Parse(string(evt.Data))
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing endpoint data")
 	}
@@ -163,14 +175,16 @@ func (r *SSEResponseReader) ReadEndpoint(ctx context.Context, baseURL *url.URL) 
 
 // ReadMessage reads the next SSE message event from SSE stream.
 func (r *SSEResponseReader) ReadMessage(ctx context.Context) (string, error) {
-	evt, err := r.nextEvent()
-	if err != nil {
-		return "", trace.Wrap(err)
+	evt, err, ok := r.nextEvent()
+	if !ok {
+		return "", trace.Wrap(io.EOF, "reading SSE server message")
+	} else if err != nil {
+		return "", trace.Wrap(err, "reading SSE server message")
 	}
-	if evt.name != sseEventMessage {
-		return "", newReaderParseError(trace.BadParameter("unexpected event type %s", evt.name))
+	if evt.Name != sseEventMessage {
+		return "", newReaderParseError(trace.BadParameter("unexpected event type %s", evt.Name))
 	}
-	return string(evt.data), nil
+	return string(evt.Data), nil
 }
 
 // Type returns "SSE".
@@ -182,57 +196,3 @@ const (
 	sseEventEndpoint string = "endpoint"
 	sseEventMessage  string = "message"
 )
-
-// event is an event is a server-sent event.
-type event struct {
-	name string
-	data []byte
-}
-
-func (e event) marshal() []byte {
-	return fmt.Appendf(nil, "event: %s\ndata: %s\n\n", e.name, e.data)
-}
-
-// nextEvent reads one sse event from the wire.
-//
-// Logic is copied from golang internal mcp lib which might get released
-// officially someday:
-// https://cs.opensource.google/go/x/tools/+/refs/tags/v0.34.0:internal/mcp/sse.go.
-//
-// Original comment from above go source:
-// https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#examples
-//   - `key: value` line records.
-//   - Consecutive `data: ...` fields are joined with newlines.
-//   - Unrecognized fields are ignored. Since we only care about 'event' and
-//     'data', these are the only two we consider.
-//   - Lines starting with ":" are ignored.
-//   - Records are terminated with two consecutive newlines.
-func (r *SSEResponseReader) nextEvent() (event, error) {
-	var (
-		evt         event
-		lastWasData bool // if set, preceding data field was also data
-	)
-	for r.scanner.Scan() {
-		line := r.scanner.Bytes()
-		if len(line) == 0 && (evt.name != "" || len(evt.data) > 0) {
-			return evt, nil
-		}
-		before, after, found := bytes.Cut(line, []byte{':'})
-		if !found {
-			return evt, fmt.Errorf("malformed line in SSE stream: %q", string(line))
-		}
-		switch {
-		case bytes.Equal(before, []byte("event")):
-			evt.name = strings.TrimSpace(string(after))
-		case bytes.Equal(before, []byte("data")):
-			data := bytes.TrimSpace(after)
-			if lastWasData {
-				evt.data = slices.Concat(evt.data, []byte{'\n'}, data)
-			} else {
-				evt.data = data
-			}
-			lastWasData = true
-		}
-	}
-	return evt, io.EOF
-}
