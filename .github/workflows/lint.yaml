@@ -18,6 +18,7 @@ jobs:
       has_rfd: ${{ steps.changes.outputs.has_rfd }}
       has_ui: ${{ steps.changes.outputs.has_ui }}
       has_bpf: ${{ steps.changes.outputs.has_bpf }}
+      has_cli_docs: ${{ steps.changes.outputs.has_cli_docs }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -87,6 +88,11 @@ jobs:
               - 'bpf/**.c'
               - 'bpf/**.h'
               - 'lib/bpf/*'
+            has_cli_docs:
+              - '.github/workflows/lint.yaml'
+              - 'tool/**.go'
+              - 'lib/utils/usage_docs*'
+              - 'lib/utils/docsconfigs/*.yaml'
 
   lint-go:
     name: Lint (Go)
@@ -374,3 +380,18 @@ jobs:
       - name: Check if BPF generated files are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make bpf-up-to-date
+
+  lint-generated-cli-docs:
+    name: CLI reference documentation
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_cli_docs == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check if generated CLI reference docs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make cli-docs-up-to-date
+
