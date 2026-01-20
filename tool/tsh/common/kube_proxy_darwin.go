@@ -33,8 +33,6 @@ import (
 )
 
 func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, args []string) (err error) {
-	command = getExecCommand(command)
-
 	f, err := os.CreateTemp("", "proxy-kubeconfig-*")
 	if err != nil {
 		return trace.Wrap(err, "failed to create temporary file")
@@ -46,6 +44,8 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, a
 	if err != nil {
 		return trace.Wrap(err, "failed to write kubeconfig into temporary file")
 	}
+
+	command = getExecCommand(command)
 
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stderr = os.Stderr
