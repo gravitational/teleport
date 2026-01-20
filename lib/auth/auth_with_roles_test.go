@@ -10231,38 +10231,61 @@ func TestScopedRoleEvents(t *testing.T) {
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
 }
 
-// TestProxyWatchAllCacheKinds ensures the builtin proxy role can watch every
-// kind used by the proxy cache config.
-func TestProxyWatchAllCacheKinds(t *testing.T) {
+// TestWatchAllCacheKinds ensures the system builtin roles can watch every
+// kind used by the proxy cache config. The only exception (and not included in
+// this test) is auth role which has access to all cache kinds and will fail
+// early if there is a mismatch.
+func TestWatchAllCacheKinds(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
-	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
+	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
+		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,
+		types.RoleNode:           cache.ForNode(cache.Config{}).Watches,
+		types.RoleApp:            cache.ForApps(cache.Config{}).Watches,
+		types.RoleDatabase:       cache.ForDatabases(cache.Config{}).Watches,
+		types.RoleOkta:           cache.ForOkta(cache.Config{}).Watches,
+		types.RoleRelay:          cache.ForRelay(cache.Config{}).Watches,
+		types.RoleDiscovery:      cache.ForDiscovery(cache.Config{}).Watches,
+		types.RoleKube:           cache.ForKubernetes(cache.Config{}).Watches,
+		types.RoleWindowsDesktop: cache.ForWindowsDesktop(cache.Config{}).Watches,
+	} {
+		t.Run(string(role), func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestBuiltin(role))
+			require.NoError(t, err)
 
-	watchKinds := cache.ForProxy(cache.Config{}).Watches
-	watcher, err := client.NewWatcher(ctx, types.Watch{
-		Kinds:               watchKinds,
-		AllowPartialSuccess: true,
-	})
-	require.NoError(t, err)
-	defer watcher.Close()
+			watcher, err := client.NewWatcher(ctx, types.Watch{
+				Kinds:               watchKinds,
+				AllowPartialSuccess: true,
+			})
+			require.NoError(t, err)
+			defer watcher.Close()
 
-	select {
-	case event := <-watcher.Events():
-		require.Equal(t, types.OpInit, event.Type, "expected watch init event")
-		status, ok := event.Resource.(types.WatchStatus)
-		require.True(t, ok, "expected watch status, got %T", event.Resource)
-		require.Equal(t, watchKinds, status.GetKinds(),
-			"proxy watch kind confirmation mismatch. check proxy role permissions",
-		)
-	case <-watcher.Done():
-		require.FailNow(t, "watcher closed unexpectedly", watcher.Error())
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "timeout waiting for watcher init")
+			select {
+			case event := <-watcher.Events():
+				require.Equal(t, types.OpInit, event.Type, "expected watch init event")
+				status, ok := event.Resource.(types.WatchStatus)
+				require.True(t, ok, "expected watch status, got %T", event.Resource)
+				require.ElementsMatch(t, collectWatchKind(watchKinds), collectWatchKind(status.GetKinds()),
+					"watch kind confirmation mismatch. check system role permissions",
+				)
+			case <-watcher.Done():
+				require.FailNow(t, "watcher closed unexpectedly", watcher.Error())
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "timeout waiting for watcher init")
+			}
+		})
 	}
+}
+
+func collectWatchKind(kinds []types.WatchKind) []string {
+	res := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		res = append(res, kind.Kind+"_"+kind.SubKind)
+	}
+	return res
 }
 
 func TestKubeKeepAliveServer(t *testing.T) {
