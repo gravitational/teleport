@@ -35,6 +35,8 @@ import StyledTextEditor from './StyledTextEditor';
 
 const { UndoManager } = ace.require('ace/undomanager');
 
+export const EDITOR_ID = 'text-editor';
+
 class TextEditor extends Component {
   onChange = () => {
     const isClean = this.editor.session.getUndoManager().isClean();
@@ -105,7 +107,7 @@ class TextEditor extends Component {
 
   componentDidMount() {
     const { data, readOnly } = this.props;
-    this.editor = ace.edit(this.ace_viewer);
+    this.editor = ace.edit(EDITOR_ID);
     this.editor.setFadeFoldWidgets(true);
     this.editor.setWrapBehavioursEnabled(true);
     this.editor.setHighlightActiveLine(false);
@@ -145,7 +147,7 @@ class TextEditor extends Component {
 
     return (
       <StyledTextEditor bg={bg}>
-        <div ref={e => (this.ace_viewer = e)} />
+        <div id={EDITOR_ID} />
         {hasButton && (
           <ButtonSection>
             {this.props.copyButton && (
