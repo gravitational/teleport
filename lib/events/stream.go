@@ -1438,8 +1438,18 @@ func isReserveUploadPartError(err error) bool {
 	return strings.Contains(err.Error(), uploaderReservePartErrorMessage)
 }
 
+// MergeStreamer is a SessionStreamer that combines two SessionStreamers into
+// one.
+//
+// Events remain ordered by EventIndex. Synthetic session end events
+// (created by the upload completer for abandoned uploads) are discarded; the
+// upload completer will add them again if needed. If the next event from both
+// streams have the same event index, the event from Current is used, and the
+// event from Incoming is discarded.
 type MergeStreamer struct {
-	Current  SessionStreamer
+	// Current is the streamer for the currently stored recording.
+	Current SessionStreamer
+	// Incoming is the streamer for the new recording to be merged with Current.
 	Incoming SessionStreamer
 }
 
@@ -1488,39 +1498,60 @@ func (m MergeStreamer) StreamSessionEvents(ctx context.Context, sessionID sessio
 		wg.Wait()
 
 		for {
+			// Both streams have run out of events, we are done.
 			if nextCurrentEvent == nil && nextIncomingEvent == nil {
 				return
 			}
+			var nextEvent apievents.AuditEvent
 			switch {
+			// Skip synthetically added session end events. Either the real session
+			// end will show up, or the upload completer will add a new synthetic
+			// session end.
+			case isSkippableEvent(nextCurrentEvent) && isSkippableEvent(nextIncomingEvent):
+				wg.Go(getNextCurrent)
+				wg.Go(getNextIncoming)
+			case isSkippableEvent(nextCurrentEvent):
+				wg.Go(getNextCurrent)
+			case isSkippableEvent(nextIncomingEvent):
+				wg.Go(getNextIncoming)
 			// There are no incoming events or the current event is next by index.
 			case nextIncomingEvent == nil || (nextCurrentEvent != nil && nextCurrentEvent.GetIndex() < nextIncomingEvent.GetIndex()):
-				select {
-				case events <- nextCurrentEvent:
-				case <-ctx.Done():
-					return
-				}
+				nextEvent = nextCurrentEvent
 				wg.Go(getNextCurrent)
 				// There are no current events or the incoming event is next by index.
 			case nextCurrentEvent == nil || (nextIncomingEvent != nil && nextIncomingEvent.GetIndex() < nextCurrentEvent.GetIndex()):
-				select {
-				case events <- nextIncomingEvent:
-				case <-ctx.Done():
-					return
-				}
+				nextEvent = nextIncomingEvent
 				wg.Go(getNextIncoming)
 				// Duplicate event. Send the current event, replace both.
 			case nextCurrentEvent.GetIndex() == nextIncomingEvent.GetIndex():
+				nextEvent = nextCurrentEvent
+				wg.Go(getNextCurrent)
+				wg.Go(getNextIncoming)
+			}
+
+			if nextEvent != nil {
 				select {
-				case events <- nextCurrentEvent:
+				case events <- nextEvent:
 				case <-ctx.Done():
 					return
 				}
-				wg.Go(getNextCurrent)
-				wg.Go(getNextIncoming)
 			}
 			wg.Wait()
 		}
 
 	}()
 	return events, errors
+}
+
+func isSkippableEvent(event apievents.AuditEvent) bool {
+	if event == nil {
+		return false
+	}
+	switch e := event.(type) {
+	case *apievents.SessionEnd:
+		return e.UploadAbandoned
+	case *apievents.WindowsDesktopSessionEnd:
+		return e.UploadAbandoned
+	}
+	return false
 }

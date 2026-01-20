@@ -987,6 +987,10 @@ message SessionEnd {
 
   // SessionRecording is the type of session recording.
   string SessionRecording = 14 [(gogoproto.jsontag) = "session_recording,omitempty"];
+
+  // UploadAbandoned indicates that the uploading of the session was abandoned
+  // partway, and that this end event was inserted by the upload completer.
+  bool UploadAbandoned = 15 [(gogoproto.jsontag) = "upload_abandoned,omitempty"];
 }
 
 // BPFMetadata is a common BPF process metadata
@@ -4071,6 +4075,9 @@ message WindowsDesktopSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // UploadAbandoned indicates that the uploading of the session was abandoned
+  // partway, and that this end event was inserted by the upload completer.
+  bool UploadAbandoned = 15 [(gogoproto.jsontag) = "upload_abandoned,omitempty"];
 }
 
 // CertificateCreate is emitted when a certificate is issued.

@@ -394,6 +394,7 @@ loop:
 				desktopSessionEnd.DesktopAddr = e.DesktopAddr
 				desktopSessionEnd.DesktopLabels = e.DesktopLabels
 				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
+				desktopSessionEnd.UploadAbandoned = true
 
 			case *events.SessionStart:
 				isPTYSession = true
@@ -412,6 +413,7 @@ loop:
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
 				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))
+				sshSessionEnd.UploadAbandoned = true
 
 			case *events.SessionJoin:
 				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, u.cfg.ClusterName))

@@ -731,6 +731,9 @@ func TestMergeStreamer(t *testing.T) {
 	mkEvent := func(index int64, code string) apievents.AuditEvent {
 		return testEvent{index: index, code: code}
 	}
+	mkSessionEnd := func(index int64, abandoned bool) apievents.AuditEvent {
+		return &apievents.SessionEnd{Metadata: apievents.Metadata{Index: index}, UploadAbandoned: abandoned}
+	}
 	tests := []struct {
 		name           string
 		current        []apievents.AuditEvent
@@ -781,6 +784,12 @@ func TestMergeStreamer(t *testing.T) {
 				mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
 				mkEvent(7, "g"), mkEvent(8, "h"), mkEvent(9, "i"),
 			},
+		},
+		{
+			name:           "skip synthetic session end events",
+			current:        []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkSessionEnd(3, true), mkSessionEnd(6, true)},
+			incoming:       []apievents.AuditEvent{mkEvent(3, "c"), mkEvent(4, "d"), mkSessionEnd(5, true), mkSessionEnd(6, true)},
+			expectedEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c"), mkEvent(4, "d")},
 		},
 	}
 	for _, tc := range tests {
