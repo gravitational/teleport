@@ -26,28 +26,23 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func init() {
-	// TELEPORT_UNSTABLE_GRPC_SERVICE_CONFIG must be the json representation
-	// of a [grpcv1.ServiceConfig].
-	serviceConfig, _ = os.LookupEnv("TELEPORT_UNSTABLE_GRPC_SERVICE_CONFIG")
-}
-
-var serviceConfig string
+// serviceConfigEnvVar allows the service config presented by the [Service] to be
+// specified an envvar. It must be the json representation of a [grpcv1.ServiceConfig].
+const serviceConfigEnvVar = "TELEPORT_UNSTABLE_GRPC_SERVICE_CONFIG"
 
 // NewService initializes a new grpcclientconfig [Service].
 func NewService() (*Service, error) {
-	config := &grpcv1.ServiceConfig{}
-	if serviceConfig != "" {
-		err := protojson.Unmarshal([]byte(serviceConfig), config)
-		if err != nil {
+	if sc, ok := os.LookupEnv(serviceConfigEnvVar); ok {
+		config := &grpcv1.ServiceConfig{}
+		if err := protojson.Unmarshal([]byte(sc), config); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		config = grpcclientconfig.DefaultServiceConfig()
+		return &Service{
+			config: config,
+		}, nil
 	}
-
 	return &Service{
-		config: config,
+		config: grpcclientconfig.DefaultServiceConfig(),
 	}, nil
 }
 
