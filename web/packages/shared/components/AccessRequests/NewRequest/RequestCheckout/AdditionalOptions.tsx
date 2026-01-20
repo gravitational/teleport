@@ -44,13 +44,7 @@ export function AdditionalOptions({
 
   return (
     <>
-      <Flex
-        justifyContent="space-between"
-        alignItems="center"
-        css={`
-          border-color: ${props => props.theme.colors.spotBackground[1]};
-        `}
-      >
+      <Flex justifyContent="space-between" alignItems="center">
         <Text mr={2} typography="body3">
           Additional Options
         </Text>
