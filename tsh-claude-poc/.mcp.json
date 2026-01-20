@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tsh": {
+      "command": "/Users/stevehuang/go/github.com/gravitational/teleport/e/build/tsh",
+      "args": ["claude-mcp"]
+    }
+  }
+}

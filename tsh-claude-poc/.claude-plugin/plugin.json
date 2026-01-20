@@ -1,0 +1,6 @@
+{
+  "name": "tsh",
+  "version": "1.0.0",
+  "description": "Access Teleport resources backed by tsh",
+  "author": {"name":"Teleport"}
+}

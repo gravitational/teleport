@@ -1056,6 +1056,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
 
+	appCurl := apps.Command("curl", "Run curl").Interspersed(true)
+	appCurl.Flag("app", "App name to curl for.").Required().StringVar(&cf.AppName)
+	appCurl.Flag("url-path", "Url path to curl without the domain. Example: /path/to/curl.").StringVar(&cf.DatabaseUser)
+	appCurl.Arg("args", "all other args passing to curl").StringsVar(&cf.AWSCommandArgs)
+
 	// Recordings.
 	recordings := app.Command("recordings", "View and control session recordings.").Alias("recording")
 	lsRecordings := recordings.Command("ls", "List recorded sessions.")
@@ -1491,6 +1496,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
+	// TODO support passing extra args
+	claudeCommand := app.Command("claude", "launches claude")
+	claudeHookCommand := app.Command("claude-hook", "handles hook calls from claude").Hidden()
+	claudeMCPCommand := app.Command("claude-mcp", "handles mcp for claude").Hidden()
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1805,6 +1815,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onAppLogout(&cf)
 	case appConfig.FullCommand():
 		err = onAppConfig(&cf)
+	case appCurl.FullCommand():
+		err = onAppCurl(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
 	case kube.ls.FullCommand():
@@ -1953,6 +1965,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.config.run()
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
+	case claudeCommand.FullCommand():
+		err = runClaude(&cf)
+	case claudeHookCommand.FullCommand():
+		err = runClaudeHook(&cf)
+	case claudeMCPCommand.FullCommand():
+		err = runClaudeMCP(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
