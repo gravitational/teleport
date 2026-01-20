@@ -78,6 +78,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	autoupdateagent "github.com/gravitational/teleport/lib/autoupdate/agent"
 	autoupdatetools "github.com/gravitational/teleport/lib/autoupdate/tools"
+	"github.com/gravitational/teleport/lib/autoupdate/windows_service"
 	"github.com/gravitational/teleport/lib/benchmark"
 	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
@@ -1487,6 +1488,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	autoUpdateCommand1 := app.Command("windows-install-update-service", "Install the update Windows service.").Hidden()
+	updateServiceCommand := app.Command("update-service", "Install the update Windows service.").Hidden()
+	intalUpdateCommand := app.Command("install-update", "Install the update.").Hidden()
+	installUpdatePath := intalUpdateCommand.Flag("path", "Path to the installer to send to the update service.").Required().String()
+	installUpdateForceRun := intalUpdateCommand.Flag("force-run", "Force running the installer even if the update service is already active.").Bool()
+	installUpdateVersion := intalUpdateCommand.Flag("update-ver", "Version").Required().String()
+
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -1927,6 +1935,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case autoUpdateCommand1.FullCommand():
+		err = windows_service.InstallService(ctx)
+	case updateServiceCommand.FullCommand():
+		err = windows_service.ServiceMain()
+	case intalUpdateCommand.FullCommand():
+		err = windows_service.RunServiceAndInstallFromClient(*installUpdatePath, *installUpdateForceRun, *installUpdateVersion)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():

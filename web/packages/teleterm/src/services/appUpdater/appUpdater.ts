@@ -65,6 +65,7 @@ export class AppUpdater {
   private forceNoAutoDownload = false;
 
   constructor(
+    private tshPath: string,
     private readonly storage: AppUpdaterStorage,
     private readonly client: {
       getClusterVersions(): Promise<GetClusterVersionsResponse>;
@@ -89,7 +90,7 @@ export class AppUpdater {
     };
 
     if (process.platform === 'win32') {
-      this.nativeUpdater = new NsisDualModeUpdater();
+      this.nativeUpdater = new NsisDualModeUpdater(this.tshPath);
     }
 
     this.nativeUpdater.setFeedURL({

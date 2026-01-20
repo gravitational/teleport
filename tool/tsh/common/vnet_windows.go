@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
+const eventSource = "vnet"
+
 // vnetServiceCommand is the command that runs the Windows service.
 type vnetServiceCommand struct {
 	*kingpin.CmdClause
@@ -66,7 +68,7 @@ func newPlatformVnetInstallServiceCommand(app *kingpin.Application) *vnetInstall
 }
 
 func (c *vnetInstallServiceCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.InstallService(cf.Context), "installing Windows service")
+	return trace.Wrap(vnet.InstallVNetService(cf.Context), "installing Windows service")
 }
 
 type vnetUninstallServiceCommand struct {
@@ -81,7 +83,7 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) *vnetUnins
 }
 
 func (c *vnetUninstallServiceCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.UninstallService(cf.Context), "uninstalling Windows service")
+	return trace.Wrap(vnet.UninstallVNetService(cf.Context), "uninstalling Windows service")
 }
 
 // the admin-setup command is only supported on darwin.
