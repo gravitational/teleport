@@ -7,6 +7,8 @@ kind: TeleportRoleV8
 metadata:
   name: {{ include "event-handler.fullname" . }}
   namespace: {{ include "event-handler.crd.namespace" . }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
 spec:
   allow:
     rules:
@@ -18,6 +20,8 @@ kind: TeleportBotV1
 metadata:
   name: {{ include "event-handler.fullname" . }}
   namespace: {{ include "event-handler.crd.namespace" . }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
 spec:
   roles:
     - {{ include "event-handler.fullname" . }}
@@ -27,6 +31,8 @@ kind: TeleportProvisionToken
 metadata:
   name: {{ include "event-handler.crd.tokenName" . }}
   namespace: {{ include "event-handler.crd.namespace" . }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
 spec:
   roles: [Bot]
   bot_name: {{ include "event-handler.fullname" . }}
