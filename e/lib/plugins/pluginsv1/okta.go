@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -70,7 +71,7 @@ func (s *Service) oktaNeedsCleanup(ctx context.Context) ([]*types.ResourceID, bo
 	}
 
 	// Check to see if search as roles is the same as the preset.
-	if !slices.Equal(oktaRequesterRole.GetSearchAsRoles(types.Allow), services.NewSystemOktaRequesterRole().GetSearchAsRoles(types.Allow)) {
+	if !slices.Equal(oktaRequesterRole.GetSearchAsRoles(types.Allow), services.NewSystemOktaRequesterRole(modules.BuildEnterprise).GetSearchAsRoles(types.Allow)) {
 		allResources = append(allResources, &types.ResourceID{Kind: types.KindRole, Name: teleport.SystemOktaRequesterRoleName})
 	}
 
@@ -157,7 +158,7 @@ func (s *Service) cleanupOkta(ctx context.Context) error {
 
 	// FInally, make sure the Okta requester role is reset.
 	s.logger.InfoContext(ctx, "Resetting okta-requester role")
-	if _, err = s.authServer.UpsertRole(ctx, services.NewSystemOktaRequesterRole()); err != nil {
+	if _, err = s.authServer.UpsertRole(ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise)); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to reset okta-requester role during plugin cleanup", "error", err)
 		return trace.Wrap(err)
 	}

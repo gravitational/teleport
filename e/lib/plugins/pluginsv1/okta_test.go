@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -86,8 +87,8 @@ func TestService_CleanupOkta(t *testing.T) {
 		newRole(t, "r2-cleanup", types.OriginOkta),
 		newRole(t, "r3-cleanup", types.OriginOkta),
 	}
-	oktaAccessRole := services.NewSystemOktaAccessRole()
-	oktaRequesterRole := services.NewSystemOktaRequesterRole()
+	oktaAccessRole := services.NewSystemOktaAccessRole(modules.BuildEnterprise)
+	oktaRequesterRole := services.NewSystemOktaRequesterRole(modules.BuildEnterprise)
 	roles := []types.Role{
 		oktaAccessRole,
 		oktaRequesterRole, // This is a special role that shouldn't be deleted, but it should be modified.
@@ -162,7 +163,7 @@ func TestService_CleanupOkta(t *testing.T) {
 	)
 
 	// Reset the role so that it's back to normal.
-	upsertRoles(t, ctx, suite.svc.authServer, services.NewSystemOktaRequesterRole())
+	upsertRoles(t, ctx, suite.svc.authServer, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
 
 	staticCredentials := &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{
@@ -275,7 +276,7 @@ func TestService_CleanupOkta(t *testing.T) {
 	oktaRequesterRole, err = suite.svc.authServer.GetRole(ctx, teleport.SystemOktaRequesterRoleName)
 	require.NoError(t, err)
 	roles[1] = oktaRequesterRole
-	roles[1].SetSearchAsRoles(types.Allow, services.NewSystemOktaRequesterRole().GetSearchAsRoles(types.Allow))
+	roles[1].SetSearchAsRoles(types.Allow, services.NewSystemOktaRequesterRole(modules.BuildEnterprise).GetSearchAsRoles(types.Allow))
 
 	require.Empty(t, backendOktaAssignments)
 	require.Empty(t, cmp.Diff(accessLists, backendAccessLists, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))

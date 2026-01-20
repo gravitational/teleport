@@ -26,6 +26,7 @@ import (
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 )
@@ -107,9 +108,9 @@ func initAccessListSync(t *testing.T, ctx context.Context) *accessListSyncTestCo
 	emitter := eventstest.NewChannelEmitter(1)
 	stopCh := make(chan struct{}, 1)
 
-	_, err := ap.UpsertRole(ctx, services.NewSystemOktaAccessRole())
+	_, err := ap.UpsertRole(ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
 	require.NoError(t, err)
-	_, err = ap.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
+	_, err = ap.UpsertRole(ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)

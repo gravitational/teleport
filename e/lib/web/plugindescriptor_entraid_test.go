@@ -229,7 +229,7 @@ func TestEntraIDValidatePlugin(t *testing.T) {
 
 func TestEntraIDUpdatePlugin(t *testing.T) {
 	env := createEntraIDTEnv(t)
-	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole())
+	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	installPluginEndPoint := env.pack.clt.Endpoint("enterprise", "plugins", "staticauth")
@@ -323,7 +323,7 @@ func TestEntraIDUpdatePlugin(t *testing.T) {
 
 func TestEntraIDPluginUpdatePreservesStatus(t *testing.T) {
 	env := createEntraIDTEnv(t)
-	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole())
+	_, err := env.s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	// install plugin
@@ -382,7 +382,7 @@ func TestEntraIDPluginUpdatePreservesStatus(t *testing.T) {
 
 func createEntraConnector(t *testing.T, s *webSuite) string {
 	t.Helper()
-	_, err := s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole())
+	_, err := s.testAuthServer.Auth().CreateRole(t.Context(), services.NewPresetRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 	samlConnector := &types.SAMLConnectorV2{
 		Metadata: types.Metadata{

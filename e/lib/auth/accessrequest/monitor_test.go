@@ -59,10 +59,10 @@ func (s *AccessMonitoringSuite) SetupTest() {
 	s.srv = newTestTLSServer(t)
 
 	// Setup system access review bot role and user.
-	_, err := s.srv.Auth().UpsertRole(ctx, services.NewSystemAutomaticAccessApproverRole())
+	_, err := s.srv.Auth().UpsertRole(ctx, services.NewSystemAutomaticAccessApproverRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
-	_, err = s.srv.Auth().UpsertUser(ctx, services.NewSystemAutomaticAccessBotUser())
+	_, err = s.srv.Auth().UpsertUser(ctx, services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	// Setup admin role and user

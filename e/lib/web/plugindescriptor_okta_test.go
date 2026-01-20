@@ -145,7 +145,7 @@ func newTestOktaPluginFixture(t *testing.T, opts ...webSuiteOption) (*webSuite, 
 
 	// And add the Role that we will want to assign to Okta users
 	_, err := s.testAuthServer.Auth().CreateRole(context.Background(),
-		services.NewPresetRequesterRole())
+		services.NewPresetRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	// Patch the Web Plugin's plugin descriptor map so that any request for the
@@ -249,9 +249,9 @@ func TestOktaPluginUpdate(t *testing.T) {
 	})
 
 	// Set up okta-requester role
-	_, err := authSvc.UpsertRole(s.ctx, services.NewSystemOktaAccessRole())
+	_, err := authSvc.UpsertRole(s.ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
 	require.NoError(t, err)
-	_, err = authSvc.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole())
+	_, err = authSvc.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	// Set up an existing Okta plugin
@@ -472,9 +472,9 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 	pluginCredsSvc := s.authPlugin.PluginStaticCredentialsService()
 	authSvc := s.testAuthServer.AuthServer.AuthServer.Services
 	ctx := context.Background()
-	_, err := authSvc.UpsertRole(ctx, services.NewSystemOktaAccessRole())
+	_, err := authSvc.UpsertRole(ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
 	require.NoError(t, err)
-	_, err = authSvc.UpsertRole(ctx, services.NewSystemOktaRequesterRole())
+	_, err = authSvc.UpsertRole(ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	// When I invoke the installer via the web interface...

@@ -320,9 +320,9 @@ func TestPluginCleanup(t *testing.T) {
 	s := newWebSuite(t, withClock(clock), withRunWhileLockedRetryInterval(100*time.Millisecond))
 	webPack := s.newAuthWebPack(t, "foo")
 
-	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaAccessRole())
+	_, err := s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaAccessRole(modules.BuildEnterprise))
 	require.NoError(t, err)
-	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole())
+	_, err = s.testAuthServer.AuthServer.AuthServer.UpsertRole(s.ctx, services.NewSystemOktaRequesterRole(modules.BuildEnterprise))
 	require.NoError(t, err)
 
 	endpoint := webPack.clt.Endpoint("enterprise", "plugins", "needscleanup", types.PluginTypeOkta)

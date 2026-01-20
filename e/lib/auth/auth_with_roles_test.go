@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -89,7 +90,7 @@ func newCloudSuite(t *testing.T) cloudWithRolesTestSuite {
 	emitter := &mockEmitter{}
 	authPlugin.authServer.Emitter = emitter
 
-	roles := auth.GetPresetRoles()
+	roles := auth.GetPresetRoles(modules.BuildEnterprise)
 	rolesNames := make([]string, len(roles))
 	for i, r := range roles {
 		rolesNames[i] = r.GetName()
@@ -100,7 +101,7 @@ func newCloudSuite(t *testing.T) cloudWithRolesTestSuite {
 		authorize: func(ctx context.Context) (*authz.Context, error) {
 			return &authz.Context{
 				User:     newUser(t, "testuser", types.UserTypeLocal, rolesNames...),
-				Checker:  services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", auth.GetPresetRoles()),
+				Checker:  services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", auth.GetPresetRoles(modules.BuildEnterprise)),
 				Identity: authIdentity,
 			}, nil
 		},
