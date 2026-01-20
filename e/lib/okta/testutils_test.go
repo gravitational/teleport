@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -109,7 +110,10 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 	streamer := events.NewDiscardStreamer()
 
 	access := local.NewAccessService(backend)
-	accessLists, err := local.NewAccessListService(backend, clock)
+	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: backend,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	require.NoError(t, err)
 	ca := local.NewCAService(backend)
 	clusterConfiguration, err := local.NewClusterConfigurationService(backend)

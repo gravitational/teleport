@@ -629,7 +629,10 @@ func newDepsMock(t *testing.T, clock clockwork.Clock) *mockDeps {
 	identitySvc, err := local.NewIdentityService(b)
 	require.NoError(t, err)
 
-	aclSvc, err := local.NewAccessListService(b, clock)
+	aclSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: b,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	require.NoError(t, err)
 
 	provStateSvc, err := local.NewProvisioningStateService(b)

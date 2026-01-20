@@ -24,17 +24,22 @@ import (
 func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	ctx := t.Context()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{entitlements.Identity: {Enabled: true}},
 		},
-	})
+	}
+	modulestest.SetTestModules(t, testModules)
 
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{Clock: clock})
 	require.NoError(t, err)
-	storage, err := local.NewAccessListService(bk, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
+	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend:                     bk,
+		Modules:                     &testModules,
+		RunWhileLockedRetryInterval: -1 * time.Millisecond,
+	})
 	require.NoError(t, err)
 
 	// a1 not a owner nor a member of anything
@@ -107,17 +112,17 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 func Test_statusReconciler_reconcile_missingOwnerAndMemberLists(t *testing.T) {
 	ctx := t.Context()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{entitlements.Identity: {Enabled: true}},
-		},
-	})
+	testModules := modulestest.EnterpriseModules()
+	modulestest.SetTestModules(t, *testModules)
 
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{Clock: clock})
 	require.NoError(t, err)
-	storage, err := local.NewAccessListService(bk, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
+	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend:                     bk,
+		Modules:                     testModules,
+		RunWhileLockedRetryInterval: -1 * time.Millisecond,
+	})
 	require.NoError(t, err)
 
 	cfg := statusReconcilerConfig{

@@ -359,6 +359,19 @@ func withICClient(c icsdk.Client) icSuitOpt {
 
 func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webSuite, *authWebPack, *httptest.Server) {
 	t.Helper()
+
+	testModules := modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
+			Cloud: true,
+		},
+	}
+
+	modulestest.SetTestModules(t, testModules)
+
 	s := newWebSuite(t,
 		// Disable retry interval to prevent test from hanging
 		// because it uses the fake clock.
@@ -395,17 +408,6 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webS
 	}
 
 	s.webPlugin.pluginDescriptors[types.PluginTypeAWSIdentityCenter] = cfg
-
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-			Cloud: true,
-		},
-	})
-
 	return s, webPack, testSCIMServer
 }
 

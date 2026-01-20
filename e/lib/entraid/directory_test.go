@@ -20,10 +20,8 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/plugins/filter"
@@ -1217,21 +1215,18 @@ type directoryReconcilerEnv struct {
 const ssoConnectorID = "my-sso-connector"
 
 func newDirectoryReconcilerEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConnector) directoryReconcilerEnv {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	testModules := modulestest.EnterpriseModules()
+	modulestest.SetTestModules(t, *testModules)
 
-	clock := clockwork.NewRealClock()
 	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	bk := backend.NewSanitizer(mem)
 	identitySvc, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
-	alSvc, err := local.NewAccessListService(bk, clock)
+	alSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: bk,
+		Modules: testModules,
+	})
 	require.NoError(t, err)
 
 	samlService, err := local.NewIdentityService(bk)

@@ -874,7 +874,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	modulestest.SetTestModules(t, modulestest.Modules{
+	testModules := modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -882,7 +882,8 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 			},
 			Cloud: true,
 		},
-	})
+	}
+	modulestest.SetTestModules(t, testModules)
 
 	clusterConfigSvc, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
@@ -890,7 +891,11 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	roleSvc := local.NewAccessService(backend)
 	userSvc, err := local.NewIdentityService(backend)
 	require.NoError(t, err)
-	storage, err := local.NewAccessListService(backend, clock, local.WithRunWhileLockedRetryInterval(-1*time.Millisecond))
+	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend:                     backend,
+		Modules:                     &testModules,
+		RunWhileLockedRetryInterval: -1 * time.Millisecond,
+	})
 	require.NoError(t, err)
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
