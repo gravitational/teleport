@@ -22,7 +22,7 @@ docs: $(README_FILES)
 	terraform-docs markdown table --config .terraform-docs.yml $*
 
 .PHONY: check
-check:
+check: clean
 	git ls-files -- . \
 	| xargs pre-commit run --hook-stage=manual --verbose --files
 
