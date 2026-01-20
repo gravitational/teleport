@@ -76,7 +76,7 @@ build: $(BUILD_TARGETS) ;
 # https://developer.hashicorp.com/terraform/internals/module-registry-protocol
 $(BUILD_DIR)/$(PLUGIN_TYPE)_%.tar.gz: clean
 	@mkdir -p $(dir $@)
-	tar -czf $@ $(subst _,/,$*)
+	tar -C $(subst _,/,$*) -czf $@ .
 
 .PHONY: clean
 clean: tfclean
