@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package grpcclientconfigv1
+package grpcclientconfig
 
 import (
 	"testing"
@@ -26,8 +26,9 @@ import (
 )
 
 func TestServiceConfigJSON(t *testing.T) {
+	value := `{"loadBalancingConfig":[{"teleport_pick_healthy":{"mode":"MODE_RECONNECT"}}], "healthCheckConfig":{"serviceName":""}}`
 	empty := ""
-	config := grpcv1.ServiceConfig{
+	want := &grpcv1.ServiceConfig{
 		LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{{
 			Config: &grpcv1.LoadBalancerConfig_TeleportPickHealthy{TeleportPickHealthy: &grpcv1.TeleportPickHealthyConfig{
 				Mode: grpcv1.Mode_MODE_RECONNECT,
@@ -35,8 +36,8 @@ func TestServiceConfigJSON(t *testing.T) {
 		}},
 		HealthCheckConfig: &grpcv1.HealthCheckConfig{ServiceName: &empty},
 	}
-
-	out, err := protojson.Marshal(&config)
+	got := &grpcv1.ServiceConfig{}
+	err := protojson.Unmarshal([]byte(value), got)
 	require.NoError(t, err)
-	require.Equal(t, `{"loadBalancingConfig":[{"teleport_pick_healthy":{"mode":"MODE_RECONNECT"}}], "healthCheckConfig":{"serviceName":""}}`, string(out))
+	require.EqualExportedValues(t, want, got)
 }
