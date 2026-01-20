@@ -147,7 +147,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 
 		command := getExecCommand(c.execCmd)
 		cmd := &exec.Cmd{
-			Path: command,
+			Path: "test",
 			Args: append([]string{command}, c.execArgs...),
 			Env:  []string{"KUBECONFIG=" + localProxy.KubeConfigPath()},
 		}
