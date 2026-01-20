@@ -144,11 +144,8 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		go localProxy.Start(cf.Context)
-
-		command := getExecCommand(c.execCmd)
 		cmd := &exec.Cmd{
 			Path: "test",
-			Args: append([]string{command}, c.execArgs...),
 			Env:  []string{"KUBECONFIG=" + localProxy.KubeConfigPath()},
 		}
 		return trace.Wrap(cf.RunCommand(cmd))
