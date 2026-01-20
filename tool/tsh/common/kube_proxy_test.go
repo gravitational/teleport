@@ -134,8 +134,8 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 
 	t.Run("backward compatibility - no exec-cmd", func(t *testing.T) {
 		validateCmd := func(cmd *exec.Cmd) error {
-			// Should default to shell
-			require.Equal(t, cmd.Args, []string{"/bin/bash"})
+			// Should default to $SHELL
+			require.Equal(t, cmd.Args, []string{os.Getenv("SHELL")})
 			return nil
 		}
 
