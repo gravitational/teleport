@@ -268,6 +268,7 @@ const CheckoutWrapper = styled(Box)`
   background-color: ${props => props.theme.colors.levels.sunken};
   max-height: calc(100vh - ${props => props.theme.topBarHeight[1]}px);
   overflow-y: auto;
+  height: 100%;
 `;
 
 const ResizingResourceWrapper = styled(Box)<{ showCheckout?: boolean }>`
