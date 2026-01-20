@@ -271,7 +271,7 @@ organization: # [...]
 |organization|An AWS Organization matcher for discovering resources accross multiple accounts under an Organization.|[AWS Organization Matcher](#aws-organization-matcher)|
 |regions|AWS regions to query for databases.|[]string|
 |setup_access_for_arn|The role that the Discovery Service should create EKS Access Entries for. This value should match the IAM identity that Teleport Kubernetes Service uses. If this value is empty, the Discovery Service will attempt to set up access for its own identity (self).|string|
-|ssm|Provides options to use when sending a document command to an EC2 node|[AWSSSM](#awsssm)|
+|ssm|Provides options to use when sending a document command to an EC2 node|[AWS SSM](#aws-ssm)|
 |tags|AWS resource Tags to match.|[Labels](#labels)|
 |types|AWS database types to match, "ec2", "rds", "redshift", "elasticache", or "memorydb".|[]string|
 
@@ -315,7 +315,7 @@ exclude:
 |exclude|A list of AWS Organizational Unit IDs to exclude. Only exact matches or wildcard (*) are supported. If empty, no Organizational Units are excluded by default.|[]string|
 |include|A list of AWS Organizational Unit IDs to match. Only exact matches or wildcard (*) are supported. If empty, all Organizational Units are included by default.|[]string|
 
-## AWSSSM
+## AWS SSM
 
 Provides options to use when executing SSM documents
 

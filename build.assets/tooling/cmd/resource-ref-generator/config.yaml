@@ -8,6 +8,10 @@ resources:
     package: types
     yaml_kind: app
     yaml_version: v3
+  - type: DatabaseServerV3
+    package: types
+    yaml_kind: db_server
+    yaml_version: v3
   - type: DiscoveryConfig
     package: discoveryconfig
     yaml_kind: discovery_config
@@ -27,12 +31,23 @@ resources:
 
 camel_case_exceptions:
   - AWS
+  - AlloyDB
   - CORS
+  - DocumentDB
   - EKS
+  - ElastiCache
   - GCP
   - HTTP
+  - IAM
   - ID
+  - IdP
   - MFA
+  - MemoryDB
+  - MySQL
   - OIDC
+  - OpenSearch
+  - RDS
   - SAML
+  - SQL
   - SSO
+  - TLS

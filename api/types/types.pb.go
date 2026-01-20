@@ -2165,7 +2165,8 @@ type AWS struct {
 	MemoryDB MemoryDB `protobuf:"bytes,7,opt,name=MemoryDB,proto3" json:"memorydb,omitempty"`
 	// RDSProxy contains AWS Proxy specific metadata.
 	RDSProxy RDSProxy `protobuf:"bytes,8,opt,name=RDSProxy,proto3" json:"rdsproxy,omitempty"`
-	// RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
+	// RedshiftServerless contains metatada specific to Amazon Redshift
+	// Serverless.
 	RedshiftServerless RedshiftServerless `protobuf:"bytes,9,opt,name=RedshiftServerless,proto3" json:"redshift_serverless,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `protobuf:"bytes,10,opt,name=ExternalID,proto3" json:"external_id,omitempty"`
@@ -2266,7 +2267,7 @@ func (m *SecretStore) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SecretStore proto.InternalMessageInfo
 
-// Redshift contains AWS Redshift specific database metadata.
+// Redshift contains metadata specific to Amazon Redshift.
 type Redshift struct {
 	// ClusterID is the Redshift cluster identifier.
 	ClusterID            string   `protobuf:"bytes,1,opt,name=ClusterID,proto3" json:"cluster_id,omitempty"`

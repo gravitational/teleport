@@ -471,7 +471,8 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
+  // RedshiftServerless contains metatada specific to Amazon Redshift
+  // Serverless.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -518,7 +519,7 @@ message SecretStore {
   string KMSKeyID = 2 [(gogoproto.jsontag) = "kms_key_id,omitempty"];
 }
 
-// Redshift contains AWS Redshift specific database metadata.
+// Redshift contains metadata specific to Amazon Redshift.
 message Redshift {
   // ClusterID is the Redshift cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
