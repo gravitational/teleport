@@ -1030,7 +1030,8 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 // to the maximum size, which may result in loss of data.
 // Trimming requires unmarshalling the event to audit.Event and then
 // calling TrimToMaxSize on it.
-// This is not an efficient operation, but it is executed once per page,
+// This is not an efficient operation, but it is executed at most once per page,
+// and only when a single event exceeds the limit,
 // so it should not be a problem in practice.
 func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
 	event, err := events.FromEventFields(fields)

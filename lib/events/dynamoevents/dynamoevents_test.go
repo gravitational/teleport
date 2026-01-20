@@ -1031,7 +1031,7 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 	bigUntrimmableEvent := &apievents.AppCreate{
 		Metadata: apievents.Metadata{
 			ID:   uuid.NewString(),
-			Time: time.Now().UTC(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
 			Type: events.AppCreateEvent,
 		},
 		AppMetadata: apievents.AppMetadata{
@@ -1041,7 +1041,7 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 	bigTrimmableEvent := &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
 			ID:   uuid.NewString(),
-			Time: time.Now().UTC(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
 			Type: events.DatabaseSessionQueryEvent,
 		},
 		DatabaseQuery: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
@@ -1157,7 +1157,7 @@ func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
 					returnKey: &key1,
 				},
 				key1: {
-					events:    []apievents.AuditEvent{event2, event3, bigUntrimmableEvent},
+					events:    []apievents.AuditEvent{event2, event3, bigTrimmableEvent},
 					returnKey: nil,
 				},
 			},
