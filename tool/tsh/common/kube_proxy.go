@@ -144,8 +144,20 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		go localProxy.Start(cf.Context)
+
+		// Determine which command to execute for testing
+		// Priority: 1) --exec-cmd flag, 2) SHELL env var, 3) /bin/bash
+		command := c.execCmd
+		if command == "" {
+			command = "/bin/bash"
+			if shell, ok := os.LookupEnv("SHELL"); ok {
+				command = shell
+			}
+		}
+
 		cmd := &exec.Cmd{
-			Path: "test",
+			Path: command,
+			Args: append([]string{command}, c.execArgs...),
 			Env:  []string{"KUBECONFIG=" + localProxy.KubeConfigPath()},
 		}
 		return trace.Wrap(cf.RunCommand(cmd))
