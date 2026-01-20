@@ -87,6 +87,6 @@ export const toggleAWSConsoleConstraint =
       aws_console: {
         role_arns: curr.aws_console.role_arns.filter(a => a !== arn),
       },
-    } satisfies ResourceConstraints;
+    };
     set?.(key, newRc.aws_console.role_arns.length ? newRc : undefined);
   };

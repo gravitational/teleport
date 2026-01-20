@@ -22,7 +22,12 @@ import { Link, MemoryRouter } from 'react-router-dom';
 import { Box, ButtonPrimary, ButtonText } from 'design';
 import { UNSUPPORTED_KINDS } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
 import { Option } from 'shared/components/Select';
-import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
+import {
+  AccessRequest,
+  getResourceIDString,
+  RequestKind,
+  ResourceConstraintsMap,
+} from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
@@ -73,6 +78,7 @@ export const Loaded = () => {
     </MemoryRouter>
   );
 };
+
 export const Empty = () => {
   const [selectedReviewers, setSelectedReviewers] = useState([]);
   const [maxDuration, setMaxDuration] = useState<Option<number>>();
@@ -125,6 +131,45 @@ export const LoadedResourceRequest = () => {
         setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedResourceRequestWithConstraints = () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'app',
+      id: 'aws-console',
+      name: 'AWS Console App',
+      clusterName: 'localhost',
+    },
+  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'app',
+      name: 'aws-console',
+      cluster: 'localhost',
+    })]: {
+      aws_console: {
+        role_arns: [
+          'arn:aws:iam::123456789012:role/Viewer',
+          'arn:aws:iam::123456789012:role/Admin',
+          'arn:aws:iam::123456789012:role/DevOps',
+        ],
+      },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        pendingAccessRequests={pendingAccessRequests}
+        addedResourceConstraints={addedResourceConstraints}
+        setResourceConstraints={() => {}}
       />
     </MemoryRouter>
   );
