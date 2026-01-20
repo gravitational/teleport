@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -10228,6 +10229,40 @@ func TestScopedRoleEvents(t *testing.T) {
 			Name: assignment.Metadata.Name,
 		},
 	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+}
+
+// TestProxyWatchAllCacheKinds ensures the builtin proxy role can watch every
+// kind used by the proxy cache config.
+func TestProxyWatchAllCacheKinds(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	watchKinds := cache.ForProxy(cache.Config{}).Watches
+	watcher, err := client.NewWatcher(ctx, types.Watch{
+		Kinds:               watchKinds,
+		AllowPartialSuccess: true,
+	})
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	select {
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type, "expected watch init event")
+		status, ok := event.Resource.(types.WatchStatus)
+		require.True(t, ok, "expected watch status, got %T", event.Resource)
+		require.Equal(t, watchKinds, status.GetKinds(),
+			"proxy watch kind confirmation mismatch. check proxy role permissions",
+		)
+	case <-watcher.Done():
+		require.FailNow(t, "watcher closed unexpectedly", watcher.Error())
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timeout waiting for watcher init")
+	}
 }
 
 func TestKubeKeepAliveServer(t *testing.T) {
