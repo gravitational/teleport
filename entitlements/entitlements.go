@@ -94,7 +94,7 @@ func BackfillFeatures(features *proto.Features) {
 	// set default Identity fields to legacy feature value
 	features.Entitlements[string(AccessLists)] = &proto.EntitlementInfo{Enabled: true, Limit: features.GetAccessList().GetCreateLimit()}
 	features.Entitlements[string(AccessMonitoring)] = &proto.EntitlementInfo{Enabled: features.GetAccessMonitoring().GetEnabled(), Limit: features.GetAccessMonitoring().GetMaxReportRangeLimit()}
-	features.Entitlements[string(AccessRequests)] = &proto.EntitlementInfo{Enabled: features.GetAccessRequests().MonthlyRequestLimit > 0, Limit: features.GetAccessRequests().GetMonthlyRequestLimit()}
+	features.Entitlements[string(AccessRequests)] = &proto.EntitlementInfo{Enabled: features.GetAccessRequests().GetMonthlyRequestLimit() > 0, Limit: features.GetAccessRequests().GetMonthlyRequestLimit()}
 	features.Entitlements[string(DeviceTrust)] = &proto.EntitlementInfo{Enabled: features.GetDeviceTrust().GetEnabled(), Limit: features.GetDeviceTrust().GetDevicesUsageLimit()}
 	// override Identity Package features if Identity is enabled: set true and clear limit
 	if features.GetIdentityGovernance() {

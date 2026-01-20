@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -129,19 +128,26 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 		return testPack{}, trace.Wrap(err)
 	}
 
+	clock := cmp.Or(opts.Clock, clockwork.NewRealClock())
+	// TODO(tross): replace modules.GetModules with opts.Modules
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), clock.Now)
+	if err != nil {
+		return testPack{}, trace.Wrap(err)
+	}
+
 	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &auth.InitConfig{
 		DataDir:        opts.DataDir,
 		Backend:        p.bk,
 		VersionStorage: p.versionStorage,
 		ClusterName:    p.clusterName,
-		Authority:      testauthority.New(),
+		Authority:      keygen,
 		Emitter:        p.mockEmitter,
 		// This uses lower bcrypt costs for faster tests.
 		Identity:               identityService,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
-		Clock:                  cmp.Or(opts.Clock, clockwork.NewRealClock()),
+		Clock:                  clock,
 	}
 	p.a, err = auth.NewServer(authConfig)
 	if err != nil {
@@ -526,7 +532,7 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 	const pass2 = "supersecretpassword!!2!"
 
 	// Create the require-trusted-device role.
-	rtdRole := services.NewPresetRequireTrustedDeviceRole()
+	rtdRole := services.NewPresetRequireTrustedDeviceRole(modules.BuildEnterprise)
 	require.NotNil(t, rtdRole, "require-trusted-device role is nil, are the modules set to Enterprise?")
 	_, err := authServer.UpsertRole(ctx, rtdRole)
 	require.NoError(t, err, "UpsertRole(%q) failed", rtdRole.GetName())
@@ -1252,12 +1258,17 @@ func TestUpdateConfig(t *testing.T) {
 		ClusterName: "foo.localhost",
 	})
 	require.NoError(t, err)
+
+	// TODO(tross): replace modules.GetModules with auth server Modules
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), s.a.GetClock().Now)
+	require.NoError(t, err)
+
 	// use same backend but start a new auth server with different config.
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                s.bk,
 		VersionStorage:         s.versionStorage,
-		Authority:              testauthority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}
@@ -2766,7 +2777,10 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p := newAuthSuite(t)
 
 	hostID := uuid.New().String()
-	keygen := testauthority.New()
+	// TODO(tross): replace modules.GetModules with auth server modules
+	keygen, err := testauthority.NewKeygen(modules.GetModules().BuildType(), p.a.GetClock().Now)
+	require.NoError(t, err)
+
 	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
@@ -4043,7 +4057,7 @@ func TestCAGeneration(t *testing.T) {
 		HostUUID    = "0000-000-000-0000"
 	)
 	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
+	privKey, pubKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
@@ -4055,7 +4069,7 @@ func TestCAGeneration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for _, caType := range types.CertAuthTypes {
+	for _, caType := range types.CertAuthTypesExtended {
 		t.Run(string(caType), func(t *testing.T) {
 			ca, err := authcatest.NewCA(caType, clusterName, privKey)
 			require.NoError(t, err)
@@ -4664,14 +4678,7 @@ func TestCleanupNotifications(t *testing.T) {
 func TestCreateAccessListReminderNotifications(t *testing.T) {
 	ctx := context.Background()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
 	testServer := newTestTLSServer(t)
@@ -4824,14 +4831,7 @@ func createAccessList(t *testing.T, authServer *auth.Server, name string, opts .
 func TestCreateAccessListReminderNotifications_LargeOverdueSet(t *testing.T) {
 	ctx := t.Context()
 
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	// Setup test auth server
 	testServer := newTestTLSServer(t)
@@ -5238,7 +5238,9 @@ func TestCreateAuthPreference(t *testing.T) {
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
 			if test.modules != nil {
+				buildType = test.modules.BuildType()
 				modulestest.SetTestModules(t, *test.modules)
 			}
 
@@ -5254,12 +5256,16 @@ func TestCreateAuthPreference(t *testing.T) {
 			clusterConfigService, err := local.NewClusterConfigurationService(bk)
 			require.NoError(t, err)
 
+			// TODO(tross): replace modules.GetModules with auth server modules
+			keygen, err := testauthority.NewKeygen(buildType, time.Now)
+			require.NoError(t, err)
+
 			server, err := auth.NewServer(&auth.InitConfig{
 				DataDir:                t.TempDir(),
 				Backend:                bk,
 				ClusterName:            clusterName,
 				VersionStorage:         authtest.NewFakeTeleportVersion(),
-				Authority:              testauthority.New(),
+				Authority:              keygen,
 				Emitter:                &eventstest.MockRecorderEmitter{},
 				ClusterConfiguration:   clusterConfigService,
 				SkipPeriodicOperations: true,

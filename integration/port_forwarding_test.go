@@ -142,7 +142,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 			cfg.SSH.Labels = map[string]string{"foo": "bar"}
 
-			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err := testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -168,7 +168,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			})
 
 			// create an node instance
-			privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+			privateKey, publicKey, err = testauthority.GenerateKeyPair()
 			require.NoError(t, err)
 
 			node := helpers.NewInstance(t, helpers.InstanceConfig{

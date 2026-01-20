@@ -1,3 +1,40 @@
+<Tabs>
+<TabItem label="Dynamic configuration (recommended)">
+Edit the Discovery Config created previously to add an entry to the `spec.aws` section,
+assigning <Var name="role ARN" /> to the ARN of the IAM role to assume and
+<Var name="optional external ID" /> to an optional external ID:
+
+```yaml
+kind: discovery_config
+# ...
+spec:
+  aws:
+  - types: ["ec2"]
+    ssm:
+      document_name: "AWS-RunShellScript"
+    # Add new entry after existing entries
+  - types: ["ec2"]
+    regions: ["us-east-1","us-west-1"]
+    install:
+      join_params:
+        token_name: aws-discovery-iam-token
+        method: iam
+    ssm:
+      document_name: "AWS-RunShellScript"
+    tags:
+      "env": "prod" # Match EC2 instances where tag:env=prod
+    assume_role:
+      role_arn: "<Var name="role ARN" />"
+      external_id: "<Var name="optional external ID" />"
+  - types: ["ec2"]
+    ssm:
+      document_name: "AWS-RunShellScript"
+    # Add a new entry for each account.
+    # ...
+```
+</TabItem>
+
+<TabItem label="Static configuration">
 Add an entry to the `discovery_service.aws` section of your `teleport.yaml`
 file, assigning <Var name="role ARN" /> to the ARN of the IAM role to assume and
 <Var name="optional external ID" /> to an optional external ID:
@@ -31,3 +68,5 @@ discovery_service:
     # Add a new entry for each account.
     # ...
 ```
+</TabItem>
+</Tabs>

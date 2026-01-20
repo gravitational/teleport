@@ -144,7 +144,7 @@ func newDepsMock(t *testing.T) *depsMock {
 
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
-	publicKey, privateKey, err := testauthority.New().GenerateJWT()
+	publicKey, privateKey, err := testauthority.GenerateJWT()
 	require.NoError(t, err)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        caType,

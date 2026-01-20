@@ -7151,7 +7151,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := testauthority.New().GenerateKeyPair()
+	_, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {
@@ -7321,7 +7321,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 
 	s := newScopedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
 
-	_, sshPub, err := testauthority.New().GenerateKeyPair()
+	_, sshPub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
@@ -10467,7 +10467,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, srv.Auth())
+				auth.CreatePresetUsers(ctx, modules.BuildEnterprise, srv.Auth())
 			}
 
 			// create preexisting users

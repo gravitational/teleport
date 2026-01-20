@@ -359,7 +359,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 func newUpack(ctx context.Context, s *SrvCtx, username string, allowedLogins []string, allowedLabels types.Labels) (*upack, error) {
 	auth := s.server.Auth()
-	upriv, upub, err := testauthority.New().GenerateKeyPair()
+	upriv, upub, err := testauthority.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

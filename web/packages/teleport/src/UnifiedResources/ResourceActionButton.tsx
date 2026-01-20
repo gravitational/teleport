@@ -17,7 +17,6 @@
  */
 
 import React, { useState, type JSX } from 'react';
-import { GitServer } from 'web/packages/teleport/src/services/gitServers';
 
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
@@ -44,6 +43,7 @@ import { UnifiedResource } from 'teleport/services/agents';
 import { App, SamlAppLaunchUrl } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
+import { GitServer } from 'teleport/services/gitServers';
 import { Kube } from 'teleport/services/kube';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';

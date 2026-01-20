@@ -126,7 +126,7 @@ func TestJoinGHA(t *testing.T) {
 	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
 
 	// helper for creating RegisterUsingTokenRequest
-	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
+	sshPrivateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	tlsPublicKey, err := authtest.PrivateKeyToPublicKeyTLS(sshPrivateKey)
 	require.NoError(t, err)

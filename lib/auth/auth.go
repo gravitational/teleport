@@ -114,6 +114,7 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/inventory"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
@@ -411,7 +412,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.AccessLists == nil {
-		cfg.AccessLists, err = local.NewAccessListService(cfg.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
+		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
+			Backend: cfg.Backend,
+			// TODO(tross): replace modules.GetModules with cfg.Modules
+			Modules:                     modules.GetModules(),
+			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -581,7 +587,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return organizations.NewFromConfig(c)
 		}
 
-		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientUsingAmbientCredentials(closeCtx, cfg.Clock, organizationsClientFromSDK)
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -906,9 +912,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	return as, nil
 }
 
-// awsOrganizationsClientUsingAmbientCredentials returns an AWS Organizations client getter
-// that uses ambient credentials to create the client.
-func awsOrganizationsClientUsingAmbientCredentials(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (iamjoin.OrganizationsAPIGetter, error) {
+// awsOrganizationsClientGetter returns an AWS Organizations client getter.
+func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -935,22 +940,36 @@ type organizationsClientGetter struct {
 	describeAccountAPICache       *utils.FnCache
 	awsConfig                     awsconfig.Provider
 	organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI
+	// Only used in tests to prevent hitting real AWS endpoints.
+	stsClientFromConfig func(aws.Config) awsconfig.STSClient
 }
 
-func (o *organizationsClientGetter) Get(ctx context.Context) (iamjoin.OrganizationsAPI, error) {
+func (o *organizationsClientGetter) Get(ctx context.Context, integration string, awsOIDCIntegrationClient awsconfig.OIDCIntegrationClient) (iamjoin.OrganizationsAPI, error) {
 	// For IAM Join flow, the join token might allow instances under an Organization to join the cluster.
 	// In order to validate the organization ID of the joining identity, a call to organizations:DescribeAccount is performed.
 	// This requires AWS credentials to be accessible to the Auth Service.
 	//
-	// Currently, only ambient credentials are supported, which are not available when running within Teleport Cloud.
+	// The credentials can come from an integration or from ambient credentials, when an integration is not specified in the join token.
+	//
+	// Using ambient credentials when the Auth Service is running within Teleport Cloud is not supported.
 	// In that scenario a NotImplemented error is returned.
-	if modules.GetModules().Features().Cloud {
-		return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID are not currently supported in Teleport Cloud")
+	if integration == "" && modules.GetModules().Features().Cloud {
+		return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID require an integration")
+	}
+
+	awsConfigOptions := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{
+			Name: integration,
+		}),
+		awsconfig.WithOIDCIntegrationClient(awsOIDCIntegrationClient),
+	}
+	if o.stsClientFromConfig != nil {
+		awsConfigOptions = append(awsConfigOptions, awsconfig.WithSTSClientProvider(o.stsClientFromConfig))
 	}
 
 	// Organizations API is global, so we use an empty string for region.
 	const noRegion = ""
-	awsConfig, err := o.awsConfig.GetConfig(ctx, noRegion, awsconfig.WithAmbientCredentials())
+	awsConfig, err := o.awsConfig.GetConfig(ctx, noRegion, awsConfigOptions...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1667,6 +1686,20 @@ func (a *Server) GetDeviceAssertionServer() CreateDeviceAssertionFunc {
 		}
 	}
 	return a.deviceAssertionServer
+}
+
+// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+func (a *Server) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+		Username:    a.ServerID,
+		Subject:     types.IntegrationAWSOIDCSubjectAuth,
+		Clock:       a.clock,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
 }
 
 func (a *Server) SetCreateDeviceWebTokenFunc(f CreateDeviceWebTokenFunc) {
@@ -8338,7 +8371,7 @@ func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.Ce
 }
 
 // newKeySet generates a new sets of keys for a given CA type.
-// Keep this function in sync with lib/auth/authcatest.NewTestCAWithConfig().
+// Keep this function in sync with lib/auth/authcatest.NewCAWithConfig().
 func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertAuthID) (types.CAKeySet, error) {
 	switch caID.Type {
 	case
@@ -8353,7 +8386,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.SPIFFECA,
 		types.OktaCA,
 		types.AWSRACA,
-		types.BoundKeypairCA:
+		types.BoundKeypairCA,
+		types.WindowsCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8374,7 +8408,14 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add TLS keys if necessary.
 	switch caID.Type {
-	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA, types.AWSRACA:
+	case types.UserCA,
+		types.HostCA,
+		types.DatabaseCA,
+		types.DatabaseClientCA,
+		types.SAMLIDPCA,
+		types.SPIFFECA,
+		types.AWSRACA,
+		types.WindowsCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8393,7 +8434,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 	}
 
 	// Sanity check that the key set has at least one key.
-	if len(keySet.SSH) == 0 && len(keySet.TLS) == 0 && len(keySet.JWT) == 0 {
+	if keySet.Empty() {
 		return types.CAKeySet{}, trace.BadParameter("no keys generated for CA type %q", caID.Type)
 	}
 
@@ -8428,6 +8469,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.SPIFFECATLS
 	case types.AWSRACA:
 		return cryptosuites.AWSRACATLS
+	case types.WindowsCA:
+		return cryptosuites.WindowsCARDP
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

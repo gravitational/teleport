@@ -141,7 +141,7 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 
 type mockMFAService struct {
 	chal *mfav1.ValidatedMFAChallenge
-	mu   sync.RWMutex
+	mu   sync.Mutex
 
 	createValidatedMFAChallengeError error
 	getValidatedMFAChallengeError    error
@@ -173,8 +173,8 @@ func (m *mockMFAService) GetValidatedMFAChallenge(
 		return nil, m.getValidatedMFAChallengeError
 	}
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	return m.chal, nil
 }
