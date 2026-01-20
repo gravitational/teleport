@@ -20,7 +20,6 @@ import { UserEvent } from '@testing-library/user-event';
 import ace from 'ace-builds';
 
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
-import { EDITOR_ID } from 'shared/components/TextEditor/TextEditor';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -668,8 +667,8 @@ const getYamlEditorTab = () =>
   screen.getByRole('tab', { name: 'Switch to YAML editor' });
 
 const findTextEditor = async () => {
-  await screen.findByTestId('text-editor-container');
-  return window['ace'].edit(EDITOR_ID) as ace.Editor;
+  const element = screen.getByTestId('text-editor');
+  return window['ace'].edit(element) as ace.Editor;
 };
 
 async function forwardToTab(name: string) {

@@ -23,7 +23,7 @@ import * as copyModule from 'design/utils/copyToClipboard';
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 import * as downloadsModule from 'shared/utils/download';
 
-import TextEditor, { EDITOR_ID } from './TextEditor';
+import TextEditor from './TextEditor';
 
 describe('TextEditor', () => {
   afterEach(() => {
@@ -236,7 +236,8 @@ describe('TextEditor', () => {
 });
 
 function getEditorRef() {
-  return window['ace'].edit(EDITOR_ID) as ace.Editor;
+  const element = screen.getByTestId('text-editor');
+  return window['ace'].edit(element) as ace.Editor;
 }
 
 function waitForMockToBeCalled(fn: jest.Mock, times: number) {
