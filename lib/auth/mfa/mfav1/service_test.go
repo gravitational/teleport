@@ -852,7 +852,6 @@ func TestVerifyValidatedMFAChallenge_NonServerDenied(t *testing.T) {
 
 	// Use a context with a non-server role.
 	ctx := authz.ContextWithUser(t.Context(), authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I)
-	// require.Empty(t, user.GetRoles())
 
 	resp, err := service.VerifyValidatedMFAChallenge(ctx, &mfav1.VerifyValidatedMFAChallengeRequest{
 		Username: user.GetName(),
