@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -133,6 +135,44 @@ func TestExportAuthorities(t *testing.T) {
 		server: testAuth.AuthServer,
 	}
 
+	t.Run(`"tls-user-der" and "windows" are distinct`, func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		userExports, err := ExportAllAuthorities(ctx, mockedAuthClient, ExportAuthoritiesRequest{
+			AuthType: "tls-user-der",
+		})
+		require.NoError(t, err)
+		require.Len(t, userExports, 1)
+
+		windowsExports, err := ExportAllAuthorities(ctx, mockedAuthClient, ExportAuthoritiesRequest{
+			AuthType: "windows",
+		})
+		require.NoError(t, err)
+		require.Len(t, windowsExports, 1)
+
+		// "tls-user-der" and "windows" are distinct, which is always true in a
+		// fresh cluster.
+		// Formats are validated by the test table below.
+		assert.NotEqual(t,
+			userExports, windowsExports,
+			`Exports from "tls-user-der" and "windows" must be distinct`)
+
+		// "windows" export matches the Windows CA.
+		windowsCA, err := testAuth.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.WindowsCA,
+			DomainName: localClusterName,
+		}, false /* loadKeys */)
+		require.NoError(t, err)
+		cert := windowsCA.GetActiveKeys().TLS[0].Cert
+		block, _ := pem.Decode(cert)
+		require.NotEmpty(t, block, "pem.Decode() failed")
+		certDER := block.Bytes
+		assert.Equal(t,
+			certDER, windowsExports[0].Data,
+			`Exported "windows" certificate doesn't match the WindowsCA certificate`)
+	})
+
 	for _, tt := range []struct {
 		name            string
 		req             ExportAuthoritiesRequest
@@ -183,6 +223,15 @@ func TestExportAuthorities(t *testing.T) {
 			errorCheck:      require.NoError,
 			assertNoSecrets: validateTLSCertificatePEMFunc,
 			assertSecrets:   validatePrivateKeyPEMFunc,
+		},
+		{
+			name: "tls-user-der",
+			req: ExportAuthoritiesRequest{
+				AuthType: "tls-user-der",
+			},
+			errorCheck:      require.NoError,
+			assertNoSecrets: validateTLSCertificateDERFunc,
+			assertSecrets:   validateECDSAPrivateKeyDERFunc,
 		},
 		{
 			name: "windows",
@@ -325,7 +374,7 @@ func TestExportAuthorities(t *testing.T) {
 
 // Tests a scenario similar to
 // https://github.com/gravitational/teleport/issues/35444.
-func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
+func TestExportAllAuthorities_multipleActiveKeys(t *testing.T) {
 	t.Parallel()
 
 	softwareKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -419,7 +468,6 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 		clusterName:     clusterName,
 		certAuthorities: []types.CertAuthority{userCA},
 	}
-	ctx := context.Background()
 
 	tests := []struct {
 		name                    string
@@ -441,9 +489,9 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 			},
 		},
 		{
-			name: "windows",
+			name: "tls-user-der",
 			req: &ExportAuthoritiesRequest{
-				AuthType: "windows",
+				AuthType: "tls-user-der",
 			},
 			wantPublic: []*ExportedAuthority{
 				{Data: softKeyDER.Cert},
@@ -464,6 +512,8 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 				exportAllFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
 				want []*ExportedAuthority,
 			) {
+				ctx := t.Context()
+
 				got, err := exportAllFunc(ctx, authClient, *test.req)
 				require.NoError(t, err, "exportAllFunc errored")
 				if diff := cmp.Diff(want, got); diff != "" {
@@ -501,7 +551,7 @@ func (m *multiCAAuthClient) GetCertAuthority(_ context.Context, id types.CertAut
 			return ca, nil
 		}
 	}
-	return nil, nil
+	return nil, trace.NotFound("not found")
 }
 
 func (m *multiCAAuthClient) PerformMFACeremony(
