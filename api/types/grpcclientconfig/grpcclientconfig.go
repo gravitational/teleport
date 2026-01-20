@@ -18,15 +18,6 @@ import (
 	grpcv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
 )
 
-const (
-	// ModePickFirst configures the client balancer to behave like the default grpc
-	// pick_first balancer.
-	ModePickFirst string = "pick_first"
-	// ModeReconnect configures the client balancer to reconnect when the service
-	// becomes unhealthy.
-	ModeReconnect string = "reconnect"
-)
-
 // DefaultServiceConfig constructs the default service config the server will
 // present to clients.
 func DefaultServiceConfig() *grpcv1.ServiceConfig {
@@ -34,7 +25,7 @@ func DefaultServiceConfig() *grpcv1.ServiceConfig {
 		LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{{
 			Config: &grpcv1.LoadBalancerConfig_TeleportPickHealthy{
 				TeleportPickHealthy: &grpcv1.TeleportPickHealthyConfig{
-					Mode: ModePickFirst,
+					Mode: grpcv1.Mode_MODE_PICK_FIRST,
 				},
 			},
 		}},

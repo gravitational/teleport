@@ -41,18 +41,28 @@ message ServiceConfig {
 // configurations.
 message LoadBalancerConfig {
   oneof config {
-    TeleportPickHealthyConfig teleport_pick_healthy = 1 [json_name = "teleport_pick_healthy"];
+    TeleportPickHealthyConfig teleport_pick_healthy = 1;
   }
 }
 
 // TeleportPickHealthyConfig represents the teleport_pick_health load balancing
 // policy.
 message TeleportPickHealthyConfig {
-  string mode = 1;
+  Mode mode = 1;
 }
 
 // HealthCheckConfig represents a gRPC clients health check configuration.
 message HealthCheckConfig {
   // Service name to use in the health-checking request.
   optional string service_name = 1;
+}
+
+// Mode specifies a mode for the TeleportPickHealthy balancer to operate in.
+enum Mode {
+  // MODE_UNSPECIFIED indicates that no mode was specified.
+  MODE_UNSPECIFIED = 0;
+  // MODE_PICK_FIRST behaves like the default grpc pick_first balancer.
+  MODE_PICK_FIRST = 1;
+  // MODE_RECONNECT will reconnect to the server when the server becomes unhealthy.
+  MODE_RECONNECT = 2;
 }

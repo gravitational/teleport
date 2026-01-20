@@ -23,7 +23,6 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	grpcv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
-	"github.com/gravitational/teleport/api/types/grpcclientconfig"
 )
 
 func TestServiceConfigJSON(t *testing.T) {
@@ -31,7 +30,7 @@ func TestServiceConfigJSON(t *testing.T) {
 	config := grpcv1.ServiceConfig{
 		LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{{
 			Config: &grpcv1.LoadBalancerConfig_TeleportPickHealthy{TeleportPickHealthy: &grpcv1.TeleportPickHealthyConfig{
-				Mode: grpcclientconfig.ModeReconnect,
+				Mode: grpcv1.Mode_MODE_RECONNECT,
 			}},
 		}},
 		HealthCheckConfig: &grpcv1.HealthCheckConfig{ServiceName: &empty},
@@ -39,5 +38,5 @@ func TestServiceConfigJSON(t *testing.T) {
 
 	out, err := protojson.Marshal(&config)
 	require.NoError(t, err)
-	require.Equal(t, `{"loadBalancingConfig":[{"teleport_pick_healthy":{"mode":"reconnect"}}], "healthCheckConfig":{"serviceName":""}}`, string(out))
+	require.Equal(t, `{"loadBalancingConfig":[{"teleport_pick_healthy":{"mode":"MODE_RECONNECT"}}], "healthCheckConfig":{"serviceName":""}}`, string(out))
 }
