@@ -1,5 +1,51 @@
 # Changelog
 
+## 18.6.4 (01/20/26)
+
+* Fixed GCS session recording backend not respecting rate limits. [#62986](https://github.com/gravitational/teleport/pull/62986)
+* Fixed a bug where members of a former owner Access List retain the owner permissions grants of the former owned Access List. It also fixes the issue with not being able to delete a former owner Access List. Please note: this could only happen if the owner Access List ownership was removed via the web UI. [#62979](https://github.com/gravitational/teleport/pull/62979)
+* Tctl commands executed from Teleport Connect now target the current root cluster with the `TELEPORT_AUTH_SERVER` env var, similar to how it works for tsh; this behavior can be turned off in the config file. [#62923](https://github.com/gravitational/teleport/pull/62923)
+* Made the `teleport-cluster` Helm chart job resources configurable again via the `jobResources` value. [#62922](https://github.com/gravitational/teleport/pull/62922)
+* Updated Go to 1.24.12. [#62885](https://github.com/gravitational/teleport/pull/62885)
+* Fixed launching AWS Identity Center from Teleport Connect. [#62840](https://github.com/gravitational/teleport/pull/62840)
+* Removed erroneous `pair-wise` subject type from Teleport's OpenID configuration. [#62835](https://github.com/gravitational/teleport/pull/62835)
+* Fixed renewed X509-SVIDs not being proactively sent to Envoy instances. [#62830](https://github.com/gravitational/teleport/pull/62830)
+* Fix an issuse `MCP Session Listen` events may spam audit log with app service error `malformed line in SSE stream: ""`. [#62811](https://github.com/gravitational/teleport/pull/62811)
+* Added automatic client certificate reloading option for postgres backends. [#62747](https://github.com/gravitational/teleport/pull/62747)
+* Fixed an issue that would prevent tsh from working when the 1password SSH agent is running. [#62736](https://github.com/gravitational/teleport/pull/62736)
+* Add `tbot wait` API and helper to let scripts wait for bots to become ready. [#62719](https://github.com/gravitational/teleport/pull/62719)
+* MWI: Add support for templating secret annotations in the tbot's `kubernetes/argo-cd` service. [#62709](https://github.com/gravitational/teleport/pull/62709)
+* Add `quicksight.aws.amazon.com` as valid URL for AWS Console access. [#62700](https://github.com/gravitational/teleport/pull/62700)
+* Fixed potential delay in updating User Task status for Discovery resources. [#62699](https://github.com/gravitational/teleport/pull/62699)
+* Fixed an issue where logging in to the Web UI with Device Trust would lose query params of the redirect URL. [#62677](https://github.com/gravitational/teleport/pull/62677)
+* Fixed an issue where Teleport Connect could generate a flurry of notifications about not being able to connect to a resource. [#62671](https://github.com/gravitational/teleport/pull/62671)
+* Fixed issuance of wildcard DNS SANs with Workload Identity. [#62667](https://github.com/gravitational/teleport/pull/62667)
+* Fixed a memory leak in access list reminder notifications affecting clusters with more than 1000 pending Access List reviews. [#62663](https://github.com/gravitational/teleport/pull/62663)
+* Added support for health checks to monitor cert authority availability and affect Teleport Auth readiness. [#62637](https://github.com/gravitational/teleport/pull/62637)
+* Added IAM joining support from new AWS regions in asia. [#62627](https://github.com/gravitational/teleport/pull/62627)
+* Added VNet config Create/Update/Delete audit events. [#62618](https://github.com/gravitational/teleport/pull/62618)
+* Added cleanup of access entries for EKS auto-discovered clusters when they no longer match the filtering criteria and are removed. [#62598](https://github.com/gravitational/teleport/pull/62598)
+* Added `teleport debug metrics` command. [#62586](https://github.com/gravitational/teleport/pull/62586)
+* Fixed missing initialization of Azure IMDS clients, which could cause operational failures in some Teleport configurations deployed to Azure, in particular when accessing Azure SQL Server. [#62579](https://github.com/gravitational/teleport/pull/62579)
+* Fixed some auto update audit events showing up as unknown in the web UI. [#62547](https://github.com/gravitational/teleport/pull/62547)
+* The join tokens UI now indicates which tokens are managed by the Teleport Cloud platform. [#62544](https://github.com/gravitational/teleport/pull/62544)
+* The tctl tokens add command now includes the CA pins in JSON and YAML output. [#62536](https://github.com/gravitational/teleport/pull/62536)
+* Added `teleport debug readyz` command. [#62532](https://github.com/gravitational/teleport/pull/62532)
+* Audit log and session uploader now respect region field of external_audit_storage resource when present. [#62520](https://github.com/gravitational/teleport/pull/62520)
+* Added default routes to the web UI left nav top-level category buttons. [#62502](https://github.com/gravitational/teleport/pull/62502)
+* Fixed an issue that prevented searching for users by role in the web UI. [#62474](https://github.com/gravitational/teleport/pull/62474)
+* Fixed tilde expansion for moderated SFTP. [#62453](https://github.com/gravitational/teleport/pull/62453)
+* Added support for standard TLS secret key names for helm charts: `teleport-plugin-event-handler`, `teleport-cluster`, `teleport-operator`, `teleport-kube-agent`. [#62451](https://github.com/gravitational/teleport/pull/62451)
+* Added a plan modifier to recompute kubernetes_resources defaults during role version upgrades, fixing Terraform role upgrade issues. [#62417](https://github.com/gravitational/teleport/pull/62417)
+* Fix an issue in the Teleport SSH Service where interactive PAM Auth modules always fail when trying to run exec sessions with tty allocated. e.g. `tsh ssh --tty <node> ls`. [#62064](https://github.com/gravitational/teleport/pull/62064)
+
+Enterprise:
+* Fixed an issue in the Entra ID integration where a user account with an unsupported username character `/` could prevent other valid users and groups to be synced to Teleport. Such user accounts are now filtered.
+* Cockroachdb: add automatic client certificate reloading option.
+* Enabled UI editing of Access List descriptions.
+* Added protections against replay attacks when IdP-initiated SAML is enabled.
+* Added Access Automations Terraform dialog.
+
 ## 18.6.3 (01/07/26)
 
 This is a follow up to the private security release. Changelog will be publicly announced in a later version.
