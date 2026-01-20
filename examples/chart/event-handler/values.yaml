@@ -177,7 +177,7 @@ crd:
   create: false
   # crd.namespace(string) -- optionally overrides the Kubernetes namespace that the
   # custom resources are created in. This should match the namespace in which the
-  # Teleport Kubernetes Operator is running. Defaults to the current namespace.
+  # Teleport Kubernetes Operator is running. Defaults to the release namespace.
   namespace: ""
   # crd.tokenSpecOverride -- optionally overrides the join token spec for tbot to use to join the Teleport cluster.
   #
