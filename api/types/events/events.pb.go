@@ -3125,9 +3125,9 @@ func (m *ResourceID) XXX_DiscardUnknown() {
 var xxx_messageInfo_ResourceID proto.InternalMessageInfo
 
 // ResourceAccessID is an audit-log–friendly representation of a ResourceAccessID.
-// This is duplicated from api/proto/teleport/legacy/types/resources.proto to decouple
-// the api and events types, and to keep the audit log event schema stable for customers
-// and integrations.
+// This is derived and simplified from api/proto/teleport/legacy/types/resources.proto
+// to decouple the api and events types, and to keep the audit log event schema stable
+// for customers and integrations.
 // ResourceConstraints may be summarized/truncated to control event size; when truncated,
 // the audit log is not expected to be a lossless representation of the internal object.
 type ResourceAccessID struct {
