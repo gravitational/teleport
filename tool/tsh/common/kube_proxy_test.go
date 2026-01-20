@@ -104,7 +104,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	t.Run("with exec-cmd", func(t *testing.T) {
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Verify command matches
-			require.Equal(t, cmd.Args, []string{"date"})
+			require.Equal(t, []string{"date"}, cmd.Args)
 			return nil
 		}
 
@@ -119,7 +119,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	t.Run("with exec-cmd and args", func(t *testing.T) {
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Verify command and args match
-			require.Equal(t, cmd.Args, []string{"echo", "hello", "world"})
+			require.Equal(t, []string{"echo", "hello", "world"}, cmd.Args)
 			return nil
 		}
 
@@ -135,7 +135,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	t.Run("backward compatibility - no exec-cmd", func(t *testing.T) {
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Should default to $SHELL
-			require.Equal(t, cmd.Args, []string{os.Getenv("SHELL")})
+			require.Equal(t, []string{os.Getenv("SHELL")}, cmd.Args)
 			return nil
 		}
 
@@ -150,7 +150,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	t.Run("exec-cmd without exec flag", func(t *testing.T) {
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Should use the specified command
-			require.Equal(t, cmd.Args, []string{"date"})
+			require.Equal(t, []string{"date"}, cmd.Args)
 			return nil
 		}
 
