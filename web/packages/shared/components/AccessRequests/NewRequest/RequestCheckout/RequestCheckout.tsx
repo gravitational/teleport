@@ -632,6 +632,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     )}
                     <Flex
                       py={4}
+                      mt={1}
                       gap={2}
                       css={`
                         position: sticky;

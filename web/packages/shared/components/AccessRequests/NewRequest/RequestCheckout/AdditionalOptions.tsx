@@ -45,7 +45,6 @@ export function AdditionalOptions({
   return (
     <>
       <Flex
-        mb={1}
         justifyContent="space-between"
         alignItems="center"
         css={`
