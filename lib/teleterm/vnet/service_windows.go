@@ -18,9 +18,13 @@ package vnet
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
@@ -45,4 +49,26 @@ func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, err
 		routeConflictDiag,
 		sshDiag,
 	}, nil
+}
+
+// CheckPreRunRequirements verifies the existence of the VNet system service, which is installed only in per-machine setups.
+func (s *Service) CheckPreRunRequirements(_ context.Context, _ *api.CheckPreRunRequirementsRequest) (*api.CheckPreRunRequirementsResponse, error) {
+	err := vnet.VerifyServiceInstalled()
+	if err == nil {
+		return &api.CheckPreRunRequirementsResponse{
+			PlatformStatus: &api.CheckPreRunRequirementsResponse_WindowsSystemServiceStatus{
+				WindowsSystemServiceStatus: api.WindowsSystemServiceStatus_WINDOWS_SYSTEM_SERVICE_STATUS_OK,
+			},
+		}, nil
+	}
+
+	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+		return &api.CheckPreRunRequirementsResponse{
+			PlatformStatus: &api.CheckPreRunRequirementsResponse_WindowsSystemServiceStatus{
+				WindowsSystemServiceStatus: api.WindowsSystemServiceStatus_WINDOWS_SYSTEM_SERVICE_STATUS_DOES_NOT_EXIST,
+			},
+		}, nil
+
+	}
+	return nil, trace.Wrap(err)
 }

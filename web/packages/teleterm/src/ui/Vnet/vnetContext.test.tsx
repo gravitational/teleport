@@ -26,11 +26,10 @@ import {
   useImperativeHandle,
 } from 'react';
 
+import { WindowsSystemServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import {
-  makeRootCluster,
-  makeTshdRpcError,
-} from 'teleterm/services/tshd/testHelpers';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
   makeReport,
   makeReportWithIssuesFound,
@@ -108,8 +107,12 @@ describe('autostart', () => {
       vnet: { autoStart: false, hasEverStarted: false },
     });
     const { promise, resolve } = Promise.withResolvers();
-    appContext.vnet.getWindowsSystemService = async () => {
-      const response = new MockedUnaryCall({});
+    appContext.vnet.checkPreRunRequirements = async () => {
+      const response = new MockedUnaryCall({
+        platformStatus: {
+          oneofKind: undefined,
+        },
+      });
       resolve(response);
       return response;
     };
@@ -130,16 +133,21 @@ describe('autostart', () => {
       ...appContext.statePersistenceService.getState(),
       vnet: { autoStart: true, hasEverStarted: true },
     });
-    const { promise, reject } = Promise.withResolvers();
-    appContext.vnet.getWindowsSystemService = async () => {
-      const error = makeTshdRpcError({ code: 'NOT_FOUND' });
-      reject(error);
-      throw error;
+    const { promise, resolve } = Promise.withResolvers();
+    appContext.vnet.checkPreRunRequirements = async () => {
+      const response = new MockedUnaryCall({
+        platformStatus: {
+          oneofKind: 'windowsSystemServiceStatus' as const,
+          windowsSystemServiceStatus: WindowsSystemServiceStatus.DOES_NOT_EXIST,
+        },
+      });
+      resolve(response);
+      return response;
     };
     const { result } = renderHook(() => useVnetContext(), {
       wrapper: createWrapper(Wrapper, { appContext }),
     });
-    await act(() => promise.catch(() => {}));
+    await act(() => promise);
 
     expect(result.current.startAttempt.status).toEqual('');
   });

@@ -114,7 +114,7 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
-    getWindowsSystemServiceAttempt,
+    preRunRequirementsCheck,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -125,7 +125,7 @@ const VnetConnectionItemBase = forwardRef<
   const isProcessing =
     startAttempt.status === 'processing' ||
     stopAttempt.status === 'processing' ||
-    getWindowsSystemServiceAttempt.status === 'processing';
+    preRunRequirementsCheck.status === 'unknown';
   const disabledDiagnosticsReason =
     getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus: ConnectionStatus = useMemo(() => {
@@ -133,7 +133,7 @@ const VnetConnectionItemBase = forwardRef<
     if (
       startAttempt.status === 'error' ||
       stopAttempt.status === 'error' ||
-      getWindowsSystemServiceAttempt.status === 'error' ||
+      preRunRequirementsCheck.status === 'failed' ||
       (status.value === 'stopped' &&
         status.reason.value === 'unexpected-shutdown')
     ) {
@@ -154,7 +154,7 @@ const VnetConnectionItemBase = forwardRef<
     stopAttempt,
     status,
     showDiagWarningIndicator,
-    getWindowsSystemServiceAttempt,
+    preRunRequirementsCheck,
   ]);
 
   const onEnterPress = (event: React.KeyboardEvent) => {
@@ -371,7 +371,7 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
-                disabled={getWindowsSystemServiceAttempt.status === 'error'}
+                disabled={preRunRequirementsCheck.status === 'failed'}
                 title=""
                 onClick={e => {
                   e.stopPropagation();
@@ -384,7 +384,7 @@ const VnetConnectionItemBase = forwardRef<
               <ButtonIcon
                 key={toggleVnetButtonKey}
                 title="Start VNet"
-                disabled={getWindowsSystemServiceAttempt.status === 'error'}
+                disabled={preRunRequirementsCheck.status === 'failed'}
                 onClick={e => {
                   e.stopPropagation();
                   start();

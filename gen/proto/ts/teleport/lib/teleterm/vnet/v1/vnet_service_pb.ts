@@ -119,18 +119,30 @@ export interface GetBackgroundItemStatusResponse {
     status: BackgroundItemStatus;
 }
 /**
- * Request for GetWindowsSystemServiceRequest.
+ * Request for CheckPreRunRequirementsRequest.
  *
- * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest
  */
-export interface GetWindowsSystemServiceRequest {
+export interface CheckPreRunRequirementsRequest {
 }
 /**
- * Response for GetWindowsSystemServiceResponse.
+ * Response for CheckPreRunRequirementsResponse.
  *
- * @generated from protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse
+ * @generated from protobuf message teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse
  */
-export interface GetWindowsSystemServiceResponse {
+export interface CheckPreRunRequirementsResponse {
+    /**
+     * @generated from protobuf oneof: platform_status
+     */
+    platformStatus: {
+        oneofKind: "windowsSystemServiceStatus";
+        /**
+         * @generated from protobuf field: teleport.lib.teleterm.vnet.v1.WindowsSystemServiceStatus windows_system_service_status = 1;
+         */
+        windowsSystemServiceStatus: WindowsSystemServiceStatus;
+    } | {
+        oneofKind: undefined;
+    };
 }
 /**
  * Request for RunDiagnostics.
@@ -198,6 +210,25 @@ export enum BackgroundItemStatus {
      * @generated from protobuf enum value: BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
      */
     NOT_SUPPORTED = 5
+}
+/**
+ * WindowsSystemServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
+ *
+ * @generated from protobuf enum teleport.lib.teleterm.vnet.v1.WindowsSystemServiceStatus
+ */
+export enum WindowsSystemServiceStatus {
+    /**
+     * @generated from protobuf enum value: WINDOWS_SYSTEM_SERVICE_STATUS_UNSPECIFIED = 0;
+     */
+    UNSPECIFIED = 0,
+    /**
+     * @generated from protobuf enum value: WINDOWS_SYSTEM_SERVICE_STATUS_OK = 1;
+     */
+    OK = 1,
+    /**
+     * @generated from protobuf enum value: WINDOWS_SYSTEM_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+     */
+    DOES_NOT_EXIST = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StartRequest$Type extends MessageType<StartRequest> {
@@ -468,20 +499,20 @@ class GetBackgroundItemStatusResponse$Type extends MessageType<GetBackgroundItem
  */
 export const GetBackgroundItemStatusResponse = new GetBackgroundItemStatusResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetWindowsSystemServiceRequest$Type extends MessageType<GetWindowsSystemServiceRequest> {
+class CheckPreRunRequirementsRequest$Type extends MessageType<CheckPreRunRequirementsRequest> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest", []);
+        super("teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest", []);
     }
-    create(value?: PartialMessage<GetWindowsSystemServiceRequest>): GetWindowsSystemServiceRequest {
+    create(value?: PartialMessage<CheckPreRunRequirementsRequest>): CheckPreRunRequirementsRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         if (value !== undefined)
-            reflectionMergePartial<GetWindowsSystemServiceRequest>(this, message, value);
+            reflectionMergePartial<CheckPreRunRequirementsRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetWindowsSystemServiceRequest): GetWindowsSystemServiceRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CheckPreRunRequirementsRequest): CheckPreRunRequirementsRequest {
         return target ?? this.create();
     }
-    internalBinaryWrite(message: GetWindowsSystemServiceRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: CheckPreRunRequirementsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -489,24 +520,49 @@ class GetWindowsSystemServiceRequest$Type extends MessageType<GetWindowsSystemSe
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest
  */
-export const GetWindowsSystemServiceRequest = new GetWindowsSystemServiceRequest$Type();
+export const CheckPreRunRequirementsRequest = new CheckPreRunRequirementsRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class GetWindowsSystemServiceResponse$Type extends MessageType<GetWindowsSystemServiceResponse> {
+class CheckPreRunRequirementsResponse$Type extends MessageType<CheckPreRunRequirementsResponse> {
     constructor() {
-        super("teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse", []);
+        super("teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse", [
+            { no: 1, name: "windows_system_service_status", kind: "enum", oneof: "platformStatus", T: () => ["teleport.lib.teleterm.vnet.v1.WindowsSystemServiceStatus", WindowsSystemServiceStatus, "WINDOWS_SYSTEM_SERVICE_STATUS_"] }
+        ]);
     }
-    create(value?: PartialMessage<GetWindowsSystemServiceResponse>): GetWindowsSystemServiceResponse {
+    create(value?: PartialMessage<CheckPreRunRequirementsResponse>): CheckPreRunRequirementsResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
+        message.platformStatus = { oneofKind: undefined };
         if (value !== undefined)
-            reflectionMergePartial<GetWindowsSystemServiceResponse>(this, message, value);
+            reflectionMergePartial<CheckPreRunRequirementsResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetWindowsSystemServiceResponse): GetWindowsSystemServiceResponse {
-        return target ?? this.create();
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: CheckPreRunRequirementsResponse): CheckPreRunRequirementsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.teleterm.vnet.v1.WindowsSystemServiceStatus windows_system_service_status */ 1:
+                    message.platformStatus = {
+                        oneofKind: "windowsSystemServiceStatus",
+                        windowsSystemServiceStatus: reader.int32()
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
     }
-    internalBinaryWrite(message: GetWindowsSystemServiceResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: CheckPreRunRequirementsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.teleterm.vnet.v1.WindowsSystemServiceStatus windows_system_service_status = 1; */
+        if (message.platformStatus.oneofKind === "windowsSystemServiceStatus")
+            writer.tag(1, WireType.Varint).int32(message.platformStatus.windowsSystemServiceStatus);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -514,9 +570,9 @@ class GetWindowsSystemServiceResponse$Type extends MessageType<GetWindowsSystemS
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse
+ * @generated MessageType for protobuf message teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse
  */
-export const GetWindowsSystemServiceResponse = new GetWindowsSystemServiceResponse$Type();
+export const CheckPreRunRequirementsResponse = new CheckPreRunRequirementsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class RunDiagnosticsRequest$Type extends MessageType<RunDiagnosticsRequest> {
     constructor() {
@@ -646,7 +702,7 @@ export const VnetService = new ServiceType("teleport.lib.teleterm.vnet.v1.VnetSe
     { name: "Stop", options: {}, I: StopRequest, O: StopResponse },
     { name: "GetServiceInfo", options: {}, I: GetServiceInfoRequest, O: GetServiceInfoResponse },
     { name: "GetBackgroundItemStatus", options: {}, I: GetBackgroundItemStatusRequest, O: GetBackgroundItemStatusResponse },
-    { name: "GetWindowsSystemService", options: {}, I: GetWindowsSystemServiceRequest, O: GetWindowsSystemServiceResponse },
+    { name: "CheckPreRunRequirements", options: {}, I: CheckPreRunRequirementsRequest, O: CheckPreRunRequirementsResponse },
     { name: "RunDiagnostics", options: {}, I: RunDiagnosticsRequest, O: RunDiagnosticsResponse },
     { name: "AutoConfigureSSH", options: {}, I: AutoConfigureSSHRequest, O: AutoConfigureSSHResponse }
 ]);

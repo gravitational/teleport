@@ -19,6 +19,7 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
+import { WindowsSystemServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -26,10 +27,7 @@ import {
 import { usePromiseRejectedOnUnmount } from 'shared/utils/wait';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import {
-  makeRootCluster,
-  makeTshdRpcError,
-} from 'teleterm/services/tshd/testHelpers';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { makeReport } from 'teleterm/services/vnet/testHelpers';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -127,8 +125,13 @@ function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
 
   if (props.windowsVNetServiceNotFound) {
-    appContext.vnet.getWindowsSystemService = () =>
-      new MockedUnaryCall({}, makeTshdRpcError({ code: 'NOT_FOUND' }));
+    appContext.vnet.checkPreRunRequirements = () =>
+      new MockedUnaryCall({
+        platformStatus: {
+          oneofKind: 'windowsSystemServiceStatus' as const,
+          windowsSystemServiceStatus: WindowsSystemServiceStatus.DOES_NOT_EXIST,
+        },
+      });
   }
 
   if (props.isWorkspacePresent) {

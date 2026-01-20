@@ -32,11 +32,14 @@ import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
+  WindowsSystemServiceStatus,
+  type CheckPreRunRequirementsResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
+import { platformStatusOneOfIsWindowsSystemServiceStatus } from 'teleterm/helpers';
 import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
 import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -85,9 +88,9 @@ export type VnetContext = {
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
   /**
-   * Checks if the Windows VNet service is installed.
+   * Status of checks performed before running the VNet service.
    */
-  getWindowsSystemServiceAttempt: Attempt<void>;
+  preRunRequirementsCheck: PreRunRequirementsCheck;
   /**
    * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
    * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
@@ -173,22 +176,21 @@ export const VnetContextProvider: FC<
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
 
-  const [getWindowsSystemServiceAttempt, getWindowsSystemService] = useAsync(
-    useCallback(async () => {
-      try {
-        await vnet.getWindowsSystemService({});
-      } catch (error) {
-        if (!isTshdRpcError(error, 'UNIMPLEMENTED')) {
-          throw error;
-        }
-      }
-    }, [vnet])
+  const [checkPreRunRequirementsAttempt, performPreRunRequirementsCheck] =
+    useAsync(
+      useCallback(async () => {
+        const { response } = await vnet.checkPreRunRequirements({});
+        return response;
+      }, [vnet])
+    );
+  const preRunRequirementsCheck = useMemo(
+    () => makePreRunRequirementsCheck(checkPreRunRequirementsAttempt),
+    [checkPreRunRequirementsAttempt]
   );
 
-  // Check if the Windows service exists when the app starts.
   useEffect(() => {
-    getWindowsSystemService();
-  }, [getWindowsSystemService]);
+    performPreRunRequirementsCheck();
+  }, [performPreRunRequirementsCheck]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -361,7 +363,7 @@ export const VnetContextProvider: FC<
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === '' &&
-        getWindowsSystemServiceAttempt.status === 'success'
+        preRunRequirementsCheck.status === 'success'
       ) {
         const [, error] = await start();
 
@@ -374,7 +376,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized, getWindowsSystemServiceAttempt.status]);
+  }, [isWorkspaceStateInitialized, preRunRequirementsCheck.status]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -555,7 +557,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
-        getWindowsSystemServiceAttempt,
+        preRunRequirementsCheck,
       }}
     >
       {children}
@@ -607,3 +609,62 @@ const checkDaemonBackgroundItemStatus = async (
   );
   return { didBackgroundItemRequireEnablement: true };
 };
+
+function makePreRunRequirementsCheck(
+  attempt: Attempt<CheckPreRunRequirementsResponse>
+): PreRunRequirementsCheck {
+  if (attempt.status === '' || attempt.status === 'processing') {
+    return { status: 'unknown' };
+  }
+
+  if (attempt.status === 'error') {
+    if (isTshdRpcError(attempt.error, 'UNIMPLEMENTED')) {
+      return { status: 'success' };
+    }
+    return {
+      status: 'failed',
+      reason: {
+        status: 'error',
+        statusText: attempt.statusText,
+      },
+    };
+  }
+
+  const { platformStatus } = attempt.data;
+  if (!platformStatusOneOfIsWindowsSystemServiceStatus(platformStatus)) {
+    return { status: 'success' };
+  }
+  if (
+    platformStatus.windowsSystemServiceStatus === WindowsSystemServiceStatus.OK
+  ) {
+    return { status: 'success' };
+  }
+
+  return {
+    status: 'failed',
+    reason: {
+      status: 'platform-problem',
+      platformStatus,
+    },
+  };
+}
+
+type PreRunRequirementsCheck =
+  | {
+      status: 'unknown';
+    }
+  | {
+      status: 'success';
+    }
+  | {
+      status: 'failed';
+      reason:
+        | {
+            status: 'platform-problem';
+            platformStatus: CheckPreRunRequirementsResponse['platformStatus'];
+          }
+        | {
+            status: 'error';
+            statusText: string;
+          };
+    };
