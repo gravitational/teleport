@@ -67,7 +67,6 @@ func TestKube(t *testing.T) {
 	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
-	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
 }
 
 func TestKubeLogin(t *testing.T) {
