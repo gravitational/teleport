@@ -1081,27 +1081,36 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	var isModeratedSessionJoin bool
-	// custom moderated session join permissions allow bypass of the standard node access checks
-	if osUser == teleport.SSHSessionJoinPrincipal &&
-		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
+	// Determine if we can bypass the standard node access checks for session joining. This is allowed only if:
+	//
+	// - The requested OS user is the special session join principal (used for moderated sessions).
+	// - The user's roles support moderated sessions.
+	// - MFA is NOT required for this session (MFARequiredNever).
+	//
+	// If all these conditions are met, we set bypassAccessCheck to true, allowing the session join
+	// to skip the usual node access checks.
+	bypassAccessCheck := osUser == teleport.SSHSessionJoinPrincipal &&
+		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
+		state.MFARequired == services.MFARequiredNever
 
-		// bypass of standard node access checks can only proceed if MFA is not required and/or
-		// the MFA ceremony was already completed.
-		if state.MFARequired == services.MFARequiredNever || state.MFAVerified {
-			isModeratedSessionJoin = true
-		}
-	}
+	// Collect preconditions that must be met before the session can start.
+	var preconds []*decisionpb.Precondition
 
-	if !isModeratedSessionJoin {
-		// perform the primary node access check in all cases except for moderated session join
-		if err := accessChecker.CheckAccess(
+	// Perform the primary node access check unless bypass is allowed.
+	if !bypassAccessCheck {
+		if preconds, err = accessChecker.CheckConditionalAccess(
 			target,
 			state,
 			services.NewLoginMatcher(osUser),
 		); err != nil {
-			return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-				ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+			return nil, trace.AccessDenied(
+				"user %s@%s is not authorized to login as %v@%s: %v",
+				ident.Username,
+				ca.GetClusterName(),
+				osUser,
+				clusterName,
+				err,
+			)
 		}
 	}
 
@@ -1162,6 +1171,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
 		HostUsersInfo:         hostUsersInfo,
+		Preconditions:         preconds,
 	}, nil
 }
 
