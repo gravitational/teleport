@@ -169,7 +169,6 @@ func (c *semaphoreCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-
 type netRestrictionsCollection struct {
 	netRestricts types.NetworkRestrictions
 }
