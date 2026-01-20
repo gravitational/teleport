@@ -97,6 +97,115 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	})
 }
 
+func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
+	// Set KUBECONFIG to non-existent file
+	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+
+	t.Run("with exec-cmd", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		validateCmd := func(cmd *exec.Cmd) error {
+			// Verify KUBECONFIG is set
+			config := kubeConfigFromCmdEnv(t, cmd)
+			checkKubeLocalProxyConfig(t, config, p.rootClusterName, p.rootKubeCluster1)
+
+			// Verify command matches
+			require.Contains(t, cmd.Path, "date")
+			return nil
+		}
+
+		err := Run(
+			ctx,
+			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec", "--exec-cmd", "date"},
+			setCmdRunner(validateCmd),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("with exec-cmd and args", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		validateCmd := func(cmd *exec.Cmd) error {
+			// Verify KUBECONFIG is set
+			config := kubeConfigFromCmdEnv(t, cmd)
+			checkKubeLocalProxyConfig(t, config, p.rootClusterName, p.rootKubeCluster1)
+
+			// Verify command and args match
+			require.Contains(t, cmd.Path, "echo")
+			require.Contains(t, cmd.Args, "hello")
+			require.Contains(t, cmd.Args, "world")
+			return nil
+		}
+
+		err := Run(
+			ctx,
+			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec",
+				"--exec-cmd", "echo", "--exec-arg", "hello", "--exec-arg", "world"},
+			setCmdRunner(validateCmd),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("backward compatibility - no exec-cmd", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		validateCmd := func(cmd *exec.Cmd) error {
+			// Verify KUBECONFIG is set
+			config := kubeConfigFromCmdEnv(t, cmd)
+			checkKubeLocalProxyConfig(t, config, p.rootClusterName, p.rootKubeCluster1)
+
+			// Should default to shell
+			require.True(t, strings.Contains(cmd.Path, "bash") || strings.Contains(cmd.Path, "sh"))
+			return nil
+		}
+
+		err := Run(
+			ctx,
+			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec"},
+			setCmdRunner(validateCmd),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("exec-cmd without exec flag", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		validateCmd := func(cmd *exec.Cmd) error {
+			// Verify KUBECONFIG is set
+			config := kubeConfigFromCmdEnv(t, cmd)
+			checkKubeLocalProxyConfig(t, config, p.rootClusterName, p.rootKubeCluster1)
+
+			// Should use the specified command
+			require.Contains(t, cmd.Path, "date")
+			return nil
+		}
+
+		// --exec-cmd without --exec should still work (implicit exec mode)
+		err := Run(
+			ctx,
+			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-cmd", "date"},
+			setCmdRunner(validateCmd),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("exec-arg without exec-cmd should error", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		err := Run(
+			ctx,
+			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-arg", "test"},
+		)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "cannot use --exec-arg without --exec-cmd")
+	})
+}
+
 func kubeConfigFromCmdEnv(t *testing.T, cmd *exec.Cmd) *clientcmdapi.Config {
 	t.Helper()
 

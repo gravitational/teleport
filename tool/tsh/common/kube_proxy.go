@@ -63,6 +63,8 @@ type proxyKubeCommand struct {
 	labels              string
 	predicateExpression string
 	exec                bool
+	execCmd             string   // Command to execute when --exec is enabled
+	execArgs            []string // Arguments for the command
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -87,6 +89,8 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
 	c.Flag("exec", "Run the proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to our config file.").BoolVar(&c.exec)
+	c.Flag("exec-cmd", "Command to execute when --exec is enabled. If not specified, defaults to $SHELL or /bin/bash. Implicitly enables exec mode.").StringVar(&c.execCmd)
+	c.Flag("exec-arg", "Arguments to pass to the executed command (can be specified multiple times).").StringsVar(&c.execArgs)
 	return c
 }
 
@@ -94,6 +98,11 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	cf.Labels = c.labels
 	cf.PredicateExpression = c.predicateExpression
 	cf.SiteName = c.siteName
+
+	// Validate flag combinations
+	if len(c.execArgs) > 0 && c.execCmd == "" {
+		return trace.BadParameter("cannot use --exec-arg without --exec-cmd")
+	}
 
 	if len(c.kubeClusters) > 1 || cf.Labels != "" || cf.PredicateExpression != "" {
 		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
@@ -123,8 +132,8 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	defer localProxy.Close()
 
 	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
-	// if --exec flag is set or headless mode is enabled.
-	reexecIntoShell := cf.Headless || c.exec
+	// if --exec flag is set, --exec-cmd is provided, or headless mode is enabled.
+	reexecIntoShell := cf.Headless || c.exec || c.execCmd != ""
 	if err := c.printTemplate(cf.Stdout(), reexecIntoShell, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
@@ -145,7 +154,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	if reexecIntoShell {
 		// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
 		// our config file
-		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy))
+		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy, c.execCmd, c.execArgs))
 	} else {
 		// Write kubeconfig to a file and start local proxy in regular mode
 		if err := localProxy.WriteKubeConfig(); err != nil {
@@ -155,7 +164,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	}
 }
 
-func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy) error {
+func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command string, args []string) error {
 	// Getting context with cancel function, so we could stop shell process if localProxy stops.
 	ctx, cancel := context.WithCancel(cf.Context)
 
@@ -172,7 +181,7 @@ func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy) error {
 		lpErrChan <- localProxy.Start(ctx)
 	}()
 
-	err = reexecToShell(ctx, configBytes)
+	err = reexecToShell(ctx, configBytes, command, args)
 	err = trace.NewAggregate(err, localProxy.Close())
 	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
 	err = trace.NewAggregate(err, <-lpErrChan)

@@ -32,11 +32,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
-	// Prepare to re-exec shell
-	command := "/bin/bash"
-	if shell, ok := os.LookupEnv("SHELL"); ok {
-		command = shell
+func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, args []string) (err error) {
+	// Determine which command to execute
+	// Priority: 1) --exec-cmd flag, 2) SHELL env var, 3) /bin/bash
+	if command == "" {
+		command = "/bin/bash"
+		if shell, ok := os.LookupEnv("SHELL"); ok {
+			command = shell
+		}
 	}
 
 	f, err := os.CreateTemp("", "proxy-kubeconfig-*")
@@ -51,7 +54,7 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
 		return trace.Wrap(err, "failed to write kubeconfig into temporary file")
 	}
 
-	cmd := exec.CommandContext(ctx, command)
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
