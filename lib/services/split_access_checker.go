@@ -20,8 +20,11 @@ package services
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -346,4 +349,161 @@ func (c *SplitAccessCheckerContext) AccessStateFromSSHIdentity(ctx context.Conte
 		DeviceVerified:           dtauthz.IsSSHDeviceVerified(ident),
 		IsBot:                    ident.IsBot(),
 	}, nil
+}
+
+// UnscopedChecker returns the underlying unscoped access checker if this context wraps an unscoped identity.
+// Returns nil if this is a scoped context.
+func (c *SplitAccessCheckerContext) UnscopedChecker() AccessChecker {
+	return c.unscopedChecker
+}
+
+// LockingMode returns the locking mode for this context. For unscoped identities, this delegates to the
+// underlying checker. For scoped identities, this returns the provided default mode since scoped roles
+// do not currently support custom locking modes (they will defer to cluster/scope-level config).
+func (c *SplitAccessCheckerContext) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.LockingMode(defaultMode)
+	}
+	// Scoped roles do not currently support custom locking modes. Return the default/cluster mode.
+	// TODO(fspmarshall/scopes): support scope-bound locking mode configuration when that is implemented.
+	return defaultMode
+}
+
+// PrivateKeyPolicy returns the private key policy for this context. For unscoped identities, this delegates
+// to the underlying checker. For scoped identities, this returns the provided default policy since scoped
+// roles do not currently support custom private key policies (they defer to cluster-level config).
+func (c *SplitAccessCheckerContext) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.PrivateKeyPolicy(defaultPolicy)
+	}
+	// Scoped roles do not currently support custom private key policies. Return the cluster default.
+	// TODO(fspmarshall/scopes): support scope-bound private key policy configuration when that is implemented.
+	return defaultPolicy, nil
+}
+
+// Traits returns the user traits for this context.
+func (c *SplitAccessCheckerContext) Traits() wrappers.Traits {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.Traits()
+	}
+	// For scoped identities, return traits from the access info.
+	return c.scopedContext.builder.info.Traits
+}
+
+// PinSourceIP returns whether source IP pinning is enabled. For unscoped identities, this delegates
+// to the underlying checker. For scoped identities, this returns false since source IP pinning is not
+// currently supported for scoped certs (scope isolation concerns).
+func (c *SplitAccessCheckerContext) PinSourceIP() bool {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.PinSourceIP()
+	}
+	// Scoped identities do not support source IP pinning due to scope isolation concerns.
+	// TODO(fspmarshall/scopes): reevaluate if/when scope-level security policies are implemented.
+	return false
+}
+
+// CanPortForward returns whether port forwarding is permitted. For unscoped identities, this delegates
+// to the underlying checker. For scoped identities, this returns a hard-coded default since port forwarding
+// permissions cannot be determined without knowing the target resource.
+func (c *SplitAccessCheckerContext) CanPortForward() bool {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.CanPortForward()
+	}
+	// Scoped identities: return hard-coded default for now
+	// TODO(fspmarshall/scopes): implement scope-level port forwarding configuration
+	return false
+}
+
+// CanForwardAgents returns whether agent forwarding is permitted. For unscoped identities, this delegates
+// to the underlying checker. For scoped identities, this returns a hard-coded default since agent forwarding
+// permissions cannot be determined without knowing the target resource.
+func (c *SplitAccessCheckerContext) CanForwardAgents() bool {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.CanForwardAgents()
+	}
+	// Scoped identities: return hard-coded default for now
+	// TODO(fspmarshall/scopes): implement scope-level agent forwarding configuration
+	return false
+}
+
+// PermitX11Forwarding returns whether X11 forwarding is permitted. For unscoped identities, this delegates
+// to the underlying checker. For scoped identities, this returns a hard-coded default since X11 forwarding
+// permissions cannot be determined without knowing the target resource.
+func (c *SplitAccessCheckerContext) PermitX11Forwarding() bool {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.PermitX11Forwarding()
+	}
+	// Scoped identities: return hard-coded default for now
+	// TODO(fspmarshall/scopes): implement scope-level X11 forwarding configuration
+	return false
+}
+
+// AdjustSessionTTL adjusts the requested session TTL based on role policies. For unscoped identities, this
+// delegates to the underlying checker. For scoped identities, this returns the requested TTL unchanged since
+// session TTL restrictions cannot be determined without knowing the target resource.
+func (c *SplitAccessCheckerContext) AdjustSessionTTL(ttl time.Duration) time.Duration {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.AdjustSessionTTL(ttl)
+	}
+	// Scoped identities: return the requested TTL unchanged. We cannot restrict TTL based on roles
+	// since we don't know which role will grant access without knowing the target resource.
+	// TODO(fspmarshall/scopes): implement scope-level TTL configuration
+	return ttl
+}
+
+// CheckLoginDuration verifies that the requested session TTL is valid and returns the list of allowed logins.
+// For unscoped identities, this delegates to the underlying checker. For scoped identities, this enumerates
+// all possible logins across all roles in the pin since we cannot determine which role will grant access
+// without knowing the target resource.
+func (c *SplitAccessCheckerContext) CheckLoginDuration(ctx context.Context, ttl time.Duration) ([]string, error) {
+	if c.scopedContext == nil {
+		return c.unscopedChecker.CheckLoginDuration(ttl)
+	}
+
+	// For scoped identities, enumerate all possible logins across all roles in the pin.
+	// We cannot restrict logins based on a single role since we don't know which role will
+	// grant access without knowing the target resource.
+	loginSet := make(map[string]struct{})
+
+	for checker, err := range c.scopedContext.RiskyEnumerateCheckers(ctx) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Get logins from this checker. Pass 0 as TTL to get all logins without TTL restriction.
+		// We're not enforcing per-role TTL restrictions for scoped certs since the effective role
+		// is unknown at cert generation time.
+		logins, err := checker.CheckLoginDuration(0)
+		if err != nil {
+			// If a single role doesn't define any logins, skip it rather than failing
+			if !trace.IsAccessDenied(err) {
+				return nil, trace.Wrap(err)
+			}
+			continue
+		}
+
+		for _, login := range logins {
+			// Skip placeholder logins when aggregating across roles
+			if !strings.HasPrefix(login, constants.NoLoginPrefix) {
+				loginSet[login] = struct{}{}
+			}
+		}
+	}
+
+	// Convert map to sorted slice for deterministic output
+	logins := make([]string, 0, len(loginSet))
+	for login := range loginSet {
+		logins = append(logins, login)
+	}
+	slices.Sort(logins)
+
+	if len(logins) == 0 {
+		// User was deliberately configured to have no login capability,
+		// but SSH certificates must contain at least one valid principal.
+		// We add a single distinctive value which should be unique, and
+		// will never be a valid unix login (due to leading '-').
+		logins = []string{constants.NoLoginPrefix + uuid.New().String()}
+	}
+
+	return logins, nil
 }

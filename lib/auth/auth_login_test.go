@@ -980,6 +980,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-a"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -991,6 +994,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-b"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1002,6 +1008,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb/cc",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb/cc"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-c"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1013,6 +1022,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/xx",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/xx"},
+				Allow: &scopedaccessv1.ScopedRoleConditions{
+					Logins: []string{"login-x"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1104,6 +1116,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NotNil(t, sshIdent.ScopePin)
 	require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
 	require.Empty(t, sshIdent.Roles)
+	require.Equal(t, []string{"login-a", "login-b", "login-c", "-teleport-internal-join"}, sshIdent.Principals)
 
 	// parse and examine the tls cert
 	tlsCert, err := tlsca.ParseCertificatePEM(authrsp.TLSCert)
