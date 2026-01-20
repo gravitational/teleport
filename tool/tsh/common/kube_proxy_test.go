@@ -102,10 +102,6 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 	t.Run("with exec-cmd", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		t.Cleanup(cancel)
-
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Verify command matches
 			require.Equal(t, []string{"date"}, cmd.Args)
@@ -113,7 +109,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 		}
 
 		err := Run(
-			ctx,
+			t.Context(),
 			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec", "--exec-cmd", "date"},
 			setCmdRunner(validateCmd),
 		)
@@ -121,10 +117,6 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	})
 
 	t.Run("with exec-cmd and args", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		t.Cleanup(cancel)
-
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Verify command and args match
 			require.Equal(t, []string{"echo", "hello", "world"}, cmd.Args)
@@ -132,7 +124,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 		}
 
 		err := Run(
-			ctx,
+			t.Context(),
 			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec",
 				"--exec-cmd", "echo", "--exec-arg", "hello", "--exec-arg", "world"},
 			setCmdRunner(validateCmd),
@@ -141,10 +133,6 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	})
 
 	t.Run("backward compatibility - no exec-cmd", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		t.Cleanup(cancel)
-
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Should default to $SHELL
 			require.Equal(t, []string{os.Getenv("SHELL")}, cmd.Args)
@@ -152,7 +140,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 		}
 
 		err := Run(
-			ctx,
+			t.Context(),
 			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec"},
 			setCmdRunner(validateCmd),
 		)
@@ -160,10 +148,6 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	})
 
 	t.Run("exec-cmd without exec flag", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		t.Cleanup(cancel)
-
 		validateCmd := func(cmd *exec.Cmd) error {
 			// Should use the specified command
 			require.Equal(t, []string{"date"}, cmd.Args)
@@ -172,7 +156,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 
 		// --exec-cmd without --exec should still work (implicit exec mode)
 		err := Run(
-			ctx,
+			t.Context(),
 			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-cmd", "date"},
 			setCmdRunner(validateCmd),
 		)
@@ -180,12 +164,8 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 	})
 
 	t.Run("exec-arg without exec-cmd should error", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		t.Cleanup(cancel)
-
 		err := Run(
-			ctx,
+			t.Context(),
 			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-arg", "test"},
 		)
 		require.Error(t, err)
