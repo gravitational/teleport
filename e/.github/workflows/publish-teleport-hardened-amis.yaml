@@ -85,14 +85,10 @@ jobs:
           value-sets: amis
           environments-directory: e/.environments
 
-      - name: Determine Toolchain Versions and cache paths
-        run: |
-          echo GOLANG_VERSION="$(make -s -C build.assets print-go-version | sed 's/^go//')" >> "$GITHUB_ENV"
-
       - name: Install Go
         uses: actions/setup-go@v6
         with:
-          go-version: ${{ env.GOLANG_VERSION }}
+          go-version-file: go.mod
 
       - name: Assume promotion AWS role
         id: aws-login

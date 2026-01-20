@@ -87,7 +87,6 @@ jobs:
         run: |
           {
             echo NODE_VERSION="$(make -s -C build.assets print-node-version)"
-            echo GOLANG_VERSION="$(make -s -C build.assets print-go-version | sed 's/^go//')"
             echo RUST_VERSION="$(make -s -C build.assets print-rust-version)"
             echo PKG_CONFIG_PATH="$(make -s print-fido2-pkg-path)"
           } >> "$GITHUB_ENV"
@@ -96,7 +95,6 @@ jobs:
         run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
-          echo "go: ${GOLANG_VERSION}"
           echo "rust: ${RUST_VERSION}"
 
       - name: Install Node Toolchain
@@ -113,7 +111,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version: ${{ env.GOLANG_VERSION }}
+          go-version-file: go.mod
 
       - name: Install Rust Toolchain
         run: |
