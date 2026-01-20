@@ -438,7 +438,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	for _, caType := range types.CertAuthTypes {
+	for _, caType := range types.CertAuthTypesExtended {
 		ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
