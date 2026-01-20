@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"reflect"
 	"slices"
@@ -120,7 +119,6 @@ Same as above, but using JSON output:
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:              rc.createTrustedCluster,
-		types.KindClusterMaintenanceConfig:    rc.createClusterMaintenanceConfig,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
 		types.KindKubernetesCluster:           rc.createKubeCluster,
@@ -436,29 +434,6 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
 	}
 	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
-	return nil
-}
-
-func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	var cmc types.ClusterMaintenanceConfigV1
-	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cmc.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.force {
-		// max nonce forces "upsert" behavior
-		cmc.Nonce = math.MaxUint64
-	}
-
-	if err := client.UpdateClusterMaintenanceConfig(ctx, &cmc); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("maintenance window has been updated")
 	return nil
 }
 
@@ -800,7 +775,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 
 	// Else fallback to the legacy logic
 	singletonResources := []string{
-		types.KindClusterMaintenanceConfig,
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
 		types.KindUIConfig,
@@ -841,11 +815,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindClusterMaintenanceConfig:
-		if err := client.DeleteClusterMaintenanceConfig(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster maintenance configuration has been deleted\n")
 	case types.KindExternalAuditStorage:
 		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
 			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
@@ -1147,17 +1116,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &semaphoreCollection{sems: sems}, nil
-	case types.KindClusterMaintenanceConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterMaintenanceConfig)
-		}
-
-		cmc, err := client.GetClusterMaintenanceConfig(ctx)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
-		return &maintenanceWindowCollection{cmc}, nil
 	case types.KindSessionRecordingConfig:
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, rc.namespace)
