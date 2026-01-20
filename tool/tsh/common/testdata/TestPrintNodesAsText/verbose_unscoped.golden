@@ -1,0 +1,5 @@
+Node Name            Node ID              Address    Labels  
+-------------------- -------------------- ---------- ------- 
+unscoped-direct-name unscoped-direct-uuid 1.2.3.4:22 key=val 
+unscoped-tunnel-name unscoped-tunnel-uuid ⟵ Tunnel           
+
