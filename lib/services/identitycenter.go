@@ -226,6 +226,7 @@ type IdentityCenterAccountAssignments interface {
 
 type IdentityCenterCustomPermissionSetGetter interface {
 	GetCustomPermissionSet(context.Context, string) (*identitycenterv1.CustomPermissionSet, error)
+	ListCustomPermissionSets(context.Context, int, string) ([]*identitycenterv1.CustomPermissionSet, string, error)
 }
 
 type IdentityCenterCustomPermissionSets interface {

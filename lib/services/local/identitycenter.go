@@ -439,6 +439,15 @@ func (svc *IdentityCenterService) GetCustomPermissionSet(ctx context.Context, na
 	return cps, trace.Wrap(err)
 }
 
+// ListCustomPermissionSets provides a paged list of custom permission sets
+func (svc *IdentityCenterService) ListCustomPermissionSets(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.CustomPermissionSet, string, error) {
+	pss, nextPage, err := svc.customPermissionSets.ListResources(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "listing identity center custom permission sets")
+	}
+	return pss, nextPage, nil
+}
+
 func (svc *IdentityCenterService) CreateIdentityCenterManagedResource(ctx context.Context, r *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error) {
 	created, err := svc.managedResources.CreateResource(ctx, r)
 	return created, trace.Wrap(err)

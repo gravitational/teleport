@@ -257,6 +257,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newIdentityCenterPrincipalAssignmentParser()
 		case types.KindIdentityCenterAccountAssignment:
 			parser = newIdentityCenterAccountAssignmentParser()
+		case types.KindIdentityCenterCustomPermissionSet:
+			parser = newIdentityCenterCustomPermissionSetParser()
 		case types.KindPluginStaticCredentials:
 			parser = newPluginStaticCredentialsParser()
 		case types.KindGitServer:

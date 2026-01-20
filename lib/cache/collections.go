@@ -93,6 +93,7 @@ type collections struct {
 	userGroups                         *collection[types.UserGroup, userGroupIndex]
 	identityCenterAccounts             *collection[*identitycenterv1.Account, identityCenterAccountIndex]
 	identityCenterAccountAssignments   *collection[*identitycenterv1.AccountAssignment, identityCenterAccountAssignmentIndex]
+	identityCenterCustomPermissionSets *collection[*identitycenterv1.CustomPermissionSet, identityCenterCustomPermissionSetIndex]
 	healthCheckConfig                  *collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]
 	reverseTunnels                     *collection[types.ReverseTunnel, reverseTunnelIndex]
 	spiffeFederations                  *collection[*machineidv1.SPIFFEFederation, spiffeFederationIndex]
@@ -359,6 +360,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.identityCenterAccountAssignments = collect
 			out.byKind[resourceKind] = out.identityCenterAccountAssignments
+		case types.KindIdentityCenterCustomPermissionSet:
+			collect, err := newIdentityCenterCustomPermissionSetCollection(c.IdentityCenter, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.identityCenterCustomPermissionSets = collect
+			out.byKind[resourceKind] = out.identityCenterCustomPermissionSets
 		case types.KindHealthCheckConfig:
 			collect, err := newHealthCheckConfigCollection(c.HealthCheckConfig, watch)
 			if err != nil {

@@ -292,3 +292,56 @@ func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, page
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
 }
+
+type identityCenterCustomPermissionSetIndex string
+
+const identityCenterCustomPermissionSetNameIndex identityCenterCustomPermissionSetIndex = "name"
+
+func newIdentityCenterCustomPermissionSetCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.CustomPermissionSet, identityCenterCustomPermissionSetIndex], error) {
+	if ic == nil {
+		return nil, trace.BadParameter("missing parameter IdentityCenter")
+	}
+
+	return &collection[*identitycenterv1.CustomPermissionSet, identityCenterCustomPermissionSetIndex]{
+		store: newStore(
+			string(types.KindIdentityCenterCustomPermissionSet),
+			proto.CloneOf[*identitycenterv1.CustomPermissionSet],
+			map[identityCenterCustomPermissionSetIndex]func(*identitycenterv1.CustomPermissionSet) string{
+				identityCenterCustomPermissionSetNameIndex: func(r *identitycenterv1.CustomPermissionSet) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.CustomPermissionSet, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, ic.ListCustomPermissionSets))
+			return out, trace.Wrap(err)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.CustomPermissionSet {
+			return &identitycenterv1.CustomPermissionSet{
+				Kind:    hdr.Kind,
+				SubKind: hdr.SubKind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetCustomPermissionSet(ctx context.Context, id string) (*identitycenterv1.CustomPermissionSet, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetCustomPermissionSet")
+	defer span.End()
+
+	getter := genericGetter[*identitycenterv1.CustomPermissionSet, identityCenterCustomPermissionSetIndex]{
+		cache:      c,
+		collection: c.collections.identityCenterCustomPermissionSets,
+		index:      identityCenterCustomPermissionSetNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.CustomPermissionSet, error) {
+			out, err := c.Config.IdentityCenter.GetCustomPermissionSet(ctx, s)
+			return out, trace.Wrap(err)
+		},
+	}
+	out, err := getter.get(ctx, string(id))
+	return out, trace.Wrap(err)
+}
