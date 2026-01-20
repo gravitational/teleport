@@ -21,6 +21,7 @@ package winpki
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -66,8 +67,6 @@ type CertificateStoreConfig struct {
 
 // Update publishes an empty certificate revocation list to LDAP.
 func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) error {
-	caType := types.UserCA
-
 	// TODO(zmb3): check for the presence of Teleport's CA in the NTAuth store
 
 	// To make the CA trusted, we need 3 things:
@@ -78,6 +77,26 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 	// #1 and #2 are done manually as part of the set-up process (see public docs).
 	// Below we do #3.
 
+	// Attempt to publish both Windows and User CAs, as both may be used to issue
+	// RDP certificates under certain conditions.
+	// TODO(codingllama): DELETE IN 20. Remove UserCA publishing.
+
+	publishedSKIDs := make(map[string]struct{})
+	err1 := trace.Wrap(
+		c.updateCAsCRL(ctx, tc, publishedSKIDs, types.WindowsCA),
+		"publish WindowsCA CRLs")
+	err2 := trace.Wrap(
+		c.updateCAsCRL(ctx, tc, publishedSKIDs, types.UserCA),
+		"publish UserCA CRLs")
+	return trace.NewAggregate(err1, err2)
+}
+
+func (c *CertificateStoreClient) updateCAsCRL(
+	ctx context.Context,
+	tc *tls.Config,
+	publishedSKIDs map[string]struct{},
+	caType types.CertAuthType,
+) error {
 	certAuthorities, err := c.cfg.AccessPoint.GetCertAuthorities(ctx, caType, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -92,6 +111,18 @@ func (c *CertificateStoreClient) Update(ctx context.Context, tc *tls.Config) err
 			if err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Avoid double updates if WindowsCA and UserCA are equal.
+			// TODO(codingllama): DELETE IN 20. We shouldn't see duplicate SKIDs by then.
+			skid := base64.StdEncoding.EncodeToString(cert.SubjectKeyId)
+			if _, ok := publishedSKIDs[skid]; ok {
+				c.cfg.Logger.DebugContext(ctx,
+					"Skipping CA CRL update, SubjectKeyId already published",
+					"ca_type", caType,
+				)
+				continue
+			}
+			publishedSKIDs[skid] = struct{}{}
 
 			if err := c.updateCRL(ctx, c.cfg.ClusterName, cert.SubjectKeyId, keyPair.CRL, caType, tc); err != nil {
 				return trace.Wrap(err)
@@ -136,6 +167,11 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 		return trace.Wrap(err, "creating CRL container")
 	}
 
+	logger := c.cfg.Logger.With(
+		"ca_type", caType,
+		"dn", crlDN,
+	)
+
 	// Create the CRL object itself.
 	if err := ldapClient.Create(
 		crlDN,
@@ -153,9 +189,9 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, issuerCN string,
 		); err != nil {
 			return trace.Wrap(err)
 		}
-		c.cfg.Logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP", "dn", crlDN)
+		logger.InfoContext(ctx, "Updated CRL for Windows logins via LDAP")
 	} else {
-		c.cfg.Logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP", "dn", crlDN)
+		logger.InfoContext(ctx, "Added CRL for Windows logins via LDAP")
 	}
 	return nil
 }
