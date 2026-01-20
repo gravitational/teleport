@@ -33,14 +33,7 @@ import (
 )
 
 func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, args []string) (err error) {
-	// Determine which command to execute
-	// Priority: 1) --exec-cmd flag, 2) SHELL env var, 3) /bin/bash
-	if command == "" {
-		command = "/bin/bash"
-		if shell, ok := os.LookupEnv("SHELL"); ok {
-			command = shell
-		}
-	}
+	command = getExecCommand(command)
 
 	f, err := os.CreateTemp("", "proxy-kubeconfig-*")
 	if err != nil {

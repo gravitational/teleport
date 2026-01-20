@@ -77,14 +77,7 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, a
 	f := os.NewFile(uintptr(fd), fp)
 	defer func() { err = trace.NewAggregate(err, f.Close()) }()
 
-	// Determine which command to execute
-	// Priority: 1) --exec-cmd flag, 2) SHELL env var, 3) /bin/bash
-	if command == "" {
-		command = "/bin/bash"
-		if shell, ok := os.LookupEnv("SHELL"); ok {
-			command = shell
-		}
-	}
+	command = getExecCommand(command)
 
 	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stderr = os.Stderr

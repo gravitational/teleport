@@ -145,16 +145,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		}
 		go localProxy.Start(cf.Context)
 
-		// Determine which command to execute for testing
-		// Priority: 1) --exec-cmd flag, 2) SHELL env var, 3) /bin/bash
-		command := c.execCmd
-		if command == "" {
-			command = "/bin/bash"
-			if shell, ok := os.LookupEnv("SHELL"); ok {
-				command = shell
-			}
-		}
-
+		command := getExecCommand(c.execCmd)
 		cmd := &exec.Cmd{
 			Path: command,
 			Args: append([]string{command}, c.execArgs...),
@@ -174,6 +165,18 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		}
 		return trace.Wrap(localProxy.Start(cf.Context))
 	}
+}
+
+// getExecCommand returns the command to execute for the kube proxy shell.
+// Priority: 1) provided command, 2) SHELL env var, 3) /bin/bash
+func getExecCommand(command string) string {
+	if command == "" {
+		command = "/bin/bash"
+		if shell, ok := os.LookupEnv("SHELL"); ok {
+			command = shell
+		}
+	}
+	return command
 }
 
 func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command string, args []string) error {
