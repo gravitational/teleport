@@ -172,7 +172,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
 
     editor.selectAll();
     editor.remove();
-    editor.insert('{"asdf":"qwer"}', true);
+    editor.insert('{"asdf":"qwer"}');
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled()
     );
@@ -281,7 +281,7 @@ test('no double conversions when clicking already active tabs', async () => {
 
   editor.selectAll();
   editor.remove();
-  editor.insert('{"kind":"role", metadata:{"name":"new_role_name_3"}}', true);
+  editor.insert('{"kind":"role", metadata:{"name":"new_role_name_3"}}');
   await user.click(getYamlEditorTab());
   expect(editor.getValue()).toBe(
     '{"kind":"role", metadata:{"name":"new_role_name_3"}}'
@@ -378,7 +378,7 @@ describe('closing the editor', () => {
     const onCancel = setup({ originalRole: newRoleWithYaml(newRole()) });
     await user.click(getYamlEditorTab());
     const editor = await findTextEditor();
-    editor.insert('{"foo":"bar"}', true);
+    editor.insert('{"foo":"bar"}');
     await closeWithConfirmation(onCancel);
   });
 });
@@ -438,7 +438,7 @@ describe('saving a new role after editing as YAML', () => {
     editor.remove();
     await waitFor(() => expect(saveButton).toBeDisabled());
 
-    editor.insert('{"foo":"bar"}', true);
+    editor.insert('{"foo":"bar"}');
     await waitFor(() => expect(saveButton).toBeEnabled());
 
     await user.click(saveButton);
@@ -478,7 +478,7 @@ describe('saving a new role after editing as YAML', () => {
 
     onRoleUpdate.mockReset();
 
-    editor.insert('{"metadata":{"description":"foo"}}', true);
+    editor.insert('{"metadata":{"description":"foo"}}');
     await waitFor(() => expect(previewButton).toBeEnabled());
 
     expect(onRoleUpdate).not.toHaveBeenCalled();
@@ -574,7 +574,7 @@ test('YAML editor is usable even if the standard one throws', async () => {
   const createButton = screen.getByRole('button', { name: 'Create Role' });
   await waitFor(() => expect(createButton).toBeDisabled());
 
-  editor.insert('{"modified":1}', true);
+  editor.insert('{"modified":1}');
   await waitFor(() => expect(createButton).toBeEnabled());
 
   await user.click(createButton);
@@ -617,7 +617,7 @@ it('YAML editor usable even if the initial conversion throws', async () => {
   expect(fromFauxYaml(editor.getValue())).toEqual(originalRole);
   editor.selectAll();
   editor.remove();
-  editor.insert('{"modified":1}', true);
+  editor.insert('{"modified":1}');
   const saveButton = screen.getByRole('button', { name: 'Save Changes' });
   await waitFor(() => expect(saveButton).toBeEnabled());
   await user.click(saveButton);
