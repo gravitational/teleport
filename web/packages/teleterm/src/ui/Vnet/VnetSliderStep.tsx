@@ -21,11 +21,12 @@ import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 import { ActionButton } from 'design/Alert';
 import { StepComponentProps } from 'design/StepSlider';
+import { WindowsSystemServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { useRefAutoFocus } from 'shared/hooks';
 import { useDelayedRepeatedAttempt } from 'shared/hooks/useAsync';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 
-import { isTshdRpcError } from 'teleterm/services/tshd';
+import { platformStatusOneOfIsWindowsSystemServiceStatus } from 'teleterm/helpers';
 import { ConnectionKindIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionItem';
 import { ConnectionStatusIndicator } from 'teleterm/ui/TopBar/Connections/ConnectionsFilterableList/ConnectionStatusIndicator';
 
@@ -44,7 +45,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     status,
     startAttempt,
     stopAttempt,
-    getWindowsSystemServiceAttempt,
+    preRunRequirementsCheck,
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
@@ -90,22 +91,26 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           }
         `}
       >
-        {getWindowsSystemServiceAttempt.status === 'error' && (
+        {preRunRequirementsCheck.status === 'failed' && (
           <>
-            {isTshdRpcError(
-              getWindowsSystemServiceAttempt.error,
-              'NOT_FOUND'
-            ) ? (
-              <ErrorText>
-                VNet system service is not installed. <br />
-                To use VNet, reinstall Teleport Connect selecting &apos;Anyone
-                who uses this computer&apos; option. Administrator privileges
-                will be required.
-              </ErrorText>
-            ) : (
+            {preRunRequirementsCheck.reason.status === 'platform-problem' &&
+              platformStatusOneOfIsWindowsSystemServiceStatus(
+                preRunRequirementsCheck.reason.platformStatus
+              ) &&
+              preRunRequirementsCheck.reason.platformStatus
+                .windowsSystemServiceStatus ===
+                WindowsSystemServiceStatus.DOES_NOT_EXIST && (
+                <ErrorText>
+                  VNet system service is not installed. <br />
+                  To use VNet, reinstall Teleport Connect selecting &apos;Anyone
+                  who uses this computer&apos; option. Administrator privileges
+                  will be required.
+                </ErrorText>
+              )}
+            {preRunRequirementsCheck.reason.status === 'error' && (
               <ErrorText>
                 Could not check VNet system service status:{' '}
-                {getWindowsSystemServiceAttempt.statusText}
+                {preRunRequirementsCheck.reason.statusText}
               </ErrorText>
             )}
           </>

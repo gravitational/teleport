@@ -37,10 +37,10 @@ service VnetService {
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
 
-  // GetWindowsSystemService verifies the existence of the VNet system service, which is installed only in per-machine setups.
-  // If the service doesn't exist, a standard gRPC Not Found error is returned.
-  // Windows only.
-  rpc GetWindowsSystemService(GetWindowsSystemServiceRequest) returns (GetWindowsSystemServiceResponse);
+  // CheckPreRunRequirements performs checks before running the VNet service.
+  // Currently Windows only.
+  // TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
+  rpc CheckPreRunRequirements(CheckPreRunRequirementsRequest) returns (CheckPreRunRequirementsResponse);
 
   // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
   // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -102,11 +102,22 @@ enum BackgroundItemStatus {
   BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
 }
 
-// Request for GetWindowsSystemServiceRequest.
-message GetWindowsSystemServiceRequest {}
+// WindowsSystemServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
+enum WindowsSystemServiceStatus {
+  WINDOWS_SYSTEM_SERVICE_STATUS_UNSPECIFIED = 0;
+  WINDOWS_SYSTEM_SERVICE_STATUS_OK = 1;
+  WINDOWS_SYSTEM_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+}
 
-// Response for GetWindowsSystemServiceResponse.
-message GetWindowsSystemServiceResponse {}
+// Request for CheckPreRunRequirementsRequest.
+message CheckPreRunRequirementsRequest {}
+
+// Response for CheckPreRunRequirementsResponse.
+message CheckPreRunRequirementsResponse {
+  oneof platform_status {
+    WindowsSystemServiceStatus windows_system_service_status = 1;
+  }
+}
 
 // Request for RunDiagnostics.
 message RunDiagnosticsRequest {}

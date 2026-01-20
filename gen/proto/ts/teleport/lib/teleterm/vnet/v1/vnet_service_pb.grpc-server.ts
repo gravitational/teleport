@@ -24,8 +24,8 @@ import { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
-import { GetWindowsSystemServiceResponse } from "./vnet_service_pb";
-import { GetWindowsSystemServiceRequest } from "./vnet_service_pb";
+import { CheckPreRunRequirementsResponse } from "./vnet_service_pb";
+import { CheckPreRunRequirementsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -67,13 +67,13 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
     /**
-     * GetWindowsSystemService verifies the existence of the VNet system service, which is installed only in per-machine setups.
-     * If the service doesn't exist, a standard gRPC Not Found error is returned.
-     * Windows only.
+     * CheckPreRunRequirements performs checks before running the VNet service.
+     * Currently Windows only.
+     * TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
      *
-     * @generated from protobuf rpc: GetWindowsSystemService(teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest) returns (teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse);
+     * @generated from protobuf rpc: CheckPreRunRequirements(teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest) returns (teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse);
      */
-    getWindowsSystemService: grpc.handleUnaryCall<GetWindowsSystemServiceRequest, GetWindowsSystemServiceResponse>;
+    checkPreRunRequirements: grpc.handleUnaryCall<CheckPreRunRequirementsRequest, CheckPreRunRequirementsResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -141,15 +141,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
     },
-    getWindowsSystemService: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/GetWindowsSystemService",
-        originalName: "GetWindowsSystemService",
+    checkPreRunRequirements: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/CheckPreRunRequirements",
+        originalName: "CheckPreRunRequirements",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => GetWindowsSystemServiceResponse.fromBinary(bytes),
-        requestDeserialize: bytes => GetWindowsSystemServiceRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(GetWindowsSystemServiceResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(GetWindowsSystemServiceRequest.toBinary(value))
+        responseDeserialize: bytes => CheckPreRunRequirementsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => CheckPreRunRequirementsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(CheckPreRunRequirementsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(CheckPreRunRequirementsRequest.toBinary(value))
     },
     runDiagnostics: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",

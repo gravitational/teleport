@@ -152,9 +152,6 @@ func VerifyServiceInstalled() error {
 		return trace.Wrap(err, "converting service name to UTF16")
 	}
 	_, err = windows.OpenService(scManager, serviceNamePtr, serviceAccessFlags)
-	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		return trace.NotFound("service does not exist %v", serviceName)
-	}
 	return trace.Wrap(err, "opening Windows service %v", serviceName)
 }
 

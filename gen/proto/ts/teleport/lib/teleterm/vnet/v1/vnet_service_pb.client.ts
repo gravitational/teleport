@@ -27,8 +27,8 @@ import type { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import type { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import type { RunDiagnosticsResponse } from "./vnet_service_pb";
 import type { RunDiagnosticsRequest } from "./vnet_service_pb";
-import type { GetWindowsSystemServiceResponse } from "./vnet_service_pb";
-import type { GetWindowsSystemServiceRequest } from "./vnet_service_pb";
+import type { CheckPreRunRequirementsResponse } from "./vnet_service_pb";
+import type { CheckPreRunRequirementsRequest } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import type { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import type { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -72,13 +72,13 @@ export interface IVnetServiceClient {
      */
     getBackgroundItemStatus(input: GetBackgroundItemStatusRequest, options?: RpcOptions): UnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
     /**
-     * GetWindowsSystemService verifies the existence of the VNet system service, which is installed only in per-machine setups.
-     * If the service doesn't exist, a standard gRPC Not Found error is returned.
-     * Windows only.
+     * CheckPreRunRequirements performs checks before running the VNet service.
+     * Currently Windows only.
+     * TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
      *
-     * @generated from protobuf rpc: GetWindowsSystemService(teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest) returns (teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse);
+     * @generated from protobuf rpc: CheckPreRunRequirements(teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest) returns (teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse);
      */
-    getWindowsSystemService(input: GetWindowsSystemServiceRequest, options?: RpcOptions): UnaryCall<GetWindowsSystemServiceRequest, GetWindowsSystemServiceResponse>;
+    checkPreRunRequirements(input: CheckPreRunRequirementsRequest, options?: RpcOptions): UnaryCall<CheckPreRunRequirementsRequest, CheckPreRunRequirementsResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -143,15 +143,15 @@ export class VnetServiceClient implements IVnetServiceClient, ServiceInfo {
         return stackIntercept<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * GetWindowsSystemService verifies the existence of the VNet system service, which is installed only in per-machine setups.
-     * If the service doesn't exist, a standard gRPC Not Found error is returned.
-     * Windows only.
+     * CheckPreRunRequirements performs checks before running the VNet service.
+     * Currently Windows only.
+     * TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
      *
-     * @generated from protobuf rpc: GetWindowsSystemService(teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceRequest) returns (teleport.lib.teleterm.vnet.v1.GetWindowsSystemServiceResponse);
+     * @generated from protobuf rpc: CheckPreRunRequirements(teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest) returns (teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse);
      */
-    getWindowsSystemService(input: GetWindowsSystemServiceRequest, options?: RpcOptions): UnaryCall<GetWindowsSystemServiceRequest, GetWindowsSystemServiceResponse> {
+    checkPreRunRequirements(input: CheckPreRunRequirementsRequest, options?: RpcOptions): UnaryCall<CheckPreRunRequirementsRequest, CheckPreRunRequirementsResponse> {
         const method = this.methods[4], opt = this._transport.mergeOptions(options);
-        return stackIntercept<GetWindowsSystemServiceRequest, GetWindowsSystemServiceResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<CheckPreRunRequirementsRequest, CheckPreRunRequirementsResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
