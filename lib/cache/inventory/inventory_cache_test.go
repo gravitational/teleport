@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -151,7 +152,10 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	secReportsSvc, err := local.NewSecReportsService(bkWrapper, bkWrapper.Clock())
 	require.NoError(t, err)
 
-	accessListsSvc, err := local.NewAccessListService(bkWrapper, bkWrapper.Clock())
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: bkWrapper,
+		Modules: modulestest.OSSModules(),
+	})
 	require.NoError(t, err)
 
 	accessMonitoringRuleService, err := local.NewAccessMonitoringRulesService(bkWrapper)

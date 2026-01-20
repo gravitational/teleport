@@ -282,10 +282,9 @@ func TestForwardServer(t *testing.T) {
 
 func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 	t.Helper()
-	keygen := testauthority.New()
 	clientPrivateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientCertBytes, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
+	clientCertBytes, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:          caSigner,
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
 		CertificateFormat: constants.CertificateFormatStandard,

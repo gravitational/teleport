@@ -84,7 +84,7 @@ func getCertAuthority(ctx context.Context, client *authclient.Client, ref servic
 	getAll := ref.SubKind == "" && ref.Name == ""
 	if getAll {
 		var allAuthorities []types.CertAuthority
-		for _, caType := range types.CertAuthTypes {
+		for _, caType := range types.CertAuthTypesExtended {
 			authorities, err := client.GetCertAuthorities(ctx, caType, opts.WithSecrets)
 			if err != nil {
 				if trace.IsBadParameter(err) {
