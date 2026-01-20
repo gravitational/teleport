@@ -415,10 +415,10 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		}
 
 	case nil:
-		return nil, trace.BadParameter("missing payload in validated challenge retrieved from storage")
+		return nil, trace.BadParameter("missing or unsupported payload in validated challenge retrieved from storage")
 
 	default:
-		return nil, trace.BadParameter("unsupported payload type %T in validated challenge retrieved from storage (this is a bug)", storedPayload)
+		return nil, trace.BadParameter("unexpected payload type %T in validated challenge retrieved from storage (this is a bug)", storedPayload)
 	}
 
 	// Ensure the source cluster that was initially used to create the challenge matches the source cluster provided in
@@ -687,6 +687,22 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 
 	default:
 		return trace.BadParameter("unknown or unsupported SessionIdentifyingPayload type %T", p)
+	payload := req.GetPayload()
+	if payload == nil {
+		return trace.BadParameter("missing VerifyValidatedMFAChallengeRequest payload")
+	}
+
+	switch p := payload.GetPayload().(type) {
+	case *mfav1.SessionIdentifyingPayload_SshSessionId:
+		if len(p.GetSshSessionId()) == 0 {
+			return trace.BadParameter("empty SshSessionId in payload")
+		}
+
+	case nil:
+		return trace.BadParameter("missing or unsupported SessionIdentifyingPayload in request")
+
+	default:
+		return trace.BadParameter("unexpected SessionIdentifyingPayload type %T (this is a bug)", p)
 	}
 
 	return nil
