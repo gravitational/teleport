@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -105,6 +106,9 @@ type AuthHandlerConfig struct {
 	// OnRBACFailure is an opitonal callback used to hook in metrics/logs related to
 	// RBAC failures.
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
+
+	// MFAServiceClient is the client used to communicate with the MFA service.
+	MFAServiceClient mfav1.MFAServiceClient
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -122,6 +126,10 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+
+	if c.MFAServiceClient == nil {
+		return trace.BadParameter("MFAServiceClient required")
 	}
 
 	return nil
@@ -680,7 +688,8 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (pp
 		}
 	}
 
-	return outputPermissions, nil
+	// Proceed to keyboard-interactive auth to ensure all preconditions are met.
+	return h.KeyboardInteractiveAuth(ctx, accessPermit.GetPreconditions(), ident, outputPermissions)
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
