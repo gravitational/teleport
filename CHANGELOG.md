@@ -10,7 +10,7 @@
 * Fixed launching AWS Identity Center from Teleport Connect. [#62840](https://github.com/gravitational/teleport/pull/62840)
 * Removed erroneous `pair-wise` subject type from Teleport's OpenID configuration. [#62835](https://github.com/gravitational/teleport/pull/62835)
 * Fixed renewed X509-SVIDs not being proactively sent to Envoy instances. [#62830](https://github.com/gravitational/teleport/pull/62830)
-* Fix an issuse `MCP Session Listen` events may spam audit log with app service error `malformed line in SSE stream: ""`. [#62811](https://github.com/gravitational/teleport/pull/62811)
+* Fix an issue `MCP Session Listen` events may spam audit log with app service error `malformed line in SSE stream: ""`. [#62811](https://github.com/gravitational/teleport/pull/62811)
 * Added automatic client certificate reloading option for postgres backends. [#62747](https://github.com/gravitational/teleport/pull/62747)
 * Fixed an issue that would prevent tsh from working when the 1password SSH agent is running. [#62736](https://github.com/gravitational/teleport/pull/62736)
 * Add `tbot wait` API and helper to let scripts wait for bots to become ready. [#62719](https://github.com/gravitational/teleport/pull/62719)
