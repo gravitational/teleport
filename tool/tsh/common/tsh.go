@@ -1487,6 +1487,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	updateServiceCommand := newUpdateServiceCommand(app)
+	updateServiceInstallCommand := newUpdateServiceInstallCommand(app)
+	updateServiceUninstallCommand := newUpdateServiceUninstallCommand(app)
+	updateServiceInstallUpdateCommand := newUpdateServiceInstallUpdateCommand(app)
+
 	gitCmd := newGitCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -1927,6 +1932,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case updateServiceInstallCommand.FullCommand():
+		err = updateServiceInstallCommand.run(&cf)
+	case updateServiceUninstallCommand.FullCommand():
+		err = updateServiceUninstallCommand.run(&cf)
+	case updateServiceCommand.FullCommand():
+		err = updateServiceCommand.run(&cf)
+	case updateServiceInstallUpdateCommand.FullCommand():
+		err = updateServiceInstallUpdateCommand.run(&cf)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():

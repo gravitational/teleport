@@ -75,6 +75,7 @@ export class AppUpdater {
   };
 
   constructor(
+    private tshPath: string,
     private readonly storage: AppUpdaterStorage,
     private readonly client: {
       getConfig(): Promise<GetConfigResponse>;
@@ -121,7 +122,7 @@ export class AppUpdater {
     };
 
     if (process.platform === 'win32') {
-      this.nativeUpdater = new NsisDualModeUpdater(this.nsisUpdaterSettings);
+      this.nativeUpdater = new NsisDualModeUpdater(this.nsisUpdaterSettings, this.tshPath);
     }
 
     this.nativeUpdater.setFeedURL({
