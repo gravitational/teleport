@@ -73,7 +73,7 @@ type NodeSession struct {
 
 	// closeWait is used to wait for cleanup-related goroutines created by
 	// this session to close.
-	closeWait *sync.WaitGroup
+	closeWait sync.WaitGroup
 
 	ExitMsg string
 
@@ -139,7 +139,7 @@ func newSession(ctx context.Context,
 		env:                   env,
 		nodeClient:            client,
 		closer:                utils.NewCloseBroadcaster(),
-		closeWait:             &sync.WaitGroup{},
+		closeWait:             sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
 		terminal:              term,
 		shouldClearOnExit:     client.FIPSEnabled || isFIPS(),
@@ -164,11 +164,7 @@ func newSession(ctx context.Context,
 		ns.env[sshutils.SessionEnvVar] = sessionParams.JoinSessionID
 	}
 
-	// Close the Terminal when finished.
-	ns.closeWait.Add(1)
-	go func() {
-		defer ns.closeWait.Done()
-
+	ns.closeWait.Go(func() {
 		<-ns.closer.C
 
 		if ns.shouldClearOnExit {
@@ -177,7 +173,7 @@ func newSession(ctx context.Context,
 			}
 		}
 		ns.terminal.Close()
-	}()
+	})
 
 	return ns, nil
 }
@@ -383,13 +379,16 @@ func (ns *NodeSession) allocateTerminal(ctx context.Context, termType string, s 
 		return nil, trace.Wrap(err)
 	}
 	if ns.terminal.IsAttached() {
-		go ns.updateTerminalSize(ctx, s)
+		ns.closeWait.Go(func() {
+			ns.updateTerminalSize(ctx, s)
+		})
 	}
-	go func() {
+
+	ns.closeWait.Go(func() {
 		if _, err := io.Copy(ns.nodeClient.TC.Stderr, stderr); err != nil {
 			log.DebugContext(ctx, "Error reading remote STDERR", "error", err)
 		}
-	}()
+	})
 	return utils.NewPipeNetConn(
 		reader,
 		writer,
@@ -601,9 +600,9 @@ func (ns *NodeSession) runCommand(ctx context.Context, sessionParams *tracessh.S
 	// SSH client, and try and exit as gracefully as possible.
 	return ns.regularSession(ctx, sessionParams, func(s *tracessh.Session) error {
 		errCh := make(chan error, 1)
-		go func() {
+		ns.closeWait.Go(func() {
 			errCh <- s.Run(ctx, strings.Join(cmd, " "))
-		}()
+		})
 
 		select {
 		// Run returned a result, return that back to the caller.
@@ -631,68 +630,71 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	// Catch SIGTERM and close the session.
 	exitSignals := make(chan os.Signal, 1)
 	signal.Notify(exitSignals, syscall.SIGTERM)
-	go func() {
-		defer ns.closer.Close()
-
+	ns.closeWait.Go(func() {
 		select {
 		case <-exitSignals:
-			return
+			ns.closer.Close()
 		case <-ns.closer.C:
 			return
 		}
-	}()
+	})
 
 	// Catch Ctrl-C/SIGINT.
 	ctrlCSignal := make(chan os.Signal, 1)
 	signal.Notify(ctrlCSignal, syscall.SIGINT)
-	go func() {
+	ns.closeWait.Go(func() {
 		for {
 			select {
 			case <-ctrlCSignal:
-				_, err := shell.Write([]byte{ctrlCharC})
-				if err != nil {
+				if _, err := shell.Write([]byte{ctrlCharC}); err != nil {
 					log.ErrorContext(context.Background(), "Failed to forward ctrl+c", "error", err)
 				}
 			case <-ns.closer.C:
 				return
 			}
 		}
-	}()
+	})
 
 	// Then, use Terminal events for SIGTSTP, which is not supported on
 	// Windows. (Windows emits the Ctrl+Z sequence directly.)
 	events := ns.terminal.Subscribe()
-	go func() {
-		for event := range events {
-			if _, ok := event.(terminal.StopEvent); ok {
-				_, err := shell.Write([]byte{ctrlCharZ})
-				if err != nil {
-					log.ErrorContext(context.Background(), "Failed to forward ctrl+z", "error", err)
+	ns.closeWait.Go(func() {
+		for {
+			select {
+			case event := <-events:
+				if _, ok := event.(terminal.StopEvent); ok {
+					if _, err := shell.Write([]byte{ctrlCharZ}); err != nil {
+						log.ErrorContext(context.Background(), "Failed to forward ctrl+z", "error", err)
+					}
 				}
+			case <-ns.closer.C:
+				return
 			}
 		}
-	}()
+	})
 }
 
 func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Terminal, forceTerminate func()) {
+	buf := make([]byte, 1)
 	for {
-		buf := make([]byte, 1)
-		_, err := term.Stdin().Read(buf)
+		n, err := term.Stdin().Read(buf)
+		if n > 0 {
+			// Ctrl-C
+			if buf[0] == '\x03' {
+				fmt.Print("\n\rLeft session\n\r")
+				return
+			}
+
+			// t
+			if buf[0] == 't' && mode == types.SessionModeratorMode {
+				fmt.Print("\n\rForcefully terminating session\n\r")
+				forceTerminate()
+				break
+			}
+		}
+
 		if errors.Is(err, io.EOF) {
 			return
-		}
-
-		// Ctrl-C
-		if buf[0] == '\x03' {
-			fmt.Print("\n\rLeft session\n\r")
-			return
-		}
-
-		// t
-		if buf[0] == 't' && mode == types.SessionModeratorMode {
-			fmt.Print("\n\rForcefully terminating session\n\r")
-			forceTerminate()
-			break
 		}
 	}
 }
@@ -722,8 +724,7 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 		})
 	}
 
-	_, err := io.Copy(remoteStdin, stdin)
-	if err != nil {
+	if _, err := io.Copy(remoteStdin, stdin); err != nil {
 		log.DebugContext(context.Background(), "Error copying data to remote peer", "error", err)
 		fmt.Fprint(term.Stderr(), "\r\nError copying data to remote peer\r\n")
 		forceDisconnect = true
@@ -732,26 +733,18 @@ func handlePeerControls(term *terminal.Terminal, enableEscapeSequences bool, rem
 	return forceDisconnect
 }
 
-// pipeInOut launches two goroutines: one to pipe the local input into the remote shell,
-// and another to pipe the output of the remote shell into the local output
+// pipeInOut forwards local input into the remote shell and remote output
+// to the local shell.
 func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, mode types.SessionParticipantMode, sess *tracessh.Session) {
-	// copy from the remote shell to the local output
-	go func() {
-		defer ns.closer.Close()
-		_, err := io.Copy(ns.terminal.Stdout(), shell)
-		if err != nil && !utils.IsOKNetworkError(err) {
-			log.ErrorContext(ctx, "Failed copying data to session", "error", err)
-		}
-	}()
+	defer ns.closer.Close()
 
 	switch mode {
 	case types.SessionObserverMode, types.SessionModeratorMode:
-		go func() {
+		ns.closeWait.Go(func() {
 			defer ns.closer.Close()
 
 			handleNonPeerControls(mode, ns.terminal, func() {
-				_, err := sess.SendRequest(ctx, teleport.ForceTerminateRequest, true, nil)
-				if err != nil {
+				if _, err := sess.SendRequest(ctx, teleport.ForceTerminateRequest, true, nil); err != nil {
 					fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
 				}
 			})
@@ -759,25 +752,29 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 			// Force disconnect the session. We want to release the local terminal
 			// connected to the session rather than wait for the session to end.
 			ns.forceDisconnect.Store(true)
-		}()
+		})
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
-		go func() {
+		ns.closeWait.Go(func() {
+			defer ns.closer.Close()
+
 			if handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell) {
 				ns.forceDisconnect.Store(true)
 			}
+		})
+	}
 
-			ns.closer.Close()
-		}()
+	// copy from the remote shell to the local output
+	if _, err := io.Copy(ns.terminal.Stdout(), shell); err != nil && !utils.IsOKNetworkError(err) {
+		log.ErrorContext(ctx, "Failed copying data to session", "error", err)
 	}
 }
 
 func (ns *NodeSession) Close() error {
-	if ns.closer != nil {
-		ns.closer.Close()
-	}
-	if ns.closeWait != nil {
-		ns.closeWait.Wait()
-	}
+	// The closer never returns an error
+	_ = ns.closer.Close()
+
+	// Wait for all goroutines to finish.
+	ns.closeWait.Wait()
 	return nil
 }

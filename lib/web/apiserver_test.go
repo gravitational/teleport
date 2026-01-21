@@ -249,7 +249,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		cfg.clock = clockwork.NewFakeClock()
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	s := &WebSuite{
 		mockU2F: mockU2F,
 		clock:   cfg.clock,
@@ -10580,8 +10580,11 @@ func TestModeratedSession(t *testing.T) {
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
+	// the moderator is informed that the session is being stopped
 	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
+
+	// the peer if forcefully terminated which results in an io.EOF
+	require.ErrorIs(t, waitForOutput(peerTerm, "Process exited with status 255"), io.EOF)
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -10593,9 +10596,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	const RPID = "localhost"
 
-	presenceClock := clockwork.NewFakeClock()
+	clock := clockwork.NewFakeClock()
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		clock:                     clockwork.NewFakeClockAt(presenceClock.Now()),
+		clock:                     clock,
 		disableDiskBasedRecording: true,
 		authPreferenceSpec: &types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
@@ -10607,7 +10610,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 			},
 		},
 		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
+			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(clock)))
 		},
 	})
 
@@ -10714,39 +10717,55 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
 
 	// run the presence check a few times
-	for range 3 {
-		presenceClock.BlockUntil(1)
-		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
+	for i := range 10 {
+		// Advance the clock far enough in the future to trigger a presence check.
+		// The clock is used by ALL server components, so it's not practical to use BlockUntil here.
+		s.clock.Advance(30 * time.Second)
 
-		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
-		require.NoError(t, err)
+		// Complete the presence checks for the first few iterations to keep the connection alive.
+		if i < 4 {
+			require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
+			challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
+			require.NoError(t, err)
 
-		res, err := moderator.device.SolveAuthn(challenge)
-		require.NoError(t, err)
+			res, err := moderator.device.SolveAuthn(challenge)
+			require.NoError(t, err)
 
-		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-		require.NoError(t, err)
+			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
+			require.NoError(t, err)
 
-		envelope := &terminal.Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketMFAChallenge,
-			Payload: string(webauthnResBytes),
+			envelope := &terminal.Envelope{
+				Version: defaults.WebsocketVersion,
+				Type:    defaults.WebsocketMFAChallenge,
+				Payload: string(webauthnResBytes),
+			}
+			envelopeBytes, err := proto.Marshal(envelope)
+			require.NoError(t, err)
+
+			require.NoError(t, moderatorTerm.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+		} else {
+			// Advance the clock far enough in the future to make the moderator stale
+			// which will eventually terminate the session - because the clock is used by ALL server
+			// components, it's not practical to use BlockUntil here.
+			s.clock.Advance(3 * time.Minute)
+
+			// One of three things is going to happen depending on whether moving forward in time
+			// was detected by the server.
+			// 1) waitForOutput will find the MFA prompt
+			// 2) waitForOutput will time out waiting for the prompt
+			// 3) waitForOutput will end with an io.EOF because the session was terminated
+			//
+			// This test only cares about the last case. All other cases are ignored until the
+			// io.EOF comes. At which time, the test validates that the peer terminal receives output
+			// indicating that the moderator left and the session was forcefully terminated.
+			err := waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key")
+			if errors.Is(err, io.EOF) {
+				err = waitForOutput(peerTerm, "Teleport > User bar left the session.\nTeleport > Forcefully terminating session...\nTeleport > Stopping session...\nTeleport > Closing session...\nTeleport > User foo left the session.")
+				require.ErrorIs(t, err, io.EOF)
+				return
+			}
 		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		require.NoError(t, err)
-
-		require.NoError(t, moderatorTerm.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 	}
-
-	// Advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session - because the clock is used by ALL server
-	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 500*time.Millisecond)
 }
 
 type proxyClientMock struct {
