@@ -151,7 +151,8 @@ export type FilterKind = {
 const filterKindNameMap: Record<ResourceFilterKind, string> = {
   app: 'Applications',
   db: 'Databases',
-  windows_desktop: 'Desktops',
+  windows_desktop: 'Windows Desktops',
+  linux_desktop: 'Linux Desktops',
   kube_cluster: 'Kubernetes Clusters',
   node: 'SSH Resources',
   user_group: 'User Groups',

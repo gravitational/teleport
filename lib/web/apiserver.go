@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -3342,6 +3343,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindDatabase,
 			types.KindNode,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindKubernetesCluster,
 			types.KindSAMLIdPServiceProvider,
 			types.KindGitServer,
@@ -3505,7 +3507,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
+			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, enriched.Logins, enriched.RequiresRequest))
+		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)

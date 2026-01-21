@@ -44,6 +44,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1344,6 +1345,7 @@ var (
 		types.KindNode:                   {},
 		types.KindSAMLIdPServiceProvider: {},
 		types.KindWindowsDesktop:         {},
+		types.KindLinuxDesktop:           {},
 		types.KindMCP:                    {},
 	}
 
@@ -1516,6 +1518,17 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
 						"error", err,
 						"resource", d.GetName(),
+					)
+					continue
+				}
+				r.Logins = logins
+			} else if d := r.GetLinuxDesktop(); d != nil {
+				desktop := proto.UnpackLinuxDesktop(d)
+				logins, err := resourceLister.getAllowedLogins(desktop)
+				if err != nil {
+					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
+						"error", err,
+						"resource", desktop.GetName(),
 					)
 					continue
 				}
@@ -2148,6 +2161,11 @@ func (r *resourceChecker) CanAccess(resource types.ResourceWithLabels) error {
 		checkable, isCheckable := rr.(services.AccessCheckable)
 		if isCheckable {
 			return r.CheckAccess(checkable, state, services.NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
+		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		checkable, isCheckable := rr.(services.AccessCheckable)
+		if isCheckable {
+			return r.CheckAccess(checkable, state)
 		}
 	}
 
