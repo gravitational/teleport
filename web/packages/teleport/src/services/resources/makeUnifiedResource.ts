@@ -39,6 +39,8 @@ export function makeUnifiedResource(json: any): UnifiedResource {
       return makeNode(json);
     case 'windows_desktop':
       return makeDesktop(json);
+    case 'linux_desktop':
+      return makeDesktop(json);
     case 'git_server':
       return makeGitServer(json);
     default:

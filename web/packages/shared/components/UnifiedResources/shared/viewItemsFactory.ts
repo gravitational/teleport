@@ -175,6 +175,28 @@ export function makeUnifiedResourceViewItemDesktop(
   };
 }
 
+export function makeUnifiedResourceViewItemLinuxDesktop(
+  resource: UnifiedResourceDesktop,
+  ui: UnifiedResourceUi
+): UnifiedResourceViewItem {
+  return {
+    name: resource.name,
+    SecondaryIcon: DesktopIcon,
+    primaryIconName: 'linux',
+    ActionButton: ui.ActionButton,
+    labels: resource.labels,
+    cardViewProps: {
+      primaryDesc: 'Linux',
+      secondaryDesc: resource.addr,
+    },
+    listViewProps: {
+      resourceType: 'Linux',
+      addr: resource.addr,
+    },
+    requiresRequest: resource.requiresRequest,
+  };
+}
+
 export function makeUnifiedResourceViewItemUserGroup(
   resource: UnifiedResourceUserGroup,
   ui: UnifiedResourceUi
@@ -255,6 +277,8 @@ export function mapResourceToViewItem({ resource, ui }: SharedUnifiedResource) {
       return makeUnifiedResourceViewItemApp(resource, ui);
     case 'windows_desktop':
       return makeUnifiedResourceViewItemDesktop(resource, ui);
+    case 'linux_desktop':
+      return makeUnifiedResourceViewItemLinuxDesktop(resource, ui);
     case 'user_group':
       return makeUnifiedResourceViewItemUserGroup(resource, ui);
     case 'git_server':
