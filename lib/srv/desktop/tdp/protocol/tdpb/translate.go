@@ -21,6 +21,7 @@ package tdpb
 import (
 	"bytes"
 	"image/png"
+	"math"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -33,7 +34,7 @@ import (
 
 func translateFSO(fso *tdpbv1.FileSystemObject) legacy.FileSystemObject {
 	isEmpty := uint8(0)
-	if !fso.IsEmpty {
+	if fso.IsEmpty {
 		isEmpty = 1
 	}
 	return legacy.FileSystemObject{
@@ -60,6 +61,17 @@ func toButtonState(b bool) legacy.ButtonState {
 		return legacy.ButtonPressed
 	}
 	return legacy.ButtonNotPressed
+}
+
+func clampInt32ToInt16(val int32) int16 {
+	switch {
+	case val < math.MinInt16:
+		return math.MinInt16
+	case val > math.MaxInt16:
+		return math.MaxInt16
+	default:
+		return int16(val)
+	}
 }
 
 // TranslateToLegacy converts a TDPB (Modern) message to one or more TDP (Legacy) messages.
@@ -122,7 +134,7 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 	case *MouseWheel:
 		return []tdp.Message{legacy.MouseWheel{
 			Axis:  legacy.MouseWheelAxis(m.Axis - 1),
-			Delta: int16(m.Delta),
+			Delta: clampInt32ToInt16(m.Delta),
 		}}, nil
 	case *ClipboardData:
 		return []tdp.Message{legacy.ClipboardData(m.Data)}, nil
@@ -318,7 +330,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 	case legacy.MouseWheel:
 		return []tdp.Message{&MouseWheel{
 			Axis:  tdpbv1.MouseWheelAxis(m.Axis + 1),
-			Delta: uint32(m.Delta),
+			Delta: int32(m.Delta),
 		}}, nil
 	case legacy.Error:
 		return []tdp.Message{&Alert{
@@ -412,7 +424,8 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Create_{
 				Create: &tdpbv1.SharedDirectoryRequest_Create{
-					Path: m.Path,
+					Path:     m.Path,
+					FileType: m.FileType,
 				},
 			},
 		}}, nil
@@ -539,6 +552,6 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			ErrorCode:    m.ErrCode,
 		}}, nil
 	default:
-		return nil, trace.Errorf("Could not translate to  Encountered unexpected message type %T", m)
+		return nil, trace.Errorf("Could not translate to TDPB. Encountered unexpected message type %T", m)
 	}
 }

@@ -72,10 +72,10 @@ func (c *ClientHello) Encode() ([]byte, error) {
 type ServerHello tdpbv1.ServerHello
 
 // Encode encodes a ServerHello message.
-func (S *ServerHello) Encode() ([]byte, error) {
+func (s *ServerHello) Encode() ([]byte, error) {
 	return marshalWithHeader(&tdpbv1.Envelope{
 		Payload: &tdpbv1.Envelope_ServerHello{
-			ServerHello: (*tdpbv1.ServerHello)(S),
+			ServerHello: (*tdpbv1.ServerHello)(s),
 		},
 	})
 }
