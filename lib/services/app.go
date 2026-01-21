@@ -237,6 +237,20 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	return nil, trace.BadParameter("unsupported app server resource version %q", h.Version)
 }
 
+// TODO(greedy52)
+func NewMCPServerFromKubeService(service corev1.Service, clusterName, protocol string, port corev1.ServicePort) (types.Application, error) {
+	app, err := NewApplicationFromKubeService(service, clusterName, protocol, port)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uri := "mcp+" + app.GetURI()
+	if service.GetAnnotations()[types.DiscoveryPathLabel] == "" {
+		uri += "/mcp"
+	}
+	app.SetURI(uri)
+	return app, nil
+}
+
 // NewApplicationFromKubeService creates application resources from kubernetes service.
 // It transforms service fields and annotations into appropriate Teleport app fields.
 // Service labels are copied to app labels.
