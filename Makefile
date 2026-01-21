@@ -999,7 +999,7 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-touchid.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-touchid.json --raw-command -- cat
 endif
 
-# Runs benchmarks once to make sure they pass.
+# By default, the parameters run each benchmark only once.
 # This is intended to run in CI during unit testing to make sure benchmarks don't break.
 # To limit noise and improve speed this will only run on packages that have benchmarks.
 # Race detection is not enabled because it significantly slows down benchmarks.
@@ -1007,26 +1007,32 @@ endif
 .PHONY: test-go-bench
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
 test-go-bench: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
+test-go-bench: BENCH_ARGS ?=
+test-go-bench: BENCH_TIME ?= "1x"
+test-go-bench: BENCH_COUNT ?= 1
 test-go-bench: $(BENCHFIND) | $(TEST_LOG_DIR)
 	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
 	if [ -z "$$PKGS" ]; then \
 		echo "No benchmark packages found"; \
 		exit 1; \
 	fi ; \
-	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -count $(BENCH_COUNT) -benchtime $(BENCH_TIME) $(BENCH_ARGS) $$PKGS \
 		| tee $(BENCH_OUTPUT)
 
 .PHONY: test-go-bench-root
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
 test-go-bench-root: BENCH_OUTPUT ?= $(TEST_LOG_DIR)/bench.txt
+test-go-bench-root: BENCH_ARGS ?=
+test-go-bench-root: BENCH_TIME ?= "1x"
+test-go-bench-root: BENCH_COUNT ?= 1
 test-go-bench-root: $(BENCHFIND) | $(TEST_LOG_DIR)
 	@PKGS=$$($(BENCHFIND) --tags=$(BUILD_TAGS)) ; \
 	if [ -z "$$PKGS" ]; then \
 		echo "No benchmark packages found"; \
 		exit 1; \
 	fi ; \
-	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $$PKGS \
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -count $(BENCH_COUNT) -benchtime $(BENCH_TIME) $(BENCH_ARGS) $$PKGS \
 		| tee $(BENCH_OUTPUT)
 
 # Make sure untagged vnetdaemon code build/tests.
