@@ -2243,6 +2243,8 @@ github.com/theupdateframework/go-tuf/v2 v2.1.1 h1:OWcoHItwsGO+7m0wLa7FDWPR4oB1cj
 github.com/theupdateframework/go-tuf/v2 v2.1.1/go.mod h1:V675cQGhZONR0OGQ8r1feO0uwtsTBYPDWHzAAPn5rjE=
 github.com/theupdateframework/go-tuf/v2 v2.2.0 h1:Hmb+Azgd7IKOZeNJFT2C91y+YZ+F+TeloSIvQIaXCQw=
 github.com/theupdateframework/go-tuf/v2 v2.2.0/go.mod h1:CubcJiJlBHQ2YkA5j9hlBO4B+tHFlLjRbWCJCT7EIKU=
+github.com/theupdateframework/go-tuf/v2 v2.3.0 h1:gt3X8xT8qu/HT4w+n1jgv+p7koi5ad8XEkLXXZqG9AA=
+github.com/theupdateframework/go-tuf/v2 v2.3.0/go.mod h1:xW8yNvgXRncmovMLvBxKwrKpsOwJZu/8x+aB0KtFcdw=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.14.4 h1:uo0p8EbA09J7RQaflQ1aBRffTR7xedD2bcIVSYxLnkM=
 github.com/tidwall/gjson v1.14.4/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
