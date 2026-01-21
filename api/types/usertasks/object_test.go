@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package usertasks_test
+package usertasks
 
 import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	"github.com/gravitational/teleport/api/types/usertasks"
 )
 
 func TestValidateUserTask(t *testing.T) {
@@ -36,7 +36,7 @@ func TestValidateUserTask(t *testing.T) {
 	exampleInstanceID := "i-123"
 
 	baseEC2DiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
-		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		userTask, err := NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
 			TaskType:    "discover-ec2",
 			IssueType:   "ec2-ssm-invocation-failure",
@@ -60,7 +60,7 @@ func TestValidateUserTask(t *testing.T) {
 
 	exampleClusterName := "MyCluster"
 	baseEKSDiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
-		userTask, err := usertasks.NewDiscoverEKSUserTask(&usertasksv1.UserTaskSpec{
+		userTask, err := NewDiscoverEKSUserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
 			TaskType:    "discover-eks",
 			IssueType:   "eks-agent-not-connecting",
@@ -84,7 +84,7 @@ func TestValidateUserTask(t *testing.T) {
 
 	exampleDatabaseName := "my-db"
 	baseRDSDiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
-		userTask, err := usertasks.NewDiscoverRDSUserTask(&usertasksv1.UserTaskSpec{
+		userTask, err := NewDiscoverRDSUserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
 			TaskType:    "discover-rds",
 			IssueType:   "rds-iam-auth-disabled",
@@ -110,10 +110,10 @@ func TestValidateUserTask(t *testing.T) {
 
 	exampleVMID := "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
 	baseAzureVMDiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
-		userTask, err := usertasks.NewDiscoverAzureVMUserTask(
-			usertasks.TaskGroup{
+		userTask, err := NewDiscoverAzureVMUserTask(
+			TaskGroup{
 				Integration: "my-integration",
-				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+				IssueType:   AutoDiscoverAzureVMIssueEnrollmentError,
 			},
 			time.Now().Add(24*time.Hour),
 			&usertasksv1.DiscoverAzureVM{
@@ -634,7 +634,7 @@ func TestValidateUserTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := usertasks.ValidateUserTask(tt.task(t))
+			err := ValidateUserTask(tt.task(t))
 			if tt.wantErr == noError {
 				require.NoError(t, err)
 			} else {
@@ -673,7 +673,7 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 	tests := []struct {
 		name         string
 		taskSpec     *usertasksv1.UserTaskSpec
-		taskOption   []usertasks.UserTaskOption
+		taskOption   []UserTaskOption
 		expectedTask *usertasksv1.UserTask
 	}{
 		{
@@ -688,15 +688,15 @@ func TestNewDiscoverEC2UserTask(t *testing.T) {
 				},
 				Spec: baseEC2DiscoverTaskSpec,
 			},
-			taskOption: []usertasks.UserTaskOption{
-				usertasks.WithExpiration(userTaskExpirationTime),
+			taskOption: []UserTaskOption{
+				WithExpiration(userTaskExpirationTime),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTask, err := usertasks.NewDiscoverEC2UserTask(tt.taskSpec, tt.taskOption...)
+			gotTask, err := NewDiscoverEC2UserTask(tt.taskSpec, tt.taskOption...)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedTask, gotTask)
 		})
@@ -732,7 +732,7 @@ func TestNewDiscoverEKSUserTask(t *testing.T) {
 	tests := []struct {
 		name         string
 		taskSpec     *usertasksv1.UserTaskSpec
-		taskOption   []usertasks.UserTaskOption
+		taskOption   []UserTaskOption
 		expectedTask *usertasksv1.UserTask
 	}{
 		{
@@ -747,15 +747,15 @@ func TestNewDiscoverEKSUserTask(t *testing.T) {
 				},
 				Spec: baseEKSDiscoverTaskSpec,
 			},
-			taskOption: []usertasks.UserTaskOption{
-				usertasks.WithExpiration(userTaskExpirationTime),
+			taskOption: []UserTaskOption{
+				WithExpiration(userTaskExpirationTime),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTask, err := usertasks.NewDiscoverEKSUserTask(tt.taskSpec, tt.taskOption...)
+			gotTask, err := NewDiscoverEKSUserTask(tt.taskSpec, tt.taskOption...)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedTask, gotTask)
 		})
@@ -793,7 +793,7 @@ func TestNewDiscoverRDSUserTask(t *testing.T) {
 	tests := []struct {
 		name         string
 		taskSpec     *usertasksv1.UserTaskSpec
-		taskOption   []usertasks.UserTaskOption
+		taskOption   []UserTaskOption
 		expectedTask *usertasksv1.UserTask
 	}{
 		{
@@ -808,15 +808,15 @@ func TestNewDiscoverRDSUserTask(t *testing.T) {
 				},
 				Spec: baseRDSDiscoverTaskSpec,
 			},
-			taskOption: []usertasks.UserTaskOption{
-				usertasks.WithExpiration(userTaskExpirationTime),
+			taskOption: []UserTaskOption{
+				WithExpiration(userTaskExpirationTime),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTask, err := usertasks.NewDiscoverRDSUserTask(tt.taskSpec, tt.taskOption...)
+			gotTask, err := NewDiscoverRDSUserTask(tt.taskSpec, tt.taskOption...)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedTask, gotTask)
 		})
@@ -848,16 +848,16 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		taskGroup    usertasks.TaskGroup
+		taskGroup    TaskGroup
 		expiryTime   time.Time
 		data         *usertasksv1.DiscoverAzureVM
 		expectedTask *usertasksv1.UserTask
 	}{
 		{
 			name: "valid task created",
-			taskGroup: usertasks.TaskGroup{
+			taskGroup: TaskGroup{
 				Integration: "my-integration",
-				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+				IssueType:   AutoDiscoverAzureVMIssueEnrollmentError,
 			},
 			expiryTime: userTaskExpirationTime,
 			data:       baseAzureVMDiscoverData,
@@ -873,7 +873,7 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 					TaskType: "discover-azure-vm",
 
 					Integration: "my-integration",
-					IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+					IssueType:   AutoDiscoverAzureVMIssueEnrollmentError,
 
 					DiscoverAzureVm: baseAzureVMDiscoverData,
 				},
@@ -883,9 +883,32 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotTask, err := usertasks.NewDiscoverAzureVMUserTask(tt.taskGroup, tt.expiryTime, tt.data)
+			gotTask, err := NewDiscoverAzureVMUserTask(tt.taskGroup, tt.expiryTime, tt.data)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedTask, gotTask)
+		})
+	}
+}
+
+func TestTaskNameFromParts(t *testing.T) {
+	ns := uuid.MustParse("9d074a38-c369-4cc6-87c7-3eef3156ee23")
+
+	tests := []struct {
+		name  string
+		parts []string
+		want  string
+	}{
+		{"empty", []string{}, "9995b172-4843-5e9f-ae05-f6ad85e3f509"},
+		{"single", []string{"task1"}, "66dab5c1-6995-5773-9e03-7daba7e83635"},
+		{"multiple", []string{"a", "b", "c"}, "1c6393ee-bf43-5db8-aeef-0ddd92a591aa"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := taskNameFromParts(ns, tt.parts...)
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
