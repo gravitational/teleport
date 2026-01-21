@@ -293,7 +293,11 @@ grants back to Identity Center as well. For example, imagine an Access List with
 the roles `AdminAccess-on-my-account` and `ReadOnlyAccess-on-my-account`. If the
 Access List owner removes the `AdminAccess-on-my-account` role from the Access Lists,
 that change will be propagated back to AWS and the corresponding Identity Center
-group will have its assignments updated to remove the `AdminAccess` Permission 
+group will have its assignments updated to remove the `AdminAccess` Permission.
+
+Note that along with granting users with Account Assignment roles, they must also
+be granted access to the [Identity Center SAML service provider](#configure-access-to-the-saml-service-provider) 
+to be able to log in to the AWS console. 
 
 ### Just-in-time Access with Resource Access Requests
 
@@ -306,7 +310,13 @@ checking "Show requestable resources" in the resource view.
 Users can then choose the specific Account Assignments they want access to by 
 selecting from the Permission Sets available to each AWS Account. Users
 can mix Permission Sets from multiple AWS Accounts, and even include other 
-Teleport-managed resources if necessary.
+Teleport-managed resources if necessary. Since users also need access to the 
+[Identity Center SAML service provider](#configure-access-to-the-saml-service-provider) 
+to be able to log in to the AWS console, Teleport Web UI auto-selects the service 
+provider resource when requesting access to the Account Assignments. If the user does 
+not have a standing access to the service provider resource, and the user is not 
+configured with a role that allows them to request access to the resource, an 
+error will be returned in the Access Request UI. 
 
 ![Selecting Identity Center resources](../../../../img/identity-center/ic-select-ps.png)
 
