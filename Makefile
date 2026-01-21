@@ -1435,6 +1435,11 @@ $(VERSRC) &: Makefile version.mk
 update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
+	@if [[ -n "$$(git status --porcelain)" && -z "$${SKIP_CLEAN_CHECK}" ]]; then \
+		echo "Git state is not clean refusing to continue. Commit changes to continue"; \
+		echo "If you are sure you want to continue regardless set SKIP_CLEAN_CHECK."; \
+		exit 1; \
+	fi
 	cd build.assets/tooling && CGO_ENABLED=0 go run ./cmd/check -check valid -tag $(GITTAG)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
