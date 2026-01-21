@@ -118,7 +118,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	require.NoError(t, err)
 	scx.AddCloser(scx.killShellw)
 
-	scx.bpfPIDr, scx.bpfPIDw, err = os.Pipe()
+	scx.auditSessionIDr, scx.auditSessionIDw, err = os.Pipe()
 	require.NoError(t, err)
 
 	// TODO (joerger): check the error coming from Close once the logic around

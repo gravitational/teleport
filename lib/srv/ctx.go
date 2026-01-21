@@ -428,11 +428,11 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
-	// bpfPID{r,w} are used to send the PID of the process that will
-	// have a unique audit session ID to be used with Enhanced Session
-	// Recording.
-	bpfPIDr *os.File
-	bpfPIDw *os.File
+	// auditSessionIDr{r,w} are used to send the unique audit session ID of the
+	// process that will be used to correlate audit events to the SSH session
+	// for sessions with Enhanced Session Recording enabled.
+	auditSessionIDr *os.File
+	auditSessionIDw *os.File
 
 	// ExecType holds the type of the channel or request. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
@@ -624,13 +624,13 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		}()
 	}
 
-	child.bpfPIDr, child.bpfPIDw, err = os.Pipe()
+	child.auditSessionIDr, child.auditSessionIDw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
 		return nil, trace.Wrap(err, childErr)
 	}
-	child.AddCloser(child.bpfPIDr)
-	child.AddCloser(child.bpfPIDw)
+	child.AddCloser(child.auditSessionIDr)
+	child.AddCloser(child.auditSessionIDw)
 
 	return child, nil
 }

@@ -75,10 +75,6 @@ type SessionContext struct {
 	// originally from.
 	UserOriginClusterName string
 
-	// PID is the process ID of Teleport when it re-executes itself. This is
-	// used by Teleport to find itself by the audit session ID.
-	PID int
-
 	// Emitter is used to record events for a particular session
 	Emitter apievents.Emitter
 

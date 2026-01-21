@@ -1439,7 +1439,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	// is enabled on the server and the access permit enables at least
 	// one event.
 	if bpfEnabled && len(eventsMap) > 0 {
-		bpfPID, err := s.term.ReadBPFPID()
+		auditSessID, err := s.term.ReadAuditSessionID()
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to get BPF PID", "error", err)
 			return trace.Wrap(err)
@@ -1447,7 +1447,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 
 		sessionContext := &bpf.SessionContext{
 			Context:               scx.srv.Context(),
-			PID:                   bpfPID,
+			AuditSessionID:        auditSessID,
 			Emitter:               s.emitter,
 			Namespace:             scx.srv.GetNamespace(),
 			SessionID:             s.id.String(),
@@ -1637,7 +1637,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.BadParameter("cannot start exec with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	bpfPID, err := execRequest.ReadBPFPID()
+	auditSessID, err := execRequest.ReadAuditSessionID()
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Failed to get child PID", "error", err)
 		return trace.Wrap(err)
@@ -1646,7 +1646,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Open a BPF recording session.
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
-		PID:                   bpfPID,
+		AuditSessionID:        auditSessID,
 		Emitter:               s.emitter,
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),

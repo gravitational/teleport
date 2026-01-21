@@ -922,7 +922,7 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 
 	require.NoError(t, cmd.Start())
 
-	pid, err := scx.execRequest.ReadBPFPID()
+	sessionID, err := scx.execRequest.ReadAuditSessionID()
 	require.NoError(t, err)
 
 	// Create a fake audit log that can be used to capture the events emitted.
@@ -935,7 +935,7 @@ func runCommand(t *testing.T, ctx context.Context, srv Server, bpfSrv bpf.BPF, c
 		ServerHostname: "ip-172-31-11-148",
 		Login:          "foo",
 		User:           "foo@example.com",
-		PID:            pid,
+		AuditSessionID: sessionID,
 		Emitter:        emitter,
 		Events:         recordEvents,
 	}

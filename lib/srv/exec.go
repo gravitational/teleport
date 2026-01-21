@@ -77,9 +77,10 @@ type Exec interface {
 	// Wait will block while the command executes.
 	Wait() *ExecResult
 
-	// ReadBPFPID reads the PID of the process that will have a unique
-	// audit session ID to be used with Enhanced Session Recording.
-	ReadBPFPID() (int, error)
+	// ReadAuditSessionID reads the unique audit session ID of the process
+	// that will be used to correlate audit events to the SSH session for
+	// sessions with Enhanced Session Recording enabled.
+	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine.
@@ -220,16 +221,16 @@ func (e *localExec) Wait() *ExecResult {
 
 // ReadBPFPID reads the PID of the process that will have a unique audit
 // session ID to be used with Enhanced Session Recording.
-func (e *localExec) ReadBPFPID() (int, error) {
+func (e *localExec) ReadAuditSessionID() (uint32, error) {
 	if !e.Ctx.recordWithBPF() {
-		return e.PID(), nil
+		return 0, nil
 	}
 
-	pid, err := readBPFPID(e.Ctx.bpfPIDr, 20*time.Second)
-	closeErr := e.Ctx.bpfPIDr.Close()
+	id, err := readAuditSessionID(e.Ctx.auditSessionIDr, 20*time.Second)
+	closeErr := e.Ctx.auditSessionIDr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
-	e.Ctx.bpfPIDr = nil
-	return pid, trace.NewAggregate(err, closeErr)
+	e.Ctx.auditSessionIDr = nil
+	return id, trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -307,13 +308,13 @@ func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
 	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
 }
 
-func readBPFPID(fd *os.File, timeout time.Duration) (int, error) {
+func readAuditSessionID(fd *os.File, timeout time.Duration) (uint32, error) {
 	var readBytes int
-	pidBuf := make([]byte, 8)
+	idBuf := make([]byte, 8)
 	waitCh := make(chan error, 1)
 	go func() {
 		// Reading from the file descriptor will block until it's closed.
-		n, err := fd.Read(pidBuf)
+		n, err := fd.Read(idBuf)
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}
@@ -323,20 +324,20 @@ func readBPFPID(fd *os.File, timeout time.Duration) (int, error) {
 
 	select {
 	case <-time.After(timeout):
-		return 0, trace.LimitExceeded("timed out waiting for BPF PID")
+		return 0, trace.LimitExceeded("timed out waiting for audit login session ID")
 	case err := <-waitCh:
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 	}
 
-	pidStr := string(pidBuf[:readBytes])
-	pid, err := strconv.Atoi(pidStr)
+	idStr := string(idBuf[:readBytes])
+	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	return pid, nil
+	return uint32(id), nil
 }
 
 // remoteExec is used to run an "exec" SSH request and return the result.
@@ -421,7 +422,7 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 }
 
-func (e *remoteExec) ReadBPFPID() (int, error) { return 0, nil }
+func (e *remoteExec) ReadAuditSessionID() (uint32, error) { return 0, nil }
 
 // Continue does nothing for remote command execution.
 func (e *remoteExec) Continue() {}

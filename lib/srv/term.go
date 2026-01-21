@@ -61,9 +61,10 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
-	// ReadBPFPID reads the PID of the process that will have a unique
-	// audit session ID to be used with Enhanced Session Recording.
-	ReadBPFPID() (int, error)
+	// ReadAuditSessionID reads the unique audit session ID of the process
+	// that will be used to correlate audit events to the SSH session for
+	// sessions with Enhanced Session Recording enabled.
+	ReadAuditSessionID() (uint32, error)
 
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine.
@@ -250,16 +251,16 @@ func (t *terminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *terminal) ReadBPFPID() (int, error) {
+func (t *terminal) ReadAuditSessionID() (uint32, error) {
 	if !t.serverContext.recordWithBPF() {
-		return t.PID(), nil
+		return 0, nil
 	}
 
-	pid, err := readBPFPID(t.serverContext.bpfPIDr, 20*time.Second)
-	closeErr := t.serverContext.bpfPIDr.Close()
+	auditSessionID, err := readAuditSessionID(t.serverContext.auditSessionIDr, 20*time.Second)
+	closeErr := t.serverContext.auditSessionIDr.Close()
 	// Set to nil so the close in the context doesn't attempt to re-close.
-	t.serverContext.bpfPIDr = nil
-	return pid, trace.NewAggregate(err, closeErr)
+	t.serverContext.auditSessionIDr = nil
+	return auditSessionID, trace.NewAggregate(err, closeErr)
 }
 
 // Continue will resume execution of the process after it completes its
@@ -614,7 +615,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	}, nil
 }
 
-func (t *remoteTerminal) ReadBPFPID() (int, error) {
+func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {
 	return 0, nil
 }
 

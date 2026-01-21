@@ -26,8 +26,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"time"
@@ -164,24 +162,19 @@ func (s *Service) Close() error {
 // OpenSession will begin monitoring all events from the given session
 // and emitting the results to the audit log.
 func (s *Service) OpenSession(ctx *SessionContext) error {
-	auditSessionID, err := getAuditSessionID(ctx.PID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	auditSessID := ctx.AuditSessionID
 
 	// Sanity check the audit session ID just in case.
-	if auditSessionID == 0 {
+	if auditSessID == 0 {
 		return trace.NotFound("audit session ID not found")
 	}
-	sctx, found := s.watch.Load(auditSessionID)
+	sctx, found := s.watch.Load(auditSessID)
 	if found {
-		logger.WarnContext(s.closeContext, "audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessionID)
+		logger.WarnContext(s.closeContext, "audit session ID already in use", "session_id", sctx.SessionID, "current_session_id", ctx.SessionID, "audit_session_id", auditSessID)
 		return trace.BadParameter("audit session ID already in use")
 	}
 
-	ctx.AuditSessionID = auditSessionID
-
-	logger.DebugContext(s.closeContext, "Opening session", "session_id", ctx.SessionID, "audit_session_id", auditSessionID)
+	logger.DebugContext(s.closeContext, "Opening session", "session_id", ctx.SessionID, "audit_session_id", auditSessID)
 
 	// initializedModClosures holds all already opened modules closures.
 	initializedModClosures := make([]sessionEnder, 0)
@@ -200,10 +193,10 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 		}
 
 		// Register audit session ID in the BPF module.
-		if err := m.module.startSession(auditSessionID); err != nil {
+		if err := m.module.startSession(auditSessID); err != nil {
 			// Clean up all already opened modules.
 			for _, closer := range initializedModClosures {
-				if closeErr := closer.endSession(auditSessionID); closeErr != nil {
+				if closeErr := closer.endSession(auditSessID); closeErr != nil {
 					logger.DebugContext(s.closeContext, "failed to close session", "error", closeErr)
 				}
 			}
@@ -213,7 +206,7 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 	}
 
 	// Start watching for any events that come from this audit session ID.
-	s.watch.Store(auditSessionID, ctx)
+	s.watch.Store(auditSessID, ctx)
 
 	return nil
 }
@@ -246,21 +239,6 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	}
 
 	return trace.NewAggregate(errs...)
-}
-
-// getAuditSessionID returns the audit session ID for a given PID.
-func getAuditSessionID(pid int) (uint32, error) {
-	sessIDPath := filepath.Join("/proc", strconv.Itoa(pid), "sessionid")
-	sessIDBytes, err := os.ReadFile(sessIDPath)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	sessID, err := strconv.ParseUint(string(sessIDBytes), 10, 32)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return uint32(sessID), nil
 }
 
 func (s *Service) Enabled() bool {

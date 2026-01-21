@@ -93,7 +93,7 @@ const (
 	// and is used to tell the parent the PID of the grandchild
 	// that will have a unique audit session ID. The audit session ID
 	// will be used to correlate audit events to the SSH session.
-	BPFPIDFile
+	BPFSessionIDFile
 	// PTYFileDeprecated is a placeholder for the unused PTY file that
 	// was passed to the child process. The PTY should only be used in the
 	// the parent process but was left here for compatibility purposes.
@@ -103,7 +103,7 @@ const (
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = BPFPIDFile + 1
+	FirstExtraFile FileFD = BPFSessionIDFile + 1
 )
 
 func fdName(f FileFD) string {
@@ -286,6 +286,10 @@ func RunCommand() (code int, err error) {
 	if terminatefd == nil {
 		return teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
+	sessionIDFile := os.NewFile(BPFSessionIDFile, fdName(BPFSessionIDFile))
+	if sessionIDFile == nil {
+		return teleport.RemoteCommandFailure, trace.BadParameter("BPF PID pipe not found")
+	}
 
 	// Read in the command payload.
 	var c ExecCommand
@@ -305,11 +309,11 @@ func RunCommand() (code int, err error) {
 		}
 	}
 
-	// If Enhanced Session Recording is enabled, handle the BPF-specific
-	// setup, but only if it hasn't already been done by a parent process.
-	if c.RecordWithBPF && !c.BPFChild {
-		err := reexecBPF(ctx, c, logfd, contfd, terminatefd, tty)
-		return exitCode(err), trace.Wrap(err)
+	// If Enhanced Session Recording is enabled, handle the BPF-specific setup.
+	if c.RecordWithBPF {
+		if err := setAuditSessionID(ctx, c, sessionIDFile, tty); err != nil {
+			return exitCode(err), trace.Wrap(err)
+		}
 	}
 
 	auditdMsg := auditd.Message{
@@ -345,7 +349,7 @@ func RunCommand() (code int, err error) {
 	// If Enhanced Session Recording is enabled the parent process will
 	// have already opened a PAM context so there's nothing to do here.
 	pamEnvironment := c.PAMEnvironment
-	if c.PAMConfig != nil && !c.BPFChild {
+	if c.PAMConfig != nil {
 		pamContext, err := openPAM(c, tty)
 		if err != nil {
 			return teleport.RemoteCommandFailure, trace.Wrap(err, "failed to open PAM context")
@@ -456,17 +460,9 @@ func RunCommand() (code int, err error) {
 	return exitCode(err), trace.Wrap(err)
 }
 
-// reexecBPF ensures the audit session ID will be updated for the child
-// process and creates a child process by rexec'ing. The PID of the
-// child process is then sent to the parent so it can be used to find
-// the audit session ID of the new child (grandchild of the parent).
-func reexecBPF(ctx context.Context, c ExecCommand, logfd, contfd, terminatefd, tty *os.File) error {
-	pidfd := os.NewFile(BPFPIDFile, fdName(BPFPIDFile))
-	if pidfd == nil {
-		return trace.BadParameter("BPF PID pipe not found")
-	}
-	defer pidfd.Close()
-
+// setAuditSessionID ensures the audit login session ID is updated by
+// either PAM if PAM is configured or us otherwise.
+func setAuditSessionID(ctx context.Context, c ExecCommand, auditIDFile, tty *os.File) error {
 	// Depending of the PAM service, PAM may write to /proc/self/loginuid
 	// if the 'pam_loginuid.so' module is enabled. We always want to
 	// write to /proc/self/loginuid to ensure the kernel will update the
@@ -501,6 +497,11 @@ func reexecBPF(ctx context.Context, c ExecCommand, logfd, contfd, terminatefd, t
 		}
 	}
 
+	id, err := os.ReadFile("/proc/self/sessionid")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if writeLoginuid {
 		localUser, err := user.Lookup(c.Login)
 		if err != nil {
@@ -509,63 +510,26 @@ func reexecBPF(ctx context.Context, c ExecCommand, logfd, contfd, terminatefd, t
 		if err := loginuid.WriteLoginUID(localUser.Uid); err != nil {
 			return trace.Errorf("failed to write to loginuid: %w", err)
 		}
-	}
 
-	cmdr, cmdw, err := os.Pipe()
-	if err != nil {
-		return trace.Errorf("failed to create command pipe: %w", err)
-	}
-
-	c.BPFChild = true
-	go copyCommand(ctx, cmdw, &c)
-
-	// Find the Teleport executable and its directory on disk.
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	executableDir, _ := filepath.Split(executable)
-
-	cmd := exec.Cmd{
-		Path: executable,
-		Args: []string{executable, teleport.ExecSubCommand},
-		Dir:  executableDir,
-		ExtraFiles: []*os.File{
-			cmdr,
-			logfd,
-			contfd,
-			nil, // ready file is not used anymore
-			terminatefd,
-			nil, // doesn't need BPFPIDFile
-		},
-	}
-	if tty != nil {
-		cmd.ExtraFiles = append(cmd.ExtraFiles, nil, tty)
-	} else if c.ExtraFilesLen > 0 {
-		// If a terminal was not requested, and extra files were specified
-		// to be passed to the child, open them so that they can be passed
-		// to the grandchild.
-		if err := populateExtraFiles(&cmd, c.ExtraFilesLen); err != nil {
+		newID, err := os.ReadFile("/proc/self/sessionid")
+		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		slog.DebugContext(ctx, "Audit login session IDs", "old", id, "new", newID)
+		if bytes.Equal(id, newID) {
+			return trace.Errorf("audit login session ID was not changed")
+		}
+		id = newID
 	}
 
-	// Perform OS-specific tweaks to the command.
-	reexecCommandOSTweaks(&cmd)
-
-	err = cmd.Start()
+	// Send the new audit login session ID to the parent process.
+	_, err = auditIDFile.Write(id)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to write audit login session ID: %w", err)
 	}
 
-	// Send the PID of the child process to the parent.
-	pidStr := strconv.Itoa(cmd.Process.Pid)
-	_, err = pidfd.Write([]byte(pidStr))
-	if err != nil {
-		return trace.Errorf("failed to write child PID: %w", err)
-	}
-
-	return cmd.Wait()
+	return nil
 }
 
 func openPAM(c ExecCommand, tty *os.File) (*pam.PAM, error) {
@@ -1426,7 +1390,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.contr,
 			nil, // ready file is not used anymore
 			ctx.killShellr,
-			ctx.bpfPIDw,
+			ctx.auditSessionIDw,
 		},
 	}
 	// Add extra files if applicable.
