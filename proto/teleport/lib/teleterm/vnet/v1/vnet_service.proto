@@ -37,10 +37,9 @@ service VnetService {
   // VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
   rpc GetBackgroundItemStatus(GetBackgroundItemStatusRequest) returns (GetBackgroundItemStatusResponse);
 
-  // CheckPreRunRequirements performs checks before running the VNet service.
-  // Currently Windows only.
-  // TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
-  rpc CheckPreRunRequirements(CheckPreRunRequirementsRequest) returns (CheckPreRunRequirementsResponse);
+  // CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+  // only be changed by reinstalling the app.
+  rpc CheckInstallTimeRequirements(CheckInstallTimeRequirementsRequest) returns (CheckInstallTimeRequirementsResponse);
 
   // RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
   // is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -102,20 +101,20 @@ enum BackgroundItemStatus {
   BACKGROUND_ITEM_STATUS_NOT_SUPPORTED = 5;
 }
 
-// WindowsSystemServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
-enum WindowsSystemServiceStatus {
-  WINDOWS_SYSTEM_SERVICE_STATUS_UNSPECIFIED = 0;
-  WINDOWS_SYSTEM_SERVICE_STATUS_OK = 1;
-  WINDOWS_SYSTEM_SERVICE_STATUS_DOES_NOT_EXIST = 2;
+// WindowsServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
+enum WindowsServiceStatus {
+  WINDOWS_SERVICE_STATUS_UNSPECIFIED = 0;
+  WINDOWS_SERVICE_STATUS_OK = 1;
+  WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST = 2;
 }
 
-// Request for CheckPreRunRequirementsRequest.
-message CheckPreRunRequirementsRequest {}
+// Request for CheckInstallTimeRequirementsRequest.
+message CheckInstallTimeRequirementsRequest {}
 
-// Response for CheckPreRunRequirementsResponse.
-message CheckPreRunRequirementsResponse {
-  oneof platform_status {
-    WindowsSystemServiceStatus windows_system_service_status = 1;
+// Response for CheckInstallTimeRequirementsResponse.
+message CheckInstallTimeRequirementsResponse {
+  oneof status {
+    WindowsServiceStatus windows_service_status = 1;
   }
 }
 

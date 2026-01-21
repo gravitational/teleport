@@ -26,7 +26,7 @@ import {
   useImperativeHandle,
 } from 'react';
 
-import { WindowsSystemServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
@@ -107,9 +107,9 @@ describe('autostart', () => {
       vnet: { autoStart: false, hasEverStarted: false },
     });
     const { promise, resolve } = Promise.withResolvers();
-    appContext.vnet.checkPreRunRequirements = async () => {
+    appContext.vnet.checkInstallTimeRequirements = async () => {
       const response = new MockedUnaryCall({
-        platformStatus: {
+        status: {
           oneofKind: undefined,
         },
       });
@@ -134,11 +134,11 @@ describe('autostart', () => {
       vnet: { autoStart: true, hasEverStarted: true },
     });
     const { promise, resolve } = Promise.withResolvers();
-    appContext.vnet.checkPreRunRequirements = async () => {
+    appContext.vnet.checkInstallTimeRequirements = async () => {
       const response = new MockedUnaryCall({
-        platformStatus: {
-          oneofKind: 'windowsSystemServiceStatus' as const,
-          windowsSystemServiceStatus: WindowsSystemServiceStatus.DOES_NOT_EXIST,
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
         },
       });
       resolve(response);

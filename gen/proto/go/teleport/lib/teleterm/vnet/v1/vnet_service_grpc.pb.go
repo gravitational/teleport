@@ -35,13 +35,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	VnetService_Start_FullMethodName                   = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
-	VnetService_Stop_FullMethodName                    = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
-	VnetService_GetServiceInfo_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo"
-	VnetService_GetBackgroundItemStatus_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
-	VnetService_CheckPreRunRequirements_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/CheckPreRunRequirements"
-	VnetService_RunDiagnostics_FullMethodName          = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
-	VnetService_AutoConfigureSSH_FullMethodName        = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
+	VnetService_Start_FullMethodName                        = "/teleport.lib.teleterm.vnet.v1.VnetService/Start"
+	VnetService_Stop_FullMethodName                         = "/teleport.lib.teleterm.vnet.v1.VnetService/Stop"
+	VnetService_GetServiceInfo_FullMethodName               = "/teleport.lib.teleterm.vnet.v1.VnetService/GetServiceInfo"
+	VnetService_GetBackgroundItemStatus_FullMethodName      = "/teleport.lib.teleterm.vnet.v1.VnetService/GetBackgroundItemStatus"
+	VnetService_CheckInstallTimeRequirements_FullMethodName = "/teleport.lib.teleterm.vnet.v1.VnetService/CheckInstallTimeRequirements"
+	VnetService_RunDiagnostics_FullMethodName               = "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics"
+	VnetService_AutoConfigureSSH_FullMethodName             = "/teleport.lib.teleterm.vnet.v1.VnetService/AutoConfigureSSH"
 )
 
 // VnetServiceClient is the client API for VnetService service.
@@ -59,10 +59,9 @@ type VnetServiceClient interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(ctx context.Context, in *GetBackgroundItemStatusRequest, opts ...grpc.CallOption) (*GetBackgroundItemStatusResponse, error)
-	// CheckPreRunRequirements performs checks before running the VNet service.
-	// Currently Windows only.
-	// TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
-	CheckPreRunRequirements(ctx context.Context, in *CheckPreRunRequirementsRequest, opts ...grpc.CallOption) (*CheckPreRunRequirementsResponse, error)
+	// CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+	// only be changed by reinstalling the app.
+	CheckInstallTimeRequirements(ctx context.Context, in *CheckInstallTimeRequirementsRequest, opts ...grpc.CallOption) (*CheckInstallTimeRequirementsResponse, error)
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(ctx context.Context, in *RunDiagnosticsRequest, opts ...grpc.CallOption) (*RunDiagnosticsResponse, error)
@@ -119,10 +118,10 @@ func (c *vnetServiceClient) GetBackgroundItemStatus(ctx context.Context, in *Get
 	return out, nil
 }
 
-func (c *vnetServiceClient) CheckPreRunRequirements(ctx context.Context, in *CheckPreRunRequirementsRequest, opts ...grpc.CallOption) (*CheckPreRunRequirementsResponse, error) {
+func (c *vnetServiceClient) CheckInstallTimeRequirements(ctx context.Context, in *CheckInstallTimeRequirementsRequest, opts ...grpc.CallOption) (*CheckInstallTimeRequirementsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CheckPreRunRequirementsResponse)
-	err := c.cc.Invoke(ctx, VnetService_CheckPreRunRequirements_FullMethodName, in, out, cOpts...)
+	out := new(CheckInstallTimeRequirementsResponse)
+	err := c.cc.Invoke(ctx, VnetService_CheckInstallTimeRequirements_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -164,10 +163,9 @@ type VnetServiceServer interface {
 	// GetBackgroundItemStatus returns the status of the background item responsible for launching
 	// VNet daemon. macOS only. tsh must be compiled with the vnetdaemon build tag.
 	GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error)
-	// CheckPreRunRequirements performs checks before running the VNet service.
-	// Currently Windows only.
-	// TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
-	CheckPreRunRequirements(context.Context, *CheckPreRunRequirementsRequest) (*CheckPreRunRequirementsResponse, error)
+	// CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+	// only be changed by reinstalling the app.
+	CheckInstallTimeRequirements(context.Context, *CheckInstallTimeRequirementsRequest) (*CheckInstallTimeRequirementsResponse, error)
 	// RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
 	// is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
 	RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error)
@@ -196,8 +194,8 @@ func (UnimplementedVnetServiceServer) GetServiceInfo(context.Context, *GetServic
 func (UnimplementedVnetServiceServer) GetBackgroundItemStatus(context.Context, *GetBackgroundItemStatusRequest) (*GetBackgroundItemStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundItemStatus not implemented")
 }
-func (UnimplementedVnetServiceServer) CheckPreRunRequirements(context.Context, *CheckPreRunRequirementsRequest) (*CheckPreRunRequirementsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CheckPreRunRequirements not implemented")
+func (UnimplementedVnetServiceServer) CheckInstallTimeRequirements(context.Context, *CheckInstallTimeRequirementsRequest) (*CheckInstallTimeRequirementsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckInstallTimeRequirements not implemented")
 }
 func (UnimplementedVnetServiceServer) RunDiagnostics(context.Context, *RunDiagnosticsRequest) (*RunDiagnosticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RunDiagnostics not implemented")
@@ -298,20 +296,20 @@ func _VnetService_GetBackgroundItemStatus_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _VnetService_CheckPreRunRequirements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CheckPreRunRequirementsRequest)
+func _VnetService_CheckInstallTimeRequirements_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckInstallTimeRequirementsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(VnetServiceServer).CheckPreRunRequirements(ctx, in)
+		return srv.(VnetServiceServer).CheckInstallTimeRequirements(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: VnetService_CheckPreRunRequirements_FullMethodName,
+		FullMethod: VnetService_CheckInstallTimeRequirements_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(VnetServiceServer).CheckPreRunRequirements(ctx, req.(*CheckPreRunRequirementsRequest))
+		return srv.(VnetServiceServer).CheckInstallTimeRequirements(ctx, req.(*CheckInstallTimeRequirementsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -376,8 +374,8 @@ var VnetService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VnetService_GetBackgroundItemStatus_Handler,
 		},
 		{
-			MethodName: "CheckPreRunRequirements",
-			Handler:    _VnetService_CheckPreRunRequirements_Handler,
+			MethodName: "CheckInstallTimeRequirements",
+			Handler:    _VnetService_CheckInstallTimeRequirements_Handler,
 		},
 		{
 			MethodName: "RunDiagnostics",

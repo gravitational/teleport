@@ -32,14 +32,14 @@ import { Action } from 'design/Alert';
 import {
   BackgroundItemStatus,
   GetServiceInfoResponse,
-  WindowsSystemServiceStatus,
-  type CheckPreRunRequirementsResponse,
+  WindowsServiceStatus,
+  type CheckInstallTimeRequirementsResponse,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import { Report } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 import { useStateRef } from 'shared/hooks';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 
-import { platformStatusOneOfIsWindowsSystemServiceStatus } from 'teleterm/helpers';
+import { statusOneOfIsWindowsServiceStatus } from 'teleterm/helpers';
 import { cloneAbortSignal, isTshdRpcError } from 'teleterm/services/tshd';
 import { hasReportFoundIssues } from 'teleterm/services/vnet/diag';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -90,7 +90,7 @@ export type VnetContext = {
   /**
    * Status of checks performed before running the VNet service.
    */
-  preRunRequirementsCheck: PreRunRequirementsCheck;
+  installationRequirementsCheck: InstallTimeRequirementsCheck;
   /**
    * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
    * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
@@ -179,12 +179,12 @@ export const VnetContextProvider: FC<
   const [checkPreRunRequirementsAttempt, performPreRunRequirementsCheck] =
     useAsync(
       useCallback(async () => {
-        const { response } = await vnet.checkPreRunRequirements({});
+        const { response } = await vnet.checkInstallTimeRequirements({});
         return response;
       }, [vnet])
     );
-  const preRunRequirementsCheck = useMemo(
-    () => makePreRunRequirementsCheck(checkPreRunRequirementsAttempt),
+  const installationRequirementsCheck = useMemo(
+    () => makeInstallTimeRequirements(checkPreRunRequirementsAttempt),
     [checkPreRunRequirementsAttempt]
   );
 
@@ -363,7 +363,7 @@ export const VnetContextProvider: FC<
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === '' &&
-        preRunRequirementsCheck.status === 'success'
+        installationRequirementsCheck.status === 'success'
       ) {
         const [, error] = await start();
 
@@ -376,7 +376,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized, preRunRequirementsCheck.status]);
+  }, [isWorkspaceStateInitialized, installationRequirementsCheck.status]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -557,7 +557,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
-        preRunRequirementsCheck,
+        installationRequirementsCheck,
       }}
     >
       {children}
@@ -610,46 +610,43 @@ const checkDaemonBackgroundItemStatus = async (
   return { didBackgroundItemRequireEnablement: true };
 };
 
-function makePreRunRequirementsCheck(
-  attempt: Attempt<CheckPreRunRequirementsResponse>
-): PreRunRequirementsCheck {
-  if (attempt.status === '' || attempt.status === 'processing') {
-    return { status: 'unknown' };
+function makeInstallTimeRequirements(
+  attempt: Attempt<CheckInstallTimeRequirementsResponse>
+): InstallTimeRequirementsCheck {
+  switch (attempt.status) {
+    case '':
+    case 'processing':
+      return { status: 'unknown' };
+    case 'error':
+      if (isTshdRpcError(attempt.error, 'UNIMPLEMENTED')) {
+        return { status: 'success' };
+      }
+      return {
+        status: 'failed',
+        reason: {
+          kind: 'error',
+          statusText: attempt.statusText,
+        },
+      };
   }
 
-  if (attempt.status === 'error') {
-    if (isTshdRpcError(attempt.error, 'UNIMPLEMENTED')) {
-      return { status: 'success' };
-    }
+  const { status } = attempt.data;
+  if (
+    statusOneOfIsWindowsServiceStatus(status) &&
+    status.windowsServiceStatus === WindowsServiceStatus.DOES_NOT_EXIST
+  ) {
     return {
       status: 'failed',
       reason: {
-        status: 'error',
-        statusText: attempt.statusText,
+        kind: 'missing-windows-service',
       },
     };
   }
 
-  const { platformStatus } = attempt.data;
-  if (!platformStatusOneOfIsWindowsSystemServiceStatus(platformStatus)) {
-    return { status: 'success' };
-  }
-  if (
-    platformStatus.windowsSystemServiceStatus === WindowsSystemServiceStatus.OK
-  ) {
-    return { status: 'success' };
-  }
-
-  return {
-    status: 'failed',
-    reason: {
-      status: 'platform-problem',
-      platformStatus,
-    },
-  };
+  return { status: 'success' };
 }
 
-type PreRunRequirementsCheck =
+type InstallTimeRequirementsCheck =
   | {
       status: 'unknown';
     }
@@ -660,11 +657,10 @@ type PreRunRequirementsCheck =
       status: 'failed';
       reason:
         | {
-            status: 'platform-problem';
-            platformStatus: CheckPreRunRequirementsResponse['platformStatus'];
+            kind: 'missing-windows-service';
           }
         | {
-            status: 'error';
+            kind: 'error';
             statusText: string;
           };
     };
