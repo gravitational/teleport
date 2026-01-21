@@ -87,7 +87,7 @@ jobs:
 
 
       - name: Normalize test results and push to s3
-        uses: gravitational/shared-workflows/tools/ci-normalize@6351a70a860d6925e91800af0eefe147d957a7d2
+        uses: gravitational/shared-workflows/tools/ci-normalize@4ea8ff3ee9447dea79e507e4e53e213ad604eb9b
         if: always() && steps.aws-setup.outcome == 'success'
         continue-on-error: true   # Do not fail the workflow
         with:
