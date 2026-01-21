@@ -24,12 +24,14 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
+	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
 
 const (
@@ -86,10 +88,17 @@ func (r *BedrockSessionSummariesIAMConfigureRequest) CheckAndSetDefaults() error
 type BedrockSessionSummariesIAMConfigureClient interface {
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+	// GetCallerIdentity retrieves details about the IAM identity used to call the API.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
 type defaultBedrockSessionSummariesIAMConfigureClient struct {
 	*iam.Client
+	stsClient *sts.Client
+}
+
+func (c *defaultBedrockSessionSummariesIAMConfigureClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return c.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // NewBedrockSessionSummariesIAMConfigureClient creates a new BedrockSessionSummariesIAMConfigureClient.
@@ -100,7 +109,8 @@ func NewBedrockSessionSummariesIAMConfigureClient(ctx context.Context) (BedrockS
 	}
 
 	return &defaultBedrockSessionSummariesIAMConfigureClient{
-		Client: iamutils.NewFromConfig(cfg),
+		Client:    iamutils.NewFromConfig(cfg),
+		stsClient: stsutils.NewFromConfig(cfg),
 	}, nil
 }
 
