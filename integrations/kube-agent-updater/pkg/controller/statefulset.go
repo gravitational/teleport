@@ -41,7 +41,8 @@ type StatefulSetVersionUpdater struct {
 	VersionUpdater
 	StatusWriter
 	kclient.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	ContainerName string
 }
 
 // Reconcile treats a reconciliation request for a StatefulSet object. It gets the
@@ -90,7 +91,7 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// Get the current and past version
-	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec)
+	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec, r.ContainerName)
 	if err != nil {
 		switch {
 		case trace.IsBadParameter(err):

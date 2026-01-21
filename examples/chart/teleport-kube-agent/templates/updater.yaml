@@ -24,5 +24,6 @@
 {{/* Not strictly needed for teleport-kube-agent but will be needed for other charts whose proxy addr is stored in a different value.*/}}
 {{- $_ = set $updater "proxyAddr" .Values.proxyAddr }}
 {{- $_ = set $updater "baseImage" (include "teleport-kube-agent.baseImage" .)}}
+{{- $_ = set $updater "container" "teleport"}}
 {{ include "teleport-kube-updater.all" $updater }}
 {{- end -}}

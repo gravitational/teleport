@@ -23,5 +23,6 @@
 {{- $_ = set $updater "version" (include "tbot.version" .)}}
 {{- $_ = set $updater "proxyAddr" .Values.teleportProxyAddress }}
 {{- $_ = set $updater "baseImage" .Values.image }}
+{{- $_ = set $updater "container" "tbot"}}
 {{ include "teleport-kube-updater.all" $updater }}
 {{- end -}}
