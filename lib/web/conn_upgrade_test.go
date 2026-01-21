@@ -163,11 +163,20 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 			checkClientConnString: mustReadClientConnString,
 		},
 		{
-			name:                  "unsupported WebSocket sub-protocol",
-			inputALPNHandler:      simpleWriteHandler,
-			inputRequest:          makeConnUpgradeWebSocketRequest(t, "unsupported-protocol", expectedIP),
-			expectUpgradeType:     constants.WebAPIConnUpgradeTypeWebSocket,
-			checkClientConnString: mustReadClientWebSocketClosed,
+			name:              "unsupported WebSocket sub-protocol",
+			inputALPNHandler:  simpleWriteHandler,
+			inputRequest:      makeConnUpgradeWebSocketRequest(t, "unsupported-protocol", expectedIP),
+			expectUpgradeType: constants.WebAPIConnUpgradeTypeWebSocket,
+			checkClientConnString: func(t *testing.T, clientConn net.Conn, _ string) {
+				t.Helper()
+
+				frame, err := ws.ReadFrame(clientConn)
+				require.NoError(t, err)
+				require.Equal(t, ws.OpClose, frame.Header.OpCode, "expected close frame")
+				code, message := ws.ParseCloseFrameData(frame.Payload)
+				require.Equal(t, ws.StatusUnsupportedData, code, "expected unsupported data status")
+				require.Equal(t, "unsupported WebSocket sub-protocol: unsupported-protocol", message, "expected unsupported sub-protocol message")
+			},
 		},
 		{
 			name:                  "nested WebSocket upgrade",
@@ -312,9 +321,6 @@ func makeConnUpgradeWebSocketRequest(t *testing.T, alpnUpgradeType, xForwardedFo
 
 	r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 	require.NoError(t, err)
-
-	// Append "legacy" upgrade. This tests whether the handler prefers "websocket".
-	r.Header.Add(constants.WebAPIConnUpgradeHeader, alpnUpgradeType)
 	r.Header.Add("X-Forwarded-For", xForwardedFor)
 
 	// Add WebSocket headers
@@ -350,13 +356,6 @@ func mustReadClientConnString(t *testing.T, clientConn net.Conn, expectedPayload
 	receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
 	require.NoError(t, err)
 	require.Equal(t, expectedPayload, receive)
-}
-
-func mustReadClientWebSocketClosed(t *testing.T, clientConn net.Conn, expectedPayload string) {
-	t.Helper()
-
-	_, err := ws.ReadFrame(clientConn)
-	require.True(t, utils.IsOKNetworkError(err))
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a
