@@ -111,6 +111,9 @@ func (r *ResourceAccessID) GetConstraints() *ResourceConstraints {
 // ResourceIDsToResourceAccessIDs wraps a slice of [ResourceID]s into
 // [ResourceAccessID] instances with no additional fields populated.
 func ResourceIDsToResourceAccessIDs(ids []ResourceID) []ResourceAccessID {
+	if ids == nil {
+		return nil
+	}
 	wrapped := make([]ResourceAccessID, 0, len(ids))
 	for _, id := range ids {
 		wrapped = append(wrapped, ResourceAccessID{Id: id})
@@ -121,6 +124,9 @@ func ResourceIDsToResourceAccessIDs(ids []ResourceID) []ResourceAccessID {
 // CombineAsResourceAccessIDs converts plain [ResourceID]s to [ResourceAccessID]s
 // and combines them with existing [ResourceAccessID]s into a single slice.
 func CombineAsResourceAccessIDs(ids []ResourceID, accessIDs []ResourceAccessID) []ResourceAccessID {
+	if ids == nil && accessIDs == nil {
+		return nil
+	}
 	totalLen := len(ids) + len(accessIDs)
 	zipped := make([]ResourceAccessID, 0, totalLen)
 	zipped = append(zipped, ResourceIDsToResourceAccessIDs(ids)...)

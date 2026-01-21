@@ -83,6 +83,22 @@ func TestIdentityConversion(t *testing.T) {
 			Name:            "name",
 			SubResourceName: "sub/sub",
 		}},
+		AllowedResourceAccessIDs: []types.ResourceAccessID{{
+			Id: types.ResourceID{
+				ClusterName:     "cluster",
+				Kind:            types.KindKubePod, // this is not valid in practice; Constraints and KindKube cannot be mixed
+				Name:            "name",
+				SubResourceName: "sub/sub",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{"arn:aws:iam::123456789012:role/TestRole"},
+					},
+				},
+			},
+		}},
 		ConnectionDiagnosticID: "diag",
 		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
 		DeviceID:               "device",
@@ -109,6 +125,15 @@ func TestIdentityConversion(t *testing.T) {
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",
+		"ResourceAccessID.XXX_NoUnkeyedLiteral",
+		"ResourceAccessID.XXX_unrecognized",
+		"ResourceAccessID.XXX_sizecache",
+		"ResourceConstraints.XXX_NoUnkeyedLiteral",
+		"ResourceConstraints.XXX_unrecognized",
+		"ResourceConstraints.XXX_sizecache",
+		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
+		"AWSConsoleResourceConstraints.XXX_unrecognized",
+		"AWSConsoleResourceConstraints.XXX_sizecache",
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))
