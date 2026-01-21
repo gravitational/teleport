@@ -20,6 +20,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -124,4 +125,52 @@ func TestProcessStateStarting(t *testing.T) {
 
 	process.OnHeartbeat(slowComponent)(nil)
 	require.Equal(t, stateOK, ps.getState(), "two services are running, we are healthy")
+}
+
+func TestProcessStateCallback(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name    string
+		initial componentStateEnum
+		expect  []componentStateEnum
+		events  []string
+	}{
+		{
+			name:    "callback receives initial state",
+			initial: stateDegraded,
+			expect:  []componentStateEnum{stateDegraded},
+		},
+		{
+			name:    "callback receives multiple state changes",
+			initial: stateOK,
+			expect:  []componentStateEnum{stateOK, stateDegraded, stateRecovering},
+			events:  []string{TeleportDegradedEvent, TeleportOKEvent},
+		},
+		{
+			name:    "callback skips non-state change events",
+			initial: stateOK,
+			expect:  []componentStateEnum{stateOK},
+			events:  []string{TeleportOKEvent, TeleportOKEvent, TeleportOKEvent},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			component := "test-component"
+			ps := &processState{
+				states: map[string]*componentState{
+					component: {state: tt.initial},
+				},
+			}
+
+			var got []componentStateEnum
+			ps.registerCallback(func(state componentStateEnum) {
+				got = append(got, state)
+			})
+			require.Equal(t, []componentStateEnum{tt.initial}, got)
+
+			for _, event := range tt.events {
+				ps.update(time.Now(), event, component)
+			}
+			require.Equal(t, tt.expect, got)
+		})
+	}
 }
