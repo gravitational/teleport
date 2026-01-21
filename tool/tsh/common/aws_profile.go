@@ -66,6 +66,14 @@ func onAWSProfile(cf *CLIConf) error {
 
 	writtenSessions := make(map[string]struct{})
 
+	type profileInfo struct {
+		profile     string
+		account     string
+		accountID   string
+		role        string
+	}
+	var writtenProfiles []profileInfo
+
 	for _, resource := range resources {
 		app := resource.ResourceWithLabels.(types.AppServer).GetApp()
 		awsIC := app.GetIdentityCenter()
@@ -93,7 +101,28 @@ func onAWSProfile(cf *CLIConf) error {
 			if err := awsconfigfile.UpsertSSOProfile(configPath, profileName, sessionName, awsIC.AccountID, ps.Name); err != nil {
 				return trace.Wrap(err)
 			}
+			writtenProfiles = append(writtenProfiles, profileInfo{
+				profile:   profileName,
+				account:   accountName,
+				accountID: awsIC.AccountID,
+				role:      ps.Name,
+			})
 		}
+	}
+
+	if len(writtenProfiles) > 0 {
+		fmt.Printf("Wrote %s.\n", configPath)
+		fmt.Println("You can access the following profiles by doing `export AWS_PROFILE=\"<profile>\"`:")
+		fmt.Println()
+
+		// Simple table format
+		fmt.Printf("%-40s %-20s %-15s %-15s\n", "profile", "account", "account-id", "role")
+		fmt.Println(strings.Repeat("-", 95))
+		for _, v := range writtenProfiles {
+			fmt.Printf("%-40s %-20s %-15s %-15s\n", v.profile, v.account, v.accountID, v.role)
+		}
+	} else {
+		fmt.Println("No AWS Identity Center integrations found.")
 	}
 
 	return nil
