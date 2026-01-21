@@ -1287,6 +1287,10 @@ func (s *session) sessionRecordingLocation() string {
 	sessionRecMode := s.scx.SessionRecordingConfig.GetMode()
 	subKind := s.serverMeta.ServerSubKind
 
+	if s.scx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) == constants.SessionRecordingModeOff {
+		return types.RecordOff
+	}
+
 	// agentless connections always record the session at the proxy
 	if !services.IsRecordAtProxy(sessionRecMode) && types.IsOpenSSHNodeSubKind(subKind) {
 		if services.IsRecordSync(sessionRecMode) {
@@ -1563,6 +1567,11 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 
 	// Don't record non-interactive sessions when enhanced recording is disabled.
 	if sessType == sessionTypeNonInteractive && !ctx.srv.GetBPF().Enabled() {
+		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+	}
+
+	if ctx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) == constants.SessionRecordingModeOff {
+		s.log.WithField("session_id", s.ID()).Info("Session recording disabled.")
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 
