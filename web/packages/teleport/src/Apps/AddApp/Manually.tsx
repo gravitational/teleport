@@ -109,7 +109,7 @@ const StepsWithoutToken = ({ tshLoginCmd, host }: StepsWithoutTokenProps) => (
         Step 3
       </Text>
       {' - Generate a join token'}
-      <TextSelectCopy mt="2" text="tctl tokens add --type=app" />
+      <TextSelectCopy mt="2" text="tctl tokens add --type=app --format=text" />
     </Box>
     <Box mb="4">
       <Text bold as="span">
