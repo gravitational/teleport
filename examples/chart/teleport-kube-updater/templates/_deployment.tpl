@@ -61,6 +61,7 @@ spec:
           - "--agent-name={{ .releaseName }}"
           - "--agent-namespace={{ .releaseNamespace }}"
           - "--base-image={{ .baseImage }}"
+          - "--container={{ .container }}"
   {{- if .versionServer}}
           - "--version-server={{ .versionServer }}"
           - "--version-channel={{ .releaseChannel }}"

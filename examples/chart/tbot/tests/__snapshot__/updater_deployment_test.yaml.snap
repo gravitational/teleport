@@ -25,6 +25,7 @@ sets the affinity:
       - --agent-name=RELEASE-NAME
       - --agent-namespace=NAMESPACE
       - --base-image=public.ecr.aws/gravitational/tbot-distroless
+      - --container=tbot
       - --version-server=https://my-custom-version-server/v1
       - --version-channel=custom/preview
       image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-dev
@@ -61,6 +62,7 @@ sets the tolerations:
       - --agent-name=RELEASE-NAME
       - --agent-namespace=NAMESPACE
       - --base-image=public.ecr.aws/gravitational/tbot-distroless
+      - --container=tbot
       - --version-server=https://my-custom-version-server/v1
       - --version-channel=custom/preview
       image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-dev
