@@ -4913,14 +4913,11 @@ Example:
   "event": "scim.list",
   "success": true,
   "integration": "okta",
-  "resource_type": "user",
-  "teleport_id": "root@localhost",
-  "external_id": "external-id-0987654321",
-  "display": "local admin"
+  "resource_type": "user"
 }
 ```
 
-### TSCIM005IE
+### TSCIM005E
 
 SCIM Resource Listing Failed
 
@@ -4928,10 +4925,82 @@ Example:
 
 ```json
 {
-  "code": "TSCIM005IE",
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM005E",
   "event": "scim.list",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+  "success": false,
+  "integration": "okta",
+  "resource_type": "vegetable",
+  "display": "no such resource type"
+}
+```
+
+## scim.patch
+
+There are multiple events with the `scim.patch` type.
+
+### TSCIM006I
+
+SCIM Patch Succeeded
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:36.144Z",
+  "cluster": "dev",
+  "code": "TSCIM006I",
+  "event": "scim.patch",
+  "success": true,
+  "integration": "okta",
+  "resource_type": "user",
+  "teleport_id": "test@example.com",
+  "external_id": "externa-id-00123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
+}
+```
+
+### TSCIM006E
+
+SCIM Patch Failed
+
+Example:
+
+```json
+{
+  "ei": 163,
+  "time": "2023-05-08T19:21:37.000Z",
+  "cluster": "dev",
+  "code": "TSCIM006E",
+  "event": "scim.patch",
+  "resource_type": "user",
+  "success": false,
+  "error": "no such user",
+  "integration": "okta",
+  "teleport_id": "test@example.com",
+  "external_id": "external-id-000123456789",
+  "display": "test@example.com",
+  "body": {
+    "Operations": [
+      {
+        "op": "replace",
+        "path": "name.givenName",
+        "value": "Dave"
+      }
+    ]
+  }
 }
 ```
 
