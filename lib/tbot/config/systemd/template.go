@@ -47,4 +47,6 @@ type TemplateParams struct {
 	TBotPath string
 	// DiagSocketForUpdater is the path to the diag socket for the updater.
 	DiagSocketForUpdater string
+	// PIDFile is the path to the PID file.
+	PIDFile string
 }
