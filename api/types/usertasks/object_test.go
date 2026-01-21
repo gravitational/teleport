@@ -134,17 +134,19 @@ func TestValidateUserTask(t *testing.T) {
 		return userTask
 	}
 
+	const noError = ""
+
 	tests := []struct {
 		name    string
 		task    func(t *testing.T) *usertasksv1.UserTask
-		wantErr require.ErrorAssertionFunc
+		wantErr string
 	}{
 		{
 			name: "nil user task",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				return nil
 			},
-			wantErr: require.Error,
+			wantErr: "invalid kind",
 		},
 		{
 			name: "invalid task type",
@@ -153,12 +155,12 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.TaskType = "invalid"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "is not valid",
 		},
 		{
 			name:    "DiscoverEC2: valid",
 			task:    baseEC2DiscoverTask,
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
 			name: "DiscoverEC2: invalid state",
@@ -167,16 +169,17 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.State = "invalid"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "invalid task state",
 		},
 		{
 			name: "DiscoverEC2: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2DiscoverTask(t)
 				ut.Spec.IssueType = "unknown error"
+				ut.Metadata.Name = "1b8320d7-0cc0-53f8-81a5-14a8661a9846"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "invalid issue type state, allowed values",
 		},
 		{
 			name: "DiscoverEC2: missing integration",
@@ -185,7 +188,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.Integration = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "integration is required",
 		},
 		{
 			name: "DiscoverEC2: missing discover ec2 field",
@@ -194,7 +197,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2 = nil
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-ec2 requires the discover_ec2 field",
 		},
 		{
 			name: "DiscoverEC2: wrong task name",
@@ -203,7 +206,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Metadata.Name = "another-name"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "task name is pre-defined for discover-ec2 types",
 		},
 		{
 			name: "DiscoverEC2: missing account id",
@@ -212,7 +215,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.AccountId = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-ec2 requires the discover_ec2.account_id field",
 		},
 		{
 			name: "DiscoverEC2: missing region",
@@ -221,7 +224,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Region = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-ec2 requires the discover_ec2.region field",
 		},
 		{
 			name: "DiscoverEC2: instances - missing instance id in map key",
@@ -231,7 +234,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Instances[""] = origInstanceMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "instance id in discover_ec2.instances map is required",
 		},
 		{
 			name: "DiscoverEC2: instances - missing instance id in instance metadata",
@@ -242,7 +245,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Instances[exampleInstanceID] = origInstanceMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "instance id in discover_ec2.instances field is required",
 		},
 		{
 			name: "DiscoverEC2: instances - different instance id",
@@ -253,7 +256,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Instances[exampleInstanceID] = origInstanceMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "instance id in discover_ec2.instances map and field are different",
 		},
 		{
 			name: "DiscoverEC2: instances - missing discovery config",
@@ -264,7 +267,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Instances[exampleInstanceID] = origInstanceMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discovery config in discover_ec2.instances field is required",
 		},
 		{
 			name: "DiscoverEC2: instances - missing discovery group",
@@ -275,21 +278,22 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEc2.Instances[exampleInstanceID] = origInstanceMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discovery group in discover_ec2.instances field is required",
 		},
 		{
 			name:    "DiscoverEKS: valid",
 			task:    baseEKSDiscoverTask,
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
 			name: "DiscoverEKS: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEKSDiscoverTask(t)
 				ut.Spec.IssueType = "unknown error"
+				ut.Metadata.Name = "ebb43107-ea5f-5e6c-a53f-230aa683c4a7"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "invalid issue type state, allowed values:",
 		},
 		{
 			name: "DiscoverEKS: missing integration",
@@ -298,7 +302,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.Integration = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "integration is required",
 		},
 		{
 			name: "DiscoverEKS: missing discover eks field",
@@ -307,7 +311,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks = nil
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-eks requires the discover_eks field",
 		},
 		{
 			name: "DiscoverEKS: wrong task name",
@@ -316,7 +320,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Metadata.Name = "another-name"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "task name is pre-defined for discover-eks types",
 		},
 		{
 			name: "DiscoverEKS: missing account id",
@@ -325,7 +329,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.AccountId = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-eks requires the discover_eks.account_id field",
 		},
 		{
 			name: "DiscoverEKS: missing region",
@@ -334,7 +338,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.Region = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-eks requires the discover_eks.region field",
 		},
 		{
 			name: "DiscoverEKS: clusters - missing cluster name in map key",
@@ -344,7 +348,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.Clusters[""] = origClusterMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "cluster name in discover_eks.clusters map is required",
 		},
 		{
 			name: "DiscoverEKS: clusters - missing cluster name in cluster metadata",
@@ -355,7 +359,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "cluster name in discover_eks.clusters field is required",
 		},
 		{
 			name: "DiscoverEKS: clusters - different cluster name",
@@ -366,7 +370,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "cluster name in discover_eks.clusters map and field are different",
 		},
 		{
 			name: "DiscoverEKS: clusters - missing discovery config",
@@ -377,7 +381,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discovery config in discover_eks.clusters field is required",
 		},
 		{
 			name: "DiscoverEKS: clusters - missing discovery group",
@@ -388,21 +392,22 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverEks.Clusters[exampleClusterName] = origClusterMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discovery group in discover_eks.clusters field is required",
 		},
 		{
 			name:    "DiscoverRDS: valid",
 			task:    baseRDSDiscoverTask,
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
 			name: "DiscoverRDS: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseRDSDiscoverTask(t)
 				ut.Spec.IssueType = "unknown error"
+				ut.Metadata.Name = "8f7bd657-fd2a-507d-bc7b-c42593ec78f6"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "invalid issue type state, allowed values:",
 		},
 		{
 			name: "DiscoverRDS: missing integration",
@@ -411,7 +416,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.Integration = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "integration is required",
 		},
 		{
 			name: "DiscoverRDS: missing discover rds field",
@@ -420,7 +425,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds = nil
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-rds requires the discover_rds field",
 		},
 		{
 			name: "DiscoverRDS: wrong task name",
@@ -429,7 +434,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Metadata.Name = "another-name"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "task name is pre-defined for discover-rds types",
 		},
 		{
 			name: "DiscoverRDS: missing account id",
@@ -438,7 +443,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.AccountId = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-rds requires the discover_rds.account_id field",
 		},
 		{
 			name: "DiscoverRDS: missing region",
@@ -447,7 +452,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.Region = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover-rds requires the discover_rds.region field",
 		},
 		{
 			name: "DiscoverRDS: databases - missing database name in map key",
@@ -457,7 +462,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.Databases[""] = origDatabasdeMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "database identifier in discover_rds.databases map is required",
 		},
 		{
 			name: "DiscoverRDS: databases - missing database name in metadata",
@@ -468,7 +473,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.Databases[exampleDatabaseName] = origDatabasdeMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "database identifier in discover_rds.databases field is required",
 		},
 		{
 			name: "DiscoverRDS: databases - different database name",
@@ -479,7 +484,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.Databases[exampleDatabaseName] = origDatabasdeMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "database identifier in discover_rds.databases map and field are different",
 		},
 		{
 			name: "DiscoverRDS: databases - missing discovery config",
@@ -490,7 +495,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.Databases[exampleDatabaseName] = origDatabasdeMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discovery config in discover_rds.databases field is required",
 		},
 		{
 			name: "DiscoverRDS: databases - missing discovery group",
@@ -501,12 +506,12 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverRds.Databases[exampleDatabaseName] = origDatabasdeMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discovery group in discover_rds.databases field is required",
 		},
 		{
 			name:    "DiscoverAzureVM: valid",
 			task:    baseAzureVMDiscoverTask,
-			wantErr: require.NoError,
+			wantErr: noError,
 		},
 		{
 			name: "DiscoverAzureVM: invalid issue type",
@@ -515,7 +520,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.IssueType = "unknown error"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "issue_type must be one of",
 		},
 		{
 			name: "DiscoverAzureVM: missing integration",
@@ -524,7 +529,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.Integration = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "integration cannot be empty",
 		},
 		{
 			name: "DiscoverAzureVM: missing discover azure vm field",
@@ -533,7 +538,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm = nil
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm field is required",
 		},
 		{
 			name: "DiscoverAzureVM: wrong task name",
@@ -542,7 +547,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Metadata.Name = "another-name"
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "task name must be d3672afc-63f5-5d8a-bf63-2a2f81d6fa61, got another-name",
 		},
 		{
 			name: "DiscoverAzureVM: missing subscription id",
@@ -551,7 +556,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.SubscriptionId = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.subscription_id field is required",
 		},
 		{
 			name: "DiscoverAzureVM: missing resource group",
@@ -560,7 +565,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.ResourceGroup = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.resource_group field is required",
 		},
 		{
 			name: "DiscoverAzureVM: missing region",
@@ -569,7 +574,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.Region = ""
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.region field is required",
 		},
 		{
 			name: "DiscoverAzureVM: instances - missing vm id in map key",
@@ -579,7 +584,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.Instances[""] = origVMMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.instances map key is empty",
 		},
 		{
 			name: "DiscoverAzureVM: instances - missing vm id in instance metadata",
@@ -590,7 +595,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.instances[/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm].vm_id field is required",
 		},
 		{
 			name: "DiscoverAzureVM: instances - different vm id",
@@ -601,7 +606,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.instances map key /subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm does not match vm_id /subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/other-vm",
 		},
 		{
 			name: "DiscoverAzureVM: instances - missing discovery config",
@@ -612,7 +617,7 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.instances[/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm].discovery_config field is required",
 		},
 		{
 			name: "DiscoverAzureVM: instances - missing discovery group",
@@ -623,14 +628,18 @@ func TestValidateUserTask(t *testing.T) {
 				ut.Spec.DiscoverAzureVm.Instances[exampleVMID] = origVMMetadata
 				return ut
 			},
-			wantErr: require.Error,
+			wantErr: "discover_azure_vm.instances[/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm].discovery_group field is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := usertasks.ValidateUserTask(tt.task(t))
-			tt.wantErr(t, err)
+			if tt.wantErr == noError {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
 		})
 	}
 }
