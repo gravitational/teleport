@@ -87,6 +87,26 @@ falls back to browser-based MFA. The MFA URL is printed and `tsh` attempts to
 open her browser, to authenticate with her MFA. Upon successful MFA, `tsh`
 receives short-lived, MFA-verified certificates to connect to the resource.
 
+**Alice uses a passwordless login**
+
+Alice wants to login to her cluster using the passwordless flow, but she doesn't
+have an MFA device registered that has passwordless capabilities (e.g. can't
+verify the user using biometrics or PIN). She runs the following command to
+login.
+
+```
+tsh login --proxy teleport.example.com --user alice --auth=passwordless
+```
+
+`tsh` detects that there are no TouchID keys, it then fallsback to FIDO2 keys
+and finds none are present. These errors are caught and Browser MFA is
+attempted. A URL is printed and her browser opens to Teleport's login page (if
+she isn't already logged in), she authenticates and is asked if she wants to
+approve this `tsh` login attempt. She approves, verifies using her
+non-user-verified MFA, and her `tsh` session is authenticated. If a user isn't
+specified, then an error will be shown prompting the user to try again with the
+user flag. 
+
 ### Design
 
 #### Login process
@@ -96,7 +116,7 @@ This flow will be followed when a user first logs in to their cluster using
 flow to authenticate the user with some modifications:
 - There will be a new endpoint `/webapi/headless/browser` endpoint for `tsh` to
   hit which will solely deal with login events.
-- The certificate is a typical user certificate with the standard TTL.
+- The returned certificate is a typical user certificate with the standard TTL.
 
 ```mermaid
 sequenceDiagram
@@ -206,7 +226,7 @@ and certificates with the standard user TTL will be generated and returned to
 #### Per-session MFA
 
 When a user connects to a resource that requires per-session MFA (e.g.,
-`tsh ssh alice@node`), `tsh` follows the same headless authentication flow
+`tsh db connect example-db`), `tsh` follows the same headless authentication flow
 described in the [login process](#login-process) with the following differences:
 
 1. **Endpoint**: `tsh` makes an authenticated request to
@@ -221,6 +241,16 @@ The browser-based MFA ceremony proceeds identically to the login flow, with the
 user approving the request and completing the MFA challenge in their browser.
 The request details shown to the user will indicate this is a per-session MFA
 request rather than a login request.
+
+#### In-band per-session MFA
+
+For resources and clusters that support it, in-band per-session MFA will be
+used. As of the time of writing, this is only `ssh` resources. A similar flow
+will be followed as described in the [Per-session MFA](#per-session-mfa), but
+with the following differences:
+
+1. When connecting to a resource, if the SSH service returns a MFA required
+   message via a keyboard-interactive question, the 
 
 ### Security
 
