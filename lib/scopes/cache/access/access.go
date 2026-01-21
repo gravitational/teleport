@@ -20,13 +20,13 @@ package access
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"maps"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -553,6 +553,10 @@ type materializedAssignmentKey struct {
 }
 
 func (m *accessListMaterializer) init(ctx context.Context, state state) error {
+	slog := slog.With(teleport.ComponentKey, teleport.Component("aclmaterializer"))
+	slog.DebugContext(ctx, "Initializing access list materializer")
+
+	slog.DebugContext(ctx, "Initializing lists")
 	for list, err := range clientutils.Resources(ctx, m.upstream.ListAccessLists) {
 		if err != nil {
 			return trace.Wrap(err)
@@ -561,6 +565,7 @@ func (m *accessListMaterializer) init(ctx context.Context, state state) error {
 		m.allLists.Add(listName)
 	}
 
+	slog.DebugContext(ctx, "Initializing members")
 	for member, err := range clientutils.Resources(ctx, m.upstream.ListAllAccessListMembers) {
 		if err != nil {
 			return trace.Wrap(err)
@@ -592,18 +597,14 @@ func (m *accessListMaterializer) init(ctx context.Context, state state) error {
 		}
 	}
 
+	slog.DebugContext(ctx, "reinitNestedListMembers")
 	m.reinitNestedListMembers()
+	slog.DebugContext(ctx, "reinitNestedUserMembers")
 	m.reinitNestedUserMembers()
 
 	if err := m.rematerialize(ctx, state); err != nil {
 		return trace.Wrap(err)
 	}
-
-	fmt.Println("directUserMembers", m.directUserMembers)
-	fmt.Println("directListMembers", m.directListMembers)
-	fmt.Println("nestedListMembers", m.nestedListMembers)
-	fmt.Println("nestedUserMembers", m.nestedUserMembers)
-	fmt.Println("materializedAssignments", m.materializedAssignments)
 
 	return nil
 }
@@ -656,8 +657,17 @@ func (m *accessListMaterializer) reinitNestedUserMembers() {
 }
 
 func (m *accessListMaterializer) rematerialize(ctx context.Context, state state) error {
+	slog.DebugContext(ctx, "rematerialize")
 	unseenAssignments := maps.Clone(m.materializedAssignments)
+	materializedCount := 0
 	for listName, userCounts := range m.nestedUserMembers {
+		list, err := m.upstream.GetAccessList(ctx, listName)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Errorf("invariant violated, list %s not found", listName)
+			}
+			return trace.Wrap(err)
+		}
 		for user, count := range userCounts {
 			if count <= 0 {
 				return trace.Errorf("invariant violated, nestedUserMemberships[%s][%s] has count %d", listName, user, count)
@@ -670,14 +680,8 @@ func (m *accessListMaterializer) rematerialize(ctx context.Context, state state)
 			if _, alreadyMaterialized := m.materializedAssignments[key]; alreadyMaterialized {
 				continue
 			}
-			list, err := m.upstream.GetAccessList(ctx, listName)
-			if err != nil {
-				if trace.IsNotFound(err) {
-					return trace.Errorf("invariant violated, list %s not found", listName)
-				}
-				return trace.Wrap(err)
-			}
 			assignmentID := uuid.NewString()
+			materializedCount++
 			assignment := materializeScopedRoleAssignment(user, list, assignmentID)
 			if err := state.assignments.Put(assignment); err != nil {
 				return trace.Wrap(err, "putting materialized assignment for user %q in list %q into the cache", user, listName)
@@ -685,9 +689,13 @@ func (m *accessListMaterializer) rematerialize(ctx context.Context, state state)
 			m.materializedAssignments[key] = assignmentID
 		}
 	}
+	slog.DebugContext(ctx, "Materialized new scoped role assignments", "assignment_count", materializedCount)
 	for assignmentKey, assignmentID := range unseenAssignments {
 		state.assignments.Delete(assignmentID)
 		delete(m.materializedAssignments, assignmentKey)
+	}
+	if len(unseenAssignments) > 0 {
+		slog.DebugContext(ctx, "Deleted stale scoped role assignments", "assignment_count", len(unseenAssignments))
 	}
 	return nil
 }

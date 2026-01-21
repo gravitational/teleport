@@ -21,6 +21,7 @@ package access
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -35,16 +36,25 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
-	cachepkg "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	cachepkg "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
+	"github.com/gravitational/teleport/lib/scopes/cache/roles"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
 
 type grant struct {
 	role  string
@@ -1024,6 +1034,240 @@ func TestAccessListMaterializationDeepForest(t *testing.T) {
 	})
 }
 
+func BenchmarkAccessListMaterialization(b *testing.B) {
+	modulestest.SetTestModules(b, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true, Limit: 100000},
+			},
+		},
+	})
+
+	cases := []struct {
+		name         string
+		lists        int
+		users        int
+		usersPerList int
+		nestedFanout int
+	}{
+		{
+			name:         "lists=1000/users=5000",
+			lists:        1000,
+			users:        5000,
+			usersPerList: 10,
+			nestedFanout: 2,
+		},
+		{
+			name:         "lists=2000/users=10000",
+			lists:        2000,
+			users:        10000,
+			usersPerList: 10,
+			nestedFanout: 2,
+		},
+		{
+			name:         "lists=40/users=50000",
+			lists:        40,
+			users:        50000,
+			usersPerList: 1000,
+			nestedFanout: 2,
+		},
+	}
+	for _, tc := range cases {
+		assignmentCount := 0
+		b.Run(tc.name, func(b *testing.B) {
+			ctx := context.Background()
+			backend, err := memory.New(memory.Config{
+				Context: ctx,
+			})
+			require.NoError(b, err)
+			b.Cleanup(func() { require.NoError(b, backend.Close()) })
+
+			accessListService, err := local.NewAccessListService(backend, backend.Clock())
+			require.NoError(b, err)
+
+			seedAccessListMaterializationData(b, accessListService, materializationBenchConfig{
+				lists:        tc.lists,
+				users:        tc.users,
+				usersPerList: tc.usersPerList,
+				nestedFanout: tc.nestedFanout,
+			})
+
+			events := local.NewEventsService(backend)
+			accessListCache, err := cachepkg.New(cachepkg.Config{
+				Context: ctx,
+				Events:  events,
+				Watches: []types.WatchKind{
+					{Kind: types.KindAccessList},
+					{Kind: types.KindAccessListMember},
+				},
+				AccessLists: accessListService,
+			})
+			require.NoError(b, err)
+			b.Cleanup(func() { require.NoError(b, accessListCache.Close()) })
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				s := state{
+					roles:       roles.NewRoleCache(),
+					assignments: assignments.NewAssignmentCache(),
+				}
+				materializer := newAccessListMaterializer(accessListCache)
+				require.NoError(b, materializer.init(ctx, s))
+				assignmentCount = len(materializer.materializedAssignments)
+			}
+		})
+
+		b.Run(tc.name+"_baseline", func(b *testing.B) {
+			ctx := context.Background()
+			backend, err := memory.New(memory.Config{
+				Context: ctx,
+			})
+			require.NoError(b, err)
+			b.Cleanup(func() { require.NoError(b, backend.Close()) })
+
+			accessListService, err := local.NewAccessListService(backend, backend.Clock())
+			require.NoError(b, err)
+
+			seedAccessListMaterializationData(b, accessListService, materializationBenchConfig{
+				lists:        tc.lists,
+				users:        tc.users,
+				usersPerList: tc.usersPerList,
+				nestedFanout: tc.nestedFanout,
+			})
+
+			events := local.NewEventsService(backend)
+			accessListCache, err := cachepkg.New(cachepkg.Config{
+				Context: ctx,
+				Events:  events,
+				Watches: []types.WatchKind{
+					{Kind: types.KindAccessList},
+					{Kind: types.KindAccessListMember},
+				},
+				AccessLists: accessListService,
+			})
+			require.NoError(b, err)
+			b.Cleanup(func() { require.NoError(b, accessListCache.Close()) })
+
+			b.ReportAllocs()
+			for b.Loop() {
+				assignmentCache := assignments.NewAssignmentCache()
+				var allLists []string
+				for list, err := range clientutils.Resources(ctx, accessListCache.ListAccessLists) {
+					require.NoError(b, err)
+					allLists = append(allLists, list.GetName())
+				}
+				for _, listName := range allLists {
+					_, err := accessListCache.GetAccessList(ctx, listName)
+					require.NoError(b, err)
+				}
+				var allMembers []string
+				for member, err := range clientutils.Resources(ctx, accessListCache.ListAllAccessListMembers) {
+					require.NoError(b, err)
+					allMembers = append(allMembers, member.Spec.Name)
+				}
+				for range assignmentCount {
+					assignment := &scopedaccessv1.ScopedRoleAssignment{
+						Kind:    scopedaccess.KindScopedRoleAssignment,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: uuid.NewString(),
+						},
+						Scope: "/",
+						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+							User:        "asdf",
+							Assignments: make([]*scopedaccessv1.Assignment, 0, 1),
+						},
+					}
+					assignment.Spec.Assignments = append(assignment.Spec.Assignments,
+						&scopedaccessv1.Assignment{
+							Role:  "asdf",
+							Scope: "/a/s/d/f",
+						},
+					)
+					err := assignmentCache.Put(assignment)
+					require.NoError(b, err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkHuge(b *testing.B) {
+	const (
+		listCount    = 25000
+		usersPerList = 20000
+		userCount    = 5000000
+	)
+
+}
+
+type materializationBenchConfig struct {
+	lists        int
+	users        int
+	usersPerList int
+	nestedFanout int
+}
+
+func seedAccessListMaterializationData(b testing.TB, service *local.AccessListService, cfg materializationBenchConfig) {
+	b.Helper()
+
+	ctx := context.Background()
+	seedTime := time.Unix(1700000000, 0).UTC()
+	const maxNestingDepth = 10
+
+	for i := 0; i < cfg.lists; i++ {
+		listName := fmt.Sprintf("list-%05d", i)
+		list := newAccessList(b, listName)
+		list.Spec.Grants = accesslist.Grants{
+			ScopedRoles: []accesslist.ScopedRoleGrant{
+				{
+					Role:  fmt.Sprintf("scoped-role-%d", i%10),
+					Scope: fmt.Sprintf("/scope/%d", i%10),
+				},
+			},
+		}
+		_, err := service.UpsertAccessList(ctx, list)
+		require.NoError(b, err)
+	}
+
+	for i := 0; i < cfg.lists; i++ {
+		listName := fmt.Sprintf("list-%05d", i)
+		for j := 0; j < cfg.usersPerList; j++ {
+			userIndex := (i*cfg.usersPerList + j) % cfg.users
+			userName := fmt.Sprintf("user-%05d", userIndex)
+			member := newAccessListMember(b, listName, userName, accesslist.MembershipKindUser)
+			member.Spec.Joined = seedTime
+			member.Spec.AddedBy = "seed"
+			_, err := service.UpsertAccessListMember(ctx, member)
+			require.NoError(b, err)
+		}
+	}
+
+	levelSize := (cfg.lists + maxNestingDepth - 1) / maxNestingDepth
+	for i := 0; i < cfg.lists; i++ {
+		level := i / levelSize
+		if level >= maxNestingDepth-1 {
+			continue
+		}
+		parentList := fmt.Sprintf("list-%05d", i)
+		childBase := (level + 1) * levelSize
+		for j := 0; j < cfg.nestedFanout; j++ {
+			childIndex := childBase + (i+j)%levelSize
+			if childIndex >= cfg.lists {
+				continue
+			}
+			childList := fmt.Sprintf("list-%05d", childIndex)
+			member := newAccessListMember(b, parentList, childList, accesslist.MembershipKindList)
+			member.Spec.Joined = seedTime
+			member.Spec.AddedBy = "seed"
+			_, err := service.UpsertAccessListMember(ctx, member)
+			require.NoError(b, err)
+		}
+	}
+}
+
 func newScopedRole(name string) *scopedaccessv1.ScopedRole {
 	return &scopedaccessv1.ScopedRole{
 		Kind: scopedaccess.KindScopedRole,
@@ -1058,7 +1302,7 @@ func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignme
 	}
 }
 
-func newAccessList(t *testing.T, name string) *accesslist.AccessList {
+func newAccessList(t testing.TB, name string) *accesslist.AccessList {
 	t.Helper()
 
 	list, err := accesslist.NewAccessList(header.Metadata{Name: name}, accesslist.Spec{
@@ -1075,7 +1319,7 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	return list
 }
 
-func newAccessListMember(t *testing.T, listName, memberName, membershipKind string) *accesslist.AccessListMember {
+func newAccessListMember(t testing.TB, listName, memberName, membershipKind string) *accesslist.AccessListMember {
 	t.Helper()
 
 	if membershipKind == "" {
