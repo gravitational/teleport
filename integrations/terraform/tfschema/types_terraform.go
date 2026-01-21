@@ -2881,6 +2881,20 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"linux_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.",
+							Optional:    true,
+						}),
+						"linux_desktop_labels_expression": {
+							Description: "LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"linux_desktop_logins": {
+							Description: "LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
 						"logins": {
 							Description: "Logins is a list of *nix system logins.",
 							Optional:    true,
@@ -3391,6 +3405,20 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"kubernetes_users": {
 							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"linux_desktop_labels": GenSchemaLabels(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.",
+							Optional:    true,
+						}),
+						"linux_desktop_labels_expression": {
+							Description: "LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"linux_desktop_logins": {
+							Description: "LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -29965,6 +29993,57 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["linux_desktop_logins"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLogins"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.LinuxDesktopLogins", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.LinuxDesktopLogins = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.LinuxDesktopLogins", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.LinuxDesktopLogins[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["linux_desktop_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.LinuxDesktopLabels)
+									}
+									{
+										a, ok := tf.Attrs["linux_desktop_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.LinuxDesktopLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LinuxDesktopLabelsExpression = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -32086,6 +32165,57 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["linux_desktop_logins"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLogins"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.LinuxDesktopLogins", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.LinuxDesktopLogins = make([]string, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.LinuxDesktopLogins", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+														} else {
+															var t string
+															if !v.Null && !v.Unknown {
+																t = string(v.Value)
+															}
+															obj.LinuxDesktopLogins[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["linux_desktop_labels"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLabels"})
+										}
+										CopyFromLabels(diags, a, &obj.LinuxDesktopLabels)
+									}
+									{
+										a, ok := tf.Attrs["linux_desktop_labels_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLabelsExpression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.LinuxDesktopLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LinuxDesktopLabelsExpression = t
 											}
 										}
 									}
@@ -37058,6 +37188,90 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											}
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["linux_desktop_logins"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLogins"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.LinuxDesktopLogins", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["linux_desktop_logins"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.LinuxDesktopLogins)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.LinuxDesktopLogins))
+													}
+												}
+												if obj.LinuxDesktopLogins != nil {
+													t := o.ElemType
+													if len(obj.LinuxDesktopLogins) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.LinuxDesktopLogins))
+													}
+													for k, a := range obj.LinuxDesktopLogins {
+														v, ok := tf.Attrs["linux_desktop_logins"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.LinuxDesktopLogins", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.LinuxDesktopLogins", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.LinuxDesktopLogins) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["linux_desktop_logins"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["linux_desktop_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.LinuxDesktopLabels, t, tf.Attrs["linux_desktop_labels"])
+											tf.Attrs["linux_desktop_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["linux_desktop_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.LinuxDesktopLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["linux_desktop_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.LinuxDesktopLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.LinuxDesktopLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LinuxDesktopLabelsExpression) == ""
+											}
+											v.Value = string(obj.LinuxDesktopLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["linux_desktop_labels_expression"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["allow"] = v
@@ -40745,6 +40959,90 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												v.Unknown = false
 												tf.Attrs["mcp"] = v
 											}
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["linux_desktop_logins"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLogins"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.LinuxDesktopLogins", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["linux_desktop_logins"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.LinuxDesktopLogins)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.LinuxDesktopLogins))
+													}
+												}
+												if obj.LinuxDesktopLogins != nil {
+													t := o.ElemType
+													if len(obj.LinuxDesktopLogins) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.LinuxDesktopLogins))
+													}
+													for k, a := range obj.LinuxDesktopLogins {
+														v, ok := tf.Attrs["linux_desktop_logins"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														if !ok {
+															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+															if err != nil {
+																diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.LinuxDesktopLogins", err})
+															}
+															v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+															if !ok {
+																diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.LinuxDesktopLogins", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
+															v.Null = string(a) == ""
+														}
+														v.Value = string(a)
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.LinuxDesktopLogins) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["linux_desktop_logins"] = c
+											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["linux_desktop_labels"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLabels"})
+										} else {
+											v := CopyToLabels(diags, obj.LinuxDesktopLabels, t, tf.Attrs["linux_desktop_labels"])
+											tf.Attrs["linux_desktop_labels"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["linux_desktop_labels_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.LinuxDesktopLabelsExpression"})
+										} else {
+											v, ok := tf.Attrs["linux_desktop_labels_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.LinuxDesktopLabelsExpression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.LinuxDesktopLabelsExpression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LinuxDesktopLabelsExpression) == ""
+											}
+											v.Value = string(obj.LinuxDesktopLabelsExpression)
+											v.Unknown = false
+											tf.Attrs["linux_desktop_labels_expression"] = v
 										}
 									}
 								}
