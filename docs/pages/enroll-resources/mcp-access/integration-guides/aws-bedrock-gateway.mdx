@@ -21,15 +21,16 @@ MCP servers.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.7.0 or higher)" clients="\`tsh\` client"!)
 - Ability to configure your Amazon Bedrock AgentCore Gateway
-- A running Teleport Application Service. If you have not yet done this, follow
-  the [Getting Started guide](../getting-started.mdx).
+- An agent running the Teleport Application Service. If you have not yet done
+  this, follow the [Getting Started guide](../getting-started.mdx).
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
-## Step 1/2. Configure Inbound Auth Configurations for Amazon Bedrock AgentCore Gateway
+## Step 1/2. Configure Amazon Bedrock AgentCore Gateway
 
-Go to your gateway in AWS Management Console. Click the **Edit** button in the
-**Inbound Identity** section.
+To change **Inbound Auth Configurations** of your Amazon Bedrock AgentCore
+gateway, go to your gateway in AWS Management Console. Click the **Edit** button
+in the *Inbound Identity** section.
 
 Select **Use JSON Web Tokens (JWT)** as the **Inbound Auth type** and select
 **Use existing Identity provider configurations** for **JWT schema
