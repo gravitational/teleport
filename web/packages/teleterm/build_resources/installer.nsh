@@ -12,7 +12,7 @@
 # To inform the user that VNet is available only in the per-machine mode, we need to display a message in the wizard.
 # It could be added on a separate welcome page (which can be fully customized), but that would introduce an
 # additional step in the wizard and create unnecessary friction.
-# Instead, we modify the existing "selectUserMode" string by hand (electron-builder doesn't allow customizing the translations from
+# Instead, we modify the existing "selectUserMode" and "forAll" strings by hand (electron-builder doesn't allow customizing the translations from
 # https://github.com/electron-userland/electron-builder/blob/6c20eeb1cf9fd10980cde3c9ce0602fa6b7c6972/packages/app-builder-lib/templates/nsis/assistedMessages.yml).
 # Important: the message can't be too long, the template was designed for around two lines of text, the rest is clipped.
 #
@@ -22,6 +22,7 @@
 !pragma warning disable 6030
 !macro customHeader
   LangString selectUserMode ${LANG_ENGLISH} "Select installation mode. Only the 'Anyone who uses this computer' option comes with VNet, Teleport's VPN-like experience for accessing TCP applications and SSH servers."
+  LangString forAll ${LANG_ENGLISH} "Anyone who uses this computer (&all users). Includes VNet support."
 !macroend
 
 !macro customInstall
