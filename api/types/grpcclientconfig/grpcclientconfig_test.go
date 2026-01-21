@@ -37,7 +37,9 @@ func TestServiceConfigJSON(t *testing.T) {
 		HealthCheckConfig: &grpcv1.HealthCheckConfig{ServiceName: &empty},
 	}
 	got := &grpcv1.ServiceConfig{}
-	err := protojson.Unmarshal([]byte(value), got)
+	err := protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}.Unmarshal([]byte(value), got)
 	require.NoError(t, err)
 	require.EqualExportedValues(t, want, got)
 }

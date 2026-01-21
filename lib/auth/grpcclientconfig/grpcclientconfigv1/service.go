@@ -20,10 +20,11 @@ import (
 	"context"
 	"os"
 
-	grpcv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
-	"github.com/gravitational/teleport/api/types/grpcclientconfig"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
+
+	grpcv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/grpcclientconfig/v1"
+	"github.com/gravitational/teleport/api/types/grpcclientconfig"
 )
 
 // serviceConfigEnvVar allows the service config presented by the [Service] to be
@@ -34,7 +35,10 @@ const serviceConfigEnvVar = "TELEPORT_UNSTABLE_GRPC_SERVICE_CONFIG"
 func NewService() (*Service, error) {
 	if sc, ok := os.LookupEnv(serviceConfigEnvVar); ok {
 		config := &grpcv1.ServiceConfig{}
-		if err := protojson.Unmarshal([]byte(sc), config); err != nil {
+		unmarshaler := protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}
+		if err := unmarshaler.Unmarshal([]byte(sc), config); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &Service{
