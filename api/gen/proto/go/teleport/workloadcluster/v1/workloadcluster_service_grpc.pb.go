@@ -54,7 +54,7 @@ type WorkloadClusterServiceClient interface {
 	CreateWorkloadCluster(ctx context.Context, in *CreateWorkloadClusterRequest, opts ...grpc.CallOption) (*WorkloadCluster, error)
 	// ListWorkloadClusters returns WorkloadClusters.
 	ListWorkloadClusters(ctx context.Context, in *ListWorkloadClustersRequest, opts ...grpc.CallOption) (*ListWorkloadClustersResponse, error)
-	// CreateWorkloadCluster updates WorkloadClusters.
+	// UpdateWorkloadCluster updates WorkloadClusters.
 	UpdateWorkloadCluster(ctx context.Context, in *UpdateWorkloadClusterRequest, opts ...grpc.CallOption) (*WorkloadCluster, error)
 	// UpsertWorkloadCluster creates a new WorkloadCluster or replaces an existing WorkloadCluster.
 	UpsertWorkloadCluster(ctx context.Context, in *UpsertWorkloadClusterRequest, opts ...grpc.CallOption) (*WorkloadCluster, error)
@@ -142,7 +142,7 @@ type WorkloadClusterServiceServer interface {
 	CreateWorkloadCluster(context.Context, *CreateWorkloadClusterRequest) (*WorkloadCluster, error)
 	// ListWorkloadClusters returns WorkloadClusters.
 	ListWorkloadClusters(context.Context, *ListWorkloadClustersRequest) (*ListWorkloadClustersResponse, error)
-	// CreateWorkloadCluster updates WorkloadClusters.
+	// UpdateWorkloadCluster updates WorkloadClusters.
 	UpdateWorkloadCluster(context.Context, *UpdateWorkloadClusterRequest) (*WorkloadCluster, error)
 	// UpsertWorkloadCluster creates a new WorkloadCluster or replaces an existing WorkloadCluster.
 	UpsertWorkloadCluster(context.Context, *UpsertWorkloadClusterRequest) (*WorkloadCluster, error)
