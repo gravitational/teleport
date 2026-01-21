@@ -1440,6 +1440,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		Context:               scx.srv.Context(),
 		PID:                   s.term.PID(),
 		Emitter:               s.emitter,
+		Recorder:              s.Recorder(),
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             s.id.String(),
 		ServerID:              scx.srv.ID(),
