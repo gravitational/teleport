@@ -503,9 +503,10 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName string           `yaml:"token_name"`
-	Method    types.JoinMethod `yaml:"method"`
-	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName   string           `yaml:"token_name"`
+	TokenSecret string           `yaml:"token_secret,omitempty"`
+	Method      types.JoinMethod `yaml:"method"`
+	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
