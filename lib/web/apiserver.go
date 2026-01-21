@@ -2075,8 +2075,7 @@ func globMatch(pattern, str string) (bool, error) {
 // userMatchesConnector is a helper function to check if a user matches any of a connector's user matchers.
 func userMatchesConnector(username string, connector interface {
 	GetUserMatchers() []string
-},
-) (isMatch bool, isFallback bool, err error) {
+}) (isMatch bool, isFallback bool, err error) {
 	matchers := connector.GetUserMatchers()
 	for _, pattern := range matchers {
 		matched, err := globMatch(pattern, username)
