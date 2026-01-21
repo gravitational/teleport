@@ -85,13 +85,10 @@ export function IntegrationList(props: Props) {
   const history = useHistory();
 
   function handleRowClick(row: IntegrationLike) {
-    // TODO (avatus) enable this feature by checking isManagedByTerraform.
-    // Leaving commented until IaC form and settings page are implemented
-
-    // if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
-    //   history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
-    //   return;
-    // }
+    if ('isManagedByTerraform' in row && row.isManagedByTerraform) {
+      history.push(cfg.getIaCIntegrationRoute(row.kind, row.name));
+      return;
+    }
 
     if (!statusKinds.includes(row.kind)) return;
     history.push(cfg.getIntegrationStatusRoute(row.kind, row.name));
