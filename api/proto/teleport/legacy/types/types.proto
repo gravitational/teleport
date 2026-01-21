@@ -445,7 +445,8 @@ message AWS {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "rdsproxy,omitempty"
   ];
-  // RedshiftServerless contains Amazon Redshift Serverless-specific metadata.
+  // RedshiftServerless contains metatada specific to Amazon Redshift
+  // Serverless.
   RedshiftServerless RedshiftServerless = 9 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redshift_serverless,omitempty"
@@ -492,7 +493,7 @@ message SecretStore {
   string KMSKeyID = 2 [(gogoproto.jsontag) = "kms_key_id,omitempty"];
 }
 
-// Redshift contains AWS Redshift specific database metadata.
+// Redshift contains metadata specific to Amazon Redshift.
 message Redshift {
   // ClusterID is the Redshift cluster identifier.
   string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
@@ -4041,6 +4042,20 @@ message RoleConditions {
 
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
+
+  // LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
+  repeated string LinuxDesktopLogins = 47 [(gogoproto.jsontag) = "linux_desktop_logins,omitempty"];
+
+  // LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+  wrappers.LabelValues LinuxDesktopLabels = 48 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "linux_desktop_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
+  // access to Linux desktops.
+  string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

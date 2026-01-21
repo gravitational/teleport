@@ -76,7 +76,7 @@ build: $(BUILD_TARGETS) ;
 # https://developer.hashicorp.com/terraform/internals/module-registry-protocol
 $(BUILD_DIR)/$(PLUGIN_TYPE)_%.tar.gz: clean
 	@mkdir -p $(dir $@)
-	tar -czf $@ $(subst _,/,$*)
+	tar -C $(subst _,/,$*) -czf $@ . # change dirs to make the tarball because Terraform expects the tarball to only contain module source files, i.e., not nested in subdirectories.
 
 .PHONY: clean
 clean: tfclean

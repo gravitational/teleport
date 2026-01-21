@@ -100,12 +100,17 @@ message VerifyValidatedMFAChallengeRequest {
   // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
   // challenge.
   string name = 1;
-  // Value that uniquely identifies the user's session. The client calling VerifyValidatedMFAChallenge MUST
-  // independently compute this value from session state. The server will verify it matches the payload supplied in
-  // CreateSessionChallengeRequest to ensure the challenge is tied to the correct session.
+  // Value that uniquely identifies the user's session. The client MUST independently compute this value from session
+  // state. The server will verify it matches the payload supplied in CreateSessionChallengeRequest to ensure the
+  // challenge is tied to the correct session.
   SessionIdentifyingPayload payload = 2;
   // Name of the cluster where the validated challenge originated.
   string source_cluster = 3;
+  // Username of the Teleport user for whom the challenge was issued. This should be the Teleport username (not the SSH
+  // login name) and must correspond to a user in the cluster specified by source_cluster. The client MUST determine this
+  // value by authenticating the Teleport user before calling this method. The server will verify that it matches the
+  // Teleport user associated with the validated challenge to ensure the challenge is tied to the correct user.
+  string username = 4;
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.

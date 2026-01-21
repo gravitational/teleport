@@ -40,6 +40,7 @@ func Handlers() map[string]Handler {
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
 		types.KindAppServer:                          appServerHandler(),
+		types.KindAuditQuery:                         auditQueryHandler(),
 		types.KindAuthServer:                         authHandler(),
 		types.KindAutoUpdateAgentReport:              autoUpdateAgentReportHandler(),
 		types.KindAutoUpdateAgentRollout:             autoUpdateAgentRolloutHandler(),
@@ -50,6 +51,7 @@ func Handlers() map[string]Handler {
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindCertAuthority:                      certAuthorityHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
+		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
 		types.KindConnectors:                         connectorsHandler(),
 		types.KindDatabase:                           databaseHandler(),
@@ -84,6 +86,7 @@ func Handlers() map[string]Handler {
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
+		types.KindAppAuthConfig:                      appAuthConfigHandler(),
 	}
 }
 
