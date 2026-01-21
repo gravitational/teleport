@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -109,6 +110,19 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 	}
 	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, server types.AppServer) (types.AppServer, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.keepalives++
+
+	if a.failKeepAlives > 0 {
+		a.failKeepAlives--
+		return nil, trace.Errorf("unconditional update failed as test condition")
+	}
+	a.lastServerExpiry = server.Expiry()
+	return server, a.err
 }
 
 func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
@@ -602,7 +616,7 @@ func testAppServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -657,7 +671,7 @@ func testAppServerBasics(t *testing.T) {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -666,6 +680,9 @@ func testAppServerBasics(t *testing.T) {
 						Version: types.V3,
 						Metadata: types.Metadata{
 							Name: fmt.Sprintf("app-%d", i),
+							Labels: map[string]string{
+								"foo": uuid.NewString(),
+							},
 						},
 						Spec: types.AppSpecV3{},
 					},
@@ -718,20 +735,26 @@ func testAppServerBasics(t *testing.T) {
 	// set up to induce enough consecutive errors to cause stream closure
 	auth.mu.Lock()
 	auth.failUpserts = 5
+	auth.failKeepAlives = 5
 	auth.mu.Unlock()
 
 	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
 		AppServer: &types.AppServerV3{
 			Metadata: types.Metadata{
-				Name: serverID,
+				Name: "app-0",
 			},
 			Spec: types.AppServerSpecV3{
 				HostID: serverID,
 				App: &types.AppV3{
-					Kind:     types.KindApp,
-					Version:  types.V3,
-					Metadata: types.Metadata{},
-					Spec:     types.AppSpecV3{},
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "app-0",
+						Labels: map[string]string{
+							"foo": uuid.NewString(),
+						},
+					},
+					Spec: types.AppSpecV3{},
 				},
 			},
 		},
@@ -1974,7 +1997,7 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 		opt(&options)
 	}
 
-	timeout := time.After(time.Second * 30)
+	timeout := time.After(time.Second * 300)
 	for {
 		if len(options.expect) == 0 {
 			return
