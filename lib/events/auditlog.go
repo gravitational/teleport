@@ -102,7 +102,7 @@ const (
 	DiskAlertThreshold = 90
 
 	// DiskAlertInterval is disk space check interval.
-	DiskAlertInterval = 5 * time.Minute
+	DiskAlertInterval = 30 * time.Minute
 
 	// InactivityFlushPeriod is a period of inactivity
 	// that triggers upload of the data - flush.
