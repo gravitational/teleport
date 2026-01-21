@@ -23,12 +23,14 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -1222,11 +1224,11 @@ func TestService_ListAccessListMembers(t *testing.T) {
 		[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2, a4m1, a4m2})
 
 	// Admin should be able to list everything
-	members := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
+	members := getAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a1m1, a1m2}, members, cmpOpts...))
 
 	// owner should be able to see members for a2
-	members = listAllAccessListMembers(c.ownerCtx, t, c.svc, a2.GetName(), 1)
+	members = getAccessListMembers(c.ownerCtx, t, c.svc, a2.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a2m1, a2m2}, members, cmpOpts...))
 
 	// userDenyWhere should not be able to see members for a2
@@ -1254,8 +1256,18 @@ func TestService_ListAccessListMembers(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// userWhere should be able to see members for a4
-	members = listAllAccessListMembers(c.userWhereCtx, t, c.svc, a4.GetName(), 1)
+	members = getAccessListMembers(c.userWhereCtx, t, c.svc, a4.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a4m1, a4m2}, members, cmpOpts...))
+
+	// Not authorized users get an access denied error
+	_, err = getAllAccessListMembers(t.Context(), c.svc)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Authorized users get all members visible members
+	allMembers, err := getAllAccessListMembers(c.userCtx, c.svc)
+	require.NoError(t, err)
+	expectedAllMembers := []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2, a3m1, a3m2, a4m1, a4m2}
+	require.Empty(t, cmp.Diff(expectedAllMembers, allMembers, cmpOpts...))
 }
 
 func TestService_GetAccessListMember(t *testing.T) {
@@ -1672,7 +1684,7 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 		require.Equal(t, a1.GetName(), event.AccessListMemberDelete.Metadata.Id)
 	})
 
-	members := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
+	members := getAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{a1m2}, members, cmpOpts...))
 
 	// userDenyWhere should not be able to delete members
@@ -1688,7 +1700,7 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
 		require.Equal(t, a1.GetName(), event.AccessListMemberDelete.Metadata.Id)
 	})
-	members = listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
+	members = getAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, members)
 
 	// userWhere can delete from a2
@@ -1794,7 +1806,7 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 		require.True(t, event.Success)
 	})
 
-	members := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
+	members := getAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 1)
 	require.Empty(t, members)
 
 	// userDenyWhere can't delete from a1
@@ -1808,7 +1820,7 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 		require.True(t, event.Success)
 	})
 
-	members = listAllAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 1)
+	members = getAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 1)
 	require.Empty(t, members)
 
 	// UserWhere should be able to delete members from a3
@@ -1994,10 +2006,10 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	}
 
 	// Sanity check
-	membersA1 := listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 2)
+	membersA1 := getAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 2)
 	require.Len(t, membersA1, 2)
 
-	membersA2 := listAllAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
+	membersA2 := getAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
 	require.Len(t, membersA2, 1)
 
 	t.Run("create a new access list with members", func(t *testing.T) {
@@ -2007,7 +2019,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			newAccessListMember(t, a4.GetName(), member2, accesslist.MembershipKindUser, c.clock),
 		}, require.NoError)
 
-		membersA4 := listAllAccessListMembers(c.userCtx, t, c.svc, a4.GetName(), 3)
+		membersA4 := getAccessListMembers(c.userCtx, t, c.svc, a4.GetName(), 3)
 		require.Len(t, membersA4, 2)
 	})
 
@@ -2017,7 +2029,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		}, require.NoError)
 
 		// One member should have been deleted
-		membersA1 = listAllAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 2)
+		membersA1 = getAccessListMembers(c.userCtx, t, c.svc, a1.GetName(), 2)
 		require.Len(t, membersA1, 1)
 	})
 
@@ -2029,7 +2041,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		}, require.NoError)
 
 		// One member should have been added
-		membersA2 = listAllAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
+		membersA2 = getAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
 		require.Len(t, membersA2, 2)
 	})
 
@@ -2038,7 +2050,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		upsertAccessListWithMembers(t, c.userCtx, a2, nil, require.NoError)
 
 		// All members should have been deleted
-		membersA2 = listAllAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
+		membersA2 = getAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
 		require.Empty(t, membersA2)
 	})
 
@@ -2111,7 +2123,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		}, require.NoError)
 
 		// One member should have been deleted
-		membersA3 := listAllAccessListMembers(c.userCtx, t, c.svc, a3.GetName(), 3)
+		membersA3 := getAccessListMembers(c.userCtx, t, c.svc, a3.GetName(), 3)
 		require.Len(t, membersA3, 2)
 	})
 
@@ -2187,7 +2199,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			newAccessListMember(t, a2.GetName(), testUser, accesslist.MembershipKindUser, c.clock),
 		}, require.NoError)
 
-		membersA2 = listAllAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
+		membersA2 = getAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
 		require.Len(t, membersA2, 5)
 	})
 
@@ -2217,7 +2229,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			newAccessListMember(t, a5.GetName(), member2, accesslist.MembershipKindUser, c.clock),
 		}, require.NoError)
 
-		membersA5 := listAllAccessListMembers(c.userCtx, t, c.svc, a5.GetName(), 3)
+		membersA5 := getAccessListMembers(c.userCtx, t, c.svc, a5.GetName(), 3)
 		require.Len(t, membersA5, 2)
 	})
 
@@ -2269,7 +2281,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		}, require.NoError)
 
 		// One member should have been added
-		membersA3 := listAllAccessListMembers(c.userCtx, t, c.svc, aOkta.GetName(), 3)
+		membersA3 := getAccessListMembers(c.userCtx, t, c.svc, aOkta.GetName(), 3)
 		require.Len(t, membersA3, 3)
 	})
 
@@ -3392,29 +3404,61 @@ func TestService_ListUserAccessLists(t *testing.T) {
 	require.Equal(t, wantAssignments, gotAssignments)
 }
 
-func listAllAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
+func getAllAccessListMembers(ctx context.Context, service *Service) ([]*accesslist.AccessListMember, error) {
+	allMembers, err := stream.Collect(
+		stream.FilterMap(
+			clientutils.Resources(ctx, func(ctx context.Context, pageSize int, token string) ([]*accesslistv1.Member, string, error) {
+				resp, err := service.ListAllAccessListMembers(ctx, &accesslistv1.ListAllAccessListMembersRequest{
+					PageSize:  int32(pageSize),
+					PageToken: token,
+				})
+
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+
+				return resp.Members, resp.NextPageToken, nil
+			}), func(m *accesslistv1.Member) (*accesslist.AccessListMember, bool) {
+				out, err := conv.FromMemberProto(m)
+				if err != nil {
+					return nil, false
+				}
+
+				return out, true
+			}),
+	)
+	return allMembers, trace.Wrap(err)
+}
+
+func getAccessListMembers(ctx context.Context, t *testing.T, service *Service, accessListName string, pageSize int) []*accesslist.AccessListMember {
 	t.Helper()
 
-	var nextToken string
-	var members []*accesslist.AccessListMember
-	for {
-		resp, err := service.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{
-			PageSize:   int32(pageSize),
-			PageToken:  nextToken,
-			AccessList: accessListName,
-		})
-		require.NoError(t, err)
+	members, err := stream.Collect(stream.FilterMap(
+		clientutils.ResourcesWithPageSize(ctx,
+			func(ctx context.Context, pageSize int, token string) ([]*accesslistv1.Member, string, error) {
+				resp, err := service.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{
+					PageSize:   int32(pageSize),
+					PageToken:  token,
+					AccessList: accessListName,
+				})
 
-		for _, member := range resp.Members {
-			members = append(members, mustFromMemberProto(t, member))
-		}
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
 
-		nextToken = resp.NextPageToken
-		if nextToken == "" {
-			break
-		}
-	}
+				return resp.Members, resp.NextPageToken, nil
+			},
+			pageSize),
+		func(m *accesslistv1.Member) (*accesslist.AccessListMember, bool) {
+			out, err := conv.FromMemberProto(m)
+			if err != nil {
+				return nil, false
+			}
 
+			return out, true
+		},
+	))
+	require.NoError(t, err)
 	return members
 }
 

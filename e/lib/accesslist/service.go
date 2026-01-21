@@ -970,6 +970,34 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 	}, nil
 }
 
+// ListAllAccessListMembers returns a page of access lists members. The members returned
+// span all existing access lists.
+func (s *Service) ListAllAccessListMembers(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (*accesslistv1.ListAllAccessListMembersResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		s.logger.DebugContext(ctx, "Failed to authorize user", "error", err)
+		// Return an opaque error
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	if authErr := authCtx.CheckAccessToKind(types.KindAccessList, types.VerbRead, types.VerbList); authErr != nil {
+		if !trace.IsAccessDenied(authErr) {
+			s.logger.DebugContext(ctx, "unexpected authorization error", "error", authErr)
+		}
+		return nil, trace.Wrap(authErr)
+	}
+
+	members, nextToken, err := s.cache.ListAllAccessListMembers(ctx, int(req.PageSize), req.PageToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &accesslistv1.ListAllAccessListMembersResponse{
+		NextPageToken: nextToken,
+		Members:       conv.ToMembersProto(members),
+	}, nil
+}
+
 // GetAccessListMember returns the specified access list member resource.
 func (s *Service) GetAccessListMember(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslistv1.Member, error) {
 	if err := validateMemberMetaRequest(req); err != nil {
