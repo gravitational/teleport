@@ -6,6 +6,14 @@ import {
   AwsIcRoleState,
   useAwsIcRoleState,
 } from './Preset/DefineAccess/AwsIc/useAwsIcRoleState';
+import {
+  StandardRoleState,
+  useStandardRoleState,
+} from './Preset/DefineAccess/useStandardRoleState';
+import {
+  definableResourceAccessFields,
+  DefinableResourceAccessFields,
+} from './Preset/role/listaccess';
 
 export type GuideEditorState = {
   /**
@@ -38,6 +46,23 @@ export type GuideEditorState = {
    * Contains the role conditions and funcs specific to AWS IC application.
    */
   awsIcRoleState: AwsIcRoleState;
+  /**
+   * Contains the role conditions and funcs related to standard resources
+   * e.g. server, apps (non aws ic apps), db, desktops, kube, etc.
+   *
+   * Standard refers to "non-specialized" resources. Specialized resource
+   * example is AWS IC applications which is managed by awsIcRoleState.
+   */
+  standardRoleState: StandardRoleState;
+
+  /**
+   * Returns true if specified field is defined.
+   */
+  definedAccess(field: DefinableResourceAccessFields): boolean;
+  /**
+   * Returns true if an access was defined in any role conditions.
+   */
+  definedAccessInAnyRoleCondition(): boolean;
 };
 
 /**
@@ -58,10 +83,14 @@ export function useGuideEditor(): GuideEditorState {
   const [currentStep, setCurrentStep] = useState(0);
 
   const awsIcRoleState = useAwsIcRoleState();
+  const standardRoleState = useStandardRoleState();
 
   function reset() {
     setPreset(null);
     setCurrentStep(0);
+
+    awsIcRoleState.reset();
+    standardRoleState.reset();
   }
 
   function prevStep(numStepsBack = 1) {
@@ -77,6 +106,29 @@ export function useGuideEditor(): GuideEditorState {
     setCurrentStep(currentStep + numStepsForward);
   }
 
+  function definedAccess(resourceKind: DefinableResourceAccessFields) {
+    switch (resourceKind) {
+      case 'awsIc':
+        return awsIcRoleState.definedAccess();
+
+      case 'github_permissions':
+      case 'app_labels':
+      case 'db_labels':
+      case 'kubernetes_labels':
+      case 'node_labels':
+      case 'windows_desktop_labels':
+        return standardRoleState.definedAccess(resourceKind);
+      default:
+        resourceKind satisfies never;
+    }
+  }
+
+  function definedAccessInAnyRoleCondition() {
+    return definableResourceAccessFields.some(resourceKind =>
+      definedAccess(resourceKind)
+    );
+  }
+
   return {
     reset,
     preset,
@@ -87,5 +139,9 @@ export function useGuideEditor(): GuideEditorState {
     nextStep,
 
     awsIcRoleState,
+    standardRoleState,
+
+    definedAccess,
+    definedAccessInAnyRoleCondition,
   };
 }
