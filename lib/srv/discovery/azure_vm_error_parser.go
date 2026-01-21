@@ -25,6 +25,12 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 )
 
+// classifyAzureVMEnrollmentError classifies Azure API errors into user-facing
+// messages for VM auto-discovery. This is best-effort based on error strings
+// which may change without notice. The matching logic may require future
+// adjustments to track upstream changes, as well as expansion to handle new
+// error patterns. Unrecognized errors will return a generic message; the user
+// should check server logs for the underlying error details.
 func classifyAzureVMEnrollmentError(err error) string {
 	if err == nil {
 		return ""
