@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"testing"
@@ -34,7 +35,11 @@ func Roundtrip[R any](ctx context.Context, rt doer, method string, endpoint stri
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return out, trace.BadParameter("got unexpected http response status code (want 200, got %d", resp.StatusCode)
+		buff, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
+		return out, trace.ReadError(resp.StatusCode, buff)
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {

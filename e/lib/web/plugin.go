@@ -305,6 +305,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	h.POST("/enterprise/accesslist/:accessListId/members", h.WithAuth(p.addMembersToAccessList))
 	h.POST("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.reviewAccessList))
 	h.GET("/enterprise/accesslist/:accessListId/reviews", h.WithAuth(p.listAccessListReviews))
+
+	// Access List long-term short-term Preset API
+	h.POST("/enterprise/accesslistpreset", h.WithAuth(p.createAccessListWithPreset))
+	h.PUT("/enterprise/accesslistpreset/:accessListId", h.WithAuth(p.updateAccessListWithPreset))
+	h.DELETE("/enterprise/accesslistpreset/:accessListId", h.WithAuth(p.deleteAccessListWithPreset))
 	// Deprecated: use /enterprise/accessrequest/:requestId/suggestions/accesslist instead.
 	h.GET("/enterprise/accesslistsuggestions/accessrequest/:requestId", h.WithClusterClientProvider(p.getSuggestedAccessListsHandle))
 
