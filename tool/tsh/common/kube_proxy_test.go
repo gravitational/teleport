@@ -97,6 +97,63 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	})
 }
 
+func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
+	// Set KUBECONFIG to non-existent file
+	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+
+	tests := []struct {
+		name          string
+		args          []string
+		expectedCmd   []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "with exec-cmd",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec", "--exec-cmd", "whoami"},
+			expectedCmd: []string{"whoami"},
+		},
+		{
+			name:        "with exec-cmd and args",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec", "--exec-cmd", "echo", "--exec-arg", "hello", "--exec-arg", "world"},
+			expectedCmd: []string{"echo", "hello", "world"},
+		},
+		{
+			name:        "backward compatibility - no exec-cmd",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec"},
+			expectedCmd: []string{os.Getenv("SHELL")},
+		},
+		{
+			name:        "exec-cmd without exec flag",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-cmd", "date"},
+			expectedCmd: []string{"date"},
+		},
+		{
+			name:          "exec-arg without exec-cmd should error",
+			args:          []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-arg", "test"},
+			expectError:   true,
+			errorContains: "cannot use --exec-arg without --exec-cmd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.expectError {
+				err := Run(t.Context(), tt.args)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				validateCmd := func(cmd *exec.Cmd) error {
+					require.Equal(t, tt.expectedCmd, cmd.Args)
+					return nil
+				}
+				err := Run(t.Context(), tt.args, setCmdRunner(validateCmd))
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func kubeConfigFromCmdEnv(t *testing.T, cmd *exec.Cmd) *clientcmdapi.Config {
 	t.Helper()
 
