@@ -1,0 +1,30 @@
+---
+title: Configure Access Requests
+sidebar_label: Configuration
+sidebar_position: 6
+description: Describes the options available for configuring just-in-time access to roles and resources in your Teleport cluster.
+tags:
+ - access-requests
+ - how-to
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
+---
+
+This guide explains the considerations you should make when configuring Teleport
+Access Requests, which enable a Teleport user to obtain elevated permissions by
+getting approval from one or more users in the same Teleport cluster.
+
+Access Requests are configurable on a role-by-role basis. When a user
+authenticates to Teleport, including through a single sign-on provider, the
+Teleport Auth Service reconciles all of a user's roles to determine the Access
+Request configuration for that user. Teleport then applies this configuration to
+any Access Requests the user creates.
+
+<DocCardList />
+
+## Further reading
+
+For a full description of the configuration options within a Teleport role,
+refer to the [Access Controls
+Reference](../../../reference/access-controls/roles.mdx).
