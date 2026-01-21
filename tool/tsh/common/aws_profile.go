@@ -77,20 +77,11 @@ func onAWSProfile(cf *CLIConf) error {
 		sessionName := extractAWSSessionName(startURL)
 
 		if _, ok := writtenSessions[sessionName]; !ok {
-			if err := awsconfigfile.UpsertSSOSession(configPath, sessionName, startURL); err != nil {
+			if err := awsconfigfile.UpsertSSOSession(configPath, sessionName, startURL, cf.AWSSSORegion); err != nil {
 				return trace.Wrap(err)
 			}
 			writtenSessions[sessionName] = struct{}{}
 		}
-
-		// fmt.Printf("aws ic url: %s\n", startURL)
-		// fmt.Printf("aws ic accountid: %s\n", awsIC.AccountID)
-		// accountName, _ := app.GetLabel("teleport.dev/account-name")
-		// fmt.Printf("aws ic accountName: %s\n", accountName)
-
-		// for _, ps := range awsIC.PermissionSets {
-		// 	fmt.Printf("aws ic role: %s\n", ps.Name)
-		// }
 	}
 
 	return nil

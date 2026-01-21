@@ -44,9 +44,9 @@ func AWSConfigFilePath() (string, error) {
 	return filepath.Join(homedir, ".aws", "config"), nil
 }
 
-// UpsertSSOSession sets the sso_start_url for the sso-session with name sessionName.
+// UpsertSSOSession sets the sso_start_url and sso_region for the sso-session with name sessionName.
 // File is created if it does not exist.
-func UpsertSSOSession(configFilePath, sessionName, ssoStartURL string) error {
+func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string) error {
 	sectionName := "sso-session " + sessionName
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true,
@@ -71,6 +71,9 @@ func UpsertSSOSession(configFilePath, sessionName, ssoStartURL string) error {
 
 	section.Comment = ownershipComment
 	if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := section.NewKey("sso_region", ssoRegion); err != nil {
 		return trace.Wrap(err)
 	}
 
