@@ -145,6 +145,14 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		c := tlsConfig.Clone()
 		c.GetConfigForClient = nil
 		c.ClientCAs = clientCAs
+
+		// we are sharing session ticket keys and using VerifyPeerCertificate
+		// (as opposed to VerifyCertificate, which does get called on resumed
+		// connections) because we use TLS session resumption as if we were
+		// keeping a persistent connection between peer proxies; we might want
+		// to revisit this if proxy peering grew more capabilities, but since
+		// all it currently does is open bytestreams through tunnels, this is no
+		// worse than gRPC proxy peering with a single persistent TCP connection
 		c.SetSessionTicketKeys(str.getSessionTicketKeys())
 		return c, nil
 	}

@@ -2015,6 +2015,14 @@ cli-docs-tbot:
 	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
 
+.PHONY: cli-docs-teleport
+cli-docs-teleport:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
+	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	rm $(BUILDDIR)/teleportdocs
+
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.
 .PHONY: audit-event-reference
