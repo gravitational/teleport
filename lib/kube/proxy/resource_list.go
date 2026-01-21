@@ -20,8 +20,10 @@ package proxy
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -30,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -127,23 +130,192 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		return rw.Status(), nil
 	}
 
+	reader, writer := io.Pipe()
+
+	headerInterceptor := newHeaderCapturerResponseWriter(writer)
+	// Forward the request - response will be written to our pipe writer.
+
+	g, ctx := errgroup.WithContext(req.Context())
+	forwardingClosed := make(chan struct{})
+	g.Go(func() error {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-forwardingClosed:
+			return trace.BadParameter("forwarding closed unexpectedly")
+		case <-headerInterceptor.wroteHeader:
+		}
+
+		if isJSONContentType(headerInterceptor.contentType) {
+			return f.listResourcesWithStreamingFilter(w, sess, reader, headerInterceptor, allowedResources, deniedResources)
+		}
+		return f.listResourcesLegacyBufferingFilter(w, reader, headerInterceptor, filterWrapper)
+	})
+
+	sess.forwarder.ServeHTTP(headerInterceptor, req)
+	close(forwardingClosed)
+	// close the pipe writer as we have finished writing the response.
+	_ = writer.Close()
+
+	err := g.Wait()
+	return headerInterceptor.status, trace.Wrap(err)
+}
+
+func newHeaderCapturerResponseWriter(body io.Writer) *headerCapturerResponseWriter {
+	return &headerCapturerResponseWriter{
+		body:        body,
+		headers:     make(http.Header),
+		wroteHeader: make(chan struct{}),
+	}
+}
+
+type headerCapturerResponseWriter struct {
+	body        io.Writer
+	headers     http.Header
+	status      int
+	wroteHeader chan struct{}
+	contentType string
+}
+
+func (h *headerCapturerResponseWriter) Header() http.Header {
+	return h.headers
+}
+
+func (h *headerCapturerResponseWriter) WriteHeader(statusCode int) {
+	select {
+	case <-h.wroteHeader:
+		// already wrote header
+		return
+	default:
+		h.contentType = responsewriters.GetContentTypeHeader(h.headers)
+		h.status = statusCode
+		close(h.wroteHeader)
+	}
+}
+
+func (h *headerCapturerResponseWriter) Write(b []byte) (int, error) {
+	select {
+	case <-h.wroteHeader:
+		// already wrote header; do nothing
+	default:
+		h.WriteHeader(http.StatusOK)
+	}
+
+	return h.body.Write(b)
+}
+
+// listResourcesLegacyBufferingFilter applies filtering by buffering the entire
+// response in memory, deserializing it, filtering the resources and re-serializing
+// the filtered response back to the user.
+func (f *Forwarder) listResourcesLegacyBufferingFilter(
+	w http.ResponseWriter,
+	payloadReader *io.PipeReader,
+	headerInterceptor *headerCapturerResponseWriter,
+	filterWrapper responsewriters.FilterWrapper,
+) error {
 	// Filtering is needed - buffer the response in memory.
 	// Creates a memory response writer that collects the response status, headers
 	// and payload into memory.
 	memBuffer := responsewriters.NewMemoryResponseWriter()
-	// Forward the request to the target cluster.
-	sess.forwarder.ServeHTTP(memBuffer, req)
+	if _, err := io.Copy(memBuffer, payloadReader); err != nil {
+		return trace.Wrap(err)
+	}
+	// Close the pipe reader as we have finished reading the response.
+	_ = payloadReader.Close()
+
+	memBuffer.SetStatus(headerInterceptor.status)
+	memBuffer.SetHeaders(headerInterceptor.headers)
 
 	// filterBuffer filters the response to exclude resources the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(filterWrapper, memBuffer); err != nil {
-		return memBuffer.Status(), trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	// Copy the filtered payload into target http.ResponseWriter.
 	err := memBuffer.CopyInto(w)
 
 	// Returns the status and any filter error.
-	return memBuffer.Status(), trace.Wrap(err)
+	return trace.Wrap(err)
+}
+
+// listResourcesWithStreamingFilter applies filtering using a streaming approach
+// that processes the response incrementally without buffering everything in memory.
+func (f *Forwarder) listResourcesWithStreamingFilter(
+	w http.ResponseWriter,
+	sess *clusterSession,
+	reader *io.PipeReader,
+	headerInterceptor *headerCapturerResponseWriter,
+	allowedResources []types.KubernetesResource,
+	deniedResources []types.KubernetesResource,
+) error {
+	// Write response headers to client
+	maps.Copy(w.Header(), headerInterceptor.headers)
+	// Remove Content-Length since we're streaming and don't know final size
+	w.Header().Del("Content-Length")
+	w.WriteHeader(headerInterceptor.status)
+
+	// TODO(tigraot): handle flush correctly
+	flusher, ok := w.(http.Flusher)
+	if ok {
+		flusher.Flush()
+		defer flusher.Flush()
+	}
+
+	// Get decompressor and compressor based on Content-Encoding header
+	decompressedReader, compressedWriter, err := getCodecFromHeaders(headerInterceptor.headers, reader, w)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer decompressedReader.Close()
+	defer compressedWriter.Close()
+
+	// Apply streaming JSON filter
+	filter := newStreamingJSONFilter(
+		decompressedReader,
+		compressedWriter,
+		sess.metaResource,
+		allowedResources,
+		deniedResources,
+	)
+
+	if err := filter.filter(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Close compressor to flush any buffered data
+	if err := compressedWriter.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// isJSONContentType checks if the content type is JSON.
+func isJSONContentType(contentType string) bool {
+	return strings.Contains(contentType, "application/json")
+}
+
+// getCodecFromHeaders returns both a decompressor (ReadCloser) and compressor (WriteCloser)
+// based on the Content-Encoding header. This allows streaming data to be decompressed,
+// filtered, and re-compressed with the same encoding.
+func getCodecFromHeaders(headers http.Header, reader io.Reader, writer io.Writer) (io.ReadCloser, io.WriteCloser, error) {
+	encoding := headers.Get("Content-Encoding")
+	switch encoding {
+	case "gzip":
+		// Create gzip decompressor
+		decompressor, err := gzip.NewReader(reader)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		// Create gzip compressor
+		compressor := gzip.NewWriter(writer)
+		return decompressor, compressor, nil
+	case "":
+		// No compression - use pass-through readers/writers
+		return io.NopCloser(reader), utils.NopWriteCloser(writer), nil
+	default:
+		return nil, nil, trace.BadParameter("unsupported content encoding: %s", encoding)
+	}
 }
 
 // matchListRequestShouldBeAllowed assess whether the user is permitted to perform its request

@@ -22,11 +22,8 @@ import (
 	"bytes"
 	"maps"
 	"net/http"
-	"strconv"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 )
 
 // NewMemoryResponseWriter creates a MemoryResponseWriter that satisfies
@@ -55,6 +52,14 @@ func (f *MemoryResponseWriter) Write(b []byte) (int, error) {
 // Header returns the http.Header map.
 func (f *MemoryResponseWriter) Header() http.Header {
 	return f.header
+}
+
+func (f *MemoryResponseWriter) SetHeaders(headers http.Header) {
+	maps.Copy(f.header, headers)
+}
+
+func (f *MemoryResponseWriter) SetStatus(status int) {
+	f.status = status
 }
 
 // WriteHeader stores the response status code.
@@ -86,7 +91,7 @@ func (f *MemoryResponseWriter) CopyInto(dst http.ResponseWriter) error {
 		}
 	}()
 	b := f.buf.Bytes()
-	copyHeader(dst.Header(), f.header, len(b))
+	copyHeader(dst.Header(), f.header)
 	dst.WriteHeader(f.Status())
 
 	_, err := dst.Write(b)
@@ -95,8 +100,6 @@ func (f *MemoryResponseWriter) CopyInto(dst http.ResponseWriter) error {
 
 // copyHeader copies every header execpt the "Content-Length" because the header
 // includes the size of the response with the excluded resources.
-// For the "Content-Length" header, we replace the value with the new body size.
-func copyHeader(dst, src http.Header, contentLength int) {
-	src.Set(reverseproxy.ContentLength, strconv.Itoa(contentLength))
+func copyHeader(dst, src http.Header) {
 	maps.Copy(dst, src)
 }
