@@ -61,6 +61,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -2744,6 +2745,34 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	process.RegisterFunc("grpc.health", func() error {
+		// Start loop to monitor for events that are used to update Teleport state.
+		ctx, cancel := context.WithCancel(process.GracefulExitContext())
+		defer cancel()
+
+		eventCh := make(chan Event, 1024)
+		process.ListenForEvents(ctx, TeleportDegradedEvent, eventCh)
+		process.ListenForEvents(ctx, TeleportOKEvent, eventCh)
+
+		for {
+			select {
+			case e := <-eventCh:
+				// TODO: only invoke SetServingStatus if status has actually changed
+				switch e.Name {
+				case TeleportDegradedEvent:
+					logger.InfoContext(process.ExitContext(), "setting health status to not serving")
+					tlsServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
+				case TeleportOKEvent:
+					logger.InfoContext(process.ExitContext(), "setting health status to serving")
+					tlsServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+				}
+			case <-ctx.Done():
+				logger.DebugContext(process.ExitContext(), "Teleport is exiting, returning.")
+				return nil
+			}
+		}
+	})
 
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		logger.InfoContext(process.ExitContext(), "Auth service is starting.", "version", teleport.Version, "git_ref", teleport.Gitref, "listen_address", authAddr)

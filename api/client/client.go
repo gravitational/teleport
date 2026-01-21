@@ -516,6 +516,10 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	dialOpts = append(dialOpts, grpc.WithContextDialer(c.grpcDialer()))
 	dialOpts = append(dialOpts,
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		grpc.WithResolvers(teleportResolverBuilder{
+			// TODO(dustin.specker): do not merch this as-is
+			PingURL: addr + "/webapi/ping",
+		}),
 		grpc.WithChainUnaryInterceptor(
 			metadata.UnaryClientInterceptor,
 			interceptors.GRPCClientUnaryErrorInterceptor,
