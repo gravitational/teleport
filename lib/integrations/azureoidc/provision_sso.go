@@ -36,9 +36,7 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	appRoleAssignmentRequired := false
 	spPatch.AppRoleAssignmentRequired = &appRoleAssignmentRequired
 
-	err := graphClient.UpdateServicePrincipal(ctx, spID, spPatch)
-
-	if err != nil {
+	if err := graphClient.UpdateServicePrincipal(ctx, spID, spPatch); err != nil {
 		return trace.Wrap(err, "failed to enable SSO for service principal")
 	}
 
@@ -65,9 +63,7 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 		AccessToken: optionalClaim,
 	}
 
-	err = graphClient.UpdateApplication(ctx, appObjectID, app)
-
-	if err != nil {
+	if err := graphClient.UpdateApplication(ctx, appObjectID, app); err != nil {
 		return trace.Wrap(err, "failed to set SAML URIs")
 	}
 
@@ -76,19 +72,16 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	// Ref: https://learn.microsoft.com/en-us/graph/api/serviceprincipal-addtokensigningcertificate
 	const displayName = "CN=azure-sso"
 	cert, err := graphClient.CreateServicePrincipalTokenSigningCertificate(ctx, spID, displayName)
-
 	if err != nil {
-		trace.Wrap(err, "failed to create a signing certificate")
+		return trace.Wrap(err, "failed to create a signing certificate")
 	}
 
 	// Set the preferred SAML signing key
 	spPatch = &msgraph.ServicePrincipal{}
 	spPatch.PreferredTokenSigningKeyThumbprint = cert.Thumbprint
 
-	err = graphClient.UpdateServicePrincipal(ctx, spID, spPatch)
-	if err != nil {
+	if err = graphClient.UpdateServicePrincipal(ctx, spID, spPatch); err != nil {
 		return trace.Wrap(err, "failed to set SAML signing key")
 	}
-
 	return nil
 }
