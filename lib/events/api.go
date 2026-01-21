@@ -996,6 +996,9 @@ const (
 // Add an entry to eventsMap in lib/events/events_test.go when you add
 // a new event name here.
 
+// auditSubsystem is the metric subsystem for Audit.
+const auditSubsystem = "audit"
+
 const (
 	// V1 is the V1 version of slice chunks API,
 	// it is 0 because it was not defined before
