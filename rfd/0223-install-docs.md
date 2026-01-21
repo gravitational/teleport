@@ -167,7 +167,7 @@ These sections would be nested under a top-level "Install Teleport" section.
          1. Installation
          2. Upgrading
          3. (Other operational sections as appropriate, e.g., High Availability, Backups, Troubleshooting, etc.)
-      3. etc.
+      2. etc.
    2. Installing Teleport Clusters on Linux Servers
       1. Amazon EC2
          1. Installation
@@ -200,7 +200,9 @@ These sections would be nested under a top-level "Install Teleport" section.
 
 **However, we do not currently have content to fill most of these sections, and many of our existing pages are reused across platforms.**
 
-To account for this, the following organization is proposed as an actionable, short-term solution:
+To account for this, we can start by re-organizing existing content to match the general organizational principle proposed.
+
+For example, the following organization could be an actionable short-term solution until additional content is added:
 
 1. Provisioning a Teleport Cloud Cluster
    1. (Move Cloud cluster provisioning from Introduction -> Installation)
@@ -208,7 +210,7 @@ To account for this, the following organization is proposed as an actionable, sh
    3. (Move Cloud Cluster Upgrades from Introduction -> Upgrading)
 2. Installing Self-Hosted Teleport Clusters
    1. Installing Teleport Clusters on Kubernetes
-      1. (Move from ZTA -> Self-Hosting -> Helm Deployments
+      1. (Move from ZTA -> Self-Hosting -> Helm Deployments)
       2. (Move from Introduction -> Upgrading -> Manual Upgrades -> Self-hosted Teleport clusters on Kubernetes)
       2. Installing Access Graph | Links to Identity Security -> Self-Host TIS -> Helm
       3. Installing Identity Activity Center | Links to Identity Security -> Self-Host TIS -> IAC
@@ -242,7 +244,9 @@ To account for this, the following organization is proposed as an actionable, sh
 8. Uninstall Teleport
    1. (Moved from Installation -> Uninstall Teleport)
 
-The Installing and Upgrading sections in Introduction will be removed entirely.
+(Note that this is not a committed action plan and may change as we make progress.)
+
+The Installing and Upgrading sections in Introduction would be removed entirely.
 
 Notably, cluster operations that are not handled by Cloud should be included in the marketing-branded sections (like Zero Trust Access), not in Install Teleport.
 For example, a guide to configuring a cluster to support AWS KMS would be included in Install Teleport -> Installing Self-Hosted Teleport Clusters -> KMS, while
