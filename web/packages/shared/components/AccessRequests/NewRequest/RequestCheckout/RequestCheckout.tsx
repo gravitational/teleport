@@ -48,14 +48,19 @@ import {
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
-import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
+import {
+  ArrowBack,
+  ChevronDown,
+  ChevronRight,
+  Cross,
+  Warning,
+} from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import {
   LongTermGroupingErrors,
   shouldShowLongTermGroupingErrors,
   UNSUPPORTED_KINDS,
 } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
-import { SecondaryCrossIcon } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/SecondaryCrossIcon';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 import {
   formatAWSRoleARNForDisplay,
@@ -166,49 +171,78 @@ type DisplayRow<T extends PendingListItem> = T & {
   constraints?: ResourceConstraints;
 };
 
+const StyledAWSRoleARNDisplayRow = styled(Flex).attrs({
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  gap: 2,
+})<{ $idx: number; $len: number }>`
+  border-radius: ${({ theme }) => theme.radii[1]}px;
+  border-bottom: ${({ theme, $idx, $len }) =>
+    theme.borders[$idx !== $len - 1 ? 1 : 0]};
+  border-bottom-color: ${({ theme }) =>
+    theme.colors.interactive.tonal.neutral[0]};
+  margin: 0 -${({ theme }) => theme.space[1]}px;
+  padding: ${({ theme }) => theme.space[1] + theme.space[1] / 2}px;
+  transition: all 150ms;
+
+  &:hover,
+  &:focus-visible {
+    background-color: ${({ theme }) => theme.colors.levels.sunken};
+    border-bottom-color: transparent;
+  }
+`;
+
 const AWSConsoleConstraintsList = <T extends PendingListItem>({
   item,
   createAttempt,
   clearAttempt,
   setResourceConstraints,
+  addedResourceConstraints,
 }: {
   item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
   createAttempt: RequestCheckoutProps<T>['createAttempt'];
   clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
   setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+  addedResourceConstraints: RequestCheckoutProps<T>['addedResourceConstraints'];
 }) => (
-  <Flex flexDirection="column" gap={2} mt={1} width="100%">
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
     <Text bold>Role ARNs</Text>
     <Flex flexDirection="column" width="100%">
       {item.constraints.aws_console.role_arns.map((arn, idx) => (
-        <Flex
+        <StyledAWSRoleARNDisplayRow
           key={arn}
-          flexDirection="row"
-          justifyContent="space-between"
-          gap={2}
-          borderBottom={
-            idx !== item.constraints.aws_console.role_arns.length - 1 ? 1 : 0
-          }
-          borderBottomColor="interactive.tonal.neutral.0"
+          $idx={idx}
+          $len={item.constraints.aws_console.role_arns.length}
         >
           <Text style={{ alignContent: 'center' }}>
             {formatAWSRoleARNForDisplay(arn)}
           </Text>
-          <SecondaryCrossIcon
-            clearAttempt={clearAttempt}
-            createAttempt={createAttempt}
-            item={arn}
-            toggleResource={toggleAWSConsoleConstraint(
-              getResourceIDString({
+          <ButtonIcon
+            size={0}
+            title="Remove Role ARN"
+            onClick={() => {
+              clearAttempt();
+              const ridStr = getResourceIDString({
                 cluster: item.clusterName,
                 kind: item.kind,
                 name: item.id,
-              }),
-              item.constraints,
-              setResourceConstraints
-            )}
-          />
-        </Flex>
+              });
+              console.log('toggling role arn', {
+                ridStr,
+                curConstraints: item.constraints,
+                addedResourceConstraints,
+                setResourceConstraints,
+              });
+              toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
       ))}
     </Flex>
   </Flex>
@@ -276,17 +310,8 @@ export function RequestCheckout<T extends PendingListItem>({
       });
       const rc = addedResourceConstraints[rcId];
       return rc ? { ...row, constraints: rc } : row;
-    }) satisfies DisplayRow<T>[];
+    });
   }, [pendingAccessRequests, addedResourceConstraints]);
-
-  // Clear added constraints when switching to Long-Term requests.
-  useEffect(() => {
-    if (isLongTerm && addedResourceConstraints) {
-      for (const key of Object.keys(addedResourceConstraints)) {
-        setResourceConstraints(key as ResourceIDString, undefined);
-      }
-    }
-  }, [isLongTerm, addedResourceConstraints, setResourceConstraints]);
 
   function updateReason(reason: string) {
     setReason(reason);
@@ -409,7 +434,7 @@ export function RequestCheckout<T extends PendingListItem>({
   const renderAfter = (item: DisplayRow<T>) => {
     if (hasResourceConstraints(item, 'aws_console')) {
       return (
-        <tr css={{ borderTop: 'none' }}>
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
           <td colSpan={showClusterNameColumn ? 4 : 3}>
             <Flex justifyContent="space-between" alignItems="center" mt={-2}>
               <AWSConsoleConstraintsList
@@ -417,6 +442,7 @@ export function RequestCheckout<T extends PendingListItem>({
                 setResourceConstraints={setResourceConstraints}
                 clearAttempt={clearAttempt}
                 createAttempt={createAttempt}
+                addedResourceConstraints={addedResourceConstraints}
               />
             </Flex>
           </td>
@@ -1159,6 +1185,16 @@ const StyledTable = styled(Table)`
   border-radius: 8px;
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
+
+  // Handle hovering/focusing constraint rows / their parent row the same.
+  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
+  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
+  [data-render-after-row]:hover,
+  [data-render-after-row]:focus-visible,
+  tr:has(+ [data-render-after-row]:hover),
+  tr:has(+ [data-render-after-row]:focus-visible) {
+    background-color: ${({ theme }) => theme.colors.levels.surface};
+  }
 ` as typeof Table;
 
 const ShortenedText = styled(Text)`

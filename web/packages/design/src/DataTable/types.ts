@@ -96,7 +96,7 @@ export type TableProps<T> = {
      * conditionally render a custom row after either `customRow` or
      * the base table row.
      */
-    renderAfter?(row: T): JSX.Element;
+    renderAfter?(row: T): JSX.Element | null;
   };
 };
 

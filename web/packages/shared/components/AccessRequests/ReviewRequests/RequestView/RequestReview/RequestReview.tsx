@@ -209,7 +209,7 @@ export default function RequestReview({
                             fontSize={1}
                             color="text.slightlyMuted"
                           >
-                            The requested resources are constrained; access
+                            Requested resource(s) include Constraints; access
                             granted via membership in an Access List will be
                             broader than requested.
                           </Text>

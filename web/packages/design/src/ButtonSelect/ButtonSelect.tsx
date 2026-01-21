@@ -95,7 +95,6 @@ export const ButtonSelect = <T extends readonly Option<OptionValue>[]>({
               }
               intent={isActive ? 'primary' : 'neutral'}
               disabled={option.disabled || disabled}
-              px={0}
             >
               {option.label}
             </ButtonSelectButton>

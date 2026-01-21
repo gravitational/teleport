@@ -506,29 +506,24 @@ function Comment({
     ...resource.id,
     ...resource.details,
     name: resource.details?.friendlyName || formattedName(resource),
-    constraints: 'constraints' in resource ? resource.constraints : undefined,
+    constraints: resource.constraints,
   }));
 
-  const renderConstraints = (r: (typeof data)[number]) => {
-    if (hasResourceConstraints(r, 'aws_console')) {
-      return <AwsConsoleConstraintsList resource={r} />;
-    }
-    return null;
-  };
+  const renderConstraints = (r: NonNullable<typeof data>[number]) =>
+    hasResourceConstraints(r, 'aws_console') ? (
+      <AwsConsoleConstraintsList resource={r} />
+    ) : null;
 
-  const renderAfter = (r: (typeof data)[number]) => {
-    if (r.constraints) {
-      return (
-        <tr style={{ borderTop: 'none' }}>
-          <td colSpan={3}>
-            <Flex flexDirection="column" gap={1} mt={-2}>
-              {renderConstraints(r)}
-            </Flex>
-          </td>
-        </tr>
-      );
-    }
-  };
+  const renderAfter = (r: NonNullable<typeof data>[number]) =>
+    r.constraints ? (
+      <tr style={{ borderTop: 'none' }} data-render-after-row>
+        <td colSpan={3}>
+          <Flex flexDirection="column" gap={1} mt={-2}>
+            {renderConstraints(r)}
+          </Flex>
+        </td>
+      </tr>
+    ) : null;
 
   return (
     <Box
@@ -546,7 +541,7 @@ function Comment({
           {comment}
         </Box>
       )}
-      {resources?.length > 0 && (
+      {!!data?.length && (
         <Box
           pt={comment ? 0 : 3}
           pl={3}
@@ -751,6 +746,16 @@ const StyledTable = styled(Table)`
 
   & > tbody > tr > td {
     vertical-align: middle;
+  }
+
+  // Handle hovering/focusing constraint rows / their parent row the same.
+  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
+  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
+  [data-render-after-row]:hover,
+  [data-render-after-row]:focus-visible,
+  tr:has(+ [data-render-after-row]:hover),
+  tr:has(+ [data-render-after-row]:focus-visible) {
+    background-color: ${({ theme }) => theme.colors.levels.surface};
   }
 ` as typeof Table;
 

@@ -202,7 +202,7 @@ const isConstraintsVariant = <K extends ResourceConstraintsKind>(
   c: ResourceConstraints | undefined,
   key: K
 ): c is ResourceConstraintsVariant<K> =>
-  !!c && typeof c === 'object' && key in c;
+  !!c && typeof c === 'object' && key in c && !!c[key];
 
 /**
  * Narrows `item.constraints` to the given variant (e.g., 'awsConsole').
@@ -223,7 +223,7 @@ declare const __resourceIDBrand: unique symbol;
  * Use {@link getResourceIDString} to construct; this is a branded type
  * to ensure compile-time type safety.
  */
-export type ResourceIDString = string & {
+export type ResourceIDString = `${string}/${string}/${string}` & {
   [__resourceIDBrand]: 'ResourceIDString';
 };
 

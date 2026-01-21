@@ -19,12 +19,13 @@
 import { formatDuration, intervalToDuration } from 'date-fns';
 
 import {
+  getResourceIDString,
   ResourceConstraints,
-  ResourceConstraintsVariant,
   ResourceIDString,
+  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
-import { ResourceMap } from '../NewRequest';
+import { PendingListItem, ResourceMap } from '../NewRequest';
 
 export function getFormattedDurationTxt({
   start,
@@ -73,20 +74,26 @@ export const formatAWSRoleARNForDisplay = (arn: string) => {
  * Toggles an AWS Console constraint by removing the specified ARN from the current constraints.
  * If no RoleARNs remain after removal, it clears the constraint.
  */
-export const toggleAWSConsoleConstraint =
-  (
+export const toggleAWSConsoleConstraint = <T extends PendingListItem>(
+  item: WithResourceConstraints<
+    'aws_console',
+    Pick<T, 'id' | 'kind' | 'clusterName'>
+  >,
+  arn: string,
+  set: (
     key: ResourceIDString,
-    curr: ResourceConstraintsVariant<'aws_console'>,
-    set?: (
-      key: ResourceIDString,
-      constraints: ResourceConstraints | undefined
-    ) => void
-  ) =>
-  (arn: string) => {
-    const newRc = {
-      aws_console: {
-        role_arns: curr.aws_console.role_arns.filter(a => a !== arn),
-      },
-    };
-    set?.(key, newRc.aws_console.role_arns.length ? newRc : undefined);
+    constraints: ResourceConstraints | undefined
+  ) => void
+) => {
+  const key = getResourceIDString({
+    name: item.id,
+    kind: item.kind,
+    cluster: item.clusterName,
+  });
+  const newRc = {
+    aws_console: {
+      role_arns: item.constraints.aws_console.role_arns.filter(a => a !== arn),
+    },
   };
+  set(key, newRc.aws_console.role_arns.length ? newRc : undefined);
+};
