@@ -24,8 +24,8 @@ import { PaginatedResource } from 'gen-proto-ts/teleport/lib/teleterm/v1/service
 import * as api from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
 import {
-  CheckPreRunRequirementsResponse,
-  WindowsSystemServiceStatus,
+  CheckInstallTimeRequirementsResponse,
+  WindowsServiceStatus,
 } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckReport,
@@ -209,11 +209,11 @@ export function reportOneOfIsSSHConfigurationReport(
   return report.oneofKind === 'sshConfigurationReport';
 }
 
-export function platformStatusOneOfIsWindowsSystemServiceStatus(
-  status: CheckPreRunRequirementsResponse['platformStatus']
+export function statusOneOfIsWindowsServiceStatus(
+  status: CheckInstallTimeRequirementsResponse['status']
 ): status is {
-  oneofKind: 'windowsSystemServiceStatus';
-  windowsSystemServiceStatus: WindowsSystemServiceStatus;
+  oneofKind: 'windowsServiceStatus';
+  windowsServiceStatus: WindowsServiceStatus;
 } {
-  return status.oneofKind === 'windowsSystemServiceStatus';
+  return status.oneofKind === 'windowsServiceStatus';
 }

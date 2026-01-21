@@ -51,21 +51,21 @@ func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, err
 	}, nil
 }
 
-// CheckPreRunRequirements verifies the existence of the VNet system service, which is installed only in per-machine setups.
-func (s *Service) CheckPreRunRequirements(_ context.Context, _ *api.CheckPreRunRequirementsRequest) (*api.CheckPreRunRequirementsResponse, error) {
+// CheckInstallTimeRequirements verifies the existence of the VNet system service, which is installed only in per-machine setups.
+func (s *Service) CheckInstallTimeRequirements(_ context.Context, _ *api.CheckInstallTimeRequirementsRequest) (*api.CheckInstallTimeRequirementsResponse, error) {
 	err := vnet.VerifyServiceInstalled()
 	if err == nil {
-		return &api.CheckPreRunRequirementsResponse{
-			PlatformStatus: &api.CheckPreRunRequirementsResponse_WindowsSystemServiceStatus{
-				WindowsSystemServiceStatus: api.WindowsSystemServiceStatus_WINDOWS_SYSTEM_SERVICE_STATUS_OK,
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_OK,
 			},
 		}, nil
 	}
 
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-		return &api.CheckPreRunRequirementsResponse{
-			PlatformStatus: &api.CheckPreRunRequirementsResponse_WindowsSystemServiceStatus{
-				WindowsSystemServiceStatus: api.WindowsSystemServiceStatus_WINDOWS_SYSTEM_SERVICE_STATUS_DOES_NOT_EXIST,
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST,
 			},
 		}, nil
 

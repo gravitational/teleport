@@ -24,8 +24,8 @@ import { AutoConfigureSSHResponse } from "./vnet_service_pb";
 import { AutoConfigureSSHRequest } from "./vnet_service_pb";
 import { RunDiagnosticsResponse } from "./vnet_service_pb";
 import { RunDiagnosticsRequest } from "./vnet_service_pb";
-import { CheckPreRunRequirementsResponse } from "./vnet_service_pb";
-import { CheckPreRunRequirementsRequest } from "./vnet_service_pb";
+import { CheckInstallTimeRequirementsResponse } from "./vnet_service_pb";
+import { CheckInstallTimeRequirementsRequest } from "./vnet_service_pb";
 import { GetBackgroundItemStatusResponse } from "./vnet_service_pb";
 import { GetBackgroundItemStatusRequest } from "./vnet_service_pb";
 import { GetServiceInfoResponse } from "./vnet_service_pb";
@@ -67,13 +67,12 @@ export interface IVnetService extends grpc.UntypedServiceImplementation {
      */
     getBackgroundItemStatus: grpc.handleUnaryCall<GetBackgroundItemStatusRequest, GetBackgroundItemStatusResponse>;
     /**
-     * CheckPreRunRequirements performs checks before running the VNet service.
-     * Currently Windows only.
-     * TODO(gzdunek): Replace GetBackgroundItemStatus with a platform-dependant check here.
+     * CheckInstallTimeRequirements validates install-time prerequisites (for example, VNet service presence) that can
+     * only be changed by reinstalling the app.
      *
-     * @generated from protobuf rpc: CheckPreRunRequirements(teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsRequest) returns (teleport.lib.teleterm.vnet.v1.CheckPreRunRequirementsResponse);
+     * @generated from protobuf rpc: CheckInstallTimeRequirements(teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest) returns (teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse);
      */
-    checkPreRunRequirements: grpc.handleUnaryCall<CheckPreRunRequirementsRequest, CheckPreRunRequirementsResponse>;
+    checkInstallTimeRequirements: grpc.handleUnaryCall<CheckInstallTimeRequirementsRequest, CheckInstallTimeRequirementsResponse>;
     /**
      * RunDiagnostics runs a set of heuristics to determine if VNet actually works on the device, that
      * is receives network traffic and DNS queries. RunDiagnostics requires VNet to be started.
@@ -141,15 +140,15 @@ export const vnetServiceDefinition: grpc.ServiceDefinition<IVnetService> = {
         responseSerialize: value => Buffer.from(GetBackgroundItemStatusResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetBackgroundItemStatusRequest.toBinary(value))
     },
-    checkPreRunRequirements: {
-        path: "/teleport.lib.teleterm.vnet.v1.VnetService/CheckPreRunRequirements",
-        originalName: "CheckPreRunRequirements",
+    checkInstallTimeRequirements: {
+        path: "/teleport.lib.teleterm.vnet.v1.VnetService/CheckInstallTimeRequirements",
+        originalName: "CheckInstallTimeRequirements",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => CheckPreRunRequirementsResponse.fromBinary(bytes),
-        requestDeserialize: bytes => CheckPreRunRequirementsRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(CheckPreRunRequirementsResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(CheckPreRunRequirementsRequest.toBinary(value))
+        responseDeserialize: bytes => CheckInstallTimeRequirementsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => CheckInstallTimeRequirementsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(CheckInstallTimeRequirementsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(CheckInstallTimeRequirementsRequest.toBinary(value))
     },
     runDiagnostics: {
         path: "/teleport.lib.teleterm.vnet.v1.VnetService/RunDiagnostics",

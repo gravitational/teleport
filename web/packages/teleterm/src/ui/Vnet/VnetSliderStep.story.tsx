@@ -19,7 +19,7 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { useEffect } from 'react';
 
 import { Box } from 'design';
-import { WindowsSystemServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
+import { WindowsServiceStatus } from 'gen-proto-ts/teleport/lib/teleterm/vnet/v1/vnet_service_pb';
 import {
   CheckAttemptStatus,
   CheckReportStatus,
@@ -125,11 +125,11 @@ function VnetSliderStep(props: StoryProps) {
   const appContext = new MockAppContext();
 
   if (props.windowsVNetServiceNotFound) {
-    appContext.vnet.checkPreRunRequirements = () =>
+    appContext.vnet.checkInstallTimeRequirements = () =>
       new MockedUnaryCall({
-        platformStatus: {
-          oneofKind: 'windowsSystemServiceStatus' as const,
-          windowsSystemServiceStatus: WindowsSystemServiceStatus.DOES_NOT_EXIST,
+        status: {
+          oneofKind: 'windowsServiceStatus' as const,
+          windowsServiceStatus: WindowsServiceStatus.DOES_NOT_EXIST,
         },
       });
   }
