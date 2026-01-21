@@ -14,7 +14,12 @@ metadata:
   {{- toYaml .Values.extraLabels.podDisruptionBudget | nindent 4 }}
 {{- end }}
 spec:
+{{- if .Values.highAvailability.podDisruptionBudget.minAvailable }}
   minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
+{{- end }}
+{{- if .Values.highAvailability.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.highAvailability.podDisruptionBudget.maxUnavailable }}
+{{- end }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
