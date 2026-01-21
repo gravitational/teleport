@@ -3057,7 +3057,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 
 	vmMatcher := vmMatcherFn()
-	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+
+	cfg, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: uuid.NewString()},
 		discoveryconfig.Spec{
 			DiscoveryGroup: defaultDiscoveryGroup,
@@ -3068,6 +3069,10 @@ func TestAzureVMDiscovery(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
+	defaultDiscoveryConfig := func() *discoveryconfig.DiscoveryConfig {
+		return cfg.Clone()
+	}
 
 	foundAzureVMs := func() []*armcompute.VirtualMachine {
 		return []*armcompute.VirtualMachine{
@@ -3159,14 +3164,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 		{
 			name:                   "no nodes present, 1 found using dynamic matchers",
 			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig,
+			discoveryConfig:        defaultDiscoveryConfig(),
 			staticMatchers:         Matchers{},
 			wantInstalledInstances: []string{"testvm", "testvm-integration"},
 		},
 		{
 			name:                   "installation failure creates user task",
 			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig,
+			discoveryConfig:        defaultDiscoveryConfig(),
 			staticMatchers:         Matchers{},
 			wantInstalledInstances: []string{},
 			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
@@ -3195,7 +3200,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 								"test-vmid-integration": {
 									VmId:            "test-vmid-integration",
 									Name:            "testvm-integration",
-									DiscoveryConfig: defaultDiscoveryConfig.GetName(),
+									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
 								},
 							},
