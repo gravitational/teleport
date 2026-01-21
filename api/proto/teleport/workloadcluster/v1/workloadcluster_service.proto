@@ -32,7 +32,7 @@ service WorkloadClusterService {
   // ListWorkloadClusters returns WorkloadClusters.
   rpc ListWorkloadClusters(ListWorkloadClustersRequest) returns (ListWorkloadClustersResponse);
 
-  // CreateWorkloadCluster updates WorkloadClusters.
+  // UpdateWorkloadCluster updates WorkloadClusters.
   rpc UpdateWorkloadCluster(UpdateWorkloadClusterRequest) returns (WorkloadCluster);
 
   // UpsertWorkloadCluster creates a new WorkloadCluster or replaces an existing WorkloadCluster.
