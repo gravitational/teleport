@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -83,10 +84,9 @@ func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Co
 	}, nil
 }
 
-func TestExportAuthorities(t *testing.T) {
+func TestExportAllAuthorities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	const localClusterName = "localcluster"
 
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -94,7 +94,7 @@ func TestExportAuthorities(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err, "failed to create authtest.NewAuthServer")
-	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
 
 	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
 		cert, err := x509.ParseCertificate([]byte(s))
@@ -295,6 +295,8 @@ func TestExportAuthorities(t *testing.T) {
 			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
 			assertFunc func(t *testing.T, output string),
 		) {
+			ctx := t.Context()
+
 			authorities, err := exportFunc(ctx, mockedAuthClient, tt.req)
 			tt.errorCheck(t, err)
 			if err != nil {
@@ -325,7 +327,7 @@ func TestExportAuthorities(t *testing.T) {
 
 // Tests a scenario similar to
 // https://github.com/gravitational/teleport/issues/35444.
-func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
+func TestExportAllAuthorities_multipleActiveKeys(t *testing.T) {
 	t.Parallel()
 
 	softwareKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -419,7 +421,6 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 		clusterName:     clusterName,
 		certAuthorities: []types.CertAuthority{userCA},
 	}
-	ctx := context.Background()
 
 	tests := []struct {
 		name                    string
@@ -464,6 +465,8 @@ func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 				exportAllFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
 				want []*ExportedAuthority,
 			) {
+				ctx := t.Context()
+
 				got, err := exportAllFunc(ctx, authClient, *test.req)
 				require.NoError(t, err, "exportAllFunc errored")
 				if diff := cmp.Diff(want, got); diff != "" {
@@ -516,13 +519,12 @@ func (m *multiCAAuthClient) PerformMFACeremony(
 func TestExportIntegrationAuthorities(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
 
 	fingerprint, err := sshutils.AuthorizedKeyFingerprint([]byte(fixtures.SSHCAPublicKey))
 	require.NoError(t, err)
@@ -595,6 +597,8 @@ func TestExportIntegrationAuthorities(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
 			authorities, err := ExportIntegrationAuthorities(ctx, mockedAuthClient, tc.req)
 			tc.checkError(t, err)
 			if tc.checkOutput != nil {
