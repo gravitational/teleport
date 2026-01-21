@@ -279,7 +279,7 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.workloadIdentity;
   }
 
-  geClientIpRestrictionAccess() {
+  getClientIpRestrictionAccess() {
     return this.state.acl.clientIpRestriction;
   }
 }
