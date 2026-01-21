@@ -47,7 +47,38 @@ func AWSConfigFilePath() (string, error) {
 // UpsertSSOSession sets the sso_start_url and sso_region for the sso-session with name sessionName.
 // File is created if it does not exist.
 func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string) error {
-	sectionName := "sso-session " + sessionName
+	return trace.Wrap(upsertManagedSection(configFilePath, "sso-session "+sessionName, func(section *ini.Section) error {
+		if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_region", ssoRegion); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}))
+}
+
+// UpsertSSOProfile sets the sso_session, sso_account_id and sso_role_name for the profile with name profileName.
+// File is created if it does not exist.
+func UpsertSSOProfile(configFilePath, profileName, ssoSession, ssoAccountID, ssoRoleName string) error {
+	return trace.Wrap(upsertManagedSection(configFilePath, "profile "+profileName, func(section *ini.Section) error {
+		if section.HasKey("credential_process") {
+			return trace.BadParameter("%s: section %q contains 'credential_process' and cannot be converted to an SSO profile, remove the section and try again", configFilePath, section.Name())
+		}
+		if _, err := section.NewKey("sso_session", ssoSession); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_account_id", ssoAccountID); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_role_name", ssoRoleName); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}))
+}
+
+func upsertManagedSection(configFilePath, sectionName string, updateFunc func(*ini.Section) error) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true,
 		Loose:             true,
@@ -70,10 +101,7 @@ func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string
 	}
 
 	section.Comment = ownershipComment
-	if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := section.NewKey("sso_region", ssoRegion); err != nil {
+	if err := updateFunc(section); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -82,6 +82,18 @@ func onAWSProfile(cf *CLIConf) error {
 			}
 			writtenSessions[sessionName] = struct{}{}
 		}
+
+		accountName, _ := app.GetLabel("teleport.dev/account-name")
+		if accountName == "" {
+			accountName = awsIC.AccountID
+		}
+
+		for _, ps := range awsIC.PermissionSets {
+			profileName := strings.ToLower(fmt.Sprintf("teleport-awsic-%s-%s", accountName, ps.Name))
+			if err := awsconfigfile.UpsertSSOProfile(configPath, profileName, sessionName, awsIC.AccountID, ps.Name); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
