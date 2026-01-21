@@ -1,0 +1,79 @@
+---
+title: Access Request Annotations
+sidebar_label: Annotations
+sidebar_position: 4
+description: Explains how to include annotations in Access Requests for use with Teleport plugins.
+---
+
+When a user creates an Access Request, the Teleport Auth Service can write
+arbitrary metadata to the request. Teleport integrations that consume the access
+request can read the metadata in order to direct their behavior.
+
+Annotations are key value pairs in which a single key corresponds to a list of
+values. All values are strings.
+
+## Plugins that support request annotations
+
+The following Teleport-supported Access Request plugins read request
+annotations:
+
+|Integration|Annotation keys|How it uses annotations|
+|---|---|---|
+|Pagerduty|`pagerduty_notify_service`, `pagerduty_services`|Opens an incident in the service named in `pagerduty_notify_service` when a user submits an Access Request. If a user is on the on-call rotation for a service named in `pagerduty_services`, Teleport will approve any Access Request opened by the user.|
+|Opsgenie|`teleport.dev/notify-services`, `teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for the of the services listed in `teleport.dev/schedules`. It also creates an alert in the services named in `teleport.dev/notify-services` when a user creates an Access Request. |
+|ServiceNow|`teleport.dev/notify-services`, `teleport.dev/schedules`|The integration approves a user's Access Request if the user is on call for the of the services listed in `teleport.dev/schedules`. It also creates an alert in the services named in `teleport.dev/notify-services` when a user creates an Access Request. |
+
+## Allowing and denying annotations
+
+The Teleport Auth Service evaluates Access Request annotations in a user's roles
+by applying the following logic: for all allowed annotation values with a given
+key, check whether there is also a denied annotation value with the same key. If
+there is, skip it. Otherwise, add the annotation to the Access Request.
+
+For example, let's say we have defined a role with the following fields:
+
+```yaml
+allow:
+  request:
+    annotations:
+      pagerduty_services:
+        - data-writer
+        - data-reader
+```
+
+We have also defined a role with these fields:
+
+```yaml
+deny:
+  request:
+    annotations:
+      pagerduty_services:
+        - data-reader
+```
+
+In this case, the final annotation mapping for the user's Access Requests would
+contain the annotation:
+
+```yaml
+pagerduty_services:
+ - data-writer
+```
+
+## Reading annotations in custom plugins
+
+If you [write your own Access Request plugin](../plugins/how-to-build.mdx), the
+program can access system annotations using a function similar to the following:
+
+```go
+func getMyAnnotation(req types.AccessRequest) ([]string, error) {
+	result, ok := req.GetSystemAnnotations()["my-annotation"]
+	if !ok {
+		return nil, trace.NotFound("annotation not found")
+	}
+	return result, nil
+}
+```
+
+This function uses the `GetSystemAnnotations` method of the
+`types.AccessRequest` type to get all the annotation values of an Access
+Requests with the key `my-annotation`.
