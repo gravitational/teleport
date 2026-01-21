@@ -44,6 +44,44 @@ func AWSConfigFilePath() (string, error) {
 	return filepath.Join(homedir, ".aws", "config"), nil
 }
 
+// UpsertSSOSession sets the sso_start_url for the sso-session with name sessionName.
+// File is created if it does not exist.
+func UpsertSSOSession(configFilePath, sessionName, ssoStartURL string) error {
+	sectionName := "sso-session " + sessionName
+	iniFile, err := ini.LoadSources(ini.LoadOptions{
+		AllowNestedValues: true,
+		Loose:             true,
+	}, configFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var section *ini.Section
+	if iniFile.HasSection(sectionName) {
+		section = iniFile.Section(sectionName)
+		if !strings.Contains(section.Comment, ownershipComment) {
+			return trace.BadParameter("%s: section %q is not managed by Teleport, remove the section and try again", configFilePath, sectionName)
+		}
+	} else {
+		section, err = iniFile.NewSection(sectionName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	section.Comment = ownershipComment
+	if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create the directory if it does not exist.
+	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o755); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(iniFile.SaveTo(configFilePath))
+}
+
 // SetDefaultProfileCredentialProcess sets the credential_process for the default profile.
 // File is created if it does not exist.
 func SetDefaultProfileCredentialProcess(configFilePath, credentialProcess string) error {

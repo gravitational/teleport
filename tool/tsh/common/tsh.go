@@ -1014,6 +1014,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials.").StringVar(&cf.Exec)
 	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
+	// Generate AWS profiles via AWS Identity Center integration.
+	awsProfile := app.Command("aws-profile", "Write AWS profiles retrieved from the AWS Identity Center integration to the AWS config file.")
+
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
@@ -1878,6 +1881,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
+	case awsProfile.FullCommand():
+		err = onAWSProfile(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
 	case gcloud.FullCommand():
