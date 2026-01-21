@@ -1,0 +1,238 @@
+# JumpServer/Teleport Just-In-Time (JIT) Access System
+# Zero Trust with Approval Workflow + Auto-Expiry
+# Enterprise Security Lab
+---
+# 1. JIT REQUESTER ROLE (Users who need temporary access)
+kind: role
+version: v7
+metadata:
+  name: jit-requester
+  description: "Base role for users who can request JIT access"
+spec:
+  options:
+    # Users in this role can request elevated access
+    max_session_ttl: 12h
+  allow:
+    # Can request these roles temporarily
+    request:
+      roles: 
+        - jit-dev-access
+        - jit-db-access
+      # Search for resources to understand what they're requesting
+      search_as_roles:
+        - jit-dev-access
+        - jit-db-access
+    # Basic read-only access while waiting for approval
+    logins: ["readonly"]
+    node_labels:
+      env: ["dev"]
+    rules:
+      - resources: ["node", "ssh_session"]
+        verbs: ["list", "read"]
+
+---
+# 2. APPROVER ROLE (Managers/Security team)
+kind: role
+version: v7
+metadata:
+  name: jit-approver
+  description: "Can approve/deny JIT access requests"
+spec:
+  allow:
+    # Approval permissions
+    review_requests:
+      roles: 
+        - jit-dev-access
+        - jit-db-access
+      # Conditions for approval
+      where: 'contains(user.spec.traits["team"], "engineering")'
+    # Can view all resources to make informed decisions
+    rules:
+      - resources: ["access_request", "node", "user", "role"]
+        verbs: ["list", "read", "update"]
+
+---
+# 3. JIT DEV ACCESS ROLE (Granted temporarily after approval)
+kind: role
+version: v7
+metadata:
+  name: jit-dev-access
+  description: "Temporary dev server access (auto-expires in 2h)"
+spec:
+  options:
+    # ZERO TRUST CONTROLS
+    max_session_ttl: 2h              # Hard 2-hour limit
+    pin_source_ip: true              # Lock to requesting IP
+    require_session_mfa: true        # MFA on every connection
+    
+    # SESSION RECORDING (compliance/audit)
+    forward_agent: false             # Block SSH agent forwarding
+    record_session:
+      default: best_effort           # Always record
+      desktop: true
+    
+    # ACCESS REQUEST CONFIG
+    request_access: always           # Force approval workflow
+    max_connections: 5               # Limit concurrent sessions
+    
+  allow:
+    # PERMITTED ACTIONS
+    logins: ["ubuntu", "developer"]
+    node_labels:
+      env: "dev"                     # Only dev environment
+      tier: ["app", "worker"]        # Specific server types
+    
+    # Commands allowed (read/restart services)
+    rules:
+      - resources: ["node", "ssh_session"]
+        verbs: ["list", "read"]
+      - resources: ["session"]
+        verbs: ["list", "read"]
+    
+    # Required for approval workflow
+    request:
+      roles: ["jit-approver"]        # Who can approve
+      thresholds:
+        - approve: 1                 # Need 1 approval
+          deny: 1                    # Or 1 denial to reject
+      annotations:
+        - key: "request_reason"      # Require justification
+          value: ".*"                # Any non-empty string
+        - key: "ticket_id"           # Link to Jira/ServiceNow
+          value: "[A-Z]+-[0-9]+"     # Format: PROJ-1234
+
+  deny:
+    # EXPLICIT BLOCKS
+    logins: ["root", "admin"]        # No privileged users
+    node_labels:
+      env: ["prod", "staging"]       # No production access
+      security: ["high"]             # No sensitive systems
+
+---
+# 4. JIT DATABASE ACCESS ROLE (Separate DB permissions)
+kind: role
+version: v7
+metadata:
+  name: jit-db-access
+  description: "Temporary read-only database access (1h expire)"
+spec:
+  options:
+    max_session_ttl: 1h              # Shorter for DB access
+    pin_source_ip: true
+    require_session_mfa: true
+    request_access: always
+    
+  allow:
+    # Database-specific permissions
+    db_labels:
+      env: "dev"
+      type: ["postgres", "mysql"]
+    db_names: ["app_dev", "analytics_dev"]
+    db_users: ["readonly", "analyst"]
+    db_roles: ["pg_read_all_data"]
+    
+    request:
+      roles: ["jit-approver"]
+      thresholds:
+        - approve: 1
+          deny: 1
+      annotations:
+        - key: "request_reason"
+          value: ".*"
+    
+  deny:
+    db_labels:
+      env: ["prod"]
+    db_names: ["*_prod", "*_production"]
+    db_users: ["admin", "root", "postgres"]
+
+---
+# 5. ACCESS REQUEST PLUGIN CONFIG (Slack/PagerDuty notifications)
+kind: plugin
+version: v1
+metadata:
+  name: access-request-slack
+spec:
+  settings:
+    recipients:
+      # Notify in Slack when access requested
+      - name: "engineering-approvers"
+        kind: "slack"
+        data:
+          channel: "#security-approvals"
+    
+    # Auto-escalate if no response in 30min
+    escalation:
+      - duration: 30m
+        recipients:
+          - name: "security-team"
+            kind: "slack"
+            data:
+              channel: "#security-urgent"
+
+---
+# 6. SESSION RECORDING CONFIG
+kind: session_recording_config
+version: v2
+metadata:
+  name: recording-config
+spec:
+  mode: best_effort  # Or "strict" to block unrecorded sessions
+  # Retention
+  enabled: true
+  max_age: 90d       # Keep recordings for 90 days
+  
+---
+# 7. CLUSTER AUTH PREFERENCE (MFA enforcement)
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: on           # Require MFA
+  webauthn:
+    rp_id: "teleport.example.com"
+  require_session_mfa: true   # MFA per session (not just login)
+  disconnect_expired_cert: true
+
+---
+# ===============================================
+# DEPLOYMENT SCRIPT
+# ===============================================
+# Save all above configs to: jit-access-config.yaml
+# Then run:
+#
+# 1. Apply configuration:
+#    tctl create -f jit-access-config.yaml
+#
+# 2. Create test users:
+#    tctl users add alice --roles=jit-requester
+#    tctl users add bob --roles=jit-approver
+#
+# 3. Request access (as alice):
+#    tsh request create --roles=jit-dev-access \
+#      --reason="Debug memory leak in service" \
+#      --request-id="DEVOPS-1234"
+#
+# 4. Approve request (as bob):
+#    tsh request approve <request-id>
+#
+# 5. Assume approved role (as alice):
+#    tsh login --request-id=<request-id>
+#
+# 6. Access expires automatically after 2h
+#
+# ===============================================
+# MONITORING & ALERTS
+# ===============================================
+# Query active JIT sessions:
+#   tsh ls --format=json | jq '.[] | select(.labels.env=="dev")'
+#
+# Audit access requests:
+#   tctl get access_request --format=json
+#
+# Check session recordings:
+#   tsh recordings ls
+#
+# ===============================================
