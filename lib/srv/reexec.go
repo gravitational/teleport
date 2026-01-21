@@ -721,10 +721,6 @@ func RunNetworking() (code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	writeErrorToConn := func(conn io.Writer, err error) {
-		conn.Write([]byte(err.Error()))
-	}
-
 	// Maintain a list of file paths to cleanup at the end of the process. This
 	// ensures that file cleanup is handled by the child in cases where the parent
 	// fails to cleanup due to filesystem namespace discrepancy (pam_namespace)
@@ -752,25 +748,25 @@ func RunNetworking() (code int, err error) {
 				// parent connection closed, process should exit.
 				return teleport.RemoteCommandSuccess, nil
 			}
-			writeErrorToConn(parentConn, trace.Wrap(err, "error reading networking request from parent"))
+			slog.ErrorContext(ctx, "error reading networking request from parent", "err", err)
 			continue
 		}
 
 		if fn == 0 {
-			writeErrorToConn(parentConn, trace.BadParameter("networking request requires a control file"))
+			slog.ErrorContext(ctx, "networking request missing control file")
 			continue
 		}
 
 		requestConn, err := uds.FromFile(fbuf[0])
 		_ = fbuf[0].Close()
 		if err != nil {
-			writeErrorToConn(parentConn, trace.Wrap(err, "failed to get a connection from control file"))
+			slog.ErrorContext(ctx, "failed to get a connection from control file", "err", err)
 			continue
 		}
 
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
-			writeErrorToConn(requestConn, trace.Wrap(err, "error parsing networking request"))
+			requestConn.Write([]byte(trace.Wrap(err, "error parsing networking request").Error()))
 			_ = requestConn.Close()
 			continue
 		}
