@@ -33,7 +33,7 @@ import (
 
 func translateFSO(fso *tdpbv1.FileSystemObject) legacy.FileSystemObject {
 	isEmpty := uint8(0)
-	if !fso.IsEmpty {
+	if fso.IsEmpty {
 		isEmpty = 1
 	}
 	return legacy.FileSystemObject{
@@ -412,7 +412,8 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Create_{
 				Create: &tdpbv1.SharedDirectoryRequest_Create{
-					Path: m.Path,
+					Path:     m.Path,
+					FileType: m.FileType,
 				},
 			},
 		}}, nil
@@ -539,6 +540,6 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			ErrorCode:    m.ErrCode,
 		}}, nil
 	default:
-		return nil, trace.Errorf("Could not translate to  Encountered unexpected message type %T", m)
+		return nil, trace.Errorf("Could not translate to TDPB. Encountered unexpected message type %T", m)
 	}
 }
