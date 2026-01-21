@@ -129,7 +129,7 @@ func (h *Handler) createDesktopConnection(
 	}
 	screenSpec, ok := msg.(tdp.ClientScreenSpec)
 	if !ok {
-		return sendTDPError(trace.BadParameter("client sent unexpected message %T", msg))
+		return sendTDPError(trace.BadParameter("browser sent unexpected message %T", msg))
 	}
 
 	width, height := screenSpec.Width, screenSpec.Height
@@ -152,7 +152,7 @@ func (h *Handler) createDesktopConnection(
 	}
 	keyboardLayout, gotKeyboardLayout := msg.(tdp.ClientKeyboardLayout)
 	if !gotKeyboardLayout {
-		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
+		log.InfoContext(ctx, "Browser did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
 		withheld = append(withheld, msg)
 	}
 
@@ -228,7 +228,7 @@ func (h *Handler) createDesktopConnection(
 			return sendTDPError(err)
 		}
 	} else {
-		log.DebugContext(ctx, "Client sent keyboard layout but agent is too old", "agent_version", version)
+		log.DebugContext(ctx, "Browser sent keyboard layout but agent is too old", "agent_version", version)
 	}
 
 	for _, msg := range withheld {
@@ -618,7 +618,7 @@ func handleProxyWebsocketConnErr(ctx context.Context, proxyWsConnErr error, log 
 			switch closeErr.Code {
 			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
 				websocket.CloseGoingAway: // when the user closes the tab
-				log.DebugContext(ctx, "Web socket closed by client", "close_code", closeErr.Code)
+				log.DebugContext(ctx, "Web socket closed by browser", "close_code", closeErr.Code)
 				return
 			}
 			return
