@@ -155,7 +155,7 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	log.Info("Updating podSpec with image", "image", image.String())
-	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
+	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, r.ContainerName, image.String())
 	if err != nil {
 		log.Error(err, "Unexpected error, not updating.")
 		if err := r.writeStatus(ctx, &obj, currentVersion.String(), true); err != nil {
