@@ -21,6 +21,7 @@ package common
 import (
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -31,6 +32,13 @@ import (
 	"github.com/gravitational/teleport/lib/aws/awsconfigfile"
 	"github.com/gravitational/teleport/lib/client"
 )
+
+type awsProfileInfo struct {
+	profile   string
+	account   string
+	accountID string
+	role      string
+}
 
 // onAWSProfile generates AWS configuration for AWS Identity Center integration.
 // It's a noop if there are no AWS Identity Center integrations.
@@ -64,44 +72,51 @@ func onAWSProfile(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	writtenSessions := make(map[string]struct{})
-
-	type profileInfo struct {
-		profile     string
-		account     string
-		accountID   string
-		role        string
+	writtenProfiles, err := writeAWSConfig(configPath, cf.AWSSSORegion, resources)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	var writtenProfiles []profileInfo
+
+	writeAWSProfileSummary(cf.Stdout(), configPath, writtenProfiles)
+
+	return nil
+}
+
+func writeAWSConfig(configPath, ssoRegion string, resources types.EnrichedResources) ([]awsProfileInfo, error) {
+	writtenSessions := make(map[string]struct{})
+	var writtenProfiles []awsProfileInfo
 
 	for _, resource := range resources {
-		app := resource.ResourceWithLabels.(types.AppServer).GetApp()
-		awsIC := app.GetIdentityCenter()
+		app, ok := resource.ResourceWithLabels.(types.AppServer)
+		if !ok {
+			continue
+		}
+		awsIC := app.GetApp().GetIdentityCenter()
 		if awsIC == nil {
 			continue
 		}
 
-		startURL := extractAWSStartURL(app.GetURI())
+		startURL := extractAWSStartURL(app.GetApp().GetURI())
 		sessionName := extractAWSSessionName(startURL)
 
 		if _, ok := writtenSessions[sessionName]; !ok {
-			if err := awsconfigfile.UpsertSSOSession(configPath, sessionName, startURL, cf.AWSSSORegion); err != nil {
-				return trace.Wrap(err)
+			if err := awsconfigfile.UpsertSSOSession(configPath, sessionName, startURL, ssoRegion); err != nil {
+				return nil, trace.Wrap(err)
 			}
 			writtenSessions[sessionName] = struct{}{}
 		}
 
-		accountName, _ := app.GetLabel("teleport.dev/account-name")
+		accountName, _ := app.GetApp().GetLabel("teleport.dev/account-name")
 		if accountName == "" {
 			accountName = awsIC.AccountID
 		}
 
 		for _, ps := range awsIC.PermissionSets {
-			profileName := strings.ToLower(fmt.Sprintf("teleport-awsic-%s-%s", accountName, ps.Name))
+			profileName := formatAWSProfileName(accountName, ps.Name)
 			if err := awsconfigfile.UpsertSSOProfile(configPath, profileName, sessionName, awsIC.AccountID, ps.Name); err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-			writtenProfiles = append(writtenProfiles, profileInfo{
+			writtenProfiles = append(writtenProfiles, awsProfileInfo{
 				profile:   profileName,
 				account:   accountName,
 				accountID: awsIC.AccountID,
@@ -109,23 +124,28 @@ func onAWSProfile(cf *CLIConf) error {
 			})
 		}
 	}
+	return writtenProfiles, nil
+}
 
-	if len(writtenProfiles) > 0 {
-		fmt.Printf("Wrote %s.\n", configPath)
-		fmt.Println("You can access the following profiles by doing `export AWS_PROFILE=\"<profile>\"`:")
-		fmt.Println()
+func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfileInfo) {
+	if len(profiles) > 0 {
+		fmt.Fprintf(w, "Wrote %s.\n", configPath)
+		fmt.Fprintln(w, "You can access the following profiles by doing `export AWS_PROFILE=\"<profile>\"`:")
+		fmt.Fprintln(w)
 
 		// Simple table format
-		fmt.Printf("%-40s %-20s %-15s %-15s\n", "profile", "account", "account-id", "role")
-		fmt.Println(strings.Repeat("-", 95))
-		for _, v := range writtenProfiles {
-			fmt.Printf("%-40s %-20s %-15s %-15s\n", v.profile, v.account, v.accountID, v.role)
+		fmt.Fprintf(w, "%-40s %-20s %-15s %-15s\n", "profile", "account", "account-id", "role")
+		fmt.Fprintln(w, strings.Repeat("-", 95))
+		for _, v := range profiles {
+			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s\n", v.profile, v.account, v.accountID, v.role)
 		}
 	} else {
-		fmt.Println("No AWS Identity Center integrations found.")
+		fmt.Fprintln(w, "No AWS Identity Center integrations found.")
 	}
+}
 
-	return nil
+func formatAWSProfileName(accountName, roleName string) string {
+	return strings.ToLower(fmt.Sprintf("teleport-awsic-%s-%s", accountName, roleName))
 }
 
 func extractAWSStartURL(rawURL string) string {

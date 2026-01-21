@@ -461,3 +461,67 @@ func TestUpdateRemoveCycle(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, initialContents, string(bs))
 }
+func TestSSOConfig(t *testing.T) {
+	t.Run("UpsertSSOSession", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+
+		err := UpsertSSOSession(configFilePath, "my-session", "https://start.url", "us-east-1")
+		require.NoError(t, err)
+
+		bs, err := os.ReadFile(configFilePath)
+		require.NoError(t, err)
+		require.Equal(t, `; Do not edit. Section managed by Teleport.
+[sso-session my-session]
+sso_start_url = https://start.url
+sso_region    = us-east-1
+`, string(bs))
+	})
+
+	t.Run("UpsertSSOProfile", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+
+		err := UpsertSSOProfile(configFilePath, "my-profile", "my-session", "123456789012", "Admin")
+		require.NoError(t, err)
+
+		bs, err := os.ReadFile(configFilePath)
+		require.NoError(t, err)
+		require.Equal(t, `; Do not edit. Section managed by Teleport.
+[profile my-profile]
+sso_session    = my-session
+sso_account_id = 123456789012
+sso_role_name  = Admin
+`, string(bs))
+	})
+
+	t.Run("UpsertSSOProfile errors on credential_process", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+		initial := `; Do not edit. Section managed by Teleport.
+[profile my-profile]
+credential_process = some-command
+`
+		err := os.WriteFile(configFilePath, []byte(initial), 0600)
+		require.NoError(t, err)
+
+		err = UpsertSSOProfile(configFilePath, "my-profile", "my-session", "123456789012", "Admin")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "contains 'credential_process' and cannot be converted to an SSO profile")
+	})
+
+	t.Run("UpsertSSOSession handles updates", func(t *testing.T) {
+		configFilePath := filepath.Join(t.TempDir(), "config")
+
+		err := UpsertSSOSession(configFilePath, "my-session", "https://start.url", "us-east-1")
+		require.NoError(t, err)
+
+		err = UpsertSSOSession(configFilePath, "my-session", "https://new.url", "us-west-2")
+		require.NoError(t, err)
+
+		bs, err := os.ReadFile(configFilePath)
+		require.NoError(t, err)
+		require.Equal(t, `; Do not edit. Section managed by Teleport.
+[sso-session my-session]
+sso_start_url = https://new.url
+sso_region    = us-west-2
+`, string(bs))
+	})
+}
