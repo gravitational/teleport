@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,9 @@ func TestMain(m *testing.M) {
 }
 
 func BenchmarkInit(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+		b.Skip("skipping heavy benchmark")
+	}
 	executable, err := os.Executable()
 	require.NoError(b, err)
 

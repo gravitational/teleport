@@ -21,7 +21,9 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -291,6 +293,9 @@ func TestOIDCMapping(t *testing.T) {
 	}
 }
 func BenchmarkTraitToRoles(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	for _, testCase := range oidcTestCases {
 		samlConn := types.SAMLConnectorV2{
 			Spec: types.SAMLConnectorSpecV2{

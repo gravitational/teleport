@@ -21,6 +21,7 @@ package accesslists
 import (
 	"context"
 	"iter"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -1058,6 +1059,9 @@ func generateUserMembers(count int, alName string) []*accesslist.AccessListMembe
 }
 
 func BenchmarkIsAccessListMember(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	const mainAccessListName = "main-al"
 	const testUserName = "test-user"
 

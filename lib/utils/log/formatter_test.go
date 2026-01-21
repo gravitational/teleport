@@ -28,6 +28,7 @@ import (
 	"os"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -303,6 +304,9 @@ func getCallerLineNumber() int {
 }
 
 func BenchmarkFormatter(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	ctx := context.Background()
 	b.ReportAllocs()
 

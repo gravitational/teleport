@@ -21,6 +21,8 @@ package ui
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -41,6 +43,9 @@ import (
 const clusterName = "bench.example.com"
 
 func BenchmarkGetClusterDetails(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	ctx := context.Background()
 
 	const authCount = 6

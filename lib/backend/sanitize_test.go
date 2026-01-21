@@ -21,6 +21,8 @@ package backend
 import (
 	"context"
 	"iter"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -141,6 +143,9 @@ func TestSanitize(t *testing.T) {
 }
 
 func BenchmarkIsKeySafe(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_MICRO")); skip {
+		b.Skip("skipping micro benchmark")
+	}
 	keys := []Key{
 		NewKey("a-b", "c:d", ".e_f", "01"),
 		NewKey("namespaces", "", "params"),

@@ -21,6 +21,8 @@ package local
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,6 +38,9 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
+	if skip, _ := strconv.ParseBool(os.Getenv("BENCH_SKIP_HEAVY")); skip {
+		b.Skip("skipping heavy benchmark")
+	}
 	ctx := context.Background()
 
 	type testCase struct {
