@@ -1010,7 +1010,14 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
+	// Only include license to do if this is a ent install with auth service enabled
+	sampleConfiguration := sampleConfComment
+	if modules.GetModules().IsEnterpriseBuild() && (flags.Roles == "" || strings.Contains(flags.Roles, defaults.RoleAuthService)) {
+
+		sampleConfiguration += licenseToDoConfComment
+	}
+
+	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}
