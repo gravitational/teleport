@@ -133,7 +133,7 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 		}}, nil
 	case *MouseWheel:
 		return []tdp.Message{legacy.MouseWheel{
-			Axis:  legacy.MouseWheelAxis(m.Axis - 1),
+			Axis:  legacy.MouseWheelAxis(m.Axis + 1),
 			Delta: clampInt32ToInt16(m.Delta),
 		}}, nil
 	case *ClipboardData:
@@ -258,7 +258,7 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 				ErrCode:      m.ErrorCode,
 			}}, nil
 		default:
-			return nil, trace.Errorf("Unknown shared directory operation")
+			return nil, trace.BadParameter("Unknown shared directory operation")
 		}
 	case *LatencyStats:
 		return []tdp.Message{legacy.LatencyStats{
@@ -329,7 +329,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 		}}, nil
 	case legacy.MouseWheel:
 		return []tdp.Message{&MouseWheel{
-			Axis:  tdpbv1.MouseWheelAxis(m.Axis + 1),
+			Axis:  tdpbv1.MouseWheelAxis(m.Axis - 1),
 			Delta: int32(m.Delta),
 		}}, nil
 	case legacy.Error:
@@ -519,6 +519,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 	case legacy.SharedDirectoryListRequest:
 		return []tdp.Message{&SharedDirectoryRequest{
 			CompletionId: m.CompletionID,
+			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_List_{
 				List: &tdpbv1.SharedDirectoryRequest_List{
 					Path: m.Path,
@@ -550,6 +551,7 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 		return []tdp.Message{&SharedDirectoryResponse{
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
+			Operation:    &tdpbv1.SharedDirectoryResponse_Truncate_{},
 		}}, nil
 	default:
 		return nil, trace.Errorf("Could not translate to TDPB. Encountered unexpected message type %T", m)
