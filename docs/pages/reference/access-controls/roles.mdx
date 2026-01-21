@@ -693,7 +693,7 @@ spec:
 The following role fields configure Access Requests. For a full description of
 Access Request configuration fields and their relationship to one another, see
 the [Access Request configuration
-guide](../../identity-governance/access-requests/access-request-configuration.mdx).
+guide](../../identity-governance/access-requests/configuration/configuration.mdx).
 
 ### Creating Access Requests
 
@@ -702,14 +702,14 @@ Requests. The `request` field can fall under both `spec.allow` and `spec.deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-| `request.roles` |Teleport roles that a user can or cannot request|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.claims_to_roles`|Teleport roles that a user can or cannot access based on their traits.|[Restrict role requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.search_as_roles`|Teleport roles that a user can or cannot assume while searching for resources to request access to.|[Restrict resource requests](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.max_duration`|The maximum duration of elevated privileges if an Access Request were granted. | [How long access lasts](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.reason`|Configures the behavior of Access Request reasons. | [Requiring request reasons](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.thresholds`|Configures the criteria that an Access Request must meet.| [Review thresholds](../../identity-governance/access-requests/access-request-configuration.mdx) |
-| `request.suggested_reviewers`|Reviewers to add to an Access Request by default.| [Suggested reviewers](../../identity-governance/access-requests/access-request-configuration.mdx)|
-| `request.annotations`|Arbitrary data to write (or prevent writing) to an Access Request|[Request annotations](../../identity-governance/access-requests/access-request-configuration.mdx)|
+| `request.roles` |Teleport roles that a user can or cannot request|[Restrict role requests](../../identity-governance/access-requests/configuration/configuration.mdx)|
+| `request.claims_to_roles`|Teleport roles that a user can or cannot access based on their traits.|[Restrict role requests](../../identity-governance/access-requests/configuration/configuration.mdx)|
+| `request.search_as_roles`|Teleport roles that a user can or cannot assume while searching for resources to request access to.|[Restrict resource requests](../../identity-governance/access-requests/configuration/configuration.mdx)|
+| `request.max_duration`|The maximum duration of elevated privileges if an Access Request were granted. | [How long access lasts](../../identity-governance/access-requests/configuration/configuration.mdx) |
+| `request.reason`|Configures the behavior of Access Request reasons. | [Requiring request reasons](../../identity-governance/access-requests/configuration/configuration.mdx) |
+| `request.thresholds`|Configures the criteria that an Access Request must meet.| [Review thresholds](../../identity-governance/access-requests/configuration/configuration.mdx) |
+| `request.suggested_reviewers`|Reviewers to add to an Access Request by default.| [Suggested reviewers](../../identity-governance/access-requests/configuration/configuration.mdx)|
+| `request.annotations`|Arbitrary data to write (or prevent writing) to an Access Request|[Request annotations](../../identity-governance/access-requests/configuration/configuration.mdx)|
 
 ### Reviewing Access Requests
 
@@ -718,10 +718,10 @@ Requests, and like `request`, can fall under `allow` or `deny`:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/access-request-configuration.mdx)|
+|`review_requests.roles`|Allows or denies the ability to review requests for particular roles.|[Reviews for specific roles](../../identity-governance/access-requests/configuration/configuration.mdx)|
+|`review_requests.where`|Configures conditions in which a user with the role may review an Access Request|[`where` expressions](../../identity-governance/access-requests/configuration/configuration.mdx)|
+|`review_requests.preview_as_roles`|Allows or denies the ability to list resources that a user with the requested role can access|[Inspecting requested resources](../../identity-governance/access-requests/configuration/configuration.mdx)|
+|`review_requests.claims_to_roles`|Teleport roles that a user can or cannot review requests for based on their traits.|[Reviews for specific roles](../../identity-governance/access-requests/configuration/configuration.mdx)|
 
 ### Client options
 
@@ -729,8 +729,8 @@ The `options` field, a property of `spec`, applies additional settings:
 
 |Role Field|Description|Further Information|
 |---|---|---|
-|`options.request_access`|Configures Teleport client behavior for creating Access Requests|[How clients request access](../../identity-governance/access-requests/access-request-configuration.mdx)|
-|`options.request_prompt`|Configures the prompt that Teleport clients display when a user requests access|[How clients request access](../../identity-governance/access-requests/access-request-configuration.mdx)|
+|`options.request_access`|Configures Teleport client behavior for creating Access Requests|[How clients request access](../../identity-governance/access-requests/configuration/configuration.mdx)|
+|`options.request_prompt`|Configures the prompt that Teleport clients display when a user requests access|[How clients request access](../../identity-governance/access-requests/configuration/configuration.mdx)|
 
 ## Role templates
 

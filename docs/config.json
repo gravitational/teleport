@@ -437,7 +437,7 @@
     },
     {
       "source": "/admin-guides/access-controls/access-requests/access-request-configuration/",
-      "destination": "/identity-governance/access-requests/access-request-configuration/",
+      "destination": "/identity-governance/access-requests/configuration/",
       "permanent": true
     },
     {
@@ -3475,6 +3475,11 @@
     {
       "source": "/identity-governance/access-lists/terraform/",
       "destination": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
+      "permanent": true
+    },
+    {
+      "source": "/identity-governance/access-requests/access-request-configuration/",
+      "destination": "/identity-governance/access-requests/configuration/",
       "permanent": true
     }
   ]
