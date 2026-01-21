@@ -119,7 +119,7 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		StringsVar(&p.install.entraID.defaultOwners)
 
 	cmd.
-		Flag("accessListOwnersSource", "Source of the Access List owners.").
+		Flag("access-list-owners-source", "Source of the Access List owners.").
 		Default("plugin").
 		StringVar(&p.install.entraID.accessListOwnersSource)
 	cmd.
