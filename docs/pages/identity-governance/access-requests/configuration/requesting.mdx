@@ -1,0 +1,231 @@
+---
+title: Configuring Access Request Creation
+sidebar_label: Requesting Access
+description: Describes options for limiting the resources and roles that users can request access to, and how long that access lasts. 
+---
+
+This guide explains how to configure the privileges that Teleport users can
+request using Access Requests, and how long they can hold elevated privileges.
+
+By default, a Teleport user cannot request elevated permissions. To configure
+the elevated access that a user can request, you can define a Teleport role
+that:
+
+- Names other Teleport roles the user can request.
+- Names other Teleport roles that the user can use to search for resources to
+  request, such as databases or Kubernetes clusters.
+
+You can also configure a Teleport role to prevent the user from requesting
+access to these roles.
+
+## Restrict role requests
+
+When a user submits an Access Request, they can specify the roles they would
+like to request access to.
+
+You can allow a user to request access to certain roles—and deny access to other
+roles—by using the following configuration options:
+
+- `allow.request.roles`
+- `allow.request.claims_to_roles`
+- `deny.request.roles`
+- `deny.request.claims_to_roles`
+
+Here is an example, which allows the `employee` user to request the `dev` and
+`dba` role, and specifies some more complex restrictions that we will explain
+below:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      roles:
+        - 'dev'
+        - 'dba'
+      claims_to_roles:
+        - claim: groups
+          value: admins
+          roles: ['*']
+  deny:
+    request:
+      claims_to_roles:
+        - claim: groups
+          value: contractors
+          roles: ['*']
+```
+
+The Teleport Auth Service combines the values of these fields for all of a
+user's roles into two lists of role matchers:
+
+- **Deny:** If the requested role matches any of these, Teleport denies the
+  request.
+- **Allow:** If the requested role matches any of these, and no deny matcher
+  also matches the role, Teleport allows the request.
+
+A role matcher can include the following values:
+
+- The literal name of a role (such as `admin`).
+- A wildcard character, which matches one or more characters in a role name. For
+  example, `db-*` matches `db-reader` and `db-writer`.
+- A [Go regular expression](https://pkg.go.dev/regexp/syntax) inside a string
+  that begins with `^` and ends with `$`. For example, if you define roles by
+  AWS region, a role matcher could use the regular expression
+  `^db-writer-us-(east|west)-[0-9]+` to match the `db-writer-us-east-1` and
+  `db-writer-us-west-2` roles.
+
+To add the values of `claims_to_roles` to the lists of role matchers, the Auth
+Service evaluates template expressions with the user's traits. See the [Role
+Templates](../../../zero-trust-access/rbac-get-started/role-templates.mdx) for more
+information on how Teleport executes template expressions with user traits in
+the `claims_to_roles` field.
+
+In the `employee` role above, if the user is in the `admins` group (as declared
+by their single sign-on provider), this role allows them to request access to
+all roles.  If they are in the `contractors` group, this role denies them access
+to request any roles.
+
+## Restrict resource requests
+
+Users can also submit Access Requests for a specific Teleport resource.
+
+The following fields in a Teleport role indicate which roles a user assumes when
+they search for a Teleport resource:
+
+- `allow.request.search_as_roles`
+- `deny.request.search_as_roles`
+
+For example, the following role enables a user to search for resources that the
+`k8s-viewer` role allows access to.
+
+```yaml
+# requester.yaml
+kind: role
+version: v7
+metadata:
+  name: k8s-requester
+spec:
+  allow:
+    request:
+      search_as_roles:
+        - k8s-viewer
+```
+
+In contrast to [configuring role requests](#restrict-role-requests), the
+`request.search_as_roles` field is a list of literal role names only, and does
+not support wildcards or regular expressions.
+
+The Teleport Auth Service combines the values of these fields for all of a
+user's Teleport roles in order to validate the user's Access Requests.
+
+When a user attempts to list Teleport resources (such as servers and databases)
+or Kubernetes resources (such as pods and deployments), the Auth Service checks
+the roles that the user is allowed to search as. If a user's Teleport roles *or*
+a role specified in `search_as_roles` allow the user to search for a resource,
+the Teleport Auth Service will return information about the resource.
+
+When a user requests access to a resource ID, the Teleport Auth Service does the
+following:
+
+1. Collects all the roles named in `allow.request.search_as_roles`, filtering
+   these to exclude roles specified in `deny.request.search_as_roles` or
+   `deny.request.roles`.
+1. Determines which of the remaining roles can access the requested resource.
+   For a Resource Access Request to be valid, one of the roles listed in
+   a user's `search_as_roles` configuration must permit access to the requested
+   resources.
+
+## How long access lasts
+
+You can configure the length of time that Teleport will grant a user elevated
+privileges for an approved Access Request.
+
+### Calculating the duration of elevated privileges
+
+Teleport uses the following logic to calculate how long a user has elevated
+privileges:
+
+1. Calculate the maximum duration of elevated privileges if the Access Request
+   were granted. This is the lowest value of:
+   - The `--max-duration` flag of the [`tsh request
+     create`](../../../reference/cli/tsh.mdx) command (if the
+     user creating the request provides this flag).
+   - The lowest value of the `request.max_duration` field included in one of
+     the user's requested roles.
+1. Calculate the session TTL of the certificate the user would receive if
+   Teleport were to grant the Access Request. This calculation chooses the
+   lowest value of:
+   - The requested session expiration time, which is the value of the
+     `--session-ttl` flag of [`tsh request
+     create`](../../../reference/cli/tsh.mdx).
+   - The remaining time in the user's current Teleport session.
+   - The lowest value of the `options.max_session_ttl` field in the user's
+     requested roles.
+1. If the maximum duration is greater than zero, set the duration of elevated
+   privileges to either the maximum duration or the session TTL calculated
+   earlier, whichever is shorter. Otherwise, set the duration of elevated
+   privileges to the session TTL.
+
+### Setting when users can assume elevated privileges
+
+When creating or reviewing Access Requests, you can specify the earliest time
+that a user can assume elevated privileges by using the `--assume-start-time`
+flag. This flag is available for the
+[`tsh request create`](../../../reference/cli/tsh.mdx) and [`tsh request
+review`](../../../reference/cli/tsh.mdx) commands. The format accepted
+is defined in [RFC 3339](https://datatracker.ietf.org/doc/html/rfc3339), e.g, `2023-12-12T23:20:50.52Z`.
+The time specified must be in the future.
+
+Reviewers can override this time when approving an Access Request.
+If multiple reviewers override the start time, the most recent
+override will be chosen.
+
+### Maximum request durations
+
+The `max_duration` option indicates the maximum length of time that a user is
+allowed to have elevated privileges for particular roles. After a user makes a
+successful Access Request, the user can authenticate to Teleport with the
+elevated access until the maximum duration has elapsed.
+
+Each time the user authenticates to Teleport, Teleport calculates the TTL of the
+user's Teleport session using a formula that we describe in the [previous
+section](#calculating-the-duration-of-elevated-privileges). The user can have
+multiple sessions with elevated privileges before the maximum duration elapses.
+
+You can specify the `max_duration` option with a role like the following:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: temp-dba
+spec:
+  allow:
+    request:
+      # Allow access to role `dba` for up to 4 days.
+      roles: ['dba']
+      max_duration: 4d
+```
+
+The value of `max_duration` can never exceed fourteen days.
+
+### How long Access Requests are valid
+
+Teleport uses the following logic to determine how long an Access Request is
+valid while it awaits approval:
+
+1. Begin with with the base expiration of the Access Request, which a user can
+   set with the `--request-ttl` flag of the [`tsh request
+   create`](../../../reference/cli/tsh.mdx) command. If this is
+   unset, the request TTL is one hour.
+1. If the user's Teleport session is due to expire before the base expiration
+   time, Teleport sets the Access Request expiration to the end of the Teleport
+   session.
+1. If any of the Teleport roles requested by the Access Request has an
+   `options.max_session_ttl` that expires before the expiration time, Teleport
+   sets the expiration of the Access Request to that time.
+1. Return an error if the value of `--request-ttl` is greater than the request
+   TTL calculated in the previous step.
