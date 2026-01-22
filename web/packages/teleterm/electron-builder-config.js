@@ -226,6 +226,8 @@ module.exports = {
     ].filter(Boolean),
   },
   nsis: {
+    // Static app guid, calculated from appId and electron-builder's UUID.
+    guid: '22539266-67e8-54a3-83b9-dfdca7b33ee1',
     // Turn off blockmaps since we don't support automatic updates.
     // https://github.com/electron-userland/electron-builder/issues/2900#issuecomment-730571696
     differentialPackage: false,
