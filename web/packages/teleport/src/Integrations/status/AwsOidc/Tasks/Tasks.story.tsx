@@ -138,8 +138,6 @@ Usually this happens when:
 
 The IAM Role used by the integration might be missing some required permissions.
 Ensure the following actions are allowed in the IAM Role used by the integration:
-- \`account:ListRegions\`
-- \`ec2:DescribeInstances\`
 - \`ssm:DescribeInstanceInformation\`
 - \`ssm:GetCommandInvocation\`
 - \`ssm:ListCommandInvocations\`
@@ -247,7 +245,7 @@ const ec2Detail = {
   issueType: 'ec2-ssm-invocation-failure',
   title: 'EC2 failure',
   description:
-    'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `account:ListRegions`\n- `ec2:DescribeInstances`\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
+    'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
   discoverEc2: {
     region: 'us-east-2',
     instances: {
