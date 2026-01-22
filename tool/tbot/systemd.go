@@ -55,6 +55,7 @@ func setupInstallSystemdCmd(rootCmd *kingpin.Application) (
 	write := installSystemdCmd.Flag("write", "Write the systemd unit file. If not specified, this command runs in a dry-run mode that outputs the generated content to stdout.").Bool()
 	systemdDirectory := installSystemdCmd.Flag("systemd-directory", "Path to the directory that the systemd unit file should be written. Defaults to '/etc/systemd/system'.").Default("/etc/systemd/system").String()
 	anonymousTelemetry := installSystemdCmd.Flag("anonymous-telemetry", "Enable anonymous telemetry.").Bool()
+	pidFile := installSystemdCmd.Flag("pid-file", "Overrides the PID file path that should be set in the systemd unit files.").String()
 
 	f := onInstallSystemdCmdFunc(func(
 		ctx context.Context,
@@ -76,6 +77,7 @@ func setupInstallSystemdCmd(rootCmd *kingpin.Application) (
 			configPath,
 			getExecutablePath,
 			stdout,
+			*pidFile,
 		)
 	})
 
@@ -95,6 +97,7 @@ func onInstallSystemdCmd(
 	configPath string,
 	getExecutablePath func() (string, error),
 	stdout io.Writer,
+	pidFile string,
 ) error {
 	switch {
 	case configPath == "":
@@ -123,6 +126,7 @@ func onInstallSystemdCmd(
 		AnonymousTelemetry: anonymousTelemetry,
 		ConfigPath:         configPath,
 		TBotPath:           tbotPath,
+		PIDFile:            pidFile,
 	})
 	if err != nil {
 		return trace.Wrap(err)
