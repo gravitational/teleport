@@ -89,13 +89,14 @@ To install per-machine updates silently, we will introduce a special Update Serv
 This service will run with full system permissions, and its only job will be to install updates that the main app has
 already downloaded.
 
-We will set up the service DACL so that any authenticated user can start the service.
+We will set up the service DACL so that any authenticated user can start the service and check its status.
 The service must be extremely careful and must not implicitly trust any input data.
 
 #### Security Considerations
 
-Even tough the update service will only allow installing binaries singed by the same organization as the service itself,
-an attacker could force it to install an older, vulnerable version of the VNet service.
+Even tough the update service will only allow installing binaries singed by the same organization as the service itself
+(enforced if the service is signed), an attacker could force it to install an older, vulnerable version of the VNet
+service.
 
 This is possible because of two reasons: Teleport Client Tool Managed Updates rely on clusters specifying a required
 client version and Teleport Connect is multi-cluster client.
@@ -129,32 +130,50 @@ modify [autoupdate thresholds for the app](https://github.com/gravitational/tele
 
 #### Update Process
 
-1. The app downloads the update binary to a standard, user-writeable directory.
-1. When the user clicks "Restart to Update" or closes the app, Connect triggers the privileged updater service, passing
-   the file path and the managing cluster hostname.
-    * Installing the update on app close is triggered from a synchronous `app.on('quit')` event handler. When this
-      handler is invoked, the tsh daemon has already quit. Because of that, it's not feasible to perform an
-      authentication between Teleport Connect ⇔ Updater Service (like we have between Teleport Connect ⇔ VNet
-      Service).
-      The app will only invoke `sc start TeleportUpdateService install-connect-update --path=...` and exit
-      immediately.
-1. The service copies the binary to a system-protected path (e.g., `%ProgramData%\TeleportConnect\Updates\<GUID>`) to
-   prevent tampering during the validation phase. This directory will be locked down to Administrators and LocalSystem
-   access only.
-    * The service must ensure it is not copying a file that the user doesn't have access to.
-    * An attacker could use the service to simply copy arbitrary files into our secure `%ProgramData%` location. For
-      example, they could first copy a malicious version.dll (loaded by almost every executable out there), then copy a
-      properly signed executable and have it executed. The malicious DLL could then be loaded from the same directory,
-      resulting in another LPE vector. This can be mitigated by creating a unique subdirectory for each service
-      invocation.
-    * The `%ProgramData%` is user-writable by default so ensure the directory wasn't pre-created before and there aren't
-      any planted DLLs suitable for DLL hijacking.
-    * To prevent the directory size from expanding indefinitely, it will be cleared before copying the update file.
-1. The service checks the signature to ensure the binary is signed by the same organization and extracts the version
-   string directly from the signature.
-    * If the service itself is not signed, it will not require an update file to be signed.
-1. The service verifies that the update version is higher than its own (`tsh.exe` binary) version.
-1. The service executes the update and exits.
+1. Download an update.
+    - The app downloads the update binary to a user-writable directory.
+
+2. Triggering the service.
+    - On "Restart to Update" or app close, Connect spawns `tsh.exe request-connect-update`, passing the file path and
+      version as arguments.
+    - This happens from a synchronous `app.on('quit')` handler after the `tsh` daemon has exited.
+
+3. Transferring the update to the service.
+    - To avoid privilege escalation, the service must not open the update file as SYSTEM; file access must occur with
+      standard user privileges.
+    - Ideally this would be done via `ImpersonateNamedPipeClient` from the service side, but this Windows API is not
+      available in `golang.org/x/sys/windows`.
+    - Instead, since a named pipe is open anyway, is can be used to securely transfer update metadata and stream the
+      binary itself.
+    - Flow:
+        - `tsh.exe request-connect-update --path= --version=` starts the update service and waits for it.
+        - The service opens a named pipe `\\.\pipe\TeleportConnectUpdateHelper` and accepts only a single connection
+          from an authenticated user (enforced through DACL). Any other client must wait until the current service
+          invocation exits.
+        - The user process sends metadata (version and size) as JSON and then streams the update binary over the pipe.
+    - The service will start with some restrictions: max 30s lifetime, and 1 GB size limit for data transferred over the
+      pipe.
+
+4. Staging the update file.
+    - The service stores the binary stream to a new, unique, system-protected directory under:
+      ```
+      %ProgramData%\TeleportConnect\Updates\<GUID>
+      ```
+   An attacker could use the service to simply copy arbitrary files into our secure `%ProgramData%` location. For
+   example, they could first copy a malicious version.dll (loaded by almost every executable out there), then copy a
+   properly signed executable and have it executed. The malicious DLL could then be loaded from the same directory,
+   resulting in another LPE vector. This can be mitigated by creating a unique subdirectory for each service
+   invocation.
+    - The `\Updates\` directory is restricted to Administrators and LocalSystem and cleared before use.
+
+5. Validation.
+    - Ensure the passed update version is newer than the service (`tsh.exe`) version.
+    - Download and verify the SHA256 checksum for the target Teleprot Connect version to prevent the service from
+      installing *any* binary if the service is unsigned.
+    - Verify the binary is signed by the same organization (if the service itself is signed).
+
+6. Installation.
+    - Execute the update and exit.
 
 #### Updates Configuration in System Registry
 
