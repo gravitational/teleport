@@ -117,8 +117,8 @@ type OIDCConnector interface {
 	IsMFAEnabled() bool
 	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
 	WithMFASettings() error
-	// IsPKCEEnabled returns true if the connector should add code_challenge information to auth requests.
-	IsPKCEEnabled() bool
+	// IsPKCEDisabled returns true if the connector should not add code_challenge information to auth requests.
+	IsPKCEDisabled() bool
 	// SetPKCEMode will set the pkce mode
 	SetPKCEMode(mode constants.OIDCPKCEMode)
 	// GetPKCEMode will return the PKCEMode of the connector.
@@ -563,9 +563,9 @@ func (o *OIDCConnectorV3) IsMFAEnabled() bool {
 	return mfa != nil && mfa.Enabled
 }
 
-// IsPKCEEnabled returns true if the connector should add code_challenge information to auth requests.
-func (o *OIDCConnectorV3) IsPKCEEnabled() bool {
-	return o.Spec.PKCEMode == string(constants.OIDCPKCEModeEnabled)
+// IsPKCEDisabled returns true if the connector should not add code_challenge information to auth requests.
+func (o *OIDCConnectorV3) IsPKCEDisabled() bool {
+	return o.Spec.PKCEMode == string(constants.OIDCPKCEModeDisabled)
 }
 
 // SetPKCEMode will set the pkce mode
