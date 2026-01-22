@@ -148,19 +148,20 @@ func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfil
 		fmt.Fprintf(w, "AWS configuration updated at: %s\n", configPath)
 		fmt.Fprintln(w)
 
-		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS. Example:\n")
-		fmt.Fprintf(w, "  aws sso login --sso-session %s\n", profiles[0].Session)
-		fmt.Fprintln(w)
-		fmt.Fprintf(w, "Then set the AWS_PROFILE environment variable. Example:\n")
-		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].Name)
-		fmt.Fprintln(w)
-
 		// Simple table format
 		fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", "Profile", "Account", "Account ID", "Role", "SSO Session")
 		fmt.Fprintln(w, strings.Repeat("-", 114))
 		for _, p := range profiles {
 			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", p.Name, p.account, p.AccountID, p.RoleName, p.Session)
 		}
+		fmt.Fprintln(w)
+
+		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS using the name of an SSO session. Example:\n")
+		fmt.Fprintf(w, "  aws sso login --sso-session %s\n", profiles[0].Session)
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "Then set the AWS_PROFILE environment variable. Example:\n")
+		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].Name)
+		fmt.Fprintln(w)
 	} else {
 		fmt.Fprintln(w, "No AWS Identity Center integrations found.")
 	}
