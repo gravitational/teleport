@@ -37,7 +37,9 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
@@ -797,4 +799,244 @@ func (s *uploadRecordingService) CompleteUpload(ctx context.Context, req *record
 		}
 	}
 	return nil, nil
+}
+
+func TestWindowsCAFallback(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "zarquon"
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert:    []byte(`unused by test`),
+					Key:     []byte(`unused by test`),
+					KeyType: 0, // unused by test
+					CRL:     []byte(`ceci n'est pas une CRL`),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	userCAV2, ok := userCA.(*types.CertAuthorityV2)
+	require.True(t, ok, "%T is not of type %T", userCA, userCAV2)
+
+	mockService := &mockPreWindowsService{
+		currentCluster: clusterName,
+		cas: []*types.CertAuthorityV2{
+			userCAV2,
+		},
+	}
+
+	ctx := t.Context()
+	server := startMockServer(t, mockServices{
+		auth:          mockService.Auth(),
+		clusterConfig: mockService,
+		trust:         mockService,
+	})
+
+	c, err := New(ctx, server.clientCfg())
+	require.NoError(t, err)
+
+	id := types.CertAuthID{
+		Type:       types.WindowsCA,
+		DomainName: clusterName,
+	}
+	const loadKeys = false
+
+	t.Run("list", func(t *testing.T) {
+		// Don't t.Parallel(), let this all run in sequence because of "listHardFails".
+		t.Cleanup(func() {
+			mockService.listHardFails.Store(false)
+		})
+
+		var name string
+		for _, val := range []bool{false, true} {
+			if val {
+				name = "unknown authority"
+			} else {
+				name = "empty response"
+			}
+			mockService.listHardFails.Store(val)
+			t.Run(name, func(t *testing.T) {
+				// Don't t.Parallel().
+
+				got, err := c.GetCertAuthorities(ctx, id.Type, loadKeys)
+				require.NoError(t, err)
+
+				want := []types.CertAuthority{userCA}
+				if diff := cmp.Diff(want, got); diff != "" {
+					t.Errorf("GetCertAuthorities mismatch (-want +got)\n%s", diff)
+				}
+			})
+		}
+	})
+
+	t.Run("get", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := c.GetCertAuthority(ctx, id, loadKeys)
+		require.NoError(t, err)
+		if diff := cmp.Diff(userCA, got); diff != "" {
+			t.Errorf("GetCertAuthority mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("crl", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := c.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{
+			Type: id.Type,
+		})
+		require.NoError(t, err)
+
+		want := &proto.CRL{
+			CRL: userCA.GetActiveKeys().TLS[0].CRL,
+		}
+		require.NotEmpty(t, want.CRL) // sanity check
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("GenerateCertAuthorityCRL mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("not founds", func(t *testing.T) {
+		t.Parallel()
+
+		// Get with unknown domain.
+		id2 := id
+		id2.DomainName = "unknown"
+		_, err := c.GetCertAuthority(ctx, id2, loadKeys)
+		assert.ErrorContains(t, err, "not found", "GetCertAuthority error mismatch")
+
+		// Get with unknown type.
+		id2 = id
+		id2.Type = types.DatabaseCA
+		_, err = c.GetCertAuthority(ctx, id2, loadKeys)
+		assert.ErrorContains(t, err, "not found", "GetCertAuthority error mismatch")
+
+		// List with unknown type.
+		resp, err := c.GetCertAuthorities(ctx, id2.Type, loadKeys)
+		require.NoError(t, err)
+		assert.Empty(t, resp, "GetCertAuthorities returned unexpected CAs")
+
+		// CRL with unknown type.
+		_, err = c.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{
+			Type: id2.Type,
+		})
+		assert.ErrorContains(t, err, "not found")
+	})
+}
+
+type mockPreWindowsAuthService struct {
+	proto.UnimplementedAuthServiceServer
+
+	// delegates implementations to mockPreWindowsTrustService.
+	// The "AuthService" and "TrustService" interfaces clash, so we can't embed
+	// them both in a single type.
+	impl *mockPreWindowsService
+}
+
+func (s *mockPreWindowsAuthService) GenerateCertAuthorityCRL(
+	ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	return s.impl.GenerateCertAuthorityCRL(ctx, req)
+}
+
+type mockPreWindowsService struct {
+	clusterconfigv1.UnimplementedClusterConfigServiceServer
+	trustv1.UnimplementedTrustServiceServer
+
+	currentCluster string
+	cas            []*types.CertAuthorityV2
+
+	// If true GetCertAuthorities hard-fails, instead of an empty response.
+	listHardFails atomic.Bool
+}
+
+func (s *mockPreWindowsService) Auth() proto.AuthServiceServer {
+	return &mockPreWindowsAuthService{impl: s}
+}
+
+// GenerateCertAuthorityCRL, as implemented here, doesn't generate a CRL but
+// instead returns the CRL of the first active TLS key pair within the CA.
+// The CRL is never interpreted beyond checking for a non-empty slice, so it
+// works with fake data.
+func (s *mockPreWindowsService) GenerateCertAuthorityCRL(
+	ctx context.Context, req *proto.CertAuthorityRequest) (*proto.CRL, error) {
+	ca, err := s.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+		Type:       string(req.Type),
+		Domain:     s.currentCluster,
+		IncludeKey: false,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	tlsKPs := ca.GetActiveKeys().TLS
+	if len(tlsKPs) == 0 {
+		return nil, trace.BadParameter("no TLS key pairs found within CA")
+	}
+	tlsKP := tlsKPs[0]
+
+	if len(tlsKP.CRL) == 0 {
+		return nil, trace.BadParameter("no CRL found in the first TLS key pair of the CA")
+	}
+	return &proto.CRL{
+		CRL: tlsKP.CRL,
+	}, nil
+}
+
+func (s *mockPreWindowsService) GetCertAuthority(
+	ctx context.Context,
+	req *trustv1.GetCertAuthorityRequest,
+) (*types.CertAuthorityV2, error) {
+	if err := s.failIfWindowsCA(req.Type); err != nil {
+		return nil, err
+	}
+
+	for _, ca := range s.cas {
+		if ca.Spec.Type == types.CertAuthType(req.Type) && ca.Spec.ClusterName == req.Domain {
+			return ca.Clone().(*types.CertAuthorityV2), nil
+		}
+	}
+	return nil, trace.NotFound("ca not found")
+}
+
+func (s *mockPreWindowsService) GetCertAuthorities(
+	ctx context.Context,
+	req *trustv1.GetCertAuthoritiesRequest,
+) (*trustv1.GetCertAuthoritiesResponse, error) {
+	if s.listHardFails.Load() {
+		if err := s.failIfWindowsCA(req.Type); err != nil {
+			return nil, err
+		}
+	}
+
+	resp := &trustv1.GetCertAuthoritiesResponse{}
+	for _, ca := range s.cas {
+		if ca.Spec.Type == types.CertAuthType(req.Type) {
+			resp.CertAuthoritiesV2 = append(resp.CertAuthoritiesV2, ca.Clone().(*types.CertAuthorityV2))
+		}
+	}
+	return resp, nil
+}
+
+func (s *mockPreWindowsService) GetClusterName(
+	ctx context.Context,
+	req *clusterconfigv1.GetClusterNameRequest,
+) (*types.ClusterNameV2, error) {
+	return &types.ClusterNameV2{
+		Spec: types.ClusterNameSpecV2{
+			ClusterName: s.currentCluster,
+		},
+	}, nil
+}
+
+func (s *mockPreWindowsService) failIfWindowsCA(caType string) error {
+	// Mimic a types.CertAuthorityType.Check() failure.
+	if caType == string(types.WindowsCA) {
+		return trace.BadParameter(`%q authority type is not supported`, caType)
+	}
+	return nil
 }

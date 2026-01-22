@@ -213,6 +213,15 @@ func TestConvertIAMv2Error(t *testing.T) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
 			},
 		},
+		{
+			name: "creation fails because limit was reached for a given resource",
+			inErr: &iamtypes.LimitExceededException{
+				Message: aws.String("Cannot exceed quota for OpenIdConnectProvidersPerAccount: 100"),
+			},
+			errCheck: func(tt require.TestingT, err error, i ...any) {
+				require.True(tt, trace.IsLimitExceeded(err), "expected trace.LimitExceeded error, got %v", err)
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.errCheck(t, ConvertIAMError(tt.inErr))
