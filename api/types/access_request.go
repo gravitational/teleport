@@ -433,7 +433,12 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	r.Spec.Roles = utils.Deduplicate(r.Spec.Roles)
 	sort.Strings(r.Spec.Roles)
 
-	// If only resourceIDs with constraints are provided, ensure RequestedResourceIDs contains a placeholder.
+	// If an Access Request is resource-constrained exclusively via RequestedResourceAccessIDs,
+	// we add a non-matching sentinel ResourceID into RequestedResourceIDs.
+	// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
+	// on certs (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
+	// "no resource-specific restrictions".
+	// TODO(kiosion): DELETE in 21.0.0
 	if len(r.Spec.RequestedResourceIDs) == 0 && len(r.Spec.RequestedResourceAccessIDs) > 0 {
 		r.Spec.RequestedResourceIDs = []ResourceID{CreateSentinelResourceID()}
 	}
@@ -531,6 +536,11 @@ func (r *AccessRequestV3) SetRequestedResourceAccessIDs(ids []ResourceAccessID) 
 func (r *AccessRequestV3) GetAllRequestedResourceIDs() []ResourceAccessID {
 	wrapped := make([]ResourceAccessID, 0, len(r.Spec.RequestedResourceIDs)+len(r.Spec.RequestedResourceAccessIDs))
 	for _, rid := range r.Spec.RequestedResourceIDs {
+		// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
+		// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
+		// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
+		//
+		// It should be filtered out here, as it's not a real "requested resource".
 		if !IsSentinelResourceID(rid) {
 			wrapped = append(wrapped, ResourceAccessID{Id: rid})
 		}

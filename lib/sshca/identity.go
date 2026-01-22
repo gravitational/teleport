@@ -252,6 +252,12 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		}
 		cert.Permissions.Extensions[teleport.CertExtensionAllowedResources] = requestedResourcesStr
 	} else if len(i.AllowedResourceAccessIDs) != 0 {
+		// If an identity is resource-constrained exclusively via AllowedResourceAccessIDs,
+		// we add a non-matching sentinel ResourceID into AllowedResourceIDs.
+		// This prevents authorization paths that only parse AllowedResourceIDs and ignore AllowedResourceAccessIDs
+		// (e.g., older Auths in mixed-version clusters) from interpreting an empty AllowedResourceIDs slice as
+		// "no resource-specific restrictions".
+		// TODO(kiosion): DELETE in 21.0.0
 		sentinelResourceIDStr, err := types.ResourceIDsToString([]types.ResourceID{types.CreateSentinelResourceID()})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -471,6 +477,11 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		}
 		filteredResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
 		for _, rid := range resourceIDs {
+			// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
+			// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
+			// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
+			//
+			// It should be filtered out at decoding here, as it's not a real "requested resource".
 			if types.IsSentinelResourceID(rid) {
 				continue
 			}

@@ -562,15 +562,6 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
-func (a *accessChecker) matchAllowedRID(r AccessCheckable) (*types.ResourceAccessID, bool) {
-	for _, resourceID := range a.info.AllowedResourceAccessIDs {
-		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
-			return &resourceID, true
-		}
-	}
-	return nil, false
-}
-
 // CheckAccessToSAMLIdP checks access to SAML IdP service provider resource.
 // It checks for both the legacy RBAC (role v7 and below) that checks for IDP
 // role option and MFA, as well as non-legacy RBAC (role v8 and above) that checks
