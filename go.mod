@@ -216,7 +216,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.10
 	github.com/sigstore/cosign/v3 v3.0.4
 	github.com/sigstore/protobuf-specs v0.5.0
-	github.com/sigstore/sigstore v1.10.3
+	github.com/sigstore/sigstore v1.10.4
 	github.com/sigstore/sigstore-go v1.1.4
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/snowflakedb/gosnowflake v1.17.0
