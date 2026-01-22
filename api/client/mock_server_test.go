@@ -26,7 +26,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
+	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/testhelpers/mtls"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
@@ -40,7 +42,9 @@ type mockServer struct {
 
 type mockServices struct {
 	auth                proto.AuthServiceServer
+	clusterConfig       clusterconfigv1.ClusterConfigServiceServer
 	recordingEncryption recordingencryptionv1.RecordingEncryptionServiceServer
+	trust               trustv1.TrustServiceServer
 }
 
 func newMockServer(t *testing.T, addr string, services mockServices) *mockServer {
@@ -59,10 +63,16 @@ func newMockServer(t *testing.T, addr string, services mockServices) *mockServer
 	if services.auth != nil {
 		proto.RegisterAuthServiceServer(m.grpc, services.auth)
 	}
-
+	if services.clusterConfig != nil {
+		clusterconfigv1.RegisterClusterConfigServiceServer(m.grpc, services.clusterConfig)
+	}
 	if services.recordingEncryption != nil {
 		recordingencryptionv1.RegisterRecordingEncryptionServiceServer(m.grpc, services.recordingEncryption)
 	}
+	if services.trust != nil {
+		trustv1.RegisterTrustServiceServer(m.grpc, services.trust)
+	}
+
 	return m
 }
 
