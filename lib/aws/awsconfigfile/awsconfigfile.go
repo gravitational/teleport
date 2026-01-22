@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	ownershipComment = "Do not edit. Section managed by Teleport."
+	ownershipComment    = "Do not edit. Section managed by Teleport."
+	ssoOwnershipComment = "Do not edit. Section managed by Teleport (AWS Identity Center integration)."
 )
 
 // AWSConfigFilePath returns the path to the AWS configuration file.
@@ -47,7 +48,7 @@ func AWSConfigFilePath() (string, error) {
 // UpsertSSOSession sets the sso_start_url and sso_region for the sso-session with name sessionName.
 // File is created if it does not exist.
 func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string) error {
-	return trace.Wrap(upsertManagedSection(configFilePath, "sso-session "+sessionName, func(section *ini.Section) error {
+	return trace.Wrap(upsertManagedSection(configFilePath, "sso-session "+sessionName, ssoOwnershipComment, func(section *ini.Section) error {
 		if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
 			return trace.Wrap(err)
 		}
@@ -61,7 +62,7 @@ func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string
 // UpsertSSOProfile sets the sso_session, sso_account_id and sso_role_name for the profile with name profileName.
 // File is created if it does not exist.
 func UpsertSSOProfile(configFilePath, profileName, ssoSession, ssoAccountID, ssoRoleName string) error {
-	return trace.Wrap(upsertManagedSection(configFilePath, "profile "+profileName, func(section *ini.Section) error {
+	return trace.Wrap(upsertManagedSection(configFilePath, "profile "+profileName, ssoOwnershipComment, func(section *ini.Section) error {
 		if section.HasKey("credential_process") {
 			return trace.BadParameter("%s: section %q contains 'credential_process' and cannot be converted to an SSO profile, remove the section and try again", configFilePath, section.Name())
 		}
@@ -78,7 +79,7 @@ func UpsertSSOProfile(configFilePath, profileName, ssoSession, ssoAccountID, sso
 	}))
 }
 
-func upsertManagedSection(configFilePath, sectionName string, updateFunc func(*ini.Section) error) error {
+func upsertManagedSection(configFilePath, sectionName, comment string, updateFunc func(*ini.Section) error) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true,
 		Loose:             true,
@@ -90,7 +91,7 @@ func upsertManagedSection(configFilePath, sectionName string, updateFunc func(*i
 	var section *ini.Section
 	if iniFile.HasSection(sectionName) {
 		section = iniFile.Section(sectionName)
-		if !strings.Contains(section.Comment, ownershipComment) {
+		if !strings.Contains(section.Comment, ownershipComment) && !strings.Contains(section.Comment, ssoOwnershipComment) {
 			return trace.BadParameter("%s: section %q is not managed by Teleport, remove the section and try again", configFilePath, sectionName)
 		}
 	} else {
@@ -100,7 +101,7 @@ func upsertManagedSection(configFilePath, sectionName string, updateFunc func(*i
 		}
 	}
 
-	section.Comment = ownershipComment
+	section.Comment = comment
 	if err := updateFunc(section); err != nil {
 		return trace.Wrap(err)
 	}
