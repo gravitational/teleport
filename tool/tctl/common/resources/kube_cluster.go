@@ -91,13 +91,13 @@ func getKubeCluster(ctx context.Context, client *authclient.Client, ref services
 		return nil, trace.Wrap(err)
 	}
 	if ref.Name == "" {
-		return &kubeClusterCollection{clusters: clusters}, nil
+		return NewKubeClusterCollection(clusters), nil
 	}
 	clusters = FilterByNameOrDiscoveredName(clusters, ref.Name)
 	if len(clusters) == 0 {
 		return nil, trace.NotFound("Kubernetes cluster %q not found", ref.Name)
 	}
-	return &kubeClusterCollection{clusters: clusters}, nil
+	return NewKubeClusterCollection(clusters), nil
 }
 
 func createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {

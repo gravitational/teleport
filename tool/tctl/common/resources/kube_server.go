@@ -87,7 +87,7 @@ func getKubeServer(ctx context.Context, client *authclient.Client, ref services.
 		return nil, trace.Wrap(err)
 	}
 	if ref.Name == "" {
-		return &kubeServerCollection{servers: servers}, nil
+		return NewKubeServerCollection(servers), nil
 	}
 	altNameFn := func(r types.KubeServer) string {
 		return r.GetHostname()
@@ -96,7 +96,7 @@ func getKubeServer(ctx context.Context, client *authclient.Client, ref services.
 	if len(servers) == 0 {
 		return nil, trace.NotFound("Kubernetes server %q not found", ref.Name)
 	}
-	return &kubeServerCollection{servers: servers}, nil
+	return NewKubeServerCollection(servers), nil
 }
 
 func deleteKubeServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
