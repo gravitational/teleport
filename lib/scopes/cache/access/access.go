@@ -526,6 +526,9 @@ func newAccessListMaterializer(upstream AccessListReader) *accessListMaterialize
 		allLists:                set.New[string](),
 		directUserMembers:       make(map[string]set.Set[string]),
 		directListMembers:       make(map[string]set.Set[string]),
+		directOwnerUsers:        make(map[string]set.Set[string]),
+		directOwnerLists:        make(map[string]set.Set[string]),
+		ownerParentLists:        make(map[string]set.Set[string]),
 		materializedAssignments: make(map[materializedAssignmentKey]string),
 	}
 }
@@ -539,10 +542,18 @@ type accessListMaterializer struct {
 	directUserMembers map[string]set.Set[string]
 	// list -> all lists that are direct members of list
 	directListMembers map[string]set.Set[string]
+	// list -> all users that are direct owners of list
+	directOwnerUsers map[string]set.Set[string]
+	// list -> all lists that are direct owners of list
+	directOwnerLists map[string]set.Set[string]
+	// owner list -> lists that this list owns
+	ownerParentLists map[string]set.Set[string]
 	// list -> all nested member lists of that list
 	nestedListMembers map[string]set.Set[string]
 	// list -> (user -> count of how many times user is a member of (list and nestedListMembers[list]))
 	nestedUserMembers map[string]map[string]int
+	// list -> (user -> count of how many times user is an owner of list)
+	nestedOwnerUsers map[string]map[string]int
 	// materializedAssignmentKey -> id of materialized assignment
 	materializedAssignments map[materializedAssignmentKey]string
 }
@@ -563,6 +574,15 @@ func (m *accessListMaterializer) init(ctx context.Context, state state) error {
 		}
 		listName := list.GetName()
 		m.allLists.Add(listName)
+		m.directOwnerUsers[listName] = ownerUsersForList(list)
+		m.directOwnerLists[listName] = ownerListsForList(list)
+		for ownerList := range m.directOwnerLists[listName] {
+			if parents, ok := m.ownerParentLists[ownerList]; ok {
+				parents.Add(listName)
+			} else {
+				m.ownerParentLists[ownerList] = set.New(listName)
+			}
+		}
 	}
 
 	slog.DebugContext(ctx, "Initializing members")
@@ -595,12 +615,20 @@ func (m *accessListMaterializer) init(ctx context.Context, state state) error {
 		if _, ok := m.directListMembers[list]; !ok {
 			m.directListMembers[list] = set.New[string]()
 		}
+		if _, ok := m.directOwnerUsers[list]; !ok {
+			m.directOwnerUsers[list] = set.New[string]()
+		}
+		if _, ok := m.directOwnerLists[list]; !ok {
+			m.directOwnerLists[list] = set.New[string]()
+		}
 	}
 
 	slog.DebugContext(ctx, "reinitNestedListMembers")
 	m.reinitNestedListMembers()
 	slog.DebugContext(ctx, "reinitNestedUserMembers")
 	m.reinitNestedUserMembers()
+	slog.DebugContext(ctx, "reinitNestedOwnerUsers")
+	m.reinitNestedOwnerUsers()
 
 	if err := m.rematerialize(ctx, state); err != nil {
 		return trace.Wrap(err)
@@ -656,11 +684,35 @@ func (m *accessListMaterializer) reinitNestedUserMembers() {
 	}
 }
 
+func (m *accessListMaterializer) reinitNestedOwnerUsers() {
+	if m.nestedOwnerUsers == nil {
+		m.nestedOwnerUsers = make(map[string]map[string]int, m.allLists.Len())
+	} else {
+		clear(m.nestedOwnerUsers)
+	}
+	for list := range m.allLists {
+		m.reinitNestedOwnerUsersForList(list)
+	}
+}
+
+func (m *accessListMaterializer) reinitNestedOwnerUsersForList(list string) {
+	counts := make(map[string]int)
+	for user := range m.directOwnerUsers[list] {
+		counts[user]++
+	}
+	for ownerList := range m.directOwnerLists[list] {
+		for user, count := range m.nestedUserMembers[ownerList] {
+			counts[user] += count
+		}
+	}
+	m.nestedOwnerUsers[list] = counts
+}
+
 func (m *accessListMaterializer) rematerialize(ctx context.Context, state state) error {
 	slog.DebugContext(ctx, "rematerialize")
 	unseenAssignments := maps.Clone(m.materializedAssignments)
 	materializedCount := 0
-	for listName, userCounts := range m.nestedUserMembers {
+	for listName := range m.allLists {
 		list, err := m.upstream.GetAccessList(ctx, listName)
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -668,25 +720,34 @@ func (m *accessListMaterializer) rematerialize(ctx context.Context, state state)
 			}
 			return trace.Wrap(err)
 		}
-		for user, count := range userCounts {
-			if count <= 0 {
-				return trace.Errorf("invariant violated, nestedUserMemberships[%s][%s] has count %d", listName, user, count)
+		userSet := make(map[string]struct{})
+		for user := range m.nestedUserMembers[listName] {
+			userSet[user] = struct{}{}
+		}
+		for user := range m.nestedOwnerUsers[listName] {
+			userSet[user] = struct{}{}
+		}
+		for user := range userSet {
+			isMember := m.nestedUserMembers[listName][user] > 0
+			isOwner := m.nestedOwnerUsers[listName][user] > 0
+			if !isMember && !isOwner {
+				continue
 			}
 			key := materializedAssignmentKey{
 				list: listName,
 				user: user,
 			}
 			delete(unseenAssignments, key)
-			if _, alreadyMaterialized := m.materializedAssignments[key]; alreadyMaterialized {
-				continue
+			assignmentID, alreadyMaterialized := m.materializedAssignments[key]
+			if !alreadyMaterialized {
+				assignmentID = uuid.NewString()
+				m.materializedAssignments[key] = assignmentID
 			}
-			assignmentID := uuid.NewString()
 			materializedCount++
-			assignment := materializeScopedRoleAssignment(user, list, assignmentID)
+			assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
 			if err := state.assignments.Put(assignment); err != nil {
 				return trace.Wrap(err, "putting materialized assignment for user %q in list %q into the cache", user, listName)
 			}
-			m.materializedAssignments[key] = assignmentID
 		}
 	}
 	slog.DebugContext(ctx, "Materialized new scoped role assignments", "assignment_count", materializedCount)
@@ -703,28 +764,9 @@ func (m *accessListMaterializer) rematerialize(ctx context.Context, state state)
 func (m *accessListMaterializer) handleAccessListPut(state state, list *accesslist.AccessList) error {
 	listName := list.GetName()
 	m.allLists.Add(listName)
-	if _, ok := m.directListMembers[listName]; !ok {
-		m.directListMembers[listName] = set.New[string]()
-	}
-	if _, ok := m.directUserMembers[listName]; !ok {
-		m.directUserMembers[listName] = set.New[string]()
-	}
-	if _, ok := m.nestedListMembers[listName]; !ok {
-		m.nestedListMembers[listName] = set.New[string]()
-	}
-	if _, ok := m.nestedUserMembers[listName]; !ok {
-		m.nestedUserMembers[listName] = make(map[string]int)
-	}
-	for key, id := range m.materializedAssignments {
-		if key.list != listName {
-			continue
-		}
-		newAssignment := materializeScopedRoleAssignment(key.user, list, id)
-		if err := state.assignments.Put(newAssignment); err != nil {
-			return trace.Wrap(err, "putting updated materialized assignment for user %q in list %q into assignment cache")
-		}
-	}
-	return nil
+	m.ensureListEntries(listName)
+	m.updateOwnersForList(list)
+	return trace.Wrap(m.rematerializeList(context.Background(), state, listName))
 }
 
 func (m *accessListMaterializer) handleAccessListDelete(listName string) error {
@@ -751,6 +793,32 @@ func (m *accessListMaterializer) handleAccessListDelete(listName string) error {
 			return trace.Errorf("invariant violated, access list %q still has nested list members while being deleted", listName)
 		}
 		delete(m.nestedListMembers, listName)
+	}
+	if directOwnerUsers, ok := m.directOwnerUsers[listName]; ok {
+		if directOwnerUsers.Len() > 0 {
+			return trace.Errorf("invariant violated, access list %q still has direct owners while being deleted", listName)
+		}
+		delete(m.directOwnerUsers, listName)
+	}
+	if directOwnerLists, ok := m.directOwnerLists[listName]; ok {
+		for ownerList := range directOwnerLists {
+			if parents, ok := m.ownerParentLists[ownerList]; ok {
+				parents.Remove(listName)
+				if parents.Len() == 0 {
+					delete(m.ownerParentLists, ownerList)
+				}
+			}
+		}
+		delete(m.directOwnerLists, listName)
+	}
+	if nestedOwnerUsers, ok := m.nestedOwnerUsers[listName]; ok {
+		if len(nestedOwnerUsers) > 0 {
+			return trace.Errorf("invariant violated, access list %q still has nested owner members while being deleted", listName)
+		}
+		delete(m.nestedOwnerUsers, listName)
+	}
+	if parentLists, ok := m.ownerParentLists[listName]; ok && parentLists.Len() > 0 {
+		return trace.Errorf("invariant violated, access list %q still owns parent lists while being deleted", listName)
 	}
 	for key := range m.materializedAssignments {
 		if key.list == listName {
@@ -799,7 +867,7 @@ func (m *accessListMaterializer) handleAccessListUserMemberPut(ctx context.Conte
 
 	// Then update nested memberships.
 	m.nestedUserMembers[listName][user]++
-	possibleNewMemberships := []string{listName}
+	membershipDeltaLists := []string{listName}
 	for otherList, otherListMembers := range m.nestedListMembers {
 		if otherList == listName || !otherListMembers.Contains(listName) {
 			// The list this user was just added to is not a nested member of otherList
@@ -807,25 +875,23 @@ func (m *accessListMaterializer) handleAccessListUserMemberPut(ctx context.Conte
 		}
 		// User is now a nested member of this list for one more reason (they are newly a direct member of listName)
 		m.nestedUserMembers[otherList][user]++
-		possibleNewMemberships = append(possibleNewMemberships, otherList)
+		membershipDeltaLists = append(membershipDeltaLists, otherList)
 	}
 
-	// Then ensure there is a materialized assignment for all lists user may newly be a nested member of.
-	for _, listName := range possibleNewMemberships {
-		assignmentKey := materializedAssignmentKey{list: listName, user: user}
-		if _, assignmentAlreadyMaterialized := m.materializedAssignments[assignmentKey]; assignmentAlreadyMaterialized {
-			continue
+	affectedLists := set.New[string]()
+	for _, listName := range membershipDeltaLists {
+		affectedLists.Add(listName)
+		for parentList := range m.ownerParentLists[listName] {
+			m.ensureListEntries(parentList)
+			m.nestedOwnerUsers[parentList][user]++
+			affectedLists.Add(parentList)
 		}
-		list, err := m.upstream.GetAccessList(ctx, listName)
-		if err != nil {
-			return trace.Errorf("invariant violated: list %q not found despite user %q being a member of it", listName, user)
+	}
+
+	for listName := range affectedLists {
+		if err := m.rematerializeList(ctx, state, listName); err != nil {
+			return trace.Wrap(err)
 		}
-		assignmentID := uuid.NewString()
-		newAssignment := materializeScopedRoleAssignment(user, list, assignmentID)
-		if err := state.assignments.Put(newAssignment); err != nil {
-			return trace.Wrap(err, "putting materialized assignment for user %q in list %q into assignment cache", user, listName)
-		}
-		m.materializedAssignments[assignmentKey] = assignmentID
 	}
 
 	return nil
@@ -842,6 +908,7 @@ func (m *accessListMaterializer) handleAccessListUserMemberDelete(ctx context.Co
 
 	// Then update nested memberships.
 	var removedMemberships []string
+	membershipDeltaLists := []string{listName}
 	m.nestedUserMembers[listName][user]--
 	if m.nestedUserMembers[listName][user] == 0 {
 		delete(m.nestedUserMembers[listName], user)
@@ -854,21 +921,45 @@ func (m *accessListMaterializer) handleAccessListUserMemberDelete(ctx context.Co
 		}
 		// User is now a nested member of this list for one fewer reasons (they are no longer a direct member of listName)
 		m.nestedUserMembers[otherList][user]--
+		membershipDeltaLists = append(membershipDeltaLists, otherList)
 		if m.nestedUserMembers[otherList][user] == 0 {
 			delete(m.nestedUserMembers[otherList], user)
 			removedMemberships = append(removedMemberships, otherList)
 		}
 	}
 
-	// Then make sure to remove materialized assignments for all lists user is no longer a nested member of.
+	affectedLists := set.New[string]()
+	for _, listName := range membershipDeltaLists {
+		affectedLists.Add(listName)
+		for parentList := range m.ownerParentLists[listName] {
+			if m.nestedOwnerUsers[parentList][user] > 0 {
+				m.nestedOwnerUsers[parentList][user]--
+				if m.nestedOwnerUsers[parentList][user] == 0 {
+					delete(m.nestedOwnerUsers[parentList], user)
+				}
+			}
+			affectedLists.Add(parentList)
+		}
+	}
+
+	// Then make sure to remove materialized assignments for all lists user is no longer a nested member/owner of.
 	for _, listName := range removedMemberships {
 		assignmentKey := materializedAssignmentKey{list: listName, user: user}
 		currentAssignmentID, assignmentCurrentlyMaterialized := m.materializedAssignments[assignmentKey]
 		if !assignmentCurrentlyMaterialized {
 			continue
 		}
+		if m.nestedOwnerUsers[listName][user] > 0 {
+			continue
+		}
 		state.assignments.Delete(currentAssignmentID)
 		delete(m.materializedAssignments, assignmentKey)
+	}
+
+	for listName := range affectedLists {
+		if err := m.rematerializeList(ctx, state, listName); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -890,6 +981,7 @@ func (m *accessListMaterializer) handleAccessListListMemberPut(ctx context.Conte
 
 	// Then update nested user memberships.
 	m.reinitNestedUserMembers()
+	m.reinitNestedOwnerUsers()
 
 	// Then ensure there is a materialized assignment for all (list, user) pairs.
 	return trace.Wrap(m.rematerialize(ctx, state))
@@ -909,14 +1001,21 @@ func (m *accessListMaterializer) handleAccessListListMemberDelete(ctx context.Co
 
 	// Then update nested user memberships.
 	m.reinitNestedUserMembers()
+	m.reinitNestedOwnerUsers()
 
 	// Then ensure there is a materialized assignment for all (list, user)
 	// pairs and dangling assignements are cleaned up.
 	return trace.Wrap(m.rematerialize(ctx, state))
 }
 
-func materializeScopedRoleAssignment(user string, list *accesslist.AccessList, uuid string) *scopedaccessv1.ScopedRoleAssignment {
-	roleGrants := list.Spec.Grants.ScopedRoles
+func materializeScopedRoleAssignment(user string, list *accesslist.AccessList, uuid string, isMember bool, isOwner bool) *scopedaccessv1.ScopedRoleAssignment {
+	roleGrants := make([]accesslist.ScopedRoleGrant, 0, len(list.Spec.Grants.ScopedRoles)+len(list.Spec.OwnerGrants.ScopedRoles))
+	if isMember {
+		roleGrants = append(roleGrants, list.Spec.Grants.ScopedRoles...)
+	}
+	if isOwner {
+		roleGrants = append(roleGrants, list.Spec.OwnerGrants.ScopedRoles...)
+	}
 	assignment := &scopedaccessv1.ScopedRoleAssignment{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		Version: types.V1,
@@ -936,4 +1035,136 @@ func materializeScopedRoleAssignment(user string, list *accesslist.AccessList, u
 		})
 	}
 	return assignment
+}
+
+func ownerUsersForList(list *accesslist.AccessList) set.Set[string] {
+	owners := set.New[string]()
+	for _, owner := range list.Spec.Owners {
+		if owner.IsMembershipKindUser() {
+			owners.Add(owner.Name)
+		}
+	}
+	return owners
+}
+
+func ownerListsForList(list *accesslist.AccessList) set.Set[string] {
+	owners := set.New[string]()
+	for _, owner := range list.Spec.Owners {
+		if !owner.IsMembershipKindUser() {
+			owners.Add(owner.Name)
+		}
+	}
+	return owners
+}
+
+func (m *accessListMaterializer) ensureListEntries(listName string) {
+	if _, ok := m.directListMembers[listName]; !ok {
+		m.directListMembers[listName] = set.New[string]()
+	}
+	if _, ok := m.directUserMembers[listName]; !ok {
+		m.directUserMembers[listName] = set.New[string]()
+	}
+	if _, ok := m.nestedListMembers[listName]; !ok {
+		m.nestedListMembers[listName] = set.New[string]()
+	}
+	if _, ok := m.nestedUserMembers[listName]; !ok {
+		m.nestedUserMembers[listName] = make(map[string]int)
+	}
+	if _, ok := m.directOwnerUsers[listName]; !ok {
+		m.directOwnerUsers[listName] = set.New[string]()
+	}
+	if _, ok := m.directOwnerLists[listName]; !ok {
+		m.directOwnerLists[listName] = set.New[string]()
+	}
+	if _, ok := m.nestedOwnerUsers[listName]; !ok {
+		m.nestedOwnerUsers[listName] = make(map[string]int)
+	}
+}
+
+func (m *accessListMaterializer) updateOwnersForList(list *accesslist.AccessList) {
+	listName := list.GetName()
+	oldOwnerLists := m.directOwnerLists[listName]
+
+	newOwnerUsers := ownerUsersForList(list)
+	newOwnerLists := ownerListsForList(list)
+
+	for ownerList := range oldOwnerLists {
+		if newOwnerLists.Contains(ownerList) {
+			continue
+		}
+		if parents, ok := m.ownerParentLists[ownerList]; ok {
+			parents.Remove(listName)
+			if parents.Len() == 0 {
+				delete(m.ownerParentLists, ownerList)
+			}
+		}
+	}
+	for ownerList := range newOwnerLists {
+		if oldOwnerLists.Contains(ownerList) {
+			continue
+		}
+		if parents, ok := m.ownerParentLists[ownerList]; ok {
+			parents.Add(listName)
+		} else {
+			m.ownerParentLists[ownerList] = set.New(listName)
+		}
+	}
+
+	m.directOwnerUsers[listName] = newOwnerUsers
+	m.directOwnerLists[listName] = newOwnerLists
+	m.reinitNestedOwnerUsersForList(listName)
+}
+
+func (m *accessListMaterializer) rematerializeList(ctx context.Context, state state, listName string) error {
+	list, err := m.upstream.GetAccessList(ctx, listName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.Errorf("invariant violated, list %s not found", listName)
+		}
+		return trace.Wrap(err)
+	}
+
+	users := make(map[string]struct{})
+	for user := range m.nestedUserMembers[listName] {
+		users[user] = struct{}{}
+	}
+	for user := range m.nestedOwnerUsers[listName] {
+		users[user] = struct{}{}
+	}
+
+	existing := make(map[materializedAssignmentKey]struct{})
+	for key := range m.materializedAssignments {
+		if key.list == listName {
+			existing[key] = struct{}{}
+		}
+	}
+
+	for user := range users {
+		isMember := m.nestedUserMembers[listName][user] > 0
+		isOwner := m.nestedOwnerUsers[listName][user] > 0
+		if !isMember && !isOwner {
+			continue
+		}
+		key := materializedAssignmentKey{list: listName, user: user}
+		delete(existing, key)
+		assignmentID, alreadyMaterialized := m.materializedAssignments[key]
+		if !alreadyMaterialized {
+			assignmentID = uuid.NewString()
+			m.materializedAssignments[key] = assignmentID
+		}
+		assignment := materializeScopedRoleAssignment(user, list, assignmentID, isMember, isOwner)
+		if err := state.assignments.Put(assignment); err != nil {
+			return trace.Wrap(err, "putting updated materialized assignment for user %q in list %q into assignment cache", user, listName)
+		}
+	}
+
+	for key := range existing {
+		if m.nestedUserMembers[listName][key.user] > 0 || m.nestedOwnerUsers[listName][key.user] > 0 {
+			continue
+		}
+		state.assignments.Delete(m.materializedAssignments[key])
+		delete(m.materializedAssignments, key)
+	}
+
+	return nil
 }

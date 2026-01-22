@@ -1034,6 +1034,229 @@ func TestAccessListMaterializationDeepForest(t *testing.T) {
 	})
 }
 
+func TestAccessListMaterializationOwnerGrants(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessLists: {Enabled: true, Limit: 100},
+			},
+		},
+	})
+
+	backend, err := memory.New(memory.Config{
+		Context: t.Context(),
+	})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	service := local.NewScopedAccessService(backend)
+	accessListService, err := local.NewAccessListService(backend, backend.Clock())
+	require.NoError(t, err)
+
+	events := local.NewEventsService(backend)
+	accessListCache, err := cachepkg.New(cachepkg.Config{
+		Context: t.Context(),
+		Events:  events,
+		Watches: []types.WatchKind{
+			{Kind: types.KindAccessList},
+			{Kind: types.KindAccessListMember},
+		},
+		AccessLists: accessListService,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, accessListCache.Close()) })
+
+	cache, err := NewCache(CacheConfig{
+		Events:           events,
+		Reader:           service,
+		AccessListReader: accessListCache,
+		AccessListEvents: accessListCache,
+	})
+	require.NoError(t, err)
+	defer cache.Close()
+
+	for roleName, scope := range map[string]string{
+		"primary-member":  "/primary",
+		"primary-owner":   "/primary",
+		"owners-member":   "/owners",
+		"owners-owner":    "/owners",
+		"subowners-member": "/subowners",
+		"subowners-owner":  "/subowners",
+	} {
+		role := newScopedRole(roleName)
+		role.Spec = &scopedaccessv1.ScopedRoleSpec{AssignableScopes: []string{scope}}
+		_, err := service.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+			Role: role,
+		})
+		require.NoError(t, err)
+	}
+
+	ownersList := newAccessList(t, "owners-list")
+	ownersList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{Role: "owners-member", Scope: "/owners"},
+	}
+	ownersList.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{Role: "owners-owner", Scope: "/owners"},
+	}
+	ownersList.Spec.Owners = append(ownersList.Spec.Owners,
+		accesslist.Owner{Name: "zoe", MembershipKind: accesslist.MembershipKindUser},
+	)
+	_, err = accessListService.UpsertAccessList(t.Context(), ownersList)
+	require.NoError(t, err)
+
+	subowners := newAccessList(t, "subowners")
+	subowners.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{Role: "subowners-member", Scope: "/subowners"},
+	}
+	subowners.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{Role: "subowners-owner", Scope: "/subowners"},
+	}
+	_, err = accessListService.UpsertAccessList(t.Context(), subowners)
+	require.NoError(t, err)
+
+	primary := newAccessList(t, "primary")
+	primary.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{Role: "primary-member", Scope: "/primary"},
+	}
+	primary.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{
+		{Role: "primary-owner", Scope: "/primary"},
+	}
+	primary.Spec.Owners = append(primary.Spec.Owners,
+		accesslist.Owner{Name: "alice", MembershipKind: accesslist.MembershipKindUser},
+		accesslist.Owner{Name: "owners-list", MembershipKind: accesslist.MembershipKindList},
+	)
+	_, err = accessListService.UpsertAccessList(t.Context(), primary)
+	require.NoError(t, err)
+
+	for _, memberSpec := range []accesslist.AccessListMemberSpec{
+		{AccessList: "primary", Name: "alice", MembershipKind: accesslist.MembershipKindUser},
+		{AccessList: "primary", Name: "dave", MembershipKind: accesslist.MembershipKindUser},
+		{AccessList: "owners-list", Name: "bob", MembershipKind: accesslist.MembershipKindUser},
+		{AccessList: "owners-list", Name: "subowners", MembershipKind: accesslist.MembershipKindList},
+		{AccessList: "subowners", Name: "carol", MembershipKind: accesslist.MembershipKindUser},
+	} {
+		member := newAccessListMember(t, memberSpec.AccessList, memberSpec.Name, memberSpec.MembershipKind)
+		_, err := accessListService.UpsertAccessListMember(t.Context(), member)
+		require.NoError(t, err)
+	}
+
+	expectedAssignments := []roleAssignment{
+		{user: "alice", scope: "/", grants: []grant{{role: "primary-member", scope: "/primary"}, {role: "primary-owner", scope: "/primary"}}},
+		{user: "dave", scope: "/", grants: []grant{{role: "primary-member", scope: "/primary"}}},
+		{user: "bob", scope: "/", grants: []grant{{role: "primary-owner", scope: "/primary"}}},
+		{user: "carol", scope: "/", grants: []grant{{role: "primary-owner", scope: "/primary"}}},
+		{user: "owner", scope: "/", grants: []grant{{role: "primary-owner", scope: "/primary"}}},
+
+		{user: "bob", scope: "/", grants: []grant{{role: "owners-member", scope: "/owners"}}},
+		{user: "carol", scope: "/", grants: []grant{{role: "owners-member", scope: "/owners"}}},
+		{user: "owner", scope: "/", grants: []grant{{role: "owners-owner", scope: "/owners"}}},
+		{user: "zoe", scope: "/", grants: []grant{{role: "owners-owner", scope: "/owners"}}},
+
+		{user: "carol", scope: "/", grants: []grant{{role: "subowners-member", scope: "/subowners"}}},
+		{user: "owner", scope: "/", grants: []grant{{role: "subowners-owner", scope: "/subowners"}}},
+	}
+	waitForRoleAssignments(t, cache, expectedAssignments)
+
+	t.Run("update_owner_grants", func(t *testing.T) {
+		role := newScopedRole("primary-owner-v2")
+		role.Spec = &scopedaccessv1.ScopedRoleSpec{AssignableScopes: []string{"/primary"}}
+		_, err := service.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+			Role: role,
+		})
+		require.NoError(t, err)
+
+		list, err := accessListService.GetAccessList(t.Context(), "primary")
+		require.NoError(t, err)
+		list.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{
+			{Role: "primary-owner-v2", Scope: "/primary"},
+		}
+		_, err = accessListService.UpsertAccessList(t.Context(), list)
+		require.NoError(t, err)
+
+		expectedAssignments = removeRoleAssignment(expectedAssignments, roleAssignment{
+			user:  "alice",
+			scope: "/",
+			grants: []grant{
+				{role: "primary-member", scope: "/primary"},
+				{role: "primary-owner", scope: "/primary"},
+			},
+		})
+		expectedAssignments = removeRoleAssignment(expectedAssignments, roleAssignment{
+			user:  "bob",
+			scope: "/",
+			grants: []grant{
+				{role: "primary-owner", scope: "/primary"},
+			},
+		})
+		expectedAssignments = removeRoleAssignment(expectedAssignments, roleAssignment{
+			user:  "carol",
+			scope: "/",
+			grants: []grant{
+				{role: "primary-owner", scope: "/primary"},
+			},
+		})
+		expectedAssignments = removeRoleAssignment(expectedAssignments, roleAssignment{
+			user:  "owner",
+			scope: "/",
+			grants: []grant{
+				{role: "primary-owner", scope: "/primary"},
+			},
+		})
+		expectedAssignments = append(expectedAssignments,
+			roleAssignment{
+				user:  "alice",
+				scope: "/",
+				grants: []grant{
+					{role: "primary-member", scope: "/primary"},
+					{role: "primary-owner-v2", scope: "/primary"},
+				},
+			},
+			roleAssignment{
+				user:  "bob",
+				scope: "/",
+				grants: []grant{
+					{role: "primary-owner-v2", scope: "/primary"},
+				},
+			},
+			roleAssignment{
+				user:  "carol",
+				scope: "/",
+				grants: []grant{
+					{role: "primary-owner-v2", scope: "/primary"},
+				},
+			},
+			roleAssignment{
+				user:  "owner",
+				scope: "/",
+				grants: []grant{
+					{role: "primary-owner-v2", scope: "/primary"},
+				},
+			},
+		)
+		waitForRoleAssignments(t, cache, expectedAssignments)
+	})
+
+	t.Run("remove_owner_list_member", func(t *testing.T) {
+		require.NoError(t, accessListService.DeleteAccessListMember(t.Context(), "owners-list", "bob"))
+		expectedAssignments = removeRoleAssignment(expectedAssignments, roleAssignment{
+			user:  "bob",
+			scope: "/",
+			grants: []grant{
+				{role: "owners-member", scope: "/owners"},
+			},
+		})
+		expectedAssignments = removeRoleAssignment(expectedAssignments, roleAssignment{
+			user:  "bob",
+			scope: "/",
+			grants: []grant{
+				{role: "primary-owner-v2", scope: "/primary"},
+			},
+		})
+		waitForRoleAssignments(t, cache, expectedAssignments)
+	})
+}
+
 func BenchmarkAccessListMaterialization(b *testing.B) {
 	modulestest.SetTestModules(b, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
