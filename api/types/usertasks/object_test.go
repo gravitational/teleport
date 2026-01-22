@@ -35,6 +35,7 @@ func TestValidateUserTask(t *testing.T) {
 
 	exampleInstanceID := "i-123"
 
+	// baseEC2DiscoverTask uses an SSM issue type which requires account_id and region.
 	baseEC2DiscoverTask := func(t *testing.T) *usertasksv1.UserTask {
 		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
 			Integration: "my-integration",
@@ -47,6 +48,30 @@ func TestValidateUserTask(t *testing.T) {
 				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
 					exampleInstanceID: {
 						InstanceId:      exampleInstanceID,
+						DiscoveryConfig: "dc01",
+						DiscoveryGroup:  "dg01",
+						SyncTime:        timestamppb.Now(),
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return userTask
+	}
+
+	// baseEC2PermissionIssueTask uses a permission issue type which does NOT
+	// require account_id and region (errors occur before these are known).
+	baseEC2PermissionIssueTask := func(t *testing.T) *usertasksv1.UserTask {
+		userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+			Integration: "my-integration",
+			TaskType:    "discover-ec2",
+			IssueType:   "ec2-perm-describe-instances",
+			State:       "OPEN",
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				AccountId: "123456789012",
+				Region:    "us-east-1",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"": {
 						DiscoveryConfig: "dc01",
 						DiscoveryGroup:  "dg01",
 						SyncTime:        timestamppb.Now(),
@@ -153,6 +178,43 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: require.Error,
 		},
 		{
+			name: "DiscoverEC2: ec2-perm-describe-instances is valid",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				return baseEC2PermissionIssueTask(t)
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "DiscoverEC2: ec2-perm-account-list-regions is valid",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEC2PermissionIssueTask(t)
+				ut.Spec.IssueType = "ec2-perm-account-list-regions"
+				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+					AccountID:   ut.Spec.DiscoverEc2.AccountId,
+					Region:      ut.Spec.DiscoverEc2.Region,
+				})
+				return ut
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "DiscoverEC2: ec2-perm-organizations is valid",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEC2PermissionIssueTask(t)
+				ut.Spec.IssueType = "ec2-perm-organizations"
+				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+					AccountID:   ut.Spec.DiscoverEc2.AccountId,
+					Region:      ut.Spec.DiscoverEc2.Region,
+				})
+				return ut
+			},
+			wantErr: require.NoError,
+		},
+		{
 			name: "DiscoverEC2: missing integration",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2DiscoverTask(t)
@@ -198,6 +260,50 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: require.Error,
 		},
 		{
+			name: "DiscoverEC2: ec2-perm-describe-instances allows missing account id and region",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEC2PermissionIssueTask(t)
+				ut.Spec.DiscoverEc2.AccountId = ""
+				ut.Spec.DiscoverEc2.Region = ""
+				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+				})
+				return ut
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "DiscoverEC2: ec2-perm-account-list-regions allows missing account id and region",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEC2PermissionIssueTask(t)
+				ut.Spec.IssueType = "ec2-perm-account-list-regions"
+				ut.Spec.DiscoverEc2.AccountId = ""
+				ut.Spec.DiscoverEc2.Region = ""
+				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+				})
+				return ut
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "DiscoverEC2: ec2-perm-organizations allows missing account id and region",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEC2PermissionIssueTask(t)
+				ut.Spec.IssueType = "ec2-perm-organizations"
+				ut.Spec.DiscoverEc2.AccountId = ""
+				ut.Spec.DiscoverEc2.Region = ""
+				ut.Metadata.Name = usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+				})
+				return ut
+			},
+			wantErr: require.NoError,
+		},
+		{
 			name: "DiscoverEC2: instances - missing instance id in map key",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEC2DiscoverTask(t)
@@ -239,6 +345,19 @@ func TestValidateUserTask(t *testing.T) {
 				return ut
 			},
 			wantErr: require.Error,
+		},
+		{
+			// Permission issues allow empty DiscoveryConfig because these errors occur
+			// early in the discovery phase, before instance-specific context is available.
+			// Validation is intentionally relaxed to ensure UserTasks can still be created
+			// to alert users about missing IAM permissions, even without full context.
+			name: "DiscoverEC2: permission issue allows missing discovery config",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEC2PermissionIssueTask(t)
+				ut.Spec.DiscoverEc2.Instances[""].DiscoveryConfig = ""
+				return ut
+			},
+			wantErr: require.NoError,
 		},
 		{
 			name: "DiscoverEC2: instances - missing discovery group",

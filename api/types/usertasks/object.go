@@ -156,9 +156,48 @@ const (
 	TaskTypeDiscoverRDS = "discover-rds"
 )
 
+// Permission-related Auto Discover EC2 issues identifiers.
+// This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
+// The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
+//
+// PERM-related issues occur during the discovery phase when the integration's IAM role
+// lacks permissions to call AWS APIs, preventing Teleport from discovering EC2 instances.
+const (
+	// AutoDiscoverEC2IssuePermAccountListRegions indicates the integration lacks
+	// permission to call account:ListRegions. This occurs when using regions: ["*"].
+	AutoDiscoverEC2IssuePermAccountListRegions = "ec2-perm-account-list-regions"
+
+	// AutoDiscoverEC2IssuePermDescribeInstances indicates the integration lacks
+	// permission to call ec2:DescribeInstances.
+	AutoDiscoverEC2IssuePermDescribeInstances = "ec2-perm-describe-instances"
+
+	// AutoDiscoverEC2IssuePermOrganizations indicates the integration lacks
+	// permission to call Organizations APIs (ListRoots, ListChildren, ListAccountsForParent).
+	// This occurs when using organization-wide discovery.
+	AutoDiscoverEC2IssuePermOrganizations = "ec2-perm-organizations"
+)
+
+// isPermissionRelatedIssueType returns true if the issue type is related to
+// missing IAM permissions during the discovery phase. These issue types may
+// not have account_id and region available because the error occurs before
+// these values can be determined.
+func isPermissionRelatedIssueType(issueType string) bool {
+	switch issueType {
+	case AutoDiscoverEC2IssuePermAccountListRegions,
+		AutoDiscoverEC2IssuePermDescribeInstances,
+		AutoDiscoverEC2IssuePermOrganizations:
+		return true
+	default:
+		return false
+	}
+}
+
 // List of Auto Discover EC2 issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EC2 tasks.
 // The Web UI will then use those identifiers to show detailed instructions on how to fix the issue.
+//
+// SSM-related issues occur during the installation phase when Teleport
+// attempts to install the agent on discovered EC2 instances via AWS Systems Manager.
 const (
 	// AutoDiscoverEC2IssueSSMInstanceNotRegistered is used to identify instances that failed to auto-enroll
 	// because they are not present in Amazon Systems Manager.
@@ -194,6 +233,9 @@ var DiscoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 	AutoDiscoverEC2IssueSSMScriptFailure,
 	AutoDiscoverEC2IssueSSMInvocationFailure,
+	AutoDiscoverEC2IssuePermAccountListRegions,
+	AutoDiscoverEC2IssuePermDescribeInstances,
+	AutoDiscoverEC2IssuePermOrganizations,
 }
 
 // List of Auto Discover EKS issues identifiers.
@@ -289,10 +331,15 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 	if ut.GetSpec().DiscoverEc2 == nil {
 		return trace.BadParameter("%s requires the discover_ec2 field", TaskTypeDiscoverEC2)
 	}
-	if ut.GetSpec().DiscoverEc2.AccountId == "" {
+
+	// Permission-related issue types may not have account_id and region available
+	// because they occur during discovery before these values are known.
+	isPermissionIssue := isPermissionRelatedIssueType(ut.GetSpec().IssueType)
+
+	if ut.GetSpec().DiscoverEc2.AccountId == "" && !isPermissionIssue {
 		return trace.BadParameter("%s requires the discover_ec2.account_id field", TaskTypeDiscoverEC2)
 	}
-	if ut.GetSpec().DiscoverEc2.Region == "" {
+	if ut.GetSpec().DiscoverEc2.Region == "" && !isPermissionIssue {
 		return trace.BadParameter("%s requires the discover_ec2.region field", TaskTypeDiscoverEC2)
 	}
 
@@ -313,6 +360,18 @@ func validateDiscoverEC2TaskType(ut *usertasksv1.UserTask) error {
 
 	if !slices.Contains(DiscoverEC2IssueTypes, ut.GetSpec().IssueType) {
 		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEC2IssueTypes)
+	}
+
+	// Permission-related issue types don't have specific instances associated with them.
+	// They represent discovery-phase failures where no instance information is available.
+	if isPermissionIssue {
+		// For permission issues, we still require at least one entry in Instances,
+		// but the instance ID can be empty since these are discovery-level errors.
+		if len(ut.Spec.DiscoverEc2.Instances) == 0 {
+			return trace.BadParameter("at least one instance entry is required")
+		}
+		// Skip instance-specific validations for permission issues
+		return nil
 	}
 
 	if len(ut.Spec.DiscoverEc2.Instances) == 0 {
