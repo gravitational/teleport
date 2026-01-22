@@ -123,12 +123,9 @@ func (h *userHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			attr := map[string]any{
-				"groups": conv.ToSCIMGroups(groups),
-			}
 			return conv.UserToResource(user,
 				conv.WithExternalIDFunc(userExternalID),
-				conv.WithAttributes(attr),
+				conv.WithGroupsAttr(groups),
 			)
 		},
 	}
@@ -154,14 +151,10 @@ func (h *userHandler) GetResource(ctx context.Context, req *scimpb.GetSCIMResour
 		return nil, trace.Wrap(err)
 	}
 
-	attr := map[string]any{
-		"groups": conv.ToSCIMGroups(groupNames),
-	}
-
 	return conv.UserToResource(
 		teleportUser,
 		conv.WithExternalIDFunc(userExternalID),
-		conv.WithAttributes(attr),
+		conv.WithGroupsAttr(groupNames),
 	)
 }
 

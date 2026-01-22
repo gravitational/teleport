@@ -3,6 +3,8 @@ package common
 const (
 	// UsernameAttribute is the attribute name for the username.
 	UsernameAttribute = "userName"
+	// GroupsAttribute is the attribute name for the groups.
+	GroupsAttribute = "groups"
 
 	// ResourceTypeUser is the resource type for a user.
 	ResourceTypeUser = "User"

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"math"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
@@ -113,27 +112,9 @@ func (s *oktaShim) UserToResource(_ context.Context, user types.User) (*scimpb.R
 	u, err := conv.UserToResource(
 		user,
 		conv.WithExternalIDFunc(getOktaUserExternalID),
-		conv.WithAttributes(getOktaTrailsUserAttributes(user)),
 		conv.WithUserOptionClock(s.Clock),
 	)
 	return u, trace.Wrap(err)
-}
-
-func getOktaTrailsUserAttributes(user types.User) map[string]any {
-	var attribs = make(map[string]any)
-	for k, v := range user.GetTraits() {
-		if !strings.HasPrefix(k, eteleport.OktaTraitPrefix) {
-			continue
-		}
-		k = strings.TrimPrefix(k, eteleport.OktaTraitPrefix)
-
-		if len(v) == 1 {
-			attribs[k] = v[0]
-			continue
-		}
-		attribs[k] = v
-	}
-	return attribs
 }
 
 // ResourceToUser converts an Okta SCIM resource to a Teleport user

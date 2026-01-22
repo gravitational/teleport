@@ -42,10 +42,10 @@ func WithExternalIDFunc(f func(u types.User) string) UserResourceOption {
 	}
 }
 
-// WithAttributes sets the attributes for the user resource.
-func WithAttributes(attributes map[string]any) UserResourceOption {
+// WithGroupsAttr sets the groups SCIM attribute for the user resource.
+func WithGroupsAttr(groups []string) UserResourceOption {
 	return func(o *userResourceOptions) {
-		o.attributes = attributes
+		o.groups = groups
 	}
 }
 
@@ -105,15 +105,15 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 			ResourceType: common.ResourceTypeUser,
 		},
 	}
-	attribs := map[string]any{common.UsernameAttribute: user.GetName()}
-	if options.attributes != nil {
-		maps.Copy(attribs, options.attributes)
+	attrs := map[string]any{common.UsernameAttribute: user.GetName()}
+	if len(options.groups) > 0 {
+		attrs[common.GroupsAttribute] = ToSCIMGroups(options.groups)
 	}
-	attribStruct, err := structpb.NewStruct(attribs)
+	protoAttrs, err := structpb.NewStruct(attrs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resource.Attributes = attribStruct
+	resource.Attributes = protoAttrs
 
 	return &resource, nil
 }
@@ -122,7 +122,7 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 type UserResourceOption func(*userResourceOptions)
 
 type userResourceOptions struct {
-	attributes   map[string]any
+	groups       []string
 	externalIDFn func(u types.User) string
 	labels       map[string]string
 	clock        clockwork.Clock
