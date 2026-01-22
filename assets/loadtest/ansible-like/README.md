@@ -1,16 +1,57 @@
-# Ansible-like OpenSSH sessions load test
+# ansible-like openssh loadtest
 
-This setup is designed to be ran from the home directory of a VM (the default working directory for a systemd user service); the proxy public address and cluster name should be changed in `gen_inventory.sh`, `proxy_templates.yaml` and `tbot.yaml` from `PROXYHOST` and `CLUSTERNAME` respectively. It requires openssh, jq, xargs, and dumb-init, as well as tbot and fdpass-teleport.
+This setup is intended to generate fake ansible-like load by spawning very massive numbers
+of sessions against a large number of teleport nodes. It uses tbot/machineid with ssh multiplexing
+to support the needed volume of sessions (as one would do with an ansible master that manages
+a massive number of servers via teleport).
 
-This setup assumes that nodes are being ran by the `node-agent` Helm chart, and proxy templates are applied to do predicate-based dialing on the NODENAME label, as the chart sets up. Commenting or blanking the `proxy_templates.yaml` file (and restarting tbot) will change it to hostname-based dialing. Changing the `proxy_templates.yaml` file (and restarting tbot) can also be used to test a simpler predicate, or to test search-based dialing rather than predicate-based dialing.
+This setup is designed to be run on a fresh VM instance, and will perform various
+installs and system configuration actions.
 
-Bot and token can be created with `tctl -f loadtest-bot.yaml`, after editing the IAM account and role in it. Token-based joining with tbot is incredibly annoying, so IAM joining or some other ambient-based joining method is recommended. Running the `node-agent` chart is left as an exercise for the reader.
+It expects the following to already be installed on the system:
 
-The machine running the client should be scaled depending on how many nodes are targeted in the inventory; for 60000 nodes (i.e. 60k shell scripts and 120k ssh processes running at peak) the memory usage with Teleport 15 seems to be ~20GiB for tbot and ~200 for the scripts and SSH, so something like an AWS 32xlarge or 48xlarge might be necessary (maybe the compute-optimized variants, as memory isn't really a problem). Depending on the scale of the test and the runner machine, tuning GOMAXPROCS and GOMEMLIMIT in tbot.service might be useful.
+- `openssh`
+- `jq`
+- `xargs`
+
+It will perform installation of the following:
+
+- all default teleport binaries (namely, `tbot`)
+- `fdpass-teleport`
+- `dumb-init`
+
+By default, this test setup assumes that the `node-agents` loadtest helm chart is being
+used.  The proxy templates generated rely on labels set by that helm chart. After setup
+is run, it is possible to customize the proxy template used by editing `/etc/tbot/proxy-templates.yaml`.
+
+Given the extreme scale of tests run with this setup, it is typically necessary to use a
+very large VM. For example, 60k agent tests are typically run from a 32xlarge or 48xlarge
+instance, either general purpose of compute optimized.
 
 ## Usage
 
-- Run `tbot_install.sh` to set up tbot (it will install a specific Teleport version as listed in the script, tweak it as required), or `systemctl --user restart tbot.service` if tbot is already set up.
-- Run the `gen_inventory.sh` script to produce a list of hosts in random order in the `inventory` file, check that it matches the expected list of hosts.
-- Choose a random host in the inventory and confirm that the setup is working with `ssh -F tbot_destdir_mux/ssh_config root@host`.
-- Run `run.sh >/dev/null` (in tmux, probably). In a different terminal or tab, check how many sockets are being opened in the ssh controlmaster directory with `ls -1 /run/user/1000/ssh-control | wc -l` to confirm that connections are being established and muxed by ssh. Logs for tbot can be viewed with `journalctl --user-unit tbot --follow`.
+- Copy `example.vars.env` to `vars.env` and edit the copy. The `PROXY_HOST` variable
+and `BOT_TOKEN` variable *must* be changed.
+
+- Run `install.sh` once to install `tbot`, `fdpass-teleport`, and `dumb-init`. This only need
+ever be run once.
+
+- Run `init.sh` to set up tbot directories/configuration and start the `bot.service`. If this needs
+to be re-run (e.g. if proxy host or token need to be changed), it may be necessary to first manually
+halt the tbot service.
+
+- Run `journalctl -u tbot.service` to verify that `tbot` has successfully authenticated with the cluster.
+
+- Run `gen-inventory.sh` to generate a list of all target teleport nodes. This only needs to be re-run
+if/when the set of agents changes.
+
+- Verify that the setup is functional by selecting a random host from `state/inventory` and attempting to
+access it via `ssh -F /opt/machine-id/ssh_config root@host`
+
+- Run `run.sh` to run the actual test scenario. This will invoke `run-node.sh` for each member of
+the generated inventory and report success/failure of individual attempted sessions. Note that for
+large scale tests the output of this script is enormous and may need to be piped to `/dev/null`. Long
+running invocations should be performed within a `tmux` session or similar.
+
+- Verify that ssh connections are being established and multiplexed by monitoring the control master
+directory with `ls -1 /run/user/1000/ssh-control | wc -l`.
