@@ -2325,15 +2325,6 @@ func (process *TeleportProcess) initAuthService() error {
 				return trace.Wrap(err)
 			}
 		}
-		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
-			Uploader:                  uploadHandler,
-			Encrypter:                 encryptedIO,
-			SessionSummarizerProvider: sessionSummarizerProvider,
-			RecordingMetadataProvider: recordingMetadataProvider,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
 
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
@@ -2371,6 +2362,17 @@ func (process *TeleportProcess) initAuthService() error {
 			emitter = externalEmitter
 		} else {
 			emitter = localLog
+		}
+
+		streamer, err = events.NewProtoStreamer(events.ProtoStreamerConfig{
+			Uploader:                  uploadHandler,
+			Encrypter:                 encryptedIO,
+			SessionSummarizerProvider: sessionSummarizerProvider,
+			RecordingMetadataProvider: recordingMetadataProvider,
+			SessionStreamer:           process.auditLog,
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

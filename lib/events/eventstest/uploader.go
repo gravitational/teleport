@@ -54,7 +54,7 @@ func NewMemoryUploader(cfg ...MemoryUploaderConfig) *MemoryUploader {
 		sessions:         make(map[session.ID][]byte),
 		summaries:        make(map[session.ID][]byte),
 		pendingSummaries: make(map[session.ID][]byte),
-		metadata:         make(map[session.ID][]byte),
+		Metadata:         make(map[session.ID][]byte),
 		thumbnails:       make(map[session.ID][]byte),
 	}
 	if len(cfg) != 0 {
@@ -72,7 +72,7 @@ type MemoryUploader struct {
 	sessions         map[session.ID][]byte
 	summaries        map[session.ID][]byte
 	pendingSummaries map[session.ID][]byte
-	metadata         map[session.ID][]byte
+	Metadata         map[session.ID][]byte
 	thumbnails       map[session.ID][]byte
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
@@ -118,7 +118,7 @@ func (m *MemoryUploader) Reset() {
 	m.sessions = make(map[session.ID][]byte)
 	m.summaries = make(map[session.ID][]byte)
 	m.pendingSummaries = make(map[session.ID][]byte)
-	m.metadata = make(map[session.ID][]byte)
+	m.Metadata = make(map[session.ID][]byte)
 	m.thumbnails = make(map[session.ID][]byte)
 }
 
@@ -326,7 +326,7 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 func (m *MemoryUploader) UploadMetadata(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	_, ok := m.metadata[sessionID]
+	_, ok := m.Metadata[sessionID]
 	if ok {
 		return "", trace.AlreadyExists("metadata %q already exists", sessionID)
 	}
@@ -334,7 +334,7 @@ func (m *MemoryUploader) UploadMetadata(ctx context.Context, sessionID session.I
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
-	m.metadata[sessionID] = data
+	m.Metadata[sessionID] = data
 	return string(sessionID), nil
 }
 
@@ -394,7 +394,7 @@ func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	data, ok := m.metadata[sessionID]
+	data, ok := m.Metadata[sessionID]
 	if !ok {
 		return trace.NotFound("metadata %q is not found", sessionID)
 	}
@@ -496,7 +496,7 @@ func (m *MemoryUploader) UploadEncryptedRecording(ctx context.Context, sessionID
 // allows injecting errors for testing purposes. [MemoryUploader] is a more
 // complete implementation and should be preferred for testing the happy path.
 type MockUploader struct {
-	events.MultipartUploader
+	events.MultipartHandler
 
 	CreateUploadError      error
 	ReserveUploadPartError error

@@ -23,19 +23,18 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -703,33 +702,15 @@ func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID
 	return args.Error(0)
 }
 
-type testEvent struct {
-	apievents.AuditEvent
-	index int64
-	code  string
-}
-
-func (t testEvent) GetIndex() int64 {
-	return t.index
-}
-
-func (t testEvent) GetCode() string {
-	return t.code
-}
-
-type errorSessionStreamer struct{}
-
-func (e errorSessionStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	events := make(chan apievents.AuditEvent)
-	errors := make(chan error, 1)
-	errors <- fmt.Errorf("test error")
-	return events, errors
-}
-
-func TestMergeStreamer(t *testing.T) {
+func TestMergeStreams(t *testing.T) {
 	t.Parallel()
-	mkEvent := func(index int64, code string) apievents.AuditEvent {
-		return testEvent{index: index, code: code}
+	mkEvent := func(index int64, data string) apievents.AuditEvent {
+		return &apievents.SessionPrint{
+			Metadata: apievents.Metadata{
+				Index: index,
+			},
+			Data: []byte(data),
+		}
 	}
 	mkSessionEnd := func(index int64, abandoned bool) apievents.AuditEvent {
 		return &apievents.SessionEnd{Metadata: apievents.Metadata{Index: index}, UploadAbandoned: abandoned}
@@ -742,10 +723,9 @@ func TestMergeStreamer(t *testing.T) {
 		expectedEvents []apievents.AuditEvent
 	}{
 		{
-			name:           "empty streams",
-			current:        []apievents.AuditEvent{},
-			incoming:       []apievents.AuditEvent{},
-			expectedEvents: []apievents.AuditEvent{},
+			name:     "empty streams",
+			current:  []apievents.AuditEvent{},
+			incoming: []apievents.AuditEvent{},
 		},
 		{
 			name:           "only current events",
@@ -776,16 +756,6 @@ func TestMergeStreamer(t *testing.T) {
 			expectedEvents: []apievents.AuditEvent{mkEvent(1, "a1"), mkEvent(2, "b1"), mkEvent(3, "c2"), mkEvent(4, "d1")},
 		},
 		{
-			name:       "nonzero start index",
-			current:    []apievents.AuditEvent{mkEvent(2, "b"), mkEvent(3, "c"), mkEvent(6, "f"), mkEvent(7, "g"), mkEvent(9, "i")},
-			incoming:   []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(8, "h")},
-			startIndex: 4,
-			expectedEvents: []apievents.AuditEvent{
-				mkEvent(4, "d"), mkEvent(5, "e"), mkEvent(6, "f"),
-				mkEvent(7, "g"), mkEvent(8, "h"), mkEvent(9, "i"),
-			},
-		},
-		{
 			name:           "skip synthetic session end events",
 			current:        []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkSessionEnd(3, true), mkSessionEnd(6, true)},
 			incoming:       []apievents.AuditEvent{mkEvent(3, "c"), mkEvent(4, "d"), mkSessionEnd(5, true), mkSessionEnd(6, true)},
@@ -794,39 +764,36 @@ func TestMergeStreamer(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			streamer := events.MergeStreamer{
-				Current:  &eventstest.MockAuditLog{SessionEvents: tc.current},
-				Incoming: &eventstest.MockAuditLog{SessionEvents: tc.incoming},
+			sessionID := session.NewID()
+			uploader := eventstest.NewMemoryUploader()
+			uploader.Metadata[sessionID] = []byte("fake metadata")
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader: uploader,
+				SessionStreamer: &eventstest.MockAuditLog{
+					SessionEvents: tc.current,
+				},
+			})
+			require.NoError(t, err)
+			auditStream, err := streamer.ResumeAuditStream(t.Context(), sessionID, "foo")
+			require.NoError(t, err)
+			nopPreparer := events.NoOpPreparer{}
+			for _, event := range tc.incoming {
+				preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
+				require.NoError(t, auditStream.RecordEvent(t.Context(), preparedEvent))
 			}
-			events, errors := streamer.StreamSessionEvents(t.Context(), "", tc.startIndex)
-			gotEvents := make([]apievents.AuditEvent, 0, len(tc.expectedEvents))
-			for event := range events {
-				gotEvents = append(gotEvents, event)
-			}
-
-			assert.Equal(t, tc.expectedEvents, gotEvents)
+			require.NoError(t, auditStream.Complete(t.Context()))
 			select {
-			case err := <-errors:
-				assert.Fail(t, "unexpected error from channel:", err)
-			default:
+			case <-auditStream.Done():
+			case <-t.Context().Done():
+				return
 			}
+			buf := &events.MemBuffer{}
+			require.NoError(t, uploader.Download(t.Context(), sessionID, buf))
+			reader := events.NewProtoReader(bytes.NewReader(buf.Bytes()), nil)
+			gotEvents, err := reader.ReadAll(t.Context())
+			require.NoError(t, err)
+
+			require.Empty(t, cmp.Diff(tc.expectedEvents, gotEvents, protocmp.Transform()))
 		})
 	}
-
-	t.Run("propagate errors", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			streamer := events.MergeStreamer{
-				Current:  &eventstest.MockAuditLog{SessionEvents: []apievents.AuditEvent{mkEvent(1, "a"), mkEvent(2, "b"), mkEvent(3, "c")}},
-				Incoming: errorSessionStreamer{},
-			}
-			_, errors := streamer.StreamSessionEvents(t.Context(), "", 0)
-			synctest.Wait()
-			select {
-			case err := <-errors:
-				require.Error(t, err)
-			default:
-				require.Fail(t, "expected error on channel")
-			}
-		})
-	})
 }
