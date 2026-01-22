@@ -55,6 +55,8 @@ type summarizerTestPlugin struct {
 	enableBedrockWithoutRestrictions bool
 	decrypter                        events.DecryptionWrapper
 	encrypter                        events.EncryptionWrapper
+	envBedrockRegion                 string
+	envBedrockModelID                string
 }
 
 func (p *summarizerTestPlugin) GetName() string {
@@ -109,6 +111,8 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		EnableBedrockWithoutRestrictions: p.enableBedrockWithoutRestrictions,
 		Encrypter:                        p.encrypter,
 		AWSConfigCache:                   cfgCache,
+		EnvBedrockRegion:                 p.envBedrockRegion,
+		EnvBedrockModelID:                p.envBedrockModelID,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -123,6 +127,8 @@ type summarizerTestTLSServerConfig struct {
 	enableBedrockWithoutRestrictions bool
 	encrypter                        events.EncryptionWrapper
 	decrypter                        events.DecryptionWrapper
+	envBedrockRegion                 string
+	envBedrockModelID                string
 }
 
 func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig) *authtest.TLSServer {
@@ -152,6 +158,8 @@ func newSummarizerTestTLSServer(t *testing.T, scfg summarizerTestTLSServerConfig
 			enableBedrockWithoutRestrictions: scfg.enableBedrockWithoutRestrictions,
 			decrypter:                        scfg.decrypter,
 			encrypter:                        scfg.encrypter,
+			envBedrockRegion:                 scfg.envBedrockRegion,
+			envBedrockModelID:                scfg.envBedrockModelID,
 		})
 		require.NoError(t, err)
 	})
@@ -562,6 +570,61 @@ func TestSummarizer(t *testing.T) {
 	}
 }
 
+func TestSummarizer_BedrockConfigFromEnvironment(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:                         eventstest.NewMemoryUploader(),
+		envBedrockRegion:                 "eu-central-1",
+		envBedrockModelID:                "anthropic.claude-3-5-sonnet-20240620-v1:0",
+		enableBedrockWithoutRestrictions: true,
+	})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	// Create a model that expects configuration to be injected from the process
+	// environment.
+	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		Model: apisummarizer.NewInferenceModel(
+			"test-model",
+			&summarizerv1pb.InferenceModelSpec{
+				Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
+					Bedrock: &summarizerv1pb.BedrockProvider{
+						BedrockModelId: "{{env.bedrock_model_id}}",
+						Region:         "{{env.bedrock_region}}",
+					},
+				},
+			},
+		),
+	})
+	require.NoError(t, err)
+
+	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+		Policy: apisummarizer.NewInferencePolicy(
+			"test-policy",
+			&summarizerv1pb.InferencePolicySpec{
+				Kinds: []string{string(types.SSHSessionKind)},
+				Model: "test-model",
+			}),
+	})
+	require.NoError(t, err)
+
+	// Generate a session and test the model.
+	sid := uuid.NewString()
+	sessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		PrintData: []string{"respond with region and Bedrock model ID"},
+		SessionID: sid,
+	})
+	ingestSession(t, ctx, srv.Auth(), sid, sessEvents)
+
+	summary := waitForSummary(t, ctx, sclt, sid)
+	assert.Equal(t, "eu-central-1, anthropic.claude-3-5-sonnet-20240620-v1:0", summary.Content)
+}
+
 func TestSummarizer_BedrockRestricted(t *testing.T) {
 	ctx := t.Context()
 
@@ -863,8 +926,7 @@ func generateEnhancedTestSession(clusterName, userName, sessionID, command strin
 }
 
 // encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
-type fakeEncryptedIO struct {
-}
+type fakeEncryptedIO struct{}
 
 type fakeEncrypter struct {
 	inner  io.WriteCloser

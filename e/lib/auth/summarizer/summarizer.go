@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,6 +70,12 @@ type SummarizerConfig struct {
 	EnableBedrockWithoutRestrictions bool
 	// AWSConfigCache is used to retrieve AWS OIDC tokens for Amazon Bedrock.
 	AWSConfigCache *awsconfig.Cache
+	// EnvBedrockRegion, if set to a non-empty value, will override Amazon
+	// Bedrock region where it's set to {{env.bedrock_region}}
+	EnvBedrockRegion string
+	// EnvBedrockModelID, if set to a non-empty value, will override Amazon
+	// Bedrock model ID where it's set to {{env.bedrock_model_id}}.
+	EnvBedrockModelID string
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -112,6 +119,8 @@ type SessionSummarizer struct {
 	encrypter                        events.EncryptionWrapper
 	awsConfigCache                   *awsconfig.Cache
 	pool                             *workerPool
+	envBedrockRegion                 string
+	envBedrockModelID                string
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -150,6 +159,8 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		encrypter:                        cfg.Encrypter,
 		awsConfigCache:                   cfg.AWSConfigCache,
 		pool:                             newWorkerPool(workerCount),
+		envBedrockRegion:                 cfg.EnvBedrockRegion,
+		envBedrockModelID:                cfg.EnvBedrockModelID,
 	}, nil
 }
 
@@ -238,7 +249,7 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 // summarize picks the appropriate inference provider and launches a
 // summarization goroutine.
 func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails, sessionEndEvent apievents.AuditEvent) error {
-	var supportedSessionKinds = [3]types.SessionKind{
+	supportedSessionKinds := [3]types.SessionKind{
 		types.SSHSessionKind,
 		types.KubernetesSessionKind,
 		types.DatabaseSessionKind,
@@ -614,8 +625,23 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			)
 		}
 
+		bedrockCfg := proto.CloneOf(providerCfg.Bedrock) // Protect from modifying function arguments
+		if strings.ReplaceAll(bedrockCfg.BedrockModelId, " ", "") == apisummarizer.BedrockModelExpansionPlaceholder {
+			if s.envBedrockModelID == "" {
+				return nil, trace.BadParameter("bedrock_model_id cannot be empty. Please set the TELEPORT_BEDROCK_MODEL environment variable")
+			}
+			bedrockCfg.BedrockModelId = s.envBedrockModelID
+		}
+
+		if strings.ReplaceAll(bedrockCfg.Region, " ", "") == apisummarizer.BedrockRegionExpansionPlaceholder {
+			if s.envBedrockRegion == "" {
+				return nil, trace.BadParameter("region cannot be empty. Please set the TELEPORT_BEDROCK_REGION environment variable")
+			}
+			bedrockCfg.Region = s.envBedrockRegion
+		}
+
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
-			Spec:              providerCfg.Bedrock,
+			Spec:              bedrockCfg,
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: modelName,

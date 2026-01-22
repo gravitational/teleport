@@ -71,6 +71,8 @@ import (
 const (
 	pluginName                = "auth.enterprise"
 	envVarNameDisabledPlugins = "TELEPORT_UNSTABLE_DISABLE_PLUGINS"
+	envVarNameBedrockRegion   = "TELEPORT_BEDROCK_REGION"
+	envVarNameBedrockModel    = "TELEPORT_BEDROCK_MODEL"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
@@ -372,6 +374,8 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
 			Encrypter:                        p.authServer.AuthServer.EncryptedIO,
 			AWSConfigCache:                   cfgCache,
+			EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
+			EnvBedrockModelID:                os.Getenv(envVarNameBedrockModel),
 		})
 		if err != nil {
 			return trace.Wrap(err)

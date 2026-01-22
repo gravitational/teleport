@@ -22,12 +22,14 @@ type FakeClientFactory struct {
 
 func (m *FakeClientFactory) NewFromConfig(cfg aws.Config) Client {
 	return &fakeClient{
-		clock: m.Clock,
+		clock:  m.Clock,
+		region: cfg.Region,
 	}
 }
 
 type fakeClient struct {
-	clock *clockwork.FakeClock
+	clock  *clockwork.FakeClock
+	region string
 }
 
 func (m *fakeClient) Converse(
@@ -177,6 +179,21 @@ func (m *fakeClient) Converse(
 			},
 			StopReason: bedrocktypes.StopReasonEndTurn,
 		}, nil
+
+	case "respond with region and Bedrock model ID":
+		return &bedrockruntime.ConverseOutput{
+			Output: &bedrocktypes.ConverseOutputMemberMessage{
+				Value: bedrocktypes.Message{
+					Content: []bedrocktypes.ContentBlock{
+						&bedrocktypes.ContentBlockMemberText{
+							Value: m.region + ", " + *params.ModelId,
+						},
+					},
+				},
+			},
+			StopReason: bedrocktypes.StopReasonEndTurn,
+		}, nil
+
 	default:
 		systemPrompt := params.System[0].(*bedrocktypes.SystemContentBlockMemberText).Value
 
