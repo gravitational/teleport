@@ -9105,7 +9105,7 @@ message SCIMRequest {
   string Query = 7;
 }
 
-// SCIMResponse describes the HTTP response from the
+// SCIMResponse describes the HTTP response from the SCIM service.
 message SCIMResponse {
   // StatusCode is the HTTP response status code returned by the SCIM server.
   uint32 StatusCode = 1;

@@ -2694,8 +2694,9 @@ func (m *SCIMResourceEvent) TrimToMaxSize(maxSize int) AuditEvent {
 
 	trimmed.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
 	trimmed.SCIMCommonData = trimmed.SCIMCommonData.trimToMaxFieldSize(maxFieldsSize)
-	trimmed.TeleportID = trimStr(trimmed.Integration, maxFieldsSize)
+	trimmed.TeleportID = trimStr(trimmed.TeleportID, maxFieldsSize)
 	trimmed.ExternalID = trimStr(trimmed.ExternalID, maxFieldsSize)
+	trimmed.Display = trimStr(trimmed.Display, maxFieldsSize)
 
 	return trimmed
 }

@@ -17902,7 +17902,7 @@ func (m *SCIMRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SCIMRequest proto.InternalMessageInfo
 
-// SCIMResponse describes the HTTP response from the
+// SCIMResponse describes the HTTP response from the SCIM service.
 type SCIMResponse struct {
 	// StatusCode is the HTTP response status code returned by the SCIM server.
 	StatusCode uint32 `protobuf:"varint,1,opt,name=StatusCode,proto3" json:"StatusCode,omitempty"`
