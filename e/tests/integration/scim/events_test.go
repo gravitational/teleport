@@ -3,6 +3,7 @@ package scim
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -453,6 +454,125 @@ func TestAuditEvents(t *testing.T) {
 					withExternalID(""),
 					withTeleportID("update-resource-test-group"),
 					withDisplayName("Updated Access List!"))
+			})
+		})
+	})
+
+	t.Run("Patch", func(t *testing.T) {
+		httpClient := newBearerClient(scimToken)
+		baseURL := "https://" + sut.ProxyAddr + "/v1/webapi/scim/generic"
+
+		t.Run("Users", func(t *testing.T) {
+			targetUser := mustCreateSCIMUser(t, sut, "patch-test-user")
+
+			patch := map[string]any{
+				"Schemas": []any{scimsdk.PatchOpSchema},
+				"operations": []any{
+					map[string]any{
+						"op":    scimsdk.OpReplace,
+						"path":  "nickName",
+						"value": "dave",
+					},
+				},
+			}
+
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+
+				resp := mustPatchSCIMResource(t, httpClient, baseURL, "Users", targetUser.GetName(), patch)
+				require.NoError(t, resp.Body.Close())
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+
+				auditLog.requireEvent(t, events.SCIMPatchEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourcePatchSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withExternalID("patch-test-user-external-id"),
+					withTeleportID("patch-test-user"),
+					withBody(patch),
+				)
+			})
+
+			t.Run("OnNoSuchResource", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+
+				resp := mustPatchSCIMResource(t, httpClient, baseURL, "Users", "no-such-user-to-patch", patch)
+				require.NoError(t, resp.Body.Close())
+				require.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+				auditLog.requireEvent(t, events.SCIMPatchEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourcePatchFailureCode)),
+					withResourceStatus(
+						withSuccess(false),
+						withError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Users")),
+					withTeleportID("no-such-user-to-patch"),
+					withExternalID(""),
+					withBody(patch),
+				)
+			})
+
+			t.Run("OnUnauthorized", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+
+				resp := mustPatchSCIMResource(t, newBearerClient("this-is-a-bad-token"),
+					baseURL, "Users", "no-such-user-to-patch", patch)
+				require.NoError(t, resp.Body.Close())
+				require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+				auditLog.requireNoEvent(t, events.SCIMPatchEvent)
+			})
+		})
+
+		t.Run("Groups", func(t *testing.T) {
+			accessList := common.CreateAccessList(t, sut,
+				common.WithCleanup,
+				common.WithName("patch-resource-test-group"),
+				common.WithTitle("Test group for patching SCIM resources"),
+				common.WithAccessListType(accesslist.SCIM),
+				common.WithOwners("alice-admin"),
+				common.WithGrants(accesslist.Grants{Roles: []string{"access"}}))
+
+			patch := map[string]any{
+				"Schemas": []any{scimsdk.PatchOpSchema},
+				"operations": []any{
+					map[string]any{
+						"op":    scimsdk.OpAdd,
+						"path":  "displayName",
+						"value": "Updated Access List display name!",
+					},
+				},
+			}
+
+			t.Run("OnSuccess", func(t *testing.T) {
+				auditLog := newLogScope[*apievents.SCIMResourceEvent](sut)
+
+				resp := mustPatchSCIMResource(t, httpClient, baseURL, "Groups", accessList.GetName(), patch)
+				require.NoError(t, resp.Body.Close())
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+
+				auditLog.requireEvent(t, events.SCIMPatchEvent,
+					withResourceMetadata(
+						withEventCode(events.SCIMResourcePatchSuccessCode)),
+					withResourceStatus(
+						withSuccess(true),
+						withNoError),
+					withResourceCommonData(
+						withIntegration("generic"),
+						withResourceType("Groups")),
+					withExternalID(""),
+					withTeleportID(accessList.GetName()),
+					withDisplayName("Updated Access List display name!"),
+					withBody(patch),
+				)
 			})
 		})
 	})

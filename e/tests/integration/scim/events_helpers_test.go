@@ -148,6 +148,22 @@ func withDisplayName(id string) func(require.TestingT, *apievents.SCIMResourceEv
 	}
 }
 
+func withBody(expected map[string]any) func(require.TestingT, *apievents.SCIMResourceEvent) {
+	return func(t require.TestingT, event *apievents.SCIMResourceEvent) {
+		body := event.Request.Body
+		if expected == nil {
+			require.Nil(t, body)
+			return
+		}
+
+		require.NotNil(t, body)
+		actual, err := apievents.DecodeToMap(body)
+		require.NoError(t, err)
+
+		require.Equal(t, expected, actual)
+	}
+}
+
 func (s *logscope[T]) requireNoEvent(t *testing.T, eventType string) {
 	const waitFor = 500 * time.Millisecond
 	const tick = 20 * time.Millisecond

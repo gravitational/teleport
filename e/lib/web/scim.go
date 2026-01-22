@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -478,12 +477,14 @@ func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, para
 
 // scimPatchResource handles SCIM PATCH requests to partially update a resource.
 // See RFC 7644 Section 3.5.2 for details
-func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) error {
+func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, params httprouter.Params) (requestError error) {
+	ctx := r.Context()
+
 	integration := params.ByName("integration")
 	resourceType := params.ByName("resourceType")
 	resourceID := params.ByName("resourceID")
 
-	p.Logger.InfoContext(r.Context(), "Handling PATCH resource request",
+	log := p.Logger.With(
 		teleport.ComponentKey, "scim",
 		"method", r.Method,
 		"integration", integration,
@@ -491,12 +492,35 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 		"resource_id", resourceID,
 	)
 
-	m := map[string]any{}
-	if err := json.NewDecoder(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes}).Decode(&m); err != nil {
+	if r.ContentLength > maxSCIMBodyBytes {
+		return trace.LimitExceeded("content length")
+	}
+
+	bodyAttribs, err := scimsdk.UnmarshalAttributeSet(&io.LimitedReader{R: r.Body, N: maxSCIMBodyBytes})
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	payload, err := structpb.NewStruct(m)
+	auditEvent := scimNewResourceAuditEvent(integration, resourceType, r, events.SCIMPatchEvent, events.SCIMResourcePatchSuccessCode)
+	auditEvent.TeleportID = resourceID
+	auditEvent.Request.Body, err = apievents.EncodeMap(bodyAttribs)
+	if err != nil {
+		return trace.Wrap(err, "malformed body JSON")
+	}
+
+	// Set up for automatically emitting an AuditLog event when we exit the handler.
+	// We don't emit any audit events on a failure before this point as spamming
+	// the auditlog is an easy vector for a DoS attack.
+	defer func() {
+		err := scimEmitResourceEvent(ctx, p, auditEvent, requestError, events.SCIMResourcePatchFailureCode)
+		if err != nil {
+			log.ErrorContext(ctx, "Failed emitting audit event", "error", err)
+		}
+	}()
+
+	log.InfoContext(ctx, "Handling PATCH resource request")
+
+	payload, err := structpb.NewStruct(bodyAttribs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -513,6 +537,9 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	auditEvent.ExternalID = updated.ExternalId
+	auditEvent.Display = extractDisplayName(updated)
+
 	body, err := scimsdk.MarshalResource(updated)
 	if err != nil {
 		return trace.Wrap(err)
