@@ -344,12 +344,13 @@ func TestExportAllAuthorities_additionalKeys(t *testing.T) {
 	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       caType,
 		DomainName: clusterName,
-	}, true /* */)
+	}, true /* loadKeys */)
 	require.NoError(t, err)
 
 	makeNewTLSKey := func(t *testing.T) *types.TLSKeyPair {
-		const ttl = 1 * time.Hour // Arbitrary. Actual CA TTLs are much larger.
+		t.Helper()
 
+		const ttl = 1 * time.Hour // Arbitrary. Actual CA TTLs are much larger.
 		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(
 			pkix.Name{
 				Organization: []string{clusterName},
