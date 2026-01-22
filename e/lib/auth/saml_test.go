@@ -102,11 +102,14 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 		require.NoError(t, b.Close())
 	})
 
+	keygen, err := authority.NewKeygen(modules.BuildEnterprise, clock.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}
@@ -621,11 +624,15 @@ func TestPingSAMLWorkaround(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, b.Close())
 	})
+
+	keygen, err := authority.NewKeygen(modules.BuildEnterprise, clock.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}
@@ -725,11 +732,15 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 	t.Cleanup(func() {
 		require.NoError(t, b.Close())
 	})
+
+	keygen, err := authority.NewKeygen(modules.BuildEnterprise, clock.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                b,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 	}

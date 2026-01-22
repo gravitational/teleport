@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -17,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -119,13 +121,16 @@ func setupConfig(t *testing.T) auth.InitConfig {
 		processStorage.Close()
 	})
 
+	authority, err := testauthority.NewKeygen(modules.BuildEnterprise, time.Now)
+	require.NoError(t, err)
+
 	return auth.InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
 		Backend:                 bk,
 		VersionStorage:          processStorage,
-		Authority:               testauthority.New(),
+		Authority:               authority,
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),

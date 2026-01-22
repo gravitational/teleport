@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -158,7 +159,9 @@ func (s *SUT) GetTCTL(t *testing.T) *tctl.CLI {
 
 func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 	// Create the CA authority that will be used in Auth.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	kg, err := testauthority.NewKeygen(modules.BuildEnterprise, time.Now)
+	require.NoError(t, err)
+	priv, pub, err := kg.GenerateKeyPair()
 	require.NoError(t, err)
 	const (
 		host   = helpers.Host

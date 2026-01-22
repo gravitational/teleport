@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -141,8 +142,11 @@ func NewFixture(t *testing.T, opts ...FixtureOption) *Fixture {
 	})
 	require.NoError(t, err)
 
+	keygen, err := authority.NewKeygen(modules.BuildEnterprise, args.clock.Now)
+	require.NoError(t, err)
+
 	auth, err := auth.NewServer(&auth.InitConfig{
-		Authority:              authority.New(),
+		Authority:              keygen,
 		Backend:                backend,
 		ClusterName:            clusterName,
 		SkipPeriodicOperations: true,

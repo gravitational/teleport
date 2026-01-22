@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/clocki"
@@ -348,12 +349,16 @@ func initService(t *testing.T) testServiceComponents {
 	require.NoError(t, err)
 	clusterConfigService, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
+
+	keygen, err := authority.NewKeygen(modules.BuildEnterprise, clock.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                backend,
 		ClusterConfiguration:   clusterConfigService,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		Clock:                  clock,
 		HostUUID:               uuid.NewString(),

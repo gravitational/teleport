@@ -327,11 +327,14 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	})
 	require.NoError(t, err)
 
+	keygen, err := authority.NewKeygen(modules.BuildEnterprise, o.clock.Now)
+	require.NoError(t, err)
+
 	authConfig := &auth.InitConfig{
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
 		ClusterName:            clusterName,
 		Backend:                bk,
-		Authority:              authority.New(),
+		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		Clock:                  o.clock,
 		HostUUID:               uuid.NewString(),
