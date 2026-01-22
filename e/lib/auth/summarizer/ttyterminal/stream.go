@@ -141,6 +141,11 @@ func peekTokens(ctx context.Context, tokens <-chan token, max int) ([]token, <-c
 		select {
 		case token, ok := <-tokens:
 			if !ok {
+				// If we reach the end of the channel, we consult the context for cancellation
+				// since the other goroutine may have exited and closed the channel on cancellation.
+				if err := ctx.Err(); err != nil {
+					return nil, nil, trace.Wrap(err)
+				}
 				return peeked, replayTokens(ctx, peeked, tokens), nil
 			}
 			peeked = append(peeked, token)
