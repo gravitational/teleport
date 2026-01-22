@@ -46,18 +46,44 @@ func CompressTarGzArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer,
 	}
 	defer gzipWriter.Close()
 
+	if err := compress(files, fileReader, gzipWriter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return archiveBytes, nil
+}
+
+// CreateTarGzArchive creates a Tar Gzip archive in memory, reading the files using the provided file reader
+// without any compression.
+func CreateTarGzArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer, error) {
+	archiveBytes := &bytes.Buffer{}
+
+	gzipWriter, err := gzip.NewWriterLevel(archiveBytes, gzip.NoCompression)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer gzipWriter.Close()
+
+	if err := compress(files, fileReader, gzipWriter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return archiveBytes, nil
+}
+
+func compress(files []string, fileReader ReadStatFS, gzipWriter *gzip.Writer) error {
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
 	for _, filename := range files {
 		bs, err := fileReader.ReadFile(filename)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		fileStat, err := fileReader.Stat(filename)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		if err := tarWriter.WriteHeader(&tar.Header{
@@ -65,13 +91,13 @@ func CompressTarGzArchive(files []string, fileReader ReadStatFS) (*bytes.Buffer,
 			Size: int64(len(bs)),
 			Mode: int64(fileStat.Mode()),
 		}); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		if _, err := tarWriter.Write(bs); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
-	return archiveBytes, nil
+	return nil
 }
