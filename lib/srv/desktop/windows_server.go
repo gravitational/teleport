@@ -1368,20 +1368,100 @@ func (s *WindowsService) runCRLUpdateLoop() {
 	t := s.cfg.Clock.NewTicker(retryutils.SeventhJitter(s.cfg.PublishCRLInterval))
 	defer t.Stop()
 
+	ctx := s.closeCtx
+	logger := s.cfg.Logger
+
+	caEvent := make(chan struct{}, 1)
+	go func() {
+		if err := s.watchCAEvents(ctx, caEvent); err != nil {
+			logger.WarnContext(ctx, "CA watcher loop exited", "error", err)
+		}
+	}()
+
 	for {
 		tlsConfig, err := s.loadTLSConfigForLDAP()
 		if err != nil {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to get TLS config for CRL update", "error", err)
+			logger.ErrorContext(ctx, "failed to get TLS config for CRL update", "error", err)
 		}
-		if err := s.ca.Update(s.closeCtx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
-			s.cfg.Logger.ErrorContext(s.closeCtx, "failed to publish CRL", "error", err)
+		if err := s.ca.Update(ctx, tlsConfig); err != nil && !errors.Is(err, context.Canceled) {
+			logger.ErrorContext(ctx, "failed to publish CRL", "error", err)
 		}
 
 		select {
-		case <-s.closeCtx.Done():
+		case <-ctx.Done():
 			return
 		case <-t.Chan():
 			continue
+		case <-caEvent:
+			continue
+		}
+	}
+}
+
+// watchCAEvents watches for WindowsCA updates, signaling those in the received
+// channel.
+// watchCAEvents runs until ctx is closed.
+func (s *WindowsService) watchCAEvents(
+	ctx context.Context,
+	signalCAEvent chan<- struct{},
+) error {
+	logger := s.cfg.Logger
+
+Outer:
+	for {
+		watcher, err := s.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
+			Name: fmt.Sprintf("%s-ca-watcher", teleport.ComponentWindowsDesktop),
+			Kinds: []types.WatchKind{
+				{
+					Kind:        types.KindCertAuthority,
+					LoadSecrets: false,
+				},
+			},
+		})
+		if err != nil {
+			logger.WarnContext(ctx,
+				"Failed to create CA watcher. Service will be unable to react to CA rotation events.",
+				"error", err,
+			)
+			const watcherCreatePeriod = 5 * time.Minute
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(watcherCreatePeriod):
+				continue // Try again.
+			}
+		}
+		logger.DebugContext(ctx, "Initialized CA watcher")
+
+		for {
+			select {
+			case <-ctx.Done():
+				_ = watcher.Close()
+				return trace.Wrap(ctx.Err())
+			case <-watcher.Done():
+				_ = watcher.Close()
+				logger.DebugContext(ctx, "CA watcher closed prematurely. Attempting to re-create.")
+				continue Outer
+			case e := <-watcher.Events():
+				if e.Type != types.OpPut ||
+					e.Resource == nil ||
+					e.Resource.GetKind() != types.KindCertAuthority ||
+					e.Resource.GetSubKind() != string(types.WindowsCA) {
+					continue
+				}
+				logger.InfoContext(ctx,
+					"Received WindowsCA event, signaling CRL update",
+					"op", e.Type,
+					"kind", e.Resource.GetKind(),
+					"sub_kind", e.Resource.GetSubKind(),
+					"name", e.Resource.GetName(),
+					"revision", e.Resource.GetRevision(),
+				)
+				select {
+				case signalCAEvent <- struct{}{}:
+				default:
+				}
+			}
 		}
 	}
 }
