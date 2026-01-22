@@ -2442,6 +2442,24 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
+    type: 'workload_cluster.create',
+    desc: 'Workload Cluster Created',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was created by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
+    type: 'workload_cluster.update',
+    desc: 'Workload Cluster Updated',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
+    type: 'workload_cluster.delete',
+    desc: 'Workload Cluster Deleted',
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was deleted by [${user}]`,
+  },
 };
 
 const unknownFormatter = {
