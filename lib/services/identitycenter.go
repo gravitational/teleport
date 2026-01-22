@@ -237,6 +237,7 @@ type IdentityCenterCustomPermissionSets interface {
 type IdentityCenterManagedResources interface {
 	GetIdentityCenterManagedResource(context.Context, string) (*identitycenterv1.ManagedResource, error)
 	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error)
+	ListIdentityCenterManagedResources(context.Context, int, string) ([]*identitycenterv1.ManagedResource, string, error)
 }
 
 type IdentityCenterAccessProfiles interface {
@@ -389,6 +390,33 @@ func (m *IdentityCenterAccountAssignmentMatcher) Match(role types.Role, conditio
 func (m *IdentityCenterAccountAssignmentMatcher) String() string {
 	return fmt.Sprintf("IdentityCenterAccountMatcher(account=%v, permissionSet=%v)",
 		m.accountID, m.permissionSetARN)
+}
+
+// NewIdentityCenterManagedResourceMatcher creates a new [IdentityCenterManagedResourceMatcher]
+// configured to match the supplied [ManagedResource].
+func NewIdentityCenterManagedResourceMatcher(resource *identitycenterv1.ManagedResource) *IdentityCenterManagedResourceMatcher {
+	return &IdentityCenterManagedResourceMatcher{
+		arn:     resource.GetSpec().GetArn(),
+		subKind: resource.GetSubKind(),
+	}
+}
+
+// IdentityCenterManagedResourceMatcher implements a [RoleMatcher] for comparing
+// Identity Center ManagedResource resources against role conditions.
+type IdentityCenterManagedResourceMatcher struct {
+	arn     string
+	subKind string
+}
+
+// Match implements Role Matching for Identity Center ManagedResource resources.
+func (m *IdentityCenterManagedResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	// For initial implementation, allow all managed resources.
+	// TODO: Add specific role condition matching logic for AWS IC resources
+	return true, nil
+}
+
+func (m *IdentityCenterManagedResourceMatcher) String() string {
+	return fmt.Sprintf("IdentityCenterManagedResourceMatcher(arn=%v, subKind=%v)", m.arn, m.subKind)
 }
 
 func matchExpression(target, expression string) (bool, error) {

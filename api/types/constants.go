@@ -1466,6 +1466,7 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 	KindIdentityCenterAccount,
 	KindIdentityCenterAccountAssignment,
+	KindIdentityCenterManagedResource,
 	KindGitServer,
 }
 

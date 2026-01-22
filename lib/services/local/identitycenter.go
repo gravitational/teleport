@@ -458,6 +458,15 @@ func (svc *IdentityCenterService) GetIdentityCenterManagedResource(ctx context.C
 	return r, trace.Wrap(err)
 }
 
+// ListIdentityCenterManagedResources provides a paged list of managed resources
+func (svc *IdentityCenterService) ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.ManagedResource, string, error) {
+	resources, nextPage, err := svc.managedResources.ListResources(ctx, pageSize, pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "listing identity center managed resources")
+	}
+	return resources, nextPage, nil
+}
+
 func (svc *IdentityCenterService) CreateIdentityCenterAccessProfile(ctx context.Context, r *identitycenterv1.AccessProfile) (*identitycenterv1.AccessProfile, error) {
 	created, err := svc.accessProfiles.CreateResource(ctx, r)
 	return created, trace.Wrap(err)
