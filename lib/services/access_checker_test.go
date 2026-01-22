@@ -23,10 +23,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"

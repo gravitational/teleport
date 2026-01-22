@@ -20,7 +20,6 @@ package componentfeatures
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -329,7 +328,7 @@ func TestGetClusterAuthProxyServerFeatures(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := GetClusterAuthProxyServerFeatures(t.Context(), tt.makeLister(t), discardLogger())
+			got := GetClusterAuthProxyServerFeatures(t.Context(), tt.makeLister(t), slog.New(slog.DiscardHandler))
 			require.NotNil(t, got)
 			require.ElementsMatch(t, tt.want, got.GetFeatures())
 		})
@@ -397,8 +396,4 @@ func mustServerWithFeatures(t *testing.T, name string, feats *componentfeaturesv
 		srv.SetComponentFeatures(feats)
 	}
 	return srv
-}
-
-func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
 }

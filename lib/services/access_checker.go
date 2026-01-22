@@ -457,11 +457,16 @@ func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *Acce
 	}, nil
 }
 
-func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.ResourceAccessID, error) {
+type allowedResourceMatch struct {
+	Match *types.ResourceAccessID
+}
+
+// checkAllowedResources enforces AllowedResourceAccessIDs if present on the identity.
+func (a *accessChecker) checkAllowedResources(r AccessCheckable) (allowedResourceMatch, error) {
 	if len(a.info.AllowedResourceAccessIDs) == 0 {
 		// certificate does not contain a list of specifically allowed
 		// resources, only role-based access control is used
-		return nil, nil
+		return allowedResourceMatch{}, nil
 	}
 
 	// Note: logging in this function only happens in trace mode. This is because
@@ -473,14 +478,13 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.Resourc
 	for _, resourceID := range a.info.AllowedResourceAccessIDs {
 		if id := resourceID.GetResourceID(); id.ClusterName == a.localCluster && matchesUCRResource(resourceID, r) {
 			// Allowed to access this resource by resource ID, move on to role checks.
-
 			if isLoggingEnabled {
 				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Matched allowed resource ID",
 					slog.String("resource_id", types.ResourceIDToString(id)),
 				)
 			}
 
-			return &resourceID, nil
+			return allowedResourceMatch{&resourceID}, nil
 		}
 	}
 
@@ -488,7 +492,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.Resourc
 		// We just want to log allowed IDs here; discarding additional info is ok.
 		allowedResources, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(a.info.AllowedResourceAccessIDs))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return allowedResourceMatch{}, trace.Wrap(err)
 		}
 
 		slog.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, not in allowed resource IDs",
@@ -497,11 +501,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (*types.Resourc
 			slog.Any("allowed_resources", allowedResources),
 		)
 
-		return nil, trace.AccessDenied("access to %v denied, %q not in allowed resource IDs %s",
+		return allowedResourceMatch{}, trace.AccessDenied("access to %v denied, %q not in allowed resource IDs %s",
 			r.GetKind(), r.GetName(), allowedResources)
 	}
 
-	return nil, trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
+	return allowedResourceMatch{}, trace.AccessDenied("access to %v denied, not in allowed resource IDs", r.GetKind())
 }
 
 // matchesUCRResource matches requested resource with its respective
@@ -537,10 +541,8 @@ func (a *accessChecker) AccessInfo() *AccessInfo {
 // given resource.
 func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Enforce AllowedResourceAccessIDs if present; capture match
-	var matchedRID *types.ResourceAccessID
-	var err error
-
-	if matchedRID, err = a.checkAllowedResources(r); err != nil {
+	res, err := a.checkAllowedResources(r)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -552,8 +554,8 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	}
 
 	// If matched RID has ResourceConstraints, guard any principal-bearing matcher(s)
-	if matchedRID != nil && matchedRID.GetConstraints() != nil {
-		guard := WithConstraints(matchedRID.GetConstraints())
+	if res.Match != nil && res.Match.GetConstraints() != nil {
+		guard := WithConstraints(res.Match.GetConstraints())
 		for i := range matchers {
 			matchers[i] = guard(matchers[i])
 		}
