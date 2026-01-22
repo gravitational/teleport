@@ -149,7 +149,7 @@ func (s *Service) oktaAppToAppServers(ctx context.Context, oktaApplication *okta
 			types.AppServerSpecV3{
 				Version:  teleport.Version,
 				Hostname: s.hostname,
-				HostID:   s.hostID,
+				HostID:   oktaAppServerHostID,
 				App:      app,
 			},
 		)

@@ -52,7 +52,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
-	appServer := application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
+	appServer := application(t, "app1", "link1", types.OriginOkta, testOrgURL)
 	_, err = ap.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
@@ -197,7 +197,7 @@ func TestAccessRequestReconciler_idempotency(t *testing.T) {
 	require.Empty(t, assignments)
 
 	// Create approved AccessRequest
-	appServer := application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID)
+	appServer := application(t, "app1", "link1", types.OriginOkta, testOrgURL)
 	_, err = ap.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
@@ -257,9 +257,9 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		{
 			name: "Okta targets",
 			appTargets: []types.AppServer{
-				application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
-				application(t, "app2", "link1", types.OriginOkta, testOrgURL, testHostID),
-				application(t, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID),
+				application(t, "app1", "link1", types.OriginOkta, testOrgURL),
+				application(t, "app2", "link1", types.OriginOkta, testOrgURL),
+				application(t, "app3", "link1", types.OriginDynamic, testOrgURL),
 			},
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginOkta, testOrgURL),
@@ -277,7 +277,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			name:              "app not found",
 			skipBackendCreate: true,
 			appTargets: []types.AppServer{
-				application(t, "app1", "link1", types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", "link1", types.OriginOkta, testOrgURL),
 			},
 			assignmentStatus: constants.OktaAssignmentStatusPending,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
@@ -298,9 +298,9 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		{
 			name: "no Okta targets",
 			appTargets: []types.AppServer{
-				application(t, "app1", "link1", types.OriginDynamic, testOrgURL, testHostID),
-				application(t, "app2", "link1", types.OriginDynamic, testOrgURL, testHostID),
-				application(t, "app3", "link1", types.OriginDynamic, testOrgURL, testHostID), // This should be skipped
+				application(t, "app1", "link1", types.OriginDynamic, testOrgURL),
+				application(t, "app2", "link1", types.OriginDynamic, testOrgURL),
+				application(t, "app3", "link1", types.OriginDynamic, testOrgURL), // This should be skipped
 			},
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginDynamic, testOrgURL),

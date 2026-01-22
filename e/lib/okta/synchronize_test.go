@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/app"
 )
 
 func TestSynchronizeGroups(t *testing.T) {
@@ -403,7 +404,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 					assertAppValue = require.NotNil
 				}
 
-				app, _ := svc.apps.Load(appID)
+				app, _ := svc.appServers.Load(appID)
 				assertAppValue(t, app, "App %s", appName)
 			}
 		}
@@ -484,7 +485,7 @@ func testSynchronizeApplications(t *testing.T) {
 	client.AppsToGroups[app4] = []oktaGroupID{"group4"}
 
 	// Verify conditions before synchronizing.
-	requireAppServers(t, ap, []string{
+	requireOktaAppServers(t, ap, []string{
 		mustAppName(t, app1, link1),
 		mustAppName(t, app2, link1),
 		mustAppName(t, app3, link1),
@@ -498,7 +499,7 @@ func testSynchronizeApplications(t *testing.T) {
 	require.NoError(t, svc.synchronize(ctx))
 
 	// Verify conditions after synchronizing.
-	requireAppServers(t, svc.accessPoint, []string{
+	requireOktaAppServers(t, svc.accessPoint, []string{
 		// app1, app2 got deleted because they are not present in Okta.
 		// app3 is still there, but its link got updated which will be verified later.
 		mustAppName(t, app3, link1),
@@ -516,6 +517,106 @@ func testSynchronizeApplications(t *testing.T) {
 		require.Equal(t, int32(2), event.Added)
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(2), event.Deleted)
+	})
+}
+
+// TestSynchronizeIgnoresHostID checks if app_servers sync doesn't update anything in the backend
+// if only host_id changes. It also checks if app_server is deleted even though the host_id doesn't
+// match the one configured in the Service.
+func TestSynchronizeIgnoresHostID(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testSynchronizeIgnoresHostID)
+}
+func testSynchronizeIgnoresHostID(t *testing.T) {
+	ctx := t.Context()
+	ap := newTestAccessPoint(t, clockwork.NewRealClock())
+	client := newTestOktaClient()
+	svc, emitter := newTestService(t, ap, client)
+
+	require.Equal(t, testHostID, svc.hostID)
+
+	const app1, app2, app3, app4 = "app1", "app2", "app3", "app4"
+	const link1, href1 = "app_link_1", "https://link1.test"
+
+	// Initialized backends with app servers skipping app4.
+	for _, pair := range [][2]string{
+		{app1, "test_host_id_1"},    // app1 to delete
+		{app1, "test_host_id_12"},   // same app1, different host ID
+		{app2, oktaAppServerHostID}, // app2 with desired host ID
+		{app3, "test_host_id_3"},    // app3 with host ID to fix
+		{app3, svc.hostID},          // same app3 but with actual host ID form the Service to verify there isn't anything special about it
+	} {
+		oktaID, hostID := pair[0], pair[1]
+		name := mustAppName(t, oktaID, link1)
+		publicAddr, err := app.FindPublicAddr(ctx, ap, "", name)
+		require.NoError(t, err)
+		upsertAppServer(t, ap, newAppServer(t,
+			types.Metadata{
+				Name: name,
+				Labels: map[string]string{
+					types.OktaAppIDLabel:          oktaID,
+					types.OktaAppNameLabel:        "App with ID " + oktaID,
+					types.OktaAppDescriptionLabel: link1,
+					types.OriginLabel:             types.OriginOkta,
+					teleport.OktaOrgURLLabel:      svc.orgURL,
+				},
+				Description: "App with ID " + oktaID,
+			},
+			types.AppSpecV3{
+				URI:        href1,
+				PublicAddr: publicAddr,
+				UserGroups: []string{},
+			},
+			withHostID(hostID),
+		))
+	}
+
+	// Add apps to Okta client skipping the app1.
+	for _, oktaID := range []string{app2, app3, app4} {
+		client.OktaApps = append(client.OktaApps, oktaapitest.NewApplication(oktaapitest.ApplicationArgs{
+			ID:     oktaID,
+			Label:  "App with ID " + oktaID,
+			Status: oktaapitest.StatusActive,
+			Links: []oktaapitest.AppLink{
+				{Name: link1, Href: href1},
+			},
+		}))
+	}
+
+	// Verify conditions before synchronizing.
+	requireOktaAppServers(t, ap, []string{
+		// duplicated apps have different host IDs
+		mustAppName(t, app1, link1),
+		mustAppName(t, app1, link1),
+		mustAppName(t, app2, link1),
+		mustAppName(t, app3, link1),
+		mustAppName(t, app3, link1),
+	})
+
+	require.NoError(t, svc.seedAppsReconciler(ctx))
+	require.NoError(t, svc.seedGroupsReconciler(ctx))
+	svc.userReconciler = nil // disable user sync
+	require.NoError(t, svc.synchronize(ctx))
+
+	// Verify conditions after synchronizing.
+	requireOktaAppServers(t, svc.accessPoint, []string{
+		// app1 got deleted because it isn't present in Okta, and app4 was added
+		mustAppName(t, app2, link1),
+		mustAppName(t, app3, link1),
+		mustAppName(t, app4, link1),
+	})
+
+	// Verify the host_id is set to "okta-integration" fixed value for all synced Okta apps.
+	requireAppServerExists(t, ap, oktaAppServerHostID, mustAppName(t, app2, link1))
+	requireAppServerExists(t, ap, oktaAppServerHostID, mustAppName(t, app3, link1))
+	requireAppServerExists(t, ap, oktaAppServerHostID, mustAppName(t, app4, link1))
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(1), event.Added)
+		require.Equal(t, int32(0), event.Updated)
+		require.Equal(t, int32(1), event.Deleted)
 	})
 }
 

@@ -109,7 +109,7 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 			oktaAssignmentService: svc.accessPoint,
 			accessListService:     svc.accessLists,
 		},
-		syncedAppServers:  &svc.apps,
+		syncedAppServers:  &svc.appServers,
 		syncedUserGroups:  &svc.groups,
 		assignmentGetter:  assignmentGetter,
 		oktaClient:        svc.client,

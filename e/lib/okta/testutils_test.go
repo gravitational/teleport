@@ -390,8 +390,28 @@ func mustAppName(t require.TestingT, name, appLinkName string) string {
 	return appName
 }
 
-func newAppServer(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppServerV3 {
+type newAppServerOptions struct {
+	hostID string
+}
+
+type newAppServerOpt func(*newAppServerOptions)
+
+func withHostID(hostID string) newAppServerOpt {
+	return func(o *newAppServerOptions) {
+		o.hostID = hostID
+
+	}
+}
+
+func newAppServer(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3, opts ...newAppServerOpt) *types.AppServerV3 {
 	t.Helper()
+
+	opt := newAppServerOptions{
+		hostID: oktaAppServerHostID,
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
 
 	app, err := types.NewAppV3(metadata, appSpec)
 	require.NoError(t, err)
@@ -405,7 +425,7 @@ func newAppServer(t testing.TB, metadata types.Metadata, appSpec types.AppSpecV3
 		types.AppServerSpecV3{
 			Version:  ossteleport.Version,
 			Hostname: testHostname,
-			HostID:   testHostID,
+			HostID:   opt.hostID,
 			App:      app,
 		},
 	)
@@ -422,7 +442,7 @@ func upsertAppServer(t testing.TB, ap services.Presence, appServer types.AppServ
 	require.NoError(t, err)
 }
 
-func application(t testing.TB, name, appLinkName, origin, orgURL, hostID string) types.AppServer {
+func application(t testing.TB, name, appLinkName, origin, orgURL string, opts ...newAppServerOpt) types.AppServer {
 	t.Helper()
 
 	labels := map[string]string{
@@ -440,8 +460,7 @@ func application(t testing.TB, name, appLinkName, origin, orgURL, hostID string)
 	appServer := newAppServer(t, metadata, types.AppSpecV3{
 		URI:        "https://www.link1.com",
 		PublicAddr: "public-addr",
-	})
-	appServer.Spec.HostID = hostID
+	}, opts...)
 	return appServer
 }
 
@@ -588,7 +607,7 @@ func testGetAppServer(t *testing.T, ap testApplicationServerGetter, name string)
 	return nil // should never get there because of the t.Fatalf call above
 }
 
-func requireAppServers(t require.TestingT, ap testApplicationServerGetter, names []string) {
+func requireOktaAppServers(t require.TestingT, ap testApplicationServerGetter, names []string) {
 	testCallHelper(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -606,7 +625,7 @@ func requireAppServers(t require.TestingT, ap testApplicationServerGetter, names
 		oktaAppID, hasOktaAppID := as.GetLabel(types.OktaAppIDLabel)
 		if hasOktaAppID {
 			currentNames = append(currentNames, as.GetName()+":"+oktaAppID)
-			if i := slices.Index(names, as.GetName()); i >= 0 {
+			if i := slices.Index(enrichedNames, as.GetName()); i >= 0 {
 				enrichedNames[i] += ":" + oktaAppID
 			}
 		} else {
@@ -614,6 +633,19 @@ func requireAppServers(t require.TestingT, ap testApplicationServerGetter, names
 		}
 	}
 	require.ElementsMatch(t, enrichedNames, currentNames)
+}
+
+func requireAppServerExists(t *testing.T, ap testApplicationServerGetter, hostID, name string) {
+	t.Helper()
+	ctx := t.Context()
+
+	appServers, err := ap.GetApplicationServers(ctx, defaults.Namespace)
+	require.NoError(t, err)
+
+	found := slices.ContainsFunc(appServers, func(appServer types.AppServer) bool {
+		return appServer.GetHostID() == hostID && appServer.GetName() == name
+	})
+	require.True(t, found)
 }
 
 func requireUserGroups(t require.TestingT, ap services.UserGroups, groupIDs []string) {

@@ -44,6 +44,11 @@ const (
 
 	// OktaServiceSemaphoreKind is the name of the semaphore to acquire.
 	OktaServiceSemaphoreKind = "okta-service"
+
+	// oktaAppServerHostID is a fake fixed host ID used for app servers created by Okta
+	// integration. Since the integration moved from being agent-based to hosted we don't use
+	// heartbeats anymore and using a fixed value for host ID simplifies the implementation.
+	oktaAppServerHostID = "okta-integration"
 )
 
 var (
@@ -274,12 +279,12 @@ type Service struct {
 	// appsReconciler will reconcile applications discovered in Okta.
 	appsReconciler *services.Reconciler[types.AppServer]
 
-	// apps is the current mapping of { appName => app }.
-	apps utils.SyncMap[string, types.AppServer]
+	// appServers is the current mapping of { appName => app }.
+	appServers utils.SyncMap[string, types.AppServer]
 
-	// newApps is the mapping of { appName => app } for apps discovered
+	// newAppServers is the mapping of { appName => app } for apps discovered
 	// by Okta, not yet synchronzied to the apps map by the reconciler.
-	newApps utils.SyncMap[string, types.AppServer]
+	newAppServers utils.SyncMap[string, types.AppServer]
 
 	// app stats for the audit even for a particular reconcile.
 	appsAdded   []*apievents.OktaResource
@@ -491,11 +496,12 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 
 		s.appsReconciler, err = services.NewReconciler(services.ReconcilerConfig[types.AppServer]{
 			Matcher:             s.appsMatcher,
-			GetCurrentResources: s.apps.Clone,
-			GetNewResources:     s.newApps.Clone,
-			OnCreate:            s.onCreateApp,
-			OnUpdate:            s.onUpdateApp,
-			OnDelete:            s.onDeleteApp,
+			CompareResources:    func(a, b types.AppServer) int { return services.CompareServers(a, b) },
+			GetCurrentResources: s.appServers.Clone,
+			GetNewResources:     s.newAppServers.Clone,
+			OnCreate:            s.onCreateAppServer,
+			OnUpdate:            s.onUpdateAppServer,
+			OnDelete:            s.onDeleteAppServer,
 			Logger:              s.logger.With("kind", types.KindAppServer),
 		})
 		if err != nil {
@@ -539,7 +545,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 			SyncInterval:          config.TimeBetweenSyncs,
 			OrgURL:                s.orgURL,
 			Owners:                config.SyncSettings.DefaultOwners,
-			AppsGetter:            s.apps.Clone,
+			AppsGetter:            s.appServers.Clone,
 			GroupsGetter:          s.groups.Clone,
 			AppFilters:            config.accessListSyncAppFilters,
 			GroupFilters:          config.accessListSyncGroupFilters,

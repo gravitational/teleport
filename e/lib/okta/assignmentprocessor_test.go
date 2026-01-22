@@ -72,8 +72,8 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
-				application(t, "app2", link, types.OriginOkta, "different-org-url", testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
+				application(t, "app2", link, types.OriginOkta, "different-org-url"),
 			},
 			deleteOktaAppIDs: map[string]bool{
 				mustAppName(t, "app1", link): true,
@@ -113,8 +113,8 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			groupsSkipAddToOkta: true,
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
-				application(t, "app2", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
+				application(t, "app2", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -191,7 +191,7 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			groupsSkipAddToOkta: true,
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			appsSkipAddToOkta: true,
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusPending, startTime, false,
@@ -223,7 +223,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusPending, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -257,7 +257,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime, true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -277,7 +277,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, true,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -301,7 +301,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusProcessing, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -335,7 +335,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			// The cleanup time is 1 minute ahead of the last transition time, which puts it in the window of
 			// not immediately transitioning. However, assignments should be cleaned up immediately even if they're
@@ -374,7 +374,7 @@ func TestProcessAssignments(t *testing.T) {
 				group(t, "group1", types.OriginOkta, testOrgURL),
 			},
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusFailed, timeout.Add(1*time.Minute), false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
@@ -405,7 +405,7 @@ func TestProcessAssignments(t *testing.T) {
 		{
 			name: "still assigned because two assignments refer to the same target",
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, false,
@@ -439,7 +439,7 @@ func TestProcessAssignments(t *testing.T) {
 		{
 			name: "still assigned because two assignments refer to the same target (reverse order)",
 			apps: types.AppServers{
-				application(t, "app1", link, types.OriginOkta, testOrgURL, testHostID),
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
 			},
 			assignments: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime, false,
@@ -582,7 +582,7 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	// Wait for sync.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		requireUsersExist(t, ap, user1, user2)
-		requireAppServers(t, ap, []string{mustAppName(t, application1, oktaapitest.TestLink1Name)})
+		requireOktaAppServers(t, ap, []string{mustAppName(t, application1, oktaapitest.TestLink1Name)})
 		requireUserGroups(t, ap, []string{group1})
 	}, time.Second*10, time.Millisecond*50)
 

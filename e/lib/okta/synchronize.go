@@ -2,6 +2,7 @@ package okta
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -143,7 +144,7 @@ func (s *Service) synchronizeAndEmitEvents(ctx context.Context) {
 
 	err := s.synchronize(ctx)
 
-	s.serviceStatus.UpdateAppGroupSync(ctx, s.clock.Now(), s.apps.Len(), s.groups.Len(), err)
+	s.serviceStatus.UpdateAppGroupSync(ctx, s.clock.Now(), s.appServers.Len(), s.groups.Len(), err)
 
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Error while synchronizing Okta resources with Teleport", "error", err)
@@ -268,9 +269,14 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 			return trace.Wrap(err, "getting groups for app %q", oktaApplication.Id)
 		}
 
-		groups := make([]string, len(oktaGroups))
-		for i, g := range oktaGroups {
-			groups[i] = string(g)
+		// groups have to be nil if there isn't any. Otherwise the CompareServers func in
+		// the reconciler will return false.
+		var groups []string
+		if len(oktaGroups) > 0 {
+			groups = make([]string, len(oktaGroups))
+			for i, g := range oktaGroups {
+				groups[i] = string(g)
+			}
 		}
 
 		apps, err := s.oktaAppToAppServers(ctx, oktaApplication, groups)
@@ -292,7 +298,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		return nil, trace.Wrap(err)
 	}
 
-	s.newApps.Set(newApps)
+	s.newAppServers.Set(newApps)
 
 	s.appsAdded = nil
 	s.appsUpdated = nil
@@ -315,20 +321,24 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 // seedAppsReconciler will restore AppServers still present in the backend as reconciled app
 // resources.
 func (s *Service) seedAppsReconciler(ctx context.Context) error {
-	appServers, err := s.accessPoint.GetApplicationServers(ctx, defaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	apps := map[string]types.AppServer{}
-	for _, app := range appServers {
-		labels := app.GetStaticLabels()
-		if app.Origin() == types.OriginOkta && labels[eteleport.OktaOrgURLLabel] == s.orgURL {
-			apps[app.GetName()] = app
+	appServers := map[string]types.AppServer{}
+	for appServer, err := range iterOktaAppServers(ctx, s.accessPoint, s.orgURL) {
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		if appServer.GetHostID() != oktaAppServerHostID {
+			legacyHostID := appServer.GetHostID()
+			appServer.SetHostID(oktaAppServerHostID)
+			if _, err := s.accessPoint.UpsertApplicationServer(ctx, appServer); err != nil {
+				return trace.Wrap(err, "re-creating app_server with fixed host id")
+			}
+			if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, legacyHostID, appServer.GetName()); err != nil {
+				return trace.Wrap(err, "deleting app_server with legacy host_id")
+			}
+		}
+		appServers[appServer.GetName()] = appServer
 	}
-	s.apps.Set(apps)
-
+	s.appServers.Set(appServers)
 	return nil
 }
 
@@ -426,53 +436,50 @@ func (s *Service) appsMatcher(resource types.AppServer) bool {
 	return resource.GetKind() == types.KindAppServer && resource.Origin() == types.OriginOkta
 }
 
-// onCreateApp will run when an application is created.
-func (s *Service) onCreateApp(ctx context.Context, app types.AppServer) error {
+// onCreateAppServer will run when an application is created.
+func (s *Service) onCreateAppServer(ctx context.Context, appServer types.AppServer) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := s.accessPoint.UpsertApplicationServer(ctx, app); err != nil {
+	if _, err := s.accessPoint.UpsertApplicationServer(ctx, appServer); err != nil {
 		return trace.Wrap(err, "creating app_server")
 	}
-	s.apps.Store(app.GetName(), app)
+	s.appServers.Store(appServer.GetName(), appServer)
 
-	s.addAppOktaResource(ctx, &s.appsAdded, app)
+	s.addAppOktaResource(ctx, &s.appsAdded, appServer)
 
 	return nil
 }
 
 // onUpdateGroup will run when an application is updated.
-func (s *Service) onUpdateApp(ctx context.Context, newApp, oldApp types.AppServer) error {
-	_ = oldApp // unused
-
+func (s *Service) onUpdateAppServer(ctx context.Context, newAppServer, oldAppServer types.AppServer) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := s.accessPoint.UpsertApplicationServer(ctx, newApp); err != nil {
+	if _, err := s.accessPoint.UpsertApplicationServer(ctx, newAppServer); err != nil {
 		return trace.Wrap(err, "updating app_server")
 	}
-	s.apps.Store(newApp.GetName(), newApp)
+	s.appServers.Store(newAppServer.GetName(), newAppServer)
 
-	s.addAppOktaResource(ctx, &s.appsUpdated, newApp)
+	s.addAppOktaResource(ctx, &s.appsUpdated, newAppServer)
 
 	return nil
 }
 
-// onDeleteApp will run when an application is deleted.
-func (s *Service) onDeleteApp(ctx context.Context, app types.AppServer) error {
+// onDeleteAppServer will run when an application is deleted.
+func (s *Service) onDeleteAppServer(ctx context.Context, appServer types.AppServer) error {
 	if err := s.rateLimiter.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, s.hostID, app.GetName()); err != nil && !trace.IsNotFound(err) {
+	if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, appServer.GetHostID(), appServer.GetName()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err, "deleting app_server")
 	}
-	s.apps.Delete(app.GetName())
+	s.appServers.Delete(appServer.GetName())
 
-	s.addAppOktaResource(ctx, &s.appsDeleted, app)
-
+	s.addAppOktaResource(ctx, &s.appsDeleted, appServer)
 	return nil
 }
 
@@ -657,4 +664,29 @@ func (s *Service) calcUserTraits(ctx context.Context, connector types.SAMLConnec
 	}
 	common.SetUserRolesAndTraits(user, groupsList, connector)
 	return nil
+}
+
+type appServerGetter interface {
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
+// iterOktaAppServers iterates over all application servers for the given Okta org.
+func iterOktaAppServers(ctx context.Context, getter appServerGetter, oktaOrgURL string) iter.Seq2[types.AppServer, error] {
+	return func(yield func(types.AppServer, error) bool) {
+		appServers, err := getter.GetApplicationServers(ctx, defaults.Namespace)
+		if err != nil {
+			yield(nil, trace.Wrap(err, "getting application servers"))
+			return
+		}
+
+		for _, as := range appServers {
+			labels := as.GetStaticLabels()
+			if as.Origin() == types.OriginOkta && labels[eteleport.OktaOrgURLLabel] == oktaOrgURL {
+				if !yield(as, nil) {
+					return
+				}
+			}
+		}
+	}
 }
