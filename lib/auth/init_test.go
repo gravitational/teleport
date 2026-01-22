@@ -2352,7 +2352,7 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	for _, caType := range types.CertAuthTypesExtended {
+	for _, caType := range types.CertAuthTypes {
 		cert, err := auth.GetCertAuthorities(ctx, caType, false)
 		require.NoError(t, err)
 		require.Len(t, cert, 1)

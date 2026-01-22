@@ -348,10 +348,14 @@ func CRLDistributionPoint(activeDirectoryDomain string, caType types.CertAuthTyp
 
 // crlKeyName returns the appropriate LDAP key given the CA type.
 //
-// UserCA must use "Teleport" to keep backwards compatibility.
+// WindowsCA must use "Teleport" to keep backwards compatibility.
 func crlKeyName(caType types.CertAuthType) (string, error) {
 	switch caType {
 	case types.UserCA:
+		// TODO(codingllama): DELETE IN 20.
+		//  Once the fallback is removed this shouldn't be needed anymore.
+		fallthrough
+	case types.WindowsCA:
 		return "Teleport", nil
 	case types.DatabaseCA, types.DatabaseClientCA:
 		return "TeleportDB", nil
