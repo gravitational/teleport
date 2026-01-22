@@ -5547,6 +5547,14 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	return cas, nil
 }
 
+// shouldFallbackEmptyListToUserCA is used by GetCertAuthorities to decide if a
+// fallback query with UserCA is necessary.
+//
+// Cached responses of GetCertAuthorities don't error on unknown CA types,
+// instead they swallow the errors and return empty. This method detects that.
+//
+// Don't use this fallback in other scenarios unless you really know what you
+// are doing.
 func (c *Client) shouldFallbackEmptyListToUserCA(ctx context.Context, caType types.CertAuthType) bool {
 	if caType != types.WindowsCA {
 		return false
