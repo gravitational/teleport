@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/aws/awsconfigfile"
 )
 
 func TestExtractAWSStartURL(t *testing.T) {
@@ -133,18 +134,22 @@ func TestWriteAWSProfileSummary(t *testing.T) {
 	configPath := "/home/user/.aws/config"
 	profiles := []awsProfileInfo{
 		{
-			profile:    "teleport-awsic-dev-admin",
-			account:    "dev",
-			accountID:  "123456789012",
-			role:       "Admin",
-			ssoSession: "teleport-d-12345",
+			SSOProfile: awsconfigfile.SSOProfile{
+				Name:      "teleport-awsic-dev-admin",
+				AccountID: "123456789012",
+				RoleName:  "Admin",
+				Session:   "teleport-d-12345",
+			},
+			account: "dev",
 		},
 		{
-			profile:    "teleport-awsic-prod-reader",
-			account:    "prod",
-			accountID:  "098765432109",
-			role:       "Reader",
-			ssoSession: "teleport-d-12345",
+			SSOProfile: awsconfigfile.SSOProfile{
+				Name:      "teleport-awsic-prod-reader",
+				AccountID: "098765432109",
+				RoleName:  "Reader",
+				Session:   "teleport-d-12345",
+			},
+			account: "prod",
 		},
 	}
 
@@ -166,6 +171,35 @@ func TestWriteAWSProfileSummary(t *testing.T) {
 	buf.Reset()
 	writeAWSProfileSummary(buf, configPath, nil)
 	require.Contains(t, buf.String(), "No AWS Identity Center integrations found.")
+}
+
+func TestFilterAWSIdentityCenterApps(t *testing.T) {
+	appWithIC, err := types.NewAppV3(types.Metadata{Name: "aws-ic"}, types.AppSpecV3{
+		URI: "https://d-123.awsapps.com/start",
+		IdentityCenter: &types.AppIdentityCenter{
+			AccountID:      "123456789012",
+			PermissionSets: []*types.IdentityCenterPermissionSet{{Name: "Admin"}},
+		},
+	})
+	require.NoError(t, err)
+
+	appWithoutIC, err := types.NewAppV3(types.Metadata{Name: "no-ic"}, types.AppSpecV3{
+		URI: "https://example.com",
+	})
+	require.NoError(t, err)
+
+	resources := types.EnrichedResources{
+		{
+			ResourceWithLabels: &types.AppServerV3{Spec: types.AppServerSpecV3{App: appWithIC}},
+		},
+		{
+			ResourceWithLabels: &types.AppServerV3{Spec: types.AppServerSpecV3{App: appWithoutIC}},
+		},
+	}
+
+	filtered := filterAWSIdentityCenterApps(resources)
+	require.Len(t, filtered, 1)
+	require.Equal(t, "aws-ic", filtered[0].GetName())
 }
 
 func TestWriteAWSConfig(t *testing.T) {
@@ -202,42 +236,27 @@ func TestWriteAWSConfig(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	resources := types.EnrichedResources{
-		{
-			ResourceWithLabels: &types.AppServerV3{
-				Spec: types.AppServerSpecV3{
-					App: app1,
-				},
-			},
-		},
-		{
-			ResourceWithLabels: &types.AppServerV3{
-				Spec: types.AppServerSpecV3{
-					App: app2,
-				},
-			},
-		},
-	}
+	apps := []types.Application{app1, app2}
 
-	written, err := writeAWSConfig(configPath, "us-east-1", resources)
+	written, err := writeAWSConfig(configPath, "us-east-1", apps)
 	require.NoError(t, err)
 	require.Len(t, written, 3)
 
 	// Verify the returned slice items
-	require.Equal(t, "teleport-awsic-dev-admin", written[0].profile)
-	require.Equal(t, "111111111111", written[0].accountID)
-	require.Equal(t, "Admin", written[0].role)
-	require.Equal(t, "teleport-d-123", written[0].ssoSession)
+	require.Equal(t, "teleport-awsic-dev-admin", written[0].Name)
+	require.Equal(t, "111111111111", written[0].AccountID)
+	require.Equal(t, "Admin", written[0].RoleName)
+	require.Equal(t, "teleport-d-123", written[0].Session)
 
-	require.Equal(t, "teleport-awsic-dev-reader", written[1].profile)
-	require.Equal(t, "111111111111", written[1].accountID)
-	require.Equal(t, "Reader", written[1].role)
-	require.Equal(t, "teleport-d-123", written[1].ssoSession)
+	require.Equal(t, "teleport-awsic-dev-reader", written[1].Name)
+	require.Equal(t, "111111111111", written[1].AccountID)
+	require.Equal(t, "Reader", written[1].RoleName)
+	require.Equal(t, "teleport-d-123", written[1].Session)
 
-	require.Equal(t, "teleport-awsic-222222222222-admin", written[2].profile)
-	require.Equal(t, "222222222222", written[2].accountID)
-	require.Equal(t, "Admin", written[2].role)
-	require.Equal(t, "teleport-d-123", written[2].ssoSession)
+	require.Equal(t, "teleport-awsic-222222222222-admin", written[2].Name)
+	require.Equal(t, "222222222222", written[2].AccountID)
+	require.Equal(t, "Admin", written[2].RoleName)
+	require.Equal(t, "teleport-d-123", written[2].Session)
 
 	// Verify file content
 	content, err := os.ReadFile(configPath)

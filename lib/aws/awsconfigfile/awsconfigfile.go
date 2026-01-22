@@ -46,9 +46,8 @@ func AWSConfigFilePath() (string, error) {
 }
 
 // UpsertSSOSession sets the sso_start_url and sso_region for the sso-session with name sessionName.
-// File is created if it does not exist.
 func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string) error {
-	return trace.Wrap(upsertManagedSection(configFilePath, "sso-session "+sessionName, ssoOwnershipComment, func(section *ini.Section) error {
+	return trace.Wrap(upsertManagedSSOSection(configFilePath, "sso-session "+sessionName, func(section *ini.Section) error {
 		if _, err := section.NewKey("sso_start_url", ssoStartURL); err != nil {
 			return trace.Wrap(err)
 		}
@@ -59,27 +58,38 @@ func UpsertSSOSession(configFilePath, sessionName, ssoStartURL, ssoRegion string
 	}))
 }
 
+// SSOProfile represents an AWS Identity Center profile configuration.
+type SSOProfile struct {
+	// Name is the profile name.
+	Name string
+	// Session is the name of the SSO session.
+	Session string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// RoleName is the name of the IAM role.
+	RoleName string
+}
+
 // UpsertSSOProfile sets the sso_session, sso_account_id and sso_role_name for the profile with name profileName.
-// File is created if it does not exist.
-func UpsertSSOProfile(configFilePath, profileName, ssoSession, ssoAccountID, ssoRoleName string) error {
-	return trace.Wrap(upsertManagedSection(configFilePath, "profile "+profileName, ssoOwnershipComment, func(section *ini.Section) error {
+func UpsertSSOProfile(configFilePath string, p SSOProfile) error {
+	return trace.Wrap(upsertManagedSSOSection(configFilePath, "profile "+p.Name, func(section *ini.Section) error {
 		if section.HasKey("credential_process") {
 			return trace.BadParameter("%s: section %q contains 'credential_process' and cannot be converted to an SSO profile, remove the section and try again", configFilePath, section.Name())
 		}
-		if _, err := section.NewKey("sso_session", ssoSession); err != nil {
+		if _, err := section.NewKey("sso_session", p.Session); err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := section.NewKey("sso_account_id", ssoAccountID); err != nil {
+		if _, err := section.NewKey("sso_account_id", p.AccountID); err != nil {
 			return trace.Wrap(err)
 		}
-		if _, err := section.NewKey("sso_role_name", ssoRoleName); err != nil {
+		if _, err := section.NewKey("sso_role_name", p.RoleName); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	}))
 }
 
-func upsertManagedSection(configFilePath, sectionName, comment string, updateFunc func(*ini.Section) error) error {
+func upsertManagedSSOSection(configFilePath, sectionName string, updateFunc func(*ini.Section) error) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true,
 		Loose:             true,
@@ -89,9 +99,10 @@ func upsertManagedSection(configFilePath, sectionName, comment string, updateFun
 	}
 
 	var section *ini.Section
+	// If section exists, verify ownership and bail if not owned by Teleport.
 	if iniFile.HasSection(sectionName) {
 		section = iniFile.Section(sectionName)
-		if !strings.Contains(section.Comment, ownershipComment) && !strings.Contains(section.Comment, ssoOwnershipComment) {
+		if !strings.Contains(section.Comment, ssoOwnershipComment) {
 			return trace.BadParameter("%s: section %q is not managed by Teleport, remove the section and try again", configFilePath, sectionName)
 		}
 	} else {
@@ -101,7 +112,7 @@ func upsertManagedSection(configFilePath, sectionName, comment string, updateFun
 		}
 	}
 
-	section.Comment = comment
+	section.Comment = ssoOwnershipComment
 	if err := updateFunc(section); err != nil {
 		return trace.Wrap(err)
 	}

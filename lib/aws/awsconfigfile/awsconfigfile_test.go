@@ -446,7 +446,12 @@ func TestSSORemovalGuard(t *testing.T) {
 	// 2. Create an SSO session and profile (managed by new SSO comment)
 	err = UpsertSSOSession(configFilePath, "sso-session", "https://start.url", "us-east-1")
 	require.NoError(t, err)
-	err = UpsertSSOProfile(configFilePath, "sso-profile", "sso-session", "123", "Admin")
+	err = UpsertSSOProfile(configFilePath, SSOProfile{
+		Name:      "sso-profile",
+		Session:   "sso-session",
+		AccountID: "123",
+		RoleName:  "Admin",
+	})
 	require.NoError(t, err)
 
 	// 3. Verify they all exist
@@ -515,7 +520,12 @@ sso_region    = us-east-1
 	t.Run("UpsertSSOProfile", func(t *testing.T) {
 		configFilePath := filepath.Join(t.TempDir(), "config")
 
-		err := UpsertSSOProfile(configFilePath, "my-profile", "my-session", "123456789012", "Admin")
+		err := UpsertSSOProfile(configFilePath, SSOProfile{
+			Name:      "my-profile",
+			Session:   "my-session",
+			AccountID: "123456789012",
+			RoleName:  "Admin",
+		})
 		require.NoError(t, err)
 
 		bs, err := os.ReadFile(configFilePath)
@@ -537,7 +547,12 @@ credential_process = some-command
 		err := os.WriteFile(configFilePath, []byte(initial), 0600)
 		require.NoError(t, err)
 
-		err = UpsertSSOProfile(configFilePath, "my-profile", "my-session", "123456789012", "Admin")
+		err = UpsertSSOProfile(configFilePath, SSOProfile{
+			Name:      "my-profile",
+			Session:   "my-session",
+			AccountID: "123456789012",
+			RoleName:  "Admin",
+		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "contains 'credential_process' and cannot be converted to an SSO profile")
 	})

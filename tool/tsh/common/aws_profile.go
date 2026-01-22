@@ -34,11 +34,8 @@ import (
 )
 
 type awsProfileInfo struct {
-	profile    string
-	account    string
-	accountID  string
-	role       string
-	ssoSession string
+	awsconfigfile.SSOProfile
+	account string
 }
 
 // onAWSProfile generates AWS configuration for AWS Identity Center integration.
@@ -57,10 +54,10 @@ func onAWSProfile(cf *CLIConf) error {
 		}
 		defer clt.Close()
 
+		// Fetch all app resources from the cluster.
 		resources, err = apiclient.GetAllUnifiedResources(cf.Context, clt.AuthClient, &proto.ListUnifiedResourcesRequest{
 			Kinds:         []string{types.KindApp},
-			IncludeLogins: true, // This enables permission set filtering
-
+			IncludeLogins: true, // This enables permission set filtering for AWS IC apps
 		})
 		return trace.Wrap(err)
 	})
@@ -68,38 +65,49 @@ func onAWSProfile(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	icApps := filterAWSIdentityCenterApps(resources)
+
 	configPath, err := awsconfigfile.AWSConfigFilePath()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	writtenProfiles, err := writeAWSConfig(configPath, cf.AWSSSORegion, resources)
+	// Write into AWS config file.
+	writtenProfiles, err := writeAWSConfig(configPath, cf.AWSSSORegion, icApps)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Output summary to user.
 	writeAWSProfileSummary(cf.Stdout(), configPath, writtenProfiles)
 
 	return nil
 }
 
-func writeAWSConfig(configPath, ssoRegion string, resources types.EnrichedResources) ([]awsProfileInfo, error) {
-	writtenSessions := make(map[string]struct{})
-	var writtenProfiles []awsProfileInfo
-
+func filterAWSIdentityCenterApps(resources types.EnrichedResources) []types.Application {
+	var apps []types.Application
 	for _, resource := range resources {
 		app, ok := resource.ResourceWithLabels.(types.AppServer)
 		if !ok {
 			continue
 		}
-		awsIC := app.GetApp().GetIdentityCenter()
-		if awsIC == nil {
+		if app.GetApp().GetIdentityCenter() == nil {
 			continue
 		}
+		apps = append(apps, app.GetApp())
+	}
+	return apps
+}
 
-		startURL := extractAWSStartURL(app.GetApp().GetURI())
+func writeAWSConfig(configPath, ssoRegion string, identityCenterApps []types.Application) ([]awsProfileInfo, error) {
+	writtenSessions := make(map[string]struct{})
+	var writtenProfiles []awsProfileInfo
+
+	for _, app := range identityCenterApps {
+		startURL := extractAWSStartURL(app.GetURI())
 		sessionName := extractAWSSessionName(startURL)
 
+		// Write SSO session if not already written.
 		if _, ok := writtenSessions[sessionName]; !ok {
 			if err := awsconfigfile.UpsertSSOSession(configPath, sessionName, startURL, ssoRegion); err != nil {
 				return nil, trace.Wrap(err)
@@ -107,22 +115,28 @@ func writeAWSConfig(configPath, ssoRegion string, resources types.EnrichedResour
 			writtenSessions[sessionName] = struct{}{}
 		}
 
-		accountName, _ := app.GetApp().GetLabel("teleport.dev/account-name")
+		awsIC := app.GetIdentityCenter()
+
+		accountName, _ := app.GetLabel("teleport.dev/account-name")
 		if accountName == "" {
 			accountName = awsIC.AccountID
 		}
 
+		// Write AWS profile for the combination of each permission set and account.
 		for _, ps := range awsIC.PermissionSets {
 			profileName := formatAWSProfileName(accountName, ps.Name)
-			if err := awsconfigfile.UpsertSSOProfile(configPath, profileName, sessionName, awsIC.AccountID, ps.Name); err != nil {
+			profile := awsconfigfile.SSOProfile{
+				Name:      profileName,
+				Session:   sessionName,
+				AccountID: awsIC.AccountID,
+				RoleName:  ps.Name,
+			}
+			if err := awsconfigfile.UpsertSSOProfile(configPath, profile); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			writtenProfiles = append(writtenProfiles, awsProfileInfo{
-				profile:    profileName,
+				SSOProfile: profile,
 				account:    accountName,
-				accountID:  awsIC.AccountID,
-				role:       ps.Name,
-				ssoSession: sessionName,
 			})
 		}
 	}
@@ -135,17 +149,17 @@ func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfil
 		fmt.Fprintln(w)
 
 		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS. Example:\n")
-		fmt.Fprintf(w, "  aws sso login --sso-session %s\n", profiles[0].ssoSession)
+		fmt.Fprintf(w, "  aws sso login --sso-session %s\n", profiles[0].Session)
 		fmt.Fprintln(w)
 		fmt.Fprintf(w, "Then set the AWS_PROFILE environment variable. Example:\n")
-		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].profile)
+		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].Name)
 		fmt.Fprintln(w)
 
 		// Simple table format
 		fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", "Profile", "Account", "Account ID", "Role", "SSO Session")
 		fmt.Fprintln(w, strings.Repeat("-", 114))
-		for _, v := range profiles {
-			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", v.profile, v.account, v.accountID, v.role, v.ssoSession)
+		for _, p := range profiles {
+			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", p.Name, p.account, p.AccountID, p.RoleName, p.Session)
 		}
 	} else {
 		fmt.Fprintln(w, "No AWS Identity Center integrations found.")
