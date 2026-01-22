@@ -19,6 +19,7 @@
 package k8s
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -32,6 +33,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	applyconfigv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gravitational/teleport/lib/tbot/internal/encoding"
@@ -54,6 +56,28 @@ type SecretDestination struct {
 	// When using the Helm chart, you'll need to additionally grant the tbot
 	// service account permissions to read/write to the other namespace.
 	Namespace string `yaml:"namespace,omitempty"`
+	// KubeconfigPath is the path to a kubeconfig to use for reaching and
+	// authenticating to the Kubernetes API server. When running tbot inside a
+	// Kubernetes cluster, configuring this is unnecessary as the in-cluster
+	// credentials can be used.
+	//
+	// This can be useful when running tbot outside a Kubernetes cluster or
+	// when tbot needs to write secrets to a Kubernetes cluster that differs
+	// from the one it is running in.
+	//
+	// This may also be set using the KUBECONFIG environment variable. The value
+	// here within the configuration file will take precedence over the
+	// environment variable.
+	KubeconfigPath string `yaml:"kubeconfig_path,omitempty"`
+	// KubeconfigContext overrides which context to use from the kubeconfig.
+	//
+	// This has no effect when relying on the default in-cluster config and can
+	// only be used when the KUBECONFIG environment variable or the
+	// `kubeconfig_path` field has been set.
+	//
+	// When unspecified, the context currently set within the Kubernetes config
+	// file will be used.
+	KubeconfigContext string `yaml:"kubeconfig_context,omitempty"`
 
 	mu          sync.Mutex
 	k8s         kubernetes.Interface
@@ -156,7 +180,9 @@ func (dks *SecretDestination) Init(ctx context.Context, subdirs []string) error 
 	// environment.
 	if dks.k8s == nil {
 		var err error
-		if dks.k8s, err = newKubernetesClient(); err != nil {
+		if dks.k8s, err = newKubernetesClient(
+			dks.KubeconfigPath, dks.KubeconfigContext,
+		); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -302,14 +328,46 @@ func (dks *SecretDestination) IsPersistent() bool {
 	return true
 }
 
-func newKubernetesClient() (*kubernetes.Clientset, error) {
-	// BuildConfigFromFlags falls back to InClusterConfig if both params
-	// are empty. This means KUBECONFIG takes precedence.
-	clientCfg, err := clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
+func kubeConfig(
+	kubeconfigPathOverride string,
+	contextOverride string,
+) (*rest.Config, error) {
+	// Check if the user has given us an override for the kubeconfig, either
+	// explicitly in the config file or via the environment variable.
+	kubeconfigPathOverride = cmp.Or(
+		kubeconfigPathOverride,
+		os.Getenv("KUBECONFIG"),
+	)
+	// If not, we return early with the k8s in cluster config. We expect this
+	// to be used in most cases.
+	if kubeconfigPathOverride == "" {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			return cfg, trace.Wrap(err)
+		}
+	}
+
+	overrides := &clientcmd.ConfigOverrides{
+		CurrentContext: contextOverride,
+	}
+
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPathOverride},
+		overrides,
+	).ClientConfig()
+
+}
+
+func newKubernetesClient(
+	kubeconfigPathOverride string,
+	contextOverride string,
+) (*kubernetes.Clientset, error) {
+	cfg, err := kubeConfig(kubeconfigPathOverride, contextOverride)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	k8s, err := kubernetes.NewForConfig(clientCfg)
+
+	k8s, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
