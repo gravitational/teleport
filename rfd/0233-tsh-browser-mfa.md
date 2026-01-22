@@ -112,11 +112,16 @@ user flag.
 #### Login process
 
 This flow will be followed when a user first logs in to their cluster using
-`tsh`. It follows the [headless authentication](0105-headless-authentication.md)
-flow to authenticate the user with some modifications:
+`tsh`. It uses some of the
+[headless authentication](0105-headless-authentication.md) flow to authenticate
+the user with some modifications:
 - There will be a new endpoint `/webapi/headless/browser` endpoint for `tsh` to
   hit which will solely deal with login events.
-- The returned certificate is a typical user certificate with the standard TTL.
+- A new gRPC UpdateHeadlessAuthenticationOnCreation on the auth server for the
+  proxy to call which will fill in details when the HA object is created.
+- The returned certificate is a typical user certificate with the standard TTL
+  and is returned to the web browser instead of directly to `tsh` to mitigate
+  phishing attacks.
 
 ```mermaid
 sequenceDiagram
@@ -124,43 +129,71 @@ sequenceDiagram
     participant tsh
     participant Teleport Proxy
     participant Teleport Auth
+    participant Backend
 
     Note over tsh: tsh login --proxy proxy.example.com --user alice --auth=browser
-    Note over tsh: print URL proxy.example.com/headless/<request_id>
-    par headless client request
-        tsh->>Teleport Proxy: POST /webapi/headless/browser
-        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
+    Note over tsh: Start local callback server on http://localhost:port
+    Note over tsh: Print URL proxy.example.com/headless/<request_id>?callback=http://localhost:port
+    
+    par tsh request
+        tsh->>Teleport Proxy: POST /webapi/headless/browser/init<br/>{user, publicKey, authType=login, secret_key}
+        Teleport Proxy->>Teleport Auth: rpc UpdateHeadlessAuthenticationOnCreation
         Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
 
-    and local client request
-        tsh-->>Web Browser: web browser opens
-        Note over Web Browser: proxy.example.com/headless/<request_id>
+    and browser request
+        tsh-->>Web Browser: Open browser
+        Note over Web Browser: proxy.example.com/headless/<request_id>?callback=...
+        
         opt user is not already logged in locally
             Web Browser->>Teleport Proxy: user logs in normally e.g. password+MFA
-            Teleport Proxy->>Web Browser:
+            Teleport Proxy->>Web Browser: session established
         end
-        Web Browser->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
-        Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
+        
+        Web Browser->>Teleport Proxy: rpc GetHeadlessAuthentication(request_id)<br/>(authenticated with web session)
+        Teleport Proxy->>Teleport Auth: rpc GetHeadlessAuthentication(request_id)
+        Teleport Auth->>Backend: insert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login, state=pending}
 
-        par headless client request
+        par tsh request
             Backend ->>- Teleport Auth: unblock on insert
-            Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login}
-            Teleport Auth ->>+ Backend: wait for state change
+            Teleport Auth ->>+ Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login}
+            Backend ->>- Teleport Auth: unblock on state change
+            Teleport Auth->>Teleport Proxy: resource created
+            Teleport Proxy->>tsh: 200 OK, resource created
         end
+        
+        Teleport Auth->>Teleport Proxy: GetHeadlessAuthentication response
+        Teleport Proxy->>Web Browser: {publicKey, user, ip, authType=login}
 
-        Teleport Auth->>Web Browser: Headless Authentication details
+        Note over Web Browser: Share request details with user
+        
+        Web Browser->>Teleport Proxy: rpc CreateAuthenticateChallenge
+        Teleport Proxy->>Teleport Auth: rpc CreateAuthenticateChallenge
+        Teleport Auth->>Teleport Proxy: MFA Challenge
+        Teleport Proxy->>Web Browser: MFA Challenge
+        
+        Note over Web Browser: User completes MFA challenge
+        
+        Web Browser->>Teleport Proxy: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
+        Teleport Proxy->>Teleport Auth: rpc UpdateHeadlessAuthenticationState
+        Teleport Auth->>Backend: upsert /headless_authentication/<request_id><br/>{state=approved, mfaDevice}
+        Backend->>Teleport Auth: updated
+        Teleport Auth->>Teleport Proxy: OK
+        Teleport Proxy->>Web Browser: OK
 
-        Note over Web Browser: share request details with user
-        Web Browser->>Teleport Auth: rpc CreateAuthenticateChallenge
-        Teleport Auth->>Web Browser: MFA Challenge
-        Note over Web Browser: user completes MFA challenge
-        Web Browser->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
-        Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login, state=approved, mfaDevice}
-    and headless client request
-        Backend ->>- Teleport Auth: unblock on state change
-        Teleport Auth->>Teleport Proxy: user certificates<br/>(standard user cert TTL)
-        Teleport Proxy->>tsh: user certificates<br/>(standard user cert TTL)
-        Note over tsh: User is authenticated
+        Note over Web Browser: MFA approved, now fetch certificates
+
+        Web Browser->>Teleport Proxy: POST /webapi/headless/<request_id>/certs<br/>(authenticated with web session)
+        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate<br/>{HeadlessAuthenticationID: request_id}
+        Teleport Auth->>Backend: get /headless_authentication/<request_id>
+        Backend->>Teleport Auth: {publicKey, mfaDevice, state=approved}
+        Teleport Auth->>Teleport Proxy: user certificates
+        Teleport Proxy->>Web Browser: user certificates
+
+        Note over Web Browser: Redirect to callback URL with encrypted certificates
+        Web Browser->>tsh: GET http://localhost:port/callback?response=<encrypted_certs>
+        Note over tsh: Decrypt certificates using secret key
+        tsh->>Web Browser: OK
+        Note over tsh: Save certificates to disk<br/>User is authenticated
     end
 ```
 
@@ -179,18 +212,19 @@ available. This error is caught and the user is prompted to try attempt
 authentication through the browser.
 
 `tsh` will send an unauthenticated request to `POST /webapi/headless/browser`
-that will remain open until the request is approved, denied, or times out. It
+that will remain open until the Headless Authentication object is created. It
 will send the client's SSH public key, proxy address, and the authentication
-type etc. The Proxy forwards these details to the Auth server using
-`POST /:version/users/:user/ssh/authenticate`. The security of this
-unauthenticated endpoint will be discussed in the
+type, secret key etc. The Proxy forwards these details to the Auth server using
+a new endpoint `rpc UpdateHeadlessAuthenticationOnCreation`. The security of
+this unauthenticated flow will be discussed in the
 [security section](#unauthenticated-webapiheadlessbrowser-endpoint).
 
 The auth service will store the Request ID on the backend under
 `/headless_authentication/<request_id>`. The record will have a short TTL of 5
 minutes. It will contain the authentication type, user, ip, and the
-current state (pending). The auth server waits for a decision from the user by
-using a resource watcher on the headless authentication object.
+current state (pending). The auth server waits for the Headless Authentication
+object to be created on the backend before it fills in the information it was
+passed by `tsh`.
 
 ##### The user verifying their MFA through the browser
 
@@ -217,11 +251,21 @@ request is approved, the record is approved on the backend.
 
 ##### `tsh` receiving certificates
 
-If the browser authentication is successful, the
+To receive certificates, `tsh` creates a callback server for the browser to
+communicate with.  If the browser authentication is successful, the
 `/headless_authentication/<request_id>` object will be upserted with an approved
-state and which MFA device was used. The auth server will unblock the request
-and certificates with the standard user TTL will be generated and returned to
-`tsh`. If verification fails, an error will be returned.
+state and which MFA device was used. The browser will make a call to a new
+endpoint (`POST /webapi/headless/<request_id>/certs`), which will check the
+status of the Headless Authentication request, and generate certificates if it
+was approved. The certificates will be encrypted using the secret key provided
+by the initial `tsh` request and sent back to the browser. The browser will
+send the payload to the callback server. If verification fails, won't request
+certificates and will communicate that the callback server.
+
+Upon `tsh` receiving the encrypted certificates, it will decrypt them and store
+them on disk. These certificates will have the standard user TTL. If `tsh`
+receives a failure message instead, it will show the user and they will remain
+unauthenticated.
 
 #### Per-session MFA
 
@@ -249,8 +293,14 @@ used. As of the time of writing, this is only `ssh` resources. A similar flow
 will be followed as described in the [Per-session MFA](#per-session-mfa), but
 with the following differences:
 
-1. When connecting to a resource, if the SSH service returns a MFA required
-   message via a keyboard-interactive question, the 
+1. **Authentication type**: The `HeadlessAuthentication` object is created with
+   `authType=in-band`.
+1. **RPC Calls**: Instead of using the `CreateAuthenticateChallenge`,
+   `CreateSessionChallenge` and `ValidateSessionChallenge` will be used.
+1. **Authentication method**: Instead of the browser receiving certificates, it
+   will receive a challenge name from the In-band MFA Service. This will be sent
+   to `tsh` through the callback server, if the verification process is
+   successful.
 
 ### Security
 
@@ -262,21 +312,9 @@ similar to the existing headless
 that was introduced by the headless authentication method. The security of this
 endpoint is explained in more detail in the linked documentation, but in short,
 it is a rate limited endpoint that will only write resources to the backend once
-a matching authenticated request is made from a user's browser. This new
-endpoint will only accept requests from the browser login flow and return
-certificates for a browser login request.
-
-#### IP restrictions
-
-The login flow creates a 12 hour certificate that is saved to disk, if stolen,
-an attacker would have access for up to 12 hours. To mitigate this, the IP
-address of `tsh` client and the browser session will be compared to check they
-are the same. This ensures that users don't inadvertently create credentials on
-a remote machine that may be shared,
-[headless authentication](0105-headless-authentication.md) should be used in
-this case. It also reduces the risk that a user is phished in to approving an
-attacker's `tsh login` request because it is unlikely that the IP addresses will
-match.
+a matching authenticated request is made from an authenticated user's browser.
+This new endpoint will only accept requests from the browser login flow and
+return certificates for a browser login request.
 
 ### Scale
 
