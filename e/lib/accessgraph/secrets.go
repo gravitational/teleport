@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	"github.com/gravitational/teleport/lib/modules"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -111,7 +112,7 @@ func (s *Service) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := isDeviceAuthnAllowed(authPref.GetDeviceTrust()); err != nil {
+	if err := isDeviceAuthnAllowed(authPref.GetDeviceTrust(), s.modules); err != nil {
 		authnDisabledLogOnce.Do(func() {
 			s.log.WarnContext(in.Context(), "Device authentication attempted, but device trust is disabled by cluster settings")
 		})
@@ -172,8 +173,8 @@ func (s *Service) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_
 	return nil
 }
 
-func isDeviceAuthnAllowed(dt *types.DeviceTrust) error {
-	if dtconfig.GetEffectiveMode(dt) == constants.DeviceTrustModeOff {
+func isDeviceAuthnAllowed(dt *types.DeviceTrust, m modules.Modules) error {
+	if dtconfig.GetEffectiveMode(dt, m) == constants.DeviceTrustModeOff {
 		return trace.Wrap(errDeviceTrustDisabled)
 	}
 	return nil

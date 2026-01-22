@@ -571,6 +571,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 		AuthPreferenceGetter:  p.authServer.AuthServer.GetReadOnlyAuthPreference,
 		DeviceAssertionServer: p.authServer.AuthServer.GetDeviceAssertionServer(),
 		UsageReporter:         p.authServer.AuthServer.UsageReporter,
+		Modules:               modules.GetModules(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -671,6 +672,7 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		CachedUsersService:  authServer.Cache,
 		Emitter:             authGRPC.Emitter,
 		Storage:             deviceStorage,
+		Modules:             modules.GetModules(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

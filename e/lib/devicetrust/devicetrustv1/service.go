@@ -170,6 +170,7 @@ type Service struct {
 	emitter     apievents.Emitter
 	limiter     RateLimiter
 	storage     *storage.S
+	modules     modules.Modules
 }
 
 // ServiceParams holds creation parameters for Service.
@@ -181,6 +182,7 @@ type ServiceParams struct {
 	CachedUsersService  UsersService
 	Emitter             apievents.Emitter
 	Storage             *storage.S
+	Modules             modules.Modules
 
 	// Limiter is the rate limiter for loosely-authorized requests, like
 	// auto-enrollment token creation or device authentication.
@@ -209,6 +211,8 @@ func New(params ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("parameter Emitter required")
 	case params.Storage == nil:
 		return nil, trace.BadParameter("parameter Storage required")
+	case params.Modules == nil:
+		return nil, trace.BadParameter("parameter Modules required")
 	}
 
 	baseLogger := params.Logger
@@ -243,6 +247,7 @@ func New(params ServiceParams) (*Service, error) {
 		emitter:     params.Emitter,
 		limiter:     rateLimiter,
 		storage:     params.Storage,
+		modules:     params.Modules,
 	}, nil
 }
 
@@ -951,7 +956,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 }
 
 func (s *Service) isDeviceAuthnAllowed(dt *types.DeviceTrust) error {
-	if dtconfig.GetEffectiveMode(dt) == constants.DeviceTrustModeOff {
+	if dtconfig.GetEffectiveMode(dt, s.modules) == constants.DeviceTrustModeOff {
 		return trace.Wrap(errDeviceTrustDisabled)
 	}
 	return nil

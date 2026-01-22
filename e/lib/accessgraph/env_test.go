@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	dttestenv "github.com/gravitational/teleport/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -181,6 +182,7 @@ func setup(t *testing.T, ops ...option) env {
 		},
 		DeviceAssertionServer: fakeSvc.Service.CreateAssertCeremony,
 		UsageReporter:         usageReporter,
+		Modules:               modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 

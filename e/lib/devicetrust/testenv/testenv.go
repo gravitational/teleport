@@ -220,6 +220,7 @@ func New(opts ...Opt) (*E, error) {
 		Emitter:             e.emitter,
 		Limiter:             e.limiter,
 		Storage:             dtStorage,
+		Modules:             modulestest.EnterpriseModules(),
 	})
 	if err != nil {
 		return nil, err

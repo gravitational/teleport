@@ -55,6 +55,9 @@ type ServiceConfig struct {
 
 	// UsageReporter is the usage reporter to use.
 	UsageReporter usagereporter.UsageReporter
+
+	// Modules define which features are enabled for the process.
+	Modules modules.Modules
 }
 
 // AuthPreferenceGetterFunc is a function that returns the auth preference.
@@ -79,6 +82,7 @@ type Service struct {
 	deviceAssertionServer func() (assertserver.Ceremony, error)
 	authPreferenceGetter  AuthPreferenceGetterFunc
 	usageReporter         usagereporter.UsageReporter
+	modules               modules.Modules
 }
 
 // NewService creates a new access graph service.
@@ -96,6 +100,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		deviceAssertionServer: cfg.DeviceAssertionServer,
 		authPreferenceGetter:  cfg.AuthPreferenceGetter,
 		usageReporter:         cfg.UsageReporter,
+		modules:               cfg.Modules,
 	}, nil
 }
 
@@ -130,6 +135,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 	if c.UsageReporter == nil {
 		return trace.BadParameter("missing UsageReporter")
+	}
+
+	if c.Modules == nil {
+		return trace.BadParameter("missing Modules")
 	}
 
 	return nil
