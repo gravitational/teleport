@@ -133,16 +133,18 @@ func TestWriteAWSProfileSummary(t *testing.T) {
 	configPath := "/home/user/.aws/config"
 	profiles := []awsProfileInfo{
 		{
-			profile:   "teleport-awsic-dev-admin",
-			account:   "dev",
-			accountID: "123456789012",
-			role:      "Admin",
+			profile:    "teleport-awsic-dev-admin",
+			account:    "dev",
+			accountID:  "123456789012",
+			role:       "Admin",
+			ssoSession: "teleport-d-12345",
 		},
 		{
-			profile:   "teleport-awsic-prod-reader",
-			account:   "prod",
-			accountID: "098765432109",
-			role:      "Reader",
+			profile:    "teleport-awsic-prod-reader",
+			account:    "prod",
+			accountID:  "098765432109",
+			role:       "Reader",
+			ssoSession: "teleport-d-12345",
 		},
 	}
 
@@ -150,7 +152,9 @@ func TestWriteAWSProfileSummary(t *testing.T) {
 	writeAWSProfileSummary(buf, configPath, profiles)
 	output := buf.String()
 
-	require.Contains(t, output, "Wrote /home/user/.aws/config.")
+	require.Contains(t, output, "AWS configuration updated at: /home/user/.aws/config")
+	require.Contains(t, output, "aws sso login --sso-session teleport-d-12345")
+	require.Contains(t, output, "export AWS_PROFILE=teleport-awsic-dev-admin")
 	require.Contains(t, output, "teleport-awsic-dev-admin")
 	require.Contains(t, output, "123456789012")
 	require.Contains(t, output, "Admin")
@@ -223,14 +227,17 @@ func TestWriteAWSConfig(t *testing.T) {
 	require.Equal(t, "teleport-awsic-dev-admin", written[0].profile)
 	require.Equal(t, "111111111111", written[0].accountID)
 	require.Equal(t, "Admin", written[0].role)
+	require.Equal(t, "teleport-d-123", written[0].ssoSession)
 
 	require.Equal(t, "teleport-awsic-dev-reader", written[1].profile)
 	require.Equal(t, "111111111111", written[1].accountID)
 	require.Equal(t, "Reader", written[1].role)
+	require.Equal(t, "teleport-d-123", written[1].ssoSession)
 
 	require.Equal(t, "teleport-awsic-222222222222-admin", written[2].profile)
 	require.Equal(t, "222222222222", written[2].accountID)
 	require.Equal(t, "Admin", written[2].role)
+	require.Equal(t, "teleport-d-123", written[2].ssoSession)
 
 	// Verify file content
 	content, err := os.ReadFile(configPath)

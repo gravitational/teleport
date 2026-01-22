@@ -1,5 +1,5 @@
 /*
- * Teleport
+* Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
 package common
 
@@ -34,10 +34,11 @@ import (
 )
 
 type awsProfileInfo struct {
-	profile   string
-	account   string
-	accountID string
-	role      string
+	profile    string
+	account    string
+	accountID  string
+	role       string
+	ssoSession string
 }
 
 // onAWSProfile generates AWS configuration for AWS Identity Center integration.
@@ -117,10 +118,11 @@ func writeAWSConfig(configPath, ssoRegion string, resources types.EnrichedResour
 				return nil, trace.Wrap(err)
 			}
 			writtenProfiles = append(writtenProfiles, awsProfileInfo{
-				profile:   profileName,
-				account:   accountName,
-				accountID: awsIC.AccountID,
-				role:      ps.Name,
+				profile:    profileName,
+				account:    accountName,
+				accountID:  awsIC.AccountID,
+				role:       ps.Name,
+				ssoSession: sessionName,
 			})
 		}
 	}
@@ -129,15 +131,21 @@ func writeAWSConfig(configPath, ssoRegion string, resources types.EnrichedResour
 
 func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfileInfo) {
 	if len(profiles) > 0 {
-		fmt.Fprintf(w, "Wrote %s.\n", configPath)
-		fmt.Fprintln(w, "You can access the following profiles by doing `export AWS_PROFILE=\"<profile>\"`:")
+		fmt.Fprintf(w, "AWS configuration updated at: %s\n", configPath)
+		fmt.Fprintln(w)
+
+		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS. Example:\n")
+		fmt.Fprintf(w, "  aws sso login --sso-session %s\n", profiles[0].ssoSession)
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "Then set the AWS_PROFILE environment variable. Example:\n")
+		fmt.Fprintf(w, "  export AWS_PROFILE=%s\n", profiles[0].profile)
 		fmt.Fprintln(w)
 
 		// Simple table format
-		fmt.Fprintf(w, "%-40s %-20s %-15s %-15s\n", "profile", "account", "account-id", "role")
-		fmt.Fprintln(w, strings.Repeat("-", 95))
+		fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", "Profile", "Account", "Account ID", "Role", "SSO Session")
+		fmt.Fprintln(w, strings.Repeat("-", 114))
 		for _, v := range profiles {
-			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s\n", v.profile, v.account, v.accountID, v.role)
+			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", v.profile, v.account, v.accountID, v.role, v.ssoSession)
 		}
 	} else {
 		fmt.Fprintln(w, "No AWS Identity Center integrations found.")
