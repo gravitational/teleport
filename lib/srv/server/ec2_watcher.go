@@ -34,6 +34,7 @@ import (
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/labels"
@@ -196,6 +197,9 @@ type MatcherToEC2FetcherParams struct {
 	PublicProxyAddrGetter func(context.Context) (string, error)
 	// Logger is the logger to use for the fetchers.
 	Logger *slog.Logger
+	// ReportIAMPermissionError is called when an AccessDenied error occurs
+	// during EC2 discovery, allowing the caller to create a UserTask.
+	ReportIAMPermissionError func(context.Context, *EC2IAMPermissionError)
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
@@ -203,17 +207,29 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToE
 	var ret []Fetcher[*EC2Instances]
 	for _, matcher := range matcherParams.Matchers {
 		fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
-			Matcher:                matcher,
-			ProxyPublicAddrGetter:  matcherParams.PublicProxyAddrGetter,
-			EC2ClientGetter:        matcherParams.EC2ClientGetter,
-			RegionsListerGetter:    matcherParams.RegionsListerGetter,
-			AWSOrganizationsGetter: matcherParams.AWSOrganizationsGetter,
-			DiscoveryConfigName:    matcherParams.DiscoveryConfigName,
-			Logger:                 matcherParams.Logger,
+			Matcher:                  matcher,
+			ProxyPublicAddrGetter:    matcherParams.PublicProxyAddrGetter,
+			EC2ClientGetter:          matcherParams.EC2ClientGetter,
+			RegionsListerGetter:      matcherParams.RegionsListerGetter,
+			AWSOrganizationsGetter:   matcherParams.AWSOrganizationsGetter,
+			DiscoveryConfigName:      matcherParams.DiscoveryConfigName,
+			Logger:                   matcherParams.Logger,
+			ReportIAMPermissionError: matcherParams.ReportIAMPermissionError,
 		})
 		ret = append(ret, fetcher)
 	}
 	return ret, nil
+}
+
+// EC2IAMPermissionError represents an IAM permission error during EC2 discovery.
+// This is used to report missing permissions so that UserTasks can be created.
+type EC2IAMPermissionError struct {
+	Integration         string
+	AccountID           string
+	Region              string
+	IssueType           string
+	DiscoveryConfigName string
+	Err                 error
 }
 
 type ec2FetcherConfig struct {
@@ -227,6 +243,9 @@ type ec2FetcherConfig struct {
 	AWSOrganizationsGetter AWSOrganizationsGetter
 	DiscoveryConfigName    string
 	Logger                 *slog.Logger
+	// ReportIAMPermissionError is called when an AccessDenied error occurs
+	// during EC2 discovery, allowing the caller to create a UserTask.
+	ReportIAMPermissionError func(context.Context, *EC2IAMPermissionError)
 }
 
 type ec2InstanceFetcher struct {
@@ -471,6 +490,14 @@ func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, awsOpts []awsco
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
 			if trace.IsAccessDenied(convertedErr) {
+				if f.ReportIAMPermissionError != nil {
+					f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
+						Integration:         f.Matcher.Integration,
+						IssueType:           usertasks.AutoDiscoverEC2IssuePermAccountListRegions,
+						DiscoveryConfigName: f.DiscoveryConfigName,
+						Err:                 convertedErr,
+					})
+				}
 				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
 					"Add this permission to the IAM Role, or enumerate all the regions in the AWS matcher.")
 			}
@@ -512,7 +539,14 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 	if err != nil {
 		convertedErr := libcloudaws.ConvertRequestFailureError(err)
 		if trace.IsAccessDenied(convertedErr) {
-			// TODO(marco): create UserTask to alert users about missing permissions.
+			if f.ReportIAMPermissionError != nil {
+				f.ReportIAMPermissionError(ctx, &EC2IAMPermissionError{
+					Integration:         f.Matcher.Integration,
+					IssueType:           usertasks.AutoDiscoverEC2IssuePermOrganizations,
+					DiscoveryConfigName: f.DiscoveryConfigName,
+					Err:                 convertedErr,
+				})
+			}
 			return nil, trace.BadParameter("discovering instances under an organization requires the following permissions: [%s], add those to the IAM Role used by the Discovery Service", strings.Join(organizations.RequiredAPIs(), ", "))
 		}
 
@@ -655,7 +689,26 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureError(err)
+			convertedErr := libcloudaws.ConvertRequestFailureError(err)
+			if trace.IsAccessDenied(convertedErr) {
+				if f.ReportIAMPermissionError != nil {
+					errInfo := &EC2IAMPermissionError{
+						Integration:         f.Matcher.Integration,
+						Region:              params.region,
+						IssueType:           usertasks.AutoDiscoverEC2IssuePermDescribeInstances,
+						DiscoveryConfigName: f.DiscoveryConfigName,
+						Err:                 convertedErr,
+					}
+					// Derive AccountID from assume role ARN when available.
+					if params.assumeRole.RoleARN != "" {
+						if parsed, parseErr := arn.Parse(params.assumeRole.RoleARN); parseErr == nil {
+							errInfo.AccountID = parsed.AccountID
+						}
+					}
+					f.ReportIAMPermissionError(ctx, errInfo)
+				}
+			}
+			return nil, convertedErr
 		}
 
 		for _, res := range page.Reservations {
