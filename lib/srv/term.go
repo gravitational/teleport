@@ -538,10 +538,12 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
+	// combine stdout and stderr
 	stdout, err := t.session.StdoutPipe()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	t.session.Stderr = t.session.Stdout
 	stdin, err := t.session.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -575,7 +577,6 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 
 	// we want an interactive shell
 	t.log.DebugContext(ctx, "Requesting an interactive terminal", "term_type", t.termType)
-
 	if err := t.session.Shell(ctx); err != nil {
 		return trace.Wrap(err)
 	}

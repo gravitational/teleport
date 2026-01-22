@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -263,7 +262,6 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	}
 
 	processStderrString := strings.TrimSpace(processStderr.String())
-	slog.DebugContext(ctx, "stderr", "stderr", processStderrString)
 	// If the selected principal does not exist on the node, attempting to connect emits:
 	// "Failed to launch: user: lookup username <principal>: no such file or directory."
 	isUsernameLookupFail := strings.HasPrefix(processStderrString, "Failed to launch: user:")

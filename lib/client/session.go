@@ -205,6 +205,7 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 	}
 
 	session.Stdout = ns.terminal.Stdout()
+	session.Stderr = ns.terminal.Stderr()
 	session.Stdin = ns.terminal.Stdin()
 	return trace.Wrap(sessionCallback(session))
 }
@@ -320,7 +321,6 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tr
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	// allocate terminal on the server:
 	remoteTerm, err := ns.allocateTerminal(ctx, termType, sess)
 	if err != nil {

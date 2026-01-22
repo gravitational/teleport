@@ -69,6 +69,11 @@ const (
 	// CommandFile is used to pass the command and arguments that the
 	// child process should execute from the parent process.
 	CommandFile FileFD = 3 + iota
+	// StderrFile is used to capture the stderr stream of the (grandchild) shell process.
+	// Note that the shell process inherits the child's stdout/in as the child
+	// process does not use stdout/in, but does not inherit stderr in order to
+	// preserve and isolate the two stderr streams.
+	StderrFile
 	// LogFile is used to emit logs from the child process to the parent
 	// process.
 	LogFile
@@ -969,9 +974,17 @@ func RunAndExit(commandType string) {
 		code, err = teleport.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
 	if err != nil {
-		// Write the error to stderr, where it can be seen by the parent teleport process and the client.
+		// Attempt to write to the stderr pipe provided by the parent process.
+		stderr := os.NewFile(StderrFile, fdName(StderrFile))
+		if stderr == nil {
+			stderr = os.Stderr
+			slog.ErrorContext(context.Background(), "stderr pipe not provided, this is a bug", "command_type", commandType)
+		}
+
+		// Write the error to stderr, where it can be seen by the parent teleport process and
+		// propagated to the client.
 		if code == teleport.RemoteCommandFailure {
-			fmt.Fprintf(os.Stderr, "Failed to launch: %v", err)
+			fmt.Fprintf(stderr, "Failed to launch: %v", err)
 		}
 
 		// The "operation not permitted" error is expected from a variety of operations if the
@@ -1276,6 +1289,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		Env:  *env,
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
+			ctx.stderrw,
 			ctx.logw,
 			ctx.contr,
 			ctx.readyw,
@@ -1286,9 +1300,6 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	if len(extraFiles) > 0 {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
 	}
-
-	// Capture stderr.
-	cmd.Stderr = ctx.stderrW
 
 	// Perform OS-specific tweaks to the command.
 	reexecCommandOSTweaks(cmd)

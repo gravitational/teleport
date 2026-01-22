@@ -411,8 +411,8 @@ type ServerContext struct {
 	sshRequest *ssh.Request
 
 	// stderr{r,w} are used to capture stderr from the child process.
-	stderrR *os.File
-	stderrW *os.File
+	stderrr *os.File
+	stderrw *os.File
 
 	// cmd{r,w} are used to send the command from the parent process to the
 	// child process.
@@ -574,13 +574,13 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 
 	// Create pipe used to capture stderr from the child process.
-	child.stderrR, child.stderrW, err = os.Pipe()
+	child.stderrr, child.stderrw, err = os.Pipe()
 	if err != nil {
 		childErr := child.Close()
 		return nil, trace.NewAggregate(err, childErr)
 	}
-	child.AddCloser(child.stderrR)
-	child.AddCloser(child.stderrW)
+	child.AddCloser(child.stderrr)
+	child.AddCloser(child.stderrw)
 
 	// Create pipe used to send command to child process.
 	child.cmdr, child.cmdw, err = os.Pipe()
@@ -1423,23 +1423,23 @@ func (c *ServerContext) WaitForChild(ctx context.Context) error {
 //
 // This must only be called after the child process has exited.
 func (c *ServerContext) GetChildError() error {
-	// Close stderr writer. The child process should have exited before this is called and doesn't
-	// have a way to close this pipe itself.
-	//
-	// TODO(Joerger): Closing stderr here is risky if the child process is still running.
-	// Rather than pointing this out in the godoc, the child.Wait() call could be manged
-	// alongside the stderr read, e.g. with a CommandContext instead of the oversized
-	// ServerContext.
-	c.stderrW.Close()
+	// Close the writing side of the stderr pipe to signal EOF.
+	if c.stderrw != nil {
+		c.stderrw.Close()
+		c.stderrw = nil
+	}
 
-	// Copy stderr to the start of the error message. It should be empty or include
-	// an error message like "Failed to launch: ..."
+	// Read the error msg from stderr.
 	errMsg := new(strings.Builder)
-	if _, err := io.Copy(errMsg, c.stderrR); err != nil {
+	if _, err := io.Copy(errMsg, c.stderrr); err != nil {
 		c.Logger.ErrorContext(c.CancelContext(), "Failed to read error message from child process", "err", err)
+	}
+
+	if errMsg.Len() == 0 {
 		return nil
 	}
 
+	// It should be empty or include an error message like "Failed to launch: ..."
 	if !strings.HasPrefix(errMsg.String(), "Failed to launch: ") {
 		c.Logger.ErrorContext(c.CancelContext(), "Unexpected error message from child process", "err_msg", errMsg.String())
 		return nil
