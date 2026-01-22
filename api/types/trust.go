@@ -85,7 +85,7 @@ const (
 // CertAuthTypes lists all certificate authority types.
 var CertAuthTypes = []CertAuthType{
 	HostCA,
-	// TODO(codingllama): Add WindowsCA to the list.
+	WindowsCA, // before UserCA to avoid undue CA cloning
 	UserCA,
 	DatabaseCA,
 	DatabaseClientCA,
@@ -97,23 +97,6 @@ var CertAuthTypes = []CertAuthType{
 	OktaCA,
 	AWSRACA,
 	BoundKeypairCA,
-}
-
-// CertAuthTypesExtended is the union of `CertAuthTypes` and `{WindowsCA}`.
-// WindowsCA is always placed before UserCA.
-//
-// TODO(codingllama): Remove once WindowsCA is listed on CertAuthTypes.
-var CertAuthTypesExtended = makeCertAuthTypesExtended()
-
-func makeCertAuthTypesExtended() []CertAuthType {
-	dst := make([]CertAuthType, 0, len(CertAuthTypes)+1)
-	for _, caType := range CertAuthTypes {
-		if caType == UserCA {
-			dst = append(dst, WindowsCA)
-		}
-		dst = append(dst, caType)
-	}
-	return dst
 }
 
 // NewlyAdded should return true for CA types that were added in the current
@@ -165,7 +148,7 @@ const authTypeNotSupported string = "authority type is not supported"
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
-	if slices.Contains(CertAuthTypesExtended, c) {
+	if slices.Contains(CertAuthTypes, c) {
 		return nil
 	}
 

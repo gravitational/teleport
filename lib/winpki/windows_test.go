@@ -44,13 +44,19 @@ func TestCRLDN(t *testing.T) {
 		{
 			name:        "test cluster name",
 			clusterName: "test",
+			caType:      types.WindowsCA,
+			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
+		},
+		{
+			name:        "test cluster name (UserCA)",
+			clusterName: "test",
 			caType:      types.UserCA,
 			crlDN:       "CN=test,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
 			name:        "full cluster name",
 			clusterName: "cluster.goteleport.com",
-			caType:      types.UserCA,
+			caType:      types.WindowsCA,
 			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
@@ -60,22 +66,22 @@ func TestCRLDN(t *testing.T) {
 			crlDN:       "CN=cluster.goteleport.com,CN=TeleportDB,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
-			name:        "user CA",
+			name:        "windows CA",
 			clusterName: "cluster.goteleport.com",
-			caType:      types.UserCA,
+			caType:      types.WindowsCA,
 			crlDN:       "CN=cluster.goteleport.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
-			name:        "user CA with SKID",
+			name:        "windows CA with SKID",
 			clusterName: "example.com",
-			caType:      types.UserCA,
+			caType:      types.WindowsCA,
 			issuerSKID:  []byte{0x61, 0xbe, 0xe7, 0xf0, 0xb4, 0x88, 0x78, 0x33, 0x40, 0x7d, 0x7a, 0xc0, 0xa8, 0x2a, 0xeb, 0x3e, 0x9d, 0x9f, 0xa1, 0xba},
 			crlDN:       "CN=C6VEFS5KH1S36G3TFB0AGANB7QEPV8DQ_example.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},
 		{
-			name:        "user CA with SKID requiring padding",
+			name:        "windows CA with SKID requiring padding",
 			clusterName: "example.com",
-			caType:      types.UserCA,
+			caType:      types.WindowsCA,
 			// This test makes sure we don't corrupt the DN with base32 padding in the even the SKID is not exactly 20 bytes long.
 			issuerSKID: []byte{0x61, 0xbe, 0xe7, 0xf0, 0xb4, 0x88, 0x78, 0x33, 0x40, 0x7d, 0x7a, 0xc0, 0xa8, 0x2a, 0xeb, 0x3e, 0x9d, 0x9f},
 			crlDN:      "CN=C6VEFS5KH1S36G3TFB0AGANB7QEPU_example.com,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
@@ -83,7 +89,7 @@ func TestCRLDN(t *testing.T) {
 		{
 			name:        "long CN truncated",
 			clusterName: "reallylongclustername.goteleport.com",
-			caType:      types.UserCA,
+			caType:      types.WindowsCA,
 			issuerSKID:  []byte{0x61, 0xbe, 0xe7, 0xf0, 0xb4, 0x88, 0x78, 0x33, 0x40, 0x7d, 0x7a, 0xc0, 0xa8, 0x2a, 0xeb, 0x3e, 0x9d, 0x9f, 0xa1, 0xba},
 			crlDN:       "CN=C6VEFS5KH1S36G3TFB0AGANB7QEPV8DQ_reallylongclustern,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=goteleport,DC=com",
 		},

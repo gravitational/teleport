@@ -183,6 +183,10 @@ type GenerateCredentialsRequest struct {
 
 	// AD is true if we're connecting to a domain-joined desktop.
 	AD bool
+
+	// DisableWindowsCASupportForTesting does what it says on the tin.
+	// Do not use unless testing.
+	DisableWindowsCASupportForTesting bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
@@ -196,9 +200,10 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, 
 		return nil, nil, trace.Wrap(err)
 	}
 	genResp, err := auth.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
-		CSR:       certReq.csrPEM,
-		CRLDomain: certReq.cdpDomain,
-		TTL:       proto.Duration(req.TTL),
+		CSR:               certReq.csrPEM,
+		CRLDomain:         certReq.cdpDomain,
+		TTL:               proto.Duration(req.TTL),
+		SupportsWindowsCA: !req.DisableWindowsCASupportForTesting,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

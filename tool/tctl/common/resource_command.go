@@ -2574,7 +2574,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		// `tctl get cert_authority`.
 		case rc.ref.SubKind == "" && rc.ref.Name == "":
 			var allAuthorities []types.CertAuthority
-			for _, caType := range types.CertAuthTypesExtended {
+			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
 				if err != nil {
 					if trace.IsBadParameter(err) {
