@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -371,12 +372,13 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	if pin := sshIdent.ScopePin; pin != nil {
 		scope = pin.GetScope()
 		scopedRoles = make(map[string][]string)
-		for scope, assigned := range pin.GetAssignments() {
-			if len(assigned.GetRoles()) == 0 {
-				continue
-			}
-
-			scopedRoles[scope] = assigned.GetRoles()
+		// TODO(fspmarshall/scopes): reassess how we display scoped roles. Should we show scope of origin
+		// in addition to scope of effect? Should we indicate evaluation order? For now, we flatten the
+		// tree by grouping roles by their scope of effect (where they apply).
+		// Enumerate the assignment tree and group roles by their scope of effect for display purposes
+		for assignment := range pinning.EnumerateAllAssignments(pin) {
+			scope := assignment.ScopeOfEffect
+			scopedRoles[scope] = append(scopedRoles[scope], assignment.RoleName)
 		}
 	}
 

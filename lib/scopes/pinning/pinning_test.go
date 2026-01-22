@@ -43,17 +43,9 @@ func TestValidate(t *testing.T) {
 			name: "basic",
 			pin: &scopesv1.Pin{
 				Scope: "/foo",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/": {
-						Roles: []string{"r1"},
-					},
-					"/foo": {
-						Roles: []string{"r2"},
-					},
-					"/foo/bar": {
-						Roles: []string{"r3"},
-					},
-				},
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {"/": {"r1"}, "/foo": {"r2"}, "/foo/bar": {"r3"}},
+				}),
 			},
 			strongOk: true,
 			weakOk:   true,
@@ -61,11 +53,9 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing scope",
 			pin: &scopesv1.Pin{
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/": {
-						Roles: []string{"r1"},
-					},
-				},
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {"/": {"r1"}},
+				}),
 			},
 			strongOk: false,
 			weakOk:   false,
@@ -82,14 +72,9 @@ func TestValidate(t *testing.T) {
 			name: "orthogonal assignment",
 			pin: &scopesv1.Pin{
 				Scope: "/foo",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/": {
-						Roles: []string{"r1"},
-					},
-					"/bar": {
-						Roles: []string{"r2"},
-					},
-				},
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {"/": {"r1"}, "/bar": {"r2"}},
+				}),
 			},
 			strongOk: false,
 			weakOk:   true,
@@ -98,14 +83,6 @@ func TestValidate(t *testing.T) {
 			name: "empty assignments",
 			pin: &scopesv1.Pin{
 				Scope: "/foo",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/": {
-						Roles: []string{"r1"},
-					},
-					"/foo": {
-						Roles: []string{},
-					},
-				},
 			},
 			strongOk: false,
 			weakOk:   true,
@@ -114,14 +91,10 @@ func TestValidate(t *testing.T) {
 			name: "malformed assignment scope",
 			pin: &scopesv1.Pin{
 				Scope: "/foo",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/": {
-						Roles: []string{"r1"},
-					},
-					"invalid@scope": {
-						Roles: []string{"r2"},
-					},
-				},
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/":              {"/": {"r1"}},
+					"invalid@scope": {"invalid@scope": {"r2"}},
+				}),
 			},
 			strongOk: false,
 			weakOk:   false,
@@ -130,11 +103,9 @@ func TestValidate(t *testing.T) {
 			name: "malformed pin scope",
 			pin: &scopesv1.Pin{
 				Scope: "invalid@scope",
-				Assignments: map[string]*scopesv1.PinnedAssignments{
-					"/": {
-						Roles: []string{"r1"},
-					},
-				},
+				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
+					"/": {"/": {"r1"}},
+				}),
 			},
 			strongOk: false,
 			weakOk:   false,

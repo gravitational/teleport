@@ -41,25 +41,41 @@ func StrongValidate(pin *scopesv1.Pin) error {
 		return trace.Errorf("invalid pinned scope: %w", err)
 	}
 
-	if len(pin.GetAssignments()) == 0 {
+	if pin.GetAssignmentTree() == nil {
 		// in theory there isn't any harm in allowing pins to be created without any assignments, but we're choosing to err
 		// on the side of caution for now. this limitation may be lifted later.
 		// NOTE: if lifting this restriction, the equivalent check in the pin building logic must also be lifted.
-		return trace.BadParameter("scope pin at %q contains no assignments", pin.GetScope())
+		return trace.BadParameter("scope pin at %q contains no assignment tree", pin.GetScope())
 	}
 
-	for scope, assignment := range pin.GetAssignments() {
-		if err := scopes.StrongValidate(scope); err != nil {
-			return trace.Errorf("invalid pinned assignment scope %q: %w", scope, err)
+	// Validate all assignments in the tree by enumerating them
+	hasAssignments := false
+	for assignment := range EnumerateAllAssignments(pin) {
+		hasAssignments = true
+
+		if err := scopes.StrongValidate(assignment.ScopeOfOrigin); err != nil {
+			return trace.Errorf("invalid scope of origin %q in pinned assignment: %w", assignment.ScopeOfOrigin, err)
 		}
 
-		if len(assignment.GetRoles()) == 0 {
-			return trace.BadParameter("scope pin at %q contains empty assignment for scope %q", pin.GetScope(), scope)
+		if err := scopes.StrongValidate(assignment.ScopeOfEffect); err != nil {
+			return trace.Errorf("invalid scope of effect %q in pinned assignment: %w", assignment.ScopeOfEffect, err)
 		}
 
-		if !PinCompatibleWithPolicyScope(pin, scope) {
-			return trace.BadParameter("scope pin at %q contains assignment(s) at incompatible scope %q", pin.GetScope(), scope)
+		if assignment.RoleName == "" {
+			return trace.BadParameter("scope pin at %q contains assignment with empty role name", pin.GetScope())
 		}
+
+		if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfOrigin) {
+			return trace.BadParameter("scope pin at %q contains assignment with incompatible scope of origin %q", pin.GetScope(), assignment.ScopeOfOrigin)
+		}
+
+		if !PinCompatibleWithPolicyScope(pin, assignment.ScopeOfEffect) {
+			return trace.BadParameter("scope pin at %q contains assignment with incompatible scope of effect %q", pin.GetScope(), assignment.ScopeOfEffect)
+		}
+	}
+
+	if !hasAssignments {
+		return trace.BadParameter("scope pin at %q contains no assignments", pin.GetScope())
 	}
 
 	return nil
@@ -79,14 +95,18 @@ func WeakValidate(pin *scopesv1.Pin) error {
 		return trace.Errorf("invalid pinned scope: %w", err)
 	}
 
-	// validate that the scope of assignments are well-formed. due to how scoped access checks work, we cannot
-	// perform any checks if any scopes are malformed as we cannot determine whether or not the assignments
-	// within that scope ought to apply to the scope of the resource being targeted, and we cannot fallback
-	// to the strategy of only evaluating parent assignments since we cannot safely determine the intended
-	// parent/child relationship with the invalid scope.
-	for scope := range pin.GetAssignments() {
-		if err := scopes.WeakValidate(scope); err != nil {
-			return trace.Errorf("invalid pinned assignment scope: %w", err)
+	// Validate that the scopes in the assignment tree are well-formed. Due to how scoped access checks work,
+	// we cannot perform any checks if any scopes are malformed as we cannot determine whether or not the
+	// assignments within that scope ought to apply to the scope of the resource being targeted, and we cannot
+	// fallback to the strategy of only evaluating parent assignments since we cannot safely determine the
+	// intended parent/child relationship with invalid scopes.
+	for assignment := range EnumerateAllAssignments(pin) {
+		if err := scopes.WeakValidate(assignment.ScopeOfOrigin); err != nil {
+			return trace.Errorf("invalid scope of origin in pinned assignment: %w", err)
+		}
+
+		if err := scopes.WeakValidate(assignment.ScopeOfEffect); err != nil {
+			return trace.Errorf("invalid scope of effect in pinned assignment: %w", err)
 		}
 	}
 
@@ -112,6 +132,9 @@ func PinAppliesToResourceScope(pin *scopesv1.Pin, resourceScope string) bool {
 // AssignmentsForResourceScope returns a sequence of pinned assignments relevant to the target resource scope, starting
 // from the root scope and descending to the target. This is the correct order to evaluate access checks in, and is a suitable
 // building block for access-checking logic.
+//
+// TODO(fspmarshall/scopes): remove this function once we've fully transitioned to using the new assignment tree style.
+// This function uses the deprecated pin.Assignments field. New code should use DescendAssignmentTree instead.
 func AssignmentsForResourceScope(pin *scopesv1.Pin, resourceScope string) (iter.Seq2[string, *scopesv1.PinnedAssignments], error) {
 	if !PinAppliesToResourceScope(pin, resourceScope) {
 		// a pin with a scope that does not apply to the resource scope should be caught at an
@@ -126,6 +149,9 @@ func AssignmentsForResourceScope(pin *scopesv1.Pin, resourceScope string) (iter.
 // AssignmentsForResourceScopeUnchecked is like AssignmentsForResourceScope, but does not perform any validation to ensure that the target
 // resource scope is valid for the pin. This is used internally by some access-checker building logic which does its own validation
 // of resource scoping.
+//
+// TODO(fspmarshall/scopes): remove this function once we've fully transitioned to using the new assignment tree style.
+// This function uses the deprecated pin.Assignments field. New code should use DescendAssignmentTree instead.
 func AssignmentsForResourceScopeUnchecked(pin *scopesv1.Pin, resourceScope string) iter.Seq2[string, *scopesv1.PinnedAssignments] {
 	return func(yield func(string, *scopesv1.PinnedAssignments) bool) {
 		for scope := range scopes.DescendingScopes(resourceScope) {
@@ -247,11 +273,12 @@ func WriteRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) 
 		roleNode = child
 	}
 
-	// append the role to the role list for this role node
-	roleNode.Roles = append(roleNode.Roles, assignment.RoleName)
-
-	// ensure the role list is sorted for deterministic iteration
-	slices.Sort(roleNode.Roles)
+	// append the role to the role list for this role node if it's not already present
+	if !slices.Contains(roleNode.Roles, assignment.RoleName) {
+		roleNode.Roles = append(roleNode.Roles, assignment.RoleName)
+		// ensure the role list is sorted for deterministic iteration
+		slices.Sort(roleNode.Roles)
+	}
 }
 
 // DescendAssignmentTree is the helper used to determine the sequence of pinned role assignments applicable to a given resource. The order

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -229,11 +230,9 @@ func TestRoleBasics(t *testing.T) {
 	srv := newServerForIdentity(t, bk, &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
 			Scope: "/staging",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/staging": {
-					Roles: []string{"staging-admin"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/staging": {"/staging": {"staging-admin"}},
+			}),
 		},
 		Username: "alice",
 	})
@@ -512,11 +511,9 @@ func TestAssignmentBasics(t *testing.T) {
 	srv := newServerForIdentity(t, bk, &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
 			Scope: "/staging",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/staging": {
-					Roles: []string{"staging-admin"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/staging": {"/staging": {"staging-admin"}},
+			}),
 		},
 		Username: "alice",
 	})

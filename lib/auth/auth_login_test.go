@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -1093,17 +1094,11 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
 		Scope: "/aa/bb",
-		Assignments: map[string]*scopesv1.PinnedAssignments{
-			"/aa": {
-				Roles: []string{"role-a"},
-			},
-			"/aa/bb": {
-				Roles: []string{"role-b"},
-			},
-			"/aa/bb/cc": {
-				Roles: []string{"role-c"},
-			},
-		},
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/aa":       {"/aa": {"role-a"}},
+			"/aa/bb":    {"/aa/bb": {"role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+		}),
 	}
 
 	// parse and examine the ssh cert
