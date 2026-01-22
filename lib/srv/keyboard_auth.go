@@ -21,7 +21,6 @@ package srv
 import (
 	"context"
 	"os"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -46,14 +45,8 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	}
 
 	// If a unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
-	for _, precond := range preconds {
-		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-			// OK
-
-		default:
-			return nil, trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
-		}
+	if err := ensureSupportedPreconditions(preconds); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// At this point we know that the client already completed public key authentication because this method should only
@@ -79,18 +72,14 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	keyboardInteractiveCallback := func(metadata ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 		var verifiers []srvssh.PromptVerifier
 
-		if slices.ContainsFunc(
-			preconds,
-			func(precond *decisionpb.Precondition) bool {
-				return precond.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-			},
-		) {
-			verifier, err := srvssh.NewMFAPromptVerifier(h.c.MFAServiceClient, id.ClusterName, id.Username, metadata.SessionID())
-			if err != nil {
-				return nil, trace.Wrap(err)
+		for _, precond := range preconds {
+			if precond.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA {
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.MFAServiceClient, id.ClusterName, id.Username, metadata.SessionID())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				verifiers = append(verifiers, verifier)
 			}
-
-			verifiers = append(verifiers, verifier)
 		}
 
 		return srvssh.KeyboardInteractiveCallback(
@@ -111,4 +100,18 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 			KeyboardInteractiveCallback: keyboardInteractiveCallback,
 		},
 	}
+}
+
+func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
+	for _, precond := range preconds {
+		switch precond.GetKind() {
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+			// OK
+
+		default:
+			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+		}
+	}
+
+	return nil
 }
