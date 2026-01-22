@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/grpcgzip"
 )
 
 const (
@@ -137,6 +138,8 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	cfg.DialInBackground = true
 
 	cfg.CircuitBreakerConfig.TrippedErrorMessage = "Unable to communicate with the Teleport Auth Service"
+
+	cfg.AuditStreamGRPCCompressorName = grpcgzip.Name
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

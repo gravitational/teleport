@@ -18,7 +18,6 @@ package client
 
 import (
 	"cmp"
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -40,7 +39,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
-	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	gmetadata "google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -120,14 +118,6 @@ import (
 	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
-
-func init() {
-	// gzip is used for gRPC auditStream compression. SetLevel changes the
-	// compression level, must be called in initialization, and is not thread safe.
-	if err := ggzip.SetLevel(gzip.BestSpeed); err != nil {
-		panic(err)
-	}
-}
 
 // AuthServiceClient keeps the interfaces implemented by the auth service.
 type AuthServiceClient struct {
@@ -667,6 +657,10 @@ type Config struct {
 	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
 	// If nil, the client will not prompt for MFA.
 	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
+
+	// AuditStreamGRPCCompressorName is the name of the grpc compressor used for
+	// audit streams.
+	AuditStreamGRPCCompressorName string
 }
 
 // CheckAndSetDefaults checks and sets default config values.

@@ -41,7 +41,6 @@ import (
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -146,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server/installer"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	_ "github.com/gravitational/teleport/lib/utils/grpcgzip" // gzip compressor for gRPC.
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
