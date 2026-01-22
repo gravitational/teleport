@@ -593,12 +593,13 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	})
 
 	staticFetchers, err := server.MatchersToEC2InstanceFetchers(s.ctx, server.MatcherToEC2FetcherParams{
-		Matchers:               ec2Matchers,
-		EC2ClientGetter:        s.GetEC2Client,
-		RegionsListerGetter:    s.GetAWSRegionsLister,
-		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
-		PublicProxyAddrGetter:  s.publicProxyAddress,
-		Logger:                 s.Log,
+		Matchers:                 ec2Matchers,
+		EC2ClientGetter:          s.GetEC2Client,
+		RegionsListerGetter:      s.GetAWSRegionsLister,
+		AWSOrganizationsGetter:   s.GetAWSOrganizationsClient,
+		PublicProxyAddrGetter:    s.publicProxyAddress,
+		Logger:                   s.Log,
+		ReportIAMPermissionError: s.reportEC2IAMPermissionError,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -612,6 +613,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
 		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
+		server.WithPostFetchHookFn[*server.EC2Instances](s.upsertTasksForAWSEC2FailedEnrollments),
 		server.WithClock[*server.EC2Instances](s.clock),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
@@ -718,13 +720,14 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 	})
 
 	fetchers, err := server.MatchersToEC2InstanceFetchers(ctx, server.MatcherToEC2FetcherParams{
-		Matchers:               serverMatchers,
-		EC2ClientGetter:        s.GetEC2Client,
-		RegionsListerGetter:    s.GetAWSRegionsLister,
-		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
-		DiscoveryConfigName:    discoveryConfigName,
-		PublicProxyAddrGetter:  s.publicProxyAddress,
-		Logger:                 s.Log,
+		Matchers:                 serverMatchers,
+		EC2ClientGetter:          s.GetEC2Client,
+		RegionsListerGetter:      s.GetAWSRegionsLister,
+		AWSOrganizationsGetter:   s.GetAWSOrganizationsClient,
+		DiscoveryConfigName:      discoveryConfigName,
+		PublicProxyAddrGetter:    s.publicProxyAddress,
+		Logger:                   s.Log,
+		ReportIAMPermissionError: s.reportEC2IAMPermissionError,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1256,6 +1259,33 @@ func (s *Server) logHandleInstancesErr(err error) {
 	} else {
 		s.Log.ErrorContext(s.ctx, "Failed to enroll discovered EC2 instances", "error", err)
 	}
+}
+
+// reportEC2IAMPermissionError handles IAM permission errors during EC2 discovery
+// by creating a UserTask to alert users about the missing permission.
+// The actual upsert happens via the postFetchHookFn after the fetch cycle completes.
+func (s *Server) reportEC2IAMPermissionError(ctx context.Context, err *server.EC2IAMPermissionError) {
+	s.Log.ErrorContext(ctx, "IAM permission error during EC2 discovery",
+		"issue_type", err.IssueType,
+		"integration", err.Integration,
+		"account_id", err.AccountID,
+		"region", err.Region,
+		"discovery_config", err.DiscoveryConfigName,
+		"error", err.Err,
+	)
+	s.awsEC2Tasks.addFailedEnrollment(
+		awsEC2TaskKey{
+			accountID:   err.AccountID,
+			integration: err.Integration,
+			issueType:   err.IssueType,
+			region:      err.Region,
+		},
+		&usertasksv1.DiscoverEC2Instance{
+			DiscoveryConfig: err.DiscoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(s.clock.Now()),
+		},
+	)
 }
 
 func (s *Server) watchCARotation(ctx context.Context) {
