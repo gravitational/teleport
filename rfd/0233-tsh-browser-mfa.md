@@ -136,7 +136,7 @@ sequenceDiagram
     Note over tsh: Print URL proxy.example.com/headless/<request_id>?callback=http://localhost:port
     
     par tsh request
-        tsh->>Teleport Proxy: POST /webapi/headless/browser/init<br/>{user, publicKey, authType=login, secret_key}
+        tsh->>Teleport Proxy: POST /webapi/headless/browser<br/>{user, publicKey, authType=login, secret_key}
         Teleport Proxy->>Teleport Auth: rpc UpdateHeadlessAuthenticationOnCreation
         Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
 
@@ -149,20 +149,20 @@ sequenceDiagram
             Teleport Proxy->>Web Browser: session established
         end
         
-        Web Browser->>Teleport Proxy: rpc GetHeadlessAuthentication(request_id)<br/>(authenticated with web session)
+        Web Browser->>Teleport Proxy: rpc GetHeadlessAuthentication(request_id)
         Teleport Proxy->>Teleport Auth: rpc GetHeadlessAuthentication(request_id)
-        Teleport Auth->>Backend: insert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login, state=pending}
+        Teleport Auth->>Backend: insert /headless_authentication/<request_id>
 
         par tsh request
             Backend ->>- Teleport Auth: unblock on insert
-            Teleport Auth ->>+ Backend: upsert /headless_authentication/<request_id><br/>{publicKey, user, ip, authType=login}
+            Teleport Auth ->>+ Backend: upsert /headless_authentication/<request_id><br/>{user, publicKey, authType=login, secret_key, ip}
             Backend ->>- Teleport Auth: unblock on state change
             Teleport Auth->>Teleport Proxy: resource created
             Teleport Proxy->>tsh: 200 OK, resource created
         end
         
         Teleport Auth->>Teleport Proxy: GetHeadlessAuthentication response
-        Teleport Proxy->>Web Browser: {publicKey, user, ip, authType=login}
+        Teleport Proxy->>Web Browser: {publicKey, user, authType=login, ip}
 
         Note over Web Browser: Share request details with user
         
@@ -182,7 +182,7 @@ sequenceDiagram
 
         Note over Web Browser: MFA approved, now fetch certificates
 
-        Web Browser->>Teleport Proxy: POST /webapi/headless/<request_id>/certs<br/>(authenticated with web session)
+        Web Browser->>Teleport Proxy: GET /webapi/headless/<request_id>/certs
         Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate<br/>{HeadlessAuthenticationID: request_id}
         Teleport Auth->>Backend: get /headless_authentication/<request_id>
         Backend->>Teleport Auth: {publicKey, mfaDevice, state=approved}
@@ -255,7 +255,7 @@ To receive certificates, `tsh` creates a callback server for the browser to
 communicate with.  If the browser authentication is successful, the
 `/headless_authentication/<request_id>` object will be upserted with an approved
 state and which MFA device was used. The browser will make a call to a new
-endpoint (`POST /webapi/headless/<request_id>/certs`), which will check the
+endpoint (`GET /webapi/headless/<request_id>/certs`), which will check the
 status of the Headless Authentication request, and generate certificates if it
 was approved. The certificates will be encrypted using the secret key provided
 by the initial `tsh` request and sent back to the browser. The browser will
@@ -380,8 +380,11 @@ message AuthPreferencesV2 {
 message HeadlessAuthentication {
     ...
 
-    // HeadlessAuthenticationType is the type of request that was initiated
+    // Type is the type of request that was initiated
     HeadlessAuthenticationType type = 9;
+
+    // SecretKey is the symmetric key used to encrypt callback responses to tsh
+    string secret_key = 10;
 }
 
 // HeadlessAuthenticationType is the type of authentication event
@@ -396,16 +399,112 @@ enum HeadlessAuthenticationType {
 
     // per-session MFA attempt
     HEADLESS_AUTHENTICATION_TYPE_BROWSER_SESSION = 3;
+
+    // in-band per-session MFA attempt
+    HEADLESS_AUTHENTICATION_TYPE_BROWSER_IN_BAND_SESSION = 4;
 }
 ```
 
 ```proto
 package events;
+
 message UserLogin {
     ...
 
-    // RequestID is a UUID used to correlate events from a single login flow that
-    // spans multiple contexts
+    // RequestID is a UUID used to correlate events from a single login flow
+    // that spans multiple contexts
     string RequestID = 11 [(gogoproto.jsontag) = "request_id,omitempty];
 }
 ```
+
+```proto
+package proto;
+
+// UpdateHeadlessAuthenticationOnCreationRequest is the request messsage for
+// UpdateHeadlessAuthenticationOnCreation
+message UpdateHeadlessAuthenticationOnCreationRequest {
+    // User is the teleport user requesting authentication
+    string user = 1;
+    
+    // PublicKey is the client's SSH public key
+    bytes public_key = 2;
+    
+    // Type is the authentication type (login, session, or in-band session)
+    types.HeadlessAuthenticationType type = 3;
+    
+    // SecretKey is the symmetric key used to encrypt callback responses to tsh
+    string secret_key = 4;
+}
+
+service AuthService {
+    ...
+
+    // UpdateHeadlessAuthenticationOnCreation 
+    rpc UpdateHeadlessAuthenticationOnCreation(UpdateHeadlessAuthenticationOnCreationRequest) returns (google.protobuf.Empty);
+}
+```
+
+### Proxy changes
+
+#### `POST /webapi/headless/browser`
+
+This will be a new unauthenticated endpoint for `tsh` to initiate a browser
+login. The call that will hang until the Headless Authentication object is
+created or until a three-minute timeout is reached. The security of this
+endpoint is discussed in the
+[security section](#unauthenticated-webapiheadlessbrowser-endpoint).
+
+**Request Payload:**
+
+```json
+{
+  "user": "alice",
+  "public_key": "<base64-encoded SSH public key>",
+  "auth_type": "login",
+  "secret_key": "<symmetric encryption key>"
+}
+```
+
+**Response:**
+
+- `200 OK`: The `HeadlessAuthentication` resource has been created on the backend
+- `400 Bad Request`: Invalid request payload with error message
+- `429 Too Many Requests`: Rate limiting has been triggered
+
+#### `POST /webapi/headless/session`
+
+This will be a new authenticated endpoint for `tsh` to initiate a session or
+in-band session request. The call that will hang until the Headless
+Authentication object is created or until a three-minute timeout is reached.
+
+**Request Payload:**
+
+```json
+{
+  "user": "alice",
+  "public_key": "<base64-encoded SSH public key>", // Used for session only
+  "auth_type": "[session|in-band-session]",
+  "secret_key": "<symmetric encryption key>"
+}
+```
+
+**Response:**
+
+- `200 OK`: The `HeadlessAuthentication` resource has been created on the backend
+- `400 Bad Request`: Invalid request payload with error message
+- `429 Too Many Requests`: Rate limiting has been triggered
+
+#### `GET /webapi/headless/<request_id>/certs`
+
+This authenticated endpoint will be called from the browser once the headless
+request has been approved and MFA has been verified in order to create the
+certificates required for login and session requests. Upon successful
+certificate generation, the Headless Authentication object will be deleted to
+prevent subsequent requests generating more certificates.
+
+**Response:**
+
+- `200 OK`: The endpoint will return an encrypted `SSHLoginResponse` object for
+  a successful request.
+- `400 Bad Request`: Invalid request payload with error message
+- `429 Too Many Requests`: Rate limiting has been triggered
