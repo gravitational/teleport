@@ -44,10 +44,16 @@ the app will provide a dual-mode installer:
 | Update mechanism                          | Default user-space process          | Privileged Windows service |
 | System registry hive for updater settings | HKCU / HKLM (HKLM takes precedence) | HKLM                       |
 
-During the runtime, the app will detect the per-machine mode by checking if it has been installed in `%ProgramFiles%`.
-Although the installation path can be changed via the `/D=<path>` option, the system services are installed only if
-the app is placed in `%ProgramFiles%` (to avoid privilege escalation).
-This also means that changing the path via `/D` will break the per-machine installations.
+During the runtime, the app will detect the per-machine mode by checking if it's been installed to the path specified in
+`HKLM\Software\22539266-67e8-54a3-83b9-dfdca7b33ee1\InstallLocation`. This registry entry is created by electron-builder
+when installing the app. The UUID is stable, generated from the `appId` and electron-builder's internal ID.
+It will be also hardcoded in `nsis.guid` in electron-builder config.
+
+Based on this check, the following update logic can be applied:
+
+1. If the app path matches the key in HKLM, try to use the privileged updater. If the updater service doesn't exist,
+   fallback to the UAC prompt.
+2. If the app path doesn't match the registry value (or there's no HKLM key for the app), update per user.
 
 ### Per-User Mode
 
