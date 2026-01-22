@@ -136,7 +136,8 @@ module.exports = {
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
     // x64ArchFiles is for x64 and universal files (lipo tool should skip them)
-    x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
+    x64ArchFiles:
+      '{Contents/MacOS/tsh.app/Contents/MacOS/tsh,Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/**}',
     // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
     // `extraFiles` instead of `extraResources`.
     // https://developer.apple.com/documentation/bundleresources/placing_content_in_a_bundle
