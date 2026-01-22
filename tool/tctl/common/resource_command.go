@@ -121,7 +121,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindTrustedCluster:              rc.createTrustedCluster,
 		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
 		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
-		types.KindKubernetesCluster:           rc.createKubeCluster,
 		types.KindLoginRule:                   rc.createLoginRule,
 		types.KindDevice:                      rc.createDevice,
 		types.KindOktaImportRule:              rc.createOktaImportRule,
@@ -468,28 +467,6 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Printf("network restrictions have been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
-			}
-			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -849,45 +826,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes cluster"
-		clusters = resources.FilterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		name, err := resources.GetOneResourceNameToDelete(clusters, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
 		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes server"
-		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := resources.GetOneResourceNameToDelete(servers, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindLoginRule:
 		loginRuleClient := client.LoginRuleClient()
 		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
@@ -1125,43 +1068,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
 		return &databaseServerCollection{servers: servers}, nil
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
-		}
-		altNameFn := func(r types.KubeServer) string {
-			return r.GetHostname()
-		}
-		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
-		if len(servers) == 0 {
-			return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
-		}
-		return &kubeServerCollection{servers: servers}, nil
-
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &kubeClusterCollection{clusters: clusters}, nil
-		}
-		clusters = resources.FilterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		if len(clusters) == 0 {
-			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
-		}
-		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
 		jewels, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*crownjewelv1.CrownJewel, string, error) {
 			return client.CrownJewelsClient().ListCrownJewels(ctx, int64(limit), startKey)
