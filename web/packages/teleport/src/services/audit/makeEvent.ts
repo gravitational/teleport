@@ -2480,17 +2480,20 @@ export const formatters: Formatters = {
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
     type: 'workload_cluster.create',
     desc: 'Workload Cluster Created',
-    format: ({ name }) => `Workload Cluster [${name}] has been created`,
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was created by [${user}]`,
   },
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
     type: 'workload_cluster.update',
     desc: 'Workload Cluster Updated',
-    format: ({ name }) => `Workload Cluster [${name}] has been updated`,
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was updated by [${user}]`,
   },
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
     type: 'workload_cluster.delete',
     desc: 'Workload Cluster Deleted',
-    format: ({ name }) => `Workload Cluster [${name}] has been deleted`,
+    format: ({ name, user }) =>
+      `Workload Cluster [${name}] was deleted by [${user}]`,
   },
 };
 
