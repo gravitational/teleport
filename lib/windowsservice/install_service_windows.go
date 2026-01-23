@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package vnet
+package windowsservice
 
 import (
 	"context"
@@ -33,28 +33,9 @@ import (
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
 
-const eventSource = "vnet"
-
-// InstallVNetService installs the VNet Windows service.
-func InstallVNetService(ctx context.Context) error {
-	tshPath, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err, "getting current exe path")
-	}
-	if err := assertWintunInstalled(tshPath); err != nil {
-		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
-	}
-	return trace.Wrap(InstallService(ctx, &InstallServiceConfig{
-		Name:              serviceName,
-		Command:           ServiceCommand,
-		EventSourceName:   eventSource,
-		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
-	}))
-}
-
-// InstallServiceConfig defines parameters for installing a Windows service
+// InstallConfig defines parameters for installing a Windows service
 // that is implemented by tsh.exe.
-type InstallServiceConfig struct {
+type InstallConfig struct {
 	// Name is the service name.
 	Name string
 	// Command is the tsh subcommand that the service manager invokes on start.
@@ -66,13 +47,13 @@ type InstallServiceConfig struct {
 	AccessPermissions windows.ACCESS_MASK
 }
 
-// InstallService installs a Windows service implemented by tsh.exe.
+// Install installs a Windows service implemented by tsh.exe.
 //
 // Windows services are installed by the service manager, which takes a path to
 // the service executable. So that regular users are not able to overwrite the
 // executable at that path, we use a path under %PROGRAMFILES%, which is not
 // writable by regular users by default.
-func InstallService(ctx context.Context, cfg *InstallServiceConfig) (err error) {
+func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 	if cfg.Name == "" {
 		return trace.BadParameter("service name is required")
 	}
@@ -131,24 +112,16 @@ func InstallService(ctx context.Context, cfg *InstallServiceConfig) (err error) 
 	return nil
 }
 
-// UninstallServiceConfig defines parameters for removing a Windows service.
-type UninstallServiceConfig struct {
+// UninstallConfig defines parameters for removing a Windows service.
+type UninstallConfig struct {
 	// Name is the service name.
 	Name string
 	// EventSourceName is the event source to remove from the Windows Event Log.
 	EventSourceName string
 }
 
-// UninstallVNetService uninstalls the Windows VNet service.
-func UninstallVNetService(ctx context.Context) error {
-	return trace.Wrap(UninstallService(ctx, &UninstallServiceConfig{
-		Name:            serviceName,
-		EventSourceName: eventSource,
-	}))
-}
-
-// UninstallService uninstalls the Windows service.
-func UninstallService(ctx context.Context, cfg *UninstallServiceConfig) (err error) {
+// Uninstall uninstalls the Windows service.
+func Uninstall(ctx context.Context, cfg *UninstallConfig) (err error) {
 	if cfg.Name == "" {
 		return trace.BadParameter("service name is required")
 	}
@@ -247,14 +220,6 @@ func assertTshInProgramFiles(tshPath string) error {
 			tshPath, programFiles)
 	}
 	return nil
-}
-
-// asertWintunInstalled returns an error if wintun.dll is not a regular file
-// installed in the same directory as tshPath.
-func assertWintunInstalled(tshPath string) error {
-	dir := filepath.Dir(tshPath)
-	wintunPath := filepath.Join(dir, "wintun.dll")
-	return trace.Wrap(assertRegularFile(wintunPath))
 }
 
 func assertRegularFile(path string) error {
