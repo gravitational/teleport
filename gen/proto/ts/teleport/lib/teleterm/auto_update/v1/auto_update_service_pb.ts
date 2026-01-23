@@ -120,6 +120,24 @@ export interface GetDownloadBaseUrlResponse {
      */
     baseUrl: string;
 }
+/**
+ * Request for IsPerMachineInstall.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest
+ */
+export interface IsPerMachineInstallRequest {
+}
+/**
+ * Response for IsPerMachineInstall.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse
+ */
+export interface IsPerMachineInstallResponse {
+    /**
+     * @generated from protobuf field: bool per_machine_install = 1;
+     */
+    perMachineInstall: boolean;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
     constructor() {
@@ -398,10 +416,83 @@ class GetDownloadBaseUrlResponse$Type extends MessageType<GetDownloadBaseUrlResp
  * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
  */
 export const GetDownloadBaseUrlResponse = new GetDownloadBaseUrlResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IsPerMachineInstallRequest$Type extends MessageType<IsPerMachineInstallRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest", []);
+    }
+    create(value?: PartialMessage<IsPerMachineInstallRequest>): IsPerMachineInstallRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<IsPerMachineInstallRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IsPerMachineInstallRequest): IsPerMachineInstallRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: IsPerMachineInstallRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest
+ */
+export const IsPerMachineInstallRequest = new IsPerMachineInstallRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class IsPerMachineInstallResponse$Type extends MessageType<IsPerMachineInstallResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse", [
+            { no: 1, name: "per_machine_install", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<IsPerMachineInstallResponse>): IsPerMachineInstallResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.perMachineInstall = false;
+        if (value !== undefined)
+            reflectionMergePartial<IsPerMachineInstallResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IsPerMachineInstallResponse): IsPerMachineInstallResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool per_machine_install */ 1:
+                    message.perMachineInstall = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: IsPerMachineInstallResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool per_machine_install = 1; */
+        if (message.perMachineInstall !== false)
+            writer.tag(1, WireType.Varint).bool(message.perMachineInstall);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse
+ */
+export const IsPerMachineInstallResponse = new IsPerMachineInstallResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService
  */
 export const AutoUpdateService = new ServiceType("teleport.lib.teleterm.auto_update.v1.AutoUpdateService", [
     { name: "GetClusterVersions", options: {}, I: GetClusterVersionsRequest, O: GetClusterVersionsResponse },
-    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse }
+    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse },
+    { name: "IsPerMachineInstall", options: {}, I: IsPerMachineInstallRequest, O: IsPerMachineInstallResponse }
 ]);

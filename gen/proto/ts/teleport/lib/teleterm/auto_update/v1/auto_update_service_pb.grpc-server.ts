@@ -20,6 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { IsPerMachineInstallResponse } from "./auto_update_service_pb";
+import { IsPerMachineInstallRequest } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { GetClusterVersionsResponse } from "./auto_update_service_pb";
@@ -45,6 +47,13 @@ export interface IAutoUpdateService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetDownloadBaseUrl(teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest) returns (teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse);
      */
     getDownloadBaseUrl: grpc.handleUnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
+    /**
+     * IsPerMachineInstall returns whether updates should target a per-machine installation.
+     * Implemented only on Windows.
+     *
+     * @generated from protobuf rpc: IsPerMachineInstall(teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest) returns (teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse);
+     */
+    isPerMachineInstall: grpc.handleUnaryCall<IsPerMachineInstallRequest, IsPerMachineInstallResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService.
@@ -77,5 +86,15 @@ export const autoUpdateServiceDefinition: grpc.ServiceDefinition<IAutoUpdateServ
         requestDeserialize: bytes => GetDownloadBaseUrlRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetDownloadBaseUrlResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetDownloadBaseUrlRequest.toBinary(value))
+    },
+    isPerMachineInstall: {
+        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/IsPerMachineInstall",
+        originalName: "IsPerMachineInstall",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => IsPerMachineInstallResponse.fromBinary(bytes),
+        requestDeserialize: bytes => IsPerMachineInstallRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(IsPerMachineInstallResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(IsPerMachineInstallRequest.toBinary(value))
     }
 };

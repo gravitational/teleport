@@ -23,6 +23,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { AutoUpdateService } from "./auto_update_service_pb";
+import type { IsPerMachineInstallResponse } from "./auto_update_service_pb";
+import type { IsPerMachineInstallRequest } from "./auto_update_service_pb";
 import type { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import type { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -50,6 +52,13 @@ export interface IAutoUpdateServiceClient {
      * @generated from protobuf rpc: GetDownloadBaseUrl(teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlRequest) returns (teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse);
      */
     getDownloadBaseUrl(input: GetDownloadBaseUrlRequest, options?: RpcOptions): UnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
+    /**
+     * IsPerMachineInstall returns whether updates should target a per-machine installation.
+     * Implemented only on Windows.
+     *
+     * @generated from protobuf rpc: IsPerMachineInstall(teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest) returns (teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse);
+     */
+    isPerMachineInstall(input: IsPerMachineInstallRequest, options?: RpcOptions): UnaryCall<IsPerMachineInstallRequest, IsPerMachineInstallResponse>;
 }
 /**
  * AutoUpdateService provides access to information about client tools updates.
@@ -81,5 +90,15 @@ export class AutoUpdateServiceClient implements IAutoUpdateServiceClient, Servic
     getDownloadBaseUrl(input: GetDownloadBaseUrlRequest, options?: RpcOptions): UnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse> {
         const method = this.methods[1], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * IsPerMachineInstall returns whether updates should target a per-machine installation.
+     * Implemented only on Windows.
+     *
+     * @generated from protobuf rpc: IsPerMachineInstall(teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest) returns (teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse);
+     */
+    isPerMachineInstall(input: IsPerMachineInstallRequest, options?: RpcOptions): UnaryCall<IsPerMachineInstallRequest, IsPerMachineInstallResponse> {
+        const method = this.methods[2], opt = this._transport.mergeOptions(options);
+        return stackIntercept<IsPerMachineInstallRequest, IsPerMachineInstallResponse>("unary", this._transport, method, opt, input);
     }
 }

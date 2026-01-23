@@ -211,6 +211,7 @@ module.exports = {
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
+        // Keep in sync with lib/teleterm/autoupdate/per_machine_windows.go.
         to: './bin/tsh.exe',
       },
       env.CONNECT_WINTUN_DLL_PATH && {

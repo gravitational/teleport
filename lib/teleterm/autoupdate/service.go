@@ -138,9 +138,7 @@ func (s *Service) GetDownloadBaseUrl(_ context.Context, _ *api.GetDownloadBaseUr
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetDownloadBaseUrlResponse{
-		BaseUrl: baseURL,
-	}, trace.Wrap(err)
+	return &api.GetDownloadBaseUrlResponse{BaseUrl: baseURL}, nil
 }
 
 // resolveBaseURL generates the base URL using the same logic as the teleport/lib/autoupdate/tools package.
@@ -157,4 +155,14 @@ func resolveBaseURL() (string, error) {
 	}
 
 	return autoupdate.DefaultBaseURL, nil
+}
+
+// IsPerMachineInstall returns whether updates should target a per-machine installation.
+func (s *Service) IsPerMachineInstall(_ context.Context, _ *api.IsPerMachineInstallRequest) (*api.IsPerMachineInstallResponse, error) {
+	perMachine, err := isPerMachineInstall()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.IsPerMachineInstallResponse{PerMachineInstall: perMachine}, nil
 }

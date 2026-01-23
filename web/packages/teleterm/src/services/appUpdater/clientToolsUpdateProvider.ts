@@ -71,7 +71,7 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
       };
     }
 
-    const { baseUrl, version } = clientTools;
+    const { baseUrl, version, isPerMachineInstall } = clientTools;
     const updatesSupport = areManagedUpdatesSupportedInConnect(
       this.nativeUpdater,
       version
@@ -92,6 +92,9 @@ export class ClientToolsUpdateProvider extends Provider<UpdateInfo> {
         {
           url: fileUrl,
           sha512,
+          // Taken into account only on Windows.
+          // Read in NsisDualModeUpdater.
+          isAdminRightsRequired: isPerMachineInstall,
         },
       ],
     };
@@ -117,6 +120,11 @@ export type ClientToolsVersionGetter = () => Promise<
       baseUrl: string;
       /** Version to download. */
       version: string;
+      /**
+       * Determines whether updates should target a per-machine installation.
+       * Applicable only on Windows.
+       */
+      isPerMachineInstall: boolean;
     }
   | undefined
 >;

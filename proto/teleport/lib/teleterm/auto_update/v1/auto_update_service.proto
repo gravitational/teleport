@@ -28,6 +28,9 @@ service AutoUpdateService {
   // Can be overridden with TELEPORT_CDN_BASE_URL env var.
   // OSS builds require this env var to be set, otherwise an error is returned.
   rpc GetDownloadBaseUrl(GetDownloadBaseUrlRequest) returns (GetDownloadBaseUrlResponse);
+  // IsPerMachineInstall returns whether updates should target a per-machine installation.
+  // Implemented only on Windows.
+  rpc IsPerMachineInstall(IsPerMachineInstallRequest) returns (IsPerMachineInstallResponse);
 }
 
 // Request for GetClusterVersions.
@@ -65,4 +68,12 @@ message GetDownloadBaseUrlRequest {}
 // Response for GetDownloadBaseUrl.
 message GetDownloadBaseUrlResponse {
   string base_url = 1;
+}
+
+// Request for IsPerMachineInstall.
+message IsPerMachineInstallRequest {}
+
+// Response for IsPerMachineInstall.
+message IsPerMachineInstallResponse {
+  bool per_machine_install = 1;
 }
