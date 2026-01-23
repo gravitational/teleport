@@ -42,16 +42,16 @@ export function ResourcesSection({
 }: ResourcesSectionProps) {
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium">
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
         <CircleNumber>3</CircleNumber>
         Resource Types
       </Flex>
-      <Text ml={4} mb={3}>
+      <Text ml={4} mb={1}>
         Select which AWS resource types to automatically discover and enroll.
       </Text>
       <AwsService
         label="EC2 Instances"
-        helperText="Teleport will discover EC2 instances and establish SSH access through the Teleport proxy."
+        helperText="Discover EC2 instances and establish SSH access through the Teleport proxy."
         tooltipText="Filter for EC2 instances by their tags. If no tags are added, Teleport will enroll all EC2 instances."
         config={ec2Config}
         onChange={onEc2Change}
