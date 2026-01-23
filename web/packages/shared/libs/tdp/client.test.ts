@@ -19,7 +19,6 @@
 import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 
 import { TdpClient, TdpTransport } from './client';
-import { TdpCodec } from './codec';
 import { SharedDirectoryAccess } from './sharedDirectoryAccess';
 
 let mockTransport: jest.Mocked<TdpTransport> = {
@@ -46,8 +45,7 @@ jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 test('tdp upgrade', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess),
-    new TdpCodec()
+    () => Promise.resolve(mockSharedDirectoryAccess)
   );
 
   const transportOpen = new Promise<void>(client.onTransportOpen);

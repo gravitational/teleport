@@ -148,6 +148,9 @@ type RemoveListenerFn = () => void;
 // To prevent multiple initializations, we track the initialization status in a global variable.
 let wasmReady: Promise<void> | undefined;
 
+// Defines which protocol the client will start with.
+type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -159,13 +162,14 @@ export class TdpClient extends EventEmitter<EventMap> {
   private sharedDirectory: SharedDirectoryAccess | undefined;
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
+  private codec: Codec | undefined;
 
   private logger = new Logger('TDPClient');
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
-    protected codec: Codec = new TdpCodec()
+    private policy: ConnectPolicy = { mode: 'tdp' }
   ) {
     super();
   }
@@ -187,6 +191,20 @@ export class TdpClient extends EventEmitter<EventMap> {
       screenSpec?: ClientScreenSpec;
     } = {}
   ) {
+    // Initialize our codec according to the connection policy.
+    switch (this.policy.mode) {
+      case 'tdp':
+        // tdp policy is capable of upgrading to TDPB.
+        this.codec = new TdpCodec();
+        break;
+      case 'tdpb':
+        this.codec = new TdpbCodec();
+        break;
+      default:
+        const exhaustiveCheck: never = this.policy;
+        throw new Error(`Unknown connect policy: ${exhaustiveCheck}`);
+    }
+
     this.transportAbortController = new AbortController();
     if (!wasmReady) {
       wasmReady = this.initWasm();
