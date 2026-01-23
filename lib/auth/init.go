@@ -196,7 +196,7 @@ type InitConfig struct {
 	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
-	Status services.StatusInternal
+	Status services.Status
 
 	// UserPreferences is a service that manages user preferences.
 	UserPreferences services.UserPreferences
