@@ -345,3 +345,74 @@ func (c *Cache) GetCustomPermissionSet(ctx context.Context, id string) (*identit
 	out, err := getter.get(ctx, string(id))
 	return out, trace.Wrap(err)
 }
+
+type identityCenterManagedResourceIndex string
+
+const identityCenterManagedResourceNameIndex identityCenterManagedResourceIndex = "name"
+
+func newIdentityCenterManagedResourceCollection(ic services.IdentityCenter, w types.WatchKind) (*collection[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex], error) {
+	if ic == nil {
+		return nil, trace.BadParameter("missing parameter IdentityCenter")
+	}
+
+	return &collection[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex]{
+		store: newStore(
+			types.KindIdentityCenterManagedResource,
+			proto.CloneOf[*identitycenterv1.ManagedResource],
+			map[identityCenterManagedResourceIndex]func(*identitycenterv1.ManagedResource) string{
+				identityCenterManagedResourceNameIndex: func(r *identitycenterv1.ManagedResource) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*identitycenterv1.ManagedResource, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, ic.ListIdentityCenterManagedResources))
+			return out, trace.Wrap(err)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *identitycenterv1.ManagedResource {
+			return &identitycenterv1.ManagedResource{
+				Kind:    hdr.Kind,
+				SubKind: hdr.SubKind,
+				Version: hdr.Version,
+				Metadata: &headerv1.Metadata{
+					Name: hdr.Metadata.Name,
+				},
+			}
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetIdentityCenterManagedResource(ctx context.Context, name string) (*identitycenterv1.ManagedResource, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIdentityCenterManagedResource")
+	defer span.End()
+
+	getter := genericGetter[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex]{
+		cache:      c,
+		collection: c.collections.identityCenterManagedResources,
+		index:      identityCenterManagedResourceNameIndex,
+		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.ManagedResource, error) {
+			out, err := c.Config.IdentityCenter.GetIdentityCenterManagedResource(ctx, s)
+			return out, trace.Wrap(err)
+		},
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListIdentityCenterManagedResources(ctx context.Context, pageSize int, pageToken string) ([]*identitycenterv1.ManagedResource, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIdentityCenterManagedResources")
+	defer span.End()
+
+	lister := genericLister[*identitycenterv1.ManagedResource, identityCenterManagedResourceIndex]{
+		cache:        c,
+		collection:   c.collections.identityCenterManagedResources,
+		index:        identityCenterManagedResourceNameIndex,
+		upstreamList: c.Config.IdentityCenter.ListIdentityCenterManagedResources,
+		nextToken: func(t *identitycenterv1.ManagedResource) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}

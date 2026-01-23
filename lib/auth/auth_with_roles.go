@@ -2007,6 +2007,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindSAMLIdPServiceProvider,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,
+		types.KindIdentityCenterManagedResource,
 		types.KindGitServer:
 		if err := a.checkAction(req.Namespace, req.ResourceType, types.VerbList, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)

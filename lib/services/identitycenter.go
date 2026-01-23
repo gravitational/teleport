@@ -234,10 +234,15 @@ type IdentityCenterCustomPermissionSets interface {
 	CreateCustomPermissionSet(context.Context, *identitycenterv1.CustomPermissionSet) (*identitycenterv1.CustomPermissionSet, error)
 }
 
-type IdentityCenterManagedResources interface {
+type IdentityCenterManagedResourceGetter interface {
 	GetIdentityCenterManagedResource(context.Context, string) (*identitycenterv1.ManagedResource, error)
 	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error)
 	ListIdentityCenterManagedResources(context.Context, int, string) ([]*identitycenterv1.ManagedResource, string, error)
+}
+
+type IdentityCenterManagedResources interface {
+	IdentityCenterManagedResourceGetter
+	CreateIdentityCenterManagedResource(context.Context, *identitycenterv1.ManagedResource) (*identitycenterv1.ManagedResource, error)
 }
 
 type IdentityCenterAccessProfiles interface {

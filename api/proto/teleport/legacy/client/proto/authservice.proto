@@ -2181,6 +2181,42 @@ message IdentityCenterAccountAssignment {
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 
+// IdentityCenterAccessProfile holds information about an access profile for a
+// managed AWS resource
+message IdentityCenterAccessProfile {
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  string Display = 2 [(gogoproto.jsontag) = "display"];
+}
+
+// IdentityCenterManagedResource holds information about an Identity Center
+// Managed AwS Resource
+message IdentityCenterManagedResource {
+  // Kind is the database server resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the resource metadata.
+  types.Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+
+  // DisplayName is a human-readable name for the Account assignment
+  string DisplayName = 5 [(gogoproto.jsontag) = "display"];
+
+  // Account is the AWS Account that this resource belongs to
+  string AWSAccount = 6 [(gogoproto.jsontag) = "aws_account"];
+
+  // ARN is the AWS unique identifier for this resource
+  string ARN = 7 [(gogoproto.jsontag) = "arn"];
+
+  // PermissionSet is the Identity Center Permission Set this assignment
+  // references
+  repeated IdentityCenterAccessProfile AccessProfiles = 8 [(gogoproto.jsontag) = "access_profiles"];
+}
+
 message ListInstallersRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -2227,6 +2263,8 @@ message PaginatedResource {
     // IdentityCenterAccountAssignment represents a requestable Identity Center
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
+
+    IdentityCenterManagedResource IdentityCenterManagedResource = 17 [(gogoproto.jsontag) = "identity_center_managed_resource,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.

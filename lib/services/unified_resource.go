@@ -36,8 +36,10 @@ import (
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -526,6 +528,7 @@ type ResourceGetter interface {
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
+	IdentityCenterManagedResourceGetter
 	GitServerGetter
 }
 
@@ -642,6 +645,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newManagedResources, err := c.getIdentityCenterManagedResources(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	newGitServers, err := c.getGitServers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -663,6 +671,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources(c, newSAMLApps)
 	putResources(c, newDesktops)
 	putResources(c, newICAccounts)
+	putResources(c, newManagedResources)
 	putResources(c, newGitServers)
 	c.stale = false
 	c.defineCollectorAsInitialized()
@@ -756,6 +765,21 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 		startKey = nextKey
 	}
 	return accounts, nil
+}
+
+func repackManagedResource(src *identitycenterv1.ManagedResource) (resource, bool) {
+	return types.Resource153ToLegacy(src), true
+}
+
+func (c *UnifiedResourceCache) getIdentityCenterManagedResources(ctx context.Context) ([]resource, error) {
+	resources, err :=
+		stream.Collect(
+			stream.FilterMap(
+				clientutils.Resources(ctx, c.ListIdentityCenterManagedResources), repackManagedResource))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resources, nil
 }
 
 func (c *UnifiedResourceCache) getGitServers(ctx context.Context) (all []types.Server, err error) {
@@ -1282,6 +1306,20 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 			},
 			RequiresRequest: requiresRequest,
 		}
+
+	case types.KindIdentityCenterManagedResource:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterManagedResource])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: IdentityCenterAccountToAppServer(unwrapper.UnwrapT().Account),
+			},
+			RequiresRequest: requiresRequest,
+		}
+
 	case types.KindIdentityCenterAccountAssignment:
 		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterAccountAssignment])
 		if !ok {

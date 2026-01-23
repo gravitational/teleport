@@ -209,6 +209,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 		{Kind: types.KindIdentityCenterAccountAssignment},
 		{Kind: types.KindIdentityCenterCustomPermissionSet},
+		{Kind: types.KindIdentityCenterManagedResource},
 		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
