@@ -75,13 +75,17 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		var verifiers []srvssh.PromptVerifier
 
 		for _, precond := range preconds {
-			if precond.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA {
+			switch precond.GetKind() {
+			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
 				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 				verifiers = append(verifiers, verifier)
+
+				// No default case needed because ensureSupportedPreconditions() was called earlier and would have
+				// returned an error early for unexpected preconditions.
 			}
 		}
 
