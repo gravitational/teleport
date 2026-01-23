@@ -17,9 +17,12 @@
  */
 
 import { Link as InternalLink } from 'react-router-dom';
+import styled from 'styled-components';
 
-import { Alert, Box, ButtonSecondary, Flex, Text } from 'design';
-import { ArrowSquareOut, Copy, Notification } from 'design/Icon';
+import { Alert, Box, Button, ButtonText, Flex, Text } from 'design';
+import { Check, Copy, Notification, Spinner } from 'design/Icon';
+import { rotate360 } from 'design/keyframes';
+import { HoverTooltip } from 'design/Tooltip';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { useValidation } from 'shared/components/Validation';
@@ -32,23 +35,33 @@ type DeploymentMethodSectionProps = {
   terraformConfig?: string;
   copyConfigButtonRef?: React.RefObject<HTMLButtonElement>;
   integrationExists?: boolean;
+  integrationName: string;
+  onCheckIntegration: () => void;
+  isCheckingIntegration: boolean;
+  configCopied: boolean;
+  onConfigCopy: () => void;
 };
 
 export function DeploymentMethodSection({
   terraformConfig,
   copyConfigButtonRef,
   integrationExists,
+  integrationName,
+  onCheckIntegration,
+  isCheckingIntegration,
+  configCopied = false,
+  onConfigCopy,
 }: DeploymentMethodSectionProps) {
   const validator = useValidation();
 
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium">
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
         <CircleNumber>5</CircleNumber>
         Deployment Method
       </Flex>
       <Box ml={4} mb={3}>
-        <Text mb={2}>
+        <Text mb={3}>
           Deploy the required IAM resources in your AWS account using Terraform.
         </Text>
         <Text fontSize={3} fontWeight="regular">
@@ -65,26 +78,30 @@ export function DeploymentMethodSection({
       <Box ml={6}>
         <Flex flexDirection="column" mb={3} gap={2}>
           <Text bold={true} fontSize="14px">
-            1. Add the Teleport module to your Terraform configuration
+            1. Add the Teleport AWS Discovery module to your Terraform
+            configuration
           </Text>
           <Text>
             Copy the module on the right and paste it into your Terraform
             configuration.
           </Text>
           <Box>
-            <ButtonSecondary
+            <Button
               ref={copyConfigButtonRef}
+              fill="border"
+              intent="primary"
               disabled={!terraformConfig}
               onClick={() => {
                 if (validator.validate() && terraformConfig) {
                   copyToClipboard(terraformConfig);
+                  onConfigCopy?.();
                 }
               }}
               gap={2}
             >
-              <Copy size="small" />
-              Copy Configuration
-            </ButtonSecondary>
+              {configCopied ? <Check size="small" /> : <Copy size="small" />}
+              Copy Terraform Module
+            </Button>
             {!validator.state.valid && (
               <Text color="error.main" mt={2} fontSize={1}>
                 Please complete the required fields
@@ -95,12 +112,16 @@ export function DeploymentMethodSection({
             2. Initialize and apply the configuration
           </Text>
           <Text>
-            Run the following command in your terminal. After applying, Teleport
-            will verify the integration in the background.
+            Run the following commands in your terminal. <br />
+            Initialize Terraform to download the module, then apply the
+            configuration to create the integration and configure the discovery
+            service.
           </Text>
-          <TextSelectCopyMulti lines={[{ text: `terraform apply` }]} />
+          <TextSelectCopyMulti
+            lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
+          />
           <Text bold={true} fontSize="14px">
-            3. Verify the Integration
+            3. Verify the integration
           </Text>
           {integrationExists ? (
             <Alert kind="success" mb={0}>
@@ -110,36 +131,68 @@ export function DeploymentMethodSection({
             </Alert>
           ) : (
             <>
-              <Alert kind="neutral" icon={Notification} mb={0}>
-                <Text fontWeight="regular" color="text.slightlyMuted">
-                  After applying your Terraform configuration, we'll
-                  automatically detect your new integration on this page.
-                </Text>
-              </Alert>
+              {isCheckingIntegration ? (
+                <Alert kind="info" icon={Notification} mb={0}>
+                  Verifying integration '{integrationName}'...
+                </Alert>
+              ) : (
+                <Alert kind="neutral" icon={Notification} mb={0}>
+                  <Text fontWeight="regular" color="text.slightlyMuted">
+                    After applying your Terraform configuration, verify your
+                    integration was created successfully.
+                  </Text>
+                </Alert>
+              )}
+              <Box mt={2}>
+                {isCheckingIntegration ? (
+                  <HoverTooltip
+                    tipContent={`Checking the integration '${integrationName}' has been created`}
+                  >
+                    <Button
+                      fill="filled"
+                      intent="primary"
+                      disabled={true}
+                      onClick={onCheckIntegration}
+                      gap={2}
+                    >
+                      <AnimatedSpinner size="small" />
+                      Checking...
+                    </Button>
+                  </HoverTooltip>
+                ) : (
+                  <Button
+                    fill="filled"
+                    intent="primary"
+                    disabled={false}
+                    onClick={onCheckIntegration}
+                    gap={2}
+                  >
+                    Check Integration
+                  </Button>
+                )}
+              </Box>
               <Box
-                pl={4}
+                pl={3}
                 borderLeft="2px solid"
                 borderColor="interactive.tonal.neutral.0"
               >
-                <Text bold={true} fontSize={1}>
-                  Don't want to wait?
-                </Text>
-                <Text mb={2}>
-                  You'll receive an in-app notification when ready.
-                </Text>
-                <Text>
-                  If the detection is taking longer than expected, view the
-                  integrations list after the Terraform configuration has
-                  successfully applied.
-                </Text>
-                <Box>
-                  <InternalLink to={cfg.routes.integrations}>
-                    <Flex alignItems="center" gap={1}>
-                      View Integrations
-                      <ArrowSquareOut size="small" />
-                    </Flex>
-                  </InternalLink>
-                </Box>
+                <Flex gap={2} flexDirection="column">
+                  <Text bold={true} fontSize={1}>
+                    Don't want to wait?
+                  </Text>
+                  <Text>
+                    Once you've successfully applied your Terraform
+                    configuration, the integration will be available on the
+                    Integrations page.
+                  </Text>
+                  <Box css={{ position: 'relative', left: '-8px' }}>
+                    <InternalLink to={cfg.routes.integrations}>
+                      <ButtonText intent="primary" size="small">
+                        View Integrations
+                      </ButtonText>
+                    </InternalLink>
+                  </Box>
+                </Flex>
               </Box>
             </>
           )}
@@ -148,3 +201,7 @@ export function DeploymentMethodSection({
     </>
   );
 }
+
+const AnimatedSpinner = styled(Spinner)`
+  animation: ${rotate360} 1.5s linear infinite;
+`;

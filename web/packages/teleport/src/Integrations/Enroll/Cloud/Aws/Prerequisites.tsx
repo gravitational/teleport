@@ -20,7 +20,7 @@ import styled from 'styled-components';
 import { useToggle } from 'usehooks-ts';
 
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
-import { ChevronRight } from 'design/Icon';
+import { ArrowSquareOut, ChevronRight } from 'design/Icon';
 
 import { Divider } from './EnrollAws';
 
@@ -29,7 +29,7 @@ export function Prerequisites() {
 
   return (
     <>
-      <Flex mb={1} onClick={togglePrerequisites}>
+      <Flex mb={1} onClick={togglePrerequisites} css={{ cursor: 'pointer' }}>
         <SectionChevron expanded={showPrerequisites} mr={2} />
         <Text typography="h2" fontSize={4} fontWeight="medium">
           Prerequisites
@@ -40,7 +40,7 @@ export function Prerequisites() {
           <Text mb={2}>
             Before you begin, configure the required Terraform providers:
           </Text>
-          <Text typography="h3" mb={2}>
+          <Text typography="h3" mb={1}>
             Required Configuration
           </Text>
           <ul
@@ -54,12 +54,15 @@ export function Prerequisites() {
               <Text>Authenticate to your Teleport cluster</Text>
               <ExternalLink href="#">
                 Teleport Provider Configuration
+                <ArrowSquareOut size="small" />
               </ExternalLink>
             </li>
             <li>
               <Text fontWeight="medium">AWS Terraform Provider:</Text>
               <Text>Configure AWS credentials for IAM management</Text>
-              <ExternalLink href="#">AWS Provider Configuration</ExternalLink>
+              <ExternalLink href="#">
+                AWS Provider Configuration <ArrowSquareOut size="small" />
+              </ExternalLink>
             </li>
           </ul>
           <Divider />

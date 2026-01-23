@@ -29,8 +29,7 @@ import {
   Subtitle1,
   Text,
 } from 'design';
-import { Info, Spinner } from 'design/Icon';
-import { rotate360 } from 'design/keyframes';
+import { Info } from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { HoverTooltip } from 'design/Tooltip';
 import {
@@ -83,6 +82,15 @@ export function EnrollAws() {
     tags: [],
   });
 
+  const [configCopied, setConfigCopied] = useState(false);
+
+  const handleConfigCopy = () => {
+    setConfigCopied(true);
+    setTimeout(() => {
+      setConfigCopied(false);
+    }, 1000);
+  };
+
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
@@ -109,6 +117,7 @@ export function EnrollAws() {
           <TerraformInfoGuide
             terraformConfig={terraformConfig}
             copyConfigButtonRef={copyConfigButtonRef}
+            configCopied={configCopied}
           />
         ) : (
           <InfoGuideContent />
@@ -121,7 +130,7 @@ export function EnrollAws() {
       ),
       panelWidth: PANEL_WIDTH,
     }),
-    [terraformConfig, activeInfoGuideSection]
+    [terraformConfig, activeInfoGuideSection, configCopied]
   );
 
   useEffect(() => {
@@ -292,20 +301,37 @@ export function EnrollAws() {
                 terraformConfig={terraformConfig}
                 copyConfigButtonRef={copyConfigButtonRef}
                 integrationExists={integrationExists}
-              />
-            </Container>
-            <Box mb={2}>
-              <IntegrationButton
                 integrationName={integrationName}
-                integrationKind={IntegrationKind.AwsOidc}
-                integrationExists={integrationExists}
-                isPolling={isFetching}
-                onClick={() => {
+                onCheckIntegration={() => {
                   if (validator.validate()) {
                     checkIntegration();
                   }
                 }}
+                isCheckingIntegration={isFetching}
+                configCopied={configCopied}
+                onConfigCopy={handleConfigCopy}
               />
+            </Container>
+            <Box mb={2}>
+              <ButtonPrimary
+                as={
+                  integrationExists && integrationName
+                    ? InternalLink
+                    : undefined
+                }
+                to={
+                  integrationExists && integrationName
+                    ? cfg.getIaCIntegrationRoute(
+                        IntegrationKind.AwsOidc,
+                        integrationName
+                      )
+                    : undefined
+                }
+                disabled={!integrationExists || !integrationName}
+                gap={2}
+              >
+                View Integration
+              </ButtonPrimary>
               <ButtonSecondary
                 ml={3}
                 as={InternalLink}
@@ -334,22 +360,22 @@ export function IntegrationSection({
 }: IntegrationSectionProps) {
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
         <CircleNumber>1</CircleNumber>
         Integration Details
       </Flex>
-      <Text ml={4} mb={3}>
+      <Text ml={4} mb={1}>
         Provide a name to identify this AWS integration in Teleport.
       </Text>
       <FieldInput
         ml={4}
-        mb={2}
+        mb={0}
         autoFocus={true}
         rule={requiredIntegrationName}
         value={integrationName}
         required={true}
         label="Integration name"
-        placeholder="Integration Name"
+        placeholder="my-aws-integration"
         maxWidth={360}
         disabled={disabled}
         onChange={e => onChange(e.target.value.trim())}
@@ -361,59 +387,31 @@ export function IntegrationSection({
 function ConfigurationScopeSection() {
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
         <CircleNumber>2</CircleNumber>
         Configuration Scope
       </Flex>
       <Text ml={4}>Single AWS Account</Text>
       <Text ml={4} mb={3} color="text.slightlyMuted">
         Discover resources from one specific AWS account. Additional accounts
-        require separate integration setup. Best for: Single-account
-        environments or testing.
+        require separate integration setup. <br />
+        Best for: Single-account environments or testing.
       </Text>
       <Box ml={4} borderColor="interactive.tonal.neutral.0">
-        <Text fontSize={2}>
-          Teleport will automatically detect your AWS account when you deploy
-          the IAM role.
-        </Text>
+        <Box
+          pl={4}
+          borderLeft="2px solid"
+          borderColor="interactive.tonal.neutral.0"
+        >
+          <Text fontSize={2}>
+            IAM resources used for discovery in Teleport will be created using
+            the account configured for your AWS Terraform provider.
+          </Text>
+        </Box>
       </Box>
     </>
   );
 }
-
-type IntegrationButtonProps = {
-  isPolling: boolean;
-  integrationName: string;
-  onClick: () => void;
-  integrationExists: boolean;
-  integrationKind?: IntegrationKind;
-};
-
-const IntegrationButton = ({
-  isPolling,
-  integrationName,
-  onClick,
-  integrationExists,
-  integrationKind = IntegrationKind.AwsOidc,
-}: IntegrationButtonProps) => {
-  if (integrationExists && integrationName) {
-    return (
-      <ButtonPrimary
-        as={InternalLink}
-        to={cfg.getIaCIntegrationRoute(integrationKind, integrationName)}
-      >
-        View Integration
-      </ButtonPrimary>
-    );
-  }
-
-  return (
-    <ButtonPrimary disabled={isPolling} onClick={onClick} gap={2}>
-      {isPolling && <AnimatedSpinner size="small" />}
-      {isPolling ? 'Checking...' : 'Check Integration'}
-    </ButtonPrimary>
-  );
-};
 
 const Container = styled(Flex)`
   border-radius: 8px;
@@ -423,10 +421,6 @@ const Container = styled(Flex)`
     0 2px 1px -1px rgba(0, 0, 0, 0.2),
     0 1px 1px 0 rgba(0, 0, 0, 0.14),
     0 1px 3px 0 rgba(0, 0, 0, 0.12);
-`;
-
-const AnimatedSpinner = styled(Spinner)`
-  animation: ${rotate360} 1.5s linear infinite;
 `;
 
 export const CircleNumber = styled.span`
@@ -446,8 +440,8 @@ export const CircleNumber = styled.span`
 `;
 
 export const Divider = styled.hr`
-  margin-top: ${p => p.theme.space[4]}px;
-  margin-bottom: ${p => p.theme.space[4]}px;
+  margin-top: ${p => p.theme.space[3]}px;
+  margin-bottom: ${p => p.theme.space[3]}px;
   border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
   width: 100%;
 `;

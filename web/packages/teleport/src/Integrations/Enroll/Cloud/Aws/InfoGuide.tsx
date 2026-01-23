@@ -18,8 +18,8 @@
 
 import styled from 'styled-components';
 
-import { Box, ButtonSecondary, Flex, Text } from 'design';
-import { Copy } from 'design/Icon';
+import { Box, Button, Flex, Text } from 'design';
+import { Check, Copy } from 'design/Icon';
 import {
   InfoParagraph,
   InfoTitle,
@@ -29,16 +29,18 @@ import {
 
 import LiveTextEditor from '../LiveTextEditor';
 
-export const PANEL_WIDTH = 600;
+export const PANEL_WIDTH = 500;
 
 export type TerraformInfoGuideProps = {
   terraformConfig: string;
   copyConfigButtonRef: React.RefObject<HTMLButtonElement>;
+  configCopied: boolean;
 };
 
 export function TerraformInfoGuide({
   terraformConfig,
   copyConfigButtonRef,
+  configCopied,
 }: TerraformInfoGuideProps) {
   return (
     <Flex
@@ -52,16 +54,18 @@ export function TerraformInfoGuide({
         data={[{ content: terraformConfig, type: 'terraform' }]}
       />
       <Box p={3}>
-        <ButtonSecondary
+        <Button
           disabled={copyConfigButtonRef.current?.disabled}
           onClick={() => {
             copyConfigButtonRef.current?.click();
           }}
           gap={2}
+          fill="border"
+          intent="primary"
         >
-          <Copy size="small" />
-          Copy Configuration
-        </ButtonSecondary>
+          {configCopied ? <Check size="small" /> : <Copy size="small" />}
+          Copy Terraform Module
+        </Button>
       </Box>
     </Flex>
   );
