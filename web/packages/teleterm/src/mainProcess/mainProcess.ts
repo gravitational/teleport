@@ -193,22 +193,25 @@ export default class MainProcess {
     this.initResolvingChildProcessAddressesAndTshdClients();
     this.initIpc();
 
-    const getClusterVersions = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const { response } = await autoUpdateService.getClusterVersions({});
-      return response;
-    };
-    const getDownloadBaseUrl = async () => {
-      const { autoUpdateService } = await this.tshdClients;
-      const {
-        response: { baseUrl },
-      } = await autoUpdateService.getDownloadBaseUrl({});
-      return baseUrl;
-    };
     this.appUpdater = new AppUpdater(
       makeAppUpdaterStorage(this.appStateFileStorage),
-      getClusterVersions,
-      getDownloadBaseUrl,
+      {
+        getDownloadBaseUrl: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getDownloadBaseUrl({});
+          return response.baseUrl;
+        },
+        getClusterVersions: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.getClusterVersions({});
+          return response;
+        },
+        isPerMachineInstall: async () => {
+          const { autoUpdateService } = await this.tshdClients;
+          const { response } = await autoUpdateService.isPerMachineInstall({});
+          return response.perMachineInstall;
+        },
+      },
       event => {
         if (event.kind === 'error') {
           event.error = serializeError(event.error);

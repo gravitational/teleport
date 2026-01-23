@@ -16,15 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
-import { app, shell } from 'electron';
+import { shell } from 'electron';
 import { NsisUpdater } from 'electron-updater';
 import { InstallOptions } from 'electron-updater/out/BaseUpdater';
-
-/** Defined in electron-builder-config.js. */
-const TELEPORT_CONNECT_NSIS_GUID = '22539266-67e8-54a3-83b9-dfdca7b33ee1';
 
 /**
  * Extends the standard NSIS to ensure that a per-user installation won't attempt
@@ -36,15 +32,7 @@ export class NsisDualModeUpdater extends NsisUpdater {
   }
 
   protected override doInstall(options: InstallOptions): boolean {
-    let installedPerMachine = false;
-    try {
-      installedPerMachine = isInstalledPerMachine();
-    } catch (e) {
-      this.logger.error(
-        `Could not check if app is installed per machine, defaulting to per-user update. ${e}`
-      );
-    }
-    if (installedPerMachine) {
+    if (options.isAdminRightsRequired) {
       // TODO(gzdunek): Call the privileged update service.
       return super.doInstall(options);
     } else {
@@ -130,27 +118,4 @@ export class NsisDualModeUpdater extends NsisUpdater {
     });
     return true;
   }
-}
-
-/**
- * Checks if Teleport Connect is installed per-machine by comparing the executable
- * directory with InstallLocation in Connect's HKLM hive.
- */
-function isInstalledPerMachine(): boolean {
-  const exeDirPath = path.dirname(app.getPath('exe'));
-  const perMachinePath = readPerMachineLocationFromRegistry();
-  return path.resolve(perMachinePath) === path.resolve(exeDirPath);
-}
-
-function readPerMachineLocationFromRegistry(): string {
-  return execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-NonInteractive',
-      '-Command',
-      `Get-ItemPropertyValue "HKLM:\\SOFTWARE\\${TELEPORT_CONNECT_NSIS_GUID}" -Name "InstallLocation" -ErrorAction Stop`,
-    ],
-    { encoding: 'utf8', windowsHide: true }
-  ).trim();
 }
