@@ -29,6 +29,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/aws/awsconfigfile"
 	"github.com/gravitational/teleport/lib/client"
 )
@@ -148,12 +149,11 @@ func writeAWSProfileSummary(w io.Writer, configPath string, profiles []awsProfil
 		fmt.Fprintf(w, "AWS configuration updated at: %s\n", configPath)
 		fmt.Fprintln(w)
 
-		// Simple table format
-		fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", "Profile", "Account", "Account ID", "Role", "SSO Session")
-		fmt.Fprintln(w, strings.Repeat("-", 114))
+		table := asciitable.MakeTable([]string{"Profile", "Account", "Account ID", "Role", "SSO Session"})
 		for _, p := range profiles {
-			fmt.Fprintf(w, "%-40s %-20s %-15s %-15s %-20s\n", p.Name, p.account, p.AccountID, p.RoleName, p.Session)
+			table.AddRow([]string{p.Name, p.account, p.AccountID, p.RoleName, p.Session})
 		}
+		table.WriteTo(w)
 		fmt.Fprintln(w)
 
 		fmt.Fprintf(w, "To use these profiles, first authenticate with AWS using the name of an SSO session. Example:\n")
