@@ -33,13 +33,59 @@ import (
 	eventlogutils "github.com/gravitational/teleport/lib/utils/log/eventlog"
 )
 
-// InstallService installs the VNet windows service.
+const eventSource = "vnet"
+
+// InstallVNetService installs the VNet Windows service.
+func InstallVNetService(ctx context.Context) error {
+	tshPath, err := os.Executable()
+	if err != nil {
+		return trace.Wrap(err, "getting current exe path")
+	}
+	if err := assertWintunInstalled(tshPath); err != nil {
+		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
+	}
+	return trace.Wrap(InstallService(ctx, &InstallServiceConfig{
+		Name:              serviceName,
+		Command:           ServiceCommand,
+		EventSourceName:   eventSource,
+		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
+	}))
+}
+
+// InstallServiceConfig defines parameters for installing a Windows service
+// that is implemented by tsh.exe.
+type InstallServiceConfig struct {
+	// Name is the service name.
+	Name string
+	// Command is the tsh subcommand that the service manager invokes on start.
+	Command string
+	// EventSourceName is the name of an event source that will log service events.
+	EventSourceName string
+	// AccessPermissions defines which service control actions are granted to
+	// authenticated users (e.g., start/stop/query).
+	AccessPermissions windows.ACCESS_MASK
+}
+
+// InstallService installs a Windows service implemented by tsh.exe.
 //
 // Windows services are installed by the service manager, which takes a path to
 // the service executable. So that regular users are not able to overwrite the
 // executable at that path, we use a path under %PROGRAMFILES%, which is not
 // writable by regular users by default.
-func InstallService(ctx context.Context) (err error) {
+func InstallService(ctx context.Context, cfg *InstallServiceConfig) (err error) {
+	if cfg.Name == "" {
+		return trace.BadParameter("service name is required")
+	}
+	if cfg.Command == "" {
+		return trace.BadParameter("command is required")
+	}
+	if cfg.EventSourceName == "" {
+		return trace.BadParameter("event source name is required")
+	}
+	if cfg.AccessPermissions == 0 {
+		return trace.BadParameter("access permissions is required")
+	}
+
 	tshPath, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err, "getting current exe path")
@@ -47,27 +93,24 @@ func InstallService(ctx context.Context) (err error) {
 	if err := assertTshInProgramFiles(tshPath); err != nil {
 		return trace.Wrap(err, "checking if tsh.exe is installed under %%PROGRAMFILES%%")
 	}
-	if err := assertWintunInstalled(tshPath); err != nil {
-		return trace.Wrap(err, "checking if wintun.dll is installed next to %s", tshPath)
-	}
 
 	svcMgr, err := mgr.Connect()
 	if err != nil {
 		return trace.Wrap(err, "connecting to Windows service manager")
 	}
-	svc, err := svcMgr.OpenService(serviceName)
+	svc, err := svcMgr.OpenService(cfg.Name)
 	if err != nil {
 		if !errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
-			return trace.Wrap(err, "unexpected error checking if Windows service %s exists", serviceName)
+			return trace.Wrap(err, "unexpected error checking if Windows service %s exists", cfg.Name)
 		}
 		// The service has not been created yet and must be installed.
 		svc, err = svcMgr.CreateService(
-			serviceName,
+			cfg.Name,
 			tshPath,
 			mgr.Config{
 				StartType: mgr.StartManual,
 			},
-			ServiceCommand,
+			cfg.Command,
 		)
 		if err != nil {
 			return trace.Wrap(err, "creating VNet Windows service")
@@ -76,49 +119,71 @@ func InstallService(ctx context.Context) (err error) {
 	if err := svc.Close(); err != nil {
 		return trace.Wrap(err, "closing VNet Windows service")
 	}
-	if err := grantServiceRights(); err != nil {
+	if err := grantServiceRights(cfg.Name, cfg.AccessPermissions); err != nil {
 		return trace.Wrap(err, "granting authenticated users permission to control the VNet Windows service")
 	}
-	if err := installEventSource(); err != nil {
+	if err := installEventSource(cfg.EventSourceName); err != nil {
 		trace.Wrap(err, "creating event source for logging")
 	}
-	if err := logInstallationEvent("VNet service installed"); err != nil {
+	if err := logInstallationEvent(cfg.EventSourceName, "service installed"); err != nil {
 		trace.Wrap(err, "logging installation event")
 	}
 	return nil
 }
 
-// UninstallService uninstalls the VNet windows service.
-func UninstallService(ctx context.Context) (err error) {
+// UninstallServiceConfig defines parameters for removing a Windows service.
+type UninstallServiceConfig struct {
+	// Name is the service name.
+	Name string
+	// EventSourceName is the event source to remove from the Windows Event Log.
+	EventSourceName string
+}
+
+// UninstallVNetService uninstalls the Windows VNet service.
+func UninstallVNetService(ctx context.Context) error {
+	return trace.Wrap(UninstallService(ctx, &UninstallServiceConfig{
+		Name:            serviceName,
+		EventSourceName: eventSource,
+	}))
+}
+
+// UninstallService uninstalls the Windows service.
+func UninstallService(ctx context.Context, cfg *UninstallServiceConfig) (err error) {
+	if cfg.Name == "" {
+		return trace.BadParameter("service name is required")
+	}
+	if cfg.EventSourceName == "" {
+		return trace.BadParameter("event source name is required")
+	}
 	svcMgr, err := mgr.Connect()
 	if err != nil {
 		return trace.Wrap(err, "connecting to Windows service manager")
 	}
-	svc, err := svcMgr.OpenService(serviceName)
+	svc, err := svcMgr.OpenService(cfg.Name)
 	if err != nil {
-		return trace.Wrap(err, "opening Windows service %s", serviceName)
+		return trace.Wrap(err, "opening Windows service %s", cfg.Name)
 	}
 	if err := svc.Delete(); err != nil {
-		return trace.Wrap(err, "deleting Windows service %s", serviceName)
+		return trace.Wrap(err, "deleting Windows service %s", cfg.Name)
 	}
 	if err := svc.Close(); err != nil {
 		return trace.Wrap(err, "closing VNet Windows service")
 	}
 
-	if err := logInstallationEvent("VNet service uninstalled"); err != nil {
+	if err := logInstallationEvent(cfg.EventSourceName, "Service uninstalled"); err != nil {
 		trace.Wrap(err, "logging installation event")
 	}
-	if err := eventlogutils.Remove(eventlogutils.LogName, eventSource); err != nil {
+	if err := eventlogutils.Remove(eventlogutils.LogName, cfg.EventSourceName); err != nil {
 		return trace.Wrap(err, "removing event source for logging")
 	}
 
 	return nil
 }
 
-func grantServiceRights() error {
+func grantServiceRights(name string, accessPermissions windows.ACCESS_MASK) error {
 	// Get the current security info for the service, requesting only the DACL
 	// (discretionary access control list).
-	si, err := windows.GetNamedSecurityInfo(serviceName, windows.SE_SERVICE, windows.DACL_SECURITY_INFORMATION)
+	si, err := windows.GetNamedSecurityInfo(name, windows.SE_SERVICE, windows.DACL_SECURITY_INFORMATION)
 	if err != nil {
 		return trace.Wrap(err, "getting current service security information")
 	}
@@ -135,7 +200,7 @@ func grantServiceRights() error {
 	// Build an explicit access entry allowing authenticated users to start,
 	// stop, and query the service.
 	ea := []windows.EXPLICIT_ACCESS{{
-		AccessPermissions: windows.SERVICE_QUERY_STATUS | windows.SERVICE_START | windows.SERVICE_STOP,
+		AccessPermissions: accessPermissions,
 		AccessMode:        windows.GRANT_ACCESS,
 		Trustee: windows.TRUSTEE{
 			TrusteeForm:  windows.TRUSTEE_IS_SID,
@@ -150,7 +215,7 @@ func grantServiceRights() error {
 	}
 	// Set the DACL on the service security info.
 	if err := windows.SetNamedSecurityInfo(
-		serviceName,
+		name,
 		windows.SE_SERVICE,
 		windows.DACL_SECURITY_INFORMATION,
 		nil,  // owner
@@ -204,9 +269,7 @@ func assertRegularFile(path string) error {
 	return nil
 }
 
-const eventSource = "vnet"
-
-func installEventSource() error {
+func installEventSource(name string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
@@ -215,15 +278,15 @@ func installEventSource() error {
 	msgFilePath := filepath.Join(filepath.Dir(exe), "msgfile.dll")
 
 	// This should create a registry entry under
-	// SYSTEM\CurrentControlSet\Services\EventLog\Teleport\vnet with an absolute path to msgfile.dll.
+	// SYSTEM\CurrentControlSet\Services\EventLog\Teleport\<name> with an absolute path to msgfile.dll.
 	// If the user moves Teleport Connect to some other directory, logs will still be captured, but
 	// they might display a message about missing event ID until the user reinstalls the app.
-	err = eventlogutils.Install(eventlogutils.LogName, eventSource, msgFilePath, false /* useExpandKey */)
+	err = eventlogutils.Install(eventlogutils.LogName, name, msgFilePath, false /* useExpandKey */)
 	return trace.Wrap(err)
 }
 
-func logInstallationEvent(eventMessage string) error {
-	log, err := eventlog.Open(eventSource)
+func logInstallationEvent(name string, eventMessage string) error {
+	log, err := eventlog.Open(name)
 	if err != nil {
 		return trace.Wrap(err, "opening logger")
 	}
