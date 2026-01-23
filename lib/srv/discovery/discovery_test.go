@@ -3229,7 +3229,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.EventuallyWithT(t, func(c *assert.CollectT) {
 					tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 					require.NoError(c, err)
-					require.Len(c, tasks, 0)
+					require.Empty(c, tasks)
 				}, 3*time.Second, 100*time.Millisecond)
 			},
 		},
