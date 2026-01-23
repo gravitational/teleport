@@ -20,12 +20,14 @@ import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 import { Route } from 'react-router-dom';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
   ToastNotificationProvider,
   ToastNotifications,
 } from 'shared/components/ToastNotification';
 
 import cfg from 'teleport/config';
+import { ContentMinWidth } from 'teleport/Main/Main';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IaCIntegrationOverview } from './IaCIntegrationOverview';
@@ -45,9 +47,13 @@ function Component() {
     <MemoryRouter initialEntries={initialEntries}>
       <ToastNotificationProvider>
         <ToastNotifications />
-        <Route path={path}>
-          <IaCIntegrationOverview />
-        </Route>
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <Route path={path}>
+              <IaCIntegrationOverview />
+            </Route>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
       </ToastNotificationProvider>
     </MemoryRouter>
   );
