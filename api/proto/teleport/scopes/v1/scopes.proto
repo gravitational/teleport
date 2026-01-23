@@ -29,7 +29,7 @@ message Pin {
   // assignments encodes the scoped role assignments relevant to access-control decisions about the pinned identity. This may
   // include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this
   // means all assignments that are not orthogonal to the pinned scope.
-  map<string, PinnedAssignments> assignments = 2;
+  map<string, PinnedAssignments> assignments = 2 [deprecated = true];
 
   // assignment_tree encodes the full tree of scoped privilege assignments, organized by *Scope of Origin*. Policies/privileges
   // assigned from higher scopes of origin take precedence over those assigned from lower scopes of origin.

@@ -48,6 +48,10 @@ func StrongValidate(pin *scopesv1.Pin) error {
 		return trace.BadParameter("scope pin at %q contains no assignment tree", pin.GetScope())
 	}
 
+	if len(pin.GetAssignments()) != 0 { //nolint:staticcheck // SA1019.
+		return trace.BadParameter("scope pin uses outdated format, plase ensure all teleport components are upgraded and relogin")
+	}
+
 	// Validate all assignments in the tree by enumerating them
 	hasAssignments := false
 	for assignment := range EnumerateAllAssignments(pin) {
@@ -95,7 +99,11 @@ func WeakValidate(pin *scopesv1.Pin) error {
 		return trace.Errorf("invalid pinned scope: %w", err)
 	}
 
-	// Validate that the scopes in the assignment tree are well-formed. Due to how scoped access checks work,
+	if len(pin.GetAssignments()) != 0 { //nolint:staticcheck // SA1019.
+		return trace.BadParameter("scope pin uses outdated format, plase ensure all teleport components are upgraded and relogin")
+	}
+
+	// validate that the scopes in the assignment tree are well-formed. Due to how scoped access checks work,
 	// we cannot perform any checks if any scopes are malformed as we cannot determine whether or not the
 	// assignments within that scope ought to apply to the scope of the resource being targeted, and we cannot
 	// fallback to the strategy of only evaluating parent assignments since we cannot safely determine the
@@ -127,44 +135,6 @@ func PinCompatibleWithPolicyScope(pin *scopesv1.Pin, scope string) bool {
 // the target resource is assigned to /foo/bar or one of its descendants.
 func PinAppliesToResourceScope(pin *scopesv1.Pin, resourceScope string) bool {
 	return scopes.PolicyScope(pin.GetScope()).AppliesToResourceScope(resourceScope)
-}
-
-// AssignmentsForResourceScope returns a sequence of pinned assignments relevant to the target resource scope, starting
-// from the root scope and descending to the target. This is the correct order to evaluate access checks in, and is a suitable
-// building block for access-checking logic.
-//
-// TODO(fspmarshall/scopes): remove this function once we've fully transitioned to using the new assignment tree style.
-// This function uses the deprecated pin.Assignments field. New code should use DescendAssignmentTree instead.
-func AssignmentsForResourceScope(pin *scopesv1.Pin, resourceScope string) (iter.Seq2[string, *scopesv1.PinnedAssignments], error) {
-	if !PinAppliesToResourceScope(pin, resourceScope) {
-		// a pin with a scope that does not apply to the resource scope should be caught at an
-		// earlier stage, but failure to catch this may be a security issue, so we include a
-		// redundant check here to prevent accidental misuse.
-		return nil, trace.Errorf("invalid resource scope %q for scope pin at %q in assignment lookup (this is a bug)", resourceScope, pin.GetScope())
-	}
-
-	return AssignmentsForResourceScopeUnchecked(pin, resourceScope), nil
-}
-
-// AssignmentsForResourceScopeUnchecked is like AssignmentsForResourceScope, but does not perform any validation to ensure that the target
-// resource scope is valid for the pin. This is used internally by some access-checker building logic which does its own validation
-// of resource scoping.
-//
-// TODO(fspmarshall/scopes): remove this function once we've fully transitioned to using the new assignment tree style.
-// This function uses the deprecated pin.Assignments field. New code should use DescendAssignmentTree instead.
-func AssignmentsForResourceScopeUnchecked(pin *scopesv1.Pin, resourceScope string) iter.Seq2[string, *scopesv1.PinnedAssignments] {
-	return func(yield func(string, *scopesv1.PinnedAssignments) bool) {
-		for scope := range scopes.DescendingScopes(resourceScope) {
-			assignments, ok := pin.GetAssignments()[scope]
-			if !ok {
-				continue
-			}
-
-			if !yield(scope, assignments) {
-				return
-			}
-		}
-	}
 }
 
 // RoleAssignment contains the details of a pinned role assignment yielded from descending a pinned assignment tree.
@@ -328,7 +298,7 @@ func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []
 }
 
 // yeildRoleNode recursively yeidls a sequence of role assignments encoded in the pinned role tree matching the given resource scope
-// segments. The assigments are yielded in specificity order, starting from the most specific (leaf) scope and ascending to the least
+// segments. The assignments are yielded in specificity order, starting from the most specific (leaf) scope and ascending to the least
 // specific (root) scope. Note that this is the opposite of how we typically traverse the scope hierarchy. Most hierarchical operations
 // in scopes are performed from top to bottom in order to preserve scope hierarchy. Because all roles within a given role tree were assigned
 // *from* the same Scope of Origin, they are of equivalent seniority from a scope hierarchy perspective. This frees us to process them using

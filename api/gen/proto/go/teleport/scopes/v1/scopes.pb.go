@@ -107,6 +107,8 @@ type Pin struct {
 	// assignments encodes the scoped role assignments relevant to access-control decisions about the pinned identity. This may
 	// include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this
 	// means all assignments that are not orthogonal to the pinned scope.
+	//
+	// Deprecated: Marked as deprecated in teleport/scopes/v1/scopes.proto.
 	Assignments map[string]*PinnedAssignments `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// assignment_tree encodes the full tree of scoped privilege assignments, organized by *Scope of Origin*. Policies/privileges
 	// assigned from higher scopes of origin take precedence over those assigned from lower scopes of origin.
@@ -152,6 +154,7 @@ func (x *Pin) GetScope() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in teleport/scopes/v1/scopes.proto.
 func (x *Pin) GetAssignments() map[string]*PinnedAssignments {
 	if x != nil {
 		return x.Assignments
@@ -385,10 +388,10 @@ var File_teleport_scopes_v1_scopes_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\n" +
-	"\x1fteleport/scopes/v1/scopes.proto\x12\x12teleport.scopes.v1\"\x9b\x02\n" +
+	"\x1fteleport/scopes/v1/scopes.proto\x12\x12teleport.scopes.v1\"\x9f\x02\n" +
 	"\x03Pin\x12\x14\n" +
-	"\x05scope\x18\x01 \x01(\tR\x05scope\x12J\n" +
-	"\vassignments\x18\x02 \x03(\v2(.teleport.scopes.v1.Pin.AssignmentsEntryR\vassignments\x12K\n" +
+	"\x05scope\x18\x01 \x01(\tR\x05scope\x12N\n" +
+	"\vassignments\x18\x02 \x03(\v2(.teleport.scopes.v1.Pin.AssignmentsEntryB\x02\x18\x01R\vassignments\x12K\n" +
 	"\x0fassignment_tree\x18\x03 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x0eassignmentTree\x1ae\n" +
 	"\x10AssignmentsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12;\n" +

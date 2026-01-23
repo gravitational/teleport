@@ -4039,7 +4039,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	if ident.ScopePin != nil {
-		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", ident.ScopePin.Assignments)
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope)
 	}
 
 	return keyRing, nil

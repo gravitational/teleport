@@ -2839,7 +2839,7 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		user:            req.User,
 		sshPublicKey:    req.PublicKey,
 		compatibility:   constants.CertificateFormatStandard,
-		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
+		checkerContext:  services.NewUnscopedSplitAccessCheckerContext(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
 		ttl:             sessionTTL,
 		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
@@ -2992,10 +2992,10 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 	}
 
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:         userState,
-		tlsPublicKey: req.PublicKey,
+		user:           userState,
+		tlsPublicKey:   req.PublicKey,
 		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
-		ttl:          req.TTL,
+		ttl:            req.TTL,
 		// Set the login to be a random string. Application certificates are never
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
@@ -3054,12 +3054,12 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 		return nil, trace.Wrap(err)
 	}
 	certs, err := a.generateUserCert(ctx, certRequest{
-		user:         userState,
-		tlsPublicKey: req.PublicKey,
-		loginIP:      req.PinnedIP,
-		pinIP:        req.PinnedIP != "",
+		user:           userState,
+		tlsPublicKey:   req.PublicKey,
+		loginIP:        req.PinnedIP,
+		pinIP:          req.PinnedIP != "",
 		checkerContext: services.NewUnscopedSplitAccessCheckerContext(checker),
-		ttl:          time.Hour,
+		ttl:            time.Hour,
 		traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
 		},
@@ -3752,14 +3752,14 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			TTL:               sessionTTL,
 			CertificateFormat: certificateFormat,
 			Identity: sshca.Identity{
-				Username:              req.user.GetName(),
-				Impersonator:          req.impersonator,
-				Principals:            allowedLogins,
-				ScopePin:              scopePin,
-				Roles:                 roleNames,
-				PermitPortForwarding:  req.checkerContext.CanPortForward(),
-				PermitAgentForwarding: req.checkerContext.CanForwardAgents(),
-				PermitX11Forwarding:   req.checkerContext.PermitX11Forwarding(),
+				Username:                req.user.GetName(),
+				Impersonator:            req.impersonator,
+				Principals:              allowedLogins,
+				ScopePin:                scopePin,
+				Roles:                   roleNames,
+				PermitPortForwarding:    req.checkerContext.CanPortForward(),
+				PermitAgentForwarding:   req.checkerContext.CanForwardAgents(),
+				PermitX11Forwarding:     req.checkerContext.PermitX11Forwarding(),
 				RouteToCluster:          req.routeToCluster,
 				Traits:                  req.traits,
 				ActiveRequests:          req.activeRequests,
