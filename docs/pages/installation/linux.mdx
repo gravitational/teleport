@@ -31,17 +31,12 @@ out-of-date, become incompatible with the cluster, and eventually disconnect.
 
 ## Installing Teleport as a cluster
 
-If you are starting out with Teleport, we recommend beginning with a [Teleport Cloud](https://goteleport.com/signup/) account. From there, the only Teleport components you need to deploy yourself are Teleport Agents, which is discussed in the [next section](#installing-teleport-as-an-agent).
+These steps are specifically for the Teleport Enterprise (Self-Hosted) and Community Edition versions.
 
+If you are starting out with Teleport, we recommend beginning with a [Teleport Cloud](https://goteleport.com/signup/) account. From there, the only Teleport components you need to deploy yourself are Teleport Agents, which is discussed in the [next section](#installing-teleport-as-an-agent).
 If you are self-hosting a Teleport cluster, please take a look at our [Linux Demo](../get-started/deploy-community.mdx) for the Teleport Community Edition or our [Self-Hosting Teleport](../zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) section in the docs for more information on Teleport Enterprise Self-Hosted.
 
 <Tabs>
-<TabItem label="Teleport Enterprise Cloud (Managed)">
-
-Teleport Enterprise Cloud is provisioned and managed for you so there are no install steps. The only Teleport
-components you need to deploy yourself are Teleport Agents.
-
-</TabItem>
 <TabItem label="Teleport Enterprise (Self-Hosted)">
 ```code
 $ TELEPORT_EDITION="enterprise"
@@ -81,20 +76,22 @@ You should see output displaying the Teleport version number.
 
 <Checkpoint
   title="Troubleshoot cluster installation issues"
-  description="If the installation failed or teleport is not found, try these steps."
+  description="Success looks like: `teleport version` displays the expected version number."
 >
 
-- If `teleport` is not found, ensure `/usr/local/bin` is included in your `PATH`.
-- If the service is not running, start it with:
-  ```bash
-  sudo systemctl start teleport
+- If `teleport` is not found, the binary may not be in your PATH. For package installs, it should be in `/usr/bin/`. For TAR installs, check `/usr/local/bin/` and ensure it's in your PATH.
+- If the installation script failed, ensure the host has outbound internet access to download packages.
+- If the service fails to start:
+  ```code
+  $ sudo systemctl start teleport
+  $ sudo systemctl status teleport
   ```
+  **Note**: `systemctl status` will only show a service after you have created a configuration file at `/etc/teleport.yaml`.  
 - Check logs for startup errors:
-  ```bash
-  sudo journalctl -u teleport --no-pager
+  ```code
+  $ sudo journalctl -u teleport --no-pager -n 50
   ```
-- Ensure the host has outbound internet access during installation.
-- If systemd is not available, use a TAR archive installation instead.
+- If systemd is not available on your system, use a [TAR archive installation](#downloading-packages-and-tar-archives) instead.
 
 </Checkpoint>
 
@@ -109,7 +106,7 @@ See the following guides for help setting up a configuration file:
 
 ## Installing Teleport as an agent
 
-The easiest way to install Teleport as an agent is through the WebUI at `/web/discover`, where you can select a resource to enroll with your Teleport cluster and retrieve an "all-in-one" installation script to run on Linux hosts.
+The easiest way to install Teleport as an agent is through the Web UI at `/web/discover`, where you can select a resource to enroll with your Teleport cluster and retrieve an "all-in-one" installation script to run on Linux hosts.
 
 ### One-line installation script
 
@@ -119,7 +116,7 @@ Outside of the Web UI, you can run our one-line cluster install script on your L
    This should contain your cluster hostname and port, but not the scheme (https://).
 1. Run your cluster's install script:
 ```code
-   $ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
+$ curl "https://<Var name="example.teleport.sh:443"/>/scripts/install.sh" | sudo bash
 ```
 
 You can also use the example Terraform module for deploying agents in [Deploy
@@ -138,32 +135,42 @@ You should see the Teleport version and a status showing the service is active a
 
 <Checkpoint
   title="Troubleshoot agent installation issues"
-  description="If the agent is not running or failed to start, try these steps."
+  description="Success looks like: `teleport version` displays the version, and systemctl status shows active (running)."
 >
 
-- Start the service if it is not running:
-  ```bash
-  sudo systemctl start teleport
+- If the service is not running, start it and check status:
+  ```code
+  $ sudo systemctl start teleport
+  $ sudo systemctl status teleport
   ```
-- Check logs:
-  ```bash
-  sudo journalctl -u teleport --no-pager
+- To verify the agent is actually communicating with the cluster, 
+  check the Servers in the Web UI or run this on the Auth server:
+  ```code
+  $ sudo tctl nodes ls
   ```
-- Verify the join token is valid and unexpired.
-- Ensure the agent can reach the Teleport Proxy (firewalls, security groups).
-- Ensure system time is synchronized (for example, using `chronyd` or `systemd-timesyncd`).  
-  Clock skew can prevent agents from joining.
-- On SELinux systems, check for denied operations:
-  ```bash
-  ausearch -m avc -ts recent
+- Check logs for errors:
+  ```code
+  $ sudo journalctl -u teleport --no-pager -n 50
   ```
-- If your environment uses outbound TLS inspection or proxies, ensure Teleport traffic is not intercepted.
+- Verify a configuration file exists at `/etc/teleport.yaml`. If missing, the service will fail to start with a meaningful error.
+- If you see **"join token expired"** or **"token not found"** errors, generate a new join token from your cluster.
+- If you see **"connection refused"** or **"timeout"** errors, ensure the agent can reach the Teleport Proxy Service. Check firewalls, security groups, and DNS resolution.
+- If you see **"clock skew detected"** or certificate validity errors, synchronize system time:
+  ```code
+  $ timedatectl status
+  $ sudo systemctl restart chronyd  # or systemd-timesyncd
+  ```
+- On SELinux-enabled systems, check for denied operations:
+  ```code
+  $ sudo ausearch -m avc -ts recent
+  ```
+- If your environment uses outbound TLS inspection or proxies, ensure Teleport traffic to the Proxy Service is not intercepted.
 
 </Checkpoint>
 
 ### Agent configuration
 
-Outside of deploying Teleport as an agent in the WebUI, the methods for installing Teleport on a Linux server do not generate a Teleport configuration file for you. You will need to generate one prior to starting the Teleport service.
+Outside of deploying Teleport as an agent in the Web UI, the methods for installing Teleport on a Linux server do not generate a Teleport configuration file for you. You will need to generate one prior to starting the Teleport service.
 
 See the following guides for examples of setting up a configuration file:
 
@@ -229,6 +236,20 @@ systems. Source this file to define the variables:
 ```code
 $ source /etc/os-release
 ```
+
+<Checkpoint
+  title="Verify OS release variables"
+  description="Success looks like: echo $ID and echo $VERSION_CODENAME (or $VERSION_ID) return valid values."
+>
+
+- Run the following to confirm the variables are set:
+  ```code
+  $ echo "ID=$ID, VERSION_ID=$VERSION_ID, VERSION_CODENAME=$VERSION_CODENAME"
+  ```
+- If variables are empty, check that `/etc/os-release` exists and contains the expected fields.
+- If `VERSION_CODENAME` is blank (common on RHEL/CentOS/AL2), ensure your installation command uses `VERSION_ID` instead to avoid "404 Not Found" repository errors.
+
+</Checkpoint>
 
 #### Step 3: Verify your distribution is supported
 
@@ -303,7 +324,7 @@ $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.telepor
 $ sudo yum install ${TELEPORT_PKG?}
 #
 # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-# echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+# echo "Defaults secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 ```
 
 </TabItem>
@@ -320,7 +341,7 @@ $ sudo zypper --gpg-auto-import-keys refresh teleport
 $ sudo zypper install ${TELEPORT_PKG?}
 #
 # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-# echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+# echo "Defaults secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 ```
 
 </TabItem>
@@ -340,7 +361,7 @@ $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.telepor
 $ sudo dnf install ${TELEPORT_PKG}
 
 # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
-# echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+# echo "Defaults secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
 ```
 
 </TabItem>
@@ -357,13 +378,22 @@ You should see output displaying the Teleport version number.
 
 <Checkpoint
   title="Troubleshoot package repository installation issues"
-  description="If the installation failed or packages were not found, try these steps."
+  description="Success looks like: `teleport version` displays the expected version number."
 >
 
-- Verify `ID`, `VERSION_ID`, and `VERSION_CODENAME` in `/etc/os-release`.
-- For apt-based systems, ensure the GPG key exists in `/etc/apt/keyrings/`.
-- Verify the correct `TELEPORT_CHANNEL` is configured.
-- If `teleport` or `tctl` works without `sudo` but fails with it, ensure `/usr/local/bin` is included in sudo’s secure path.
+- If the package was not found, verify environment variables are set correctly:
+  ```code
+  $ echo "ID=$ID, VERSION_ID=$VERSION_ID, TELEPORT_PKG=$TELEPORT_PKG, TELEPORT_CHANNEL=$TELEPORT_CHANNEL"
+  ```
+- For apt-based systems, ensure the GPG key was downloaded to `/etc/apt/keyrings/teleport-archive-keyring.asc`.
+- If you see **"repository not found"** or **"404"** errors, your distribution or version may not be supported. Check the [supported distributions table](#step-3-verify-your-distribution-is-supported) and try using `ID_LIKE` if available.
+- Clear package manager cache and retry:
+  ```code
+  $ sudo apt-get clean && sudo apt-get update  # Debian/Ubuntu
+  $ sudo yum clean all && sudo yum makecache   # RHEL/CentOS
+  $ sudo dnf clean all && sudo dnf makecache   # Fedora/RHEL 8+
+  ```
+- If `teleport` works but `sudo tctl` fails with "command not found", package installs place binaries in `/usr/bin/` which should already be in sudo's secure_path.
 
 </Checkpoint>
 
@@ -397,6 +427,7 @@ $ TELEPORT_PKG=teleport-ent
 
 Specify your system Teleport version and system architecture by assigning an
 environment variable:
+
 ```code
 $ TELEPORT_VERSION=(=teleport.version=)
 $ SYSTEM_ARCH=""
@@ -408,6 +439,27 @@ The following architecture values are available:
 - `arm64`
 - `arm`
 - `386` (`i386` if downloading a DEB or RPM package)
+
+<Checkpoint
+  title="Verify system architecture"
+  description="Success looks like: uname -m returns a recognized architecture (x86_64, aarch64, armv7l, or i686)."
+>
+
+**Determine your system architecture:**
+
+```code
+$ uname -m
+```
+Map the output to the correct `SYSTEM_ARCH` value:
+
+| `uname -m` output | `SYSTEM_ARCH` value | Notes |
+|-------------------|---------------------|-------|
+| `x86_64` | `amd64` | Use `x86_64` for RPM packages |
+| `aarch64` | `arm64` | |
+| `armv7l` | `arm` | |
+| `i686` | `386` | Use `i386` for DEB/RPM packages |
+
+</Checkpoint>
 
 #### Step 3: Download and install
 
@@ -472,8 +524,8 @@ $ sudo ./teleport-update enable --proxy example.teleport.sh # or sudo ./install 
 </TabItem>
 <TabItem label="DEB">
 
-FIPS builds are only available for the `arm64` and `amd64` system
-architectures.
+FIPS builds are only available for the `arm64`, `amd64` and `x86_64` (RPM) system
+architectures. 
 ```code
 $ curl -O https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb.sha256
 $ curl -O https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}-fips_${SYSTEM_ARCH}.deb
@@ -511,24 +563,41 @@ You should see output displaying the Teleport version number.
 
 <Checkpoint
   title="Troubleshoot manual installation issues"
-  description="If the installation failed or teleport is not found, try these steps."
+  description="Success looks like: `teleport version` displays the expected version number."
 >
 
-- Re-download packages if checksum verification fails.
-- Ensure the install script was executed for TAR installs.
-- Resolve dependency issues using:
-  - `apt-get install -f`
-  - `yum localinstall`
-  - `dnf localinstall`
-- After enabling managed updates:
-  ```bash
-  teleport-update enable
-  sudo systemctl start teleport
+- If checksum verification fails (`shasum` reports mismatch), delete the downloaded files and re-download. 
+  The file may have been corrupted or incompletely downloaded.
+- If `teleport` is not found after TAR installation:
+  - Ensure you ran the install script from the extracted directory: `sudo ./install`
+  - Verify binaries exist in `/usr/local/bin/`:
+    ```code
+    $ ls -la /usr/local/bin/teleport /usr/local/bin/tctl /usr/local/bin/tsh
+    ```
+  - Add `/usr/local/bin` to your PATH if needed:
+    ```code
+    $ export PATH=$PATH:/usr/local/bin
+    ```
+- If `sudo tctl` fails but `tctl` works, add `/usr/local/bin` to sudo's secure_path:
+  ```code
+  $ echo 'Defaults secure_path="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin"' | sudo tee /etc/sudoers.d/secure_path
   ```
-- Ensure the package architecture matches:
-  ```bash
-  uname -m
+- If the DEB/RPM install fails with dependency errors:
+  ```code
+  $ sudo apt-get install -f          # Debian/Ubuntu
+  $ sudo yum localinstall <package>  # RHEL/CentOS
+  $ sudo dnf localinstall <package>  # Fedora/RHEL 8+
   ```
+- If systemd does not recognize the Teleport service after TAR install, reload unit files:
+  ```code
+  $ sudo systemctl daemon-reload
+  ```
+- Verify the package architecture matches your system:
+  ```code
+  $ uname -m
+  $ file /usr/local/bin/teleport  # Should show matching architecture
+  ```
+
 </Checkpoint>
 
 ### From your browser
