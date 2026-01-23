@@ -569,4 +569,7 @@ message UpdateAccessListWithPresetResponse {
   AccessList access_list = 1;
   // roles are the updated roles that grant permissions to resources. Managed by Teleport.
   repeated types.RoleV6 roles = 2;
+
+  //
+  repeated string roles_to_be_deleted = 3;
 }

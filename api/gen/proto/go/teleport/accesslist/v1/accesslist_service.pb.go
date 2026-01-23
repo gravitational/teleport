@@ -2861,9 +2861,10 @@ type UpdateAccessListWithPresetResponse struct {
 	// access_list is the updated access list with the latest configuration.
 	AccessList *AccessList `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// roles are the updated roles that grant permissions to resources. Managed by Teleport.
-	Roles         []*types.RoleV6 `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Roles []*types.RoleV6 `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	RolesToBeDeleted []string `protobuf:"bytes,3,rep,name=roles_to_be_deleted,json=rolesToBeDeleted,proto3" json:"roles_to_be_deleted,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *UpdateAccessListWithPresetResponse) Reset() {
@@ -2906,6 +2907,13 @@ func (x *UpdateAccessListWithPresetResponse) GetAccessList() *AccessList {
 func (x *UpdateAccessListWithPresetResponse) GetRoles() []*types.RoleV6 {
 	if x != nil {
 		return x.Roles
+	}
+	return nil
+}
+
+func (x *UpdateAccessListWithPresetResponse) GetRolesToBeDeleted() []string {
+	if x != nil {
+		return x.RolesToBeDeleted
 	}
 	return nil
 }
@@ -3090,11 +3098,12 @@ const file_teleport_accesslist_v1_accesslist_service_proto_rawDesc = "" +
 	"!UpdateAccessListWithPresetRequest\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x12#\n" +
-	"\x05roles\x18\x02 \x03(\v2\r.types.RoleV6R\x05roles\"\x8e\x01\n" +
+	"\x05roles\x18\x02 \x03(\v2\r.types.RoleV6R\x05roles\"\xbd\x01\n" +
 	"\"UpdateAccessListWithPresetResponse\x12C\n" +
 	"\vaccess_list\x18\x01 \x01(\v2\".teleport.accesslist.v1.AccessListR\n" +
 	"accessList\x12#\n" +
-	"\x05roles\x18\x02 \x03(\v2\r.types.RoleV6R\x05roles2\xf4 \n" +
+	"\x05roles\x18\x02 \x03(\v2\r.types.RoleV6R\x05roles\x12-\n" +
+	"\x13roles_to_be_deleted\x18\x03 \x03(\tR\x10rolesToBeDeleted2\xf4 \n" +
 	"\x11AccessListService\x12o\n" +
 	"\x0eGetAccessLists\x12-.teleport.accesslist.v1.GetAccessListsRequest\x1a..teleport.accesslist.v1.GetAccessListsResponse\x12w\n" +
 	"\x0fListAccessLists\x12..teleport.accesslist.v1.ListAccessListsRequest\x1a/.teleport.accesslist.v1.ListAccessListsResponse\"\x03\x88\x02\x01\x12x\n" +
