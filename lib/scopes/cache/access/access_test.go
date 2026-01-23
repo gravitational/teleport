@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	cachepkg "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1077,10 +1078,10 @@ func TestAccessListMaterializationOwnerGrants(t *testing.T) {
 	defer cache.Close()
 
 	for roleName, scope := range map[string]string{
-		"primary-member":  "/primary",
-		"primary-owner":   "/primary",
-		"owners-member":   "/owners",
-		"owners-owner":    "/owners",
+		"primary-member":   "/primary",
+		"primary-owner":    "/primary",
+		"owners-member":    "/owners",
+		"owners-owner":     "/owners",
 		"subowners-member": "/subowners",
 		"subowners-owner":  "/subowners",
 	} {
@@ -1289,11 +1290,11 @@ func BenchmarkAccessListMaterialization(b *testing.B) {
 			nestedFanout: 2,
 		},
 		{
-			name:         "lists=40/users=50000",
-			lists:        40,
+			name:         "big",
+			lists:        25000,
 			users:        50000,
-			usersPerList: 1000,
-			nestedFanout: 2,
+			usersPerList: 200,
+			nestedFanout: 0,
 		},
 	}
 	for _, tc := range cases {
@@ -1417,15 +1418,6 @@ func BenchmarkAccessListMaterialization(b *testing.B) {
 	}
 }
 
-func BenchmarkHuge(b *testing.B) {
-	const (
-		listCount    = 25000
-		usersPerList = 20000
-		userCount    = 5000000
-	)
-
-}
-
 type materializationBenchConfig struct {
 	lists        int
 	users        int
@@ -1440,6 +1432,8 @@ func seedAccessListMaterializationData(b testing.TB, service *local.AccessListSe
 	seedTime := time.Unix(1700000000, 0).UTC()
 	const maxNestingDepth = 10
 
+	collection := &accesslists.Collection{}
+
 	for i := 0; i < cfg.lists; i++ {
 		listName := fmt.Sprintf("list-%05d", i)
 		list := newAccessList(b, listName)
@@ -1451,8 +1445,7 @@ func seedAccessListMaterializationData(b testing.TB, service *local.AccessListSe
 				},
 			},
 		}
-		_, err := service.UpsertAccessList(ctx, list)
-		require.NoError(b, err)
+		require.NoError(b, collection.AddAccessList(list, nil))
 	}
 
 	for i := 0; i < cfg.lists; i++ {
@@ -1463,8 +1456,7 @@ func seedAccessListMaterializationData(b testing.TB, service *local.AccessListSe
 			member := newAccessListMember(b, listName, userName, accesslist.MembershipKindUser)
 			member.Spec.Joined = seedTime
 			member.Spec.AddedBy = "seed"
-			_, err := service.UpsertAccessListMember(ctx, member)
-			require.NoError(b, err)
+			collection.MembersByAccessList[listName] = append(collection.MembersByAccessList[listName], member)
 		}
 	}
 
@@ -1485,10 +1477,11 @@ func seedAccessListMaterializationData(b testing.TB, service *local.AccessListSe
 			member := newAccessListMember(b, parentList, childList, accesslist.MembershipKindList)
 			member.Spec.Joined = seedTime
 			member.Spec.AddedBy = "seed"
-			_, err := service.UpsertAccessListMember(ctx, member)
-			require.NoError(b, err)
+			collection.MembersByAccessList[parentList] = append(collection.MembersByAccessList[parentList], member)
 		}
 	}
+
+	require.NoError(b, service.InsertAccessListCollection(ctx, collection))
 }
 
 func newScopedRole(name string) *scopedaccessv1.ScopedRole {
