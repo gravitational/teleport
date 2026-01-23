@@ -36,6 +36,7 @@ import (
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
@@ -767,18 +768,50 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 	return accounts, nil
 }
 
-func repackManagedResource(src *identitycenterv1.ManagedResource) (resource, bool) {
-	return types.Resource153ToLegacy(src), true
+// func repackManagedResource(src *identitycenterv1.ManagedResource) (resource, bool) {
+// 	spec := src.GetSpec()
+// 	return proto.IdentityCenterManagedResource{
+// 		Kind:        types.KindIdentityCenterManagedResource,
+// 		SubKind:     src.SubKind,
+// 		Version:     src.Version,
+// 		Metadata:    types.Metadata153ToLegacy(src.Metadata),
+// 		DisplayName: spec.GetName(),
+// 		ARN:         spec.GetArn(),
+// 		AWSAccount:  spec.GetAccount(),
+// 	}, true
+// }
+
+type ClonableResource struct {
+	types.ResourceWithLabels
+	inner *identitycenterv1.ManagedResource
+}
+
+func (r *ClonableResource) CloneResource() types.ResourceWithLabels {
+	clone := apiutils.CloneProtoMsg(r.inner)
+	return wrapResource(clone)
+}
+
+func wrapResource(r *identitycenterv1.ManagedResource) *ClonableResource {
+	return &ClonableResource{
+		ResourceWithLabels: types.Resource153ToResourceWithLabels(r),
+		inner:              r,
+	}
 }
 
 func (c *UnifiedResourceCache) getIdentityCenterManagedResources(ctx context.Context) ([]resource, error) {
+	wrap := func(r *identitycenterv1.ManagedResource) (resource, bool) {
+		return wrapResource(r), true
+	}
+
 	resources, err :=
 		stream.Collect(
 			stream.FilterMap(
-				clientutils.Resources(ctx, c.ListIdentityCenterManagedResources), repackManagedResource))
+				clientutils.Resources(ctx, c.ListIdentityCenterManagedResources),
+				wrap))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return resources, nil
 }
 
@@ -1308,14 +1341,16 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		}
 
 	case types.KindIdentityCenterManagedResource:
-		unwrapper, ok := resource.(types.Resource153UnwrapperT[IdentityCenterManagedResource])
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*identitycenterv1.ManagedResource])
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
+		unwrapper.UnwrapT()
+
 		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_AppServer{
-				AppServer: IdentityCenterAccountToAppServer(unwrapper.UnwrapT().Account),
+			Resource: &proto.PaginatedResource_IdentityCenterManagedResource{
+				IdentityCenterManagedResource: nil,
 			},
 			RequiresRequest: requiresRequest,
 		}

@@ -58,9 +58,10 @@ message ManagedResource {
 message ManagedResourceSpec {
   string arn = 1;
   string name = 2;
+  string account = 3;
   // Dependencies holds a list of ARNs containing resources that this resource
   // depends on.
-  repeated string dependencies = 3;
+  repeated string dependencies = 4;
 }
 
 // AccessProfile describes a set of allowed actions on an AWS resource

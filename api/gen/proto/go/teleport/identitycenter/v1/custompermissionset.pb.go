@@ -266,12 +266,13 @@ func (x *ManagedResource) GetSpec() *ManagedResourceSpec {
 
 // AWSResourceSpec holds information about an AWS resource
 type ManagedResourceSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Arn   string                 `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
-	Name  string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Arn     string                 `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
+	Name    string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Account string                 `protobuf:"bytes,3,opt,name=account,proto3" json:"account,omitempty"`
 	// Dependencies holds a list of ARNs containing resources that this resource
 	// depends on.
-	Dependencies  []string `protobuf:"bytes,3,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
+	Dependencies  []string `protobuf:"bytes,4,rep,name=dependencies,proto3" json:"dependencies,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -316,6 +317,13 @@ func (x *ManagedResourceSpec) GetArn() string {
 func (x *ManagedResourceSpec) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *ManagedResourceSpec) GetAccount() string {
+	if x != nil {
+		return x.Account
 	}
 	return ""
 }
@@ -486,11 +494,12 @@ const file_teleport_identitycenter_v1_custompermissionset_proto_rawDesc = "" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12C\n" +
-	"\x04spec\x18\x05 \x01(\v2/.teleport.identitycenter.v1.ManagedResourceSpecR\x04spec\"_\n" +
+	"\x04spec\x18\x05 \x01(\v2/.teleport.identitycenter.v1.ManagedResourceSpecR\x04spec\"y\n" +
 	"\x13ManagedResourceSpec\x12\x10\n" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\"\n" +
-	"\fdependencies\x18\x03 \x03(\tR\fdependencies\"\xd5\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aaccount\x18\x03 \x01(\tR\aaccount\x12\"\n" +
+	"\fdependencies\x18\x04 \x03(\tR\fdependencies\"\xd5\x01\n" +
 	"\rAccessProfile\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
