@@ -497,6 +497,8 @@ export type IntegrationWithSummary = {
   subKind: string;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration.
   unresolvedUserTasks: number;
+  // userTasks contains the list of unresolved user tasks related to this integration.
+  userTasks?: UserTask[];
   // awsra contains the fields for `aws-ra` subkind integration.
   awsra: IntegrationSpecAwsRa;
   // awsoidc contains the fields for `aws-oidc` subkind integration.
@@ -509,6 +511,7 @@ export type IntegrationWithSummary = {
   awseks: ResourceTypeSummary;
   // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
   rolesAnywhereProfileSync: RolesAnywhereProfileSync;
+  isManagedByTerraform?: boolean;
 };
 
 // IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
