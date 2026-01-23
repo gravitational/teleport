@@ -24,13 +24,12 @@ import Flex from '../Flex';
 import * as Icons from '../Icon';
 import { Origin } from '../Popover';
 import { H3 } from '../Text';
-import Menu from './Menu';
+import Menu, { MenuList } from './Menu';
 import MenuItem, {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from './MenuItem';
 import MenuItemIcon from './MenuItemIcon';
-import MenuList from './MenuList';
 
 export default {
   title: 'Design/Menu',
