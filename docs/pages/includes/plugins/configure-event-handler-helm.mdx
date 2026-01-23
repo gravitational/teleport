@@ -1,0 +1,19 @@
+Run the `configure` command to generate a sample configuration. Assign
+`TELEPORT_CLUSTER_ADDRESS` to the DNS name and port of your Teleport Auth
+Service or Proxy Service:
+
+```code
+$ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
+```
+
+In order to export audit events, you'll need to have the root certificate and the
+client credentials available as a secret. Use the following command to create
+that secret in Kubernetes:
+
+```code
+$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+```
+
+This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
+secret so the Helm chart can mount them to their appropriate path.

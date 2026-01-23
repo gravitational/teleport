@@ -13,6 +13,17 @@ your cluster.
 You can use Teleport's Event Handler plugin to export audit events from Teleport
 so you can store them in a log management platform or custom backend.
 
+## Getting Started
+
+The first step is to set up the Event Handler plugin with your Teleport cluster.
+We will generate the credentials needed for the Event Handler to authenticate to the
+Teleport Auth Service and access the events API.
+
+- [Set up Event Handler with tctl](event-handler-setup.mdx)
+- [Set up Event Handler with Teleport Kubernetes Operator](event-handler-setup-operator.mdx)
+
+## Integrations
+
 If you are new to exporting audit events with Teleport, read [Forwarding Events
 with Fluentd](fluentd.mdx) to learn the basics of how our
 Event Handler plugin works. While this guide focuses on Fluentd, the Event
@@ -22,15 +33,15 @@ messages via HTTP.
 Next, read our guides to setting up the Event Handler plugin to export audit
 events to your solution of choice:
 
-- [Monitor Teleport Audit Events with the Elastic
+- [Export Teleport Audit Events with the Elastic
   Stack](elastic-stack.mdx): How to configure the Event
   Handler plugin to forward Teleport audit logs to Logstash for ingestion in
   Elasticsearch so you can explore them in Kibana.
-- [Monitor Teleport Audit Events with Panther](panther.mdx):
+- [Export Teleport Audit Events with Panther](panther.mdx):
   How to configure the Event Handler plugin to send logs to Panther via Fluentd
   so you can explore your audit events in Panther.
-- [Monitor Teleport Audit Events with Splunk](splunk.mdx):
+- [Export Teleport Audit Events with Splunk](splunk.mdx):
   How to configure the Event Handler plugin to send logs to Splunk's Universal
   Forwarder so you can explore your audit events in Splunk.
-- [Monitor Teleport Audit Events with Datadog](datadog.mdx):
+- [Export Teleport Audit Events with Datadog](datadog.mdx):
   How to configure the Event Handler plugin to export audit logs to Datadog via Fluentd.

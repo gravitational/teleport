@@ -1,0 +1,40 @@
+{/* this comment is here to make the includes below render */}
+
+<Tabs>
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+
+Run the `configure` command to generate a sample configuration. Replace
+`mytenant.teleport.sh` with the DNS name of your Teleport Enterprise Cloud
+tenant:
+
+```code
+$ teleport-event-handler configure . mytenant.teleport.sh:443
+```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Run the `configure` command to generate a sample configuration. Replace
+`mytenant.teleport.sh:443` with the DNS name and HTTPS port of Teleport's Proxy
+Service:
+
+```code
+$ teleport-event-handler configure . teleport.example.com:443
+```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
+
+(!docs/pages/includes/plugins/configure-event-handler-helm.mdx!)
+
+</TabItem>
+<TabItem label="Local Docker test">
+
+Run the `configure` command to generate a sample configuration:
+
+```code
+$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure .
+```
+
+</TabItem>
+</Tabs>

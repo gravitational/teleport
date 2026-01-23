@@ -1,60 +1,3 @@
-<Tabs>
-<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
-
-Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh` with the DNS name of your Teleport Enterprise Cloud
-tenant:
-
-```code
-$ teleport-event-handler configure . mytenant.teleport.sh:443
-```
-
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh:443` with the DNS name and HTTPS port of Teleport's Proxy
-Service:
-
-```code
-$ teleport-event-handler configure . teleport.example.com:443
-```
-
-</TabItem>
-<TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
-
-Run the `configure` command to generate a sample configuration. Assign
-`TELEPORT_CLUSTER_ADDRESS` to the DNS name and port of your Teleport Auth
-Service or Proxy Service:
-
-```code
-$ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
-```
-
-In order to export audit events, you'll need to have the root certificate and the
-client credentials available as a secret. Use the following command to create
-that secret in Kubernetes:
-
-```code
-$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
-```
-
-This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
-secret so the Helm chart can mount them to their appropriate path.
-
-</TabItem>
-<TabItem label="Local Docker test">
-
-Run the `configure` command to generate a sample configuration:
-
-```code
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=) configure .
-```
-
-</TabItem>
-</Tabs>
-
 You'll see the following output:
 
 ```txt
@@ -99,22 +42,17 @@ $ ls -l
 This guide assumes that you are running the Event Handler on the same host or
 Kubernetes pod as your log forwarder. If you are not, you will need to instruct
 the Event Handler to generate mTLS certificates for subjects besides
-`localhost`. To do this, use the `--cn` and `--dns-names` flags of the
+`localhost`. To do this, use the `--dns-names` flag of the
 `teleport-event-handler` configure command.
 
-For example, if your log forwarder is addressable at `forwarder.example.com` and the
-Event Handler at `handler.example.com`, you would run the following `configure`
-command:
+For example, if your log forwarder is addressable at `forwarder.example.com`,
+you would run the following `configure` command:
 
 ```code
-$ teleport-event-handler configure --cn=handler.example.com --dns-names=forwarder.example.com
+$ teleport-event-handler configure --dns-names=forwarder.example.com
 ```
-
-The command generates client and server certificates with the subjects set to
-the value of `--cn`.
 
 The `--dns-names` flag accepts a comma-separated list of DNS names. It will
 append subject alternative names (SANs) to the server certificate (the one you
 will provide to your log forwarder) for each DNS name in the list.
 </details>
-
