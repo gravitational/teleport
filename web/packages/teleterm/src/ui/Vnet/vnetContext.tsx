@@ -88,9 +88,10 @@ export type VnetContext = {
     runDiagnosticsAttempt: Attempt<Report>
   ) => string;
   /**
-   * Status of checks performed before running the VNet service.
+   * Status of install-time prerequisites (for example, VNet service presence) that can
+   * only be changed by reinstalling the app.
    */
-  installationRequirementsCheck: InstallTimeRequirementsCheck;
+  installTimeRequirementsCheck: InstallTimeRequirementsCheck;
   /**
    * Dismisses the diagnostics alert shown in the VNet panel. It won't be shown again until the user
    * reinstates the alert by manually requesting diagnostics to be run from the VNet panel.
@@ -176,21 +177,21 @@ export const VnetContextProvider: FC<
   );
   const isSupported = platform === 'darwin' || platform === 'win32';
 
-  const [checkPreRunRequirementsAttempt, performPreRunRequirementsCheck] =
+  const [checkInstallTimeRequirementsAttempt, checkInstallTimeRequirements] =
     useAsync(
       useCallback(async () => {
         const { response } = await vnet.checkInstallTimeRequirements({});
         return response;
       }, [vnet])
     );
-  const installationRequirementsCheck = useMemo(
-    () => makeInstallTimeRequirements(checkPreRunRequirementsAttempt),
-    [checkPreRunRequirementsAttempt]
+  const installTimeRequirementsCheck = useMemo(
+    () => makeInstallTimeRequirements(checkInstallTimeRequirementsAttempt),
+    [checkInstallTimeRequirementsAttempt]
   );
 
   useEffect(() => {
-    performPreRunRequirementsCheck();
-  }, [performPreRunRequirementsCheck]);
+    checkInstallTimeRequirements();
+  }, [checkInstallTimeRequirements]);
 
   const [startAttempt, start] = useAsync(
     useCallback(async () => {
@@ -363,7 +364,7 @@ export const VnetContextProvider: FC<
         // so we have to wait for the tshd events service to be initialized.
         isWorkspaceStateInitialized &&
         startAttempt.status === '' &&
-        installationRequirementsCheck.status === 'success'
+        installTimeRequirementsCheck.status === 'success'
       ) {
         const [, error] = await start();
 
@@ -376,7 +377,7 @@ export const VnetContextProvider: FC<
     };
 
     handleAutoStart();
-  }, [isWorkspaceStateInitialized, installationRequirementsCheck.status]);
+  }, [isWorkspaceStateInitialized, installTimeRequirementsCheck.status]);
 
   useEffect(
     function handleUnexpectedShutdown() {
@@ -557,7 +558,7 @@ export const VnetContextProvider: FC<
         showDiagWarningIndicator,
         hasEverStarted,
         openSSHConfigurationModal,
-        installationRequirementsCheck,
+        installTimeRequirementsCheck,
       }}
     >
       {children}
