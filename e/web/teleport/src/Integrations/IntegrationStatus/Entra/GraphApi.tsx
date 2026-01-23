@@ -14,7 +14,6 @@ export function GraphApiDetails({
 }) {
   return (
     <CardTile
-      maxWidth="40%"
       css={`
         @media screen and (max-width: ${p => p.theme.breakpoints.medium}) {
           max-width: 100%;

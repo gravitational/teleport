@@ -25,8 +25,10 @@ export function AccessGraphSyncDetails({
 
   return (
     <CardTile
-      maxWidth="30%"
       css={`
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
+          max-width: 30%;
+        }
         @media screen and (max-width: ${p => p.theme.breakpoints.medium}) {
           max-width: 100%;
         }

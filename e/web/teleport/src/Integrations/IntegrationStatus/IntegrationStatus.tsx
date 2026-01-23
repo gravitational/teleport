@@ -184,6 +184,6 @@ function getSubTitle(kind: PluginKind) {
   }
 
   if (kind === 'entra-id') {
-    return 'Entra ID';
+    return 'Microsoft Entra ID';
   }
 }

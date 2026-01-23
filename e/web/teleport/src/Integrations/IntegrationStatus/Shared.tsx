@@ -187,23 +187,26 @@ color: ${p.theme.colors.success.hover};`}
 
 export function CustomLabel({ enabled }: { enabled: boolean }) {
   return (
-    <LightLabel kind={enabled ? 'success' : 'secondary'}>
-      <Flex alignItems="center" gap={1}>
-        {enabled ? (
-          <CircleCheck size="small" py="6px" />
-        ) : (
-          <CircleCross size="small" py="6px" />
-        )}
-        <span
-          css={`
-            @media screen and (max-width: ${p => p.theme.breakpoints.medium}) {
-              display: none;
-            }
-          `}
-        >
-          {enabled ? 'Enabled' : 'Disabled'}
-        </span>
-      </Flex>
-    </LightLabel>
+    <Flex>
+      <LightLabel kind={enabled ? 'success' : 'secondary'}>
+        <Flex alignItems="center" gap={1}>
+          {enabled ? (
+            <CircleCheck size="small" py="6px" />
+          ) : (
+            <CircleCross size="small" py="6px" />
+          )}
+          <span
+            css={`
+              @media screen and (max-width: ${p =>
+                  p.theme.breakpoints.medium}) {
+                display: none;
+              }
+            `}
+          >
+            {enabled ? 'Enabled' : 'Disabled'}
+          </span>
+        </Flex>
+      </LightLabel>
+    </Flex>
   );
 }

@@ -110,6 +110,22 @@ export function DirectorySyncDetails({
           importSuceeded={status?.code === IntegrationStatusCode.Running}
           desc="Synced as Teleport User Resources"
         />
+        <Flex flexDirection="column">
+          <span
+            css={`
+              @media screen and (max-width: ${p =>
+                  p.theme.breakpoints.tablet}) {
+                border-left: none;
+                border-top: 1px solid ${p => p.theme.colors.spotBackground[2]};
+                width: 100%;
+                height: 1px;
+              }
+              border-left: 1px solid ${p => p.theme.colors.spotBackground[2]};
+              height: 100%;
+              width: 1px;
+            `}
+          />
+        </Flex>
         <ImportSummary
           title="Groups"
           num={status?.details?.imported_groups}
@@ -123,13 +139,13 @@ export function DirectorySyncDetails({
           css={`
             border-left: none;
             border-top: 1px solid ${p => p.theme.colors.spotBackground[2]};
-            width: 50%;
+            width: 100%;
             height: 1px;
           `}
-        ></span>
+        />
       </Flex>
 
-      <Flex flexDirection="column" px={1} gap={3} mt={4} mb={3}>
+      <Flex flexDirection="column" px={1} gap={3} mt={3} mb={3}>
         <Text bold>Group Import Settings</Text>
 
         <SettingContainer>
@@ -320,11 +336,14 @@ function hasExcludeFilters(filters: Filters): boolean {
 }
 
 const SettingContainer = styled(Flex)`
+  display: grid;
+  @media screen and (max-width: ${p => p.theme.breakpoints.large}) {
+    grid-template-columns: 1fr 5fr;
+  }
   @media screen and (max-width: ${p => p.theme.breakpoints.medium}) {
     grid-template-columns: 1fr;
   }
-  display: grid;
-  grid-template-columns: 1.3fr 8fr;
+  grid-template-columns: 1fr 6fr;
 `;
 
 function getDurationText(date: Date | undefined) {
