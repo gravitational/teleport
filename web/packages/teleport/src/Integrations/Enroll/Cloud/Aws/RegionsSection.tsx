@@ -57,40 +57,37 @@ export function RegionsSection({ regions, onChange }: RegionsSectionProps) {
 
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium">
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
         <CircleNumber>4</CircleNumber>
         Regions
       </Flex>
-      <Text mb={3} ml={4}>
+      <Text mb={1} ml={4}>
         Select the AWS regions where your resources are located.
       </Text>
       <Box ml={4}>
         <FieldRadio
           name="regions"
           label={
-            <Flex alignItems="center" gap={2}>
-              <RadioLabel selected={isWildcard(regions)}>
-                All Regions
-              </RadioLabel>
+            <Flex alignItems="center">
+              <RadioLabel selected={false}>All Regions</RadioLabel>
             </Flex>
           }
           size="small"
           checked={isWildcard(regions)}
           onChange={() => onChange(['*'])}
+          mb={1}
         />
         <FieldRadio
           name="regions"
           label={
-            <Flex alignItems="center" gap={2}>
-              <RadioLabel selected={!isWildcard}>
-                Select specific Regions
-              </RadioLabel>
+            <Flex alignItems="center">
+              <RadioLabel selected={false}>Select specific Regions</RadioLabel>
             </Flex>
           }
           size="small"
           checked={!isWildcard(regions)}
           onChange={() => onChange([])}
-          mb={0}
+          mb={1}
         />
 
         {!isWildcard(regions) && (
