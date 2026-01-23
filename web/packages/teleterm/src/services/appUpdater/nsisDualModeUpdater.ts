@@ -53,7 +53,10 @@ export class NsisDualModeUpdater extends NsisUpdater {
   }
 
   /**
-   * Copied from the NSIS updater.
+   * Copied from `doInstall` in  NSIS updater:
+   * https://github.com/electron-userland/electron-builder/blob/7b5901b77dfae417c29944656b80c583384de026/packages/electron-updater/src/NsisUpdater.ts#L126-L181
+   * (commit 8ba9be481e3b777aa77884d265fd9b7f927a8a99).
+   *
    * The only change is the addition of the `/currentuser` flag to prevent attempts
    * to update an existing per-machine installation.
    */
