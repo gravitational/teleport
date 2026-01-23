@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,7 +21,6 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 type DeleteIntegrationSectionProps = {
   integrationName: string;
-  resourceCount?: number;
 };
 
 export function DeleteIntegrationSection({
@@ -41,7 +40,8 @@ export function DeleteIntegrationSection({
               <Text as="strong" fontWeight="bold">
                 {integrationName}
               </Text>{' '}
-              will stop auto-discovery. This action cannot be undone.
+              module from your Terraform configuration will remove Teleport and
+              AWS resources used for auto-discovery.
             </Text>
           </Flex>
         </Alert>
