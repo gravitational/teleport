@@ -198,7 +198,6 @@ func (ns *NodeSession) regularSession(ctx context.Context, sessionParams *traces
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	session.Stdout = ns.terminal.Stdout()
 	session.Stderr = ns.terminal.Stderr()
 	session.Stdin = ns.terminal.Stdin()
@@ -294,7 +293,6 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, sessionParams *tr
 	if termType == "" {
 		termType = teleport.SafeTerminalType
 	}
-
 	// create the server-side session:
 	sess, err := ns.createServerSession(ctx, sessionParams)
 	if err != nil {
