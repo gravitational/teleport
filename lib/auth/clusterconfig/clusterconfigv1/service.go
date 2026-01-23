@@ -930,8 +930,8 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport service")
 	}
 
-	// If the policy feature is disabled in the license, return a disabled response. if cloud, return the response to allow demo mode enabling
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+	// If the access graph feature is disabled in the license, return a disabled response. if cloud, return the response to allow demo mode enabling
+	if !modules.GetModules().Features().GetEntitlement(entitlements.AccessGraph).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
 		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 			AccessGraph: &clusterconfigpb.AccessGraphConfig{
 				Enabled: false,
@@ -1032,7 +1032,7 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.AccessGraph).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1076,7 +1076,7 @@ func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.AccessGraph).Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1120,7 +1120,7 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.AccessGraph).Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 

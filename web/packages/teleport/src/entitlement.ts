@@ -39,7 +39,7 @@ type entitlement =
   | 'OIDC'
   | 'OktaSCIM'
   | 'OktaUserSync'
-  | 'Policy'
+  | 'Policy' // TODO(emargetis) DELETE IN 21.0.0, use AccessGraph instead
   | 'SAML'
   | 'SessionLocks'
   | 'UnrestrictedManagedUpdates'

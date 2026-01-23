@@ -1873,7 +1873,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -1898,7 +1898,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -1923,7 +1923,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -2081,7 +2081,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -2206,7 +2206,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -2300,7 +2300,7 @@ func TestResetAccessGraphSettings(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}

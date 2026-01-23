@@ -47,7 +47,7 @@ const (
 	OIDC                       EntitlementKind = "OIDC"
 	OktaSCIM                   EntitlementKind = "OktaSCIM"
 	OktaUserSync               EntitlementKind = "OktaUserSync"
-	Policy                     EntitlementKind = "Policy"
+	Policy                     EntitlementKind = "Policy" // TODO(emargetis) DELETE IN 21.0.0, replaced by AccessGraph
 	SAML                       EntitlementKind = "SAML"
 	SessionLocks               EntitlementKind = "SessionLocks"
 	UnrestrictedManagedUpdates EntitlementKind = "UnrestrictedManagedUpdates"
