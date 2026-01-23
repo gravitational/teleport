@@ -43,7 +43,7 @@ export const VnetSliderStep = (props: StepComponentProps) => {
     status,
     startAttempt,
     stopAttempt,
-    installationRequirementsCheck,
+    installTimeRequirementsCheck,
     runDiagnostics,
     reinstateDiagnosticsAlert,
   } = useVnetContext();
@@ -89,9 +89,9 @@ export const VnetSliderStep = (props: StepComponentProps) => {
           }
         `}
       >
-        {installationRequirementsCheck.status === 'failed' && (
+        {installTimeRequirementsCheck.status === 'failed' && (
           <>
-            {installationRequirementsCheck.reason.kind ===
+            {installTimeRequirementsCheck.reason.kind ===
               'missing-windows-service' && (
               <ErrorText>
                 VNet system service is not installed. <br />
@@ -100,10 +100,10 @@ export const VnetSliderStep = (props: StepComponentProps) => {
                 will be required.
               </ErrorText>
             )}
-            {installationRequirementsCheck.reason.kind === 'error' && (
+            {installTimeRequirementsCheck.reason.kind === 'error' && (
               <ErrorText>
                 Could not perform VNet installation requirements checks:{' '}
-                {installationRequirementsCheck.reason.statusText}
+                {installTimeRequirementsCheck.reason.statusText}
               </ErrorText>
             )}
           </>
