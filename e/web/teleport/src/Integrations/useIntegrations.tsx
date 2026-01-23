@@ -77,7 +77,7 @@ export function useIntegrations() {
     setAttempt({ status: 'processing' });
     Promise.allSettled([
       hasPluginAccess ? ctx.pluginsService.fetchPlugins() : null,
-      hasIntegrationAccess ? integrationService.fetchIntegrations() : null,
+      hasIntegrationAccess ? integrationService.fetchIntegrations(true) : null,
       hasExternalAuditStorageAccess
         ? ctx.externalAuditStorageService.getCluster()
         : null,
