@@ -232,3 +232,65 @@ type ListInferencePoliciesResponse struct {
 	// NextKey is the token to retrieve the next page of results.
 	NextKey string `json:"nextKey"`
 }
+
+// TestInferenceModelRequest is the request for testing an inference model.
+type TestInferenceModelRequest struct {
+	// OpenAI contains OpenAI model configuration to test.
+	OpenAI *OpenAIModelConfig `json:"openai,omitempty"`
+	// Bedrock contains AWS Bedrock model configuration to test.
+	Bedrock *BedrockModelConfig `json:"bedrock,omitempty"`
+	// Secret is the API key or credentials to test with.
+	Secret string `json:"secret,omitempty"`
+}
+
+// TestInferenceModelResponse is the response from testing an inference model.
+type TestInferenceModelResponse struct {
+	// Success indicates whether the test was successful.
+	Success bool `json:"success"`
+	// Message provides details about the test result.
+	Message string `json:"message"`
+}
+
+// ToProto converts a UI TestInferenceModelRequest to protobuf representation.
+func (r *TestInferenceModelRequest) ToProto() *summarizerv1.TestInferenceModelRequest {
+	req := &summarizerv1.TestInferenceModelRequest{
+		Model: &summarizerv1.InferenceModelSpec{},
+	}
+
+	switch {
+	case r.OpenAI != nil:
+		req.Model.Provider = &summarizerv1.InferenceModelSpec_Openai{
+			Openai: &summarizerv1.OpenAIProvider{
+				OpenaiModelId:   r.OpenAI.ModelID,
+				Temperature:     r.OpenAI.Temperature,
+				ApiKeySecretRef: r.OpenAI.APIKeySecretRef,
+				BaseUrl:         r.OpenAI.BaseURL,
+			},
+		}
+	case r.Bedrock != nil:
+		req.Model.Provider = &summarizerv1.InferenceModelSpec_Bedrock{
+			Bedrock: &summarizerv1.BedrockProvider{
+				BedrockModelId: r.Bedrock.ModelID,
+				Region:         r.Bedrock.Region,
+				Temperature:    r.Bedrock.Temperature,
+				Integration:    r.Bedrock.Integration,
+			},
+		}
+	}
+
+	if r.Secret != "" {
+		req.Secret = &summarizerv1.InferenceSecretSpec{
+			Value: r.Secret,
+		}
+	}
+
+	return req
+}
+
+// MakeTestInferenceModelResponse converts a protobuf TestInferenceModelResponse to UI representation.
+func MakeTestInferenceModelResponse(resp *summarizerv1.TestInferenceModelResponse) TestInferenceModelResponse {
+	return TestInferenceModelResponse{
+		Success: resp.GetSuccess(),
+		Message: resp.GetMessage(),
+	}
+}

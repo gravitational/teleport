@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"testing"
@@ -542,4 +543,100 @@ func createInferencePolicy(t *testing.T, ctx context.Context, authClient authcli
 		},
 	})
 	require.NoError(t, err)
+}
+
+func TestTestInferenceModel(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+	ctx := t.Context()
+	clusterName := s.testAuthServer.ClusterName()
+
+	// Create a mock OpenAI server that returns successful responses
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":      "chatcmpl-test",
+			"object":  "chat.completion",
+			"created": 1234567890,
+			"model":   "gpt-4o",
+			"choices": []map[string]any{
+				{
+					"index": 0,
+					"message": map[string]string{
+						"role":    "assistant",
+						"content": "test response",
+					},
+					"finish_reason": "stop",
+				},
+			},
+		})
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	tests := []struct {
+		name            string
+		req             ui.TestInferenceModelRequest
+		expectError     bool
+		expectSuccess   bool
+		messageContains string
+	}{
+		{
+			name: "missing provider",
+			req: ui.TestInferenceModelRequest{
+				Secret: "test-secret",
+			},
+			expectSuccess:   false,
+			messageContains: "invalid model spec: missing or unsupported inference provider in spec, supported providers: openai, bedrock",
+		},
+		{
+			name: "OpenAI without secret",
+			req: ui.TestInferenceModelRequest{
+				OpenAI: &ui.OpenAIModelConfig{
+					ModelID: "gpt-4o",
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "api_key_secret_ref is required for OpenAI models when no secret is provided in the request",
+		},
+		{
+			name: "OpenAI with valid mock server",
+			req: ui.TestInferenceModelRequest{
+				OpenAI: &ui.OpenAIModelConfig{
+					ModelID: "gpt-4o",
+					BaseURL: mockOpenAI.URL,
+				},
+				Secret: "test-api-key",
+			},
+			expectSuccess:   true,
+			messageContains: "Successfully connected",
+		},
+	}
+
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "inference", "test-model")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			resp, err := webPack.clt.PostJSON(ctx, endpoint, tt.req)
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.Code())
+
+			var result ui.TestInferenceModelResponse
+			err = json.Unmarshal(resp.Bytes(), &result)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectSuccess, result.Success)
+			if tt.messageContains != "" {
+				require.Contains(t, result.Message, tt.messageContains)
+			}
+		})
+	}
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 	libmetrics "github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -63,8 +62,10 @@ func init() {
 
 // ProviderConfig holds the configuration for the OpenAI inference provider.
 type ProviderConfig struct {
-	Spec    *summarizerv1pb.OpenAIProvider
-	Backend services.Summarizer
+	// ModelProvider is the OpenAI model specification.
+	ModelProvider *summarizerv1pb.OpenAIProvider
+	// SecretSpec is the inference secret containing the API key.
+	SecretSpec *summarizerv1pb.InferenceSecretSpec
 	// ClientFactory is used to create OpenAI clients. Can be overridden for
 	// testing. Defaults to a production implementation.
 	ClientFactory ClientFactory
@@ -120,11 +121,11 @@ type InferenceProvider struct {
 
 // NewProvider creates a new OpenAI inference provider.
 func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, error) {
-	if cfg.Spec == nil {
+	if cfg.ModelProvider == nil {
 		return nil, trace.BadParameter("provider spec is required")
 	}
-	if cfg.Backend == nil {
-		return nil, trace.BadParameter("backend is required")
+	if cfg.SecretSpec == nil {
+		return nil, trace.BadParameter("secret spec is required")
 	}
 	if cfg.ModelResourceName == "" {
 		return nil, trace.BadParameter("model resource name is required")
@@ -140,13 +141,8 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 		maxSessionLength = defaultMaxSessionLength
 	}
 
-	apiKey, err := cfg.Backend.GetInferenceSecret(ctx, cfg.Spec.ApiKeySecretRef)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientOptions := []option.RequestOption{option.WithAPIKey(apiKey.GetSpec().GetValue())}
-	baseURL := cfg.Spec.GetBaseUrl()
+	clientOptions := []option.RequestOption{option.WithAPIKey(cfg.SecretSpec.GetValue())}
+	baseURL := cfg.ModelProvider.GetBaseUrl()
 	if baseURL != "" {
 		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
 	}
@@ -154,8 +150,8 @@ func NewProvider(ctx context.Context, cfg ProviderConfig) (*InferenceProvider, e
 
 	logger := slog.With(teleport.ComponentKey, "openai", "inference_model", cfg.ModelResourceName)
 	return &InferenceProvider{
-		openAIModelName:   cfg.Spec.GetOpenaiModelId(),
-		temperature:       cfg.Spec.GetTemperature(),
+		openAIModelName:   cfg.ModelProvider.GetOpenaiModelId(),
+		temperature:       cfg.ModelProvider.GetTemperature(),
 		maxSessionLength:  maxSessionLength,
 		client:            client,
 		logger:            logger,

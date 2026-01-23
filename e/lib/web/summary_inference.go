@@ -21,6 +21,9 @@ func (p *Plugin) registerInferenceHandlers() {
 	p.h.PUT("/webapi/sites/:site/inference/models/:name", p.h.WithClusterAuth(p.updateInferenceModel))
 	p.h.DELETE("/webapi/sites/:site/inference/models/:name", p.h.WithClusterAuth(p.deleteInferenceModel))
 
+	// Test inference model endpoint
+	p.h.POST("/webapi/sites/:site/inference/test-model", p.h.WithClusterAuth(p.testInferenceModel))
+
 	// Inference Secret handlers
 	p.h.GET("/webapi/sites/:site/inference/secrets", p.h.WithClusterAuth(p.listInferenceSecrets))
 	p.h.GET("/webapi/sites/:site/inference/secrets/:name", p.h.WithClusterAuth(p.getInferenceSecret))
@@ -463,4 +466,29 @@ func (h *Plugin) deleteInferencePolicy(
 	}
 
 	return web.OK(), nil
+}
+
+// testInferenceModel tests an inference model configuration by making a test request.
+func (h *Plugin) testInferenceModel(
+	w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster,
+) (any, error) {
+	var testReq ui.TestInferenceModelRequest
+	if err := httplib.ReadJSON(r, &testReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := clt.SummarizerServiceClient().TestInferenceModel(
+		r.Context(),
+		testReq.ToProto(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeTestInferenceModelResponse(response), nil
 }

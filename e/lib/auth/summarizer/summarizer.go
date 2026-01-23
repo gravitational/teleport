@@ -607,9 +607,14 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 
 	switch providerCfg := model.Spec.Provider.(type) {
 	case *summarizerv1pb.InferenceModelSpec_Openai:
+		apiKey, err := s.backend.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			Spec:              providerCfg.Openai,
-			Backend:           s.backend,
+			ModelProvider:     providerCfg.Openai,
+			SecretSpec:        apiKey.GetSpec(),
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.openAIClientFactory,
 			ModelResourceName: modelName,

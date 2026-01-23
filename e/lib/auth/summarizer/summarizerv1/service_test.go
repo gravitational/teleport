@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
@@ -1137,7 +1139,7 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	// Create a role that allows viewing all sessions, but only on nodes where
 	// the role labels match.
 	_, canViewUserRole, err := authtest.CreateUserAndRole(srv.Auth(), "can_view_user", []string{}, []types.Rule{
-		types.Rule{
+		{
 			Resources: []string{types.KindSession},
 			Verbs:     []string{types.VerbRead, types.VerbList},
 			Where:     `can_view()`,
@@ -1166,8 +1168,7 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 }
 
 // encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
-type fakeEncryptedIO struct {
-}
+type fakeEncryptedIO struct{}
 
 func encrypt(buf []byte) []byte {
 	var writer bytes.Buffer
@@ -1190,4 +1191,105 @@ func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) 
 		return nil, trace.BadParameter("invalid encryption header")
 	}
 	return hex.NewDecoder(reader), nil
+}
+
+func TestService_TestInferenceModel(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+	user := createTestUser(t, srv, "test-user")
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error": {"message": "Invalid API key"}}`))
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	tests := []struct {
+		name            string
+		req             *summarizerv1pb.TestInferenceModelRequest
+		expectError     bool
+		expectSuccess   bool
+		errorContains   string
+		messageContains string
+	}{
+		{
+			name: "missing model spec",
+			req: &summarizerv1pb.TestInferenceModelRequest{
+				Model: nil,
+			},
+			expectSuccess:   false,
+			messageContains: "model spec is required",
+		},
+		{
+			name: "OpenAI without secret",
+			req: &summarizerv1pb.TestInferenceModelRequest{
+				Model: &summarizerv1pb.InferenceModelSpec{
+					Provider: &summarizerv1pb.InferenceModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId: "gpt-4o",
+						},
+					},
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "api_key_secret_ref is required for OpenAI models when no secret is provided in the request",
+		},
+		{
+			name: "OpenAI with invalid API key",
+			req: &summarizerv1pb.TestInferenceModelRequest{
+				Model: &summarizerv1pb.InferenceModelSpec{
+					Provider: &summarizerv1pb.InferenceModelSpec_Openai{
+						Openai: &summarizerv1pb.OpenAIProvider{
+							OpenaiModelId: "gpt-4o",
+							BaseUrl:       mockOpenAI.URL,
+						},
+					},
+				},
+				Secret: &summarizerv1pb.InferenceSecretSpec{
+					Value: "test-api-key",
+				},
+			},
+			expectSuccess: false,
+			// When no client factory is configured, OpenAI provider uses default client
+			// which makes a real API call to the mock server, so we expect an authentication error
+			messageContains: "Invalid API key",
+		},
+		{
+			name: "unsupported provider type",
+			req: &summarizerv1pb.TestInferenceModelRequest{
+				Model: &summarizerv1pb.InferenceModelSpec{
+					Provider: nil,
+				},
+			},
+			expectSuccess:   false,
+			messageContains: "invalid model spec: missing or unsupported inference provider in spec, supported providers",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := sclt.TestInferenceModel(ctx, tt.req)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, resp)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			assert.Equal(t, tt.expectSuccess, resp.Success)
+			if tt.messageContains != "" {
+				assert.Contains(t, resp.Message, tt.messageContains)
+			}
+		})
+	}
 }

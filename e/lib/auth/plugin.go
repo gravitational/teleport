@@ -383,10 +383,12 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		p.authServer.AuthServer.SetSummarizerService(sessionSummarizer)
 
 		summarizerService, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
-			Authorizer:        p.authServer.Authorizer,
-			Backend:           p.authServer.AuthServer,
-			SummaryDownloader: p.authServer.AuthServer,
-			Decrypter:         p.authServer.AuthServer.EncryptedIO,
+			Authorizer:                       p.authServer.Authorizer,
+			Backend:                          p.authServer.AuthServer,
+			SummaryDownloader:                p.authServer.AuthServer,
+			Decrypter:                        p.authServer.AuthServer.EncryptedIO,
+			AWSConfigCache:                   cfgCache,
+			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
 		})
 		if err != nil {
 			return trace.Wrap(err)
