@@ -38,6 +38,8 @@ import (
 type InstallConfig struct {
 	// Name is the service name.
 	Name string
+	// Description is the service description.
+	Description string
 	// Command is the tsh subcommand that the service manager invokes on start.
 	Command string
 	// EventSourceName is the name of an event source that will log service events.
@@ -89,7 +91,8 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 			cfg.Name,
 			tshPath,
 			mgr.Config{
-				StartType: mgr.StartManual,
+				StartType:   mgr.StartManual,
+				Description: cfg.Description,
 			},
 			cfg.Command,
 		)
@@ -104,10 +107,10 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 		return trace.Wrap(err, "granting authenticated users permission to control the VNet Windows service")
 	}
 	if err := installEventSource(cfg.EventSourceName); err != nil {
-		trace.Wrap(err, "creating event source for logging")
+		return trace.Wrap(err, "creating event source for logging")
 	}
 	if err := logInstallationEvent(cfg.EventSourceName, "service installed"); err != nil {
-		trace.Wrap(err, "logging installation event")
+		return trace.Wrap(err, "logging installation event")
 	}
 	return nil
 }
@@ -144,7 +147,7 @@ func Uninstall(ctx context.Context, cfg *UninstallConfig) (err error) {
 	}
 
 	if err := logInstallationEvent(cfg.EventSourceName, "Service uninstalled"); err != nil {
-		trace.Wrap(err, "logging installation event")
+		return trace.Wrap(err, "logging installation event")
 	}
 	if err := eventlogutils.Remove(eventlogutils.LogName, cfg.EventSourceName); err != nil {
 		return trace.Wrap(err, "removing event source for logging")
