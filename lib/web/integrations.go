@@ -431,7 +431,9 @@ func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt user
 		if !ig.SupportsDiscoveryResources() {
 			continue
 		}
-		summaries[ig.GetName()] = &ui.BriefSummary{}
+		summaries[ig.GetName()] = &ui.BriefSummary{
+			UnresolvedUserTasks: []ui.UserTask{},
+		}
 	}
 
 	if len(summaries) == 0 {

@@ -419,7 +419,7 @@ const IconContainer = styled(ResourceIcon)`
 `;
 
 const IssuesCell = ({ integration }: { integration: IntegrationLike }) => {
-  const issueCount = integration.summary?.unresolvedUserTasks.length;
+  const issueCount = integration.summary?.unresolvedUserTasks?.length;
   if (issueCount > 0) {
     // In the list tooltip, we only want to show up to 3 tasks. If there are more,
     // the user can go to the integration dashboard to see all of them.
