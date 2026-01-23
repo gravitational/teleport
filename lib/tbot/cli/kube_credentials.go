@@ -27,12 +27,12 @@ type KubeCredentialsCommand struct {
 // NewKubeCredentialsCommand initializes a kubernetes `credentials` command
 // and returns a struct that will contain the parse result.
 func NewKubeCredentialsCommand(parentCmd KingpinClause, action func(*KubeCredentialsCommand) error) *KubeCredentialsCommand {
-	cmd := parentCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
+	cmd := parentCmd.Command("credentials", "Get credentials for kubectl access.").Hidden()
 
 	c := &KubeCredentialsCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-	cmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&c.DestinationDir)
+	cmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials.").Required().StringVar(&c.DestinationDir)
 
 	return c
 }
