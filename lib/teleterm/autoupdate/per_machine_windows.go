@@ -46,10 +46,9 @@ func isPerMachineInstall() (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	exeDir := filepath.Clean(filepath.Dir(exePath))
-	path = filepath.Clean(path)
+	path = filepath.Join(path, "resources", "bin", "tsh.exe")
 
-	return exeDir == path, nil
+	return exePath == path, nil
 }
 
 func readPerMachineInstallLocation() (path string, err error) {
