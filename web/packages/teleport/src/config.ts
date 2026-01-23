@@ -59,7 +59,7 @@ const cfg = {
   // TODO (avatus) this is a temporary escape hatch. Delete in v18
   // The role diff visualizer can be disabled by setting TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
   // in the proxy service
-  isPolicyRoleVisualizerEnabled: true,
+  isAccessGraphRoleVisualizerEnabled: true,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
   // the case of a self-hosted license tenant dashboard.
@@ -93,7 +93,11 @@ const cfg = {
   /** @deprecated Use entitlements instead. */
   isIgsEnabled: false,
 
-  // isPolicyEnabled refers to the Teleport Policy product
+  // isAccessGraphEnabled refers to the Teleport Access Graph feature
+  isAccessGraphEnabled: false,
+
+  // TODO(emargetis) DELETE IN 20.0.0
+  /** @deprecated Use isAccessGraphEnabled instead. */
   isPolicyEnabled: false,
 
   // sessionSummarizerEnabled refers to the AI session summary feature

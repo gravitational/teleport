@@ -96,6 +96,7 @@ func TestBackfillFeatures(t *testing.T) {
 					string(AccessGraphDemoMode):        {Enabled: true},
 					string(UnrestrictedManagedUpdates): {Enabled: true},
 					string(ClientIPRestrictions):       {Enabled: true},
+					string(AccessGraph):                {Enabled: true},
 				},
 			},
 			expected: map[string]*proto.EntitlementInfo{
@@ -126,6 +127,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(AccessGraphDemoMode):        {Enabled: true},
 				string(UnrestrictedManagedUpdates): {Enabled: true},
 				string(ClientIPRestrictions):       {Enabled: true},
+				string(AccessGraph):                {Enabled: true},
 			},
 		},
 		{
@@ -197,6 +199,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(Policy):                 {Enabled: true},
 				string(SAML):                   {Enabled: true},
 				string(SessionLocks):           {Enabled: true},
+				string(AccessGraph):            {Enabled: true},
 				// defaults, no legacy equivalent
 				string(UsageReporting):             {Enabled: false},
 				string(UpsellAlert):                {Enabled: false},
@@ -272,6 +275,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(OIDC):                   {Enabled: true},
 				string(Policy):                 {Enabled: true},
 				string(SAML):                   {Enabled: true},
+				string(AccessGraph):            {Enabled: true},
 
 				// defaults, no legacy equivalent
 				string(UsageReporting):             {Enabled: false},
