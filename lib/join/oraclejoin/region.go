@@ -18,19 +18,23 @@ package oraclejoin
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/oracle/oci-go-sdk/v65/common"
 )
 
-// Hack: StringToRegion will lazily load regions from a config file if its
-// input isn't in its hard-coded list, in a non-threadsafe way. Call it here
-// to load the config ahead of time so future calls are threadsafe.
-var _ = common.StringToRegion("")
+var initOCIRegionsOnce sync.Once
 
 // ParseRegion parses a string into a full (not abbreviated) Oracle Cloud
 // region. It returns the empty string if the input is not a valid region.
 func ParseRegion(rawRegion string) (region, realm string) {
+	initOCIRegionsOnce.Do(func() {
+		// Hack: StringToRegion will lazily load regions from a config file if its
+		// input isn't in its hard-coded list, in a non-threadsafe way. Call it once
+		// before we start parsing so future calls are threadsafe.
+		_ = common.StringToRegion("")
+	})
 	canonicalRegion := common.StringToRegion(rawRegion)
 	realm, err := canonicalRegion.RealmID()
 	if err != nil {
@@ -39,11 +43,13 @@ func ParseRegion(rawRegion string) (region, realm string) {
 	return string(canonicalRegion), realm
 }
 
-var ociRealms = map[string]struct{}{
-	"oc1": {}, "oc2": {}, "oc3": {}, "oc4": {}, "oc8": {}, "oc9": {},
-	"oc10": {}, "oc14": {}, "oc15": {}, "oc19": {}, "oc20": {}, "oc21": {},
-	"oc23": {}, "oc24": {}, "oc26": {}, "oc29": {}, "oc35": {},
-}
+var ociRealms = sync.OnceValue(func() map[string]struct{} {
+	return map[string]struct{}{
+		"oc1": {}, "oc2": {}, "oc3": {}, "oc4": {}, "oc8": {}, "oc9": {},
+		"oc10": {}, "oc14": {}, "oc15": {}, "oc19": {}, "oc20": {}, "oc21": {},
+		"oc23": {}, "oc24": {}, "oc26": {}, "oc29": {}, "oc35": {},
+	}
+})
 
 // ParseRegionFromOCID parses an Oracle OCID and returns the embedded region.
 // It returns an error if the input is not a valid OCID.
@@ -61,7 +67,7 @@ func ParseRegionFromOCID(ocid string) (string, error) {
 		return "", trace.BadParameter("invalid ocid version: %v", ocidParts[0])
 	}
 	// Check realm.
-	if _, ok := ociRealms[ocidParts[2]]; !ok {
+	if _, ok := ociRealms()[ocidParts[2]]; !ok {
 		return "", trace.BadParameter("invalid realm: %v", ocidParts[2])
 	}
 	resourceType := ocidParts[1]
