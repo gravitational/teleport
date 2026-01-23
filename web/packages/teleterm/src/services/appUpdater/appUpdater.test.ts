@@ -102,10 +102,6 @@ function setUpAppUpdater(options: {
   storage?: AppUpdaterStorage;
   processEnvVar?: string;
 }) {
-  const clusterGetter = async () => {
-    return options.clusters;
-  };
-
   const nativeUpdater = new MockedMacUpdater();
 
   const checkForUpdatesSpy = jest.spyOn(nativeUpdater, 'checkForUpdates');
@@ -113,8 +109,11 @@ function setUpAppUpdater(options: {
   let lastEvent: { value?: AppUpdateEvent } = {};
   const appUpdater = new AppUpdater(
     options.storage || makeUpdaterStorage(),
-    clusterGetter,
-    async () => 'https://cdn.teleport.dev',
+    {
+      getClusterVersions: async () => options.clusters,
+      getDownloadBaseUrl: async () => 'https://cdn.teleport.dev',
+      isPerMachineInstall: async () => false,
+    },
     event => {
       lastEvent.value = event;
     },

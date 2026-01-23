@@ -66,8 +66,11 @@ export class AppUpdater {
 
   constructor(
     private readonly storage: AppUpdaterStorage,
-    private readonly getClusterVersions: () => Promise<GetClusterVersionsResponse>,
-    readonly getDownloadBaseUrl: () => Promise<string>,
+    private readonly client: {
+      getClusterVersions(): Promise<GetClusterVersionsResponse>;
+      getDownloadBaseUrl(): Promise<string>;
+      isPerMachineInstall(): Promise<boolean>;
+    },
     private readonly emit: (event: AppUpdateEvent) => void,
     private versionEnvVar: string,
     /** Allows overring autoUpdater in tests. */
@@ -79,7 +82,8 @@ export class AppUpdater {
       if (this.autoUpdatesStatus.enabled) {
         return {
           version: this.autoUpdatesStatus.version,
-          baseUrl: await getDownloadBaseUrl(),
+          baseUrl: await client.getDownloadBaseUrl(),
+          isPerMachineInstall: await client.isPerMachineInstall(),
         };
       }
     };
@@ -334,7 +338,7 @@ export class AppUpdater {
     this.autoUpdatesStatus = await resolveAutoUpdatesStatus({
       versionEnvVar: this.versionEnvVar,
       managingClusterUri,
-      getClusterVersions: this.getClusterVersions,
+      getClusterVersions: this.client.getClusterVersions,
     });
     this.logger.info('Resolved auto updates status', this.autoUpdatesStatus);
   }
