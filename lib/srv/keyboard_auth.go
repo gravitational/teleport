@@ -77,7 +77,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		for _, precond := range preconds {
 			if precond.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA {
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
-				verifier, err := srvssh.NewMFAPromptVerifier(h.c.MFAServiceClient, id.ClusterName, id.Username, metadata.SessionID())
+				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}

@@ -258,12 +258,12 @@ func TestRBAC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &AuthHandlerConfig{
-				Server:           server,
-				Component:        tt.component,
-				Emitter:          &eventstest.MockRecorderEmitter{},
-				AccessPoint:      accessPoint,
-				TargetServer:     tt.targetServer,
-				MFAServiceClient: &mockMFAServiceClient{},
+				Server:                        server,
+				Component:                     tt.component,
+				Emitter:                       &eventstest.MockRecorderEmitter{},
+				AccessPoint:                   accessPoint,
+				TargetServer:                  tt.targetServer,
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -577,12 +577,12 @@ func TestScopedRBAC(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &AuthHandlerConfig{
-				Server:           server,
-				Component:        teleport.ComponentNode,
-				Emitter:          &eventstest.MockRecorderEmitter{},
-				AccessPoint:      accessPoint,
-				TargetServer:     node,
-				MFAServiceClient: &mockMFAServiceClient{},
+				Server:                        server,
+				Component:                     teleport.ComponentNode,
+				Emitter:                       &eventstest.MockRecorderEmitter{},
+				AccessPoint:                   accessPoint,
+				TargetServer:                  node,
+				ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 			}
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
@@ -685,12 +685,12 @@ func TestForwardingGitLocalOnly(t *testing.T) {
 	}
 
 	config := &AuthHandlerConfig{
-		Server:           server,
-		Component:        teleport.ComponentForwardingGit,
-		Emitter:          &eventstest.MockRecorderEmitter{},
-		AccessPoint:      accessPoint,
-		TargetServer:     gitServer,
-		MFAServiceClient: &mockMFAServiceClient{},
+		Server:                        server,
+		Component:                     teleport.ComponentForwardingGit,
+		Emitter:                       &eventstest.MockRecorderEmitter{},
+		AccessPoint:                   accessPoint,
+		TargetServer:                  gitServer,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -792,10 +792,10 @@ func TestRBACJoinMFA(t *testing.T) {
 
 	// create auth handler and dummy node
 	config := &AuthHandlerConfig{
-		Server:           server,
-		Emitter:          &eventstest.MockRecorderEmitter{},
-		AccessPoint:      accessPoint,
-		MFAServiceClient: &mockMFAServiceClient{},
+		Server:                        server,
+		Emitter:                       &eventstest.MockRecorderEmitter{},
+		AccessPoint:                   accessPoint,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)
@@ -1037,12 +1037,12 @@ func TestAuthAttemptAuditEvent(t *testing.T) {
 
 	// create auth handler
 	config := &AuthHandlerConfig{
-		Server:           server,
-		Component:        teleport.ComponentNode,
-		Emitter:          emitter,
-		AccessPoint:      accessPoint,
-		TargetServer:     node,
-		MFAServiceClient: &mockMFAServiceClient{},
+		Server:                        server,
+		Component:                     teleport.ComponentNode,
+		Emitter:                       emitter,
+		AccessPoint:                   accessPoint,
+		TargetServer:                  node,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 	ah, err := NewAuthHandlers(config)
 	require.NoError(t, err)

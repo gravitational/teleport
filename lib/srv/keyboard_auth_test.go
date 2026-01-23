@@ -190,10 +190,10 @@ func setupKeyboardInteractiveAuthTest(t *testing.T) (*srv.AuthHandlers, *sshca.I
 	authSvr := &mockServer{}
 
 	config := &srv.AuthHandlerConfig{
-		Server:           authSvr,
-		Emitter:          &eventstest.MockRecorderEmitter{},
-		AccessPoint:      authSvr.GetAccessPoint(),
-		MFAServiceClient: &mockMFAServiceClient{},
+		Server:                        authSvr,
+		Emitter:                       &eventstest.MockRecorderEmitter{},
+		AccessPoint:                   authSvr.GetAccessPoint(),
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
 	}
 
 	h, err := srv.NewAuthHandlers(config)
