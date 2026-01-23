@@ -134,6 +134,6 @@ func deleteWorkloadCluster(ctx context.Context, client *authclient.Client, ref s
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("cloud_cluster %q has been deleted\n", ref.Name)
+	fmt.Printf("workload cluster %q has been deleted\n", ref.Name)
 	return nil
 }
