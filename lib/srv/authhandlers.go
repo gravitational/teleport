@@ -110,11 +110,11 @@ type AuthHandlerConfig struct {
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
 
-	// OnRBACFailure is an opitonal callback used to hook in metrics/logs related to
+	// OnRBACFailure is an optional callback used to hook in metrics/logs related to
 	// RBAC failures.
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
 
-	// ValidatedMFAChallengeVerifier is the client used to communicate with the MFA service.
+	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
 	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
 }
 
