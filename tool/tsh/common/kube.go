@@ -1303,6 +1303,12 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if tc.KubeProxyAddr != "" {
+		if err := probeKubeProxyAddr(cf.Context, tc.KubeProxyAddr); err != nil {
+			fmt.Fprintf(os.Stderr, kubeProxyUnreachableWarning, tc.KubeProxyAddr, err)
+		}
+	}
+
 	// Update default kubeconfig file located at ~/.kube/config or the value of
 	// KUBECONFIG env var even if the context exists.
 	if err := updateKubeConfig(cf, tc, "", c.overrideContextName, kubeStatus); err != nil {
@@ -1646,6 +1652,36 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path, overrideCont
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
 }
+
+// probeKubeProxyAddr attempts to establish a TCP connection to the Kubernetes proxy address
+// to verify it's reachable. Returns an error if the connection fails.
+func probeKubeProxyAddr(ctx context.Context, addr string) error {
+	// Use a short timeout to avoid blocking the user for too long
+	const probeTimeout = 3 * time.Second
+
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+
+	dialer := &net.Dialer{}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	return nil
+}
+
+const kubeProxyUnreachableWarning = `
+Warning: Unable to connect to Kubernetes proxy at %s
+
+This may indicate that the proxy is not configured to listen for Kubernetes
+connections. Please contact your Teleport administrator.
+
+Kubeconfig has been updated, but kubectl connections will likely fail.
+Error: %v
+
+`
 
 func getKubeConfigPath(cf *CLIConf, path string) string {
 	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
