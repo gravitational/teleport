@@ -65,7 +65,9 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 	if os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" {
-		legacyPublicKeyCallback = nil
+		legacyPublicKeyCallback = func(_ ssh.ConnMetadata, _ ssh.PublicKey) (*ssh.Permissions, error) {
+			return nil, trace.AccessDenied(`Legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`)
+		}
 	}
 
 	// keyboardInteractiveCallback handles keyboard-interactive authentication for modern clients.

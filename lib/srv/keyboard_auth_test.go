@@ -154,8 +154,16 @@ func TestHandleKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKey
 	var sshErr *ssh.PartialSuccessError
 	require.ErrorAs(t, err, &sshErr)
 	require.NotNil(t, sshErr.Next)
+	require.NotNil(t, sshErr.Next.PublicKeyCallback)
 	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
-	require.Nil(t, sshErr.Next.PublicKeyCallback, "PublicKeyCallback should be nil when TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA=yes")
+
+	outPerms, err = sshErr.Next.PublicKeyCallback(nil, nil)
+	require.Nil(t, outPerms)
+	require.ErrorIs(
+		t,
+		err,
+		trace.AccessDenied(`Legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`),
+	)
 }
 
 func TestHandleKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
