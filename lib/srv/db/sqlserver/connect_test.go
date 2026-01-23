@@ -21,12 +21,17 @@ package sqlserver
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
+	"maps"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -52,6 +57,7 @@ func TestConnectorSelection(t *testing.T) {
 		desc         string
 		databaseSpec types.DatabaseSpecV3
 		errAssertion require.ErrorAssertionFunc
+		injectDialer bool
 	}{
 		{
 			desc: "Non-Azure database",
@@ -85,7 +91,7 @@ func TestConnectorSelection(t *testing.T) {
 			desc: "Azure database without AD configured",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "no-such-host-1234567890.database.windows.net:1443",
+				URI:      "random.database.windows.net:1443",
 			},
 			// When using an Azure database without AD configuration, the
 			// connector should fail because it could not resolve the host.
@@ -93,6 +99,7 @@ func TestConnectorSelection(t *testing.T) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "no such host")
 			},
+			injectDialer: true,
 		},
 		{
 			desc: "RDS Proxied database",
@@ -114,6 +121,22 @@ func TestConnectorSelection(t *testing.T) {
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
+			if tt.injectDialer {
+				original := maps.Clone(msdsn.ProtocolDialers)
+				tcpDialer := &fakeDialer{ProtocolDialer: original["tcp"]}
+				if sqlDialer, ok := original["tcp"].(mssql.MssqlProtocolDialer); ok {
+					msdsn.ProtocolDialers["tcp"] = &fakeSQLDialer{
+						ProtocolDialer:      tcpDialer,
+						MssqlProtocolDialer: sqlDialer,
+						fakeSQLDialErr:      errors.New("no such host"),
+					}
+				} else {
+					msdsn.ProtocolDialers["tcp"] = tcpDialer
+				}
+				t.Cleanup(func() {
+					msdsn.ProtocolDialers["tcp"] = original["tcp"]
+				})
+			}
 			database, err := types.NewDatabaseV3(types.Metadata{
 				Name: fmt.Sprintf("db-%v", i),
 			}, tt.databaseSpec)
@@ -147,4 +170,33 @@ const unimplementedMessage = "intentionally left unimplemented"
 
 func (m *mockKerberos) GetKerberosClient(ctx context.Context, ad types.AD, username string) (*client.Client, error) {
 	return nil, trace.BadParameter(unimplementedMessage)
+}
+
+type fakeDialer struct {
+	msdsn.ProtocolDialer
+
+	fakeDialErr error
+}
+
+func (m *fakeDialer) DialConnection(ctx context.Context, p *msdsn.Config) (conn net.Conn, err error) {
+	if m.fakeDialErr != nil {
+		return nil, m.fakeDialErr
+	}
+	return m.ProtocolDialer.DialConnection(ctx, p)
+}
+
+type fakeSQLDialer struct {
+	msdsn.ProtocolDialer
+	mssql.MssqlProtocolDialer
+
+	fakeSQLDialErr error
+}
+
+var _ mssql.MssqlProtocolDialer = (*fakeSQLDialer)(nil)
+
+func (m *fakeSQLDialer) DialSqlConnection(ctx context.Context, c *mssql.Connector, p *msdsn.Config) (conn net.Conn, err error) {
+	if m.fakeSQLDialErr != nil {
+		return nil, m.fakeSQLDialErr
+	}
+	return m.MssqlProtocolDialer.DialSqlConnection(ctx, c, p)
 }
