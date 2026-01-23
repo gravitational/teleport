@@ -44,7 +44,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 		return perms, nil
 	}
 
-	// If a unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
+	// If an unknown or unsupported precondition is provided, fail close to prevent potential authentication bypasses.
 	if err := ensureSupportedPreconditions(preconds); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,6 +76,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 
 		for _, precond := range preconds {
 			if precond.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA {
+				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
 				verifier, err := srvssh.NewMFAPromptVerifier(h.c.MFAServiceClient, id.ClusterName, id.Username, metadata.SessionID())
 				if err != nil {
 					return nil, trace.Wrap(err)
