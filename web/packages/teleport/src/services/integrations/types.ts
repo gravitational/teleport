@@ -76,7 +76,7 @@ export type IntegrationTemplate<
 };
 
 type BriefSummary = {
-  unresolvedUserTasks: UserTask[];
+  unresolvedUserTasks?: UserTask[];
   resourcesCount?: {
     found: number;
     enrolled: number;

@@ -1152,7 +1152,9 @@ func TestBuildBriefSummaries(t *testing.T) {
 				mockGithubInt,
 			},
 			map[string]*ui.BriefSummary{
-				mockAwsInt.GetName(): {},
+				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: []ui.UserTask{},
+				},
 			},
 			nil,
 		},
@@ -1186,6 +1188,7 @@ func TestBuildBriefSummaries(t *testing.T) {
 			},
 			map[string]*ui.BriefSummary{
 				mockAwsInt.GetName(): {
+					UnresolvedUserTasks: []ui.UserTask{},
 					ResourcesCount: &ui.ResourcesCount{
 						Found:    12,
 						Enrolled: 4,
