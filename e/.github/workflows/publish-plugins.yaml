@@ -97,7 +97,7 @@ jobs:
           aws-region: us-west-2
           role-to-assume: ${{ env.TERRAFORM_PUBLISHING_SYNC_AWS_ROLE }}
           role-session-name: "tag-publish-plugins-terraform-publishing-sync-${{ github.run_attempt }}"
-          role-duration-seconds: 900
+          role-duration-seconds: 1800 # bumped from 15m to 30m because downloading the TF registry bucket can take longer than 15m.
 
       - name: Download the Terraform repo from S3
         env:
@@ -133,6 +133,17 @@ jobs:
             --namespace gravitational \
             --name teleportmwi \
             --variant mwi
+
+      - name: Run the terraform-publish tool for teleport terraform modules
+        env:
+          TERRAFORM_REGISTRY_URL: ${{ env.TERRAFORM_REGISTRY_URL }}
+          SIGNING_KEY: ${{ env.TERRAFORM_SIGNING_KEY }}
+        run: |
+          go run -C e/tooling/plugins ./cmd/promote-terraform \
+            --tag "$ARTIFACT_TAG" \
+            --artifact-directory-path "$LOCAL_ARTIFACTS_PATH" \
+            --registry-directory-path "$LOCAL_TERRAFORM_REGISTRY_PATH" \
+            --publish-modules
 
       - name: Upload the Terraform repo to S3
         env:

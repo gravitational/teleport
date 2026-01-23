@@ -70,12 +70,13 @@ func newKey(t *testing.T) *openpgp.Entity {
 }
 
 func TestRepackProvider(t *testing.T) {
+	ctx := context.Background()
 	signer := newKey(t)
 	timestamp := time.Now()
 	srcPkg := newPackage(t, timestamp, "1.2.3", "linux", "arm")
 	dstDir := t.TempDir()
 
-	result, err := RepackProvider(dstDir, srcPkg, signer)
+	result, err := RepackProvider(ctx, dstDir, srcPkg, signer)
 	require.NoError(t, err)
 	require.Equal(t, semver.Version{Major: 1, Minor: 2, Patch: 3}, result.Version)
 	require.Equal(t, "linux", result.OS)

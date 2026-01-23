@@ -124,6 +124,13 @@ jobs:
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
+      - name: Build the terraform module tarballs
+        # Note: module tarballs only contain HCL source code, which does not
+        # depend on OS, so skip macOS and Windows.
+        if: ${{ matrix.target.os == 'linux' }}
+        run: |
+          make -C integrations/terraform-modules release
+
       - name: Build the terraform provider release tarballs / cross compile for windows
         env:
           APPLE_USERNAME: ${{ env.OS == 'darwin' && env.APPLE_USERNAME }}
@@ -169,6 +176,7 @@ jobs:
             -exec cp {} "$ARTIFACT_DIRECTORY" \;
 
       - name: Generate release server manifests
+        shell: bash
         env:
           # Important: This path must not include any spaces, or it will break the downstream invocation.
           RELCLI_PATH: /tmp/relcli
@@ -188,6 +196,9 @@ jobs:
 
           shopt -s nullglob
           for file in *; do
+            # Skip manifest for terraform modules.
+            # Modules will be published to our Terraform module registry rather than the release server.
+            [[ "${file##*/}" == terraform-module* ]] && continue
             # Don't treat existing manifest files as artifacts.
             [[ "${file##*.}" == manifest ]] && continue
             # Skip files if a manifest for them already exists.

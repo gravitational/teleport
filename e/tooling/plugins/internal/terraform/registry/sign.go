@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
-	"io/ioutil"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -68,14 +67,14 @@ func (r *RepackResult) Sha256String() string {
 // For more information on the output files, see the Terraform Provider Registry
 // Protocol documentation:
 //
-//	https://www.terraform.io/internals/provider-registry-protocol
-func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.Entity) (*RepackResult, error) {
+//	https://developer.hashicorp.com/terraform/internals/provider-registry-protocol
+func RepackProvider(ctx context.Context, dstDir string, srcFileName string, signingEntity *openpgp.Entity) (*RepackResult, error) {
 	info, err := filename.Parse(srcFileName)
 	if err != nil {
 		return nil, trace.Wrap(err, "bad filename %q", srcFileName)
 	}
 
-	slog.DebugContext(context.Background(), "Provider platform", "version", info.Version, "os", info.OS, "arch", info.Arch)
+	slog.DebugContext(ctx, "Provider platform", "version", info.Version, "os", info.OS, "arch", info.Arch)
 
 	src, err := os.Open(srcFileName)
 	if err != nil {
@@ -104,7 +103,7 @@ func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.En
 		}
 	}()
 
-	slog.DebugContext(context.Background(), "Repacking into zipfile", "file", tmpZipFile.Name())
+	slog.DebugContext(ctx, "Repacking into zipfile", "file", tmpZipFile.Name())
 	err = repack(tmpZipFile, src)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed repacking provider")
@@ -144,7 +143,7 @@ func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.En
 	}
 
 	// Write everything out to the dstdir
-	err = writeOutput(result, tmpZipFileName, sums.Bytes(), sig.Bytes())
+	err = writeOutput(ctx, result, tmpZipFileName, sums.Bytes(), sig.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,21 +185,21 @@ func WriteMasterManifest(
 
 // writeOutput writes the in-memory signature data to file, and moves the temporary
 // zip file into place
-func writeOutput(entry *RepackResult, zipFilePath string, sums, sig []byte) error {
-	slog.DebugContext(context.Background(), "Writing sum file", "path", entry.Sum)
-	err := ioutil.WriteFile(entry.Sum, sums, 0644)
+func writeOutput(ctx context.Context, entry *RepackResult, zipFilePath string, sums, sig []byte) error {
+	slog.DebugContext(ctx, "Writing sum file", "path", entry.Sum)
+	err := os.WriteFile(entry.Sum, sums, 0644)
 	if err != nil {
 		return trace.Wrap(err, "writing sumfile failed")
 	}
 
-	slog.DebugContext(context.Background(), "Writing signature file", "path", entry.Sig)
-	err = ioutil.WriteFile(entry.Sig, sig, 0644)
+	slog.DebugContext(ctx, "Writing signature file", "path", entry.Sig)
+	err = os.WriteFile(entry.Sig, sig, 0644)
 	if err != nil {
 		return trace.Wrap(err, "writing sumfile failed")
 	}
 
 	// Do this _last_, as we want the temp file cleaned up if any of the above fails.
-	slog.DebugContext(context.Background(), "Moving tmp zipfile into place", "temp_file", zipFilePath, "destination", entry.Zip)
+	slog.DebugContext(ctx, "Moving tmp zipfile into place", "temp_file", zipFilePath, "destination", entry.Zip)
 	err = os.Rename(zipFilePath, entry.Zip)
 	if err != nil {
 		return trace.Wrap(err, "moving zipfile into place")

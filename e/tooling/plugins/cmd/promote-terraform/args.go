@@ -18,6 +18,7 @@ type args struct {
 	providerName          string
 	verbosity             int
 	variant               string
+	publishModules        bool
 }
 
 func parseCommandLine() *args {
@@ -66,6 +67,11 @@ func parseCommandLine() *args {
 		"variant",
 		"Terraform provider variant, e.g. 'mwi' for the MWI provider or unspecified for standard",
 	).StringVar(&result.variant)
+
+	app.Flag(
+		"publish-modules",
+		"Publish Terraform modules instead of providers.",
+	).BoolVar(&result.publishModules)
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
