@@ -126,7 +126,8 @@ export function createViteConfig(
           ws: true,
         },
         // /webapi/sites/:site/desktops/:desktopName/connect
-        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`]:
+        // /webapi/sites/:site/linuxdesktops/:desktopName/connect
+        [`^\\/v[0-9]+\\/webapi\\/sites\\/${siteName}\\/(linux)?desktops\\/${siteName}\\/connect`]:
           {
             target: `wss://${target}`,
             changeOrigin: false,

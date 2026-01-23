@@ -581,6 +581,11 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			desc:             "linux desktop enabled",
+			config:           &Config{LinuxDesktop: LinuxDesktopConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			desc:             "discovery enabled",
 			config:           &Config{Discovery: DiscoveryConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,

@@ -21,11 +21,11 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/gravitational/trace"
-
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 )
 
 // ConnectionConfig contains configuration needed to connect to Windows desktop service.
@@ -53,6 +53,26 @@ type DesktopsGetter interface {
 	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 	// GetWindowsDesktopService returns a registered Windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
+}
+
+func ConnectToLinuxService(ctx context.Context, config *ConnectionConfig) (conn net.Conn, version string, err error) {
+	desktop, err := config.DesktopsGetter.GetLinuxDesktop(ctx, config.DesktopName)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	conn, err = config.Cluster.DialTCP(reversetunnelclient.DialParams{
+		From:                  config.ClientSrcAddr,
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: desktop.Spec.Addr},
+		ConnType:              types.LinuxDesktopTunnel,
+		ServerID:              desktop.Metadata.Name + "." + config.ClusterName,
+		ProxyIDs:              desktop.Spec.ProxyIds,
+		OriginalClientDstAddr: config.ClientDstAddr,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return conn, "", nil
 }
 
 // ConnectToWindowsService tries to make a connection to a Windows Desktop Service

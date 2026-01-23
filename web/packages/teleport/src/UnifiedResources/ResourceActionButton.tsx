@@ -68,6 +68,8 @@ export const ResourceActionButton = ({ resource }: Props) => {
       return <KubeConnect kube={resource} />;
     case 'windows_desktop':
       return <DesktopConnect desktop={resource} />;
+    case 'linux_desktop':
+      return <LinuxDesktopConnect desktop={resource} />
     case 'git_server':
       return <GitServerConnect gitServer={resource} />;
     default:
@@ -135,6 +137,47 @@ const DesktopConnect = ({ desktop }: { desktop: Desktop }) => {
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
     e.preventDefault();
     return startRemoteDesktopSession(login, desktop.name);
+  }
+
+  return (
+    <MenuLogin
+      width="123px"
+      inputType={MenuInputType.FILTER}
+      textTransform="none"
+      alignButtonWidthToMenu
+      getLoginItems={handleOnOpen}
+      onSelect={handleOnSelect}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'right',
+      }}
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'right',
+      }}
+    />
+  );
+};
+
+const LinuxDesktopConnect = ({ desktop }: { desktop: Desktop }) => {
+  const { clusterId } = useStickyClusterId();
+  const startRemoteDesktopSession = (username: string, desktopName: string) => {
+    const url = cfg.getLinuxDesktopSelectorRoute({
+      clusterId,
+      desktopName,
+      username,
+    });
+
+    openNewTab(url);
+  };
+
+  function handleOnOpen() {
+    return makeDesktopLoginOptions(clusterId, desktop.name, desktop.logins);
+  }
+
+  function handleOnSelect(e: React.SyntheticEvent, login: string) {
+    e.preventDefault();
+    return startRemoteDesktopSession(login, desktop.host_id);
   }
 
   return (

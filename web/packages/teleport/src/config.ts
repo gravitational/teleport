@@ -1,3 +1,5 @@
+;
+
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -18,37 +20,163 @@
 
 import { generatePath } from 'react-router';
 
+
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-import type {
-  Auth2faType,
-  AuthProvider,
-  AuthType,
-  PreferredMfaType,
-  PrimaryAuthType,
-} from 'shared/services';
+import type { Auth2faType, AuthProvider, AuthType, PreferredMfaType, PrimaryAuthType } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
+
+
 
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
-import {
-  AwsOidcPolicyPreset,
-  IntegrationDeleteRequest,
-  IntegrationKind,
-  PluginKind,
-  Regions,
-} from 'teleport/services/integrations';
+import { AwsOidcPolicyPreset, IntegrationDeleteRequest, IntegrationKind, PluginKind, Regions } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
 import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
+
+
 import { defaultEntitlements } from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
 import { KindAuthConnectors } from './services/resources';
+
+
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export type Cfg = typeof cfg;
 const cfg = {
@@ -191,6 +319,10 @@ const cfg = {
     databases: '/web/cluster/:clusterId/databases',
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+    linuxDesktopSelector:
+      '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
+    linuxDesktop:
+      '/web/cluster/:clusterId/linux_desktops/:desktopName/:username/:sessionName',
     users: '/web/users',
     bots: '/web/bots',
     bot: '/web/bot/:botName',
@@ -313,6 +445,8 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
+    linuxDesktopWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
@@ -978,6 +1112,23 @@ const cfg = {
       clusterId,
       desktopName,
       username,
+    });
+  },
+
+  getLinuxDesktopSelectorRoute({ clusterId, username, desktopName }) {
+    return generatePath(cfg.routes.linuxDesktopSelector, {
+      clusterId,
+      desktopName,
+      username,
+    });
+  },
+
+  getLinuxDesktopRoute({ clusterId, username, desktopName, sessionName }) {
+    return generatePath(cfg.routes.linuxDesktop, {
+      clusterId,
+      desktopName,
+      username,
+      sessionName,
     });
   },
 
@@ -1996,10 +2147,13 @@ export interface UrlPlayerSearch {
 }
 
 // /web/cluster/:clusterId/desktops/:desktopName/:username
+// /web/cluster/:clusterId/linux_desktops/:desktopName/:username
+// /web/cluster/:clusterId/linux_desktops/:desktopName/:username/:session
 export interface UrlDesktopParams {
   username?: string;
   desktopName?: string;
   clusterId: string;
+  session?: string;
 }
 
 export interface UrlListRolesParams {

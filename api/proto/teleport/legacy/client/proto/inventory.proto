@@ -20,6 +20,7 @@ package proto;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/linuxdesktop/v1/linux_desktop.proto";
 import "teleport/presence/v1/relay_server.proto";
 import "teleport/scopes/joining/v1/token.proto";
 
@@ -181,6 +182,10 @@ message DownstreamInventoryHello {
     bool relay_server_heartbeats_cleanup = 19;
     // DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
     bool database_heartbeat_graceful_stop = 20;
+    // LinuxDesktopHeartbeats indicates the ICS supports heartbeating linux desktops.
+    bool LinuxDesktopHeartbeats = 21;
+    // LinuxDesktopCleanup indicates the ICS supports deleting linux desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+    bool LinuxDesktopCleanup = 22;
   }
 
   // SupportedCapabilities advertises the supported features of the auth server.
@@ -234,6 +239,8 @@ message InventoryHeartbeat {
   types.KubernetesServerV3 KubernetesServer = 4;
   // A relay_server to be heartbeated.
   teleport.presence.v1.RelayServer relay_server = 5;
+  // LinuxDesktop is a complete linux desktop spec to be heartbeated.
+  teleport.linuxdesktop.v1.LinuxDesktop linux_desktop = 6;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

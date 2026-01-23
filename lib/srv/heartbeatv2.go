@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -184,6 +185,25 @@ func NewRelayServerHeartbeat(cfg HeartbeatV2Config[*presencev1.RelayServer], log
 	inner := &relayServerHeartbeatV2{
 		log:       log,
 		getServer: cfg.GetResource,
+	}
+
+	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
+	}), nil
+}
+
+// NewLinuxDesktopHeartbeat creates a [HeartbeatV2] that can be used to update
+// the presence of [linuxdesktopv1.LinuxDesktop].
+func NewLinuxDesktopHeartbeat(cfg HeartbeatV2Config[*linuxdesktopv1.LinuxDesktop]) (*HeartbeatV2, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inner := &linuxDesktopHeartbeatV2{
+		getDesktop: cfg.GetResource,
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
@@ -854,6 +874,58 @@ type relayServerHeartbeatV2 struct {
 	getServer func(ctx context.Context) (*presencev1.RelayServer, error)
 
 	last *presencev1.RelayServer
+}
+
+// linuxDesktopHeartbeatV2 is the heartbeatV2 implementation for linux desktops.
+type linuxDesktopHeartbeatV2 struct {
+	getDesktop func(ctx context.Context) (*linuxdesktopv1.LinuxDesktop, error)
+	prev       *linuxdesktopv1.LinuxDesktop
+}
+
+func (h *linuxDesktopHeartbeatV2) Poll(ctx context.Context) (changed bool) {
+	if h.prev == nil {
+		return true
+	}
+
+	desktop, err := h.getDesktop(ctx)
+	if err != nil {
+		return false
+	}
+
+	return !gproto.Equal(desktop, h.prev)
+}
+
+func (h *linuxDesktopHeartbeatV2) SupportsFallback() bool {
+	return false
+}
+
+func (h *linuxDesktopHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
+	return false
+}
+
+func (h *linuxDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
+	hello := sender.Hello()
+	switch {
+	case hello.Capabilities == nil:
+		return false
+	case hello.Capabilities != nil && !hello.Capabilities.LinuxDesktopHeartbeats:
+		return false
+	}
+
+	desktop, err := h.getDesktop(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to perform inventory heartbeat for linux desktop", "error", err)
+		return false
+	}
+
+	if err := sender.Send(ctx, &proto.InventoryHeartbeat{LinuxDesktop: apiutils.CloneProtoMsg(desktop)}); err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for linux desktop", "error", err)
+		}
+		return false
+	}
+	h.prev = desktop
+	return true
 }
 
 var _ heartbeatV2Driver = (*relayServerHeartbeatV2)(nil)

@@ -323,6 +323,8 @@ type ReadProxyAccessPoint interface {
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
+
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
@@ -505,6 +507,9 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetWindowsDesktopService returns a registered windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetLinuxDesktop returns registered Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 }
 
 // RelayAccessPoint is the top-level access point interface required by a Relay service.
@@ -862,9 +867,6 @@ type ReadLinuxDesktopAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// ListLinuxDesktops returns Linux desktop hosts.
-	ListLinuxDesktops(ctx context.Context, pageSize int, pageToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
 }
 
 // LinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be

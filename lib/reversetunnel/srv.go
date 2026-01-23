@@ -844,6 +844,8 @@ func (s *server) handleHeartbeat(ctx context.Context, conn net.Conn, sconn *ssh.
 		s.handleNewCluster(ctx, conn, sconn, nch)
 	case types.RoleWindowsDesktop:
 		s.handleNewService(ctx, role, conn, sconn, nch, types.WindowsDesktopTunnel)
+	case types.RoleLinuxDesktop:
+		s.handleNewService(ctx, role, conn, sconn, nch, types.LinuxDesktopTunnel)
 	case types.RoleOkta:
 		s.handleNewService(ctx, role, conn, sconn, nch, types.OktaTunnel)
 	// Unknown role.

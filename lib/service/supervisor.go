@@ -312,6 +312,7 @@ var metricsServicesRunningMap = map[string]string{
 	"apps.start":           "application_service",
 	"db.init":              "database_service",
 	"windows_desktop.init": "windows_desktop_service",
+	"linux_desktop.init":   "linux_desktop_service",
 	"okta.init":            "okta_service",
 	"jamf.init":            "jamf_service",
 }

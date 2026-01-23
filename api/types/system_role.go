@@ -60,6 +60,8 @@ const (
 	RoleDatabase SystemRole = "Db"
 	// RoleWindowsDesktop is a role for a Windows desktop service.
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
+	// RoleLinuxDesktop is a role for a Linux desktop service.
+	RoleLinuxDesktop SystemRole = "LinuxDesktop"
 	// RoleBot is a role for a bot.
 	RoleBot SystemRole = "Bot"
 	// RoleInstance is a role implicitly held by teleport servers (i.e. any teleport
@@ -105,6 +107,8 @@ var roleMappings = map[string]SystemRole{
 	"db":                RoleDatabase,
 	"windowsdesktop":    RoleWindowsDesktop,
 	"windows_desktop":   RoleWindowsDesktop,
+	"linux_desktop":     RoleLinuxDesktop,
+	"linuxdesktop":      RoleLinuxDesktop,
 	"bot":               RoleBot,
 	"instance":          RoleInstance,
 	"discovery":         RoleDiscovery,
@@ -140,6 +144,7 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleApp:               {},
 	RoleDatabase:          {},
 	RoleWindowsDesktop:    {},
+	RoleLinuxDesktop:      {},
 	RoleDiscovery:         {},
 	RoleOkta:              {},
 	RoleMDM:               {},

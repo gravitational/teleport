@@ -1,3 +1,5 @@
+;
+
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
@@ -17,14 +19,15 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useHistory, useParams } from 'react-router';
 
-import {
-  DisconnectedState,
-  DesktopSession as SharedDesktopSession,
-} from 'shared/components/DesktopSession';
+
+
+import { DisconnectedState, DesktopSession as SharedDesktopSession } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
 import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
+
+
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -36,13 +39,52 @@ import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
 import { useUser } from 'teleport/User/UserContext';
 
+
+
+
+
+;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export function DesktopSession() {
   const ctx = useTeleport();
   const { preferences } = useUser();
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
+  const { username, desktopName, clusterId, session } =
+    useParams<UrlDesktopParams>();
+  const history = useHistory();
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
   }, [clusterId, desktopName, username]);
+
+  let linuxDesktop = history.location.pathname.indexOf('linux_desktops') !== -1;
+  const addr = linuxDesktop
+    ? cfg.api.linuxDesktopWsAddr
+    : cfg.api.desktopWsAddr;
 
   const [client] = useState(
     () =>
@@ -51,11 +93,12 @@ export function DesktopSession() {
         abortSignal =>
           adaptWebSocketToTdpTransport(
             new AuthenticatedWebSocket(
-              cfg.api.desktopWsAddr
+              addr
                 .replace(':fqdn', getHostName())
                 .replace(':clusterId', clusterId)
                 .replace(':desktopName', desktopName)
                 .replace(':username', username)
+                .replace(':session', session)
                 .replace(':version', 'teleport-tdpb-1.0')
             ),
             abortSignal

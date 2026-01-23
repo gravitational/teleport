@@ -16,32 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  Application as ApplicationIcon,
-  Database as DatabaseIcon,
-  Desktop as DesktopIcon,
-  GitHub as GitHubIcon,
-  Kubernetes as KubernetesIcon,
-  ModelContextProtocol as MCPIcon,
-  Server as ServerIcon,
-} from 'design/Icon';
+import { Application as ApplicationIcon, Database as DatabaseIcon, Desktop as DesktopIcon, GitHub as GitHubIcon, Kubernetes as KubernetesIcon, ModelContextProtocol as MCPIcon, Server as ServerIcon } from 'design/Icon';
 import { ResourceIconName } from 'design/ResourceIcon';
 import { AppSubKind, NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
 
-import {
-  SharedUnifiedResource,
-  UnifiedResourceApp,
-  UnifiedResourceDatabase,
-  UnifiedResourceDesktop,
-  UnifiedResourceGitServer,
-  UnifiedResourceKube,
-  UnifiedResourceNode,
-  UnifiedResourceUi,
-  UnifiedResourceUserGroup,
-  UnifiedResourceViewItem,
-} from '../types';
+
+
+import { SharedUnifiedResource, UnifiedResourceApp, UnifiedResourceDatabase, UnifiedResourceDesktop, UnifiedResourceGitServer, UnifiedResourceKube, UnifiedResourceNode, UnifiedResourceUi, UnifiedResourceUserGroup, UnifiedResourceViewItem } from '../types';
 import { guessAppIcon } from './guessAppIcon';
+
 
 export function makeUnifiedResourceViewItemNode(
   resource: UnifiedResourceNode,

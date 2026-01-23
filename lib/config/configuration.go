@@ -718,6 +718,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
+		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -775,6 +776,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.LinuxDesktop.Enabled() {
+		if err := applyLinuxDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2394,6 +2400,31 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
+	}
+
+	return nil
+}
+
+// applyLinuxDesktopConfig applies file configuration for the "linux_desktop_service" section.
+func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	cfg.LinuxDesktop.Enabled = true
+
+	if fc.LinuxDesktop.ListenAddress != "" {
+		listenAddr, err := utils.ParseHostPortAddr(fc.LinuxDesktop.ListenAddress, defaults.LinuxDesktopListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.LinuxDesktop.ListenAddr = *listenAddr
+	}
+
+	var err error
+	cfg.LinuxDesktop.PublicAddrs, err = utils.AddrsFromStrings(fc.LinuxDesktop.PublicAddr, defaults.LinuxDesktopListenPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if fc.LinuxDesktop.Labels != nil {
+		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
 	}
 
 	return nil

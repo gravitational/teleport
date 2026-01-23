@@ -102,6 +102,9 @@ const (
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
 
+	// KeepAliveLinuxDesktop is the keep alive type for a Linux desktop.
+	KeepAliveLinuxDesktop = "linux_desktop"
+
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
 

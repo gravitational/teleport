@@ -83,6 +83,9 @@ const (
 	// implemented.
 	WindowsDesktopListenPort = 3028
 
+	// LinuxDesktopListenPort is the default listed port for linux_desktop_service
+	LinuxDesktopListenPort = 3029
+
 	// ProxyPeeringListenPort is the default port proxies will listen on when
 	// proxy peering is enabled.
 	ProxyPeeringListenPort = 3021

@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -66,6 +68,9 @@ type Auth interface {
 
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
 	DeleteRelayServer(ctx context.Context, name string) error
+
+	UpsertLinuxDesktop(ctx context.Context, linuxDesktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error)
+	DeleteLinuxDesktop(ctx context.Context, name string) error
 
 	KeepAliveServer(context.Context, types.KeepAlive) error
 	UpsertInstance(ctx context.Context, instance types.Instance) error
@@ -453,12 +458,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	// since not all servers send all heartbeats
 	var sshKeepAliveDelay *delay.Delay
 	var relayKeepAliveDelay *delay.Delay
+	var linuxKeepAliveDelay *delay.Delay
 
 	defer func() {
 		// this is a function expression because the variables are initialized
 		// later and we want to call Stop on the initialized value (if any)
 		sshKeepAliveDelay.Stop()
 		relayKeepAliveDelay.Stop()
+		linuxKeepAliveDelay.Stop()
 		handle.appKeepAliveDelay.Stop()
 		handle.dbKeepAliveDelay.Stop()
 		handle.kubeKeepAliveDelay.Stop()
@@ -494,6 +501,11 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				c.relayHBVariableDuration.Dec()
 			}
 			handle.relayServer = nil
+		}
+
+		if handle.linuxDesktop != nil {
+			c.onDisconnectFunc(constants.KeepAliveLinuxDesktop, 1)
+			handle.linuxDesktop = nil
 		}
 
 		if len(handle.appServers) > 0 {
@@ -599,6 +611,17 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
+				if m.LinuxDesktop != nil {
+					if linuxKeepAliveDelay == nil {
+						linuxKeepAliveDelay = c.createKeepAliveDelay(nil)
+					}
+
+					if err := c.handleLinuxDesktopHB(handle, m.LinuxDesktop, linuxKeepAliveDelay); err != nil {
+						handle.CloseWithError(err)
+						return
+					}
+				}
+
 			case *proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
 			case *proto.UpstreamInventoryGoodbye:
@@ -689,6 +712,14 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			}
 			c.testEvent(keepAliveKubeTick)
 
+		case now := <-linuxKeepAliveDelay.Elapsed():
+			linuxKeepAliveDelay.Advance(now)
+
+			if err := c.keepAliveLinuxDesktop(handle, now); err != nil {
+				handle.CloseWithError(err)
+				return
+			}
+
 		case req := <-handle.pingC:
 			// pings require multiplexing, so we need to do the sending from this
 			// goroutine rather than sending directly via the handle.
@@ -726,6 +757,7 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 		"dbs", len(handle.databaseServers),
 		"kube", len(handle.kubernetesServers),
 		"relay", handle.relayServer != nil,
+		"linux_desktop", handle.linuxDesktop != nil,
 		"server_id", handle.Hello().ServerID,
 	)
 
@@ -735,6 +767,17 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 				"relay_server", handle.Hello().GetServerID(),
 				"error", err,
 			)
+		}
+	}
+
+	if handle.linuxDesktop != nil {
+		if err := c.auth.DeleteLinuxDesktop(c.closeContext, handle.linuxDesktop.resource.GetMetadata().GetName()); err != nil {
+			if !trace.IsNotFound(err) {
+				slog.WarnContext(c.closeContext, "Failed to delete linux desktop on termination",
+					"linux_desktop", handle.linuxDesktop.resource.GetMetadata().GetName(),
+					"error", err,
+				)
+			}
 		}
 	}
 
@@ -1249,6 +1292,53 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 	return nil
 }
 
+func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *linuxdesktopv1.LinuxDesktop, linuxDelay *delay.Delay) error {
+	if !handle.HasService(types.RoleLinuxDesktop) {
+		return trace.AccessDenied("control stream not configured to support linux desktop heartbeats")
+	}
+
+	meta := linuxDesktop.GetMetadata()
+	if meta == nil {
+		meta = &headerv1.Metadata{}
+		linuxDesktop.Metadata = meta
+	}
+	if meta.GetName() != handle.Hello().ServerID {
+		return trace.AccessDenied("incorrect linux desktop ID (expected %q, got %q)", handle.Hello().ServerID, meta.GetName())
+	}
+
+	meta.Expires = timestamppb.New(time.Now().Add(c.serverTTL).UTC())
+
+	if handle.linuxDesktop == nil {
+		c.onConnectFunc(constants.KeepAliveLinuxDesktop)
+		handle.linuxDesktop = &heartBeatInfo[*linuxdesktopv1.LinuxDesktop]{
+			resource: linuxDesktop,
+		}
+	} else if handle.linuxDesktop.keepAliveErrs == 0 && gproto.Equal(handle.linuxDesktop.resource, linuxDesktop) {
+		return nil
+	} else {
+		handle.linuxDesktop.resource = linuxDesktop
+	}
+
+	if _, err := c.auth.UpsertLinuxDesktop(c.closeContext, handle.linuxDesktop.resource); err == nil {
+		handle.linuxDesktop.keepAliveErrs = 0
+		handle.linuxDesktop.retryUpsert = false
+		linuxDelay.Reset()
+	} else {
+		slog.WarnContext(c.closeContext, "Failed to announce linux desktop",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+		)
+
+		handle.linuxDesktop.keepAliveErrs++
+		if handle.linuxDesktop.retryUpsert || handle.linuxDesktop.keepAliveErrs > c.maxKeepAliveErrs {
+			return trace.Wrap(err, "failed to announce linux desktop")
+		}
+		handle.linuxDesktop.retryUpsert = true
+	}
+
+	return nil
+}
+
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m *proto.UpstreamInventoryAgentMetadata) {
 	handle.setAgentMetadata(m)
 
@@ -1482,6 +1572,44 @@ func (c *Controller) keepAliveSSHServer(handle *upstreamHandle, now time.Time) e
 
 		if closing {
 			return trace.Wrap(err, "failed to keep alive SSH server")
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) keepAliveLinuxDesktop(handle *upstreamHandle, now time.Time) error {
+	if handle.linuxDesktop == nil {
+		return nil
+	}
+
+	if handle.linuxDesktop.resource.Metadata == nil {
+		handle.linuxDesktop.resource.Metadata = &headerv1.Metadata{}
+	}
+	handle.linuxDesktop.resource.Metadata.Expires = timestamppb.New(now.Add(c.serverTTL).UTC())
+	if _, err := c.auth.UpsertLinuxDesktop(c.closeContext, handle.linuxDesktop.resource); err == nil {
+		handle.linuxDesktop.keepAliveErrs = 0
+		handle.linuxDesktop.retryUpsert = false
+	} else {
+		if handle.linuxDesktop.retryUpsert {
+			slog.WarnContext(c.closeContext, "Failed to upsert linux desktop on retry",
+				"server_id", handle.Hello().ServerID,
+				"error", err,
+			)
+			return trace.Wrap(err, "failed to upsert linux desktop on retry")
+		}
+
+		handle.linuxDesktop.keepAliveErrs++
+		closing := handle.linuxDesktop.keepAliveErrs > c.maxKeepAliveErrs
+		slog.WarnContext(c.closeContext, "Failed to upsert linux desktop on keepalive",
+			"server_id", handle.Hello().ServerID,
+			"error", err,
+			"count", handle.linuxDesktop.keepAliveErrs,
+			"closing", closing,
+		)
+
+		if closing {
+			return trace.Wrap(err, "failed to keep alive linux desktop")
 		}
 	}
 

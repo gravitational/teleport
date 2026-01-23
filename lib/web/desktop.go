@@ -61,6 +61,37 @@ const (
 	protocolTDP        = "teleport-tdp"
 )
 
+// GET /webapi/sites/:site/linuxdesktops/:desktopName/connect?username=<username>
+func (h *Handler) linuxDesktopConnectHandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	cluster reversetunnelclient.Cluster,
+	ws *websocket.Conn,
+) (any, error) {
+	desktopName := p.ByName("desktopName")
+	if desktopName == "" {
+		return nil, trace.BadParameter("missing desktopName in request URL")
+	}
+
+	log := sctx.cfg.Log.With(
+		"desktop_name", desktopName,
+		"cluster_name", cluster.GetName(),
+	)
+	log.DebugContext(r.Context(), "New desktop access websocket connection")
+
+	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToLinuxService); err != nil {
+		// createDesktopConnection makes a best effort attempt to send an error to the user
+		// (via websocket) before terminating the connection. We log the error here, but
+		// return nil because our HTTP middleware will try to write the returned error in JSON
+		// format, and this will fail since the HTTP connection has been upgraded to websockets.
+		log.ErrorContext(r.Context(), "creating desktop connection failed", "error", err)
+	}
+
+	return nil, nil
+}
+
 // GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
@@ -81,7 +112,7 @@ func (h *Handler) desktopConnectHandle(
 	)
 	log.DebugContext(r.Context(), "New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws); err != nil {
+	if err := h.createDesktopConnection(r, desktopName, cluster.GetName(), log, sctx, cluster, ws, desktop.ConnectToWindowsService); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -242,10 +273,10 @@ func (t *tdpbHandshaker) sendError(ctx context.Context, log *slog.Logger, err er
 		err = errors.New("an unknown error has occurred")
 	}
 
-	return trace.Wrap(t.connection.WriteMessage((&tdpb.Alert{
+	return trace.Wrap(t.connection.WriteMessage(&tdpb.Alert{
 		Message:  err.Error(),
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
-	})))
+	}))
 }
 
 func (t *tdpbHandshaker) getPromptBuilder(log *slog.Logger) mfaPromptBuilder {
@@ -332,15 +363,7 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 
 type mfaPromptBuilder func(string) mfa.PromptFunc
 
-func (h *Handler) createDesktopConnection(
-	r *http.Request,
-	desktopName string,
-	clusterName string,
-	log *slog.Logger,
-	sctx *SessionContext,
-	cluster reversetunnelclient.Cluster,
-	ws *websocket.Conn,
-) error {
+func (h *Handler) createDesktopConnection(r *http.Request, desktopName string, clusterName string, log *slog.Logger, sctx *SessionContext, cluster reversetunnelclient.Cluster, ws *websocket.Conn, connectFunc func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)) error {
 	defer ws.Close()
 	ctx := r.Context()
 
@@ -404,7 +427,7 @@ func (h *Handler) createDesktopConnection(
 
 	log.DebugContext(ctx, "Attempting to connect to agent")
 	clientSrcAddr, clientDstAddr := authz.ClientAddrsFromContext(ctx)
-	serviceConn, version, err := desktop.ConnectToWindowsService(ctx, &desktop.ConnectionConfig{
+	serviceConn, version, err := connectFunc(ctx, &desktop.ConnectionConfig{
 		Log:            log,
 		DesktopsGetter: clt,
 		Cluster:        cluster,

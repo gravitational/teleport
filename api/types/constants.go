@@ -1416,6 +1416,9 @@ const (
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
 
+	// LinuxDesktopTunnel is a tunnel where the Linux desktop service dials back to the proxy.
+	LinuxDesktopTunnel TunnelType = "linux_desktop"
+
 	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
 	OktaTunnel TunnelType = "okta"
 )

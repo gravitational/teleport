@@ -1,3 +1,4 @@
+;
 /**
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -20,7 +21,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
+
+
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
+
+
 
 import Authenticated from 'teleport/components/Authenticated';
 import { CatchError } from 'teleport/components/CatchError';
@@ -31,6 +36,8 @@ import { ViewSessionRecordingRoute } from 'teleport/SessionRecordings/view/ViewS
 import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
+
+
 
 import { AppLauncher } from './AppLauncher';
 import cfg from './config';
@@ -47,6 +54,7 @@ import { SingleLogoutFailed } from './SingleLogoutFailed';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
 import { Welcome } from './Welcome';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -214,6 +222,16 @@ export function getSharedPrivateRoutes() {
     <Route
       key="desktop"
       path={cfg.routes.desktop}
+      component={DesktopSession}
+    />,
+    <Route
+      key="linuxDesktop"
+      path={cfg.routes.linuxDesktop}
+      component={DesktopSession}
+    />,
+    <Route
+      key="linuxDesktopSelector"
+      path={cfg.routes.linuxDesktopSelector}
       component={DesktopSession}
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
