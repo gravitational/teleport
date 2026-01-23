@@ -19,6 +19,8 @@
 package ui
 
 import (
+	"strings"
+
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -85,7 +87,7 @@ func makeInstanceUnifiedItem(instance *types.InstanceV1) UnifiedInstance {
 
 	instanceData := &InstanceData{
 		Name:     instance.Spec.Hostname,
-		Version:  instance.Spec.Version,
+		Version:  strings.TrimPrefix(instance.Spec.Version, "v"),
 		Services: services,
 	}
 
@@ -114,7 +116,7 @@ func makeBotInstanceUnifiedItem(botInstance *machineidv1.BotInstance) UnifiedIns
 
 	if botInstance.Status != nil && len(botInstance.Status.LatestHeartbeats) > 0 {
 		heartbeat := botInstance.Status.LatestHeartbeats[0]
-		botData.Version = heartbeat.Version
+		botData.Version = strings.TrimPrefix(heartbeat.Version, "v")
 	}
 
 	return UnifiedInstance{
