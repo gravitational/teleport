@@ -152,6 +152,38 @@ func RepackProvider(dstDir string, srcFileName string, signingEntity *openpgp.En
 	return result, nil
 }
 
+// WriteMasterManifest generates the master SHA256SUMS file and its cryptographic signature.
+//
+// It takes a reader containing the aggregated checksum lines and simultaneously writes the content
+// to the manifestWriter while generating a detached PCP signature written to the signatureWriter. This ensures
+// that the manifest and the signature are generated from the exact byte stream in a single pass.
+//
+// Params:
+// - sums: an io.Reader providing the raw checksum text (e.g. "hash" filename\n").
+// - signingEntity: private key used to sign the manifest.
+// - manifestWriter: the destination for the plain text SHA256SUMS file.
+// - signatureWriter: the destination for the binary PCP detached signature (.sig).
+func WriteMasterManifest(
+	ctx context.Context,
+	sums io.Reader,
+	signingEntity *openpgp.Entity,
+	manifestWriter io.Writer,
+	signatureWriter io.Writer,
+) error {
+	slog.InfoContext(ctx, "Generating and writing master manifest")
+
+	// TeeReader copies everything read from `sums` into `manifestWriter`
+	tee := io.TeeReader(sums, manifestWriter)
+
+	// DetachSign will read the entire string once.
+	// While it reads, TeeReader ensures the sames bytes are written to the manifest.
+	if err := openpgp.DetachSign(signatureWriter, signingEntity, tee, nil); err != nil {
+		return trace.Wrap(err, "failed signing master manifest")
+	}
+
+	return nil
+}
+
 // writeOutput writes the in-memory signature data to file, and moves the temporary
 // zip file into place
 func writeOutput(entry *RepackResult, zipFilePath string, sums, sig []byte) error {

@@ -3,12 +3,15 @@ package registry
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,4 +153,41 @@ func TestIsProviderTarball(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestWriteMasterManifest(t *testing.T) {
+	// Arrange
+	ctx := context.Background()
+
+	signer := newKey(t)
+
+	inputContentForTest := "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03  terraform-provider-teleport_18.5.1_linux_amd64.zip\n" +
+		"7a1e0952671520624d6786a3d6f14a6a5751950392348a2e846f6be036571950  terraform-provider-teleport_18.5.1_darwin_arm64.zip\n"
+
+	sumsReader := strings.NewReader(inputContentForTest)
+
+	manifestBuffer := new(bytes.Buffer)
+	signatureBuffer := new(bytes.Buffer)
+
+	// Act
+	err := WriteMasterManifest(ctx, sumsReader, signer, manifestBuffer, signatureBuffer)
+
+	// Assert
+	require.NoError(t, err)
+	require.Equal(t, inputContentForTest, manifestBuffer.String(), "manifest content must contain exactly what was read from input reader")
+
+	// verify signature
+	t.Run("Cryptographic verification", func(t *testing.T) {
+		keyring := openpgp.EntityList{signer}
+
+		actualSigner, err := openpgp.CheckDetachedSignature(
+			keyring,
+			bytes.NewReader(manifestBuffer.Bytes()),
+			bytes.NewReader(signatureBuffer.Bytes()),
+			nil,
+		)
+
+		require.NoError(t, err, "signature should be valid for the generated manifest")
+		require.Equal(t, signer.PrivateKey.KeyId, actualSigner.PrivateKey.KeyId)
+	})
 }

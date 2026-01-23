@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"os"
@@ -45,13 +48,13 @@ func main() {
 
 	objectStoreUrl := args.registryURL + "store/"
 
-	versionRecord, newFiles, err := repackProviders(files, localRegistry, objectStoreUrl, signingEntity, args.protocolVersions, args.providerNamespace, args.providerName)
+	versionRecord, newFiles, err := repackProviders(ctx, files, localRegistry, objectStoreUrl, signingEntity, args.protocolVersions, args.providerNamespace, args.providerName)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed repacking artifacts", "error", err)
 		os.Exit(1)
 	}
 
-	err = updateRegistry(context.Background(), localRegistry, args.providerNamespace, args.providerName, versionRecord, newFiles)
+	err = updateRegistry(ctx, localRegistry, args.providerNamespace, args.providerName, versionRecord, newFiles)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed updating registry", "error", err)
 		os.Exit(1)
@@ -146,7 +149,16 @@ func flattenVersionIndex(versionIndex map[semver.Version]registry.Version) []reg
 	return providerVersions
 }
 
-func repackProviders(providerArtifacts []string, localRegistry *registryPaths, objectStoreUrl string, signingEntity *openpgp.Entity, protocolVersions []string, providerNamespace, providerName string) (registry.Version, []string, error) {
+func repackProviders(
+	ctx context.Context,
+	providerArtifacts []string,
+	localRegistry *registryPaths,
+	objectStoreUrl string,
+	signingEntity *openpgp.Entity,
+	protocolVersions []string,
+	providerNamespace,
+	providerName string,
+) (registry.Version, []string, error) {
 	versionRecord := registry.Version{
 		Protocols: protocolVersions,
 	}
@@ -154,22 +166,45 @@ func repackProviders(providerArtifacts []string, localRegistry *registryPaths, o
 	newFiles := []string{}
 	unsetVersion := semver.Version{}
 
+	// buffer to hold the content for the master SHA256SUMS file
+	var masterSums bytes.Buffer
+	var masterSumPath, masterSigPath string
+
 	for _, providerArtifact := range providerArtifacts {
-		slog.InfoContext(context.Background(), "Found provider tarball", "artifact", providerArtifact)
+		slog.InfoContext(ctx, "Found provider tarball", "artifact", providerArtifact)
 
 		registryInfo, err := registry.RepackProvider(localRegistry.objectStoreDir, providerArtifact, signingEntity)
 		if err != nil {
 			return registry.Version{}, nil, trace.Wrap(err, "failed repacking provider")
 		}
 
-		slog.InfoContext(context.Background(), "Provider repacked", "path", registryInfo.Zip)
-		newFiles = append(newFiles, registryInfo.Zip, registryInfo.Sum, registryInfo.Sig)
+		slog.InfoContext(ctx, "Provider repacked", "path", registryInfo.Zip)
+		newFiles = append(newFiles, registryInfo.Zip)
 
+		// version handling
 		if versionRecord.Version == unsetVersion {
 			versionRecord.Version = registryInfo.Version
+
+			// Standard Format: terraform-provider-NAME_VERSION_SHA256SUMS
+			masterSumName := fmt.Sprintf("terraform-provider-%s_%s_SHA256SUMS", providerName, registryInfo.Version)
+			masterSigName := masterSumName + ".sig"
+
+			masterSumPath = filepath.Join(localRegistry.objectStoreDir, masterSumName)
+			masterSigPath = filepath.Join(localRegistry.objectStoreDir, masterSigName)
+
 		} else if !versionRecord.Version.Equal(registryInfo.Version) {
 			return registry.Version{}, nil, trace.Wrap(err, "version mismatch. Expected %s, got %s", versionRecord.Version, registryInfo.Version)
 		}
+
+		// Append this artifact's hash to our Master Buffer
+		// Format: "checksum  filename" (Standard sha256sum output)
+		if _, err := fmt.Fprintf(&masterSums, "%s  %s\n", registryInfo.Sha256String(), filepath.Base(registryInfo.Zip)); err != nil {
+			return registry.Version{}, []string{}, trace.Wrap(err, "failed writing master sum")
+		}
+
+		// Overwrite the Sum/Sig paths so download.json points to the master files
+		registryInfo.Sum = masterSumPath
+		registryInfo.Sig = masterSigPath
 
 		downloadInfo, err := registry.NewDownloadFromRepackResult(registryInfo, protocolVersions, objectStoreUrl)
 		if err != nil {
@@ -188,7 +223,46 @@ func repackProviders(providerArtifacts []string, localRegistry *registryPaths, o
 		})
 	}
 
+	// write the Master SHA256SUMS file
+	if masterSumPath != "" {
+		if err := writeMasterFiles(ctx, masterSumPath, masterSigPath, &masterSums, signingEntity); err != nil {
+			return registry.Version{}, nil, trace.Wrap(err, "failed writing master files")
+		}
+
+		newFiles = append(newFiles, masterSumPath, masterSigPath)
+	}
+
 	return versionRecord, newFiles, nil
+}
+
+func closeWithLog(ctx context.Context, f *os.File, label, path string) {
+	if err := f.Close(); err != nil {
+		slog.ErrorContext(ctx, "Failed to close file", "path", path, "err", trace.DebugReport(err))
+	}
+}
+
+func writeMasterFiles(
+	ctx context.Context,
+	sumPath string,
+	sigPath string,
+	sums io.Reader,
+	signingEntity *openpgp.Entity,
+) error {
+	slog.InfoContext(ctx, "Writing Master SHA256SUMS", "path", sumPath)
+
+	fSum, err := os.Create(sumPath)
+	if err != nil {
+		return trace.Wrap(err, "failed creating master sum file")
+	}
+	defer closeWithLog(ctx, fSum, "master sum file", sumPath)
+
+	fSig, err := os.Create(sigPath)
+	if err != nil {
+		return trace.Wrap(err, "failed creating master sig file")
+	}
+	defer closeWithLog(ctx, fSig, "master sig file", sigPath)
+
+	return registry.WriteMasterManifest(ctx, sums, signingEntity, fSum, fSig)
 }
 
 func getVersionsFilePath(registryDir, namespace, provider string) string {
