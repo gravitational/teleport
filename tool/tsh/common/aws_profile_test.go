@@ -20,7 +20,6 @@ package common
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/aws/awsconfigfile"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestExtractAWSStartURL(t *testing.T) {
@@ -153,24 +153,27 @@ func TestWriteAWSProfileSummary(t *testing.T) {
 		},
 	}
 
-	buf := &bytes.Buffer{}
-	writeAWSProfileSummary(buf, configPath, profiles)
-	output := buf.String()
+	t.Run("with profiles", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		writeAWSProfileSummary(buf, configPath, profiles)
+		output := buf.Bytes()
 
-	require.Contains(t, output, "AWS configuration updated at: /home/user/.aws/config")
-	require.Contains(t, output, "aws sso login --sso-session teleport-d-12345")
-	require.Contains(t, output, "export AWS_PROFILE=teleport-awsic-dev-admin")
-	require.Contains(t, output, "teleport-awsic-dev-admin")
-	require.Contains(t, output, "123456789012")
-	require.Contains(t, output, "Admin")
-	require.Contains(t, output, "teleport-awsic-prod-reader")
-	require.Contains(t, output, "098765432109")
-	require.Contains(t, output, "Reader")
+		if golden.ShouldSet() {
+			golden.Set(t, output)
+		}
+		require.Equal(t, string(golden.Get(t)), string(output))
+	})
 
-	// Empty case
-	buf.Reset()
-	writeAWSProfileSummary(buf, configPath, nil)
-	require.Contains(t, buf.String(), "No AWS Identity Center integrations found.")
+	t.Run("empty", func(t *testing.T) {
+		buf := &bytes.Buffer{}
+		writeAWSProfileSummary(buf, configPath, nil)
+		output := buf.Bytes()
+
+		if golden.ShouldSet() {
+			golden.Set(t, output)
+		}
+		require.Equal(t, string(golden.Get(t)), string(output))
+	})
 }
 
 func TestFilterAWSIdentityCenterApps(t *testing.T) {
@@ -261,28 +264,9 @@ func TestWriteAWSConfig(t *testing.T) {
 	// Verify file content
 	content, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	s := string(content)
 
-	// Check session
-	require.Contains(t, s, "[sso-session teleport-d-123]")
-	require.Contains(t, s, "sso_start_url=https://d-123.awsapps.com/start")
-	require.Contains(t, s, "sso_region=us-east-1")
-
-	// Check all profiles in file
-	expectedProfiles := []struct {
-		name    string
-		account string
-		role    string
-	}{
-		{"teleport-awsic-dev-admin", "111111111111", "Admin"},
-		{"teleport-awsic-dev-reader", "111111111111", "Reader"},
-		{"teleport-awsic-222222222222-admin", "222222222222", "Admin"},
+	if golden.ShouldSet() {
+		golden.Set(t, content)
 	}
-
-	for _, p := range expectedProfiles {
-		require.Contains(t, s, fmt.Sprintf("[profile %s]", p.name))
-		require.Contains(t, s, fmt.Sprintf("sso_account_id=%s", p.account))
-		require.Contains(t, s, fmt.Sprintf("sso_role_name=%s", p.role))
-		require.Contains(t, s, "sso_session=teleport-d-123")
-	}
+	require.Equal(t, string(golden.Get(t)), string(content))
 }
