@@ -654,7 +654,7 @@ func readClientProtocol(r *http.Request) (string, error) {
 	case protocolTDPB:
 		return protocolTDPB, nil
 	default:
-		return "", trace.BadParameter("unknown TDPB version '%s'", tdpbVersion)
+		return "", trace.BadParameter("unknown TDPB version %q", tdpbVersion)
 	}
 }
 
