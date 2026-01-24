@@ -153,23 +153,22 @@ storage:
   type: directory
   path: /var/lib/teleport/bot
 
-# outputs specifies what artifacts `tbot` should generate and renew when it
-# runs.
-#
-# See the full list of supported outputs and their configuration options
-# under the Outputs section of this reference page.
-outputs:
-  - type: identity
-    destination:
-      type: directory
-      path: /opt/machine-id
-
 # services specify which `tbot` sub-services should be enabled and how they
 # should be configured.
 #
 # See the full list of supported services and their configuration options
 # under the Services section of this reference page.
 services:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
+
+# outputs is synonymous to `services` and exists for legacy compatibility. All
+# services specified in both `services` and `outputs` will be enabled. You
+# should not duplicate any entries between the two fields, and should prefer to
+# keep configuration within the `services` field where possible.
+outputs:
   - type: example
 ```
 
@@ -207,11 +206,11 @@ services:
       path: ./tbot-user
 ```
 
-## Outputs
+## Output Services
 
-Outputs define what actions `tbot` should take when it runs. They describe
-the format of the certificates to be generated, the roles used to generate the certificates, and the
-destination where they should be written.
+Output services define what actions `tbot` should take when it runs. They
+describe the format of the certificates to be generated, the roles used to
+generate the certificates, and the destination where they should be written.
 
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
@@ -769,9 +768,9 @@ svid:
 ## Services
 
 Services are configurable long-lived components that run within `tbot`. Unlike
-Outputs, they may not necessarily generate artifacts. Typically, services
-provide supporting functionality for machine to machine access, for example,
-opening tunnels or providing APIs.
+Output Services, they may not necessarily generate artifacts. Typically,
+services provide supporting functionality for machine to machine access, for
+example, opening tunnels or providing APIs.
 
 ### `workload-identity-api`
 
