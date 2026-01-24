@@ -45,8 +45,8 @@ data:
   auth_id: #...
 ```
 
-Check out the [Export Events with Fluentd]
-(../../zero-trust-access/export-audit-events/fluentd.mdx) guide
+Check out the [Export Events with Fluentd
+](../../zero-trust-access/export-audit-events/fluentd.mdx) guide
 for more information about how to acquire these credentials.
 
 ### `teleport.identitySecretPath`
@@ -151,7 +151,7 @@ for a list of default skipped events.
 |------|---------|
 | `bool` | `false` |
 
-`eventHandler.dryRun` enables dry run without sending events to fluentd.
+`eventHandler.dryRun` enables dry run without sending events to Fluentd.
 
 ### `eventHandler.concurrency`
 
@@ -197,7 +197,7 @@ will trigger locking. By default, this is set to 1 minute.
 
 ## `fluentd`
 
-`fluentd` contains the configuration for the fluentd forwarder.
+`fluentd` contains the configuration for the Fluentd forwarder.
 
 ### `fluentd.url`
 
@@ -214,6 +214,11 @@ will trigger locking. By default, this is set to 1 minute.
 | `string` | `""` |
 
 `fluentd.sessionUrl` is the Fluentd URL where the session logs will be sent.
+
+### `fluentd.certificate`
+
+`fluentd.certificate` contains the configuration for the plugin's Fluentd client certificates.
+When `certManager.enabled` is true, `cert-manager` will use its own secrets, so this section is unused.
 
 #### `fluentd.certificate.secretName`
 
@@ -411,6 +416,103 @@ tokenSpecOverride:
       issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
 ```
 
+## `certManager`
+
+`certManager` controls whether the chart uses `cert-manager` to provision TLS certificates
+for mTLS connection between the plugin and Fluentd.
+
+<Admonition type="note" title="Installing cert manager">
+You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+
+See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/helm/)
+and the relevant sections of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx)
+and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+</Admonition>
+
+### `certManager.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`certManager.enabled` controls if cert-manager should be used to provision TLS certificates for the event handler plugin.
+
+### `certManager.issuerName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`certManager.issuerName` is the name of the `Issuer` or `ClusterIssuer` to use for issuing certificates.
+
+<Admonition type="note" title="Configuring an Issuer">
+You must install and configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
+
+Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
+of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+</Admonition>
+
+### `certManager.issuerKind`
+
+| Type | Default |
+|------|---------|
+| `string` | `"Issuer"` |
+
+`certManager.issuerKind` is the `Kind` of the `Issuer` to be used when issuing certificates with `cert-manager`.
+Defaults to 'Issuer' to keep permissions scoped to the plugin's namespace.
+
+### `certManager.issuerGroup`
+
+| Type | Default |
+|------|---------|
+| `string` | `"cert-manager.io"` |
+
+`certManager.issuerGroup` is the `Group` of the `Issuer` to be used when issuing certificates with `cert-manager`.
+Defaults to 'cert-manager.io' to use built-in issuers.
+
+### `certManager.dnsNames`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`certManager.dnsNames` is the DNS names for the Fluentd forwarder, populating the SANs extension of the server certificate.
+
+### `certManager.ipAddresses`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`certManager.ipAddresses` is the IP addresses for the Fluentd forwarder, populating the SANs extension of the server certificate.
+
+### `certManager.ttl`
+
+| Type | Default |
+|------|---------|
+| `string` | `"87600h"` |
+
+`certManager.ttl` is the time-to-live duration for the TLS certificates. Defaults to 87600 hours (10 years).
+
+### `certManager.renewBefore`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`certManager.renewBefore` is the time before `certManager.ttl` to renew the TLS certificates.
+This must be less than `certManager.ttl`. When empty, defaults to 1/3 of the issued
+certificate's time-to-live duration. For example, if a certificate is valid for 60 minutes,
+`cert-manager` will renew the certificate 20 minutes before expiration.
+
+### `certManager.length`
+
+| Type | Default |
+|------|---------|
+| `int` | `4096` |
+
+`certManager.length` is the RSA key length. Defaults to 4096.
+
 ## `annotations`
 
 `annotations` contains annotations to apply to the different Kubernetes
@@ -442,6 +544,15 @@ for more details.
 
 `annotations.pod` are annotations to set on the Pods.
 
+### `annotations.certSecret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`annotations.certSecret` are annotations to set on the certificate secrets
+generated by cert-manager v1.5+ when `certManager.enabled` is true
+
 ## `extraLabels`
 
 `extraLabels` contains additional Kubernetes labels to apply on the resources
@@ -472,6 +583,15 @@ for more information.
 | `object` | `{}` |
 
 `extraLabels.pod` are labels to set on the Pods.
+
+### `extraLabels.certSecret`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`extraLabels.certSecret` are labels to set on the certificate secrets
+generated by cert-manager v1.5+ when `certManager.enabled` is true.
 
 ## `image`
 

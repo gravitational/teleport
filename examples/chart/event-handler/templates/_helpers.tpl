@@ -144,3 +144,17 @@ Create the full TeleportProvisionToken join spec.
 {{- .Values.crd.tokenSpecOverride | toYaml -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Create the name for the Fluentd server TLS certificate secret.
+*/}}
+{{- define "event-handler.certManager.serverCertSecretName" -}}
+{{ include "event-handler.fullname" . }}-server-tls
+{{- end -}}
+
+{{/*
+Create the name for the Fluentd client TLS certificate secret.
+*/}}
+{{- define "event-handler.certManager.clientCertSecretName" -}}
+{{ include "event-handler.fullname" . }}-client-tls
+{{- end -}}

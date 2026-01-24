@@ -36,8 +36,8 @@ teleport:
   #   auth_id: #...
   # ```
   #
-  # Check out the [Export Events with Fluentd]
-  # (../../zero-trust-access/export-audit-events/fluentd.mdx) guide
+  # Check out the [Export Events with Fluentd
+  # ](../../zero-trust-access/export-audit-events/fluentd.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -75,7 +75,7 @@ eventHandler:
   skipSessionTypes: []
   # eventHandler.startTime(string) -- is the start time to start ingestion from (RFC3339 format).
   startTime: ""
-  # eventHandler.dryRun(bool) -- enables dry run without sending events to fluentd.
+  # eventHandler.dryRun(bool) -- enables dry run without sending events to Fluentd.
   dryRun: false
   # eventHandler.concurrency(int) -- is the number of concurrent sessions to process. By default, this is set to 5.
   concurrency: 5
@@ -91,12 +91,14 @@ eventHandler:
     # eventHandler.lock.for(string) -- is the time period for which user gets lock.
     for: ""
 
-# fluentd -- contains the configuration for the fluentd forwarder.
+# fluentd -- contains the configuration for the Fluentd forwarder.
 fluentd:
   # fluentd.url(string) -- is the Fluentd URL where the events will be sent.
   url: ""
   # fluentd.sessionUrl(string) -- is the Fluentd URL where the session logs will be sent.
   sessionUrl: ""
+  # fluentd.certificate -- contains the configuration for the plugin's Fluentd client certificates.
+  # When `certManager.enabled` is true, `cert-manager` will use its own secrets, so this section is unused.
   certificate:
     # fluentd.certificate.secretName(string) -- is the secret containing the credentials to connect to Fluentd.
     # It must contain the CA certificate, the client key and the client certificate.
@@ -220,6 +222,48 @@ crd:
   # ```
   tokenSpecOverride: {}
 
+# certManager -- controls whether the chart uses `cert-manager` to provision TLS certificates
+# for mTLS connection between the plugin and Fluentd.
+#
+# <Admonition type="note" title="Installing cert manager">
+# You must install and configure `cert-manager` in your Kubernetes cluster yourself.
+#
+# See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/helm/)
+# and the relevant sections of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx)
+# and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+# </Admonition>
+certManager:
+  # certManager.enabled(bool) -- controls if cert-manager should be used to provision TLS certificates for the event handler plugin.
+  enabled: false
+  # certManager.issuerName(string) -- is the name of the `Issuer` or `ClusterIssuer` to use for issuing certificates.
+  #
+  # <Admonition type="note" title="Configuring an Issuer">
+  # You must install and configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
+  #
+  # Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
+  # of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+  # </Admonition>
+  issuerName: ""
+  # certManager.issuerKind(string) -- is the `Kind` of the `Issuer` to be used when issuing certificates with `cert-manager`.
+  # Defaults to 'Issuer' to keep permissions scoped to the plugin's namespace.
+  issuerKind: Issuer
+  # certManager.issuerGroup(string) -- is the `Group` of the `Issuer` to be used when issuing certificates with `cert-manager`.
+  # Defaults to 'cert-manager.io' to use built-in issuers.
+  issuerGroup: cert-manager.io
+  # certManager.dnsNames(list) -- is the DNS names for the Fluentd forwarder, populating the SANs extension of the server certificate.
+  dnsNames: []
+  # certManager.ipAddresses(list) -- is the IP addresses for the Fluentd forwarder, populating the SANs extension of the server certificate.
+  ipAddresses: []
+  # certManager.ttl(string) -- is the time-to-live duration for the TLS certificates. Defaults to 87600 hours (10 years).
+  ttl: "87600h"
+  # certManager.renewBefore(string) -- is the time before `certManager.ttl` to renew the TLS certificates.
+  # This must be less than `certManager.ttl`. When empty, defaults to 1/3 of the issued
+  # certificate's time-to-live duration. For example, if a certificate is valid for 60 minutes,
+  # `cert-manager` will renew the certificate 20 minutes before expiration.
+  renewBefore: ""
+  # certManager.length(int) -- is the RSA key length. Defaults to 4096.
+  length: 4096
+
 persistentVolumeClaim:
   enabled: false
   size: 1Gi
@@ -238,6 +282,9 @@ annotations:
   deployment: {}
   # annotations.pod(object) -- are annotations to set on the Pods.
   pod: {}
+  # annotations.certSecret(object) --  are annotations to set on the certificate secrets
+  # generated by cert-manager v1.5+ when `certManager.enabled` is true
+  certSecret: {}
   
 # extraLabels -- contains additional Kubernetes labels to apply on the resources
 # created by the chart. See [the Kubernetes label documentation
@@ -250,6 +297,9 @@ extraLabels:
   deployment: {}
   # extraLabels.pod(object) -- are labels to set on the Pods.
   pod: {}
+  # extraLabels.certSecret(object) -- are labels to set on the certificate secrets
+  # generated by cert-manager v1.5+ when `certManager.enabled` is true.
+  certSecret: {}
 
 #
 # Deployment

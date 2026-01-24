@@ -1,0 +1,53 @@
+should request certificates when certManager enabled:
+  1: |
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-event-handler
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-event-handler-server
+      namespace: NAMESPACE
+    spec:
+      dnsNames:
+      - test.example.com test2.example.com
+      duration: 87600h
+      ipAddresses: []
+      issuerRef:
+        group: test.cert-manager.io
+        kind: TestClusterIssuer
+        name: test-issuer
+      privateKey:
+        size: 4096
+      renewBefore: null
+      secretName: RELEASE-NAME-teleport-plugin-event-handler-server-tls
+      usages:
+      - server auth
+  2: |
+    apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-event-handler
+        app.kubernetes.io/version: 19.0.0-dev
+        helm.sh/chart: teleport-plugin-event-handler-19.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-event-handler-client
+      namespace: NAMESPACE
+    spec:
+      commonName: RELEASE-NAME-teleport-plugin-event-handler
+      duration: 87600h
+      issuerRef:
+        group: test.cert-manager.io
+        kind: TestClusterIssuer
+        name: test-issuer
+      privateKey:
+        size: 4096
+      renewBefore: null
+      secretName: RELEASE-NAME-teleport-plugin-event-handler-client-tls
+      usages:
+      - client auth
