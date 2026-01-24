@@ -1,0 +1,75 @@
+suite: Test certificate
+templates:
+  - certificate.yaml
+tests:
+  - it: should request certificates when certManager enabled
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: Certificate
+      - documentIndex: 1
+        isKind:
+          of: Certificate
+      - matchSnapshot: {}
+  - it: should not request certificates when certManager not enabled
+    set:
+      certManager:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should not set certificate annotations or extraLabels when not set in values
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    asserts:
+      - isNull:
+          path: spec.secretTemplate
+  - it: sets annotations in certificate secrets when set in values
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    set:
+      annotations:
+        certSecret:
+          keyA: valA
+          keyB: valB
+    asserts:
+      - equal:
+          path: spec.secretTemplate.annotations
+          value:
+            keyA: valA
+            keyB: valB
+  - it: sets extraLabels on certificate secrets when set in values
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    set:
+      extraLabels:
+        certSecret:
+          test-key: test-label-cert-secret
+    asserts:
+      - isSubset:
+          path: spec.secretTemplate.labels
+          content:
+            test-key: test-label-cert-secret
+  - it: should fail if both certManager.dnsNames and certManager.ipAddresses are not set
+    set:
+      certManager:
+        enabled: true
+        issuerName: test-issuer
+        issuerGroup: test.cert-manager.io
+        issuerKind: TestClusterIssuer
+        namespace: test-namespace
+    asserts:
+      - failedTemplate:
+          errorMessage: "certManager.dnsNames and certManager.ipAddresses cannot both be empty in chart values"
+  - it: should fail if any of certManager.issuerName, certManager.issuerKind, certManager.issuerGroup are not set
+    set:
+      certManager:
+        enabled: true
+        dnsNames: ["test.example.com"]
+    asserts:
+      - failedTemplate:
+          errorMessage: "certManager.issuerName is required in chart values"

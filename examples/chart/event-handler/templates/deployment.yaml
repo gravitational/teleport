@@ -76,14 +76,7 @@ spec:
             - name: teleport-identity
               mountPath: /var/lib/teleport/plugins/event-handler/teleport-identity
             - name: certificate
-              mountPath: /var/lib/teleport/plugins/event-handler/ca.crt
-              subPath: {{ .Values.fluentd.certificate.caPath }}
-            - name: certificate
-              mountPath: /var/lib/teleport/plugins/event-handler/client.crt
-              subPath: {{ .Values.fluentd.certificate.certPath }}
-            - name: certificate
-              mountPath: /var/lib/teleport/plugins/event-handler/client.key
-              subPath: {{ .Values.fluentd.certificate.keyPath }}
+              mountPath: /var/lib/teleport/plugins/event-handler
             {{- if .Values.tls.existingCASecretName }}
             - mountPath: /etc/teleport-tls-ca
               name: "teleport-tls-ca"
@@ -117,10 +110,31 @@ spec:
           secret:
             secretName: {{ include "event-handler.identitySecretName" . | quote }}
             defaultMode: 0600
+        {{- if .Values.certManager.enabled }}
+        - name: certificate
+          secret:
+            secretName: {{ include "event-handler.certManager.clientCertSecretName" . | quote }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tls.crt
+                path: client.crt
+              - key: tls.key
+                path: client.key
+            defaultMode: 0600
+        {{- else }}
         - name: certificate
           secret:
             secretName: "{{ .Values.fluentd.certificate.secretName }}"
+            items:
+              - key: {{ .Values.fluentd.certificate.caPath }}
+                path: ca.crt
+              - key: {{ .Values.fluentd.certificate.certPath }}
+                path: client.crt
+              - key: {{ .Values.fluentd.certificate.keyPath }}
+                path: client.key
             defaultMode: 0600
+        {{- end }}
         {{- if .Values.tls.existingCASecretName }}
         - name: "teleport-tls-ca"
           secret:

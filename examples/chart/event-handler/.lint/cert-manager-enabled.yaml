@@ -1,0 +1,7 @@
+certManager:
+  enabled: true
+  issuerName: test-issuer
+  issuerGroup: test.cert-manager.io
+  issuerKind: TestClusterIssuer
+  namespace: test-namespace
+  dnsNames: ["test.example.com", "test2.example.com"]

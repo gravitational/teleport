@@ -1,0 +1,69 @@
+{{- if .Values.certManager.enabled -}}
+{{- if and (empty .Values.certManager.dnsNames) (empty .Values.certManager.ipAddresses) -}}
+{{ $_ := required "certManager.dnsNames and certManager.ipAddresses cannot both be empty in chart values" "" }}
+{{- end -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "event-handler.fullname" . }}-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
+spec:
+  secretName: "{{ include "event-handler.certManager.serverCertSecretName" . }}"
+  duration: {{ .Values.certManager.ttl }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  privateKey:
+    size: {{ .Values.certManager.length }}
+  usages:
+    - server auth
+  dnsNames: {{ .Values.certManager.dnsNames }}
+  ipAddresses: {{ .Values.certManager.ipAddresses }}
+  issuerRef:
+    name: {{ required "certManager.issuerName is required in chart values" .Values.certManager.issuerName }}
+    kind: {{ required "certManager.issuerKind is required in chart values" .Values.certManager.issuerKind }}
+    group: {{ required "certManager.issuerGroup is required in chart values" .Values.certManager.issuerGroup }}
+  {{- if or .Values.annotations.certSecret .Values.extraLabels.certSecret }}
+  secretTemplate:
+    {{- with .Values.annotations.certSecret }}
+    annotations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.extraLabels.certSecret }}
+    labels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "event-handler.fullname" . }}-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "event-handler.labels" . | nindent 4 }}
+spec:
+  secretName: "{{ include "event-handler.certManager.clientCertSecretName" . }}"
+  duration: {{ .Values.certManager.ttl }}
+  renewBefore: {{ .Values.certManager.renewBefore }}
+  privateKey:
+    size: {{ .Values.certManager.length }}
+  usages:
+    - client auth
+  commonName: {{ include "event-handler.fullname" . }}
+  issuerRef:
+    name: {{ required "certManager.issuerName is required in chart values" .Values.certManager.issuerName }}
+    kind: {{ required "certManager.issuerKind is required in chart values" .Values.certManager.issuerKind }}
+    group: {{ required "certManager.issuerGroup is required in chart values" .Values.certManager.issuerGroup }}
+  {{- if or .Values.annotations.certSecret .Values.extraLabels.certSecret }}
+  secretTemplate:
+    {{- with .Values.annotations.certSecret }}
+    annotations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+    {{- with .Values.extraLabels.certSecret }}
+    labels:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end -}}

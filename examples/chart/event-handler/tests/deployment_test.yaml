@@ -130,3 +130,40 @@ tests:
           content:
             name: TEST_ENV
             value: test-value
+  - it: should not mount cert-manager TLS secrets when certManager.enabled is false
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+              defaultMode: 0600
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: teleport-tls
+  - it: should mount cert-manager TLS secrets when certManager.enabled is true
+    values:
+      - ../.lint/cert-manager-enabled.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: certificate
+            secret:
+              secretName: RELEASE-NAME-teleport-plugin-event-handler-client-tls
+              items:
+                - key: ca.crt
+                  path: ca.crt
+                - key: tls.crt
+                  path: client.crt
+                - key: tls.key
+                  path: client.key
+              defaultMode: 0600
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/lib/teleport/plugins/event-handler
+            name: certificate
