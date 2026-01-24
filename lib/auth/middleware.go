@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	ossaccessgraphclient "github.com/gravitational/teleport/lib/accessgraph"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -70,8 +71,8 @@ type TLSServerConfig struct {
 	Listener net.Listener
 	// TLS is the server TLS configuration.
 	TLS *tls.Config
-	// GetClientCertificate returns auth client credentials.
-	GetClientCertificate func() (*tls.Certificate, error)
+	// AccessGraphClientGetter returns an access graph client
+	AccessGraphClientGetter ossaccessgraphclient.AccessGraphClientGetter
 	// API is API server configuration
 	APIConfig
 	// LimiterConfig is limiter config
@@ -100,8 +101,8 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	if c.GetClientCertificate == nil {
-		return trace.BadParameter("missing parameter GetClientCertificate")
+	if c.AccessGraphClientGetter == nil {
+		return trace.BadParameter("missing parameter AccessGraphClientGetter")
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
@@ -247,7 +248,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer, cfg.GetClientCertificate); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer, cfg.AccessGraphClientGetter); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
