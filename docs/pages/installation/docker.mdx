@@ -109,6 +109,8 @@ You should see output indicating the image layers are being downloaded, ending w
 - If you see `Error response from daemon: pull access denied`, verify the image name and tag are correct.
 - For network timeouts, check your internet connection and any proxy settings configured in Docker.
 - If you see `no matching manifest for linux/arm64`, try specifying the platform explicitly with `docker pull --platform linux/amd64`.
+- If you are on Apple Silicon, try `--platform linux/arm64`.
+- If pulls fail behind a corporate proxy, verify Docker is configured to trust the proxy's CA.
 - For rate limiting errors from ECR Public, wait a few minutes and try again, or authenticate with an AWS account.
 
 </Checkpoint>
@@ -145,6 +147,7 @@ Alternatively, you can use the debug variant of the image, which contains [busyb
 ```code
 $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
+## Running Teleport container images on Kubernetes
 
 #### Verify Kubernetes pod status
 
@@ -161,10 +164,17 @@ You should see the pod listed with a status of `Running` and no recent restarts.
   description="If the pod is not running or shows errors, try these steps."
 >
 
+- Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions allow the container to write to it.  
+  Teleport will fail if it cannot write to its data directory.
 - If the pod is stuck in `Pending`, check for resource constraints or scheduling issues in the Events section of `kubectl describe pod <pod-name>`.
-- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with `kubectl logs <pod-name> --previous`.
+- If the pod is in `CrashLoopBackOff`, view logs from the previous crash with 
+  ```code
+  $ kubectl logs <pod-name> --previous
+  ```
 - If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check if pull secrets are required.
 - If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <pod-name>` and review the `lastState` section.
+- Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions match the container’s security context.
+- For distroless images, ensure `fsGroup` / `runAsUser` settings allow write access to the data directory.
 
 </Checkpoint>
 
@@ -190,11 +200,11 @@ You should see JSON output containing `cluster_name`, `server_version`, and conf
   description="If Teleport is not responding or commands fail, try these steps."
 >
 
-- If `tctl status` fails with connection errors, verify the Auth Service is reachable and the pod has the correct configuration mounted.
+- If `tctl status` fails due to authentication or RBAC, use `/webapi/ping` as the primary health check.
 - If port-forward fails, ensure the pod is running and the container port is correct.
 - View pod logs for startup errors with `kubectl logs -f <pod-name>`.
 - Check recent events for a specific pod with `kubectl get events --field-selector involvedObject.name=<pod-name>`.
-- Verify the mounted configuration with `kubectl exec -i <pod-name> -- cat /etc/teleport/teleport.yaml`.
+- Verify the mounted configuration with `kubectl exec -i <pod-name> -- cat /etc/teleport.yaml`.
 
 </Checkpoint>
 
@@ -224,6 +234,8 @@ You should see the expected image tag matching the version you deployed.
 - If pods fail after upgrade, check for migration errors in logs with `kubectl logs <pod-name>`. Teleport supports upgrades from one major version to the next; do not skip major versions.
 - To restart pods without changing configuration, run `kubectl rollout restart deployment/teleport`.
 - Check resource usage during upgrades with `kubectl top pod -l app=teleport`.
+- Verify advertised addresses (`proxy_service.public_addr`, `cluster_name`) match how you access the proxy from outside the container.
+- Ensure system time is synchronized on the host; clock skew can cause certificate validation failures.
 
 </Checkpoint>
 
@@ -370,6 +382,7 @@ You should see YAML configuration output beginning with `version:` and `teleport
 - If you see `docker: Error response from daemon: OCI runtime create failed`, verify Docker is running and you have permission to use it.
 - If you see permission denied errors, check that your user has access to the Docker socket (you may need to add your user to the `docker` group).
 - On SELinux-enabled systems, you may need to add `:z` to your volume mounts (e.g., `-v ~/teleport/config:/etc/teleport:z`).
+- On Docker Desktop, ensure the host directory is shared with Docker (Settings → Resources → File Sharing).
 
 </Checkpoint>
 
@@ -399,6 +412,7 @@ You should see the `teleport` container listed with a status of `Up`.
 - If the container is not listed, check if it exited with `docker ps -a --filter name=teleport`. View logs with `docker logs teleport`.
 - If you see `Error response from daemon: Conflict. The container name "/teleport" is already in use`, remove the existing container with `docker rm teleport` or choose a different name.
 - If you see `bind: address already in use` for ports 3025 or 3080, another process is using those ports. Find it with `lsof -i :3080` (macOS/Linux) or choose different host ports (e.g., `-p 3081:3080`).
+- Depending on your configuration, you may need to expose additional ports (for example 3022 - 3025) as described in the Networking Reference.
 - If logs show `failed to read configuration`, verify your volume mount paths are correct and the configuration file exists.
 
 </Checkpoint>
@@ -469,6 +483,7 @@ You should see JSON output containing `cluster_name`, `server_version`, and conf
 - If the response is empty or malformed, check container logs with `docker logs teleport` for startup errors.
 - If you see `connection refused`, the Teleport process may still be initializing. Wait a few seconds and try again.
 - On macOS, if Docker Desktop is using a VM, ensure the ports are correctly forwarded from the VM to your host.
+- If connections fail after startup, verify the container hostname and certificate SANs match how you access the proxy.
 
 </Checkpoint>
 
@@ -497,9 +512,11 @@ You should see the new version number in the output.
   description="If the upgrade failed or the container won't start, try these steps."
 >
 
+- Before upgrading, take a snapshot or backup of the data directory.
 - If the container fails to start after upgrade, check logs with `docker logs teleport` for migration or compatibility errors.
 - If you see database migration errors, ensure you're not skipping major versions. Teleport supports upgrades from one major version to the next, not skipping versions.
 - If the cluster state seems incorrect, verify the data directory mount is pointing to the same location as before the upgrade.
 - To roll back, stop the new container and start a container with the previous image version using the same data directory.
+- For Enterprise Auth deployments, ensure the license file is still mounted after upgrade.
 
 </Checkpoint>
