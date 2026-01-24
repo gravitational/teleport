@@ -162,7 +162,7 @@ func TestHandleKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKey
 	require.ErrorIs(
 		t,
 		err,
-		trace.AccessDenied(`Legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`),
+		trace.AccessDenied(`legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`),
 	)
 }
 
