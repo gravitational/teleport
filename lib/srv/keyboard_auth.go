@@ -66,7 +66,7 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	}
 	if os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" {
 		legacyPublicKeyCallback = func(_ ssh.ConnMetadata, _ ssh.PublicKey) (*ssh.Permissions, error) {
-			return nil, trace.AccessDenied(`Legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`)
+			return nil, trace.AccessDenied(`legacy public key authentication is forbidden (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA = "yes")`)
 		}
 	}
 
