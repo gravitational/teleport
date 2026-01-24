@@ -96,10 +96,16 @@ Teleport, which is currently `(=teleport.latest_oss_docker_image=)`.
 
 Run the following command to pull the image:
 ```code
-$ docker pull <Var name="(=teleport.latest_oss_docker_image=)" />
+$ docker pull (=teleport.latest_oss_docker_image=)
 ```
 
 You should see output indicating the image layers are being downloaded, ending with a success message like `Status: Downloaded newer image`.
+
+Check the current version before upgrading: 
+
+```code
+$ docker exec teleport teleport version
+```
 
 <Checkpoint
   title="Troubleshoot image pull issues"
@@ -147,17 +153,6 @@ Alternatively, you can use the debug variant of the image, which contains [busyb
 ```code
 $ docker run -it --entrypoint="" (=teleport.latest_oss_debug_docker_image=) busybox sh
 ```
-### Running Teleport container images on Kubernetes
-
-**Verify Kubernetes pod status**
-
-Run the following commands to check pod status:
-```code
-$ kubectl get pods -l app=teleport -o wide
-$ kubectl describe pod <pod-name>
-```
-
-You should see the pod listed with a status of `Running` and no recent restarts.
 
 <Checkpoint
   title="Troubleshoot Kubernetes pod issues"
@@ -173,7 +168,6 @@ You should see the pod listed with a status of `Running` and no recent restarts.
   ```
 - If the pod is in `ImagePullBackOff`, verify the image name is correct and that your cluster can reach the ECR registry. Check if pull secrets are required.
 - If the pod shows a high restart count, check for OOM kills or liveness probe failures with `kubectl describe pod <pod-name>` and review the `lastState` section.
-- Verify that `/var/lib/teleport` is backed by a writable volume and that file permissions match the container’s security context.
 - For distroless images, ensure `fsGroup` / `runAsUser` settings allow write access to the data directory.
 
 </Checkpoint>
@@ -238,6 +232,18 @@ You should see the expected image tag matching the version you deployed.
 - Ensure system time is synchronized on the host; clock skew can cause certificate validation failures.
 
 </Checkpoint>
+
+### Running Teleport container images on Kubernetes
+
+**Verify Kubernetes pod status**
+
+Run the following commands to check pod status:
+```code
+$ kubectl get pods -l app=teleport -o wide
+$ kubectl describe pod <pod-name>
+```
+
+You should see the pod listed with a status of `Running` and no recent restarts.
 
 ### Machine & Workload Identity (tbot)
 
@@ -361,7 +367,7 @@ the Proxy Service's self-signed TLS certificate:
 ```code
 $ docker run --hostname localhost --rm \
   --entrypoint=/usr/local/bin/teleport \
-  <Var name="(=teleport.latest_oss_docker_image=)" /> configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
+  docker pull (=teleport.latest_oss_docker_image=) configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
 ```
 
 ### Verify configuration file
@@ -392,7 +398,7 @@ $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3025:3025 -p 3080:3080 \
-  <Var name="(=teleport.latest_oss_docker_image=)" />
+  docker pull (=teleport.latest_oss_docker_image=)
 ```
 
 ### Verify container is running
@@ -463,15 +469,6 @@ You should see JSON output similar to the following:
 We are using the `--insecure` flag to trust Teleport's self-signed certificate.
 In production, you will want to provision TLS credentials to the Proxy Service
 from a trusted CA, e.g., Let's Encrypt.
-
-### Verify Teleport is responding
-
-Run the following command to verify the web API is responding:
-```code
-$ curl --insecure https://localhost:3080/webapi/ping
-```
-
-You should see JSON output containing `cluster_name`, `server_version`, and configuration details.
 
 <Checkpoint
   title="Troubleshoot Teleport connectivity issues"
