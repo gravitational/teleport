@@ -2405,6 +2405,33 @@ func TestWindowsDesktopService(t *testing.T) {
 			},
 		},
 		{
+			desc:        "NOK - invalid RDP port",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:  "*",
+						RDPPort: 99999,
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid static label",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN: "*",
+						Labels: map[string]string{
+							"foo":               "bar",
+							"invalid label key": "test",
+						},
+					},
+				}
+			},
+		},
+		{
 			desc:        "OK - valid config",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
