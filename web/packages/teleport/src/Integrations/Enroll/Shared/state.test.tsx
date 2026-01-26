@@ -17,9 +17,8 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { createMemoryHistory } from 'history';
 import type { PropsWithChildren } from 'react';
-import { Router } from 'react-router';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 
 import {
   searchParamsToState,
@@ -215,107 +214,96 @@ describe('stateToSearchParams', () => {
 });
 
 describe('useIntegrationPickerState', () => {
+  function createWrapper(initialEntries: string[] = ['/']) {
+    return function wrapper({ children }: PropsWithChildren) {
+      return (
+        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+      );
+    };
+  }
+
+  function useIntegrationPickerStateHarness() {
+    const [state, setState] = useIntegrationPickerState();
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    return {
+      state,
+      setState,
+      location,
+      navigate,
+    };
+  }
+
   it('initializes state from URL search params', () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/integrations/new?search=cool'],
-    });
+    const wrapper = createWrapper(['/integrations/new?search=cool']);
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
-    const [state] = result.current;
-
-    expect(state.search).toBe('cool');
+    expect(result.current.state.search).toBe('cool');
   });
 
   it('updates URL when state changes', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
-    const [, setState] = result.current;
-
     act(() => {
-      setState(prev => ({
+      result.current.setState(prev => ({
         ...prev,
         sortKey: 'name',
         sortDirection: 'DESC',
       }));
     });
 
-    expect(history.location.search).toContain('direction=DESC');
-    expect(history.location.search).toContain('sort=name');
+    expect(result.current.location.search).toContain('direction=DESC');
+    expect(result.current.location.search).toContain('sort=name');
   });
 
   it('responds to browser navigation', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
     act(() => {
-      history.push('?sort=name&direction=DESC');
+      result.current.navigate('?sort=name&direction=DESC');
     });
 
-    const [state] = result.current;
-
-    expect(state.sortKey).toBe('name');
-    expect(state.sortDirection).toBe('DESC');
+    expect(result.current.state.sortKey).toBe('name');
+    expect(result.current.state.sortDirection).toBe('DESC');
   });
 
   it('prevents unnecessary state updates', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
-    const [initialState, setState] = result.current;
+    const { state: initialState, setState } = result.current;
 
     act(() => {
       setState(initialState);
     });
 
-    const [newState] = result.current;
-
-    expect(newState).toBe(initialState);
+    expect(result.current.state).toBe(initialState);
   });
 
   it('handles functional updates', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
-    const [, setState] = result.current;
-
     act(() => {
-      setState(prev => ({
+      result.current.setState(prev => ({
         ...prev,
         filters: {
           ...prev.filters,
@@ -324,62 +312,44 @@ describe('useIntegrationPickerState', () => {
       }));
     });
 
-    const [state] = result.current;
-
-    expect(state.filters.tags.length).toBe(1);
+    expect(result.current.state.filters.tags.length).toBe(1);
   });
 
   it('does not update URL for default empty search params', () => {
-    const history = createMemoryHistory();
-    const replaceSpy = jest.spyOn(history, 'replace');
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
+      wrapper,
+    });
 
-    renderHook(() => useIntegrationPickerState(), { wrapper });
-
-    expect(replaceSpy).not.toHaveBeenCalled();
+    // With empty state and no initial search params, URL should remain empty
+    expect(result.current.location.search).toBe('');
   });
 
   it('handles search parameter in URL params', () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/integrations/new?search=test%20query'],
-    });
+    const wrapper = createWrapper(['/integrations/new?search=test%20query']);
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
-    const [state] = result.current;
-
-    expect(state.search).toBe('test query');
+    expect(result.current.state.search).toBe('test query');
   });
 
   it('updates URL when search changes', () => {
-    const history = createMemoryHistory();
+    const wrapper = createWrapper();
 
-    function wrapper({ children }: PropsWithChildren) {
-      return <Router history={history}>{children}</Router>;
-    }
-
-    const { result } = renderHook(() => useIntegrationPickerState(), {
+    const { result } = renderHook(() => useIntegrationPickerStateHarness(), {
       wrapper,
     });
 
-    const [, setState] = result.current;
-
     act(() => {
-      setState(prev => ({
+      result.current.setState(prev => ({
         ...prev,
         search: 'new search term',
       }));
     });
 
-    expect(history.location.search).toContain('search=new+search+term');
+    expect(result.current.location.search).toContain('search=new+search+term');
   });
 });

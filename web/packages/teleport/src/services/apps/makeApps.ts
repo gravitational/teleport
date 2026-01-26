@@ -37,9 +37,10 @@ function getLaunchUrl({
   publicAddr: string;
 }) {
   if (useAnyProxyPublicAddr) {
-    return cfg.getAppLauncherRoute({
-      fqdn,
-    });
+    if (!fqdn) {
+      return '';
+    }
+    return cfg.getAppLauncherRoute({ fqdn });
   }
 
   if (publicAddr && clusterId && fqdn) {
@@ -57,7 +58,7 @@ export default function makeApp(json: any): App {
     uri = '',
     publicAddr = '',
     clusterId = '',
-    fqdn = '',
+    fqdn: fqdnRaw,
     useAnyProxyPublicAddr = false,
     awsConsole = false,
     samlApp = false,
@@ -71,6 +72,7 @@ export default function makeApp(json: any): App {
     supportedFeatureIds,
   } = json;
 
+  const fqdn = fqdnRaw ?? '';
   const launchUrl = getLaunchUrl({
     fqdn,
     clusterId,

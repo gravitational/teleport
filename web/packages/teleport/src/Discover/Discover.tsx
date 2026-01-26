@@ -18,15 +18,14 @@
 
 import React from 'react';
 import { useLocation } from 'react-router';
-import { Prompt } from 'react-router-dom';
 
 import { Box, Flex } from 'design';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { FeatureBox } from 'teleport/components/Layout';
+import { Prompt } from 'teleport/components/Router';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
-import cfg from 'teleport/config';
 import type { View } from 'teleport/Discover/flow';
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
 import { DiscoverBox } from 'teleport/Discover/Shared';
@@ -112,10 +111,7 @@ function DiscoverContent() {
 
       {hasSelectedResource && (
         <Prompt
-          message={nextLocation => {
-            if (nextLocation.pathname === cfg.routes.discover) return true;
-            return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
-          }}
+          message={`Are you sure you want to exit the "Enroll New Resource" workflow? You'll have to start from the beginning next time.`}
           when={
             viewConfig.shouldPrompt
               ? viewConfig.shouldPrompt(

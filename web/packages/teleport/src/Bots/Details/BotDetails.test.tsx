@@ -20,10 +20,9 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
-import { createMemoryHistory } from 'history';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -64,6 +63,12 @@ import {
 } from 'teleport/test/helpers/tokens';
 
 import { BotDetails } from './BotDetails';
+
+const mockNavigate = jest.fn();
+jest.mock('react-router', () => ({
+  ...jest.requireActual('react-router'),
+  useNavigate: () => mockNavigate,
+}));
 
 const server = setupServer();
 
@@ -106,14 +111,13 @@ describe('BotDetails', () => {
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
     withListLocksSuccess();
-    const { user, history } = renderComponent();
-    jest.spyOn(history, 'goBack');
+    const { user, mockNavigate } = renderComponent();
     await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
     await user.click(backButton);
 
-    expect(history.goBack).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith(cfg.getBotsRoute());
   });
 
   it('should show page title', async () => {
@@ -252,8 +256,7 @@ describe('BotDetails', () => {
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
     withListLocksSuccess();
-    const { user, history } = renderComponent();
-    jest.spyOn(history, 'push');
+    const { user, mockNavigate } = renderComponent();
     await waitForLoadingBot();
     await waitForLoadingTokens();
 
@@ -267,8 +270,10 @@ describe('BotDetails', () => {
 
     await user.click(firstItem);
 
-    expect(history.push).toHaveBeenCalledTimes(1);
-    const search = new URLSearchParams(history.location.search);
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const navigatedPath = mockNavigate.mock.calls[0][0];
+    const url = new URL(navigatedPath, 'http://localhost');
+    const search = url.searchParams;
     expect(search.get('query')).toBe('spec.bot_name == "ansible-worker"');
     expect(search.get('is_advanced')).toBe('1');
     expect(search.get('sort_field')).toBe('active_at_latest');
@@ -612,8 +617,7 @@ describe('BotDetails', () => {
         locks: [],
       });
       withDeleteBotSuccess();
-      const { user, history } = renderComponent();
-      jest.spyOn(history, 'replace');
+      const { user, mockNavigate } = renderComponent();
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
@@ -638,8 +642,7 @@ describe('BotDetails', () => {
         { timeout: 5000 }
       );
 
-      expect(history.replace).toHaveBeenCalledTimes(1);
-      expect(history.replace).toHaveBeenLastCalledWith('/web/bots');
+      expect(mockNavigate).toHaveBeenCalledWith('/web/bots', { replace: true });
     });
 
     it('should disable the delete action if no permissions', async () => {
@@ -756,18 +759,15 @@ const renderComponent = (options?: {
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
   const user = userEvent.setup();
-  const history = createMemoryHistory({
-    initialEntries: ['/web/bot/test-bot-name'],
-  });
+  mockNavigate.mockClear();
   return {
     ...render(<BotDetails />, {
       wrapper: makeWrapper({
         customAcl: options?.customAcl,
-        history,
       }),
     }),
     user,
-    history,
+    mockNavigate,
   };
 };
 
@@ -889,12 +889,8 @@ function withDeleteBotSuccess() {
   server.use(deleteBotSuccess());
 }
 
-function makeWrapper(options: {
-  history: ReturnType<typeof createMemoryHistory>;
-  customAcl?: ReturnType<typeof makeAcl>;
-}) {
+function makeWrapper(options: { customAcl?: ReturnType<typeof makeAcl> }) {
   const {
-    history,
     customAcl = makeAcl({
       bots: {
         ...defaultAccess,
@@ -928,14 +924,14 @@ function makeWrapper(options: {
       customAcl,
     });
     return (
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/web/bot/test-bot-name']}>
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
             <ContextProvider ctx={ctx}>
               <InfoGuidePanelProvider>
-                <Router history={history}>
-                  <Route path={cfg.routes.bot}>{children}</Route>
-                </Router>
+                <Routes>
+                  <Route path={cfg.routes.bot} element={children} />
+                </Routes>
               </InfoGuidePanelProvider>
             </ContextProvider>
           </ConfiguredThemeProvider>

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import {
   Box,
@@ -99,10 +99,8 @@ export default function Empty(props: Props) {
             button={
               <ButtonPrimaryBorder
                 as={Link}
-                to={{
-                  pathname: cfg.routes.discover,
-                  state: { entity: 'unified_resource' },
-                }}
+                to={cfg.routes.discover}
+                state={{ entity: 'unified_resource' }}
                 width="100%"
               >
                 Enroll New Resource

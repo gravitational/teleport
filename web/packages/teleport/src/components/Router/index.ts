@@ -16,26 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  NavLink,
-  Redirect,
-  Route,
-  Router,
-  Switch,
-  useLocation,
-  useParams,
-  useRouteMatch,
-  withRouter,
-} from './Router';
-
 export {
-  withRouter,
-  Redirect,
-  Router,
-  Route,
-  Switch,
   NavLink,
-  useRouteMatch,
-  useParams,
+  NoMatch,
+  Outlet,
+  Prompt,
+  Redirect,
+  Route,
+  Router,
+  Switch,
   useLocation,
-};
+  useParams,
+} from './Router';
+export type { RouteProps } from './Router';

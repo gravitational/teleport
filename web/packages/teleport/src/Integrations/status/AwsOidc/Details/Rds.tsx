@@ -37,11 +37,11 @@ export enum RdsTab {
 }
 
 export function Rds() {
-  const { type, name, resourceKind } = useParams<{
+  const { type, name, resourceKind } = useParams() as {
     type: IntegrationKind;
     name: string;
     resourceKind: AwsResource;
-  }>();
+  };
 
   const { search } = useLocation();
   const searchParams = new URLSearchParams(search);

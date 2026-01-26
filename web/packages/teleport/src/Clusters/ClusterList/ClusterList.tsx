@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
 import Table, { Cell } from 'design/DataTable';

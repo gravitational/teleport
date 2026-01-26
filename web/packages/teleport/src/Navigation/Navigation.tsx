@@ -31,7 +31,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -200,10 +200,10 @@ function getNavSubsectionForRoute(
   let feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
-      matchPath(route.pathname, {
-        path: feature.route.path,
-        exact: feature.route.exact,
-      })
+      matchPath(
+        { path: feature.route.path, end: feature.route.exact ?? false },
+        route.pathname
+      )
     );
 
   // If this is a child feature, use its parent as the subsection instead.
@@ -318,7 +318,7 @@ export function Navigation({
   showPoweredByLogo?: boolean;
 }) {
   const features = useFeatures();
-  const history = useHistory();
+  const location = useLocation();
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
   const [targetSection, setTargetSection] = useState<NavigationSection | null>(
@@ -339,8 +339,8 @@ export function Navigation({
     };
   }, []);
   const currentView = useMemo(
-    () => getNavSubsectionForRoute(features, history.location),
-    [features, history.location]
+    () => getNavSubsectionForRoute(features, location),
+    [features, location]
   );
 
   const stickyMode = preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
@@ -455,10 +455,10 @@ export function Navigation({
   const hideNav = features.find(
     f =>
       f.route &&
-      matchPath(history.location.pathname, {
-        path: f.route.path,
-        exact: f.route.exact ?? false,
-      })
+      matchPath(
+        { path: f.route.path, end: f.route.exact ?? false },
+        location.pathname
+      )
   )?.hideNavigation;
 
   if (hideNav) {

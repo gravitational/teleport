@@ -62,8 +62,9 @@ const StyledStatus = styled(Box)<{
       theme,
       activeStatusColor = props.theme.colors.interactive.solid.success.default,
     } = props;
+    const status: Status = $status;
 
-    switch ($status) {
+    switch (status) {
       case 'on': {
         return { backgroundColor: activeStatusColor };
       }
@@ -132,7 +133,7 @@ const StyledStatus = styled(Box)<{
         `;
       }
       default: {
-        $status satisfies never;
+        status satisfies never;
       }
     }
   }}

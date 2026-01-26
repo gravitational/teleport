@@ -29,7 +29,7 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PropsWithChildren, ReactNode } from 'react';
-import { MemoryRouter as Router } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -142,7 +142,7 @@ export {
   prettyDOM,
   waitFor,
   getByTestId,
-  Router,
+  MemoryRouter as Router,
   userEvent,
   waitForElementToBeRemoved,
   within,

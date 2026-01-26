@@ -32,10 +32,11 @@ test('correct formatting of clusters fetch response', async () => {
       lastConnected: new Date('2022-02-02T14:03:00.355597-05:00'),
       connectedText: '2022-02-02 19:03:00',
       status: 'online',
-      url: '/web/cluster/im-a-cluster-name/',
+      url: '/web/cluster/im-a-cluster-name',
       authVersion: '8.0.0-alpha.1',
       publicURL: 'mockurl:3080',
       proxyVersion: '8.0.0-alpha.1',
+      licenseExpiryDateText: undefined,
     },
   ]);
 });

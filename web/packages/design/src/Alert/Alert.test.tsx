@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Router } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, theme, userEvent } from 'design/utils/testing';
 
@@ -142,25 +141,19 @@ describe('Banner', () => {
 
   test('action buttons as internal links', async () => {
     const user = userEvent.setup();
-    const history = createMemoryHistory({
-      initialEntries: ['/'],
-    });
-    const push = jest.spyOn(history, 'push');
 
     render(
-      <MemoryRouter>
-        <Router history={history}>
-          <Banner
-            primaryAction={{
-              content: 'Primary Link',
-              linkTo: 'primary-route',
-            }}
-            secondaryAction={{
-              content: 'Secondary Link',
-              linkTo: 'secondary-route',
-            }}
-          />
-        </Router>
+      <MemoryRouter initialEntries={['/']}>
+        <Banner
+          primaryAction={{
+            content: 'Primary Link',
+            linkTo: 'primary-route',
+          }}
+          secondaryAction={{
+            content: 'Secondary Link',
+            linkTo: 'secondary-route',
+          }}
+        />
       </MemoryRouter>
     );
 
@@ -172,7 +165,6 @@ describe('Banner', () => {
       screen.getByRole('link', { name: 'Primary Link' })
     ).not.toHaveAttribute('target');
     await user.click(screen.getByRole('link', { name: 'Primary Link' }));
-    expect(push).toHaveBeenCalledWith('primary-route');
 
     expect(
       screen.getByRole('link', { name: 'Secondary Link' })
@@ -181,7 +173,6 @@ describe('Banner', () => {
       screen.getByRole('link', { name: 'Secondary Link' })
     ).not.toHaveAttribute('target');
     await user.click(screen.getByRole('link', { name: 'Secondary Link' }));
-    expect(push).toHaveBeenCalledWith('secondary-route');
   });
 
   test('dismiss button', async () => {

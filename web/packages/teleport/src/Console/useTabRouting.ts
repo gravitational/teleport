@@ -17,34 +17,32 @@
  */
 
 import { useMemo } from 'react';
-import { useLocation, useParams, useRouteMatch } from 'react-router';
+import { useLocation, useMatch, useParams } from 'react-router';
 
-import cfg, {
-  UrlDbConnectParams,
-  UrlKubeExecParams,
-  UrlSshParams,
-} from 'teleport/config';
+import cfg, { consoleRoutePatterns } from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
 
 export default function useRouting(ctx: ConsoleContext) {
   const { pathname, search } = useLocation();
-  const { clusterId } = useParams<{ clusterId: string }>();
-  const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
-  const kubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
-    cfg.routes.kubeExec
-  );
-  const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
-  const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
-    cfg.routes.consoleSession
-  );
-  const joinKubeExecRouteMatch = useRouteMatch<UrlKubeExecParams>(
-    cfg.routes.kubeExecSession
-  );
-  const dbConnectMatch = useRouteMatch<UrlDbConnectParams>(
-    cfg.routes.dbConnect
-  );
+  const { clusterId: currentClusterId } = useParams<'clusterId'>();
+  const sshRouteMatch = useMatch(consoleRoutePatterns.consoleConnect);
+  const kubeExecRouteMatch = useMatch(consoleRoutePatterns.kubeExec);
+  const nodesRouteMatch = useMatch(consoleRoutePatterns.consoleNodes);
+  const joinSshRouteMatch = useMatch(consoleRoutePatterns.consoleSession);
+  const joinKubeExecRouteMatch = useMatch(consoleRoutePatterns.kubeExecSession);
+  const dbConnectMatch = useMatch(consoleRoutePatterns.dbConnect);
+
+  const clusterId =
+    currentClusterId ||
+    sshRouteMatch?.params.clusterId ||
+    kubeExecRouteMatch?.params.clusterId ||
+    nodesRouteMatch?.params.clusterId ||
+    joinSshRouteMatch?.params.clusterId ||
+    joinKubeExecRouteMatch?.params.clusterId ||
+    dbConnectMatch?.params.clusterId ||
+    cfg.proxyCluster;
 
   // Ensure that each URL has corresponding document
   useMemo(() => {
@@ -57,19 +55,37 @@ export default function useRouting(ctx: ConsoleContext) {
     // When no document matches current URL that means we need to
     // create one base on URL parameters.
     if (sshRouteMatch) {
-      ctx.addSshDocument(sshRouteMatch.params);
+      const { clusterId, login, serverId } = sshRouteMatch.params;
+      if (clusterId && login && serverId) {
+        ctx.addSshDocument({ clusterId, login, serverId });
+      }
     } else if (joinSshRouteMatch) {
-      joinSshRouteMatch.params.mode = participantMode;
-      ctx.addSshDocument(joinSshRouteMatch.params);
+      const { clusterId, sid } = joinSshRouteMatch.params;
+      if (clusterId && sid) {
+        ctx.addSshDocument({ clusterId, sid, mode: participantMode });
+      }
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);
     } else if (kubeExecRouteMatch) {
-      ctx.addKubeExecDocument(kubeExecRouteMatch.params);
+      const { clusterId, kubeId } = kubeExecRouteMatch.params;
+      if (clusterId && kubeId) {
+        ctx.addKubeExecDocument({ clusterId, kubeId });
+      }
     } else if (joinKubeExecRouteMatch) {
-      joinKubeExecRouteMatch.params.mode = participantMode;
-      ctx.addKubeExecDocument(joinKubeExecRouteMatch.params);
+      const { clusterId, sid } = joinKubeExecRouteMatch.params;
+      if (clusterId && sid) {
+        ctx.addKubeExecDocument({
+          clusterId,
+          kubeId: '',
+          sid,
+          mode: participantMode,
+        });
+      }
     } else if (dbConnectMatch) {
-      ctx.addDbDocument(dbConnectMatch.params);
+      const { clusterId, serviceName } = dbConnectMatch.params;
+      if (clusterId && serviceName) {
+        ctx.addDbDocument({ clusterId, serviceName });
+      }
     }
   }, [ctx, pathname]);
 

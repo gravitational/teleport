@@ -18,8 +18,7 @@
 
 import { act } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
@@ -60,17 +59,23 @@ describe('teleport/components/Welcome', () => {
   it('should have correct welcome prompt flow for invite', async () => {
     jest.spyOn(history, 'push').mockImplementation();
 
-    const mockHistory = createMemoryHistory({
-      initialEntries: [invitePath],
-    });
-
-    render(
-      <Router history={mockHistory}>
-        <Route path={cfg.routes.userInvite}>
-          <Welcome NewCredentials={NewCredentials} />
-        </Route>
-      </Router>
+    const router = createMemoryRouter(
+      [
+        {
+          path: cfg.routes.userInvite,
+          element: <Welcome NewCredentials={NewCredentials} />,
+        },
+        {
+          path: cfg.routes.userInviteContinue,
+          element: <Welcome NewCredentials={NewCredentials} />,
+        },
+      ],
+      {
+        initialEntries: [invitePath],
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     expect(
       screen.getByText(/Please click the button below to create an account/i)
@@ -79,9 +84,13 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/get started/i));
-    act(() => mockHistory.push(inviteContinuePath));
-
     expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
+
+    // Navigate the router to the continue path (since history.push is mocked)
+    await act(async () => {
+      router.navigate(inviteContinuePath);
+    });
+
     await waitFor(() => {
       expect(auth.fetchPasswordToken).toHaveBeenCalled();
     });
@@ -92,17 +101,23 @@ describe('teleport/components/Welcome', () => {
   it('should have correct welcome prompt flow for reset', async () => {
     jest.spyOn(history, 'push').mockImplementation();
 
-    const mockHistory = createMemoryHistory({
-      initialEntries: [resetPath],
-    });
-
-    render(
-      <Router history={mockHistory}>
-        <Route path={cfg.routes.userReset}>
-          <Welcome NewCredentials={NewCredentials} />
-        </Route>
-      </Router>
+    const router = createMemoryRouter(
+      [
+        {
+          path: cfg.routes.userReset,
+          element: <Welcome NewCredentials={NewCredentials} />,
+        },
+        {
+          path: cfg.routes.userResetContinue,
+          element: <Welcome NewCredentials={NewCredentials} />,
+        },
+      ],
+      {
+        initialEntries: [resetPath],
+      }
     );
+
+    render(<RouterProvider router={router} />);
 
     expect(
       screen.getByText(
@@ -113,12 +128,16 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/Continue/i));
-    act(() => mockHistory.push(resetContinuePath));
+    expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+
+    // Navigate the router to the continue path (since history.push is mocked)
+    await act(async () => {
+      router.navigate(resetContinuePath);
+    });
 
     await waitFor(() => {
-      expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+      expect(auth.fetchPasswordToken).toHaveBeenCalled();
     });
-    expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
     expect(await screen.findByText(/submit/i)).toBeInTheDocument();
   });
@@ -328,11 +347,24 @@ describe('teleport/components/Welcome', () => {
 });
 
 function renderInvite(url = inviteContinuePath) {
-  render(
-    <MemoryRouter initialEntries={[url]}>
-      <Route path={cfg.routes.userInviteContinue}>
-        <Welcome NewCredentials={NewCredentials} />
-      </Route>
-    </MemoryRouter>
+  // Use createMemoryRouter to properly handle nested routing.
+  // The outer route captures the :tokenId param, and Welcome's internal
+  // Switch handles the sub-routes.
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/web/invite/:tokenId/*',
+        element: <Welcome NewCredentials={NewCredentials} />,
+      },
+      {
+        path: '/web/reset/:tokenId/*',
+        element: <Welcome NewCredentials={NewCredentials} />,
+      },
+    ],
+    {
+      initialEntries: [url],
+    }
   );
+
+  render(<RouterProvider router={router} />);
 }

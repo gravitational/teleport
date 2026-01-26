@@ -17,14 +17,9 @@
  */
 
 import type { JSX } from 'react';
+import { matchPath, useLocation, useParams } from 'react-router';
 
 import { WelcomeWrapper } from 'teleport/components/Onboard';
-import {
-  Route,
-  Switch,
-  useLocation,
-  useParams,
-} from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
@@ -37,8 +32,8 @@ type WelcomeProps = {
 };
 
 export function Welcome({ NewCredentials }: WelcomeProps) {
-  const { tokenId } = useParams<{ tokenId: string }>();
-  const { search } = useLocation();
+  const { tokenId } = useParams() as { tokenId: string };
+  const { search, pathname } = useLocation();
 
   const handleOnInviteContinue = () => {
     // We need to pass through the `invite` query parameter (if it exists) to
@@ -55,38 +50,54 @@ export function Welcome({ NewCredentials }: WelcomeProps) {
     history.push(cfg.getUserResetTokenContinueRoute(tokenId));
   };
 
-  return (
-    <Switch>
-      <Route exact path={cfg.routes.userInvite}>
-        <WelcomeWrapper>
-          <CardWelcome
-            title="Welcome to Teleport"
-            subTitle="Please click the button below to create an account"
-            btnText="Get started"
-            onClick={handleOnInviteContinue}
-          />
-        </WelcomeWrapper>
-      </Route>
-      <Route exact path={cfg.routes.userReset}>
-        <WelcomeWrapper>
-          <CardWelcome
-            title="Reset Authentication"
-            subTitle="Please click the button below to begin recovery of your account"
-            btnText="Continue"
-            onClick={handleOnResetContinue}
-          />
-        </WelcomeWrapper>
-      </Route>
-      <Route path={cfg.routes.userInviteContinue}>
-        <WelcomeWrapper>
-          <NewCredentials tokenId={tokenId} />
-        </WelcomeWrapper>
-      </Route>
-      <Route path={cfg.routes.userResetContinue}>
-        <WelcomeWrapper>
-          <NewCredentials resetMode={true} tokenId={tokenId} />
-        </WelcomeWrapper>
-      </Route>
-    </Switch>
-  );
+  // Use matchPath to determine which view to render.
+  const isInvite = matchPath(cfg.routes.userInvite, pathname);
+  const isReset = matchPath(cfg.routes.userReset, pathname);
+  const isInviteContinue = matchPath(cfg.routes.userInviteContinue, pathname);
+  const isResetContinue = matchPath(cfg.routes.userResetContinue, pathname);
+
+  if (isInvite) {
+    return (
+      <WelcomeWrapper>
+        <CardWelcome
+          title="Welcome to Teleport"
+          subTitle="Please click the button below to create an account"
+          btnText="Get started"
+          onClick={handleOnInviteContinue}
+        />
+      </WelcomeWrapper>
+    );
+  }
+
+  if (isReset) {
+    return (
+      <WelcomeWrapper>
+        <CardWelcome
+          title="Reset Authentication"
+          subTitle="Please click the button below to begin recovery of your account"
+          btnText="Continue"
+          onClick={handleOnResetContinue}
+        />
+      </WelcomeWrapper>
+    );
+  }
+
+  if (isInviteContinue) {
+    return (
+      <WelcomeWrapper>
+        <NewCredentials tokenId={tokenId} />
+      </WelcomeWrapper>
+    );
+  }
+
+  if (isResetContinue) {
+    return (
+      <WelcomeWrapper>
+        <NewCredentials resetMode={true} tokenId={tokenId} />
+      </WelcomeWrapper>
+    );
+  }
+
+  // Fallback - shouldn't normally reach here if routes are configured correctly
+  return null;
 }

@@ -17,8 +17,7 @@
  */
 
 import { useEffect } from 'react';
-import { useParams } from 'react-router';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink, useParams } from 'react-router';
 
 import { ButtonPrimary } from 'design';
 import Table, { LabelCell } from 'design/DataTable';
@@ -33,11 +32,11 @@ import {
 } from 'teleport/services/integrations';
 
 export function Rules() {
-  const { name, resourceKind } = useParams<{
+  const { name, resourceKind } = useParams() as {
     type: IntegrationKind;
     name: string;
     resourceKind: AwsResource;
-  }>();
+  };
 
   const serverSidePagination =
     useServerSidePagination<IntegrationDiscoveryRule>({
@@ -79,10 +78,8 @@ export function Rules() {
       emptyButton={
         <ButtonPrimary
           as={InternalLink}
-          to={{
-            pathname: cfg.routes.discover,
-            state: { searchKeywords: resourceKind },
-          }}
+          to={cfg.routes.discover}
+          state={{ searchKeywords: resourceKind }}
         >
           Add Enrollment Rule
         </ButtonPrimary>

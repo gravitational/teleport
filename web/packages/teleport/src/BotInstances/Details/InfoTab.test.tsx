@@ -16,20 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Required to allow using `.closest()` to find sections
-/* eslint-disable testing-library/no-node-access */
+import { ComponentProps } from 'react';
 
-import userEvent from '@testing-library/user-event';
-import { createMemoryHistory } from 'history';
-import { ComponentProps, PropsWithChildren } from 'react';
-import { Router } from 'react-router';
-
-import { darkTheme } from 'design/theme';
-import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { render, screen, within } from 'design/utils/testing';
+import { screen, within } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { mockGetBotInstanceResponse } from 'teleport/test/helpers/botInstances';
+import { renderWithMemoryRouter } from 'teleport/test/helpers/router';
 
 import { InfoTab } from './InfoTab';
 
@@ -94,8 +87,7 @@ describe('InfoTab', () => {
   });
 
   it('navigate on bot name link click', async () => {
-    const { history, user } = renderComponent();
-    const pushMock = jest.spyOn(history, 'push');
+    const { user, router } = renderComponent();
 
     const section = screen
       .getByRole('heading', { name: 'Summary' })
@@ -105,13 +97,11 @@ describe('InfoTab', () => {
     const link = within(section!).getByText('test-bot-name');
     await user.click(link);
 
-    expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenLastCalledWith('/web/bot/test-bot-name');
+    expect(router.state.location.pathname).toBe('/web/bot/test-bot-name');
   });
 
   it('navigate on join token name link click', async () => {
-    const { history, user } = renderComponent();
-    const pushMock = jest.spyOn(history, 'push');
+    const { user, router } = renderComponent();
 
     const section = screen
       .getByRole('heading', { name: 'Join Token' })
@@ -121,8 +111,7 @@ describe('InfoTab', () => {
     const link = within(section!).getByText('test-token-name');
     await user.click(link);
 
-    expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenLastCalledWith('/web/tokens');
+    expect(router.state.location.pathname).toBe('/web/tokens');
   });
 
   it('callback on "view services" click', async () => {
@@ -157,29 +146,13 @@ function expectFieldAndValue(
 function renderComponent(props?: Partial<ComponentProps<typeof InfoTab>>) {
   const { data = mockGetBotInstanceResponse, onGoToServicesClick = jest.fn() } =
     props ?? {};
-  const user = userEvent.setup();
-
-  const history = createMemoryHistory({
-    initialEntries: [cfg.getBotInstancesRoute()],
-  });
 
   return {
-    ...render(
+    ...renderWithMemoryRouter(
       <InfoTab data={data} onGoToServicesClick={onGoToServicesClick} />,
-      { wrapper: makeWrapper({ history }) }
+      {
+        initialEntries: [cfg.getBotInstancesRoute()],
+      }
     ),
-    user,
-    history,
   };
-}
-
-function makeWrapper(options: {
-  history: ReturnType<typeof createMemoryHistory>;
-}) {
-  return (props: PropsWithChildren) => (
-    <ConfiguredThemeProvider theme={darkTheme}>
-      {/* A Router with history is required to render <Link/> */}
-      <Router history={options.history}>{props.children}</Router>
-    </ConfiguredThemeProvider>
-  );
 }

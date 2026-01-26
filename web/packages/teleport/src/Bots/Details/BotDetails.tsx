@@ -17,7 +17,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { useHistory, useLocation, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -70,11 +70,11 @@ import { Panel } from './Panel';
 
 export function BotDetails() {
   const ctx = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams<{
+  const params = useParams() as {
     botName: string;
-  }>();
+  };
   const [isEditing, setEditing] = useState(false);
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
   const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false);
@@ -106,9 +106,9 @@ export function BotDetails() {
   const handleBackPress = () => {
     // If location.key is unset, or 'default', this is the first history entry in-app in the session.
     if (!location.key || location.key === 'default') {
-      history.push(cfg.getBotsRoute());
+      navigate(cfg.getBotsRoute());
     } else {
-      history.goBack();
+      navigate(-1);
     }
   };
 
@@ -121,7 +121,7 @@ export function BotDetails() {
   };
 
   const handleViewAllTokensClicked = () => {
-    history.push(cfg.getJoinTokensRoute());
+    navigate(cfg.getJoinTokensRoute());
   };
 
   const handleLock = () => {
@@ -138,7 +138,7 @@ export function BotDetails() {
 
   const handleDeleteComplete = () => {
     setShowDeleteConfirmation(false);
-    history.replace(cfg.getBotsRoute());
+    navigate(cfg.getBotsRoute(), { replace: true });
   };
 
   const handleInstanceSelected = (instance: BotInstanceSummary) => {
@@ -149,7 +149,7 @@ export function BotDetails() {
       sortField: 'active_at_latest',
       sortDir: 'DESC',
     });
-    history.push(path);
+    navigate(path);
   };
 
   return (

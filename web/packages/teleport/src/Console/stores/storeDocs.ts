@@ -85,7 +85,13 @@ export default class StoreDocs extends Store<State> {
   }
 
   findByUrl(url: string) {
-    return this.state.items.find(i => encodeURI(i.url.split('?')[0]) === url);
+    const normalize = (value: string) =>
+      value.length > 1 && value.endsWith('/') ? value.slice(0, -1) : value;
+    const target = normalize(url);
+
+    return this.state.items.find(
+      i => normalize(encodeURI(i.url.split('?')[0])) === target
+    );
   }
 
   getNodeDocuments() {

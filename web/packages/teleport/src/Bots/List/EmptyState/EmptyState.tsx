@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Box, ButtonPrimary, Flex, H1, Image, Text } from 'design';

@@ -23,9 +23,9 @@ import { AwsRaRoutes } from 'teleport/Integrations/status/AwsRa/AwsRaRoutes';
 import { IntegrationKind, PluginKind } from 'teleport/services/integrations';
 
 export function IntegrationStatus() {
-  const { type: integrationType } = useParams<{
+  const { type: integrationType } = useParams() as {
     type: PluginKind | IntegrationKind;
-  }>();
+  };
 
   if (integrationType === IntegrationKind.AwsOidc) {
     return <AwsOidcRoutes />;

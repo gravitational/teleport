@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
@@ -114,7 +114,7 @@ export function Account({
   passwordState,
   onPasswordChange: onPasswordChangeCb,
 }: AccountProps) {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -130,7 +130,7 @@ export function Account({
             mr={2}
             size="large"
             color="text.main"
-            onClick={history.goBack}
+            onClick={() => navigate(-1)}
             style={{ cursor: 'pointer' }}
           />
           <FeatureHeaderTitle>Account Settings</FeatureHeaderTitle>

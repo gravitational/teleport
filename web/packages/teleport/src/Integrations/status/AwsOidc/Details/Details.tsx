@@ -31,11 +31,11 @@ import { useAwsOidcStatus } from 'teleport/Integrations/status/AwsOidc/useAwsOid
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export function Details() {
-  const { resourceKind } = useParams<{
+  const { resourceKind } = useParams() as {
     type: IntegrationKind;
     name: string;
     resourceKind: AwsResource;
-  }>();
+  };
 
   const { integrationAttempt, statsAttempt } = useAwsOidcStatus();
 

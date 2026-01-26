@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory } from 'react-router';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import cfg from 'teleport/config';
@@ -41,7 +40,7 @@ export function SideNav({
   recoveryEnabled = false,
   trustedDevicesEnabled = false,
 }: SideNavProps) {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const navigateTo = (path: string) => {
@@ -51,7 +50,7 @@ export function SideNav({
     if (isSamePage) {
       window.history.replaceState(null, '', path);
     } else {
-      history.replace(path);
+      navigate(path, { replace: true });
     }
 
     // If there's an ID found, scroll to it

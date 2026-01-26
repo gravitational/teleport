@@ -177,10 +177,11 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: currentViewRoute =>
-        !!matchPath(currentViewRoute, {
-          path: cfg.routes.unifiedResources,
-          exact: false,
-        }) &&
+        !!currentViewRoute &&
+        !!matchPath(
+          { path: cfg.routes.unifiedResources, end: false },
+          currentViewRoute
+        ) &&
         !isPinnedOnly &&
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(false),
@@ -193,10 +194,11 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: currentViewRoute =>
-        !!matchPath(currentViewRoute, {
-          path: cfg.routes.unifiedResources,
-          exact: false,
-        }) &&
+        !!currentViewRoute &&
+        !!matchPath(
+          { path: cfg.routes.unifiedResources, end: false },
+          currentViewRoute
+        ) &&
         isPinnedOnly &&
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(true),

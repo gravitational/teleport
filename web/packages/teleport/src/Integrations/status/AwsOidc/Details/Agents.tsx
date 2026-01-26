@@ -17,8 +17,7 @@
  */
 
 import { useEffect } from 'react';
-import { useParams } from 'react-router';
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink, useParams } from 'react-router';
 
 import { Box, ButtonPrimary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
@@ -34,11 +33,11 @@ import {
 } from 'teleport/services/integrations';
 
 export function Agents() {
-  const { name, resourceKind } = useParams<{
+  const { name, resourceKind } = useParams() as {
     type: IntegrationKind;
     name: string;
     resourceKind: AwsResource;
-  }>();
+  };
 
   const [servicesAttempt, fetchServices] = useAsync(() => {
     return integrationService.fetchAwsOidcDatabaseServices(name, resourceKind);
@@ -89,10 +88,8 @@ export function Agents() {
         emptyButton={
           <ButtonPrimary
             as={InternalLink}
-            to={{
-              pathname: cfg.routes.discover,
-              state: { searchKeywords: resourceKind },
-            }}
+            to={cfg.routes.discover}
+            state={{ searchKeywords: resourceKind }}
           >
             Add Enrollment Rule
           </ButtonPrimary>

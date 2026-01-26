@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
-
 import { ButtonPrimary } from 'design/Button';
 import { ListThin } from 'design/Icon';
-import { act, fireEvent, render, screen } from 'design/utils/testing';
+import { act, fireEvent, render, Router, screen } from 'design/utils/testing';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 import {
   autoRemoveDurationMs,
@@ -77,7 +75,7 @@ test('renders', () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <ToastNotificationProvider>
@@ -85,7 +83,7 @@ test('renders', () => {
           </ToastNotificationProvider>
         </ContextProvider>
       </LayoutContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -103,7 +101,7 @@ test('toggle rendering of info guide panel', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -111,7 +109,7 @@ test('toggle rendering of info guide panel', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
@@ -145,7 +143,7 @@ test('notification render and auto dismissal', async () => {
   };
 
   render(
-    <MemoryRouter>
+    <Router>
       <ContextProvider ctx={ctx}>
         <ToastNotificationProvider>
           <LayoutContextProvider>
@@ -153,7 +151,7 @@ test('notification render and auto dismissal', async () => {
           </LayoutContextProvider>
         </ToastNotificationProvider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();

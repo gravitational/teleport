@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Info } from 'design/Alert/Alert';
@@ -46,7 +46,7 @@ export function Welcome(props: FlowStepProps) {
   const theme = useTheme();
   const tracking = useTracking();
   const location = useLocation();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const welcomeImage: ImageSpec = {
     light: welcomeLight,
@@ -65,9 +65,9 @@ export function Welcome(props: FlowStepProps) {
   const handlePrevious = () => {
     // If location.key is unset, or 'default', this is the first history entry in-app in the session.
     if (!location.key || location.key === 'default') {
-      history.push(cfg.getIntegrationsEnrollRoute());
+      navigate(cfg.getIntegrationsEnrollRoute());
     } else {
-      history.goBack();
+      navigate(-1);
     }
   };
 

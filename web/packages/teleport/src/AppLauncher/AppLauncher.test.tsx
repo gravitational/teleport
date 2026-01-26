@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { render, screen, waitFor } from 'design/utils/testing';
 
-import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
+
+const appLauncherRoute = `${cfg.routes.appLauncher}/*`;
 
 const launcherPathTestCases: {
   name: string;
@@ -98,11 +98,16 @@ describe('app launcher path is properly formed', () => {
     '$name',
     async ({ path: query, expectedPath }) => {
       render(
-        <Router history={createMockHistory(`grafana.localhost${query}`)}>
-          <Route path={cfg.routes.appLauncher}>
-            <AppLauncher windowLocation={windowLocation} />
-          </Route>
-        </Router>
+        <MemoryRouter
+          initialEntries={[`/web/launch/grafana.localhost${query}`]}
+        >
+          <Routes>
+            <Route
+              path={appLauncherRoute}
+              element={<AppLauncher windowLocation={windowLocation} />}
+            />
+          </Routes>
+        </MemoryRouter>
       );
 
       await waitFor(() =>
@@ -269,11 +274,14 @@ describe('fqdn is matched', () => {
       };
 
       render(
-        <Router history={createMockHistory(path)}>
-          <Route path={cfg.routes.appLauncher}>
-            <AppLauncher windowLocation={windowLocation} />
-          </Route>
-        </Router>
+        <MemoryRouter initialEntries={[`/web/launch/${path}`]}>
+          <Routes>
+            <Route
+              path={appLauncherRoute}
+              element={<AppLauncher windowLocation={windowLocation} />}
+            />
+          </Routes>
+        </MemoryRouter>
       );
 
       await waitFor(() => {
@@ -299,15 +307,18 @@ describe('fqdn is matched', () => {
     };
 
     render(
-      <Router
-        history={createMockHistory(
-          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
-        )}
+      <MemoryRouter
+        initialEntries={[
+          '/web/launch/test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC',
+        ]}
       >
-        <Route path={cfg.routes.appLauncher}>
-          <AppLauncher windowLocation={windowLocation} />
-        </Route>
-      </Router>
+        <Routes>
+          <Route
+            path={appLauncherRoute}
+            element={<AppLauncher windowLocation={windowLocation} />}
+          />
+        </Routes>
+      </MemoryRouter>
     );
 
     await screen.findByText(/access denied/i);
@@ -328,15 +339,18 @@ describe('fqdn is matched', () => {
     };
 
     render(
-      <Router
-        history={createMockHistory(
-          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
-        )}
+      <MemoryRouter
+        initialEntries={[
+          '/web/launch/test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC',
+        ]}
       >
-        <Route path={cfg.routes.appLauncher}>
-          <AppLauncher windowLocation={windowLocation} />
-        </Route>
-      </Router>
+        <Routes>
+          <Route
+            path={appLauncherRoute}
+            element={<AppLauncher windowLocation={windowLocation} />}
+          />
+        </Routes>
+      </MemoryRouter>
     );
 
     await screen.findByText(/access denied/i);
@@ -344,10 +358,3 @@ describe('fqdn is matched', () => {
     expect(windowLocation.replace).not.toHaveBeenCalled();
   });
 });
-
-function createMockHistory(path: string) {
-  const launcherPath = `/web/launch/${path}`;
-  return createMemoryHistory({
-    initialEntries: [launcherPath],
-  });
-}
