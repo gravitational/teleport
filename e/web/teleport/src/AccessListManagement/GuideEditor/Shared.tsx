@@ -6,9 +6,15 @@ import { Magnifier } from 'design/Icon';
 import { FeatureBox } from 'teleport/components/Layout';
 
 import { useAccessListManagementContext } from '../AccessListManagementContext';
+import { stepButtonContainerHeight } from './const';
 
 export const MaxWidthBox = styled(Box)`
   width: 710px;
+`;
+
+export const StyledUl = styled.ul`
+  margin: 0;
+  padding-left: ${p => p.theme.space[3]}px;
 `;
 
 export function NoResultsFound() {
@@ -61,12 +67,13 @@ export const StepButtons = ({
       `}
     >
       <Flex
+        justifyContent="center"
+        alignItems="center"
         css={
           cssStyle
             ? cssStyle
             : `
-      margin-top: ${theme.space[4]}px;
-      margin-bottom: ${theme.space[4]}px;
+      height: ${stepButtonContainerHeight};
       margin-left: calc(var(--sidenav-width) + var(--guide-left-space));
       gap: ${theme.space[3]}px;
       width: 200px;

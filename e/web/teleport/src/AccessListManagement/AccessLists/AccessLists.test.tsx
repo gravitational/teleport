@@ -33,7 +33,7 @@ import { getAcl } from 'teleport/mocks/contexts';
 import { ApiError } from 'teleport/services/api/parseError';
 import type { Plugin } from 'teleport/services/integrations';
 
-import { unifiedResourcePath } from '../GuideEditor/Preset/testHelper';
+import { unifiedResourcePath } from '../GuideEditor/Preset/TestHelper/mocks';
 import { AccessLists } from './AccessLists';
 
 const mio = mockIntersectionObserver();

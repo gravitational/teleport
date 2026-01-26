@@ -9,8 +9,8 @@ import {
   appsWithoutPermissionSets,
   fetchUnifiedResources,
   makeHandlers,
-  Provider,
-} from '../../../testHelper';
+} from '../../../TestHelper/mocks';
+import { Provider } from '../../../TestHelper/Provider';
 import { AccountAndArnSelectorDialog } from './AccountAndArnSelectorDialog';
 
 export default {

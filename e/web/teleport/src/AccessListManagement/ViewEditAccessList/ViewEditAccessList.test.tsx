@@ -38,7 +38,7 @@ import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatus
 import ResourceService from 'teleport/services/resources';
 import userService, { Acl } from 'teleport/services/user';
 
-import { unifiedResourcePath } from '../GuideEditor/Preset/testHelper';
+import { unifiedResourcePath } from '../GuideEditor/Preset/TestHelper/mocks';
 import { ViewEditAccessList } from './ViewEditAccessList';
 
 const server = setupServer();

@@ -20,7 +20,7 @@ import type { PluginStatusOkta } from 'teleport/services/integrations/oktaStatus
 import ResourceService from 'teleport/services/resources';
 import userService from 'teleport/services/user';
 
-import { unifiedResourcePath } from '../GuideEditor/Preset/testHelper';
+import { unifiedResourcePath } from '../GuideEditor/Preset/TestHelper/mocks';
 import { CreateAccessList } from './CreateAccessList';
 import { CreateAccessListContextProvider } from './CreateAccessListContextProvider';
 

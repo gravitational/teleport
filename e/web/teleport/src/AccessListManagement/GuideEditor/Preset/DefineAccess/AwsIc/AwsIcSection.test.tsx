@@ -1,6 +1,4 @@
-import { QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
-import { PropsWithChildren } from 'react';
 
 import {
   render,
@@ -14,8 +12,8 @@ import {
   appsWithoutPermissionSets,
   fetchUnifiedResources,
   makeHandlers,
-  Provider,
-} from '../../testHelper';
+} from '../../TestHelper/mocks';
+import { ProviderWithQuery } from '../../TestHelper/ProviderWithQuery';
 import { AwsIcSection } from './AwsIcSection';
 
 const server = setupServer();
@@ -310,11 +308,3 @@ describe('AwsIcSection', () => {
     expect(screen.getByText(/try a different selection/i)).toBeInTheDocument();
   });
 });
-
-function ProviderWithQuery({ children }: PropsWithChildren) {
-  return (
-    <QueryClientProvider client={testQueryClient}>
-      <Provider>{children}</Provider>
-    </QueryClientProvider>
-  );
-}

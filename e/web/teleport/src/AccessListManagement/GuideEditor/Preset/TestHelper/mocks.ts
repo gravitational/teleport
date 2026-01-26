@@ -1,28 +1,19 @@
 import { delay, http, HttpHandler, HttpResponse } from 'msw';
-import { PropsWithChildren, useEffect } from 'react';
-import { MemoryRouter } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { UnifiedResourceApp } from 'shared/components/UnifiedResources';
 
-import {
-  AccessListManagementContextProvider,
-  useAccessListManagementContext,
-} from 'e-teleport/AccessListManagement/AccessListManagementContext';
-import { CreateAccessListContextProvider } from 'e-teleport/AccessListManagement/CreateAccessList/CreateAccessListContextProvider';
 import cfg from 'e-teleport/config';
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { apps } from 'teleport/Apps/fixtures';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { gitServers } from 'teleport/GitServers/fixtures';
-import { ContextProvider } from 'teleport/index';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { nodes } from 'teleport/Nodes/fixtures';
 import { ResourceAccessKind } from 'teleport/Roles/RoleEditor/StandardEditor/standardmodel';
 import { PermissionSet } from 'teleport/services/apps';
 import makeApp from 'teleport/services/apps/makeApps';
-import { UserContextProvider } from 'teleport/User';
+
+import { DefinableResourceAccessFields } from '../role/listaccess';
 
 // The path won't match if fetch is made with query params defined,
 // so its removed to match regardless of query params.
@@ -200,46 +191,6 @@ export function fetchUnifiedResources(
   }
 }
 
-export const ComponentWithAccountsSelected: React.FC<
-  PropsWithChildren<{
-    wantWildcard?: boolean;
-  }>
-> = ({ wantWildcard, children }) => {
-  const { guideEditor } = useAccessListManagementContext();
-  const { awsIcRoleState } = guideEditor;
-  useEffect(() => {
-    if (wantWildcard) {
-      awsIcRoleState.addAccountWildcard(sampleSelectedPermissionSet);
-    } else {
-      awsIcRoleState.updateAccount(
-        sampleSelectedAccounts,
-        sampleSelectedPermissionSet
-      );
-    }
-  }, []);
-  return <>{children}</>;
-};
-
-export const Provider = props => {
-  const ctx = createTeleportContextE({ customAcl: props.customAcl });
-
-  return (
-    <MemoryRouter>
-      <InfoGuidePanelProvider>
-        <UserContextProvider>
-          <ContextProvider ctx={ctx}>
-            <AccessListManagementContextProvider>
-              <CreateAccessListContextProvider>
-                {props.children}
-              </CreateAccessListContextProvider>
-            </AccessListManagementContextProvider>
-          </ContextProvider>
-        </UserContextProvider>
-      </InfoGuidePanelProvider>
-    </MemoryRouter>
-  );
-};
-
 export const appsWithoutPermissionSets = [
   { kind: 'app', name: 'app-name-1', friendlyName: 'app-friendly-name-1' },
   { kind: 'app', name: 'app-name-2', friendlyName: 'app-friendly-name-2' },
@@ -338,7 +289,7 @@ export const appsWithAllMatchingPermissionSet = [
   },
 ];
 
-const sampleSelectedPermissionSet: PermissionSet[] = [
+export const sampleSelectedPermissionSet: PermissionSet[] = [
   {
     name: 'ps-name-1',
     arn: 'ps-arn-1',
@@ -489,3 +440,17 @@ export const sampleSelectedAccounts: UnifiedResourceApp[] = [
     friendlyName: 'app-friendly-name-14',
   },
 ];
+
+export async function withCustomError(
+  field: DefinableResourceAccessFields,
+  processCallback: () => Promise<any>
+) {
+  try {
+    await processCallback();
+  } catch (error) {
+    // Provide custom error message.
+    throw new Error(`For field "${field}": ${error.message}`, {
+      cause: error,
+    });
+  }
+}

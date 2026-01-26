@@ -8,7 +8,7 @@ import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoG
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { mockAccessLists } from 'e-teleport/AccessListManagement/AccessLists/EmptyState/fixtures';
-import { unifiedResourcePath } from 'e-teleport/AccessListManagement/GuideEditor/Preset/testHelper';
+import { unifiedResourcePath } from 'e-teleport/AccessListManagement/GuideEditor/Preset/TestHelper/mocks';
 import ecfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import { accessManagementService } from 'e-teleport/services/accessmanagement';

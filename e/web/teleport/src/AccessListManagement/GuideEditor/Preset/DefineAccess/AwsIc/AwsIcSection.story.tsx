@@ -3,11 +3,13 @@ import { StoryObj } from '@storybook/react-vite';
 import {
   appsWithAllMatchingPermissionSet,
   appsWithSomePermissionSets,
-  ComponentWithAccountsSelected,
   fetchUnifiedResources,
   makeHandlers,
+} from '../../TestHelper/mocks';
+import {
+  ComponentWithAccountsSelected,
   Provider,
-} from '../../testHelper';
+} from '../../TestHelper/Provider';
 import { AwsIcSection } from './AwsIcSection';
 
 export default {

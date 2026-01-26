@@ -3,14 +3,26 @@ import { Link as InternalLink } from 'react-router-dom';
 
 import { Box, Link as ExternalLink, Flex, Text } from 'design';
 import { IconTooltip } from 'design/Tooltip';
-import { StyledUl } from 'shared/components/UnifiedResources/shared/StatusInfo';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
 
+import { StyledUl } from '../../Shared';
+import { DefinableResourceAccessFields } from '../role/listaccess';
 import { getResourceKindName, getResourceRbacLink } from './shared';
 
-export function EmptyList({ resourceField }: { resourceField: 'awsIc' }) {
+/**
+ * Used when initial querying of resources does not produce any result.
+ * This can be for following reasons:
+ * - cluster doesn't have any resources, adds CTA to enroll the resource
+ * - user doesn't have the proper RBAC to list resources, solved by tooltip
+ *   calling out to user to check their access
+ */
+export function EmptyList({
+  resourceField,
+}: {
+  resourceField: DefinableResourceAccessFields;
+}) {
   const teleCtx = useTeleport();
   const { resourceKind, byline } = getResourceKindName(resourceField);
 
@@ -30,6 +42,45 @@ export function EmptyList({ resourceField }: { resourceField: 'awsIc' }) {
             integrate
           </InternalLink>{' '}
           with AWS Identity Center
+        </li>
+      );
+      break;
+
+    case 'github_permissions':
+      noAccess = <Text>or {resourceKind} is not integrated.</Text>;
+      cta = (
+        <li>
+          Or{' '}
+          <ExternalLink
+            to={cfg.getIntegrationEnrollRoute('aws-identity-center')}
+            target="_blank"
+          >
+            integrate
+          </ExternalLink>{' '}
+          with AWS Identity Center
+        </li>
+      );
+      break;
+      break;
+    case 'app_labels':
+    case 'db_labels':
+    case 'kubernetes_labels':
+    case 'node_labels':
+    case 'windows_desktop_labels':
+      noAccess = <Text>or no {byline} are enrolled.</Text>;
+      cta = (
+        <li>
+          Or{' '}
+          <InternalLink
+            // TODO(kimlisa): discover doesn't support query param,
+            // which is needed to preserve state when going to a new tab.
+            // Query param should support filtering by resource kinds.
+            to={cfg.routes.discover}
+            target="_blank"
+          >
+            enroll
+          </InternalLink>{' '}
+          your first {resourceKind}
         </li>
       );
       break;
@@ -59,9 +110,6 @@ export function EmptyList({ resourceField }: { resourceField: 'awsIc' }) {
                 Check your{' '}
                 <InternalLink
                   target="_blank"
-                  css={`
-                    color: ${p => p.theme.colors.tooltip.inverseLinkDefault};
-                  `}
                   to={`${cfg.routes.users}?user=${encodeURIComponent(teleCtx.storeUser.getUsername())}`}
                 >
                   roles
@@ -70,9 +118,6 @@ export function EmptyList({ resourceField }: { resourceField: 'awsIc' }) {
                 <ExternalLink
                   target="_blank"
                   href={getResourceRbacLink(resourceField)}
-                  css={`
-                    color: ${p => p.theme.colors.tooltip.inverseLinkDefault};
-                  `}
                 >
                   access
                 </ExternalLink>{' '}
