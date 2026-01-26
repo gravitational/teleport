@@ -128,6 +128,14 @@ type UserACL struct {
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 	// ClientIPRestriction defines access to Cloud IP Restrictions
 	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
+	// AutoUpdateConfig defines access to autoupdate config.
+	AutoUpdateConfig ResourceAccess `json:"autoUpdateConfig"`
+	// AutoUpdateVersion defines access to autoupdate version.
+	AutoUpdateVersion ResourceAccess `json:"autoUpdateVersion"`
+	// AutoUpdateAgentRollout defines access to autoupdate agent rollout.
+	AutoUpdateAgentRollout ResourceAccess `json:"autoUpdateAgentRollout"`
+	// AutoUpdateAgentReport defines access to autoupdate agent reports.
+	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -240,6 +248,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
 	}
 
+	autoUpdateConfig := newAccess(userRoles, ctx, types.KindAutoUpdateConfig)
+	autoUpdateVersion := newAccess(userRoles, ctx, types.KindAutoUpdateVersion)
+	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
+	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
+
 	return UserACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
@@ -285,7 +298,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		Contact:                 contact,
 		FileTransferAccess:      fileTransferAccess,
 		GitServers:              gitServersAccess,
-		WorkloadIdentity:        workloadIdentity,
-		ClientIPRestriction:     clientIPRestrictions,
+		WorkloadIdentity:             workloadIdentity,
+		ClientIPRestriction:          clientIPRestrictions,
+		AutoUpdateConfig:             autoUpdateConfig,
+		AutoUpdateVersion:            autoUpdateVersion,
+		AutoUpdateAgentRollout:       autoUpdateAgentRollout,
+		AutoUpdateAgentReport:        autoUpdateAgentReport,
 	}
 }
