@@ -1,4 +1,4 @@
-.version: &version "18.6.4"
+.version: &version "18.6.4-dev.dustinspecker.workloadclusters.2"
 
 name: teleport-cluster
 apiVersion: v2
