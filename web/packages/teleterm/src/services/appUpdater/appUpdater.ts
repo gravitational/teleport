@@ -33,7 +33,10 @@ import {
 } from 'electron-updater';
 import { ProviderRuntimeOptions } from 'electron-updater/out/providers/Provider';
 
-import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import type {
+  GetClusterVersionsResponse,
+  GetInstallationMetadataResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
 import { AbortError } from 'shared/utils/error';
 import { compare } from 'shared/utils/semVer';
 
@@ -69,7 +72,7 @@ export class AppUpdater {
     private readonly client: {
       getClusterVersions(): Promise<GetClusterVersionsResponse>;
       getDownloadBaseUrl(): Promise<string>;
-      isPerMachineInstall(): Promise<boolean>;
+      getInstallationMetadata(): Promise<GetInstallationMetadataResponse>;
     },
     private readonly emit: (event: AppUpdateEvent) => void,
     private versionEnvVar: string,
@@ -80,10 +83,15 @@ export class AppUpdater {
       await this.refreshAutoUpdatesStatus();
 
       if (this.autoUpdatesStatus.enabled) {
+        const [baseUrl, installationMetadata] = await Promise.all([
+          client.getDownloadBaseUrl(),
+          client.getInstallationMetadata(),
+        ]);
+
         return {
           version: this.autoUpdatesStatus.version,
-          baseUrl: await client.getDownloadBaseUrl(),
-          isPerMachineInstall: await client.isPerMachineInstall(),
+          baseUrl,
+          isPerMachineInstall: installationMetadata.isPerMachineInstall,
         };
       }
     };

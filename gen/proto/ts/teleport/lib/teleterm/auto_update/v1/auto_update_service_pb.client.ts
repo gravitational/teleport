@@ -23,8 +23,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { AutoUpdateService } from "./auto_update_service_pb";
-import type { IsPerMachineInstallResponse } from "./auto_update_service_pb";
-import type { IsPerMachineInstallRequest } from "./auto_update_service_pb";
+import type { GetInstallationMetadataResponse } from "./auto_update_service_pb";
+import type { GetInstallationMetadataRequest } from "./auto_update_service_pb";
 import type { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import type { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { stackIntercept } from "@protobuf-ts/runtime-rpc";
@@ -53,12 +53,12 @@ export interface IAutoUpdateServiceClient {
      */
     getDownloadBaseUrl(input: GetDownloadBaseUrlRequest, options?: RpcOptions): UnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
     /**
-     * IsPerMachineInstall returns whether updates should target a per-machine installation.
+     * GetInstallationMetadata returns installation metadata of the currently running app instance.
      * Implemented only on Windows.
      *
-     * @generated from protobuf rpc: IsPerMachineInstall(teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest) returns (teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse);
+     * @generated from protobuf rpc: GetInstallationMetadata(teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest) returns (teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse);
      */
-    isPerMachineInstall(input: IsPerMachineInstallRequest, options?: RpcOptions): UnaryCall<IsPerMachineInstallRequest, IsPerMachineInstallResponse>;
+    getInstallationMetadata(input: GetInstallationMetadataRequest, options?: RpcOptions): UnaryCall<GetInstallationMetadataRequest, GetInstallationMetadataResponse>;
 }
 /**
  * AutoUpdateService provides access to information about client tools updates.
@@ -92,13 +92,13 @@ export class AutoUpdateServiceClient implements IAutoUpdateServiceClient, Servic
         return stackIntercept<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>("unary", this._transport, method, opt, input);
     }
     /**
-     * IsPerMachineInstall returns whether updates should target a per-machine installation.
+     * GetInstallationMetadata returns installation metadata of the currently running app instance.
      * Implemented only on Windows.
      *
-     * @generated from protobuf rpc: IsPerMachineInstall(teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest) returns (teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse);
+     * @generated from protobuf rpc: GetInstallationMetadata(teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest) returns (teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse);
      */
-    isPerMachineInstall(input: IsPerMachineInstallRequest, options?: RpcOptions): UnaryCall<IsPerMachineInstallRequest, IsPerMachineInstallResponse> {
+    getInstallationMetadata(input: GetInstallationMetadataRequest, options?: RpcOptions): UnaryCall<GetInstallationMetadataRequest, GetInstallationMetadataResponse> {
         const method = this.methods[2], opt = this._transport.mergeOptions(options);
-        return stackIntercept<IsPerMachineInstallRequest, IsPerMachineInstallResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetInstallationMetadataRequest, GetInstallationMetadataResponse>("unary", this._transport, method, opt, input);
     }
 }

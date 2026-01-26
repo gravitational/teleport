@@ -112,7 +112,7 @@ function setUpAppUpdater(options: {
     {
       getClusterVersions: async () => options.clusters,
       getDownloadBaseUrl: async () => 'https://cdn.teleport.dev',
-      isPerMachineInstall: async () => false,
+      getInstallationMetadata: async () => ({ isPerMachineInstall: false }),
     },
     event => {
       lastEvent.value = event;
