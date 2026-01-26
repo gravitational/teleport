@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -1081,17 +1082,21 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	// Determine if we can bypass the standard node access checks for session joining. This is allowed only if:
+	// Determine if session join can bypass standard node access checks. This is only allowed if:
+	//   1. The requested OS user is the special session join principal (for moderated sessions).
+	//   2. The user's roles support moderated sessions.
+	//   3. MFA is NOT required for this session (MFARequiredNever),
+	//      OR the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session.
 	//
-	// - The requested OS user is the special session join principal (used for moderated sessions).
-	// - The user's roles support moderated sessions.
-	// - MFA is NOT required for this session (MFARequiredNever).
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
+	// and MFA has already been verified for this session.
 	//
-	// If all these conditions are met, we set bypassAccessCheck to true, allowing the session join
-	// to skip the usual node access checks.
-	bypassAccessCheck := osUser == teleport.SSHSessionJoinPrincipal &&
-		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
-		state.MFARequired == services.MFARequiredNever
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	bypassAccessCheck :=
+		osUser == teleport.SSHSessionJoinPrincipal &&
+			moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
+			(state.MFARequired == services.MFARequiredNever ||
+				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
 
 	// Collect preconditions that must be met before the session can start.
 	var preconds []*decisionpb.Precondition
