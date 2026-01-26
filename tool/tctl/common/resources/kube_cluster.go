@@ -81,7 +81,7 @@ func kubeClusterHandler() Handler {
 		getHandler:    getKubeCluster,
 		createHandler: createKubeCluster,
 		deleteHandler: deleteKubeCluster,
-		description:   "Represents a Kubernetes cluster in the cluster.",
+		description:   "A dynamic resource representing a Kubernetes cluster that can be accessed via a Kubernetes service.",
 	}
 }
 

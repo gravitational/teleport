@@ -78,7 +78,7 @@ func kubeServerHandler() Handler {
 	return Handler{
 		getHandler:    getKubeServer,
 		deleteHandler: deleteKubeServer,
-		description:   "Represents a Kubernetes service in the cluster.",
+		description:   "Represents a Kubernetes service instance that proxies access to Kubernetes clusters.",
 	}
 }
 
