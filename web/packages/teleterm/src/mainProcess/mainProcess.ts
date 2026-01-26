@@ -206,10 +206,12 @@ export default class MainProcess {
           const { response } = await autoUpdateService.getClusterVersions({});
           return response;
         },
-        isPerMachineInstall: async () => {
+        getInstallationMetadata: async () => {
           const { autoUpdateService } = await this.tshdClients;
-          const { response } = await autoUpdateService.isPerMachineInstall({});
-          return response.perMachineInstall;
+          const { response } = await autoUpdateService.getInstallationMetadata(
+            {}
+          );
+          return response;
         },
       },
       event => {

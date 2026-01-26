@@ -20,8 +20,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
-import { IsPerMachineInstallResponse } from "./auto_update_service_pb";
-import { IsPerMachineInstallRequest } from "./auto_update_service_pb";
+import { GetInstallationMetadataResponse } from "./auto_update_service_pb";
+import { GetInstallationMetadataRequest } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlResponse } from "./auto_update_service_pb";
 import { GetDownloadBaseUrlRequest } from "./auto_update_service_pb";
 import { GetClusterVersionsResponse } from "./auto_update_service_pb";
@@ -48,12 +48,12 @@ export interface IAutoUpdateService extends grpc.UntypedServiceImplementation {
      */
     getDownloadBaseUrl: grpc.handleUnaryCall<GetDownloadBaseUrlRequest, GetDownloadBaseUrlResponse>;
     /**
-     * IsPerMachineInstall returns whether updates should target a per-machine installation.
+     * GetInstallationMetadata returns installation metadata of the currently running app instance.
      * Implemented only on Windows.
      *
-     * @generated from protobuf rpc: IsPerMachineInstall(teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallRequest) returns (teleport.lib.teleterm.auto_update.v1.IsPerMachineInstallResponse);
+     * @generated from protobuf rpc: GetInstallationMetadata(teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest) returns (teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse);
      */
-    isPerMachineInstall: grpc.handleUnaryCall<IsPerMachineInstallRequest, IsPerMachineInstallResponse>;
+    getInstallationMetadata: grpc.handleUnaryCall<GetInstallationMetadataRequest, GetInstallationMetadataResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService.
@@ -87,14 +87,14 @@ export const autoUpdateServiceDefinition: grpc.ServiceDefinition<IAutoUpdateServ
         responseSerialize: value => Buffer.from(GetDownloadBaseUrlResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetDownloadBaseUrlRequest.toBinary(value))
     },
-    isPerMachineInstall: {
-        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/IsPerMachineInstall",
-        originalName: "IsPerMachineInstall",
+    getInstallationMetadata: {
+        path: "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetInstallationMetadata",
+        originalName: "GetInstallationMetadata",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => IsPerMachineInstallResponse.fromBinary(bytes),
-        requestDeserialize: bytes => IsPerMachineInstallRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(IsPerMachineInstallResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(IsPerMachineInstallRequest.toBinary(value))
+        responseDeserialize: bytes => GetInstallationMetadataResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetInstallationMetadataRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetInstallationMetadataResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetInstallationMetadataRequest.toBinary(value))
     }
 };
