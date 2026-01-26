@@ -263,7 +263,7 @@ func sendEvents(bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
 	}
 }
 
-// TODO: combine
+// TODO(capnspacehook): combine processAccessEvents and processNetworkEvents
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to
 // the audit log.
 func (s *Service) processAccessEvents() {
@@ -281,7 +281,6 @@ func (s *Service) processAccessEvents() {
 	}
 }
 
-// TODO: combine
 // processNetworkEvents pulls networks events of the ring buffer and emits them
 // to the audit log.
 func (s *Service) processNetworkEvents() {

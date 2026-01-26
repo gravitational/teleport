@@ -78,13 +78,6 @@ static int enter_open(const char *filename, int flags) {
 }
 
 static int exit_open(int ret) {
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    u32 session_id = BPF_CORE_READ(task, sessionid);
-    u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
-    if (is_monitored == NULL) {
-        return 0;
-    }
-
     struct val_t *valp;
     u64 id = bpf_get_current_pid_tgid();
 
@@ -105,7 +98,9 @@ static int exit_open(int ret) {
     data.flags = valp->flags;
     data.return_code = ret;
     data.cgroup = bpf_get_current_cgroup_id();
-    data.audit_session_id = session_id;
+
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    data.audit_session_id = BPF_CORE_READ(task, sessionid);
 
     if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)
         INCR_COUNTER(lost);
