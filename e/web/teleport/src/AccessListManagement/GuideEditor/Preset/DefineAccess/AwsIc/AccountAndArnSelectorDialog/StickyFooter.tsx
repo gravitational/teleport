@@ -24,11 +24,7 @@ export function StickyFooter({
         >
           Add Selection
         </ButtonBorder>
-        <ButtonSecondary
-          onClick={onDialogClose}
-          width="150px"
-          disabled={disabled}
-        >
+        <ButtonSecondary onClick={onDialogClose} width="150px">
           Cancel
         </ButtonSecondary>
       </Flex>

@@ -8,7 +8,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 
 import { AwsIcApp } from '../../../role/conditions';
-import { wildCard } from '../../../role/role';
+import { wildcard } from '../../../role/role';
 
 export function SelectedTable({
   paginatedApps,
@@ -34,7 +34,7 @@ export function SelectedTable({
 
       {paginatedApps[currentPage]?.map(app => {
         let accountName = app.friendlyAccountName || app.accountId;
-        if (app.accountId === wildCard) {
+        if (app.accountId === wildcard) {
           accountName = 'Any Account (wildcard "*")';
         }
 

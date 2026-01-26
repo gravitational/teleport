@@ -15,7 +15,7 @@ import {
   AwsIcRoleConditions,
   defaultAwsIcRoleConditions,
 } from '../../role/conditions';
-import { wildCard } from '../../role/role';
+import { wildcard } from '../../role/role';
 import { awsIcSubKindPredicate } from '../../role/unifiedResource';
 
 export type AwsIcRoleState = {
@@ -153,7 +153,7 @@ export function useAwsIcRoleState(): AwsIcRoleState {
 
     // Replace existing map with only wildcard.
     const newAccountMap = new Map();
-    newAccountMap.set(wildCard, newArns);
+    newAccountMap.set(wildcard, newArns);
     setRoleConditions({ ...roleConditions, account: newAccountMap });
   }
 

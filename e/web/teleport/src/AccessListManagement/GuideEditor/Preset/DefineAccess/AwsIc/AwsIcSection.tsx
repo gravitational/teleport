@@ -8,7 +8,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 
 import { AwsIcApp } from '../../role/conditions';
-import { wildCard } from '../../role/role';
+import { wildcard } from '../../role/role';
 import { EmptyList } from '../EmptyList';
 import { AccountAndArnSelectorDialog } from './AccountAndArnSelectorDialog/AccountAndArnSelectorDialog';
 import { SelectedAccountsAndArns } from './SelectedAccountsAndArns/SelectedAccountsAndArns';
@@ -45,7 +45,7 @@ export function AwsIcSection() {
   }, [awsIcRoleState.fetchedApps, awsIcRoleState.roleConditions]);
 
   const hasWildCard =
-    selectedApps.length === 1 && selectedApps[0].accountId === wildCard;
+    selectedApps.length === 1 && selectedApps[0].accountId === wildcard;
 
   const addButton = (
     <AddButton

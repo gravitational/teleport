@@ -19,10 +19,11 @@ import {
   emptyRequiredAppIdentitiesWithFetchResult,
   RequiredAppIdentitiesWithFetchResult,
 } from '../role/resources/app';
-import { emptyDbIdentities } from '../role/resources/db';
+import { DbIdentities, emptyDbIdentities } from '../role/resources/db';
 import { emptyDesktopIdentities } from '../role/resources/desktop';
 import { emptyKubeIdentities } from '../role/resources/kube';
 import { emptyServerIdentities } from '../role/resources/server';
+import { wildcard } from '../role/role';
 
 export type StandardRoleState = {
   /**
@@ -76,6 +77,18 @@ export type StandardRoleState = {
 
   /**
    * Updates labels for specified resource field in the role condition.
+   * When updating labels, it's related identities will also be updated.
+   *
+   * If labels are empty, related identities are cleared (empty state) since
+   * empty labels is "removing access".
+   *
+   * If labels are defined, related identities are set to its default value
+   * (if applicable) if no other values were present.
+   *
+   * E.g. if updating "db_labels", it's related identities like "db_names"
+   * and "db_users" will default to value "wild card" if undefined. The values
+   * could've been modified if user defined identities and then went back
+   * to modify "db_labels".
    */
   updateLabels(
     field: LabelBasedResourceAccessFields,
@@ -158,6 +171,23 @@ export function useStandardRoleState(): StandardRoleState {
     setRequiredAppIdentities(emptyRequiredAppIdentitiesWithFetchResult());
   }
 
+  function getEmptyIdentities(field: LabelBasedResourceAccessFields) {
+    switch (field) {
+      case 'app_labels':
+        return emptyAppIdentities();
+      case 'db_labels':
+        return emptyDbIdentities();
+      case 'kubernetes_labels':
+        return emptyKubeIdentities();
+      case 'node_labels':
+        return emptyServerIdentities();
+      case 'windows_desktop_labels':
+        return emptyDesktopIdentities();
+      default:
+        field satisfies never;
+    }
+  }
+
   function clearIdentities(field: LabelBasedResourceAccessFields) {
     let emptyIdentities;
     switch (field) {
@@ -186,12 +216,47 @@ export function useStandardRoleState(): StandardRoleState {
     return updatedConditions;
   }
 
+  function getDefaultIdentities(
+    field: LabelBasedResourceAccessFields
+  ): DbIdentities | null {
+    switch (field) {
+      case 'db_labels':
+        const newDbIdentities: DbIdentities = {
+          db_names: roleConditions['db_names'] ?? [wildcard],
+          db_users: roleConditions['db_users'] ?? [wildcard],
+        };
+        return newDbIdentities;
+      case 'app_labels':
+      case 'kubernetes_labels':
+      case 'node_labels':
+      case 'windows_desktop_labels':
+        // There is no default identities for these kinds yet.
+        return null;
+      default:
+        field satisfies never;
+    }
+  }
+
   function updateLabels(
     field: LabelBasedResourceAccessFields,
     labels: Labels
   ): StandardRoleConditions {
-    const updatedCondition = { ...roleConditions };
+    let updatedCondition = { ...roleConditions };
     updatedCondition[field] = labels;
+
+    // Since empty labels is like removing access to a resource,
+    // any previously set related identities are also removed as well.
+    if (!labels || !Object.keys(labels).length) {
+      const emptyIdentities = getEmptyIdentities(field);
+      updatedCondition = { ...updatedCondition, ...emptyIdentities };
+    } else {
+      // Set default values for identities.
+      const identities = getDefaultIdentities(field);
+      if (identities) {
+        updatedCondition = { ...updatedCondition, ...identities };
+      }
+    }
+
     setRoleConditions(updatedCondition);
     return updatedCondition;
   }

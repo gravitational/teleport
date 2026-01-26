@@ -25,19 +25,17 @@ export function PreviewingResourceAlert() {
       >
         <Text>Previewing Resources</Text>
         <Text fontWeight={300}>
-          When defining access for a resource, we will attempt to list a preview
-          of what resources the member may see in their own account. Note that
-          this preview is dependent on what your{' '}
+          After defining access for a resource type, the list displays the
+          resources members will be able to access. Note that this preview is
+          limited by your{' '}
           <InternalLink
             target="_blank"
             to={`${cfg.routes.users}?user=${encodeURIComponent(teleCtx.storeUser.getUsername())}`}
           >
-            assigned roles
-          </InternalLink>{' '}
-          allow you to see. <br />
-          <Text>
-            Access to more resources than what are seen here may be granted.
-          </Text>
+            own role permissions
+          </InternalLink>
+          ; the user may be granted access to additional resources that are not
+          visible to you.
         </Text>
       </Warning>
     );

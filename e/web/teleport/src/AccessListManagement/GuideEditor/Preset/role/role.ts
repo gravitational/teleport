@@ -1,5 +1,5 @@
 import { RoleVersion } from 'teleport/services/resources';
 
-export const wildCard = '*';
+export const wildcard = '*';
 
 export type WithRoleVersion = { roleVersion: RoleVersion };
