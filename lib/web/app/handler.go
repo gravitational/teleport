@@ -437,12 +437,15 @@ func (h *Handler) getAppSession(r *http.Request, reqAppServer *withAppServer) (w
 	// We have a client certificate with encoded session id in application
 	// access CLI flow i.e. when users log in using "tsh apps login" and
 	// then connect to the apps with the issued certs.
-	if HasClientCert(r) {
+	switch {
+	case HasClientCert(r):
 		ws, err = h.getAppSessionFromCert(r)
-	} else if HasSessionCookie(r) {
+	case HasSessionCookie(r):
 		ws, err = h.getAppSessionFromCookie(r)
-	} else {
+	case reqAppServer != nil:
 		ws, err = h.getAppSessionUsingAuthConfig(r, reqAppServer)
+	default:
+		return nil, trace.AccessDenied("no authentication method provided")
 	}
 	if err != nil {
 		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
