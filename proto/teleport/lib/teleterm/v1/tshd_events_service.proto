@@ -191,6 +191,7 @@ message PromptMFARequest {
   // per-session MFA but we may still need to know that the user has TOTP
   // configured as an option.
   bool per_session_mfa = 7;
+  BrowserMFAChallenge browser = 8;
 }
 
 // SSOChallenge contains SSO challenge details.
@@ -199,6 +200,12 @@ message SSOChallenge {
   string connector_type = 2;
   string display_name = 3;
   string redirect_url = 4;
+}
+
+// BrowserMFAChallenge contains browser challenge details.
+message BrowserMFAChallenge {
+  // client_redirect_url is the browser URL that the user will be sent to MFA
+  string client_redirect_url = 1;
 }
 
 // Response for PromptMFA.

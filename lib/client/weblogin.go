@@ -112,6 +112,8 @@ type MFAChallengeRequest struct {
 	Pass string `json:"pass"`
 	// Passwordless explicitly requests a passwordless/usernameless challenge.
 	Passwordless bool `json:"passwordless"`
+	// Browser MFA parameters
+	BrowserMFAClientRedirectURL string `json:"browser_mfa_client_redirect_url,omitempty"`
 }
 
 // MFAChallengeResponse holds the response to a MFA challenge.
@@ -124,12 +126,20 @@ type MFAChallengeResponse struct {
 	SSOResponse *SSOResponse `json:"sso_response"`
 	// TODO(Joerger): DELETE IN v20.0.0, WebauthnResponse used instead.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	// BrowserMFAResponse is a response from a Browser MFA flow.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response"`
 }
 
 // SSOResponse is a json compatible [proto.SSOResponse].
 type SSOResponse struct {
 	RequestID string `json:"requestId,omitempty"`
 	Token     string `json:"token,omitempty"`
+}
+
+// BrowserMFAResponse is a json compatible [proto.BrowserMFAResponse].
+type BrowserMFAResponse struct {
+	RequestID        string                                `json:"requestId,omitempty"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnResponse,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -257,6 +267,10 @@ type AuthenticateSSHUserRequest struct {
 	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
+	// SSOResponse is a response from an SSO MFA flow.
+	SSOResponse *SSOResponse `json:"sso_response,omitempty"`
+	// BrowserMFAResponse is a response from a Browser MFA flow.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response,omitempty"`
 	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
 	// should be used as the subject of issued certificates, and optional
 	// hardware key attestation statements for each key.
@@ -357,6 +371,8 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor.
+	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -405,6 +421,8 @@ type MFAAuthenticateChallenge struct {
 	TOTPChallenge bool `json:"totp_challenge"`
 	// SSOChallenge is an SSO MFA challenge.
 	SSOChallenge *SSOChallenge `json:"sso_challenge"`
+	// BrowserChallenge is an Browser MFA challenge.
+	BrowserChallenge *BrowserChallenge `json:"browser_challenge"`
 }
 
 // SSOChallenge is a json compatible [proto.SSOChallenge].
@@ -433,6 +451,37 @@ func SSOChallengeFromProto(ssoChal *proto.SSOChallenge) *SSOChallenge {
 			ConnectorType: ssoChal.Device.ConnectorType,
 			DisplayName:   ssoChal.Device.DisplayName,
 		},
+	}
+}
+
+// SSOChallengeToProto converts an SSOChallenge to proto format.
+func SSOChallengeToProto(ssoChal *SSOChallenge) *proto.SSOChallenge {
+	return &proto.SSOChallenge{
+		RequestId:   ssoChal.RequestID,
+		RedirectUrl: ssoChal.RedirectURL,
+		Device: &types.SSOMFADevice{
+			ConnectorId:   ssoChal.Device.ConnectorID,
+			ConnectorType: ssoChal.Device.ConnectorType,
+			DisplayName:   ssoChal.Device.DisplayName,
+		},
+	}
+}
+
+// BrowserChallenge is a json compatible [proto.BrowserMFAChallenge].
+type BrowserChallenge struct {
+	RequestID string `json:"requestId,omitempty"`
+}
+
+func BrowserChallengeFromProto(browserChal *proto.BrowserMFAChallenge) *BrowserChallenge {
+	return &BrowserChallenge{
+		RequestID: browserChal.RequestId,
+	}
+}
+
+// BrowserChallengeToProto converts an BrowserChallenge to proto format.
+func BrowserChallengeToProto(browserChal *BrowserChallenge) *proto.BrowserMFAChallenge {
+	return &proto.BrowserMFAChallenge{
+		RequestId: browserChal.RequestID,
 	}
 }
 
@@ -657,13 +706,22 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
 	}
-
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnChallengeResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+	case *proto.MFAAuthenticateResponse_SSO:
+		challengeResp.SSOResponse = &SSOResponse{
+			RequestID: r.SSO.RequestId,
+			Token:     r.SSO.Token,
+		}
+	case *proto.MFAAuthenticateResponse_Browser:
+		challengeResp.BrowserMFAResponse = &BrowserMFAResponse{
+			RequestID:        r.Browser.RequestId,
+			WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(r.Browser.WebauthnResponse),
+		}
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -684,6 +742,9 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 				User: login.User,
 				Pass: login.Password,
 			}
+			if req != nil {
+				beginReq.BrowserMFAClientRedirectURL = req.SSOClientRedirectURL
+			}
 			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -702,9 +763,16 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			if challenge.WebauthnChallenge != nil {
 				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 			}
+			if challenge.SSOChallenge != nil {
+				chal.SSOChallenge = SSOChallengeToProto(challenge.SSOChallenge)
+			}
+			if challenge.BrowserChallenge != nil {
+				chal.BrowserMFAChallenge = BrowserChallengeToProto(challenge.BrowserChallenge)
+			}
 			return chal, nil
 		},
-		PromptConstructor: login.MFAPromptConstructor,
+		PromptConstructor:         login.MFAPromptConstructor,
+		SSOMFACeremonyConstructor: login.SSOMFACeremonyConstructor,
 	}
 }
 

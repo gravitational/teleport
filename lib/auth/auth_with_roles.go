@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -8369,4 +8370,12 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	}
 
 	return okta.CheckAccess(authzCtx, existingLock, verb)
+}
+
+// ValidateBrowserMFAChallenge validates an MFA challenge response and returns the redirect URL with encrypted response.
+func (a *ServerWithRoles) ValidateBrowserMFAChallenge(ctx context.Context, requestID string, webauthnResponse *wantypes.CredentialAssertionResponse) (string, error) {
+	if !authz.HasBuiltinRole(a.context, string(types.RoleProxy)) {
+		return "", trace.AccessDenied("this request can only be executed by a proxy")
+	}
+	return a.authServer.ValidateBrowserMFAChallenge(ctx, requestID, webauthnResponse)
 }

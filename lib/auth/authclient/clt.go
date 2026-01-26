@@ -1197,6 +1197,8 @@ type IdentityService interface {
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
 	// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
 	WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error)
+	// ValidateBrowserMFAChallenge validates a response from a browser MFA challenge
+	ValidateBrowserMFAChallenge(ctx context.Context, browserMFAResponse *proto.BrowserMFAResponse) (string, error)
 }
 
 // ProvisioningService is a service in control
@@ -1417,6 +1419,10 @@ type AuthenticateUserRequest struct {
 	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
+	// SSO is an SSO MFA response
+	SSO *proto.SSOResponse `json:"sso,omitempty"`
+	// Browser is a Browser MFA response
+	Browser *proto.BrowserMFAResponse `json:"browser,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client
@@ -1533,6 +1539,8 @@ type SSHLoginResponse struct {
 	// ClientOptions contains some options that the cluster wants the client to
 	// use.
 	ClientOptions ClientOptions `json:"client_options"`
+	// BrowserMFAWebauthnResponse is a webauthn response for the browser MFA flow
+	BrowserMFAWebauthnResponse *wantypes.CredentialAssertionResponse `json:"browser_mfa_webauthn_response,omitempty"`
 }
 
 // ClientOptions contains options passed from the control plane to the client at

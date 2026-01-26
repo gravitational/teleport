@@ -46,6 +46,8 @@ const (
 	cliMFATypeWebauthn = "WEBAUTHN"
 	// cliMFATypeSSO is the CLI display name for SSO.
 	cliMFATypeSSO = "SSO"
+	// cliMFATypeBrowser is the CLI display name for Browser MFA.
+	cliMFATypeBrowser = "BROWSER"
 )
 
 // CLIPromptConfig contains CLI prompt config options.
@@ -65,6 +67,9 @@ type CLIPromptConfig struct {
 	// PreferSSO favors SSO challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferSSO bool
+	// PreferBrowser favors browser-based WebAuthn challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferBrowser bool
 	// StdinFunc allows tests to override prompt.Stdin().
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
@@ -100,124 +105,245 @@ func (c *CLIPrompt) writer() io.Writer {
 	return c.cfg.Writer
 }
 
+// mfaPromptState represents which MFA methods are available to prompt.
+type mfaPromptState struct {
+	promptWebauthn bool
+	promptSSO      bool
+	promptOTP      bool
+	promptBrowser  bool
+}
+
+// selectMFAMethods determines which MFA method(s) to prompt for based on available methods,
+// user preferences, and configuration. It prints a message to the user if multiple methods
+// are available and returns the filtered state and list of available methods.
+func (c *CLIPrompt) selectMFAMethods(state mfaPromptState, isPerSessionMFA bool) (mfaPromptState, []string, bool) {
+	// Build list of available methods from input state.
+	var availableMethods []string
+	if state.promptWebauthn {
+		availableMethods = append(availableMethods, cliMFATypeWebauthn)
+	}
+	if state.promptSSO {
+		availableMethods = append(availableMethods, cliMFATypeSSO)
+	}
+	if state.promptOTP && !isPerSessionMFA {
+		availableMethods = append(availableMethods, cliMFATypeOTP)
+	}
+	if state.promptBrowser {
+		availableMethods = append(availableMethods, cliMFATypeBrowser)
+	}
+
+	var chosenMethods []string
+	var userSpecifiedMethod bool
+
+	// Prefer whatever method is requested by the client.
+	switch {
+	case c.cfg.PreferBrowser && state.promptBrowser:
+		chosenMethods = []string{cliMFATypeBrowser}
+		state.promptWebauthn, state.promptOTP, state.promptSSO = false, false, false
+		userSpecifiedMethod = true
+	case c.cfg.PreferSSO && state.promptSSO:
+		chosenMethods = []string{cliMFATypeSSO}
+		state.promptWebauthn, state.promptOTP, state.promptBrowser = false, false, false
+		userSpecifiedMethod = true
+	case c.cfg.PreferOTP && state.promptOTP:
+		chosenMethods = []string{cliMFATypeOTP}
+		state.promptWebauthn, state.promptSSO, state.promptBrowser = false, false, false
+		userSpecifiedMethod = true
+	case c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto:
+		chosenMethods = []string{cliMFATypeWebauthn}
+		state.promptSSO, state.promptOTP, state.promptBrowser = false, false, false
+		userSpecifiedMethod = true
+	}
+
+	// Use stronger auth methods if hijack is not allowed.
+	if !c.cfg.AllowStdinHijack && state.promptWebauthn {
+		state.promptOTP = false
+	}
+
+	// If no user preference was specified, set initial MFA preference
+	if !userSpecifiedMethod {
+		// We should never prompt for OTP when per-session MFA is enabled. As long as other MFA methods are available,
+		// we can completely ignore OTP. The promptOTP case in [Run] will return an error in the case that no other methods
+		// are available.
+		if isPerSessionMFA && (state.promptWebauthn || state.promptSSO || state.promptBrowser) {
+			state.promptOTP = false
+		}
+
+		// Determine initial method to show based on MFA hierarchy:
+		// Webauthn > SSO > Browser > OTP.
+		switch {
+		case state.promptWebauthn:
+			chosenMethods = []string{cliMFATypeWebauthn}
+			// Allow dual prompt with OTP.
+			if state.promptOTP {
+				chosenMethods = append(chosenMethods, cliMFATypeOTP)
+			}
+		case state.promptSSO:
+			chosenMethods = []string{cliMFATypeSSO}
+		case state.promptBrowser:
+			chosenMethods = []string{cliMFATypeBrowser}
+		case state.promptOTP:
+			chosenMethods = []string{cliMFATypeOTP}
+		}
+	}
+
+	// If there are multiple options and we chose fewer without explicit user preference,
+	// notify the user about the available methods and how to select a specific one.
+	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
+		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
+		const msg = "" +
+			"Available MFA methods [%v]. Continuing with %v.\n" +
+			"If you wish to perform MFA with specific method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\n\n"
+		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), availableMethodsString, availableMethodsString)
+	}
+
+	return state, availableMethods, userSpecifiedMethod
+}
+
 // Run prompts the user to complete an MFA authentication challenge.
 func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if c.cfg.PromptReason != "" {
 		fmt.Fprintln(c.writer(), c.cfg.PromptReason)
 	}
 
-	promptOTP := chal.TOTP != nil
-	promptWebauthn := chal.WebauthnChallenge != nil
-	promptSSO := chal.SSOChallenge != nil
+	// Initialize prompt state from the challenge.
+	state := mfaPromptState{
+		promptOTP:      chal.TOTP != nil,
+		promptWebauthn: chal.WebauthnChallenge != nil,
+		promptSSO:      chal.SSOChallenge != nil,
+		promptBrowser:  chal.BrowserMFAChallenge != nil,
+	}
 
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn && !promptSSO {
+	if !state.promptOTP && !state.promptWebauthn && !state.promptSSO && !state.promptBrowser {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
 	isPerSessionMFA := c.cfg.Extensions.GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
-	var availableMethods []string
-	if promptWebauthn {
-		availableMethods = append(availableMethods, cliMFATypeWebauthn)
-	}
-	if promptSSO {
-		availableMethods = append(availableMethods, cliMFATypeSSO)
-	}
-	if promptOTP && !isPerSessionMFA {
-		availableMethods = append(availableMethods, cliMFATypeOTP)
-	}
 
 	// Check off unsupported methods.
-	if promptWebauthn && !c.cfg.WebauthnSupported {
-		promptWebauthn = false
+	if state.promptWebauthn && !c.cfg.WebauthnSupported {
+		state.promptWebauthn = false
 		slog.DebugContext(ctx, "hardware device MFA not supported by your platform")
 	}
 
-	if promptSSO && c.cfg.SSOMFACeremony == nil {
-		promptSSO = false
+	if state.promptSSO && c.cfg.SSOMFACeremony == nil {
+		state.promptSSO = false
 		slog.DebugContext(ctx, "SSO MFA not supported by this client, this is likely a bug")
 	}
 
-	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA
-	if c.cfg.PreferOTP && promptOTP && isPerSessionMFA {
+	if state.promptBrowser && (!c.cfg.WebauthnSupported || c.cfg.SSOMFACeremony == nil) {
+		state.promptBrowser = false
+		slog.DebugContext(
+			ctx,
+			"Browser MFA not supported, cluster needs to support Webauthn and client needs to support SSO MFA Ceremony",
+			"Webauthn", c.cfg.WebauthnSupported,
+			"SSO MFA Ceremony (likely a bug if not supported)", c.cfg.SSOMFACeremony != nil,
+		)
+	}
+
+	// Short circuit if OTP was preferred by --mfa-mode during per-session MFA.
+	if c.cfg.PreferOTP && state.promptOTP && isPerSessionMFA {
 		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, can not specify --mfa-mode=otp")
 	}
 
-	// Prefer whatever method is requested by the client.
-	var chosenMethods []string
+	// Determine which method(s) to use and print options if multiple are available.
+	var availableMethods []string
 	var userSpecifiedMethod bool
-	switch {
-	case c.cfg.PreferSSO && promptSSO:
-		chosenMethods = []string{cliMFATypeSSO}
-		promptWebauthn, promptOTP = false, false
-		userSpecifiedMethod = true
-	case c.cfg.PreferOTP && promptOTP:
-		chosenMethods = []string{cliMFATypeOTP}
-		promptWebauthn, promptSSO = false, false
-		userSpecifiedMethod = true
-	case c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto:
-		chosenMethods = []string{cliMFATypeWebauthn}
-		promptSSO, promptOTP = false, false
-		userSpecifiedMethod = true
+	state, availableMethods, userSpecifiedMethod = c.selectMFAMethods(state, isPerSessionMFA)
+
+	// Perform MFA with automatic fallback to other methods on failure.
+	// In order: WebAuthn > SSO > Browser > OTP
+	return c.promptWithFallback(ctx, chal, state, availableMethods, isPerSessionMFA, userSpecifiedMethod)
+}
+
+// promptWithFallback attempts MFA authentication and falls back to other available methods on failure.
+func (c *CLIPrompt) promptWithFallback(ctx context.Context, chal *proto.MFAAuthenticateChallenge, state mfaPromptState, availableMethods []string, isPerSessionMFA, userSpecifiedMethod bool) (*proto.MFAAuthenticateResponse, error) {
+	var lastErr error
+
+	// If the user is running Windows and hasn't marked Browser MFA as preferred
+	// skip Browser MFA. They will have access to the same MFA methods using the
+	// WebAuthn.dll prompt.
+	skipBrowserMFAFallback := false
+	if state.promptBrowser && !c.cfg.PreferBrowser && runtime.GOOS == constants.WindowsOS {
+		skipBrowserMFAFallback = true
 	}
 
-	// Use stronger auth methods if hijack is not allowed.
-	if !c.cfg.AllowStdinHijack && promptWebauthn {
-		promptOTP = false
-	}
-
-	// If we have multiple viable options, prefer Webauthn > SSO > OTP.
-	switch {
-	case promptWebauthn:
-		chosenMethods = []string{cliMFATypeWebauthn}
-		promptSSO = false
-		// Allow dual prompt with OTP.
-		if promptOTP {
-			chosenMethods = append(chosenMethods, cliMFATypeOTP)
-		}
-	case promptSSO:
-		chosenMethods = []string{cliMFATypeSSO}
-		promptOTP = false
-	case promptOTP:
-		chosenMethods = []string{cliMFATypeOTP}
-	}
-
-	// If there are multiple options and we chose one without it being specifically
-	// requested by the user, notify the user about it and how to request a specific method.
-	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
-		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
-		const msg = "" +
-			"Available MFA methods [%v]. Continuing with %v.\n" +
-			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\n\n"
-		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), availableMethodsString, availableMethodsString)
-	}
-
-	// We should never prompt for OTP when per-session MFA is enabled. As long as other MFA methods are available,
-	// we can completely ignore OTP. The promptOTP case below will return an error in the case that no other methods
-	// are available.
-	if isPerSessionMFA && (promptWebauthn || promptSSO) {
-		promptOTP = false
-	}
-
-	switch {
-	case promptOTP && promptWebauthn:
-		resp, err := c.promptWebauthnAndOTP(ctx, chal)
-		return resp, trace.Wrap(err)
-	case promptWebauthn:
-		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
-		return resp, trace.Wrap(err)
-	case promptSSO:
-		resp, err := c.promptSSO(ctx, chal)
-		return resp, trace.Wrap(err)
-	case promptOTP:
-		if isPerSessionMFA {
-			return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA")
+	// Retry loop for fallback behavior.
+	for {
+		// Determine current method to try based on priority order.
+		var currentMethod string
+		switch {
+		case state.promptWebauthn:
+			currentMethod = cliMFATypeWebauthn
+		case state.promptSSO:
+			currentMethod = cliMFATypeSSO
+		case state.promptBrowser && !skipBrowserMFAFallback:
+			currentMethod = cliMFATypeBrowser
+		case state.promptOTP:
+			currentMethod = cliMFATypeOTP
+		default:
+			// No more methods to try.
+			if lastErr != nil {
+				return nil, trace.Wrap(lastErr)
+			}
+			return nil, trace.BadParameter("client does not support any available MFA methods [%v], see debug logs for details", strings.Join(availableMethods, ", "))
 		}
 
-		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
-		return resp, trace.Wrap(err)
-	default:
-		return nil, trace.BadParameter("client does not support any available MFA methods [%v], see debug logs for details", strings.Join(availableMethods, ", "))
+		// If we're retrying after a failure, inform the user.
+		if lastErr != nil {
+			fmt.Fprintf(c.writer(), "Attempting MFA authentication with %s...\n\n", currentMethod)
+		}
+
+		// Perform the chosen ceremony based on the filtered state.
+		var resp *proto.MFAAuthenticateResponse
+		var err error
+
+		switch {
+		case state.promptWebauthn:
+			if state.promptOTP {
+				resp, err = c.promptWebauthnAndOTP(ctx, chal)
+			} else {
+				resp, err = c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
+			}
+		case state.promptSSO:
+			resp, err = c.promptSSO(ctx, chal)
+		case state.promptBrowser && !skipBrowserMFAFallback:
+			resp, err = c.promptBrowser(ctx, chal)
+		case state.promptOTP:
+			if isPerSessionMFA {
+				return nil, trace.AccessDenied("only WebAuthn, SSO MFA, and Browser methods are supported with per-session MFA")
+			}
+			resp, err = c.promptOTP(ctx, c.cfg.Quiet)
+		}
+
+		// MFA successful
+		if err == nil {
+			return resp, nil
+		}
+
+		// If the user explicitly specified this MFA method, fail now without fallback.
+		if userSpecifiedMethod {
+			return nil, trace.Wrap(err)
+		}
+
+		// Print error message about the failure.
+		fmt.Fprintf(c.writer(), "\nMFA authentication with %s failed: %v\n", currentMethod, err)
+
+		// Disable the failed method and loop to try the next one.
+		// Fallback only moves forward in priority order: WebAuthn > SSO > Browser > OTP
+		switch currentMethod {
+		case cliMFATypeWebauthn:
+			state.promptWebauthn = false
+		case cliMFATypeSSO:
+			state.promptSSO = false
+		case cliMFATypeBrowser:
+			state.promptBrowser = false
+		case cliMFATypeOTP:
+			state.promptOTP = false
+		}
+
+		lastErr = err
 	}
 }
 
@@ -372,6 +498,11 @@ func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
 }
 
 func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	return resp, trace.Wrap(err)
+}
+
+func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }

@@ -114,6 +114,8 @@ const (
 	secondFactorTypeWebauthnString = "webauthn"
 	// secondFactorTypeSSOString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_SSO
 	secondFactorTypeSSOString = "sso"
+	// secondFactorTypeBrowserString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_BROWSER
+	secondFactorTypeBrowserString = "browser"
 )
 
 // Encode encodes the SecondFactorType in string form.

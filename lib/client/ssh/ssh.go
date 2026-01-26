@@ -20,6 +20,7 @@ package ssh
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -74,6 +75,7 @@ func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.Conn
 // handleMFAPrompt returns an answer to a keyboard-interactive question requiring MFA by performing a session-bound MFA
 // ceremony with the user. The answer is a JSON-marshaled sshpb.MFAPromptResponse referencing the solved challenge.
 func handleMFAPrompt(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata) (string, error) {
+	fmt.Println("Handling k-i question")
 	name, err := p.PerformSessionMFACeremony(ctx, m.SessionID())
 	if err != nil {
 		return "", trace.Wrap(err)

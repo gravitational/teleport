@@ -4386,6 +4386,28 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		return nil
 	}
 
+	// If a BrowserMFARequestID is provided, look up the request and apply its challenge extensions.
+	if req.BrowserMFARequestID != "" {
+		browserMFAReq, err := a.GetSSOMFASession(ctx, req.BrowserMFARequestID)
+		if err != nil {
+			a.logger.ErrorContext(ctx, "failed to get browser MFA request", "error", err)
+			return nil, trace.AccessDenied("invalid browser MFA request")
+		}
+
+		if browserMFAReq.ChallengeExtensions != nil {
+			chalExts := browserMFAReq.ChallengeExtensions
+			if chalExts.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+				challengeExtensions.Scope = chalExts.Scope
+			}
+			if chalExts.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_UNSPECIFIED {
+				challengeExtensions.AllowReuse = chalExts.AllowReuse
+			}
+			if chalExts.UserVerificationRequirement != "" {
+				challengeExtensions.UserVerificationRequirement = chalExts.UserVerificationRequirement
+			}
+		}
+	}
+
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
@@ -8078,7 +8100,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(
+		var ssoChallenge *proto.SSOChallenge
+		var browserChallenge *proto.BrowserMFAChallenge
+		if ssoChallenge, browserChallenge, err = a.BeginSSOMFAChallenge(
 			ctx,
 			mfatypes.BeginSSOMFAChallengeParams{
 				User:                 user,
@@ -8089,6 +8113,11 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			},
 		); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		challenge.SSOChallenge = ssoChallenge
+		// Only set browser challenge if browser MFA is enabled
+		if browserChallenge != nil {
+			challenge.BrowserMFAChallenge = browserChallenge
 		}
 	}
 
@@ -8110,7 +8139,6 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
-
 	return challenge, nil
 }
 
@@ -8136,6 +8164,20 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	if res.SSO == nil && len(res.Webauthn) > 0 {
+		res.SSO = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Sso{
+				Sso: &types.SSOMFADevice{
+					ConnectorId:   "browser",
+					ConnectorType: "browser",
+					DisplayName:   "Browser",
+				},
+			},
+		}
+	}
+
 	return res
 }
 
@@ -8147,7 +8189,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8347,6 +8389,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)

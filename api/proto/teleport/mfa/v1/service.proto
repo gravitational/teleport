@@ -57,6 +57,9 @@ message CreateSessionChallengeRequest {
   // Proxy address the user is using to connect to the Proxy. Required for SSO MFA to determine which URL to redirect
   // the user to when there are multiple options.
   string proxy_address_for_sso = 4;
+  // Used to construct the redirect URL for browser-based MFA flows. If the client supports browser MFA, this field
+  // should be set to the URL where the browser should redirect after completing the MFA challenge.
+  string browser_mfa_tsh_redirect_url = 5;
 }
 
 // CreateSessionChallengeResponse is the response message for CreateSessionChallenge.

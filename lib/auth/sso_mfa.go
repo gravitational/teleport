@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/subtle"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 
@@ -27,18 +28,22 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // BeginSSOMFAChallenge creates a new SSO MFA auth request and session data for the given user and sso device.
-func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.BeginSSOMFAChallengeParams) (*proto.SSOChallenge, error) {
-	chal := &proto.SSOChallenge{
-		Device: params.SSO,
-	}
+func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.BeginSSOMFAChallengeParams) (*proto.SSOChallenge, *proto.BrowserMFAChallenge, error) {
+	var requestID, redirectURL string
+	var ssoChal *proto.SSOChallenge
+	var browserChal *proto.BrowserMFAChallenge
 
 	switch params.SSO.ConnectorType {
 	case constants.SAML:
@@ -49,10 +54,16 @@ func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.Begin
 			CheckUser:         true,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
-		chal.RequestId = resp.ID
-		chal.RedirectUrl = resp.RedirectURL
+		requestID = resp.ID
+		redirectURL = resp.RedirectURL
+		ssoChal = &proto.SSOChallenge{
+			Device:      params.SSO,
+			RequestId:   requestID,
+			RedirectUrl: redirectURL,
+		}
+
 	case constants.OIDC:
 		codeVerifier := oauth2.GenerateVerifier()
 
@@ -65,19 +76,46 @@ func (a *Server) BeginSSOMFAChallenge(ctx context.Context, params mfatypes.Begin
 			CheckUser:         true,
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
-		chal.RequestId = resp.StateToken
-		chal.RedirectUrl = resp.RedirectURL
+		requestID = resp.StateToken
+		redirectURL = resp.RedirectURL
+		ssoChal = &proto.SSOChallenge{
+			Device:      params.SSO,
+			RequestId:   requestID,
+			RedirectUrl: redirectURL,
+		}
+
+	case constants.Browser:
+		if err := sso.ValidateClientRedirect(params.SSOClientRedirectURL, sso.CeremonyTypeMFA, nil); err != nil {
+			return nil, nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
+		}
+
+		proxyAddr := params.ProxyAddress
+		if proxyAddr == "" {
+			proxyAddr = a.getProxyPublicAddr(ctx)
+		}
+		if proxyAddr == "" {
+			return nil, nil, trace.BadParameter("proxy address not available for browser MFA")
+		}
+
+		requestID = uuid.NewString()
+		redirectURL = "https://" + proxyAddr + "/web/mfa/browser/" + requestID
+		browserChal = &proto.BrowserMFAChallenge{
+			RequestId: requestID,
+		}
+
 	default:
-		return nil, trace.BadParameter("unsupported sso connector type %v", params.SSO.ConnectorType)
+		return nil, nil, trace.BadParameter("unsupported sso connector type %v", params.SSO.ConnectorType)
 	}
 
-	if err := a.upsertSSOMFASession(ctx, params.User, chal.RequestId, params.SSO.ConnectorId, params.SSO.ConnectorType, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster); err != nil {
-		return nil, trace.Wrap(err)
+	if requestID != "" {
+		if err := a.upsertSSOMFASession(ctx, params.User, requestID, params.SSO.ConnectorId, params.SSO.ConnectorType, params.SSOClientRedirectURL, params.Ext, params.SIP, params.SourceCluster, params.TargetCluster); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	}
 
-	return chal, nil
+	return ssoChal, browserChal, nil
 }
 
 // VerifySSOMFASession verifies that the given sso mfa token matches an existing MFA session
@@ -147,14 +185,105 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	}, nil
 }
 
+// VerifyBrowserMFASession verifies that the given browser mfa webauthn response matches an existing MFA session
+// for the user and session ID. It also checks the required extensions, and finishes by deleting
+// the MFA session if reuse is not allowed.
+func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionID string, webauthnResponse *webauthnpb.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	if requiredExtensions == nil {
+		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
+	}
+
+	const notFoundErrMsg = "mfa browser session data not found"
+	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
+	if trace.IsNotFound(err) {
+		return nil, trace.AccessDenied("%s", notFoundErrMsg)
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Verify the user's name matches.
+	if mfaSess.Username != username {
+		return nil, trace.AccessDenied("%s", notFoundErrMsg)
+	}
+
+	// Check if the MFA session matches the user's Browser MFA settings.
+	devs, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	groupedDevs := groupByDeviceType(devs)
+	if groupedDevs.SSO == nil {
+		return nil, trace.AccessDenied("invalid browser mfa session data; non-browser user")
+	} else if groupedDevs.SSO.GetSso().ConnectorType != constants.Browser {
+		return nil, trace.AccessDenied("invalid browser mfa session data; not a browser auth connector")
+	}
+
+	// Verify the webauthn response.
+	pref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get the user's WebAuthn preference. If it doesn't exist, continue since WebAuthn may not be enabled.
+	webConfig, err := pref.GetWebauthn()
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	webLogin := &wanlib.LoginFlow{
+		Webauthn: webConfig,
+		Identity: a.Services,
+	}
+
+	// Convert from protobuf type to wantypes
+	wanResp := wantypes.CredentialAssertionResponseFromProto(webauthnResponse)
+
+	// Verify the webauthn response against the original challenge scope.
+	// This validates the cryptographic signature and challenge match.
+	loginData, err := webLogin.Finish(ctx, username, wanResp, &mfav1.ChallengeExtensions{
+		Scope:      mfaSess.ChallengeExtensions.Scope,
+		AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
+	})
+	if err != nil {
+		return nil, trace.AccessDenied("verify WebAuthn response: %v", err)
+	}
+
+	// Check if the given scope is satisfied by the challenge scope.
+	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
+		return nil, trace.AccessDenied("required scope %q is not satisfied by the given browser mfa session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
+	}
+
+	// If this session is reusable, but this context forbids reusable sessions, return an error.
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given browser mfa session allows reuse, but reuse is not permitted in this context")
+	}
+
+	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		if err := a.DeleteSSOMFASessionData(ctx, sessionID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &authz.MFAAuthData{
+		Device:        loginData.Device,
+		User:          username,
+		AllowReuse:    mfaSess.ChallengeExtensions.AllowReuse,
+		Payload:       mfaSess.Payload,
+		SourceCluster: mfaSess.SourceCluster,
+		TargetCluster: mfaSess.TargetCluster,
+	}, nil
+}
+
 // upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
 // sessionID, connector details, and challenge extensions.
-func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string) error {
+func (a *Server) upsertSSOMFASession(ctx context.Context, user string, sessionID string, connectorID string, connectorType string, clientRedirectURL string, ext *mfav1.ChallengeExtensions, sip *mfav1.SessionIdentifyingPayload, sourceCluster string, targetCluster string) error {
 	data := &services.SSOMFASessionData{
-		Username:      user,
-		RequestID:     sessionID,
-		ConnectorID:   connectorID,
-		ConnectorType: connectorType,
+		Username:          user,
+		RequestID:         sessionID,
+		ConnectorID:       connectorID,
+		ConnectorType:     connectorType,
+		ClientRedirectURL: clientRedirectURL,
 		ChallengeExtensions: &mfatypes.ChallengeExtensions{
 			Scope:      ext.Scope,
 			AllowReuse: ext.AllowReuse,

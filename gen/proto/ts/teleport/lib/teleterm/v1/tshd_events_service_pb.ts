@@ -290,6 +290,10 @@ export interface PromptMFARequest {
      * @generated from protobuf field: bool per_session_mfa = 7;
      */
     perSessionMfa: boolean;
+    /**
+     * @generated from protobuf field: teleport.lib.teleterm.v1.BrowserMFAChallenge browser = 8;
+     */
+    browser?: BrowserMFAChallenge;
 }
 /**
  * SSOChallenge contains SSO challenge details.
@@ -313,6 +317,19 @@ export interface SSOChallenge {
      * @generated from protobuf field: string redirect_url = 4;
      */
     redirectUrl: string;
+}
+/**
+ * BrowserMFAChallenge contains browser challenge details.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.BrowserMFAChallenge
+ */
+export interface BrowserMFAChallenge {
+    /**
+     * client_redirect_url is the browser URL that the user will be sent to MFA
+     *
+     * @generated from protobuf field: string client_redirect_url = 1;
+     */
+    clientRedirectUrl: string;
 }
 /**
  * Response for PromptMFA.
@@ -1127,7 +1144,8 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "sso", kind: "message", T: () => SSOChallenge },
-            { no: 7, name: "per_session_mfa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 7, name: "per_session_mfa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 8, name: "browser", kind: "message", T: () => BrowserMFAChallenge }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -1164,6 +1182,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                 case /* bool per_session_mfa */ 7:
                     message.perSessionMfa = reader.bool();
                     break;
+                case /* teleport.lib.teleterm.v1.BrowserMFAChallenge browser */ 8:
+                    message.browser = BrowserMFAChallenge.internalBinaryRead(reader, reader.uint32(), options, message.browser);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1194,6 +1215,9 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* bool per_session_mfa = 7; */
         if (message.perSessionMfa !== false)
             writer.tag(7, WireType.Varint).bool(message.perSessionMfa);
+        /* teleport.lib.teleterm.v1.BrowserMFAChallenge browser = 8; */
+        if (message.browser)
+            BrowserMFAChallenge.internalBinaryWrite(message.browser, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1275,6 +1299,53 @@ class SSOChallenge$Type extends MessageType<SSOChallenge> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SSOChallenge
  */
 export const SSOChallenge = new SSOChallenge$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BrowserMFAChallenge$Type extends MessageType<BrowserMFAChallenge> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.BrowserMFAChallenge", [
+            { no: 1, name: "client_redirect_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<BrowserMFAChallenge>): BrowserMFAChallenge {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clientRedirectUrl = "";
+        if (value !== undefined)
+            reflectionMergePartial<BrowserMFAChallenge>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BrowserMFAChallenge): BrowserMFAChallenge {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string client_redirect_url */ 1:
+                    message.clientRedirectUrl = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BrowserMFAChallenge, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string client_redirect_url = 1; */
+        if (message.clientRedirectUrl !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clientRedirectUrl);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.BrowserMFAChallenge
+ */
+export const BrowserMFAChallenge = new BrowserMFAChallenge$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class PromptMFAResponse$Type extends MessageType<PromptMFAResponse> {
     constructor() {

@@ -57,6 +57,13 @@ export interface AuthenticateChallenge {
      * @generated from protobuf field: teleport.mfa.v1.SSOChallenge sso_challenge = 3;
      */
     ssoChallenge?: SSOChallenge;
+    /**
+     * Browser challenge allows a user to MFA in the browser,
+     * to get an MFA token that is returned to the client to be used for verification.
+     *
+     * @generated from protobuf field: teleport.mfa.v1.BrowserMFAChallenge browser_challenge = 4;
+     */
+    browserChallenge?: BrowserMFAChallenge;
 }
 /**
  * AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
@@ -90,6 +97,14 @@ export interface AuthenticateResponse {
          * @generated from protobuf field: teleport.mfa.v1.SSOChallengeResponse sso = 3;
          */
         sso: SSOChallengeResponse;
+    } | {
+        oneofKind: "browser";
+        /**
+         * Response to a browser challenge.
+         *
+         * @generated from protobuf field: teleport.mfa.v1.BrowserMFAResponse browser = 4;
+         */
+        browser: BrowserMFAResponse;
     } | {
         oneofKind: undefined;
     };
@@ -138,13 +153,52 @@ export interface SSOChallengeResponse {
      */
     token: string;
 }
+/**
+ * BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
+ *
+ * @generated from protobuf message teleport.mfa.v1.BrowserMFAChallenge
+ */
+export interface BrowserMFAChallenge {
+    /**
+     * RequestId is the ID of a browser auth request.
+     *
+     * @generated from protobuf field: string request_id = 1;
+     */
+    requestId: string;
+    /**
+     * ClientRedirectUrl is a redirect URL to initiate the browser MFA flow in the browser.
+     *
+     * @generated from protobuf field: string client_redirect_url = 2;
+     */
+    clientRedirectUrl: string;
+}
+/**
+ * BrowserMFAResponse is a response to BrowserMFAChallenge.
+ *
+ * @generated from protobuf message teleport.mfa.v1.BrowserMFAResponse
+ */
+export interface BrowserMFAResponse {
+    /**
+     * RequestId is the ID of a browser auth request.
+     *
+     * @generated from protobuf field: string request_id = 1;
+     */
+    requestId: string;
+    /**
+     * WebauthnResponse is the WebAuthn credential assertion response from the browser MFA flow.
+     *
+     * @generated from protobuf field: webauthn.CredentialAssertionResponse webauthn_response = 2;
+     */
+    webauthnResponse?: CredentialAssertionResponse;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class AuthenticateChallenge$Type extends MessageType<AuthenticateChallenge> {
     constructor() {
         super("teleport.mfa.v1.AuthenticateChallenge", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "webauthn_challenge", kind: "message", T: () => CredentialAssertion },
-            { no: 3, name: "sso_challenge", kind: "message", T: () => SSOChallenge }
+            { no: 3, name: "sso_challenge", kind: "message", T: () => SSOChallenge },
+            { no: 4, name: "browser_challenge", kind: "message", T: () => BrowserMFAChallenge }
         ]);
     }
     create(value?: PartialMessage<AuthenticateChallenge>): AuthenticateChallenge {
@@ -168,6 +222,9 @@ class AuthenticateChallenge$Type extends MessageType<AuthenticateChallenge> {
                 case /* teleport.mfa.v1.SSOChallenge sso_challenge */ 3:
                     message.ssoChallenge = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.ssoChallenge);
                     break;
+                case /* teleport.mfa.v1.BrowserMFAChallenge browser_challenge */ 4:
+                    message.browserChallenge = BrowserMFAChallenge.internalBinaryRead(reader, reader.uint32(), options, message.browserChallenge);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -189,6 +246,9 @@ class AuthenticateChallenge$Type extends MessageType<AuthenticateChallenge> {
         /* teleport.mfa.v1.SSOChallenge sso_challenge = 3; */
         if (message.ssoChallenge)
             SSOChallenge.internalBinaryWrite(message.ssoChallenge, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.mfa.v1.BrowserMFAChallenge browser_challenge = 4; */
+        if (message.browserChallenge)
+            BrowserMFAChallenge.internalBinaryWrite(message.browserChallenge, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -205,7 +265,8 @@ class AuthenticateResponse$Type extends MessageType<AuthenticateResponse> {
         super("teleport.mfa.v1.AuthenticateResponse", [
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "webauthn", kind: "message", oneof: "response", T: () => CredentialAssertionResponse },
-            { no: 3, name: "sso", kind: "message", oneof: "response", T: () => SSOChallengeResponse }
+            { no: 3, name: "sso", kind: "message", oneof: "response", T: () => SSOChallengeResponse },
+            { no: 4, name: "browser", kind: "message", oneof: "response", T: () => BrowserMFAResponse }
         ]);
     }
     create(value?: PartialMessage<AuthenticateResponse>): AuthenticateResponse {
@@ -236,6 +297,12 @@ class AuthenticateResponse$Type extends MessageType<AuthenticateResponse> {
                         sso: SSOChallengeResponse.internalBinaryRead(reader, reader.uint32(), options, (message.response as any).sso)
                     };
                     break;
+                case /* teleport.mfa.v1.BrowserMFAResponse browser */ 4:
+                    message.response = {
+                        oneofKind: "browser",
+                        browser: BrowserMFAResponse.internalBinaryRead(reader, reader.uint32(), options, (message.response as any).browser)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -257,6 +324,9 @@ class AuthenticateResponse$Type extends MessageType<AuthenticateResponse> {
         /* teleport.mfa.v1.SSOChallengeResponse sso = 3; */
         if (message.response.oneofKind === "sso")
             SSOChallengeResponse.internalBinaryWrite(message.response.sso, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.mfa.v1.BrowserMFAResponse browser = 4; */
+        if (message.response.oneofKind === "browser")
+            BrowserMFAResponse.internalBinaryWrite(message.response.browser, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -384,3 +454,112 @@ class SSOChallengeResponse$Type extends MessageType<SSOChallengeResponse> {
  * @generated MessageType for protobuf message teleport.mfa.v1.SSOChallengeResponse
  */
 export const SSOChallengeResponse = new SSOChallengeResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BrowserMFAChallenge$Type extends MessageType<BrowserMFAChallenge> {
+    constructor() {
+        super("teleport.mfa.v1.BrowserMFAChallenge", [
+            { no: 1, name: "request_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "client_redirect_url", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<BrowserMFAChallenge>): BrowserMFAChallenge {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.requestId = "";
+        message.clientRedirectUrl = "";
+        if (value !== undefined)
+            reflectionMergePartial<BrowserMFAChallenge>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BrowserMFAChallenge): BrowserMFAChallenge {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string request_id */ 1:
+                    message.requestId = reader.string();
+                    break;
+                case /* string client_redirect_url */ 2:
+                    message.clientRedirectUrl = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BrowserMFAChallenge, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string request_id = 1; */
+        if (message.requestId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.requestId);
+        /* string client_redirect_url = 2; */
+        if (message.clientRedirectUrl !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.clientRedirectUrl);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.mfa.v1.BrowserMFAChallenge
+ */
+export const BrowserMFAChallenge = new BrowserMFAChallenge$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BrowserMFAResponse$Type extends MessageType<BrowserMFAResponse> {
+    constructor() {
+        super("teleport.mfa.v1.BrowserMFAResponse", [
+            { no: 1, name: "request_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "webauthn_response", kind: "message", T: () => CredentialAssertionResponse }
+        ]);
+    }
+    create(value?: PartialMessage<BrowserMFAResponse>): BrowserMFAResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.requestId = "";
+        if (value !== undefined)
+            reflectionMergePartial<BrowserMFAResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BrowserMFAResponse): BrowserMFAResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string request_id */ 1:
+                    message.requestId = reader.string();
+                    break;
+                case /* webauthn.CredentialAssertionResponse webauthn_response */ 2:
+                    message.webauthnResponse = CredentialAssertionResponse.internalBinaryRead(reader, reader.uint32(), options, message.webauthnResponse);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BrowserMFAResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string request_id = 1; */
+        if (message.requestId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.requestId);
+        /* webauthn.CredentialAssertionResponse webauthn_response = 2; */
+        if (message.webauthnResponse)
+            CredentialAssertionResponse.internalBinaryWrite(message.webauthnResponse, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.mfa.v1.BrowserMFAResponse
+ */
+export const BrowserMFAResponse = new BrowserMFAResponse$Type();

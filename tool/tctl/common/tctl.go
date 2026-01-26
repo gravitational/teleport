@@ -52,6 +52,12 @@ const (
 const (
 	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
 	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
+	mfaModeEnvVar      = "TELEPORT_MFA_MODE"
+
+	// mfaModeWebauthn utilizes WebAuthn MFA.
+	mfaModeWebauthn = "webauthn"
+	// mfaModeBrowser utilizes browser-based WebAuthn MFA via local server.
+	mfaModeBrowser = "browser"
 )
 
 // CLICommand interface must be implemented by every CLI command
@@ -161,6 +167,11 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
+	modes := []string{mfaModeWebauthn, mfaModeBrowser}
+	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA assertions (%v).", strings.Join(modes, ", "))).
+		Default(mfaModeWebauthn).
+		Envar(mfaModeEnvVar).
+		EnumVar(&ccf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:

@@ -65,15 +65,18 @@ func NewMockAuthServer(cfg authtest.ServerConfig, devices []*types.MFADevice) (*
 func (m *mockAuthServer) BeginSSOMFAChallenge(
 	_ context.Context,
 	params mfatypes.BeginSSOMFAChallengeParams,
-) (*proto.SSOChallenge, error) {
+) (*proto.SSOChallenge, *proto.BrowserChallenge, error) {
 	requestID := strconv.Itoa(int(time.Now().UnixNano()))
 	m.requestIDs.Store(requestID, struct{}{})
 
 	return &proto.SSOChallenge{
-		RequestId:   requestID,
-		Device:      params.SSO,
-		RedirectUrl: params.SSOClientRedirectURL,
-	}, nil
+			RequestId:   requestID,
+			Device:      params.SSO,
+			RedirectUrl: params.SSOClientRedirectURL,
+		}, &proto.BrowserChallenge{
+			RequestId:   requestID,
+			RedirectUrl: params.SSOClientRedirectURL,
+		}, nil
 }
 
 // VerifySSOMFASession mocks the verification of an SSO MFA session.

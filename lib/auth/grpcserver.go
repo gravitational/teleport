@@ -133,6 +133,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/auth/usertasks/usertasksv1"
 	"github.com/gravitational/teleport/lib/auth/vnetconfig/vnetconfigv1"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/workloadcluster/workloadclusterv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -6748,4 +6749,24 @@ func (g *GRPCServer) ValidateTrustedCluster(
 	}
 
 	return protoResp, nil
+}
+
+func (g *GRPCServer) ValidateBrowserMFAChallenge(ctx context.Context, req *authpb.ValidateBrowserMFAChallengeRequest) (*authpb.ValidateBrowserMFAChallengeResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientRedirectURL, err := auth.ValidateBrowserMFAChallenge(
+		ctx,
+		req.BrowserMfaResponse.RequestId,
+		wantypes.CredentialAssertionResponseFromProto(req.BrowserMfaResponse.WebauthnResponse),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.ValidateBrowserMFAChallengeResponse{
+		ClientRedirectUrl: clientRedirectURL,
+	}, nil
 }

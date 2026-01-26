@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ type AuthServer interface {
 	BeginSSOMFAChallenge(
 		ctx context.Context,
 		params mfatypes.BeginSSOMFAChallengeParams,
-	) (*proto.SSOChallenge, error)
+	) (*proto.SSOChallenge, *proto.BrowserMFAChallenge, error)
 
 	VerifySSOMFASession(
 		ctx context.Context,
@@ -151,6 +152,7 @@ func (s *Service) CreateSessionChallenge(
 	ctx context.Context,
 	req *mfav1.CreateSessionChallengeRequest,
 ) (*mfav1.CreateSessionChallengeResponse, error) {
+	fmt.Println("CREATESESSIONCHALLENGE CALLED")
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -255,7 +257,7 @@ func (s *Service) CreateSessionChallenge(
 	// If SSO is enabled, the user has an SSO device and the client provided a redirect URL and proxy address, create an
 	// SSO challenge.
 	if enableSSO && supportedMFADevices.SSO != nil && req.SsoClientRedirectUrl != "" && req.ProxyAddressForSso != "" {
-		ssoChallenge, err := s.authServer.BeginSSOMFAChallenge(
+		ssoChallenge, browserChallenge, err := s.authServer.BeginSSOMFAChallenge(
 			ctx,
 			mfatypes.BeginSSOMFAChallengeParams{
 				User:                 username,
@@ -277,6 +279,13 @@ func (s *Service) CreateSessionChallenge(
 			RequestId:   ssoChallenge.RequestId,
 			RedirectUrl: ssoChallenge.RedirectUrl,
 		}
+
+		// Only include browser challenge if browser MFA is enabled
+		if browserChallenge != nil {
+			challenge.MfaChallenge.BrowserChallenge = &mfav1.BrowserMFAChallenge{
+				RequestId: browserChallenge.RequestId,
+			}
+		}
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.CreateMFAAuthChallenge{
@@ -290,14 +299,6 @@ func (s *Service) CreateSessionChallenge(
 	}); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
-
-	s.logger.DebugContext(
-		ctx,
-		"Created challenge",
-		"user", username,
-		"has_webauthn_challenge", challenge.MfaChallenge.WebauthnChallenge != nil,
-		"has_sso_challenge", challenge.MfaChallenge.SsoChallenge != nil,
-	)
 
 	return challenge, nil
 }
