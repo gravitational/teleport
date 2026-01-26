@@ -61,10 +61,12 @@ func TestStartCmdConfig(t *testing.T) {
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
-						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
-							"print": {},
+							"print":             {},
+							"desktop.recording": {},
 						},
 						Timeout:     10 * time.Second,
 						Concurrency: 5,
@@ -100,10 +102,12 @@ func TestStartCmdConfig(t *testing.T) {
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
-						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
-							"print": {},
+							"print":             {},
+							"desktop.recording": {},
 						},
 						Timeout:     10 * time.Second,
 						Concurrency: 5,
@@ -139,10 +143,12 @@ func TestStartCmdConfig(t *testing.T) {
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
-						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
-							"print": {},
+							"print":             {},
+							"desktop.recording": {},
 						},
 						Timeout:     10 * time.Second,
 						Concurrency: 5,

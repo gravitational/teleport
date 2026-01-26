@@ -27,7 +27,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -125,13 +124,12 @@ func (a *Fetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWSGro
 // awsGroupToProtoGroup converts an AWS IAM group to a proto group.
 func awsGroupToProtoGroup(group iamtypes.Group, accountID string) *accessgraphv1alpha.AWSGroupV1 {
 	return &accessgraphv1alpha.AWSGroupV1{
-		Name:         aws.ToString(group.GroupName),
-		Arn:          aws.ToString(group.Arn),
-		Path:         aws.ToString(group.Path),
-		GroupId:      aws.ToString(group.GroupId),
-		CreatedAt:    awsTimeToProtoTime(group.CreateDate),
-		AccountId:    accountID,
-		LastSyncTime: timestamppb.Now(),
+		Name:      aws.ToString(group.GroupName),
+		Arn:       aws.ToString(group.Arn),
+		Path:      aws.ToString(group.Path),
+		GroupId:   aws.ToString(group.GroupId),
+		CreatedAt: awsTimeToProtoTime(group.CreateDate),
+		AccountId: accountID,
 	}
 }
 
@@ -191,7 +189,6 @@ func awsGroupPolicyToProtoGroupPolicy(policy *iam.GetGroupPolicyOutput, accountI
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		Group:          group,
 		AccountId:      accountID,
-		LastSyncTime:   timestamppb.Now(),
 	}
 }
 
@@ -218,9 +215,8 @@ func (a *Fetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessg
 	)
 
 	rsp := &accessgraphv1alpha.AWSGroupAttachedPolicies{
-		Group:        group,
-		AccountId:    a.AccountID,
-		LastSyncTime: timestamppb.Now(),
+		Group:     group,
+		AccountId: a.AccountID,
 	}
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)

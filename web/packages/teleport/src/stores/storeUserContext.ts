@@ -263,6 +263,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.botInstances;
   }
 
+  getInstancesAccess() {
+    return this.state.acl.instances;
+  }
+
   getContactsAccess() {
     return this.state.acl.contacts;
   }
@@ -273,5 +277,9 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getWorkloadIdentityAccess() {
     return this.state.acl.workloadIdentity;
+  }
+
+  geClientIpRestrictionAccess() {
+    return this.state.acl.clientIpRestriction;
   }
 }

@@ -17,7 +17,6 @@
  */
 
 import path from 'node:path';
-import * as url from 'node:url';
 
 import {
   app,
@@ -31,8 +30,14 @@ import {
   screen,
 } from 'electron';
 
+import { ensureError } from 'shared/utils/error';
+
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
+import {
+  DEV_APP_WINDOW_URL,
+  PACKAGED_APP_WINDOW_URL,
+} from 'teleterm/mainProcess/protocolHandler';
 import {
   RendererIpc,
   RuntimeSettings,
@@ -69,6 +74,7 @@ export class WindowsManager {
    * by the OS (e.g. Command+H).
    */
   private isInBackgroundMode: boolean;
+  private crashWindowPromise: Promise<void>;
 
   constructor(
     private fileStorage: FileStorage,
@@ -142,7 +148,6 @@ export class WindowsManager {
     // When true, the window should close rather than enter the background mode,
     // as that would block the quit process.
     let isAppQuitting = false;
-    autoUpdater.quitAndInstall();
     // Fired when the app initiates shutdown explicitly, via app.quit().
     app.on('before-quit', () => {
       isAppQuitting = true;
@@ -517,6 +522,39 @@ export class WindowsManager {
     return keepRunning;
   }
 
+  /**
+   * Displays an error in a system dialog and offers reloading the window
+   * or quitting the app.
+   */
+  async crashWindow(error: unknown): Promise<void> {
+    if (this.crashWindowPromise) {
+      return this.crashWindowPromise;
+    }
+    this.crashWindowPromise = this.doCrashWindow(error);
+    try {
+      await this.crashWindowPromise;
+    } finally {
+      this.crashWindowPromise = undefined;
+    }
+  }
+
+  private async doCrashWindow(error: unknown): Promise<void> {
+    this.logger.error('Window crashed', error);
+    const { response } = await dialog.showMessageBox(this.window, {
+      type: 'error',
+      message: 'Teleport Connect has crashed',
+      detail: ensureError(error).message,
+      buttons: ['Reload Window', 'Quit'],
+      defaultId: 0,
+      noLink: true,
+    });
+    if (response === 0) {
+      this.window.reload();
+    } else {
+      app.quit();
+    }
+  }
+
   private isWindowUsable(): boolean {
     return this.window && !this.window.isDestroyed();
   }
@@ -528,16 +566,5 @@ export class WindowsManager {
  * for the packaged app.
  * */
 function getWindowUrl(isDev: boolean): string {
-  if (isDev) {
-    return 'http://localhost:8080/';
-  }
-
-  // The returned URL is percent-encoded.
-  // It is important because `details.requestingUrl` (in `setPermissionRequestHandler`)
-  // to which we match the URL is also percent-encoded.
-  return url
-    .pathToFileURL(
-      path.resolve(app.getAppPath(), __dirname, '../renderer/index.html')
-    )
-    .toString();
+  return isDev ? DEV_APP_WINDOW_URL : PACKAGED_APP_WINDOW_URL;
 }

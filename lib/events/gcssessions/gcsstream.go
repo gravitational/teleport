@@ -55,7 +55,8 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 	h.logger.DebugContext(ctx, "Creating upload", "path", uploadPath)
 	// Make sure we don't overwrite an existing upload
-	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath).Attrs(ctx)
+	uploadObject := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath)
+	_, err := uploadObject.Attrs(ctx)
 	if !errors.Is(err, storage.ErrObjectNotExist) {
 		if err != nil {
 			return nil, convertGCSError(err)
@@ -63,7 +64,9 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 		return nil, trace.AlreadyExists("upload %v for session %q already exists in GCS", upload.ID, sessionID)
 	}
 
-	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath).NewWriter(ctx)
+	// Perform a conditional write in order to make the request idempotent.
+	// Idempotent requests will be automatically retried when. rate-limited.
+	writer := uploadObject.If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
 	start := time.Now()
 	_, err = io.Copy(writer, strings.NewReader(string(sessionID)))
 	// Always close the writer, even if upload failed.
@@ -86,7 +89,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	}
 
 	partPath := h.partPath(upload, partNumber)
-	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(partPath).NewWriter(ctx)
+	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(partPath).If(storage.Conditions{DoesNotExist: true}).NewWriter(ctx)
 	start := time.Now()
 	_, err := io.Copy(writer, partBody)
 	// Always close the writer, even if upload failed.
@@ -109,8 +112,9 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	// If the session has been already created, move to cleanup
-	sessionPath := h.recordingPath(upload.SessionID)
-	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(sessionPath).Attrs(ctx)
+	bucket := h.gcsClient.Bucket(h.Config.Bucket)
+	sessionObject := bucket.Object(h.recordingPath(upload.SessionID))
+	_, err := sessionObject.Attrs(ctx)
 	if !errors.Is(err, storage.ErrObjectNotExist) {
 		if err != nil {
 			return convertGCSError(err)
@@ -120,9 +124,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	// Makes sure that upload has been properly initiated,
 	// checks the .upload file
-	uploadPath := h.uploadPath(upload)
-	bucket := h.gcsClient.Bucket(h.Config.Bucket)
-	_, err = bucket.Object(uploadPath).Attrs(ctx)
+	_, err = bucket.Object(h.uploadPath(upload)).Attrs(ctx)
 	if err != nil {
 		return convertGCSError(err)
 	}
@@ -139,14 +141,14 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		mergeID := hashOfNames(objectsToMerge)
 		mergePath := h.mergePath(upload, mergeID)
 		mergeObject := bucket.Object(mergePath)
-		composer := mergeObject.ComposerFrom(objectsToMerge...)
+		composer := mergeObject.If(storage.Conditions{DoesNotExist: true}).ComposerFrom(objectsToMerge...)
 		_, err = h.OnComposerRun(ctx, composer)
 		if err != nil {
 			return convertGCSError(err)
 		}
 		objects = append([]*storage.ObjectHandle{mergeObject}, objects[maxParts:]...)
 	}
-	composer := bucket.Object(sessionPath).ComposerFrom(objects...)
+	composer := sessionObject.If(storage.Conditions{DoesNotExist: true}).ComposerFrom(objects...)
 	_, err = h.OnComposerRun(ctx, composer)
 	if err != nil {
 		return convertGCSError(err)
@@ -176,13 +178,33 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 			if err != nil {
 				return convertGCSError(err)
 			}
-			objects = append(objects, bucket.Object(attrs.Name))
+			objects = append(objects, bucket.Object(attrs.Name).Generation(0))
 		}
 	}
 
 	// batch delete objects to speed up the process
 	semCh := make(chan struct{}, maxParts)
 	errorsCh := make(chan error, maxParts)
+	// done indicates that all objects have been processed.
+	done := make(chan struct{})
+	var errors []error
+
+	// Start an error collection goroutine. Unless context gets canceled, this
+	// routine collects all the reported results and signals completion on the
+	// done channel.
+	go func() {
+		for range objects {
+			select {
+			case err := <-errorsCh:
+				if !trace.IsNotFound(err) {
+					errors = append(errors, err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+		done <- struct{}{}
+	}()
 	for i := range objects {
 		select {
 		case semCh <- struct{}{}:
@@ -199,16 +221,11 @@ func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload)
 		}
 	}
 
-	var errors []error
-	for range objects {
-		select {
-		case err := <-errorsCh:
-			if !trace.IsNotFound(err) {
-				errors = append(errors, err)
-			}
-		case <-ctx.Done():
-			return trace.ConnectionProblem(ctx.Err(), "context closed")
-		}
+	// Wait until either ctx is canceled or we're done collecting results.
+	select {
+	case <-ctx.Done():
+		return trace.ConnectionProblem(ctx.Err(), "context closed")
+	case <-done:
 	}
 	return trace.NewAggregate(errors...)
 }

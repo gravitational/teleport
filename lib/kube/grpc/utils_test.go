@@ -58,10 +58,12 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -210,7 +212,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			}
 		}
 	}()
-	keyGen := keygen.New(testCtx.Context)
+	keyGen, err := keygen.New(keygen.Config{BuildType: modules.BuildOSS})
+	require.NoError(t, err)
 
 	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
@@ -229,6 +232,19 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+
+	healthCheckManager, err := healthcheck.NewManager(
+		testCtx.Context,
+		healthcheck.ManagerConfig{
+			Component:               teleport.ComponentKube,
+			Events:                  client,
+			HealthCheckConfigReader: client,
+		},
+	)
+	require.NoError(t, err)
+	err = healthCheckManager.Start(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
@@ -290,6 +306,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		Log:                  logtest.NewLogger(),
 		InventoryHandle:      inventoryHandle,
 		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		HealthCheckManager:   healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -371,6 +388,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			return &types.Rotation{}, nil
 		},
 		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		HealthCheckManager:   healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")

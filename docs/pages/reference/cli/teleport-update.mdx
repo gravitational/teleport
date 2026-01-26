@@ -7,9 +7,9 @@ tags:
  - platform-wide
 ---
 
-`teleport-update` is a CLI tool that is used to update Teleport Agents installed on Linux servers.
+`teleport-update` is a CLI tool that is used to update Teleport Agents and Bots installed on Linux servers.
 
-See [Teleport Agent Managed Updates](../../upgrading/agent-managed-updates.mdx) for more details.
+See [Teleport Agent Managed Updates](../../upgrading/agent-managed-updates/agent-managed-updates.mdx) for more details.
 
 The primary commands for `teleport-update` are as follows:
 
@@ -29,7 +29,7 @@ The primary commands for `teleport-update` are as follows:
 
 ## teleport-update enable
 
-Enables agent Managed Updates and performs an initial installation of the Teleport Agent.
+Enables Managed Updates and performs an initial installation of the Teleport Agent and tbot.
 This command also creates a systemd timer that periodically runs the update subcommand.
 
 If Teleport is already installed, `enable` will update to the cluster-advertised version
@@ -41,8 +41,9 @@ Existing tarball-based, static installations may require `--overwrite`.
 
 Files are installed to the following paths (with the default `install-suffix`):
 
-- `/usr/local/bin/{teleport,tsh,...}` - Symbolic links into `/opt/teleport/default/versions/X.Y.Z/bin/`
+- `/usr/local/bin/{teleport,tbot,tsh,...}` - Symbolic links into `/opt/teleport/default/versions/X.Y.Z/bin/`
 - `/lib/systemd/system/teleport.service` - Teleport SystemD service
+- `/etc/systemd/system/tbot.service` - Tbot SystemD service (not replaced if already present)
 - `/opt/teleport/default` - Storage for Teleport versions and updater configuration
 - `/etc/systemd/system/teleport-update.{service,timer}` - Updater SystemD timer and service
 - `/etc/systemd/system/teleport.service.d/teleport-update.conf` - Environment variables that configure Teleport
@@ -66,7 +67,7 @@ To change these flags, run `enable` again with the new flags.
 
 ### Examples
 
-**Example for a new installation.**
+**Example for a new Teleport Agent installation.**
 
 Install Teleport with Managed Updates enabled on a fresh system.
 
@@ -74,6 +75,17 @@ Install Teleport with Managed Updates enabled on a fresh system.
 # create /etc/teleport.yaml
 $ sudo teleport-update enable
 $ sudo systemctl enable teleport --now
+```
+
+**Example for a new Teleport Agent and tbot installation.**
+
+Install Teleport with Managed Updates enabled on a fresh system.
+
+```code
+# create /etc/teleport.yaml and /etc/tbot.yaml
+$ sudo teleport-update enable
+$ sudo systemctl enable teleport --now
+$ sudo systemctl enable tbot --now
 ```
 
 **Example for an existing installation.**
@@ -100,7 +112,7 @@ $ export PATH=/opt/teleport/mycluster/bin:$PATH
 
 ## teleport-update disable
 
-Disable Managed Updates for the installed agent.
+Disable Managed Updates for the installed Teleport Agent and/or tbot.
 This command does not remove or change the active installation of Teleport.
 
 Unlike `pin`, this command will not touch the current installation, and version lookup requests will stop entirely.
@@ -126,7 +138,7 @@ $ sudo teleport-update disable
 
 ## teleport-update pin
 
-Pin the installed agent to a specific version of Teleport.
+Pin the installed Teleport Agent and/or tbot to a specific version of Teleport.
 This command updates Teleport to latest version (or a version specified with `--force-version`), and ensures the local
 installation of Teleport remains at that version.
 New versions will continue to be reported in SystemD `teleport-update.service` logs, they but will not be installed.
@@ -238,7 +250,7 @@ Link the system installation of Teleport from the Teleport package, if Managed U
 
 This command is used to link the system package installation by:
 - Creating symbolic links from `/opt/teleport/system/bin/*` into `/usr/local/bin/`.
-- Copying the Teleport systemd service file from `/opt/teleport/system/lib/systemd/system/teleport.service` into `/ib/systemd/system/teleport.service`.
+- Copying the Teleport systemd service file from `/opt/teleport/system/lib/systemd/system/teleport.service` into `/lib/systemd/system/teleport.service`.
 
 This command is executed automatically when the Teleport package is installed, and does not need to be manually executed.
 

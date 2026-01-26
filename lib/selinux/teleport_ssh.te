@@ -84,8 +84,25 @@ files_type(teleport_ssh_upgrade_data_t);
 # creation of initial process
 ##
 init_daemon_domain(teleport_ssh_t, teleport_ssh_exec_t)
-# needed if run manually from terminal
-allow teleport_ssh_t teleport_ssh_exec_t:file { exec_file_perms lock entrypoint map };
+# Allow any domain to execute Teleport; using 'domain' instead of a
+# specific domain type matches all SELinux domains.
+#
+# This is needed for SFTP support, as Teleport re-execs itself to start
+# an SFTP server. To re-exec, Teleport creates a child process that 
+# configures a grandchild process appropriately (in this case that is 
+# the SFTP server process). The child process will set the SELinux exec
+# label depending on what host login is specified before launching the
+# grandchild. This ensures the grandchild will inherit the correct SELinux
+# context that the host login user should have.
+#
+# Therefore for SFTP to function properly with any user login all SELinux
+# domains must be allowed to exec Teleport, as we don't know what 
+# domains host users will have when writing this module.
+#
+# This shouldn't be a problem from a security perspective though, as 
+# Teleport won't be allowed to do anything the user couldn't do already
+# due to SELinux enforcement.
+allow domain teleport_ssh_exec_t:file { exec_file_perms lock entrypoint map };
 
 ##
 # files

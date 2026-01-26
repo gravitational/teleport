@@ -21,7 +21,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"errors"
 	"log/slog"
 	"math/rand/v2"
 	"net"
@@ -35,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -102,7 +103,7 @@ func (c *ProxiedMetricConn) Close() error {
 	return trace.Wrap(c.Conn.Close())
 }
 
-type serverResolverFn = func(ctx context.Context, host, port string, cluster cluster) (types.Server, error)
+type serverResolverFn = func(ctx context.Context, scopePin *scopesv1.Pin, host, port string, cluster cluster) (types.Server, error)
 type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
 // ClusterGetter provides access to connected local or remote clusters.
@@ -212,7 +213,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, signer agentless.SignerCreator) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -232,6 +233,9 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 	cluster := r.localCluster
 	if clusterName != r.clusterName {
+		if scopePin != nil {
+			return nil, trace.AccessDenied("identity pinned to scope %q cannot dial remote cluster %q (scoping does not support cross-cluster operations)", scopePin.GetScope(), clusterName)
+		}
 		remoteCluster, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
@@ -240,7 +244,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	}
 
 	span.AddEvent("looking up server")
-	target, err := r.serverResolver(ctx, host, port, fakeCluster{cluster})
+	target, err := r.serverResolver(ctx, scopePin, host, port, fakeCluster{cluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -475,11 +479,14 @@ func (r fakeCluster) GetClusterNetworkingConfig(ctx context.Context) (types.Clus
 
 // getServer attempts to locate a node matching the provided host and port in
 // the provided cluster.
-func getServer(ctx context.Context, host, port string, cluster cluster) (types.Server, error) {
+func getServer(ctx context.Context, scopePin *scopesv1.Pin, host, port string, cluster cluster) (types.Server, error) {
 	if org, ok := types.GetGitHubOrgFromNodeAddr(host); ok {
+		if scopePin != nil {
+			return nil, trace.AccessDenied("identity pinned to scope %q cannot dial github server for %q (scoped identities not supported)", scopePin.GetScope(), org)
+		}
 		return getGitHubServer(ctx, org, cluster)
 	}
-	return getServerWithResolver(ctx, host, port, cluster, nil /* use default resolver */)
+	return getServerWithResolver(ctx, scopePin, host, port, cluster, nil /* use default resolver */)
 }
 
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
@@ -487,7 +494,7 @@ var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED
 // getServerWithResolver attempts to locate a node matching the provided host and port in
 // the provided cluster. The resolver argument is used in certain tests to mock DNS resolution
 // and can generally be left nil.
-func getServerWithResolver(ctx context.Context, host, port string, cluster cluster, resolver apiutils.HostResolver) (types.Server, error) {
+func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, port string, cluster cluster, resolver apiutils.HostResolver) (types.Server, error) {
 	if cluster == nil {
 		return nil, trace.BadParameter("invalid remote cluster provided")
 	}
@@ -513,6 +520,21 @@ func getServerWithResolver(ctx context.Context, host, port string, cluster clust
 	var maxScore int
 	scores := make(map[string]int)
 	matches, err := cluster.GetNodes(ctx, func(server readonly.Server) bool {
+		if scopePin != nil {
+			// TODO(fspmarshall/scopes): implement scope-aware node storage. filtering agents based on scope is sub-optimal. scoping
+			// provides a natural machanism for efficiently storing resources in trees s.t. we only need query the subset of resources
+			// that are subject to the target scope. in very large clusters, reworking our node route table storage such that it is
+			// scope-partitioned could provide significant routing performance improvements.
+			agentScope := scopes.Root
+			if server.GetScope() != "" {
+				agentScope = server.GetScope()
+			}
+
+			if !scopes.ResourceScope(agentScope).IsSubjectToPolicyScope(scopePin.GetScope()) {
+				return false
+			}
+		}
+
 		score := routeMatcher.RouteToServerScore(server)
 		if score < 1 {
 			return false
@@ -537,6 +559,17 @@ func getServerWithResolver(ctx context.Context, host, port string, cluster clust
 			}
 		}
 	}
+
+	// NOTE: there is an open question here about wether or not we should be doing scope-aware
+	// disambiguation when multiple matches are found. In some cases, this seems like the obviously
+	// right thing to do.  For example, when there is a match in `/foo` and a match in `/foo/bar`,
+	// it would seem obvious that the match in `/foo` should be preferred per scope hierarchy rules.
+	// However, not all cases are so clear (e.g. `/foo/bar` and `/foo/bax`), and there may be an
+	// argument that disambiguation within the set of scope-subject nodes may inadvertently hide
+	// the nature of scope-based routing and lead to a false sense of security, causing undesirable
+	// outcomes should the node in the parent scope ever go offline. For now, we are opting to leave
+	// scope-aware disambiguation as a future enhancement, in favor of only using scope to exclude those
+	// nodes that would *never* be routable per the provided scope pin.
 
 	if len(matches) > 1 {
 		// in the event of multiple matches, some matches may be of higher quality than others
@@ -582,7 +615,7 @@ func getServerWithResolver(ctx context.Context, host, port string, cluster clust
 			return nil, trace.NotFound("unable to locate node matching %s-like target %s", idType, host)
 		}
 
-		return nil, trace.ConnectionProblem(errors.New("connection problem"), "direct dialing to nodes not found in inventory is not supported")
+		return nil, trace.ConnectionProblem(nil, "target host %s is offline or does not exist", host)
 	}
 }
 

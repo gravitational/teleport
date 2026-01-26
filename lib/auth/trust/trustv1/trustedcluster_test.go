@@ -42,10 +42,11 @@ func TestCloudProhibited(t *testing.T) {
 
 	trust := local.NewCAService(p.mem)
 	cfg := &ServiceConfig{
-		Cache:      trust,
-		Backend:    trust,
-		Authorizer: &fakeAuthorizer{},
-		AuthServer: &fakeAuthServer{},
+		Cache:            trust,
+		Backend:          trust,
+		Authorizer:       &fakeAuthorizer{},
+		ScopedAuthorizer: &fakeAuthorizer{},
+		AuthServer:       &fakeAuthServer{},
 	}
 
 	service, err := NewService(cfg)
@@ -304,10 +305,11 @@ func TestTrustedClusterRBAC(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			trust := local.NewCAService(p.mem)
 			cfg := &ServiceConfig{
-				Cache:      trust,
-				Backend:    trust,
-				Authorizer: &test.authorizer,
-				AuthServer: &fakeAuthServer{},
+				Cache:            trust,
+				Backend:          trust,
+				Authorizer:       &test.authorizer,
+				ScopedAuthorizer: &test.authorizer,
+				AuthServer:       &fakeAuthServer{},
 			}
 
 			service, err := NewService(cfg)

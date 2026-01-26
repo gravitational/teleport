@@ -101,7 +101,9 @@ func PinCompatibleWithPolicyScope(pin *scopesv1.Pin, scope string) bool {
 
 // PinAppliesToResourceScope verifies that the given pin pins a scope that applies to the given resource scope. Resources
 // that are not subject to the pinned scope cannot be accessed by the pinned identity, even if assigned roles would
-// otherwise allow access.
+// otherwise allow access. Note that this is conceptually distinct from whether or not we can perform *access checks* with
+// a pin at a given scope. A pin at scope /foo/bar might still yield an allow decision at resource scope /foo, but only if
+// the target resource is assigned to /foo/bar or one of its descendants.
 func PinAppliesToResourceScope(pin *scopesv1.Pin, resourceScope string) bool {
 	return scopes.PolicyScope(pin.GetScope()).AppliesToResourceScope(resourceScope)
 }
@@ -117,6 +119,13 @@ func AssignmentsForResourceScope(pin *scopesv1.Pin, resourceScope string) (iter.
 		return nil, trace.Errorf("invalid resource scope %q for scope pin at %q in assignment lookup (this is a bug)", resourceScope, pin.GetScope())
 	}
 
+	return AssignmentsForResourceScopeUnchecked(pin, resourceScope), nil
+}
+
+// AssignmentsForResourceScopeUnchecked is like AssignmentsForResourceScope, but does not perform any validation to ensure that the target
+// resource scope is valid for the pin. This is used internally by some access-checker building logic which does its own validation
+// of resource scoping.
+func AssignmentsForResourceScopeUnchecked(pin *scopesv1.Pin, resourceScope string) iter.Seq2[string, *scopesv1.PinnedAssignments] {
 	return func(yield func(string, *scopesv1.PinnedAssignments) bool) {
 		for scope := range scopes.DescendingScopes(resourceScope) {
 			assignments, ok := pin.GetAssignments()[scope]
@@ -128,5 +137,5 @@ func AssignmentsForResourceScope(pin *scopesv1.Pin, resourceScope string) (iter.
 				return
 			}
 		}
-	}, nil
+	}
 }

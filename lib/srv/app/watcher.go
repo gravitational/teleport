@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -88,11 +89,20 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 		for {
 			select {
 			case apps := <-watcher.ResourcesC:
-				appsWithAddr := make(types.Apps, 0, len(apps))
 				for _, app := range apps {
-					appsWithAddr = append(appsWithAddr, s.guessPublicAddr(app))
+					if app.GetPublicAddr() == "" {
+						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						if err == nil {
+							app.SetPublicAddr(pubAddr)
+						} else {
+							s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
+								"app_name", app.GetName(),
+								"error", err,
+							)
+						}
+					}
 				}
-				s.monitoredApps.setResources(appsWithAddr)
+				s.monitoredApps.setResources(apps)
 				select {
 				case s.reconcileCh <- struct{}{}:
 				case <-ctx.Done():
@@ -107,42 +117,34 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 	return watcher, nil
 }
 
-// guessPublicAddr will guess PublicAddr for given application if it is missing, based on proxy information and app name.
-func (s *Server) guessPublicAddr(app types.Application) types.Application {
-	if app.GetPublicAddr() != "" {
-		return app
-	}
-	appCopy := app.Copy()
-	pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
-	if err == nil {
-		appCopy.Spec.PublicAddr = pubAddr
-	} else {
-		s.log.ErrorContext(s.closeContext, "Unable to find public address for app, leaving empty",
-			"app_name", app.GetName(),
-			"error", err,
-		)
-	}
-	return appCopy
-}
-
 // FindPublicAddrClient is a client used for finding public addresses.
 type FindPublicAddrClient interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of registered proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
-func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
+func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
 	// If the application has a public address already set, use it.
 	if appPublicAddr != "" {
 		return appPublicAddr, nil
 	}
 
 	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := client.GetProxies()
+	servers, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return client.GetProxies()
+	})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

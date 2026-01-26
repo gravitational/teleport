@@ -44,6 +44,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 
 func (process *TeleportProcess) initDatabases() {
 	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.ExpectService(teleport.ComponentDatabase)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -109,7 +110,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
+	tlsConfig, err := process.ServerTLSConfig(conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,16 +184,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			Component:            teleport.ComponentDatabase,
-			HostUUID:             conn.HostID(),
-			Resolver:             tunnelAddrResolver,
-			Client:               conn.Client,
-			Server:               dbService,
-			AccessPoint:          conn.Client,
-			AuthMethods:          conn.ClientAuthMethods(),
-			Cluster:              clusterName,
-			FIPS:                 process.Config.FIPS,
-			ConnectedProxyGetter: proxyGetter,
+			Component:                teleport.ComponentDatabase,
+			HostUUID:                 conn.HostID(),
+			Resolver:                 tunnelAddrResolver,
+			Client:                   conn.Client,
+			Server:                   dbService,
+			AccessPoint:              conn.Client,
+			AuthMethods:              conn.ClientAuthMethods(),
+			Cluster:                  clusterName,
+			FIPS:                     process.Config.FIPS,
+			ConnectedProxyGetter:     proxyGetter,
+			StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 		})
 	if err != nil {
 		return trace.Wrap(err)

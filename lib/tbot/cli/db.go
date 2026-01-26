@@ -18,8 +18,6 @@
 
 package cli
 
-import "context"
-
 // DBCommand contains fields for `tbot db`
 type DBCommand struct {
 	*genericExecutorHandler[DBCommand]
@@ -28,36 +26,18 @@ type DBCommand struct {
 	Cluster        string
 	ProxyServer    string
 
-	// LegacyProxy is the legacy --proxy flag.
-	// TODO(timothyb89): DELETE IN 17.0.0
-	// TODO(timothyb89): Or maybe remove in this PR.
-	LegacyProxyFlag string
-
 	RemainingArgs *[]string
 }
 
 // NewDBCommand initializes flags for `tbot db`
 func NewDBCommand(app KingpinClause, action func(*DBCommand) error) *DBCommand {
-	cmd := app.Command("db", "Execute database commands through tsh.")
+	cmd := app.Command("db", "Executes database commands through tsh.")
 
 	c := &DBCommand{}
-	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, func(c *DBCommand) error {
-		// Prepend an action to handle --proxy deprecation.
-		if c.LegacyProxyFlag != "" {
-			c.ProxyServer = c.LegacyProxyFlag
-			log.WarnContext(context.TODO(), "The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead")
-		}
+	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, action)
 
-		return nil
-	}, action)
-
-	// We're migrating from --proxy to --proxy-server so this flag is hidden
-	// but still supported.
-	// TODO(strideynet): DELETE IN 17.0.0
-	cmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().Envar(ProxyServerEnvVar).StringVar(&c.LegacyProxyFlag)
-
-	cmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
-	cmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&c.DestinationDir)
+	cmd.Flag("proxy-server", "The address of the Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
+	cmd.Flag("destination-dir", "The destination directory to provide tsh for authentication.").StringVar(&c.DestinationDir)
 	cmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&c.Cluster)
 	c.RemainingArgs = RemainingArgs(cmd.Arg(
 		"args",

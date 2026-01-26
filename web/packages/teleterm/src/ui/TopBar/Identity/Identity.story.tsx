@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Meta, StoryObj } from '@storybook/react-vite';
 import { useLayoutEffect } from 'react';
 
 import Flex from 'design/Flex';
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
@@ -32,21 +34,122 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { IdentityContainer } from './Identity';
 
-export default {
+interface StoryProps {
+  clusters: ('violet' | 'orange' | 'green')[];
+  activeCluster: boolean;
+  activeClusterExpired: boolean;
+  deviceTrust: 'enrolled' | 'required-not-enrolled' | 'not-enrolled';
+  showProfileErrors: boolean;
+}
+
+const meta: Meta<StoryProps> = {
   title: 'Teleterm/Identity',
+  component: props => {
+    const hasOrange = props.clusters.includes('orange');
+    const hasViolet = props.clusters.includes('violet');
+    const hasGreen = props.clusters.includes('green');
+    const clusters = [
+      hasOrange &&
+        makeRootCluster({
+          ...clusterOrange,
+          profileStatusError: props.showProfileErrors ? profileStatusError : '',
+        }),
+      hasViolet &&
+        makeRootCluster({
+          ...clusterViolet,
+          profileStatusError: props.showProfileErrors ? profileStatusError : '',
+        }),
+      hasGreen &&
+        makeRootCluster({
+          ...clusterGreen,
+          profileStatusError: props.showProfileErrors ? profileStatusError : '',
+        }),
+    ].filter(Boolean);
+
+    const hasClusterWithLoggedInUser =
+      props.activeCluster && (hasOrange || hasViolet);
+    if (hasClusterWithLoggedInUser) {
+      clusters[0].loggedInUser = makeLoggedInUser({
+        ...clusters[0].loggedInUser,
+        validUntil: Timestamp.fromDate(
+          props.activeClusterExpired
+            ? new Date()
+            : new Date(Date.now() + 24 * 60 * 60 * 1000)
+        ),
+        isDeviceTrusted: props.deviceTrust === 'enrolled',
+        trustedDeviceRequirement:
+          props.deviceTrust === 'required-not-enrolled'
+            ? TrustedDeviceRequirement.REQUIRED
+            : TrustedDeviceRequirement.NOT_REQUIRED,
+      });
+    }
+
+    return (
+      <OpenIdentityPopover
+        clusters={clusters}
+        activeClusterUri={hasClusterWithLoggedInUser && clusters[0]?.uri}
+      />
+    );
+  },
+  argTypes: {
+    clusters: {
+      control: { type: 'check' },
+      options: ['violet', 'orange', 'green'],
+      description: 'List of clusters to show.',
+    },
+    activeCluster: {
+      control: { type: 'boolean' },
+      description: 'Makes "violet" or "orange" an active cluster.',
+    },
+    deviceTrust: {
+      control: { type: 'radio' },
+      options: ['enrolled', 'required-not-enrolled', 'not-enrolled'],
+      description: 'Controls device trust requirement.',
+    },
+    activeClusterExpired: {
+      control: { type: 'boolean' },
+      description: 'Whether the active cluster has expired cert.',
+    },
+    showProfileErrors: {
+      control: { type: 'boolean' },
+      description: 'Shows profile errors for all clusters.',
+    },
+  },
+  args: {
+    clusters: ['violet', 'orange', 'green'],
+    activeCluster: true,
+    deviceTrust: 'not-enrolled',
+    activeClusterExpired: false,
+    showProfileErrors: false,
+  },
 };
 
+export default meta;
+
 const clusterOrange = makeRootCluster({
-  name: 'orange',
+  name: 'orange-psv-eindhoven-eredivisie-production-lorem-ipsum',
   loggedInUser: makeLoggedInUser({
-    name: 'bob',
-    roles: ['access', 'editor'],
+    name: 'ruud-van-nistelrooy-van-der-sar',
+    roles: [
+      'circle-mark-app-access',
+      'grafana-lite-app-access',
+      'grafana-gold-app-access',
+      'release-lion-app-access',
+      'release-fox-app-access',
+      'sales-center-lorem-app-access',
+      'sales-center-ipsum-db-access',
+      'sales-center-shop-app-access',
+      'sales-center-floor-db-access',
+    ],
   }),
   uri: '/clusters/orange',
 });
 const clusterViolet = makeRootCluster({
   name: 'violet',
-  loggedInUser: makeLoggedInUser({ name: 'sammy' }),
+  loggedInUser: makeLoggedInUser({
+    name: 'sammy',
+    roles: ['access', 'editor'],
+  }),
   uri: '/clusters/violet',
 });
 const clusterGreen = makeRootCluster({
@@ -63,11 +166,21 @@ const OpenIdentityPopover = (props: {
   activeClusterUri: RootClusterUri | undefined;
 }) => {
   const ctx = new MockAppContext();
+  ctx.statePersistenceService.putState({
+    ...ctx.statePersistenceService.getState(),
+    showTshHomeMigrationBanner: true,
+  });
   props.clusters.forEach(c => {
     ctx.addRootCluster(c);
   });
+  ctx.workspacesService.addWorkspace(clusterGreen.uri);
+  ctx.workspacesService.addWorkspace(clusterViolet.uri);
+  ctx.workspacesService.addWorkspace(clusterOrange.uri);
   ctx.workspacesService.setState(draftState => {
     draftState.rootClusterUri = props.activeClusterUri;
+    draftState.workspaces[clusterGreen.uri].color = 'green';
+    draftState.workspaces[clusterViolet.uri].color = 'purple';
+    draftState.workspaces[clusterOrange.uri].color = 'yellow';
   });
   useOpenPopover();
 
@@ -98,125 +211,60 @@ const useOpenPopover = () => {
   }, []);
 };
 
-export function NoRootClusters() {
-  return <OpenIdentityPopover clusters={[]} activeClusterUri={undefined} />;
-}
+export const NoRootClusters: StoryObj<StoryProps> = {
+  args: {
+    clusters: [],
+  },
+};
 
-export function OneClusterWithNoActiveCluster() {
-  return (
-    <OpenIdentityPopover
-      activeClusterUri={undefined}
-      clusters={[makeRootCluster({ loggedInUser: undefined })]}
-    />
-  );
-}
+export const OneClusterWithNoActiveCluster: StoryObj<StoryProps> = {
+  args: {
+    clusters: ['orange'],
+    activeCluster: false,
+  },
+};
 
-export function OneClusterWithActiveCluster() {
-  const cluster = makeRootCluster({
-    loggedInUser: makeLoggedInUser({
-      name: 'alice',
-      roles: ['access', 'editor'],
-    }),
-  });
+export const OneClusterWithActiveCluster: StoryObj<StoryProps> = {
+  args: {
+    clusters: ['violet'],
+  },
+};
 
-  return (
-    <OpenIdentityPopover clusters={[cluster]} activeClusterUri={cluster.uri} />
-  );
-}
+export const ManyClustersWithNoActiveCluster: StoryObj<StoryProps> = {
+  args: {
+    clusters: ['orange', 'green', 'violet'],
+    activeCluster: false,
+  },
+};
 
-export function ManyClustersWithNoActiveCluster() {
-  return (
-    <OpenIdentityPopover
-      clusters={[clusterOrange, clusterViolet, clusterGreen]}
-      activeClusterUri={undefined}
-    />
-  );
-}
+export const ManyClustersWithActiveCluster: StoryObj<StoryProps> = {
+  args: {
+    clusters: ['orange', 'green', 'violet'],
+  },
+};
 
-export function ManyClustersWithActiveCluster() {
-  return (
-    <OpenIdentityPopover
-      clusters={[clusterOrange, clusterViolet, clusterGreen]}
-      activeClusterUri={clusterOrange.uri}
-    />
-  );
-}
+export const ManyClustersWithProfileErrorsAndActiveCluster: StoryObj<StoryProps> =
+  {
+    args: {
+      clusters: ['orange', 'green', 'violet'],
+      showProfileErrors: true,
+    },
+  };
 
-export function ManyClustersWithProfileErrorsAndActiveCluster() {
-  return (
-    <OpenIdentityPopover
-      clusters={[
-        makeRootCluster({ ...clusterOrange, profileStatusError }),
-        makeRootCluster({ ...clusterViolet, profileStatusError }),
-        makeRootCluster({ ...clusterGreen, profileStatusError }),
-      ]}
-      activeClusterUri={clusterOrange.uri}
-    />
-  );
-}
+export const TrustedDeviceEnrolled: StoryObj<StoryProps> = {
+  args: {
+    deviceTrust: 'enrolled',
+  },
+};
 
-export function LongNamesWithManyRoles() {
-  return (
-    <OpenIdentityPopover
-      clusters={[
-        clusterOrange,
-        makeRootCluster({
-          ...clusterViolet,
-          name: 'psv-eindhoven-eredivisie-production-lorem-ipsum',
-          loggedInUser: makeLoggedInUser({
-            roles: [
-              'circle-mark-app-access',
-              'grafana-lite-app-access',
-              'grafana-gold-app-access',
-              'release-lion-app-access',
-              'release-fox-app-access',
-              'sales-center-lorem-app-access',
-              'sales-center-ipsum-db-access',
-              'sales-center-shop-app-access',
-              'sales-center-floor-db-access',
-            ],
-            name: 'ruud-van-nistelrooy-van-der-sar',
-          }),
-        }),
-        clusterGreen,
-      ]}
-      activeClusterUri={clusterViolet.uri}
-    />
-  );
-}
+export const TrustedDeviceRequiredButNotEnrolled: StoryObj<StoryProps> = {
+  args: {
+    deviceTrust: 'required-not-enrolled',
+  },
+};
 
-export function TrustedDeviceEnrolled() {
-  return (
-    <OpenIdentityPopover
-      clusters={[
-        clusterOrange,
-        makeRootCluster({
-          ...clusterViolet,
-          loggedInUser: makeLoggedInUser({
-            isDeviceTrusted: true,
-            roles: ['circle-mark-app-access', 'grafana-lite-app-access'],
-          }),
-        }),
-      ]}
-      activeClusterUri={clusterViolet.uri}
-    />
-  );
-}
-
-export function TrustedDeviceRequiredButNotEnrolled() {
-  return (
-    <OpenIdentityPopover
-      clusters={[
-        clusterOrange,
-        makeRootCluster({
-          ...clusterViolet,
-          loggedInUser: makeLoggedInUser({
-            trustedDeviceRequirement: TrustedDeviceRequirement.REQUIRED,
-            roles: ['circle-mark-app-access', 'grafana-lite-app-access'],
-          }),
-        }),
-      ]}
-      activeClusterUri={clusterViolet.uri}
-    />
-  );
-}
+export const ActiveClusterExpired: StoryObj<StoryProps> = {
+  args: {
+    activeClusterExpired: true,
+  },
+};

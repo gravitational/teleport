@@ -83,6 +83,7 @@ spec:
   {{- toYaml .Values.extraLabels.pod | nindent 8 }}
 {{- end }}
     spec:
+      automountServiceAccountToken: true
 {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
   {{- toYaml .Values.imagePullSecrets | nindent 6 }}

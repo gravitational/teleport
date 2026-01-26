@@ -1,8 +1,7 @@
 To install a Teleport Agent on your Linux server:
 
-The easiest installation method, for *Teleport versions 17.3 and above*, is the
-cluster install script. It will use the best version, edition, and installation
-mode for your cluster.
+The recommended installation method is the cluster install script.
+It will select the correct version, edition, and installation mode for your cluster.
 
 1. Assign <Var name="teleport.example.com:443"/> to your Teleport cluster
    hostname and port, but not the scheme (https://).
@@ -12,41 +11,3 @@ mode for your cluster.
    ```code
    $ curl "https://<Var name="teleport.example.com:443"/>/scripts/install.sh" | sudo bash
    ```
-
-On *older Teleport versions*:
-
-1. Assign <Var name="edition" /> to one of the following, depending on your
-   Teleport edition:
-
-   | Edition                           | Value        |
-   |-----------------------------------|--------------|
-   | Teleport Enterprise Cloud         | `cloud`      |
-   | Teleport Enterprise (Self-Hosted) | `enterprise` |
-   | Teleport Community Edition        | `oss`        |
-
-1. Get the version of Teleport to install. If you have automatic agent updates
-   enabled in your cluster, query the latest Teleport version that is compatible
-   with the updater:
-
-   ```code
-   $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
-   $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/automaticupgrades/channel/default/version | sed 's/v//')"
-   ```
-
-   Otherwise, get the version of your Teleport cluster:
-
-   ```code
-   $ TELEPORT_DOMAIN=<Var name="teleport.example.com:443" />
-   $ TELEPORT_VERSION="$(curl https://$TELEPORT_DOMAIN/v1/webapi/ping | jq -r '.server_version')"
-   ```
-
-1. Install Teleport on your Linux server:
-
-   ```code
-   $ curl (=teleport.teleport_install_script_url=) | bash -s ${TELEPORT_VERSION} <Var name="edition" />
-   ```
-
-   The installation script detects the package manager on your Linux server and
-   uses it to install Teleport binaries. To customize your installation, learn
-   about the Teleport package repositories in the [installation
-   guide](../installation/linux.mdx).

@@ -119,6 +119,9 @@ should match the snapshot (full):
           - name: test-pull-secret
           nodeSelector:
             test-key: test-node-selector
+          securityContext:
+            runAsGroup: 3000
+            runAsUser: 1000
           serviceAccountName: modified-sa-name
           tolerations:
           - effect: NoSchedule

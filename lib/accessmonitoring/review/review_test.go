@@ -34,6 +34,9 @@ import (
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/accessmonitoring"
 )
 
@@ -149,7 +152,6 @@ func TestConflictingRules(t *testing.T) {
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
-	withSecretsFalse := false
 	requesterUserName := "requester"
 	approvedRule := newApprovedRule("approved-rule", "true")
 	deniedRule := newDeniedRule("denied-rule", "true")
@@ -161,12 +163,15 @@ func TestConflictingRules(t *testing.T) {
 		deniedRule,
 	})
 
-	requester, err := types.NewUser(requesterUserName)
+	userLoginState, err := userloginstate.New(
+		header.Metadata{Name: requesterUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	client := &mockClient{}
-	client.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-		Return(requester, nil)
+	client.On("GetUserLoginState", mock.Anything, requesterUserName).
+		Return(userLoginState, nil)
 
 	review, err := newAccessReview(
 		requesterUserName,
@@ -198,16 +203,127 @@ func TestConflictingRules(t *testing.T) {
 	require.NoError(t, handler.HandleAccessRequest(ctx, event))
 }
 
+func TestScheduleRequest(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	t.Cleanup(cancel)
+
+	testReqID := uuid.New().String()
+	testRuleName := "test-rule"
+	requesterUserName := "requester"
+
+	userLoginState, err := userloginstate.New(
+		header.Metadata{Name: requesterUserName},
+		userloginstate.Spec{},
+	)
+	require.NoError(t, err)
+
+	testRule := newApprovedRule(
+		testRuleName,
+		`true`)
+
+	testRule.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
+		"test-schedule": {
+			Time: &accessmonitoringrulesv1.TimeSchedule{
+				Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
+					{
+						Weekday: time.Monday.String(),
+						Start:   "14:00",
+						End:     "15:00",
+					},
+				},
+			},
+		},
+	}
+
+	cache := accessmonitoring.NewCache()
+	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
+
+	tests := []struct {
+		description  string
+		setupMock    func(m *mockClient)
+		creationTime time.Time
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			description: "test within schedule",
+			setupMock: func(m *mockClient) {
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
+
+				review, err := newAccessReview(
+					requesterUserName,
+					testRuleName,
+					types.RequestState_APPROVED.String(),
+					time.Time{},
+				)
+				require.NoError(t, err)
+
+				m.On("SubmitAccessReview", mock.Anything, types.AccessReviewSubmission{
+					RequestID: testReqID,
+					Review:    review,
+				}).Return(mock.Anything, nil)
+			},
+			creationTime: time.Date(2025, time.August, 11, 14, 30, 0, 0, time.UTC),
+			assertErr:    require.NoError,
+		},
+		{
+			description: "test outside schedule",
+			setupMock: func(m *mockClient) {
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
+
+				m.AssertNotCalled(t, "SubmitAccessReview")
+			},
+			creationTime: time.Date(2025, time.August, 11, 15, 30, 0, 0, time.UTC),
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockClient{}
+			if test.setupMock != nil {
+				test.setupMock(client)
+			}
+
+			handler, err := NewHandler(Config{
+				HandlerName: handlerName,
+				Client:      client,
+				Cache:       cache,
+			})
+			require.NoError(t, err)
+
+			req, err := types.NewAccessRequest(
+				testReqID,
+				requesterUserName,
+				"role",
+			)
+			require.NoError(t, err)
+			req.SetCreationTime(test.creationTime)
+
+			test.assertErr(t, handler.HandleAccessRequest(ctx, types.Event{
+				Type:     types.OpPut,
+				Resource: req,
+			}))
+			client.AssertExpectations(t)
+		})
+	}
+}
+
 func TestResourceRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	t.Cleanup(cancel)
 
 	testReqID := uuid.New().String()
 	testRuleName := "test-rule"
-	withSecretsFalse := false
 	requesterUserName := "requester"
 
-	requester, err := types.NewUser(requesterUserName)
+	userLoginState, err := userloginstate.New(
+		header.Metadata{Name: requesterUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	testRule := newApprovedRule(
@@ -225,8 +341,8 @@ func TestResourceRequest(t *testing.T) {
 		{
 			description: "test 0 requested resources",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.On("ListResources", mock.Anything, mock.Anything).
 					Return(&types.ListResourcesResponse{
@@ -241,8 +357,8 @@ func TestResourceRequest(t *testing.T) {
 		{
 			description: "test !matching resource labels",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.On("ListResources", mock.Anything, mock.Anything).
 					Return(&types.ListResourcesResponse{
@@ -263,8 +379,8 @@ func TestResourceRequest(t *testing.T) {
 		{
 			description: "test matching resource labels",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, requesterUserName, withSecretsFalse).
-					Return(requester, nil)
+				m.On("GetUserLoginState", mock.Anything, requesterUserName).
+					Return(userLoginState, nil)
 
 				m.On("ListResources", mock.Anything, mock.Anything).
 					Return(&types.ListResourcesResponse{
@@ -346,8 +462,6 @@ func TestHandleAccessRequest(t *testing.T) {
 		approvedUserTraitVal = "approved-trait-value"
 		approvedRole         = "approved-role"
 		testRuleName         = "test-rule"
-
-		withSecretsFalse = false
 	)
 
 	testReqID := uuid.New().String()
@@ -362,15 +476,22 @@ func TestHandleAccessRequest(t *testing.T) {
 			approvedRole, approvedUserTraitKey, approvedUserTraitVal))
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{rule})
 
-	// Setup approved user
-	approvedUser, err := types.NewUser(approvedUserName)
+	// Setup approved user login state
+	approvedUserLoginState, err := userloginstate.New(
+		header.Metadata{Name: approvedUserName},
+		userloginstate.Spec{
+			Traits: trait.Traits{
+				approvedUserTraitKey: {approvedUserTraitVal},
+			},
+		},
+	)
 	require.NoError(t, err)
-	approvedUser.SetTraits(map[string][]string{
-		approvedUserTraitKey: {approvedUserTraitVal},
-	})
 
-	// Setup unapproved user
-	unapprovedUser, err := types.NewUser(unapprovedUserName)
+	// Setup unapproved user login state
+	unapprovedUserLoginState, err := userloginstate.New(
+		header.Metadata{Name: unapprovedUserName},
+		userloginstate.Spec{},
+	)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -385,7 +506,9 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     "non-existent-user",
 			requestedRole: "non-existent-role",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, "non-existent-user", withSecretsFalse).
+				m.On("GetUserLoginState", mock.Anything, "non-existent-user").
+					Return(nil, trace.NotFound("user not found"))
+				m.On("GetUser", mock.Anything, "non-existent-user", false).
 					Return(nil, trace.NotFound("user not found"))
 			},
 			assertErr: func(t require.TestingT, err error, _ ...any) {
@@ -397,8 +520,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     approvedUserName,
 			requestedRole: "unapproved-role",
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, approvedUserName, withSecretsFalse).
-					Return(approvedUser, nil)
+				m.On("GetUserLoginState", mock.Anything, approvedUserName).
+					Return(approvedUserLoginState, nil)
 
 				m.AssertNotCalled(t, "SubmitAccessReview",
 					"user is not automatically approved for this role")
@@ -410,8 +533,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     unapprovedUserName,
 			requestedRole: approvedRole,
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, unapprovedUserName, withSecretsFalse).
-					Return(unapprovedUser, nil)
+				m.On("GetUserLoginState", mock.Anything, unapprovedUserName).
+					Return(unapprovedUserLoginState, nil)
 
 				m.AssertNotCalled(t, "SubmitAccessReview",
 					"user is not automatically approved for this role")
@@ -423,8 +546,8 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     approvedUserName,
 			requestedRole: approvedRole,
 			setupMock: func(m *mockClient) {
-				m.On("GetUser", mock.Anything, approvedUserName, withSecretsFalse).
-					Return(approvedUser, nil)
+				m.On("GetUserLoginState", mock.Anything, approvedUserName).
+					Return(approvedUserLoginState, nil)
 
 				review, err := newAccessReview(
 					approvedUserName,
@@ -499,6 +622,7 @@ func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.Ac
 // mockClient is a mock implementation of the Teleport API client.
 type mockClient struct {
 	mock.Mock
+	Client
 }
 
 func (m *mockClient) SubmitAccessReview(ctx context.Context, review types.AccessReviewSubmission) (types.AccessRequest, error) {
@@ -530,6 +654,15 @@ func (m *mockClient) GetUser(ctx context.Context, name string, withSecrets bool)
 	user, ok := args.Get(0).(types.User)
 	if ok {
 		return user, args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockClient) GetUserLoginState(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
+	args := m.Called(ctx, name)
+	userLoginState, ok := args.Get(0).(*userloginstate.UserLoginState)
+	if ok {
+		return userLoginState, args.Error(1)
 	}
 	return nil, args.Error(1)
 }

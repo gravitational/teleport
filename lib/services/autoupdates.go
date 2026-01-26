@@ -40,6 +40,12 @@ type AutoUpdateServiceGetter interface {
 
 	// ListAutoUpdateAgentReports returns an AutoUpdateAgentReports page.
 	ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdate.AutoUpdateAgentReport, string, error)
+
+	// GetAutoUpdateBotInstanceReport gets the singleton auto-update bot report.
+	GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdate.AutoUpdateBotInstanceReport, error)
+
+	// DeleteAutoUpdateBotInstanceReport deletes the singleton auto-update bot instance report.
+	DeleteAutoUpdateBotInstanceReport(ctx context.Context) error
 }
 
 // AutoUpdateService stores the autoupdate service.
@@ -96,4 +102,7 @@ type AutoUpdateService interface {
 
 	// DeleteAllAutoUpdateAgentReports deletes all AutoUpdateAgentReport resources.
 	DeleteAllAutoUpdateAgentReports(ctx context.Context) error
+
+	// UpsertAutoUpdateBotInstanceReport creates or updates the bot instance report.
+	UpsertAutoUpdateBotInstanceReport(ctx context.Context, spec *autoupdate.AutoUpdateBotInstanceReport) (*autoupdate.AutoUpdateBotInstanceReport, error)
 }

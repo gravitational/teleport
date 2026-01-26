@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 	"sort"
 	"time"
@@ -343,9 +344,61 @@ func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (
 	return server, nil
 }
 
+// rangeAuthServers returns auth servers within the range [start, end]
+func (s *PresenceService) rangeAuthServers(ctx context.Context, start, end string) iter.Seq2[types.Server, error] {
+	mapFn := func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(item.Value, types.KindAuthServer, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Skipping item during ListAuthServers because conversion from backend item failed", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, true
+	}
+
+	startKey := backend.NewKey(authServersPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(authServersPrefix))
+	if end != "" {
+		endKey = backend.NewKey(authServersPrefix, end).ExactKey()
+	}
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
+// rangeProxyServers returns proxy servers within the range [start, end]
+func (s *PresenceService) rangeProxyServers(ctx context.Context, start, end string) iter.Seq2[types.Server, error] {
+	mapFn := func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(item.Value, types.KindProxy, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Skipping item during ListProxyServers because conversion from backend item failed", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, true
+	}
+	startKey := backend.NewKey(proxiesPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(proxiesPrefix))
+	if end != "" {
+		endKey = backend.NewKey(proxiesPrefix, end).ExactKey()
+	}
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
+func serverToPaginationKey(s types.Server) string {
+	return backend.GetPaginationKey(s)
+}
+
 // GetAuthServers returns a list of registered servers
+//
+// Deprecated: Prefer paginated variant [ListAuthServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
+}
+
+// ListAuthServers returns a paginated list of registered auth servers.
+func (s *PresenceService) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return generic.CollectPageAndCursor(s.rangeAuthServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
@@ -373,8 +426,17 @@ func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) 
 }
 
 // GetProxies returns a list of registered proxies
+//
+// Deprecated: Prefer paginated variant [ListProxyServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
 func (s *PresenceService) GetProxies() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindProxy, proxiesPrefix)
+}
+
+// ListProxyServers returns a paginated list of registered proxy servers.
+func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
 // DeleteAllProxies deletes all proxies
@@ -789,6 +851,60 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 	return sems, nil
 }
 
+func (s *PresenceService) rangeSemaphores(ctx context.Context, start string, filter *types.SemaphoreFilter) iter.Seq2[types.Semaphore, error] {
+	mapFn := func(item backend.Item) (types.Semaphore, bool) {
+		sem, err := services.UnmarshalSemaphore(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal semaphore",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
+		}
+
+		return sem, filter.Match(sem)
+	}
+
+	startKey := backend.NewKey(semaphoresPrefix).AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(backend.NewKey(semaphoresPrefix))
+
+	filterKind := filter.GetSemaphoreKind()
+	filterName := filter.GetSemaphoreName()
+
+	// If the filter is set we optimize the ranges to avoid fetching items that will be filtered.
+	if filterKind != "" && filterName != "" {
+		// Special case when both kind and name are set the result should yield only a single item.
+		startKey = backend.NewKey(semaphoresPrefix, filterKind, filterName)
+		endKey = startKey
+	} else if filterKind != "" {
+		// Terminate range early as we know the only kind requested.
+		endKey = backend.RangeEnd(backend.NewKey(semaphoresPrefix, filterKind))
+		if start == "" {
+			// We are not resuming previous list, skip to the start of the correct kind range
+			startKey = backend.NewKey(semaphoresPrefix, filterKind)
+		}
+	}
+
+	return stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   endKey,
+		}),
+		mapFn,
+	)
+}
+
+func semaphoreToPageToken(sem types.Semaphore) string {
+	return sem.GetSubKind() + backend.SeparatorString + sem.GetName()
+}
+
+// ListSemaphores returns a page of semaphores matching supplied filter.
+func (s *PresenceService) ListSemaphores(ctx context.Context, limit int, start string, filter *types.SemaphoreFilter) ([]types.Semaphore, string, error) {
+	return generic.CollectPageAndCursor(s.rangeSemaphores(ctx, start, filter), limit, semaphoreToPageToken)
+}
+
 // DeleteSemaphore deletes a semaphore matching the supplied filter
 func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilter) error {
 	if filter.SemaphoreKind == "" || filter.SemaphoreName == "" {
@@ -1040,6 +1156,42 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		HostID:    server.GetHostID(),
 		Expires:   server.Expiry(),
 	}, nil
+}
+
+// UnconditionalUpdateApplicationServer implements [services.PresenceInternal].
+func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
+	if err := services.CheckAndSetDefaults(server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	value, err := services.MarshalAppServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Since an app server represents a single proxied application, there may
+	// be multiple database servers on a single host, so they are stored under
+	// the following path in the backend:
+	//   /appServers/<namespace>/<host-uuid>/<name>
+	lease, err := s.Update(ctx, backend.Item{
+		Key: backend.NewKey(appServersPrefix,
+			server.GetNamespace(),
+			server.GetHostID(),
+			server.GetName(),
+		),
+		Value:    value,
+		Expires:  server.Expiry(),
+		Revision: server.GetRevision(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.SetRevision(lease.Revision)
+	return server, nil
 }
 
 // DeleteApplicationServer removes specified application server.

@@ -10,7 +10,7 @@ This documentation explains how to keep Teleport client tools like `tsh` and `tc
 Updates can be managed by cluster or self-managed, ensuring tools are secure, free from bugs,
 and compatible with your Teleport cluster.
 
-For detailed information on managed updates in Teleport Connect, see [Teleport Connect Managed updates](../connect-your-client/teleport-connect.mdx#managed-updates).
+For detailed information on managed updates in Teleport Connect, see [Teleport Connect Managed updates](../connect-your-client/teleport-clients/teleport-connect.mdx#managed-updates).
 
 Why keep client tools updated?
 
@@ -132,6 +132,9 @@ If there is no active session, but a versioned binary exists in the tools direct
 ## Configuring client tool managed updates
 
 ### Cluster-wide using `tctl`
+
+To configure client tool managed updates in your cluster, you must have access to the
+`autoupdate_config` and `autoupdate_version` resources. By default, the `editor` role can modify both resources. Note that `autoupdate_version` is managed for you on Cloud clusters, and cannot be edited.
 
 To enable or disable client tools managed updates in the cluster, use the following command:
 

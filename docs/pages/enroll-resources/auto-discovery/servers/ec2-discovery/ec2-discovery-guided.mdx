@@ -1,5 +1,6 @@
 ---
 title: Guided EC2 Auto-Discovery Configuration
+sidebar_label: Guided
 description: How to configure Teleport EC2 auto-discovery using Teleport to configure permissions
 tags:
  - how-to
@@ -23,6 +24,8 @@ enroll EC2 instances as servers in your Teleport cluster.
 To manually configure IAM policies and SSM documents instead, read [Manual EC2
 Auto-Discovery Configuration](ec2-discovery-manual.mdx).
 
+If you manage multiple AWS accounts in an AWS Organization, see [Organization-level EC2 Auto-Discovery Configuration](ec2-discovery-organization.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -34,11 +37,17 @@ default Teleport install script. (For other Linux distributions, you can
 install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Create an EC2 invite token
+All EC2 instances that are to be added to the Teleport cluster by the Discovery
+Service must include the `AmazonSSMManagedInstanceCore` IAM policy in order to
+receive commands from the Discovery Service. For a list of permissions included
+in the policy, see the [AWS
+documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
+
+## Step 1/6. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
 
-## Step 2/7. Configure IAM policies
+## Step 2/6. Configure IAM policies
 
 The `teleport discovery bootstrap` command will automate the process of
 defining and implementing IAM policies required to make auto-discovery work. It
@@ -71,7 +80,7 @@ the command:
 
 Create this policy and apply it to the Node (EC2 instance) that will run the Discovery Service.
 
-## Step 3/7. Install Teleport on the Discovery Node
+## Step 3/6. Install Teleport on the Discovery Node
 
 <Admonition type="tip">
 
@@ -84,11 +93,11 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 4/7. Configure Teleport to discover EC2 instances
+## Step 4/6. Configure Teleport to discover EC2 instances
 
 (!docs/pages/includes/auto-discovery/ec2-config.mdx!)
 
-## Step 5/7. Bootstrap the Discovery Service AWS configuration
+## Step 5/6. Bootstrap the Discovery Service AWS configuration
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
 will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
@@ -103,6 +112,7 @@ Reading configuration at "/etc/teleport.yaml"...
 This will add the following additional permissions to the Discovery Service's
 role:
 
+- `account:ListRegions`
 - `ec2:DescribeInstances`
 - `ssm:DescribeInstanceInformation`
 - `ssm:GetCommandInvocation`
@@ -117,51 +127,11 @@ Review the policies and confirm:
 Confirm? [y/N]: y
 ✅[AWS] Create IAM Policy "TeleportEC2Discovery"... done.
 ✅[AWS] Create IAM Policy "TeleportEC2DiscoveryBoundary"... done.
-✅[AWS] Create IAM SSM Document "TeleportDiscoveryInstaller"... done.
+✅[AWS] Create IAM SSM Document "AWS-RunShellScript"... done.
 ✅[AWS] Attach IAM policies to "alex-discovery-role"... done.
 ```
 
-<Details>
-
-All EC2 instances that are to be added to the Teleport cluster by the
-Discovery Service must include the `AmazonSSMManagedInstanceCore` IAM policy
-in order to receive commands from the Discovery Service.
-
-This policy includes the following permissions:
-
-- `ssm:DescribeAssociation`
-- `ssm:GetDeployablePatchSnapshotForInstance`
-- `ssm:GetDocument`
-- `ssm:DescribeDocument`
-- `ssm:GetManifest`
-- `ssm:GetParameter`
-- `ssm:GetParameters`
-- `ssm:ListAssociations`
-- `ssm:ListInstanceAssociations`
-- `ssm:PutInventory`
-- `ssm:PutComplianceItems`
-- `ssm:PutConfigurePackageResult`
-- `ssm:UpdateAssociationStatus`
-- `ssm:UpdateInstanceAssociationStatus`
-- `ssm:UpdateInstanceInformation`
-- `ssmmessages:CreateControlChannel`
-- `ssmmessages:CreateDataChannel`
-- `ssmmessages:OpenControlChannel`
-- `ssmmessages:OpenDataChannel`
-- `ec2messages:AcknowledgeMessage`
-- `ec2messages:DeleteMessage`
-- `ec2messages:FailMessage`
-- `ec2messages:GetEndpoint`
-- `ec2messages:GetMessages`
-- `ec2messages:SendReply`
-
-</Details>
-
-## Step 6/7. [Optional] Customize the default installer script
-
-(!docs/pages/includes/server-access/custom-installer.mdx cloud="AWS" matcher="aws" matchTypes="[\"ec2\"]" extraMatchField="regions: [\"us-east-1\",\"us-west-1\"]"!)
-
-## Step 7/7. Start Teleport
+## Step 6/6. Start Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
 
@@ -269,6 +239,14 @@ $ sudo systemd restart teleport
 
 You can check the status of the Discovery Service with `systemctl status teleport`
 and view its logs with `journalctl -fu teleport`.
+
+## Auto-discovery labels
+
+(!docs/pages/includes/auto-discovery/auto-discovery-labels.mdx!)
+
+## Advanced configuration
+
+(!docs/pages/includes/auto-discovery/aws-ec2-advanced-config.mdx!)
 
 ## Troubleshooting
 

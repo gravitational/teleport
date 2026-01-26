@@ -38,7 +38,7 @@ import (
 type TeleportSearchEventsClient interface {
 	export.Client
 	// SearchEvents searches for events in the audit log and returns them using their protobuf representation.
-	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error)
+	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]events.AuditEvent, string, error)
 	// StreamSessionEvents returns session events stream for a given session ID using their protobuf representation.
 	StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error)
 	// SearchUnstructuredEvents searches for events in the audit log and returns them using an unstructured representation (structpb.Struct).

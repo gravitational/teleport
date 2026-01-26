@@ -451,3 +451,110 @@ func TestNewDiscoveryConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoveryConfig_IsMatchersEmpty(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *DiscoveryConfig
+		expected bool
+	}{
+		{
+			name: "empty config",
+			config: &DiscoveryConfig{
+				Spec: Spec{},
+			},
+			expected: true,
+		},
+		{
+			name: "has AWS matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{"ec2"},
+						Regions: []string{"us-west-2"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has Azure matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					Azure: []types.AzureMatcher{{
+						Types:   []string{"vm"},
+						Regions: []string{"europe-west-2"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has GCP matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					GCP: []types.GCPMatcher{{
+						Types:      []string{"gce"},
+						ProjectIDs: []string{"p1"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has Kube matchers",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					Kube: []types.KubernetesMatcher{{
+						Types: []string{"app"},
+					}},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has AccessGraph with AWS",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{
+						AWS: []*types.AccessGraphAWSSync{{
+							Integration: "integration1",
+							Regions:     []string{"us-west-2"},
+						}},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "has AccessGraph but no AWS",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AccessGraph: &types.AccessGraphSync{},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "has multiple matcher types",
+			config: &DiscoveryConfig{
+				Spec: Spec{
+					AWS: []types.AWSMatcher{{
+						Types:   []string{"ec2"},
+						Regions: []string{"us-west-2"},
+					}},
+					Azure: []types.AzureMatcher{{
+						Types:   []string{"vm"},
+						Regions: []string{"europe-west-2"},
+					}},
+				},
+			},
+			expected: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.config.IsMatchersEmpty()
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}

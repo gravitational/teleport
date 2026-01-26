@@ -29,7 +29,7 @@ import (
 func TestPluginStaticCredentials(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForAuth)
+	p, err := newPack(t, ForAuth)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 

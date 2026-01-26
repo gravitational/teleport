@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -103,6 +104,11 @@ type ClusterConfiguration interface {
 
 	// GetInstallers gets all installer scripts from the backend
 	GetInstallers(context.Context) ([]types.Installer, error)
+	// ListInstallers returns a page of installer script resources.
+	ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error)
+	// RangeInstallers returns installer script resources within the range [start, end).
+	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
+
 	// GetInstaller gets the installer script from the backend
 	GetInstaller(ctx context.Context, name string) (types.Installer, error)
 	// SetInstaller sets the installer script in the backend

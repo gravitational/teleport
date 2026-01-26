@@ -40,6 +40,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -267,26 +268,6 @@ func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*
 	return session, cleanup, nil
 }
 
-// RemoveCluster removes cluster
-func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
-	cluster, _, err := s.ResolveCluster(uri)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if cluster.Connected() {
-		if err := cluster.Logout(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
 // NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
 // s.cfg.CreateClientCacheFunc.
 func (s *Service) NewClusterClient(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
@@ -349,22 +330,30 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 	return withDetails, clusterClient, nil
 }
 
-// ClusterLogout logs a user out from the cluster
-func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
-	cluster, _, err := s.ResolveCluster(uri)
-	if err != nil {
+// ClusterLogout logs the user out of the cluster and cleans up associated resources.
+// Optionally removes the profile.
+// This operation is idempotent and can be safely invoked multiple times.
+func (s *Service) ClusterLogout(ctx context.Context, uri uri.ResourceURI, removeProfile bool) error {
+	cluster, _, err := s.ResolveClusterURI(uri)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if err == nil {
+		if err = cluster.Logout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		if removeProfile {
+			if err = s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	if err = s.StopHeadlessWatcher(uri.String()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 
-	if err := cluster.Logout(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
+	return trace.Wrap(s.ClearCachedClientsForRoot(uri))
 }
 
 // CreateGateway creates a gateway to given targetURI
@@ -924,6 +913,27 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	return resources, trace.Wrap(err)
 }
 
+// ListKubernetesServers returns a paginated list of Kubernetes servers (resource kind "kube_server").
+func (s *Service) ListKubernetesServers(ctx context.Context, req *api.ListKubernetesServersRequest) (*clusters.ListKubernetesServersResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, _, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.ListKubernetesServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
+	return response, trace.Wrap(err)
+}
+
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
 func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
 	clusterURI, err := uri.Parse(req.GetClusterUri())
@@ -1272,6 +1282,14 @@ func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceU
 func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	profileName := clusterURI.GetProfileName()
 	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
+}
+
+// ClearStaleCachedClientsForRoot closes and removes clients from the cache
+// for the root cluster and its leaf clusters, if their cert is outdated.
+func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) error {
+	profileName := clusterURI.GetProfileName()
+	err := s.clientCache.ClearForRoot(profileName, clientcache.WithClearingOnlyClientsWithStaleCert())
+	return trace.Wrap(err)
 }
 
 // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.

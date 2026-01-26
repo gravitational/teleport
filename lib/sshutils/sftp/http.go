@@ -34,13 +34,11 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
-type contextKey string
-
 const (
-	// ModeratedSessionID is an optional parameter sent during SCP requests to specify which moderated session
+	// EnvModeratedSessionID is an optional env var parameter sent during SCP requests to specify which moderated session
 	// to check for valid FileTransferRequests
 	// used as a value in the file transfer context and env var for exec session
-	ModeratedSessionID contextKey = "TELEPORT_MODERATED_SESSION_ID"
+	EnvModeratedSessionID = "TELEPORT_MODERATED_SESSION_ID"
 )
 
 var errDirsNotSupported = trace.BadParameter("directories are not supported when transferring files over HTTP")
@@ -171,6 +169,17 @@ func (h *httpFS) Readlink(_ string) (string, error) {
 
 func (h *httpFS) Getwd() (string, error) {
 	return "", nil
+}
+
+func (h *httpFS) RealPath(path string) (string, error) {
+	return path, nil
+}
+
+func (h *httpFS) Close() error {
+	if h.reader != nil {
+		return trace.Wrap(h.reader.Close())
+	}
+	return nil
 }
 
 type nopWriteCloser struct {

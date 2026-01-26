@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SortDir } from '../agents';
+
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
 // event types when listing event filters and provide modified description of event.
@@ -52,6 +54,7 @@ export const eventCodes = {
   ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
+  APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_CREATED: 'TAP03I',
@@ -346,6 +349,30 @@ export const eventCodes = {
   BOUND_KEYPAIR_RECOVERY: 'TBK001I',
   BOUND_KEYPAIR_ROTATION: 'TBK002I',
   BOUND_KEYPAIR_JOIN_STATE_VERIFICATION_FAILED: 'TBK003W',
+  SCIM_RESOURCE_CREATE: 'TSCIM001I',
+  SCIM_RESOURCE_CREATE_FAILURE: 'TSCIM001E',
+  SCIM_RESOURCE_UPDATE: 'TSCIM002I',
+  SCIM_RESOURCE_UPDATE_FAILURE: 'TSCIM002E',
+  SCIM_RESOURCE_DELETE: 'TSCIM003I',
+  SCIM_RESOURCE_DELETE_FAILURE: 'TSCIM003E',
+  SCIM_RESOURCE_GET: 'TSCIM004I',
+  SCIM_RESOURCE_GET_FAILURE: 'TSCIM004E',
+  SCIM_RESOURCE_LIST: 'TSCIM005I',
+  SCIM_RESOURCE_LIST_FAILURE: 'TSCIM005E',
+  SCIM_RESOURCE_PATCH: 'TSCIM006I',
+  SCIM_RESOURCE_PATCH_FAILURE: 'TSCIM006E',
+  CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
+  APPAUTHCONFIG_CREATE: 'TAAC001I',
+  APPAUTHCONFIG_UPDATE: 'TAAC002I',
+  APPAUTHCONFIG_DELETE: 'TAAC003I',
+  APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
+  APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
+  VNET_CONFIG_CREATE: 'TVNET001I',
+  VNET_CONFIG_UPDATE: 'TVNET002I',
+  VNET_CONFIG_DELETE: 'TVNET003I',
+  WORKLOAD_CLUSTER_CREATE: 'WC001I',
+  WORKLOAD_CLUSTER_UPDATE: 'WC002I',
+  WORKLOAD_CLUSTER_DELETE: 'WC003I',
 } as const;
 
 /**
@@ -401,11 +428,15 @@ export type RawEvents = {
     {
       proto: 'kube';
       kubernetes_cluster: string;
+      sid: string;
     }
   >;
   [eventCodes.EXEC_FAILURE]: RawEvent<
     typeof eventCodes.EXEC_FAILURE,
-    { exitError: string }
+    {
+      exitError: string;
+      sid: string;
+    }
   >;
   [eventCodes.BILLING_CARD_CREATE]: RawEvent<
     typeof eventCodes.BILLING_CARD_CREATE
@@ -604,6 +635,14 @@ export type RawEvents = {
       sid: string;
       aws_role_arn: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_START_FAILURE]: RawEvent<
+    typeof eventCodes.APP_SESSION_START_FAILURE,
+    {
+      app_name: string;
+      error: string;
+      message: string;
     }
   >;
   [eventCodes.APP_SESSION_END]: RawEvent<
@@ -2055,6 +2094,99 @@ export type RawEvents = {
       error: string;
     }
   >;
+  [eventCodes.SCIM_RESOURCE_LIST]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST
+  >;
+  [eventCodes.SCIM_RESOURCE_LIST_FAILURE]: RawSCIMListingEvent<
+    typeof eventCodes.SCIM_RESOURCE_LIST_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_GET]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET
+  >;
+  [eventCodes.SCIM_RESOURCE_GET_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_GET_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE
+  >;
+  [eventCodes.SCIM_RESOURCE_CREATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_CREATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE
+  >;
+  [eventCodes.SCIM_RESOURCE_UPDATE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_UPDATE_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_PATCH]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_PATCH
+  >;
+  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_PATCH_FAILURE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE
+  >;
+  [eventCodes.SCIM_RESOURCE_DELETE_FAILURE]: RawSCIMResourceEvent<
+    typeof eventCodes.SCIM_RESOURCE_DELETE_FAILURE
+  >;
+  [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: RawEvent<
+    typeof eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE,
+    {
+      client_ip_restrictions: string[];
+      success: boolean;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_CREATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_DELETE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS,
+    {
+      app_auth_config: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: RawEvent<
+    typeof eventCodes.APPAUTHCONFIG_VERIFY_FAILURE,
+    {
+      app_auth_config: string;
+      error: string;
+    }
+  >;
+  [eventCodes.VNET_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_UPDATE,
+    HasName
+  >;
+  [eventCodes.WORKLOAD_CLUSTER_DELETE]: RawEvent<
+    typeof eventCodes.WORKLOAD_CLUSTER_DELETE,
+    HasName
+  >;
 };
 
 /**
@@ -2273,6 +2405,25 @@ type RawEventAwsIcResourceSync<T extends EventCode> = RawEvent<
   }
 >;
 
+type RawSCIMListingEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    integration: string;
+  }
+>;
+
+type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
+  T,
+  {
+    resource_type: string;
+    teleport_id: string;
+    external_id: string;
+    integration: string;
+    display: string;
+  }
+>;
+
 /**
  * A map of event formatters that provide short and long description
  */
@@ -2306,6 +2457,8 @@ export type EventQuery = {
   limit?: number;
   startKey?: string;
   filterBy?: string;
+  search?: string;
+  order: SortDir;
 };
 
 export type EventResponse = {

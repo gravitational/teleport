@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 	samltypes "github.com/russellhaering/gosaml2/types"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -128,7 +127,6 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		EntityId:            metadata.EntityID,
 		SsoUrls:             ssoURLs,
 		SigningCertificates: signingCerts,
-		LastSyncTime:        timestamppb.Now(),
 	}, nil
 }
 
@@ -197,13 +195,12 @@ func awsOIDCProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 	}
 
 	return &accessgraphv1alpha.AWSOIDCProviderV1{
-		Arn:          arn,
-		CreatedAt:    awsTimeToProtoTime(provider.CreateDate),
-		Tags:         tags,
-		AccountId:    accountID,
-		ClientIds:    provider.ClientIDList,
-		Thumbprints:  provider.ThumbprintList,
-		Url:          aws.ToString(provider.Url),
-		LastSyncTime: timestamppb.Now(),
+		Arn:         arn,
+		CreatedAt:   awsTimeToProtoTime(provider.CreateDate),
+		Tags:        tags,
+		AccountId:   accountID,
+		ClientIds:   provider.ClientIDList,
+		Thumbprints: provider.ThumbprintList,
+		Url:         aws.ToString(provider.Url),
 	}, nil
 }

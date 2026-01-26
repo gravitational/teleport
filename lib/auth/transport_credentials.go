@@ -75,6 +75,13 @@ type TransportCredentialsConfig struct {
 	// authorized due to locks, private key policy, device trust, etc. If not set
 	// then no authorization is performed.
 	Authorizer authz.Authorizer
+
+	// ScopedAuthorizer is an additional optional authorizer that can be used to perform
+	// authorization of scoped identities.  Note that when present, this field is preferred
+	// over the above Authorizer, though scoped contexts can be undwrapped into unscoped
+	// contexts if not all methods of the underlying service are being ported over to be scope-aware.
+	ScopedAuthorizer authz.ScopedAuthorizer
+
 	// Enforcer prevents any connections from being established if the user would
 	// exceed their configured max connection limit. Any connections that are
 	// permitted may be terminated if there is an issue determining if the number
@@ -116,6 +123,7 @@ type TransportCredentials struct {
 
 	userGetter        UserGetter
 	authorizer        authz.Authorizer
+	scopedAuthorizer  authz.ScopedAuthorizer
 	enforcer          ConnectionEnforcer
 	getAuthPreference func(context.Context) (types.AuthPreference, error)
 	clock             clockwork.Clock
@@ -143,6 +151,7 @@ func NewTransportCredentials(cfg TransportCredentialsConfig) (*TransportCredenti
 		TransportCredentials: cfg.TransportCredentials,
 		userGetter:           cfg.UserGetter,
 		authorizer:           cfg.Authorizer,
+		scopedAuthorizer:     cfg.ScopedAuthorizer,
 		enforcer:             cfg.Enforcer,
 		getAuthPreference:    getAuthPreference,
 		clock:                clock,
@@ -164,12 +173,22 @@ type IdentityInfo struct {
 	// [TransportCredentialsConfig.Authorizer] provided to [NewTransportCredentials]
 	// was nil.
 	AuthContext *authz.Context
+
+	// ScopedContext contains scoped authorization context. This will be unset if
+	// the [TransportCredentialsConfig.ScopedAuthorizer] provided to [NewTransportCredentials]
+	// was nil.
+	ScopedAuthContext *authz.ScopedContext
+
 	// Conn is the underlying [net.Conn] of the gRPC connection.
 	Conn net.Conn
 }
 
-func (i IdentityInfo) AuthzContext() *authz.Context {
-	return i.AuthContext
+func (i IdentityInfo) AuthzContext() (ctx *authz.Context, ok bool) {
+	return i.AuthContext, i.AuthContext != nil
+}
+
+func (i IdentityInfo) ScopedAuthzContext() (ctx *authz.ScopedContext, ok bool) {
+	return i.ScopedAuthContext, i.ScopedAuthContext != nil
 }
 
 // timeoutConn wraps a connection that is to be closed when
@@ -233,28 +252,43 @@ func (c *TransportCredentials) validateIdentity(conn net.Conn, tlsInfo *credenti
 		return nil, IdentityInfo{}, trace.Wrap(err)
 	}
 
-	authCtx, err := c.authorize(ctx, conn.RemoteAddr(), identityGetter, &tlsInfo.State)
+	authCtx, scopedAuthCtx, err := c.authorize(ctx, conn.RemoteAddr(), identityGetter, &tlsInfo.State)
 	if err != nil {
 		return nil, IdentityInfo{}, trace.Wrap(err)
 	}
 
-	if err := c.enforceConnectionLimits(ctx, authCtx, conn); err != nil {
-		return nil, IdentityInfo{}, trace.Wrap(err)
-	}
-
-	if authPreference, err := c.getAuthPreference(ctx); err == nil {
-		expiry := authCtx.GetDisconnectCertExpiry(authPreference)
-		conn, err = newTimeoutConn(conn, c.clock, expiry)
-		if err != nil {
+	if authCtx != nil {
+		// TODO(fspmarshall/scopes): enforce connection limits for scoped identities, or rework this to have a cleaner
+		// abstraction if we decide that there is no sane concept of connection-limits for scopes (likely, there won't
+		// be unelss we special-case root role assignments or introduce some additional control mechanism outside of
+		// scoped roles).
+		if err := c.enforceConnectionLimits(ctx, authCtx, conn); err != nil {
 			return nil, IdentityInfo{}, trace.Wrap(err)
+		}
+
+		if authPreference, err := c.getAuthPreference(ctx); err == nil {
+			expiry := authCtx.GetDisconnectCertExpiry(authPreference)
+			conn, err = newTimeoutConn(conn, c.clock, expiry)
+			if err != nil {
+				return nil, IdentityInfo{}, trace.Wrap(err)
+			}
+		}
+	} else {
+		if authPreference, err := c.getAuthPreference(ctx); err == nil {
+			expiry := scopedAuthCtx.GetDisconnectCertExpiry(authPreference)
+			conn, err = newTimeoutConn(conn, c.clock, expiry)
+			if err != nil {
+				return nil, IdentityInfo{}, trace.Wrap(err)
+			}
 		}
 	}
 
 	return conn, IdentityInfo{
-		TLSInfo:        tlsInfo,
-		IdentityGetter: identityGetter,
-		AuthContext:    authCtx,
-		Conn:           conn,
+		TLSInfo:           tlsInfo,
+		IdentityGetter:    identityGetter,
+		AuthContext:       authCtx,
+		ScopedAuthContext: scopedAuthCtx,
+		Conn:              conn,
 	}, nil
 }
 
@@ -277,11 +311,11 @@ func (c *TransportCredentials) performTLSHandshake(rawConn net.Conn) (net.Conn, 
 // authorize enforces that the identity is not restricted from connecting due
 // to things like locks, private key policy, device trust, etc. If the TransportCredentials
 // was not configured to do authorization then this is a noop and will return nil, nil.
-func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Addr, identityGetter authz.IdentityGetter, connState *tls.ConnectionState) (*authz.Context, error) {
-	if c.authorizer == nil {
+func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Addr, identityGetter authz.IdentityGetter, connState *tls.ConnectionState) (*authz.Context, *authz.ScopedContext, error) {
+	if c.authorizer == nil && c.scopedAuthorizer == nil {
 		return &authz.Context{
 			Identity: identityGetter,
-		}, nil
+		}, nil, nil
 	}
 
 	// construct a context with the keys expected by the Authorizer
@@ -289,8 +323,18 @@ func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Add
 	ctx = authz.ContextWithClientSrcAddr(ctx, remoteAddr)
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
+	if c.scopedAuthorizer != nil {
+		scopedCtx, err := c.scopedAuthorizer.AuthorizeScoped(ctx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		authCtx, _ := scopedCtx.UnscopedContext()
+		return authCtx, scopedCtx, nil
+	}
+
 	authCtx, err := c.authorizer.Authorize(ctx)
-	return authCtx, trace.Wrap(err)
+	return authCtx, nil, trace.Wrap(err)
 }
 
 // enforceConnectionLimits prevents the identity from exceeding any configured
@@ -326,6 +370,7 @@ func (c *TransportCredentials) Clone() credentials.TransportCredentials {
 	return &TransportCredentials{
 		userGetter:           c.userGetter,
 		authorizer:           c.authorizer,
+		scopedAuthorizer:     c.scopedAuthorizer,
 		enforcer:             c.enforcer,
 		TransportCredentials: c.TransportCredentials.Clone(),
 		clock:                c.clock,

@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	relaytunnelv1alpha "github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -245,7 +244,29 @@ func (c *Client) discoverOnce(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	c.updateDiscovery(ctx, resp.GetRelayGroup(), resp.GetTargetConnectionCount())
+	effectiveConnectionCount := resp.GetTargetConnectionCount()
+
+	supportedTunnelTypes := resp.GetSupportedTunnelTypes()
+	if len(supportedTunnelTypes) < 1 {
+		supportedTunnelTypes = []string{string(types.NodeTunnel)}
+	}
+
+	if !slices.Contains(supportedTunnelTypes, string(c.tunnelType)) {
+		// the relay group is not advertising support for the tunnel type we
+		// want, so we just stay at a connection count of 0 to not attempt
+		// opening connections that would not work anyway; the next check will
+		// try again, so if the relay is upgraded and starts supporting our
+		// tunnel type we will begin opening connections
+		c.log.ErrorContext(ctx,
+			"The specified relay server does not currently support the required tunnel type and no tunnels will be opened, will check again later",
+			"relay_addr", c.relayAddr,
+			"tunnel_type", string(c.tunnelType),
+			"supported_tunnel_types", supportedTunnelTypes,
+		)
+		effectiveConnectionCount = 0
+	}
+
+	c.updateDiscovery(ctx, resp.GetRelayGroup(), effectiveConnectionCount)
 
 	return nil
 }
@@ -610,7 +631,14 @@ func (c *yamuxClientConn) handleStream(stream *yamux.Stream, handleConnection fu
 		}
 	}
 
-	nc := utils.NewConnWithAddr(stream, dst, src)
+	nc := &yamuxStreamConn{
+		Stream: stream,
+
+		// on this side of the connection we are the destination and the peer is
+		// the source, the tunnel server will do the opposite
+		localAddr:  dst,
+		remoteAddr: src,
+	}
 	handleConnection(nc)
 }
 

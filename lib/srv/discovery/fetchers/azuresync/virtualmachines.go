@@ -23,7 +23,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -52,7 +51,6 @@ func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli Virtua
 		pbVm := accessgraphv1alpha.AzureVirtualMachine{
 			Id:             *vm.ID,
 			SubscriptionId: subscriptionID,
-			LastSyncTime:   timestamppb.Now(),
 			Name:           *vm.Name,
 		}
 		pbVms = append(pbVms, &pbVm)

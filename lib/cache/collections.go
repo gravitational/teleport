@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -106,7 +107,8 @@ type collections struct {
 	autoUpdateConfig                   *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
 	autoUpdateVerion                   *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
 	autoUpdateRollout                  *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
-	autoUpdateReports                  *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	autoUpdateAgentReports             *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+	autoUpdateBotInstanceReports       *collection[*autoupdatev1.AutoUpdateBotInstanceReport, autoUpdateBotInstanceReportIndex]
 	oktaImportRules                    *collection[types.OktaImportRule, oktaImportRuleIndex]
 	oktaAssignments                    *collection[types.OktaAssignment, oktaAssignmentIndex]
 	samlIdPServiceProviders            *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
@@ -143,6 +145,7 @@ type collections struct {
 	botInstances                       *collection[*machineidv1.BotInstance, botInstanceIndex]
 	recordingEncryption                *collection[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]
 	plugins                            *collection[types.Plugin, pluginIndex]
+	appAuthConfig                      *collection[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]
 }
 
 // isKnownUncollectedKind is true if a resource kind is not stored in
@@ -474,8 +477,16 @@ func setupCollections(c Config) (*collections, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			out.autoUpdateReports = collect
-			out.byKind[resourceKind] = out.autoUpdateReports
+			out.autoUpdateAgentReports = collect
+			out.byKind[resourceKind] = out.autoUpdateAgentReports
+		case types.KindAutoUpdateBotInstanceReport:
+			collect, err := newAutoUpdateBotInstanceReportCollection(c.AutoUpdateService, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.autoUpdateBotInstanceReports = collect
+			out.byKind[resourceKind] = out.autoUpdateBotInstanceReports
 		case types.KindOktaImportRule:
 			collect, err := newOktaImportRuleCollection(c.Okta, watch)
 			if err != nil {
@@ -758,6 +769,14 @@ func setupCollections(c Config) (*collections, error) {
 			}
 			out.plugins = collect
 			out.byKind[resourceKind] = out.plugins
+		case types.KindAppAuthConfig:
+			collect, err := newAppAuthConfigCollection(c.AppAuthConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.appAuthConfig = collect
+			out.byKind[resourceKind] = out.appAuthConfig
 		default:
 			if _, ok := out.byKind[resourceKind]; !ok {
 				return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

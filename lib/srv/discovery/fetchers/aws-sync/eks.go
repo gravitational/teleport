@@ -27,7 +27,6 @@ import (
 	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -200,14 +199,13 @@ func awsEKSClusterToProtoCluster(cluster *ekstypes.Cluster, region, accountID st
 	}
 
 	return &accessgraphv1alpha.AWSEKSClusterV1{
-		Name:         aws.ToString(cluster.Name),
-		Arn:          aws.ToString(cluster.Arn),
-		CreatedAt:    awsTimeToProtoTime(cluster.CreatedAt),
-		Status:       string(cluster.Status),
-		Region:       region,
-		AccountId:    accountID,
-		Tags:         tags,
-		LastSyncTime: timestamppb.Now(),
+		Name:      aws.ToString(cluster.Name),
+		Arn:       aws.ToString(cluster.Arn),
+		CreatedAt: awsTimeToProtoTime(cluster.CreatedAt),
+		Status:    string(cluster.Status),
+		Region:    region,
+		AccountId: accountID,
+		Tags:      tags,
 	}
 }
 
@@ -271,7 +269,6 @@ func awsAccessEntryToProtoAccessEntry(accessEntry *ekstypes.AccessEntry, cluster
 		Type:             aws.ToString(accessEntry.Type),
 		Tags:             tags,
 		AccountId:        accountID,
-		LastSyncTime:     timestamppb.Now(),
 	}
 }
 
@@ -321,6 +318,5 @@ func awsAssociatedAccessPolicy(policy ekstypes.AssociatedAccessPolicy, cluster *
 		PolicyArn:    aws.ToString(policy.PolicyArn),
 		Scope:        accessScope,
 		AccountId:    accountID,
-		LastSyncTime: timestamppb.Now(),
 	}
 }

@@ -303,6 +303,13 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    instances: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
     botInstances: {
       list: false,
       read: false,
@@ -311,6 +318,13 @@ test('undefined values in context response gives proper default values', async (
       remove: false,
     },
     workloadIdentity: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    clientIpRestriction: {
       list: false,
       read: false,
       edit: false,

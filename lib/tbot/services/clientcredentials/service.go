@@ -38,7 +38,7 @@ import (
 // Note: when using the client credentials service to provide credentials to
 // another service (e.g. the SPIFFE Workload API service) use NewSidecar instead.
 func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -49,11 +49,12 @@ func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifeti
 			cfg:                cfg,
 			reloadCh:           deps.ReloadCh,
 			identityGenerator:  deps.IdentityGenerator,
+			log:                deps.Logger,
+			statusReporter:     deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(ServiceType, cfg.Name, buildFn)
 }
 
 // NewSidecar creates a client credential service intended to provide credentials
@@ -68,8 +69,8 @@ func NewSidecar(deps bot.ServiceDependencies, credentialLifetime bot.CredentialL
 		reloadCh:           deps.ReloadCh,
 		identityGenerator:  deps.IdentityGenerator,
 		statusReporter:     readyz.NoopReporter(),
+		log:                deps.Logger,
 	}
-	svc.log = deps.LoggerForService(svc)
 	return svc, cfg
 }
 

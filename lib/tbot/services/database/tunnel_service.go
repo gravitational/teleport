@@ -46,7 +46,7 @@ func TunnelServiceBuilder(
 	connCfg connection.Config,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -60,11 +60,12 @@ func TunnelServiceBuilder(
 			botIdentityReadyCh:        deps.BotIdentityReadyCh,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(TunnelServiceType, cfg.Name, buildFn)
 }
 
 // TunnelService is a service that listens on a local port and forwards

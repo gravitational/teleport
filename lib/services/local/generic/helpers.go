@@ -21,7 +21,11 @@ package generic
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -70,4 +74,34 @@ func FastMarshal[T MarshalableResource](key backend.Key, r T) (backend.Item, err
 		Expires:  r.Expiry(),
 		Revision: r.GetRevision(),
 	}, nil
+}
+
+// CollectPageAndCursor collects items from a stream until either the stream is empty or an item limit is reached.
+func CollectPageAndCursor[T any](s stream.Stream[T], limit int, cursorFn func(T) string) ([]T, string, error) {
+	var next string
+	var seen int
+
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	out, err := stream.Collect(
+		stream.TakeWhile(
+			s,
+			func(item T) bool {
+				if seen < limit {
+					seen++
+					return true
+				}
+				next = cursorFn(item)
+				return false
+			},
+		),
+	)
+
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, next, nil
 }

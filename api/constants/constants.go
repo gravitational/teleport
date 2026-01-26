@@ -135,6 +135,8 @@ const (
 	// AWSCNConsoleURL is the URL of AWS management console for AWS China
 	// Partition.
 	AWSCNConsoleURL = "https://console.amazonaws.cn"
+	// AWSQuickSightURL is the URL for accessing AWS QuickSight
+	AWSQuickSightURL = "https://quicksight.aws.amazon.com"
 
 	// AWSAccountIDLabel is the key of the label containing AWS account ID.
 	AWSAccountIDLabel = "aws_account_id"
@@ -424,6 +426,9 @@ const (
 	// TraitJWT is the name of the trait containing JWT header for app access.
 	TraitJWT = "jwt"
 
+	// TraitIDToken is the name of the trait containing ID token header for app access.
+	TraitIDToken = "id_token"
+
 	// TraitHostUserUID is the name of the variable used to specify
 	// the UID to create host user account with.
 	TraitHostUserUID = "host_user_uid"
@@ -583,3 +588,19 @@ const MaxPIVPINCacheTTL = time.Hour
 // routine running in every auth server. Any report older than this period should
 // be considered stale.
 const AutoUpdateAgentReportPeriod = time.Minute
+
+// AutoUpdateBotInstanceReportPeriod is the period of the autoupdate bot instance
+// reporting routine.
+const AutoUpdateBotInstanceReportPeriod = time.Minute
+
+const (
+	// UnstableEnableEICEEnvVar is the environment variable that enables EC2 Instance Connect Endpoint (EICE) functionality.
+	// Accessing EC2 instances using EICE was deprecated in v15, and will definitely be removed in a future release.
+	// This variable allows users to temporarily re-enable this functionality if they need more time to migrate away from it.
+	// Users must be encoraged to use other methods of accessing EC2 Instances: using a teleport agent or OpenSSH integration.
+	//
+	// Set its value to "yes" to re-enable EICE functionality.
+	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
+	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
+	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
+)

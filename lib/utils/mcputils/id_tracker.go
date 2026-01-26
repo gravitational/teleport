@@ -31,12 +31,12 @@ import (
 // growing infinitely. IDTracker is safe for concurrent use.
 type IDTracker struct {
 	mu       sync.Mutex
-	lruCache *simplelru.LRU[mcp.RequestId, mcp.MCPMethod]
+	lruCache *simplelru.LRU[mcp.RequestId, string]
 }
 
 // NewIDTracker creates a new IDTracker with provided maximum size.
 func NewIDTracker(size int) (*IDTracker, error) {
-	lruCache, err := simplelru.NewLRU[mcp.RequestId, mcp.MCPMethod](size, nil)
+	lruCache, err := simplelru.NewLRU[mcp.RequestId, string](size, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,7 +58,7 @@ func (t *IDTracker) PushRequest(msg *JSONRPCRequest) bool {
 }
 
 // PopByID retrieves the tracked information and remove it from the tracker.
-func (t *IDTracker) PopByID(id mcp.RequestId) (mcp.MCPMethod, bool) {
+func (t *IDTracker) PopByID(id mcp.RequestId) (string, bool) {
 	if id.IsNil() {
 		return "", false
 	}

@@ -29,8 +29,7 @@ import {
 import { debounce } from 'shared/utils/highbar';
 
 import { ConfigService } from 'teleterm/services/config';
-import { WindowsPty } from 'teleterm/services/pty';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
 
@@ -146,6 +145,7 @@ export function Terminal(props: TerminalProps) {
         {refCtrl.current && props.terminalAddons?.(refCtrl.current)}
       </TerminalAddonsContainer>
       <StyledXterm
+        data-testid="terminal-container"
         ref={refElement}
         style={{
           fontFamily: props.unsanitizedFontFamily,

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -180,6 +181,11 @@ func (s *localCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, 
 // NodeWatcher returns a services.NodeWatcher for this cluster.
 func (s *localCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.srv.NodeWatcher, nil
+}
+
+// AppServerWatcher returns the watcher that maintains the app server set for the cluster
+func (s *localCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return s.srv.AppServerWatcher, nil
 }
 
 // GitServerWatcher returns a Git server watcher for this cluster.
@@ -411,7 +417,7 @@ func (s *localCluster) dialAndForward(params reversetunnelclient.DialParams) (_ 
 	ctx := s.srv.ctx
 
 	if params.GetUserAgent == nil && !params.TargetServer.IsOpenSSHNode() {
-		return nil, trace.BadParameter("agentless node require an agent getter")
+		return nil, trace.BadParameter("user agent getter is required for teleport nodes (this is a bug)")
 	}
 	s.logger.DebugContext(ctx, "Initiating dial and forwarding request",
 		"source_addr", logutils.StringerAttr(params.From),
@@ -576,6 +582,15 @@ This usually means that the agent is offline or has disconnected. Check the
 agent logs and, if the issue persists, try restarting it or re-registering it
 with the cluster.`
 
+	if params.TargetServer != nil && (params.TargetServer.IsOpenSSHNode() || params.TargetServer.IsEICE()) {
+		errorMessageTemplate = `Teleport proxy failed to connect to %q server %q over %s:
+
+  %v
+
+This usually means that the server is offline or a firewall restriction is blocking the SSH connection.
+Check the firewall restrictions, verify that the instance is running and the sshd service is active.`
+	}
+
 	var toAddr string
 	if params.To != nil {
 		toAddr = params.To.String()
@@ -625,11 +640,23 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 		return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 	}
 
+	if params.TargetScope != "" && params.TargetServer != nil {
+		if scopes.Compare(params.TargetScope, params.TargetServer.GetScope()) != scopes.Equivalent {
+			return nil, false, trace.BadParameter("conflicting scopes provided in dial request - requested scope %q, matched target scope %q", params.TargetScope, params.TargetServer.GetScope())
+		}
+	}
+
+	targetScope := params.TargetScope
+	if params.TargetServer != nil {
+		targetScope = params.TargetServer.GetScope()
+	}
+
 	dreq := &sshutils.DialReq{
 		ServerID:      params.ServerID,
 		ConnType:      params.ConnType,
 		ClientSrcAddr: stringOrEmpty(params.From),
 		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
+		TargetScope:   targetScope,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()
@@ -657,7 +684,7 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 	if peeringEnabled {
 		s.logger.InfoContext(s.srv.ctx, "Dialing over peer proxy")
 		conn, peerErr = s.peerClient.DialNode(
-			params.ProxyIDs, params.ServerID, params.From, params.To, params.ConnType,
+			params.ProxyIDs, params.ServerID, targetScope, params.From, params.To, params.ConnType,
 		)
 		if peerErr == nil {
 			return newMetricConn(conn, dialTypePeer, dialStart, s.srv.Clock), true, nil
@@ -706,7 +733,7 @@ func (s *localCluster) getConn(params reversetunnelclient.DialParams) (conn net.
 	return newMetricConn(conn, dialTypeDirect, dialStart, s.srv.Clock), false, nil
 }
 
-func (s *localCluster) addConn(nodeID string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
+func (s *localCluster) addConn(nodeID, scope string, connType types.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
 	s.remoteConnsMtx.Lock()
 	defer s.remoteConnsMtx.Unlock()
 
@@ -717,11 +744,13 @@ func (s *localCluster) addConn(nodeID string, connType types.TunnelType, conn ne
 		proxyName:        s.srv.ID,
 		clusterName:      s.domainName,
 		nodeID:           nodeID,
+		scope:            scope,
 		offlineThreshold: s.offlineThreshold,
 	})
 	key := connKey{
 		uuid:     nodeID,
 		connType: connType,
+		scope:    scopes.NormalizeForEquality(scope),
 	}
 	s.remoteConns[key] = append(s.remoteConns[key], rconn)
 
@@ -838,6 +867,9 @@ func (s *localCluster) handleHeartbeat(ctx context.Context, rconn *remoteConn, c
 
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
+			if err := req.Reply(true, nil); err != nil {
+				log.DebugContext(ctx, "Failed to respond to ping request", "remote_addr", logutils.StringerAttr(rconn.conn.RemoteAddr()), "error", err)
+			}
 		case t := <-offlineThresholdTimer.Chan():
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
@@ -887,6 +919,7 @@ func (s *localCluster) getRemoteConn(dreq *sshutils.DialReq) (*remoteConn, error
 	key := connKey{
 		uuid:     dreq.ServerID,
 		connType: dreq.ConnType,
+		scope:    dreq.TargetScope,
 	}
 
 	conns := s.remoteConns[key]

@@ -27,18 +27,23 @@ import Flex from 'design/Flex/Flex';
 import { SortAscending, SortDescending } from 'design/Icon';
 import { Indicator } from 'design/Indicator/Indicator';
 import Text from 'design/Text';
+import { SortOrder } from 'shared/components/Controls/SortMenuV2';
 
 import { listBotInstances } from 'teleport/services/bot/bot';
+import { BotInstanceSummary } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
 
 import { Instance } from './Instance';
 import { PanelTitleText } from './Panel';
 
-export function InstancesPanel(props: { botName: string }) {
-  const { botName } = props;
+export function InstancesPanel(props: {
+  botName: string;
+  onItemSelected: (instance: BotInstanceSummary) => void;
+}) {
+  const { botName, onItemSelected } = props;
 
   const [sortField] = useState('active_at_latest');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
+  const [sortDir, setSortDir] = useState<SortOrder>('DESC');
 
   const contentRef = React.useRef<HTMLDivElement>(null);
 
@@ -83,6 +88,10 @@ export function InstancesPanel(props: { botName: string }) {
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [sortField, sortDir]);
+
+  const makeOnSelectedCallback = (instance: BotInstanceSummary) => () => {
+    onItemSelected(instance);
+  };
 
   return (
     <Container>
@@ -130,12 +139,16 @@ export function InstancesPanel(props: { botName: string }) {
                   <React.Fragment key={`${instance.instance_id}`}>
                     {i === 0 && j === 0 ? undefined : <Divider />}
                     <Instance
-                      id={instance.instance_id}
-                      activeAt={instance.active_at_latest}
-                      hostname={instance.host_name_latest}
-                      method={instance.join_method_latest}
-                      version={instance.version_latest}
-                      os={instance.os_latest}
+                      data={{
+                        id: instance.instance_id,
+                        version: instance.version_latest,
+                        hostname: instance.host_name_latest,
+                        activeAt: instance.active_at_latest,
+                        method: instance.join_method_latest,
+                        os: instance.os_latest,
+                      }}
+                      isSelectable
+                      onSelected={makeOnSelectedCallback(instance)}
                     />
                   </React.Fragment>
                 ))

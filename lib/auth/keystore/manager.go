@@ -134,6 +134,7 @@ type Manager struct {
 
 	currentSuiteGetter cryptosuites.GetSuiteFunc
 	logger             *slog.Logger
+	clock              clockwork.Clock
 }
 
 // backend is an interface that holds private keys and provides signing and decryption
@@ -192,13 +193,14 @@ type Options struct {
 	Logger *slog.Logger
 	// AuthPreferenceGetter provides the current cluster auth preference.
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
-	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
 	// OAEPHash function to use with keystores that support OAEP with a configurable hash.
 	OAEPHash crypto.Hash
 	// RSAKeyPairSource is an optional function used by the software keystore when
 	// generating RSA keys.
 	RSAKeyPairSource RSAKeyPairSource
+	Clock            clockwork.Clock
 
 	awsKMSClient kmsClient
 	mrkClient    mrkClient
@@ -206,7 +208,6 @@ type Options struct {
 	kmsClient    *kms.KeyManagementClient
 	awsRGTClient rgtClient
 
-	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
 	faketimeOverride faketime.Clock
 }
@@ -221,6 +222,9 @@ func (opts *Options) CheckAndSetDefaults() error {
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.With(teleport.ComponentKey, "Keystore")
+	}
+	if opts.Clock == nil {
+		opts.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -275,6 +279,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
+		clock:              opts.Clock,
 	}, nil
 }
 
@@ -474,6 +479,13 @@ func (m *Manager) GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthorit
 	return cert, signer, trace.Wrap(err)
 }
 
+// GetTLSSigner selects a usable TLS keypair from the given CA and returns a
+// [crypto.Signer].
+func (m *Manager) GetTLSSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	_, signer, err := m.getTLSCertAndSigner(ctx, ca.GetActiveKeys())
+	return signer, trace.Wrap(err)
+}
+
 // GetAdditionalTrustedTLSCertAndSigner selects a usable TLS keypair from the given CA
 // and returns the PEM-encoded TLS certificate and a [crypto.Signer].
 func (m *Manager) GetAdditionalTrustedTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error) {
@@ -582,7 +594,9 @@ func (m *Manager) FindDecryptersByLabels(ctx context.Context, labels ...*types.K
 		for _, label := range labels {
 			decs, err := backend.findDecryptersByLabel(ctx, label)
 			if err != nil {
-				m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				if !trace.IsNotImplemented(err) {
+					m.logger.DebugContext(ctx, "could not find key for label", "backend", backend.name(), "label_type", label.Type, "label", label.Label, "error", err)
+				}
 				continue
 			}
 
@@ -644,12 +658,20 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		&cryptoCountSigner{Signer: signer, keyType: keyTypeTLS, store: m.backendForNewKeys.name()},
-		pkix.Name{
+
+	tlsCert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer: &cryptoCountSigner{
+			Signer:  signer,
+			keyType: keyTypeTLS,
+			store:   m.backendForNewKeys.name(),
+		},
+		Entity: pkix.Name{
 			CommonName:   clusterName,
 			Organization: []string{clusterName},
-		}, nil, defaults.CATTL)
+		},
+		TTL:   defaults.CATTL,
+		Clock: m.clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

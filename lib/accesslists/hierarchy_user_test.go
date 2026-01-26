@@ -30,23 +30,16 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestGetHierarchyForUser(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.AccessLists: {Enabled: true},
-			},
-		},
-	})
+	testModules := modulestest.EnterpriseModules()
+
+	modulestest.SetTestModules(t, *testModules)
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
@@ -232,6 +225,43 @@ func TestGetHierarchyForUser(t *testing.T) {
 			want:  nil,
 		},
 		{
+			name: "owner/owner via direct nested ownerships requirements are met",
+			state: state{
+				mustMakeAccessList("root", withOwnerList("level1"), withOwnerTraitReq("need")): {},
+				mustMakeAccessList("level1"): {mustCreateMember("alice")},
+			},
+			user:  makeUser("alice", mkTrait("need")),
+			start: "level1",
+			kind:  accesslists.RelationshipKindOwner,
+			want:  []string{"root"},
+		},
+		{
+			name: "owner/owner via direct nested ownerships requirements not met",
+			state: state{
+				mustMakeAccessList("root", withOwnerList("level1"), withOwnerTraitReq("need")): {},
+				mustMakeAccessList("level1"): {mustCreateMember("alice")},
+			},
+			user:  makeUser("alice"),
+			start: "level1",
+			kind:  accesslists.RelationshipKindOwner,
+			want:  nil,
+		},
+		{
+			name: "owner/owner many levels up the ownership chain",
+			state: state{
+				mustMakeAccessList("root", withOwnerList("level1")): {},
+				mustMakeAccessList("level1"):                        {mustCreateMember("level2", withACLMemKind())},
+				mustMakeAccessList("level2"):                        {mustCreateMember("level3", withACLMemKind())},
+				mustMakeAccessList("level3"):                        {mustCreateMember("level4", withACLMemKind())},
+				mustMakeAccessList("level4"):                        {mustCreateMember("levelTail", withACLMemKind())},
+				mustMakeAccessList("levelTail"):                     {mustCreateMember("alice")},
+			},
+			user:  makeUser("alice"),
+			start: "levelTail",
+			kind:  accesslists.RelationshipKindOwner,
+			want:  []string{"root"},
+		},
+		{
 			name: "member/multiple parents included",
 			state: state{
 				mustMakeAccessList("rootA"):  {mustCreateMember("level2", withACLMemKind())},
@@ -328,6 +358,28 @@ func TestGetHierarchyForUser(t *testing.T) {
 			kind:  accesslists.RelationshipKindOwner,
 			want:  []string{"level2", "root"},
 		},
+		{
+			name: "user is excluded from owners when user is not an owner and username overlaps with owning Access List name",
+			state: state{
+				mustMakeAccessList("root", withOwnerList("level1")): {},
+				mustMakeAccessList("level1"):                        {},
+			},
+			user:  makeUser("level1"),
+			start: "root",
+			kind:  accesslists.RelationshipKindOwner,
+			want:  nil,
+		},
+		{
+			name: "member/access list name and username overlaps",
+			state: state{
+				mustMakeAccessList("root"):   {mustCreateMember("level1", withACLMemKind())},
+				mustMakeAccessList("level1"): {},
+			},
+			user:  makeUser("level1"),
+			start: "root",
+			kind:  accesslists.RelationshipKindMember,
+			want:  nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -339,7 +391,10 @@ func TestGetHierarchyForUser(t *testing.T) {
 				Clock:   clock,
 			})
 			require.NoError(t, err)
-			svc, err := local.NewAccessListService(bk, clock)
+			svc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+				Backend: bk,
+				Modules: testModules,
+			})
 			require.NoError(t, err)
 
 			require.NoError(t, upsertState(svc, tt.state))

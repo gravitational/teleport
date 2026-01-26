@@ -4,12 +4,15 @@ When running multiple `teleport` binaries within a cluster, the following rules
 apply:
 
 - Servers support clients that are one major version behind, but do not support
-  clients that are on a newer major version. For example, an 8.x.x Proxy Service
-  instance is compatible with 7.x.x agents and 7.x.x `tsh`, but we don't
-  guarantee that a 9.x.x agent will work with an 8.x.x Proxy Service instance.
-  This also means you must not attempt to upgrade from 6.x.x straight to 8.x.x.
-  You must upgrade to 7.x.x first.
+  clients that are on a newer major version. For example, an 17.x.x Proxy
+  Service instance is compatible with 16.x.x agents and 16.x.x `tsh`, but a
+  17.x.x agent will not work with an 16.x.x Proxy Service instance. This also
+  means you must not attempt to upgrade from 16.x.x straight to 18.x.x. You must
+  upgrade to 17.x.x first.
 - Proxy Service instances and agents do not support Auth Service instances that
   are on an older major version, and will fail to connect to older Auth Service
-  instances by default. For example, an 8.x.x Proxy Service or agent is not
-  compatible with an 7.x.x Auth Service.
+  instances by default. For example, an 18.x.x Proxy Service or agent is not
+  compatible with an 17.x.x Auth Service.
+- Auth Service instances should always be the first component of the cluster that
+  is upgraded, and you must upgrade all Auth Service instances to the target version
+  before proceeding to upgrade Proxy Service instances, other agents, and client tools (tsh, tctl, tbot, Connect, etc).

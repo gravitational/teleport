@@ -328,6 +328,10 @@ func (m *manager) updateWorkersLocked(ctx context.Context) {
 // getConfigLocked gets a matching config for the the given resource or returns
 // nil if no config matches.
 func (m *manager) getConfigLocked(ctx context.Context, r types.ResourceWithLabels) *healthCheckConfig {
+	if m.configs == nil {
+		m.logger.DebugContext(ctx, "Health check config unavailable")
+		return nil
+	}
 	for _, cfg := range m.configs {
 		matched, _, err := services.CheckLabelsMatch(
 			types.Allow,

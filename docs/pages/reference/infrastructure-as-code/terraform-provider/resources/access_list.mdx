@@ -2,9 +2,6 @@
 title: Reference for the teleport_access_list Terraform resource
 sidebar_label: access_list
 description: This page describes the supported values of the teleport_access_list resource of the Teleport Terraform provider.
-tags:
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -24,6 +21,7 @@ This page describes the supported values of the teleport_access_list resource of
 ```hcl
 resource "teleport_access_list" "crane-operation" {
   header = {
+    version = "v1"
     metadata = {
       name = "crane-operation"
       labels = {

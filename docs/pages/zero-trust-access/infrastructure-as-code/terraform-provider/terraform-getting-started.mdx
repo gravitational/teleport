@@ -3,6 +3,7 @@ title: Get Started with the Teleport Terraform Provider
 sidebar_label: Getting Started
 description: Provides an example to help you get started managing dynamic resources in a Teleport cluster using Terraform.
 tags:
+ - infrastructure-as-code
  - how-to
  - zero-trust
 ---
@@ -47,14 +48,14 @@ Sign-On provider.
 ## Prerequisites
 
 - A running Teleport (v16.2.0 or higher) cluster. If you do not have one, read
-  [Getting Started](../../../get-started.mdx).
+  [Getting Started](../../../get-started/get-started.mdx).
 
 <Admonition type="tip">
 
 We recommend following this guide on a fresh Teleport demo cluster. After you
 are familiar with the setup, apply the lessons from this guide to protect your
 infrastructure. You can get started with a demo cluster using:
-- A demo deployment on a [Linux server](../../../linux-demo.mdx)
+- A demo deployment on a [Linux server](../../../get-started/deploy-community.mdx)
 - A [Teleport Enterprise (Cloud) trial](https://goteleport.com/signup)
 
 </Admonition>
@@ -83,13 +84,13 @@ infrastructure. You can get started with a demo cluster using:
   you how to set up your IdP to support the SAML or OIDC authentication
   connector. **Read only the linked section**, since these guides assume you are
   using `tctl` instead of Terraform to manage authentication connectors:
-  - [AD FS](../../sso/adfs.mdx#step-13-configure-adfs)
-  - [GitLab](../../sso/gitlab.mdx#step-14-configure-gitlab)
+  - [AD FS](../../sso/integrate-idp/adfs.mdx#step-13-configure-adfs)
+  - [GitLab](../../sso/integrate-idp/gitlab.mdx#step-13-configure-gitlab)
   - [Google
-    Workspace](../../sso/google-workspace.mdx#step-14-configure-google-workspace)
-  - [OneLogin](../../sso/one-login.mdx#step-13-create-teleport-application-in-onelogin)
-  - [Entra ID](../../sso/entra-id.mdx#step-13-configure-microsoft-entra-id)
-  - [Okta](../../sso/okta.mdx#step-24-configure-okta)
+    Workspace](../../sso/integrate-idp/google-workspace.mdx#step-13-configure-google-workspace)
+  - [OneLogin](../../sso/integrate-idp/one-login.mdx#step-13-create-teleport-application-in-onelogin)
+  - [Entra ID](../../sso/integrate-idp/entra-id.mdx#step-13-configure-microsoft-entra-id)
+  - [Okta](../../sso/integrate-idp/okta.mdx#step-13-configure-okta)
 
 - To help with troubleshooting, we recommend completing the setup steps in this
   guide with a local user that has the preset `editor` and `auditor` roles. In
@@ -670,7 +671,7 @@ do so, you can:
 
 - Import existing `teleport_user` resources and modify them to include the
   `dev_access` and `prod_access` roles (see the
-  [documentation](../managing-resources/import-existing-resources.mdx)).
+  [documentation](import-existing-resources.mdx)).
 - Create a new `teleport_user` resource that includes the roles
   ([documentation](../managing-resources/user-and-role.mdx).
 

@@ -60,6 +60,9 @@ REQUIRE_HOST_ARCH = $(if $(filter-out $(ARCH),$(RUNTIME_ARCH)),$(error Cannot cr
 # responsible for building webassets.
 WASM_BINDGEN_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-wasm-bindgen-version)
 
+# Determine which version of rust is required to build rust components.
+RUST_VERSION ?= $(shell $(MAKE) -C .. --no-print-directory  print-rust-toolchain-version)
+
 # This determines which make target we call in this repo's top level Makefile when
 # make release in this Makefile is called. Currently this supports its default value
 # (release) and release-unix-preserving-webassets. See the release-arm target for
@@ -75,20 +78,26 @@ build: buildbox-centos7 webassets
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
 
 #
-# Build 'teleport' release inside a docker container
+# Build 'teleport' binaries inside a docker container
 #
 .PHONY:build-binaries
 build-binaries: buildbox-centos7 webassets
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) full
+	$(call LOG_GROUP_START)
+	$(REQUIRE_HOST_ARCH)
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
+		/usr/bin/scl enable $(DEVTOOLSET) 'make clean-build full -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+	$(call LOG_GROUP_END)
 
 #
-# Build 'teleport' Enterprise release inside a docker container
+# Build 'teleport' Enterprise binaries inside a docker container
 #
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox-centos7 webassets
+	$(call LOG_GROUP_START)
+	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) clean full
+		/usr/bin/scl enable $(DEVTOOLSET) 'make clean-build full-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+	$(call LOG_GROUP_END)
 
 #
 # Build 'teleport' FIPS release inside a docker container
@@ -156,6 +165,7 @@ buildbox-ng:
 		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--cache-from $(BUILDBOX_NG) \
 		--cache-to type=inline \
 		$(if $(PUSH),--push,--load) \
@@ -183,7 +193,6 @@ buildbox:
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
@@ -225,7 +234,6 @@ buildbox-centos7:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7) \
@@ -351,6 +359,18 @@ fix-imports: buildbox
 	docker run \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport fix-imports/host
+
+# Generate BPF bytecode in a container, so local setup is not required.
+.PHONY: bpf-bytecode
+bpf-bytecode:
+	docker build \
+		--build-arg UID=$(UID) \
+		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		-f Dockerfile-bpf -t bpf-builder .
+	docker run --rm -v "$$(pwd)/../":/teleport -w /teleport bpf-builder \
+		make bpf-bytecode
 
 #
 # Removes the docker image
@@ -664,11 +684,11 @@ release-fips: buildbox-centos7-fips webassets
 #
 .PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
-	$(LOG_GROUP_START)
+	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
-	$(LOG_GROUP_END)
+	$(call LOG_GROUP_END)
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
@@ -680,10 +700,10 @@ release-centos7: buildbox-centos7 webassets
 #
 .PHONY:release-centos7-fips
 release-centos7-fips: buildbox-centos7-fips webassets
-	$(LOG_GROUP_START)
+	$(call LOG_GROUP_START)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
-	$(LOG_GROUP_END)
+	$(call LOG_GROUP_END)
 
 #
 # Create a Windows Teleport package using the build container.

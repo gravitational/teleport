@@ -16,12 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MutationFunction } from '@tanstack/react-query';
+
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import {
   canUseV1Edit,
+  canUseV2Edit,
   makeBot,
   toApiGitHubTokenSpec,
+  validateGetBotInstanceMetricsResponse,
   validateGetBotInstanceResponse,
   validateListBotInstancesResponse,
 } from 'teleport/services/bot/consts';
@@ -140,15 +144,23 @@ export async function fetchRoles(
   );
 }
 
+export const editBotMutationFunction: MutationFunction<
+  FlatBot,
+  { botName: string; req: EditBotRequest }
+> = vars => editBot(vars);
+
 export async function editBot(
   variables: { botName: string; req: EditBotRequest },
   signal?: AbortSignal
 ) {
   // TODO(nicholasmarais1158) DELETE IN v20.0.0
   const useV1 = canUseV1Edit(variables.req);
-  const path = useV1
-    ? cfg.getBotUrl({ action: 'update', botName: variables.botName })
-    : cfg.getBotUrl({ action: 'update-v2', botName: variables.botName });
+  // TODO(nicholasmarais1158) DELETE IN v20.0.0
+  const useV2 = canUseV2Edit(variables.req);
+  const path = cfg.getBotUrl({
+    action: useV1 ? 'update' : useV2 ? 'update-v2' : 'update-v3',
+    botName: variables.botName,
+  });
 
   try {
     const res = await api.put(path, variables.req, signal);
@@ -252,4 +264,73 @@ export async function getBotInstance(
   }
 
   return data;
+}
+
+export async function getBotInstanceMetrics(
+  variables: null,
+  signal?: AbortSignal
+) {
+  const path = cfg.getBotInstanceUrl({ action: 'metrics' });
+
+  try {
+    const data = await api.get(path, signal);
+
+    if (!validateGetBotInstanceMetricsResponse(data)) {
+      throw new Error('failed to validate get bot instance metrics response');
+    }
+
+    return data;
+  } catch (err: unknown) {
+    // TODO(nicholasmarais1158) DELETE IN v20.0.0
+    withGenericUnsupportedError(err, '19.0.0');
+  }
+}
+
+export async function generateGhaK8sTemplates(
+  variables: {
+    github: {
+      allow: {
+        repository?: string;
+        owner?: string;
+        workflow?: string;
+        environment?: string;
+        actor?: string;
+        ref?: string;
+        ref_type?: string;
+      }[];
+      enterprise_server_host?: string;
+      enterprise_slug?: string;
+      static_jwks?: string;
+    };
+    kubernetes?: {
+      labels?: Record<string, string[]>;
+      groups?: string[];
+      users?: string[];
+      resources?: {
+        kind: string;
+        namespace: string;
+        name: string;
+        verbs: string[];
+        api_group: string;
+      }[];
+    };
+  },
+  signal?: AbortSignal
+) {
+  const resp = await api.post(
+    cfg.getBotUrl({
+      action: 'gen-wizard-cicd',
+    }),
+    {
+      source_type: 'github',
+      destination_type: 'kubernetes',
+      github: variables.github,
+      kubernetes: variables.kubernetes,
+    },
+    signal
+  );
+
+  return resp as {
+    terraform: string;
+  };
 }

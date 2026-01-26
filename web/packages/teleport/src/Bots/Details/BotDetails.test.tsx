@@ -46,6 +46,7 @@ import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 import { listBotInstancesSuccess } from 'teleport/test/helpers/botInstances';
 import {
   deleteBotSuccess,
+  EditBotApiVersion,
   editBotSuccess,
   getBotError,
   getBotSuccess,
@@ -101,16 +102,12 @@ describe('BotDetails', () => {
   });
 
   it('should allow back navigation', async () => {
-    const history = createMemoryHistory({
-      initialEntries: ['/web/bot/test-bot-name'],
-    });
-    history.goBack = jest.fn();
-
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
     withListLocksSuccess();
-    const { user } = renderComponent({ history });
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'goBack');
     await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
@@ -147,6 +144,9 @@ describe('BotDetails', () => {
     expect(panel).toBeInTheDocument();
 
     expect(within(panel!).getByText('test-bot-name')).toBeInTheDocument();
+    expect(
+      within(panel!).getByText("This is the bot's description.")
+    ).toBeInTheDocument();
     expect(within(panel!).getByText('12h')).toBeInTheDocument();
   });
 
@@ -245,6 +245,73 @@ describe('BotDetails', () => {
         'Multi-factor authentication is required to view join tokens'
       )
     ).toBeInTheDocument();
+  });
+
+  it('should allow an instance to be selected', async () => {
+    withFetchSuccess();
+    withFetchJoinTokensSuccess();
+    withFetchInstancesSuccess();
+    withListLocksSuccess();
+    const { user, history } = renderComponent();
+    jest.spyOn(history, 'push');
+    await waitForLoadingBot();
+    await waitForLoadingTokens();
+
+    const instanceSection = screen
+      .getByRole('heading', { name: 'Active Instances' })
+      .closest('section');
+
+    const firstItem = within(instanceSection!).getByText(
+      'c11250e0-00c2-4f52-bcdf-b367f80b9461'
+    );
+
+    await user.click(firstItem);
+
+    expect(history.push).toHaveBeenCalledTimes(1);
+    const search = new URLSearchParams(history.location.search);
+    expect(search.get('query')).toBe('spec.bot_name == "ansible-worker"');
+    expect(search.get('is_advanced')).toBe('1');
+    expect(search.get('sort_field')).toBe('active_at_latest');
+    expect(search.get('sort_dir')).toBe('DESC');
+    expect(search.get('selected')).toBe(
+      'ansible-worker/c11250e0-00c2-4f52-bcdf-b367f80b9461'
+    );
+  });
+
+  describe('should show bot join tokens empty message', () => {
+    it('when an empty list is returned', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess({ tokens: [] });
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+      await waitForLoadingTokens();
+
+      const panel = screen
+        .getByRole('heading', { name: 'Join Tokens' })
+        .closest('section');
+      expect(panel).toBeInTheDocument();
+
+      expect(within(panel!).getByText('No join tokens')).toBeInTheDocument();
+    });
+
+    it('when null is returned', async () => {
+      withFetchSuccess();
+      withFetchJoinTokensSuccess({ tokens: null });
+      withFetchInstancesSuccess();
+      withListLocksSuccess();
+      renderComponent();
+      await waitForLoadingBot();
+      await waitForLoadingTokens();
+
+      const panel = screen
+        .getByRole('heading', { name: 'Join Tokens' })
+        .closest('section');
+      expect(panel).toBeInTheDocument();
+
+      expect(within(panel!).getByText('No join tokens')).toBeInTheDocument();
+    });
   });
 
   it('should show bot instances', async () => {
@@ -363,7 +430,7 @@ describe('BotDetails', () => {
       // Change something to enable the save button
       await inputMaxSessionDuration(user, '12h 30m');
 
-      withSaveSuccess(2, {
+      withSaveSuccess('v2', {
         roles: ['role-1'],
         traits: [
           {
@@ -538,11 +605,6 @@ describe('BotDetails', () => {
 
   describe('Delete', () => {
     it('should show an overflow option to delete the bot', async () => {
-      const history = createMemoryHistory({
-        initialEntries: ['/web/bot/test-bot-name'],
-      });
-      history.replace = jest.fn();
-
       withFetchSuccess();
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
@@ -550,7 +612,8 @@ describe('BotDetails', () => {
         locks: [],
       });
       withDeleteBotSuccess();
-      const { user } = renderComponent({ history });
+      const { user, history } = renderComponent();
+      jest.spyOn(history, 'replace');
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
@@ -690,15 +753,21 @@ async function inputMaxSessionDuration(user: UserEvent, duration: string) {
 }
 
 const renderComponent = (options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
   const user = userEvent.setup();
+  const history = createMemoryHistory({
+    initialEntries: ['/web/bot/test-bot-name'],
+  });
   return {
     ...render(<BotDetails />, {
-      wrapper: makeWrapper(options),
+      wrapper: makeWrapper({
+        customAcl: options?.customAcl,
+        history,
+      }),
     }),
     user,
+    history,
   };
 };
 
@@ -724,8 +793,11 @@ const withFetchSuccess = () => {
   server.use(getBotSuccess());
 };
 
-const withFetchJoinTokensSuccess = () => {
-  server.use(listV2TokensSuccess());
+const withFetchJoinTokensSuccess = (options?: {
+  hasNextPage?: boolean;
+  tokens?: string[] | null;
+}) => {
+  server.use(listV2TokensSuccess(options));
 };
 
 const withFetchJoinTokensMfaError = () => {
@@ -748,29 +820,32 @@ const withFetchJoinTokensOutdatedProxy = () => {
 
 function withFetchInstancesSuccess() {
   server.use(
-    listBotInstancesSuccess({
-      bot_instances: [
-        {
-          bot_name: 'ansible-worker',
-          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
-          active_at_latest: '2025-07-22T10:54:00Z',
-          host_name_latest: 'svr-lon-01-ab23cd',
-          join_method_latest: 'github',
-          os_latest: 'linux',
-          version_latest: '4.4.16',
-        },
-      ],
-      next_page_token: '',
-    })
+    listBotInstancesSuccess(
+      {
+        bot_instances: [
+          {
+            bot_name: 'ansible-worker',
+            instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+            active_at_latest: '2025-07-22T10:54:00Z',
+            host_name_latest: 'svr-lon-01-ab23cd',
+            join_method_latest: 'github',
+            os_latest: 'linux',
+            version_latest: '4.4.16',
+          },
+        ],
+        next_page_token: '',
+      },
+      'v1'
+    )
   );
 }
 
-const withSaveSuccess = (
-  version: 1 | 2 = 2,
+function withSaveSuccess(
+  version: EditBotApiVersion = 'v3',
   overrides?: Partial<EditBotRequest>
-) => {
+) {
   server.use(editBotSuccess(version, overrides));
-};
+}
 
 function withFetchRolesSuccess() {
   server.use(
@@ -814,14 +889,12 @@ function withDeleteBotSuccess() {
   server.use(deleteBotSuccess());
 }
 
-function makeWrapper(options?: {
-  history?: ReturnType<typeof createMemoryHistory>;
+function makeWrapper(options: {
+  history: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) {
   const {
-    history = createMemoryHistory({
-      initialEntries: ['/web/bot/test-bot-name'],
-    }),
+    history,
     customAcl = makeAcl({
       bots: {
         ...defaultAccess,
@@ -849,7 +922,7 @@ function makeWrapper(options?: {
         edit: true,
       },
     }),
-  } = options ?? {};
+  } = options;
   return ({ children }: PropsWithChildren) => {
     const ctx = createTeleportContext({
       customAcl,

@@ -1,11 +1,11 @@
-CREATE PROCEDURE teleport_activate_user(IN username VARCHAR(32), IN details JSON)
+CREATE PROCEDURE teleport_activate_user(IN username TEXT, IN details JSON)
 proc_label:BEGIN
     DECLARE is_auto_user INT DEFAULT 0;
     DECLARE is_active INT DEFAULT 0;
     DECLARE is_same_user INT DEFAULT 0; 
     DECLARE are_roles_same INT DEFAULT 0; 
     DECLARE role_index INT DEFAULT 0;
-    DECLARE role VARCHAR(32) DEFAULT '';
+    DECLARE role TEXT DEFAULT '';
     DECLARE cur_roles TEXT DEFAULT '';
     SET @roles = details->"$.roles";
     SET @teleport_user = details->>"$.attributes.user";
@@ -57,11 +57,10 @@ proc_label:BEGIN
 
     -- Assign roles.
     WHILE role_index < JSON_LENGTH(@roles) DO
-        SELECT JSON_EXTRACT(@roles, CONCAT('$[',role_index,']')) INTO role;
+        SELECT JSON_UNQUOTE(JSON_EXTRACT(@roles, CONCAT('$[',role_index,']'))) INTO role;
         SELECT role_index + 1 INTO role_index;
 
-        -- role extracted from JSON already has double quotes.
-        SET @sql := CONCAT_WS(' ', 'GRANT', role, 'TO', QUOTE(username));
+        SET @sql := CONCAT_WS(' ', 'GRANT', QUOTE(role), 'TO', QUOTE(username));
         PREPARE stmt FROM @sql;
         EXECUTE stmt;
         DEALLOCATE PREPARE stmt;

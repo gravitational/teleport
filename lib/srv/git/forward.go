@@ -121,7 +121,7 @@ type ForwardServerConfig struct {
 	// MACAlgorithms is a list of message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
-	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// FIPS mode means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	FIPS bool
 
@@ -253,7 +253,6 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	return s, nil
-
 }
 
 // Serve starts an SSH server that forwards git commands.
@@ -374,7 +373,7 @@ func (s *ForwardServer) onConnection(ctx context.Context, ccx *sshutils.Connecti
 
 	// TODO(greedy52) decouple from srv.NewServerContext. We only need
 	// connection monitoring.
-	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx)
+	serverCtx, err := srv.NewServerContext(ctx, ccx, s, identityCtx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -400,11 +399,18 @@ func (s *ForwardServer) onChannel(ctx context.Context, ccx *sshutils.ConnectionC
 		return
 	}
 
+	// sessionParams will not be passed by old clients (< v19) or OpenSSH clients.
+	sessionParams, err := tracessh.ParseSessionParams(nch.ExtraData())
+	if err != nil {
+		s.reply.RejectWithAcceptError(ctx, nch, err)
+		return
+	}
+
 	if s.remoteClient == nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, trace.NotFound("missing remote client"))
 		return
 	}
-	remoteSession, err := s.remoteClient.NewSession(ctx)
+	remoteSession, err := s.remoteClient.NewSessionWithParams(ctx, sessionParams)
 	if err != nil {
 		s.reply.RejectWithNewRemoteSessionError(ctx, nch, err)
 		return
@@ -626,7 +632,7 @@ func (s *ForwardServer) initRemoteConn(ctx context.Context, ccx *sshutils.Connec
 	clientConfig.KeyExchanges = s.cfg.KEXAlgorithms
 	clientConfig.MACs = s.cfg.MACAlgorithms
 
-	s.remoteClient, err = tracessh.NewClientConnWithDeadline(
+	s.remoteClient, err = tracessh.NewClientWithTimeout(
 		s.cfg.ParentContext,
 		s.cfg.TargetConn,
 		s.cfg.DstAddr.String(),
@@ -700,8 +706,8 @@ func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }
-func (s *ForwardServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return nil, trace.NotImplemented("not supported for git forward server")
+func (s *ForwardServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 func (s *ForwardServer) GetClock() clockwork.Clock {
 	return s.cfg.Clock
@@ -729,6 +735,17 @@ func (s *ForwardServer) GetHostSudoers() srv.HostSudoers {
 }
 func (s *ForwardServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration since the git forwarding server
+// does not spawn child processes.
+func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
+	return srv.ChildLogConfig{
+		ExecLogConfig: srv.ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 type serverContextKey struct{}

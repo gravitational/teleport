@@ -31,9 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+type ReconcilerFactory func(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error)
+
 type reconcilerFactory struct {
 	cr      string
-	factory func(kclient.Client, *client.Client) (controllers.Reconciler, error)
+	factory ReconcilerFactory
 }
 
 // SetupAllControllers sets up all controllers

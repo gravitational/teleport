@@ -108,6 +108,8 @@ type UserACL struct {
 	Bots ResourceAccess `json:"bots"`
 	// BotInstances defines access to manage bot instances
 	BotInstances ResourceAccess `json:"botInstances"`
+	// Instances defines access to manage instances
+	Instances ResourceAccess `json:"instances"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
@@ -124,6 +126,8 @@ type UserACL struct {
 	GitServers ResourceAccess `json:"gitServers"`
 	// WorkloadIdentity defines access to Workload Identity
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
+	// ClientIPRestriction defines access to Cloud IP Restrictions
+	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -215,6 +219,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
 	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
+	instances := newAccess(userRoles, ctx, types.KindInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
@@ -229,6 +234,11 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	contact := newAccess(userRoles, ctx, types.KindContact)
+
+	var clientIPRestrictions ResourceAccess
+	if features.Cloud {
+		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
+	}
 
 	return UserACL{
 		AccessRequests:          requestAccess,
@@ -268,6 +278,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraph:             accessGraphAccess,
 		Bots:                    bots,
 		BotInstances:            botInstances,
+		Instances:               instances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
 		AccessGraphSettings:     accessGraphSettings,
@@ -275,5 +286,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		FileTransferAccess:      fileTransferAccess,
 		GitServers:              gitServersAccess,
 		WorkloadIdentity:        workloadIdentity,
+		ClientIPRestriction:     clientIPRestrictions,
 	}
 }

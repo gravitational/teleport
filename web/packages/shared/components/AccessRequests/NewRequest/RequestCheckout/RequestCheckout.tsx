@@ -44,6 +44,7 @@ import {
   P3,
   Subtitle2,
   Text,
+  TextArea,
 } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
@@ -618,6 +619,7 @@ export function RequestCheckout<T extends PendingListItem>({
                       updateReason={updateReason}
                       requireReason={requireReason}
                       reasonPrompts={reasonPrompts}
+                      numPendingAccessRequests={numPendingAccessRequests}
                     />
                     {!isLongTerm && dryRunResponse && maxDuration && (
                       <AdditionalOptions
@@ -630,6 +632,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     )}
                     <Flex
                       py={4}
+                      mt={1}
                       gap={2}
                       css={`
                         position: sticky;
@@ -908,50 +911,32 @@ function TextBox({
   updateReason,
   requireReason,
   reasonPrompts,
+  numPendingAccessRequests,
 }: {
   reason: string;
   updateReason(reason: string): void;
   requireReason: boolean;
-  reasonPrompts?: string[];
+  reasonPrompts: string[];
+  numPendingAccessRequests: number;
 }) {
   const { valid, message } = useRule(requireText(reason, requireReason));
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
   const placeholderText =
-    reasonPrompts?.filter(s => s.length > 0).join('\n') ||
-    'Describe your request...';
+    reasonPrompts && reasonPrompts.length && numPendingAccessRequests > 0
+      ? reasonPrompts.filter(s => s.length > 0).join('\n')
+      : 'Describe your request…';
 
   return (
     <LabelInput hasError={hasError}>
       <Text mb={1}>{labelText}</Text>
-      <Box
-        as="textarea"
-        height="80px"
-        width="100%"
-        borderRadius={2}
-        p={2}
-        color="text.main"
-        border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.main' : 'text.muted'}
+      <TextArea
+        resizable
+        hasError={hasError}
         placeholder={placeholderText.replaceAll(/\\n/g, '\n')}
         value={reason}
         onChange={e => updateReason(e.target.value)}
-        css={`
-          outline: none;
-          background: transparent;
-          font-size: ${props => props.theme.fontSizes[2]}px;
-
-          &::placeholder {
-            color: ${({ theme }) => theme.colors.text.muted};
-          }
-
-          &:hover,
-          &:focus,
-          &:active {
-            border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
-          }
-        `}
       />
     </LabelInput>
   );

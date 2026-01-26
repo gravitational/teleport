@@ -20,6 +20,7 @@ package auth
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/google/uuid"
@@ -106,18 +107,26 @@ func TestUpgraderCounts(t *testing.T) {
 		{
 			desc: "mixed",
 			instances: []*proto.UpstreamInventoryHello{
-				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
-				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
-				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
+				}},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
+				}},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
+				}},
 				{},
-				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0", UpdaterInfo: &types.UpdaterV2Info{
+					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_PINNED,
+				}},
 				{},
 			},
 			expected: map[upgrader]int{
-				{"kube", "13.0.0"}: 1,
-				{"kube", "14.0.0"}: 1,
-				{"unit", "13.0.0"}: 1,
-				{"unit", "14.0.0"}: 1,
+				{"kube", "13.0.0", "UPDATER_STATUS_OK"}:     1,
+				{"kube", "14.0.0", "UPDATER_STATUS_OK"}:     1,
+				{"unit", "13.0.0", "UPDATER_STATUS_OK"}:     1,
+				{"unit", "14.0.0", "UPDATER_STATUS_PINNED"}: 1,
 			},
 		},
 		{
@@ -137,8 +146,8 @@ func TestUpgraderCounts(t *testing.T) {
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
 			},
 			expected: map[upgrader]int{
-				{"kube", "13.0.0"}: 2,
-				{"unit", "13.0.0"}: 2,
+				{"kube", "13.0.0", ""}: 2,
+				{"unit", "13.0.0", ""}: 2,
 			},
 		},
 		{
@@ -148,8 +157,8 @@ func TestUpgraderCounts(t *testing.T) {
 				{ExternalUpgrader: "unit"},
 			},
 			expected: map[upgrader]int{
-				{"kube", ""}: 1,
-				{"unit", ""}: 1,
+				{"kube", "", ""}: 1,
+				{"unit", "", ""}: 1,
 			},
 		},
 		{
@@ -246,9 +255,9 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 				{Version: "15.0.0"},
 			},
 			expected: map[registeredAgent]int{
-				{"13.0.0", "false"}: 1,
-				{"14.0.0", "false"}: 1,
-				{"15.0.0", "false"}: 1,
+				{runtime.GOOS, "13.0.0", "false"}: 1,
+				{runtime.GOOS, "14.0.0", "false"}: 1,
+				{runtime.GOOS, "15.0.0", "false"}: 1,
 			},
 		},
 		{
@@ -265,12 +274,12 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 				{Version: "15.0.0"},
 			},
 			expected: map[registeredAgent]int{
-				{"13.0.0", "true"}:  2,
-				{"13.0.0", "false"}: 1,
-				{"14.0.0", "true"}:  2,
-				{"14.0.0", "false"}: 1,
-				{"15.0.0", "true"}:  2,
-				{"15.0.0", "false"}: 1,
+				{runtime.GOOS, "13.0.0", "true"}:  2,
+				{runtime.GOOS, "13.0.0", "false"}: 1,
+				{runtime.GOOS, "14.0.0", "true"}:  2,
+				{runtime.GOOS, "14.0.0", "false"}: 1,
+				{runtime.GOOS, "15.0.0", "true"}:  2,
+				{runtime.GOOS, "15.0.0", "false"}: 1,
 			},
 		},
 	}
@@ -279,7 +288,9 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
 			for _, instance := range tt.instance {
-				periodic.VisitInstance(instance, new(proto.UpstreamInventoryAgentMetadata))
+				periodic.VisitInstance(instance, &proto.UpstreamInventoryAgentMetadata{
+					OS: runtime.GOOS,
+				})
 			}
 			require.Equal(t, tt.expected, periodic.RegisteredAgentsCount(), "tt=%q", tt.desc)
 		})

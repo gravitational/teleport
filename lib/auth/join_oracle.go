@@ -32,10 +32,15 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
+	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/join/oraclejoin"
 )
 
-// RegisterUsingOracleMethod registers the caller using the Oracle join method and
-// returns signed certs to join the cluster.
+// RegisterUsingOracleMethod registers the caller using the legacy Oracle join
+// method and returns signed certs to join the cluster.
+//
+// TODO(nklaassen): DELETE IN 20 when removing the legacy join service.
 func (a *Server) RegisterUsingOracleMethod(
 	ctx context.Context,
 	tokenReq *types.RegisterUsingTokenRequest,
@@ -63,6 +68,10 @@ func (a *Server) registerUsingOracleMethod(
 			)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	challenge, err := generateOracleChallenge()
 	if err != nil {
@@ -95,7 +104,7 @@ func (a *Server) registerUsingOracleMethod(
 }
 
 func generateOracleChallenge() (string, error) {
-	challenge, err := generateChallenge(base64.StdEncoding, 32)
+	challenge, err := joinutils.GenerateChallenge(base64.StdEncoding, 32)
 	return challenge, trace.Wrap(err)
 }
 
@@ -134,25 +143,6 @@ func checkHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	}
 
 	return nil
-}
-
-func checkOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
-	for _, rule := range allowRules {
-		if rule.Tenancy != claims.TenancyID {
-			continue
-		}
-		if len(rule.ParentCompartments) != 0 && !slices.Contains(rule.ParentCompartments, claims.CompartmentID) {
-			continue
-		}
-		if len(rule.Regions) != 0 && !slices.ContainsFunc(rule.Regions, func(region string) bool {
-			canonicalRegion, _ := oracle.ParseRegion(region)
-			return canonicalRegion == claims.Region()
-		}) {
-			continue
-		}
-		return nil
-	}
-	return trace.AccessDenied("instance %v did not match any allow rules in token %v", claims.InstanceID, token)
 }
 
 func formatHeaderFromMap(m map[string]string) http.Header {
@@ -217,12 +207,8 @@ func (a *Server) checkOracleRequest(
 	}
 
 	// Check allow rules.
-	tokenV2, ok := provisionToken.(*types.ProvisionTokenV2)
-	if !ok {
-		return oracle.Claims{}, trace.BadParameter("oracle join method only supports ProvisionTokenV2")
-	}
-	if err := checkOracleAllowRules(claims, provisionToken.GetName(), tokenV2.Spec.Oracle.Allow); err != nil {
-		return oracle.Claims{}, trace.Wrap(err)
+	if err := oraclejoin.CheckOracleAllowRules(&claims, provisionToken); err != nil {
+		return claims, trace.Wrap(err)
 	}
 
 	return claims, nil

@@ -51,7 +51,7 @@ type Credentials struct {
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and IPs. If extended key usage
 // is not specified, the cert will be generated for server auth.
-func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x509.ExtKeyUsage) (*Credentials, error) {
+func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku []x509.ExtKeyUsage, now func() time.Time) (*Credentials, error) {
 	if len(eku) == 0 {
 		// if not specified, assume this cert is for server auth,
 		// which is required for validation on macOS:
@@ -63,7 +63,12 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	notBefore := time.Now()
+
+	if now == nil {
+		now = time.Now
+	}
+
+	notBefore := now()
 	notAfter := notBefore.Add(macMaxTLSCertValidityPeriod)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)

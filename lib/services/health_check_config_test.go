@@ -38,6 +38,12 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 			require.ErrorContains(t, err, substr)
 		}
 	}
+	var noErr = func() require.ErrorAssertionFunc {
+		return func(t require.TestingT, err error, _ ...any) {
+			t.(*testing.T).Helper()
+			require.NoError(t, err)
+		}
+	}
 
 	testCases := []struct {
 		name       string
@@ -198,22 +204,6 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 				},
 			},
 			requireErr: errContains("spec.match is missing"),
-		},
-		{
-			name: "missing matcher is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
-				Version: types.V1,
-				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
-					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match:    &healthcheckconfigv1.Matcher{},
-					Timeout:  durationpb.New(time.Second),
-					Interval: durationpb.New(2 * time.Second),
-				},
-			},
-			requireErr: errContains("at least one of spec.match.db_labels or spec.match.db_labels_expression must be set"),
 		},
 		{
 			name: "invalid label matcher",
@@ -402,6 +392,16 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 				},
 			},
 			requireErr: errContains("spec.unhealthy_threshold (11) must not be greater than 10"),
+		},
+		{
+			name:       "database virtual default ok",
+			in:         VirtualDefaultHealthCheckConfigDB(),
+			requireErr: noErr(),
+		},
+		{
+			name:       "kube virtual default ok",
+			in:         VirtualDefaultHealthCheckConfigKube(),
+			requireErr: noErr(),
 		},
 	}
 

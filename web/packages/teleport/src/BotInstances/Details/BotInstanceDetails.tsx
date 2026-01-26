@@ -16,138 +16,212 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MouseEventHandler, useCallback } from 'react';
-import { useHistory, useLocation, useParams } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { ButtonBorder } from 'design/Button/Button';
 import ButtonIcon from 'design/ButtonIcon/ButtonIcon';
 import Flex from 'design/Flex/Flex';
-import { ArrowLeft } from 'design/Icon/Icons/ArrowLeft';
+import { Cross } from 'design/Icon/Icons/Cross';
 import { Indicator } from 'design/Indicator/Indicator';
-import Text from 'design/Text';
+import { TabBorder, TabContainer, TabsContainer } from 'design/Tabs/Tabs';
+import { useSlidingBottomBorderTabs } from 'design/Tabs/useSlidingBottomBorderTabs';
+import Text from 'design/Text/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
 import TextEditor from 'shared/components/TextEditor/TextEditor';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout/Layout';
-import cfg from 'teleport/config';
+import useTeleport from 'teleport/useTeleport';
 
 import { useGetBotInstance } from '../hooks';
-
-const docsUrl =
-  'https://goteleport.com/docs/enroll-resources/machine-id/introduction/#bot-instances';
+import { HealthTab } from './HealthTab';
+import { InfoTab } from './InfoTab';
 
 export function BotInstanceDetails(props: {
-  onDocsLinkClickedForTesting?: MouseEventHandler<HTMLAnchorElement>;
+  botName: string;
+  instanceId: string;
+  onClose: () => void;
+  activeTab?: string | null;
+  onTabSelected: (tab: string) => void;
 }) {
-  const history = useHistory();
-  const location = useLocation();
-  const params = useParams<{
-    botName: string;
-    instanceId: string;
-  }>();
+  const { botName, instanceId, onClose, activeTab, onTabSelected } = props;
+
+  const ctx = useTeleport();
+  const flags = ctx.getFeatureFlags();
+  const hasReadPermission = flags.readBotInstances;
 
   const { data, error, isSuccess, isError, isLoading } = useGetBotInstance(
-    params,
     {
+      botName,
+      instanceId,
+    },
+    {
+      enabled: hasReadPermission,
       staleTime: 30_000, // Keep data in the cache for 30 seconds
     }
   );
 
-  const handleBackPress = useCallback(() => {
-    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
-    if (!location.key || location.key === 'default') {
-      history.push(cfg.getBotInstancesRoute());
-    } else {
-      history.goBack();
-    }
-  }, [history, location.key]);
+  const tab = tabs.find(t => t.id === activeTab)?.id ?? 'info';
 
   return (
-    <FeatureBox>
-      <FeatureHeader justifyContent="space-between" gap={2}>
-        <Flex gap={2}>
-          <HoverTooltip placement="bottom" tipContent={'Go back'}>
-            <ButtonIcon onClick={handleBackPress} aria-label="back">
-              <ArrowLeft size="medium" />
-            </ButtonIcon>
-          </HoverTooltip>
-          <FeatureHeaderTitle>Bot instance</FeatureHeaderTitle>
-          {isSuccess && data.bot_instance?.spec?.instance_id ? (
-            <InstanceId>
-              <Flex inline alignItems={'center'} gap={1} mr={0}>
-                <MonoText>
-                  {data.bot_instance.spec.instance_id.substring(0, 7)}
-                </MonoText>
-                <CopyButton name={data.bot_instance.spec.instance_id} />
-              </Flex>
-            </InstanceId>
-          ) : undefined}
-        </Flex>
+    <Container>
+      <TitleContainer>
+        <TitleText>
+          {botName}/{instanceId}
+        </TitleText>
+        <HoverTooltip placement="top" tipContent={'Close'}>
+          <ButtonIcon onClick={() => onClose()} aria-label="close">
+            <Cross size="medium" />
+          </ButtonIcon>
+        </HoverTooltip>
+      </TitleContainer>
+      <Divider />
+      <ContentContainer>
+        {isLoading ? (
+          <Box data-testid="loading" textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        ) : undefined}
 
-        <ButtonBorder
-          size="medium"
-          as="a"
-          href={docsUrl}
-          target="_blank"
-          rel="noreferrer"
-          onClick={props.onDocsLinkClickedForTesting}
-        >
-          View Documentation
-        </ButtonBorder>
-      </FeatureHeader>
+        {isError ? (
+          <Alert m={3} kind="danger">
+            {error.message}
+          </Alert>
+        ) : undefined}
 
-      {isLoading ? (
-        <Box data-testid="loading" textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      ) : undefined}
+        {!hasReadPermission ? (
+          <Alert kind="info" m={3}>
+            You do not have permission to read Bot instances. Missing role
+            permissions: <code>bot_instance.read</code>
+          </Alert>
+        ) : undefined}
 
-      {isError ? (
-        <Alert kind="danger">Error: {error.message}</Alert>
-      ) : undefined}
+        {isSuccess ? (
+          <>
+            <Tabs activeTab={tab} onTabSelected={onTabSelected} />
 
-      {isSuccess && data.yaml ? (
-        <YamlContaner>
-          <TextEditor
-            bg="levels.elevated"
-            data={[
-              {
-                content: data.yaml,
-                type: 'yaml',
-              },
-            ]}
-            readOnly={true}
-          />
-        </YamlContaner>
-      ) : undefined}
-    </FeatureBox>
+            {tab === 'info' ? (
+              <TabContentContainer>
+                <InfoTab
+                  data={data}
+                  onGoToServicesClick={() => onTabSelected('health')}
+                />
+              </TabContentContainer>
+            ) : undefined}
+
+            {tab === 'health' ? <HealthTab data={data} /> : undefined}
+
+            {tab === 'yaml' ? (
+              <TextEditor
+                bg="levels.sunken"
+                data={[
+                  {
+                    content: data.yaml,
+                    type: 'yaml',
+                  },
+                ]}
+                readOnly={true}
+              />
+            ) : undefined}
+          </>
+        ) : undefined}
+      </ContentContainer>
+    </Container>
   );
 }
 
-const MonoText = styled(Text)`
-  font-family: ${({ theme }) => theme.fonts.mono};
-`;
-
-const InstanceId = styled.div`
+const Container = styled.section`
   display: flex;
-  align-items: center;
-  padding-left: ${props => props.theme.space[2]}px;
-  padding-right: ${props => props.theme.space[2]}px;
-  height: ${props => props.theme.space[5]}px;
-  border-radius: ${props => props.theme.space[3]}px;
-  background-color: ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
+  flex-direction: column;
+  flex: 1;
+  border-left-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+  border-left-width: 1px;
+  border-left-style: solid;
+  overflow: hidden;
+  min-width: 300px;
 `;
 
-const YamlContaner = styled(Flex)`
+const TitleContainer = styled(Flex)`
+  align-items: center;
+  justify-content: space-between;
+  min-height: ${p => p.theme.space[8]}px;
+  padding-left: ${p => p.theme.space[3]}px;
+  padding-right: ${p => p.theme.space[3]}px;
+  gap: ${p => p.theme.space[2]}px;
+  overflow: hidden;
+`;
+
+export const TitleText = styled(Text).attrs({
+  as: 'h2',
+  typography: 'h2',
+})`
   flex: 1;
-  border-radius: ${props => props.theme.space[2]}px;
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  white-space: nowrap;
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  flex-shrink: 0;
+  background-color: ${p => p.theme.colors.interactive.tonal.neutral[0]};
+`;
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+`;
+
+const TabContentContainer = styled(Flex)`
+  overflow: auto;
+  flex: 1;
+  background-color: ${({ theme }) => theme.colors.levels.surface};
+`;
+
+const tabs = [
+  {
+    id: 'info',
+    label: 'Overview',
+  },
+  {
+    id: 'health',
+    label: 'Services',
+  },
+  { id: 'yaml', label: 'YAML' },
+] as const;
+
+type TabId = (typeof tabs)[number]['id'];
+
+function Tabs(props: {
+  activeTab: TabId;
+  onTabSelected: (tab: TabId) => void;
+}) {
+  const { activeTab, onTabSelected } = props;
+  const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+
+  return (
+    <StyledTabsContainer ref={parentRef} withBottomBorder role="tablist">
+      {tabs.map(t => (
+        <StyledTabContainer
+          key={t.id}
+          data-tab-id={t.id}
+          selected={activeTab === t.id}
+          onClick={() => onTabSelected(t.id)}
+          role="tab"
+        >
+          {t.label}
+        </StyledTabContainer>
+      ))}
+      <TabBorder ref={borderRef} />
+    </StyledTabsContainer>
+  );
+}
+
+const StyledTabsContainer = styled(TabsContainer)`
+  gap: 0;
+`;
+
+const StyledTabContainer = styled(TabContainer)`
+  padding: ${p => p.theme.space[2]}px ${p => p.theme.space[3]}px;
+  font-weight: ${p => p.theme.fontWeights.medium};
+  font-size: ${p => p.theme.fontSizes[2]}px;
 `;

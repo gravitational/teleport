@@ -103,7 +103,12 @@ export const RoleEditor = ({
 
   useEffect(() => {
     const { roleModel, validationResult } = standardModel;
-    if (roleTesterEnabled && roleModel && validationResult?.isValid) {
+    if (
+      roleTesterEnabled &&
+      roleModel &&
+      !roleModel.requiresReset &&
+      validationResult?.isValid
+    ) {
       onRoleUpdate?.(roleEditorModelToRole(roleModel));
     }
   }, [standardModel, onRoleUpdate, roleTesterEnabled, demoMode]);
@@ -160,6 +165,16 @@ export const RoleEditor = ({
       }
     }, [onRoleUpdate, yamlModel])
   );
+
+  useEffect(() => {
+    const { roleModel } = standardModel;
+    if (
+      roleTesterEnabled &&
+      (roleModel === undefined || roleModel.requiresReset)
+    ) {
+      handleYamlPreview();
+    }
+  }, []);
 
   // Converts standard editor model to a YAML representation.
   const [yamlifyAttempt, yamlifyRole] = useAsync(

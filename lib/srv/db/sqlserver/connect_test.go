@@ -85,14 +85,13 @@ func TestConnectorSelection(t *testing.T) {
 			desc: "Azure database without AD configured",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
-				URI:      "random.database.windows.net:1443",
+				URI:      "no-such-host-1234567890.database.windows.net:1443",
 			},
-			// When using a Azure database without AD configuration, the
-			// connector should fail because it could not connect to the
-			// database.
+			// When using an Azure database without AD configuration, the
+			// connector should fail because it could not resolve the host.
 			errAssertion: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "unable to open tcp connection with host")
+				require.Contains(t, err.Error(), "no such host")
 			},
 		},
 		{

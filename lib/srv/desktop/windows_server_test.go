@@ -21,12 +21,14 @@ package desktop
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base32"
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -118,6 +121,8 @@ func TestConfigDesktopDiscovery(t *testing.T) {
 // TestGenerateCredentials verifies that the smartcard certificates generated
 // by Teleport meet the requirements for Windows logon.
 func TestGenerateCredentials(t *testing.T) {
+	t.Parallel()
+
 	const (
 		clusterName = "test"
 		user        = "test-user"
@@ -139,16 +144,13 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, tlsServer.Close())
 	})
 
-	ca, err := authServer.AuthServer.GetCertAuthorities(t.Context(), types.UserCA, false)
-	require.NoError(t, err)
-	require.Len(t, ca, 1)
-
-	keys := ca[0].GetActiveKeys()
-	require.Len(t, keys.TLS, 1)
-
-	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
-	require.NoError(t, err)
-	commonName := base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + clusterName
+	windowsCA := fetchDesktopCAInfo(t, authServer.AuthServer, types.WindowsCA)
+	userCA := fetchDesktopCAInfo(t, authServer.AuthServer, types.UserCA)
+	// Sanity check.
+	require.NotEqual(t,
+		windowsCA.SerialNumber, userCA.SerialNumber,
+		"CA serial numbers must not match",
+	)
 
 	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
 	require.NoError(t, err)
@@ -156,31 +158,55 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	testSID := "S-1-5-21-1329593140-2634913955-1900852804-500"
+	const testSID = "S-1-5-21-1329593140-2634913955-1900852804-500"
 
 	for _, test := range []struct {
-		name               string
-		activeDirectorySID string
+		name                    string
+		activeDirectorySID      string
+		wantSerialNumber        string
+		wantCRLCommonName       string
+		disableWindowsCASupport bool
 	}{
 		{
 			name:               "no ad sid",
 			activeDirectorySID: "",
+			wantSerialNumber:   windowsCA.SerialNumber,
+			wantCRLCommonName:  windowsCA.CRLCommonName,
 		},
 		{
 			name:               "with ad sid",
 			activeDirectorySID: testSID,
+			wantSerialNumber:   windowsCA.SerialNumber,
+			wantCRLCommonName:  windowsCA.CRLCommonName,
+		},
+		{
+			name:                    "old agent without AD SID",
+			activeDirectorySID:      "",
+			wantSerialNumber:        userCA.SerialNumber,
+			wantCRLCommonName:       userCA.CRLCommonName,
+			disableWindowsCASupport: true,
+		},
+		{
+			name:                    "old agent with AD SID",
+			activeDirectorySID:      testSID,
+			wantSerialNumber:        userCA.SerialNumber,
+			wantCRLCommonName:       userCA.CRLCommonName,
+			disableWindowsCASupport: true,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+
 			certb, keyb, err := winpki.GenerateWindowsDesktopCredentials(ctx, client, &winpki.GenerateCredentialsRequest{
-				Username:           user,
-				Domain:             domain,
-				TTL:                5 * time.Minute,
-				ClusterName:        clusterName,
-				ActiveDirectorySID: test.activeDirectorySID,
+				Username:                          user,
+				Domain:                            domain,
+				TTL:                               5 * time.Minute,
+				ClusterName:                       clusterName,
+				ActiveDirectorySID:                test.activeDirectorySID,
+				DisableWindowsCASupportForTesting: test.disableWindowsCASupport,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, certb)
@@ -190,9 +216,13 @@ func TestGenerateCredentials(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cert)
 
-			require.Equal(t, user, cert.Subject.CommonName)
-			require.Contains(t, cert.CRLDistributionPoints,
-				`ldap:///CN=`+commonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`)
+			require.Equal(t, test.wantSerialNumber, cert.Issuer.SerialNumber, "Issuer.SerialNumber")
+			require.Equal(t, user, cert.Subject.CommonName, "Subject.CommonName")
+			require.Contains(t,
+				cert.CRLDistributionPoints,
+				`ldap:///CN=`+test.wantCRLCommonName+`,CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,DC=test,DC=example,DC=com?certificateRevocationList?base?objectClass=cRLDistributionPoint`,
+				"CRLDistributionPoints",
+			)
 
 			foundKeyUsage := false
 			foundAltName := false
@@ -228,6 +258,40 @@ func TestGenerateCredentials(t *testing.T) {
 			require.True(t, foundAltName)
 			require.Equal(t, test.activeDirectorySID != "", foundAdUserMapping)
 		})
+	}
+}
+
+type certAuthorityGetter interface {
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+}
+
+type desktopCAInfo struct {
+	SerialNumber  string
+	CRLCommonName string
+}
+
+func fetchDesktopCAInfo(
+	t *testing.T,
+	authClient certAuthorityGetter,
+	caType types.CertAuthType,
+) *desktopCAInfo {
+	t.Helper()
+
+	const loadKeys = false
+	cas, err := authClient.GetCertAuthorities(t.Context(), caType, loadKeys)
+	require.NoError(t, err)
+	require.Len(t, cas, 1)
+	ca := cas[0]
+
+	keys := ca.GetActiveKeys()
+	require.Len(t, keys.TLS, 1)
+
+	cert, err := tlsca.ParseCertificatePEM(keys.TLS[0].Cert)
+	require.NoError(t, err)
+
+	return &desktopCAInfo{
+		SerialNumber:  cert.SerialNumber.String(),
+		CRLCommonName: base32.HexEncoding.EncodeToString(cert.SubjectKeyId) + "_" + ca.GetClusterName(),
 	}
 }
 
@@ -385,4 +449,110 @@ func TestEmitsClipboardReceiveEvents(t *testing.T) {
 	require.Equal(t, audit.desktop.GetAddr(), cs.DesktopAddr)
 	require.Equal(t, audit.clusterName, cs.ClusterName)
 	require.Equal(t, start, cs.Time)
+}
+
+func TestLoadTLSConfigForLDAP(t *testing.T) {
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: "test-cluster",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tlsServer.Close())
+	})
+
+	client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, "test-host-id"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	newWindowsService := func(clock clockwork.Clock, client *authclient.Client) *WindowsService {
+		return &WindowsService{
+			cfg: WindowsServiceConfig{
+				Clock:      clock,
+				AuthClient: client,
+				Logger:     slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
+				LDAPConfig: servicecfg.LDAPConfig{
+					Domain:   "test.example.com",
+					Username: "test-user",
+					Addr:     "ldap.example.com:389",
+				},
+			},
+			closeCtx: context.Background(),
+		}
+	}
+
+	t.Run("returns cached config when not expired", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, nil)
+
+		expectedConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+		s.ldapTLSConfig = expectedConfig
+		s.ldapTLSConfigExpiresAt = clock.Now().Add(1 * time.Hour)
+
+		config, err := s.loadTLSConfigForLDAP()
+		require.NoError(t, err)
+		require.Equal(t, expectedConfig, config)
+	})
+
+	t.Run("generates new config when cache is expired", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, client)
+
+		oldConfig := &tls.Config{MinVersion: tls.VersionTLS10}
+		s.ldapTLSConfig = oldConfig
+		s.ldapTLSConfigExpiresAt = clock.Now().Add(-1 * time.Hour)
+
+		config, err := s.loadTLSConfigForLDAP()
+		require.NoError(t, err)
+		require.NotNil(t, config)
+		require.NotEqual(t, oldConfig, config)
+
+		require.Equal(t, config, s.ldapTLSConfig)
+		require.True(t, s.ldapTLSConfigExpiresAt.After(clock.Now()))
+	})
+
+	t.Run("generates new config when cache is empty", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, client)
+
+		config, err := s.loadTLSConfigForLDAP()
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		require.Equal(t, config, s.ldapTLSConfig)
+		require.Equal(t, clock.Now().Add(tlsConfigCacheTTL), s.ldapTLSConfigExpiresAt)
+	})
+
+	t.Run("handles concurrent requests", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		s := newWindowsService(clock, client)
+
+		s.ldapTLSConfig = &tls.Config{MinVersion: tls.VersionTLS10}
+		s.ldapTLSConfigExpiresAt = clock.Now().Add(-1 * time.Hour)
+
+		var wg sync.WaitGroup
+		configs := make([]*tls.Config, 5)
+		for i := range 5 {
+			wg.Add(1)
+			go func(idx int) {
+				defer wg.Done()
+				cfg, err := s.loadTLSConfigForLDAP()
+				require.NoError(t, err)
+				configs[idx] = cfg
+			}(i)
+		}
+		wg.Wait()
+
+		for _, cfg := range configs {
+			require.NotNil(t, cfg)
+		}
+	})
 }

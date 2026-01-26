@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"strings"
@@ -106,6 +107,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateAgentRolloutParser()
 		case types.KindAutoUpdateAgentReport:
 			parser = newAutoUpdateAgentReportParser()
+		case types.KindAutoUpdateBotInstanceReport:
+			parser = newAutoUpdateBotInstanceReportParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -270,6 +273,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRotatedKeyParser()
 		case types.KindRelayServer:
 			parser = newRelayServerParser()
+		case types.KindScopedToken:
+			parser = newScopedTokenParser()
+		case types.KindAppAuthConfig:
+			parser = newAppAuthConfigParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -340,6 +347,10 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
+				if eo := parseEventOverrideError(nil); errors.As(err, &eo) {
+					events = append(events, eo...)
+					continue
+				}
 				errs = append(errs, trace.Wrap(err))
 				continue
 			}
@@ -399,13 +410,20 @@ func (w *watcher) Close() error {
 // resourceParser is an interface
 // for parsing resource from backend byte event stream
 type resourceParser interface {
-	// parse parses resource from the backend event
+	// parse parses resource from the backend event; if the returned error is a
+	// parseEventOverrideError then the returned resource is ignored and the
+	// events in the parseEventOverrideError will be added to the generated
+	// events instead.
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
 	match(key backend.Key) bool
 	// prefixes returns prefixes to watch
 	prefixes() []backend.Key
 }
+
+type parseEventOverrideError []types.Event
+
+func (p parseEventOverrideError) Error() string { return "parseEventOverrideError" }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).
@@ -906,6 +924,45 @@ func (p *autoUpdateAgentReportParser) parse(event backend.Event) (types.Resource
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(autoUpdateAgentReport), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateBotInstanceReportParser() *autoUpdateBotInstanceReportParser {
+	return &autoUpdateBotInstanceReportParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateBotInstanceReportPrefix)),
+	}
+}
+
+type autoUpdateBotInstanceReportParser struct {
+	baseParser
+}
+
+func (p *autoUpdateBotInstanceReportParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(autoUpdateBotInstanceReportPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateBotInstanceReport,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateBotInstanceReport, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateBotInstanceReport](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateBotInstanceReport), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

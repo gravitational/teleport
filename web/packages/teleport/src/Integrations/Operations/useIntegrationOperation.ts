@@ -27,7 +27,7 @@ import {
 } from 'teleport/services/integrations';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import { DeleteRequestOptions } from './IntegrationOperations';
+import { type DeleteRequestOptions } from './IntegrationOperations';
 
 export function useIntegrationOperation() {
   const { clusterId } = useStickyClusterId();
@@ -67,7 +67,7 @@ export function useIntegrationOperation() {
           },
         });
       } catch (err) {
-        throw new Error(`Health check failed: ${err}`);
+        throw new Error(`Health check failed: ${err}`, { cause: err });
       }
     }
   }

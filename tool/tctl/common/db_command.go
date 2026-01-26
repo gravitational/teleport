@@ -112,7 +112,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) e
 	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
@@ -130,7 +130,7 @@ Generate the configuration and start a Teleport agent using it:
 > teleport db configure create \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --proxy={{.auth_server}} \
+   --proxy={{.proxy_server}} \
    --name={{.db_name}} \
    --protocol={{.db_protocol}} \
    --uri={{.db_uri}} \

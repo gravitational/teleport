@@ -87,11 +87,10 @@ service TerminalService {
   // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
   // Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
   rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
-
+  // Lists Kubernetes servers.
+  rpc ListKubernetesServers(ListKubernetesServersRequest) returns (ListKubernetesServersResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
-  // RemoveCluster removes a cluster from profile
-  rpc RemoveCluster(RemoveClusterRequest) returns (EmptyResponse);
 
   // ListGateways lists gateways
   rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse);
@@ -132,8 +131,12 @@ service TerminalService {
   // -> Receive the index number associated with the selected credential in list
   // <- End
   rpc LoginPasswordless(stream LoginPasswordlessRequest) returns (stream LoginPasswordlessResponse);
-  // ClusterLogin logs out a user from cluster
+  // Logs the user out of the cluster and cleans up associated resources.
+  // Optionally removes the profile.
+  // This operation is idempotent and can be safely invoked multiple times.
   rpc Logout(LogoutRequest) returns (EmptyResponse);
+  // Closes root and leaf cluster clients that use outdated TLS certificates.
+  rpc ClearStaleClusterClients(ClearStaleClusterClientsRequest) returns (ClearStaleClusterClientsResponse);
   // TransferFile sends a request to download/upload a file
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
@@ -192,20 +195,22 @@ service TerminalService {
 
 message EmptyResponse {}
 
-// RemoveClusterRequest describes RemoveClusterRequest
-message RemoveClusterRequest {
-  string cluster_uri = 1;
-}
-
 // GetClusterRequest describes GetClusterRequest
 message GetClusterRequest {
   string cluster_uri = 1;
 }
 
-// LogoutRequest describes LogoutRequest
 message LogoutRequest {
   string cluster_uri = 1;
+  // Whether to remove the associated YAML profile after logout.
+  bool remove_profile = 2;
 }
+
+message ClearStaleClusterClientsRequest {
+  string root_cluster_uri = 1;
+}
+
+message ClearStaleClusterClientsResponse {}
 
 message StartHeadlessWatcherRequest {
   string root_cluster_uri = 1;
@@ -356,6 +361,30 @@ message ListKubernetesResourcesResponse {
   repeated KubeResource resources = 1;
   reserved 2;
   reserved "next_key";
+}
+
+// Lists Kubernetes servers request.
+message ListKubernetesServersRequest {
+  // Maximum number of servers to return per page.
+  int32 page_size = 1;
+
+  // Pagination token from a previous response.
+  string page_token = 2;
+
+  // Target Kubernetes cluster URI.
+  string cluster_uri = 3;
+
+  // Additional filters and sorting options.
+  ListResourcesParams params = 4;
+}
+
+// Lists Kubernetes servers response.
+message ListKubernetesServersResponse {
+  // Resources in this page of results.
+  repeated KubeServer resources = 1;
+
+  // Pagination token for the next page.
+  string next_page_token = 2;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.

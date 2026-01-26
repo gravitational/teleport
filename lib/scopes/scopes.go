@@ -23,14 +23,15 @@ import (
 	"iter"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/trace"
 )
 
 // segmentRegexp is the regular expression used to validate scope segments. It allows
-// alphanumeric characters, hyphens, underscores, and periods. It also requires that the
-// segment starts and ends with an alphanumeric character.
-var segmentRegexp = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9\-\_\.]*[a-zA-Z0-9]$`)
+// lowercase alphanumeric characters, hyphens, underscores, and periods. It also requires
+// that the segment starts and ends with an alphanumeric character.
+var segmentRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9\-\_\.]*[a-z0-9]$`)
 
 const (
 	// separator is the character used to separate segments in a scope and is the the value of the root scope.
@@ -136,6 +137,14 @@ func StrongValidateSegment(segment string) error {
 
 	if len(segment) < minSegmentSize {
 		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
+	}
+
+	// check for uppercase characters separately. this would be caught by the regex, but its better
+	// UX to call out uppercase characters specifically since its a common mistake.
+	for _, r := range segment {
+		if unicode.IsUpper(r) {
+			return trace.BadParameter("segment %q contains uppercase character(s)", segment)
+		}
 	}
 
 	if !segmentRegexp.MatchString(segment) {
@@ -308,6 +317,30 @@ func Join(segments ...string) string {
 	return scope
 }
 
+// NormalizeForEquality attempts to normalize a scope s.t. equivalent scopes will have identical string representations. The only way
+// scopes can currently be equivalent without being identical is by lacking a leading separator or containing a trailing separator.
+// In general, we prefer to avoid modifying scope values as a verson incompatibility or bug that causes modification of a scope to change
+// the result of scope comparison could result in a security issue. Normalizing on separators is the exception because separators
+// are purely syntactic and have no semantic meaning beyond delimiting segments, and we effectively are already forced to normalize
+// on separators (especially where scope caching is concerned, as scoped values must be organized by segment hierarchy for efficient
+// lookups).
+//
+// NOTE: it generally holds that NormalizeForEquality(x) == NormalizeForEquality(x) if Compare(x, y) == Equivalent and vice versa, *except*
+// in the case of two empty scopes. Empty scopes are invalid and considered orthogonal to one another, a proprerty which isn't really reasonable
+// to preserve in this normalization function. Avoid using this function in contexts where scope values may be empty.
+func NormalizeForEquality(scope string) string {
+	if scope == "" {
+		return ""
+	}
+
+	segments := make([]string, 0, strings.Count(scope, separator))
+	for segment := range DescendingSegments(scope) {
+		segments = append(segments, segment)
+	}
+
+	return Join(segments...)
+}
+
 // Relationship describes the relationship between two scopes, as determined by the [Compare] function. Note
 // that direct use of this type in access-control logic is discouraged, as it is easier to accidentally
 // misuse than the provided helpers (e.g. [PolicyScope]).
@@ -396,6 +429,49 @@ func Compare(lhs, rhs string) Relationship {
 		case !lOk && !rOk:
 			// scopes are equivalent
 			return Equivalent
+		}
+	}
+}
+
+// Sort is a helper function for sorting scopes. Scope sort order differs from lexographic sort of
+// a scope's string representation in some cases. For example, the lexicographically sorted sequence
+// of scopes ['/aa', '/aa-bb', '/aa/bb'] is different from the scope-sorted sequence
+// ['/aa', '/aa/bb', '/aa-bb']. This function conforms to the standard go comparison contract, returning
+// a negative integer if lhs < rhs, zero if lhs == rhs, and a positive integer if lhs > rhs.
+func Sort(lhs, rhs string) int {
+	if lhs == rhs {
+		return 0
+	}
+
+	lNext, lStop := iter.Pull(DescendingSegments(lhs))
+	defer lStop()
+
+	rNext, rStop := iter.Pull(DescendingSegments(rhs))
+	defer rStop()
+
+	for {
+		lVal, lOk := lNext()
+		rVal, rOk := rNext()
+
+		switch {
+		case lOk && rOk:
+			// both scopes have segments left to compare
+			if c := strings.Compare(lVal, rVal); c == 0 {
+				// scopes are still equivalent at this level, continue processing
+				continue
+			} else {
+				// scopes have diverged
+				return c
+			}
+		case lOk && !rOk:
+			// the right hand side scope is an ancestor of the left hand side scope
+			return 1
+		case !lOk && rOk:
+			// the left hand side scope is an ancestor of the right hand side scope
+			return -1
+		case !lOk && !rOk:
+			// scopes are equivalent
+			return 0
 		}
 	}
 }

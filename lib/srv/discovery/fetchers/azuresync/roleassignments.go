@@ -24,7 +24,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -57,7 +56,6 @@ func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAs
 		pbRoleAssign := &accessgraphv1alpha.AzureRoleAssignment{
 			Id:               *roleAssign.ID,
 			SubscriptionId:   subscriptionID,
-			LastSyncTime:     timestamppb.Now(),
 			PrincipalId:      *roleAssign.Properties.PrincipalID,
 			RoleDefinitionId: *roleAssign.Properties.RoleDefinitionID,
 			Scope:            *roleAssign.Properties.Scope,

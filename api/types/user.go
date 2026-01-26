@@ -63,6 +63,8 @@ type User interface {
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected SAML identities
 	GetSAMLIdentities() []ExternalIdentity
+	// SetSAMLIdentities sets a list of connected SAML identities
+	SetSAMLIdentities([]ExternalIdentity)
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
 	// SetGithubIdentities sets the list of connected GitHub identities
@@ -129,6 +131,8 @@ type User interface {
 	SetHostUserGID(gid string)
 	// SetMCPTools sets a list of allowed MCP tools for the user
 	SetMCPTools(mcpTools []string)
+	// SetDefaultRelayAddr sets the trait for the default relay address.
+	SetDefaultRelayAddr(addr string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -256,6 +260,7 @@ func (u *UserV2) SetStaticLabels(sl map[string]string) {
 // match against the list of search values.
 func (u *UserV2) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(u.Metadata.Labels), u.GetName())
+	fieldVals = append(fieldVals, u.GetRoles()...)
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -428,6 +433,18 @@ func (u *UserV2) SetMCPTools(mcpTools []string) {
 	u.setTrait(constants.TraitMCPTools, mcpTools)
 }
 
+// SetDefaultRelayAddr implements [User].
+func (u *UserV2) SetDefaultRelayAddr(addr string) {
+	if addr == "" {
+		delete(u.Spec.Traits, constants.TraitDefaultRelayAddr)
+		return
+	}
+	if u.Spec.Traits == nil {
+		u.Spec.Traits = make(map[string][]string)
+	}
+	u.Spec.Traits[constants.TraitDefaultRelayAddr] = []string{addr}
+}
+
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -441,6 +458,11 @@ func (u *UserV2) GetOIDCIdentities() []ExternalIdentity {
 // GetSAMLIdentities returns a list of connected SAML identities
 func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 	return u.Spec.SAMLIdentities
+}
+
+// SetSAMLIdentities sets a list of connected SAML identities
+func (u *UserV2) SetSAMLIdentities(identities []ExternalIdentity) {
+	u.Spec.SAMLIdentities = identities
 }
 
 // GetGithubIdentities returns a list of connected Github identities

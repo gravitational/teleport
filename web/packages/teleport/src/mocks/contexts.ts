@@ -78,8 +78,10 @@ export const allAccessAcl: Acl = {
   contacts: fullAccess,
   gitServers: fullAccess,
   accessGraphSettings: fullAccess,
+  instances: fullAccess,
   botInstances: fullAccess,
   workloadIdentity: fullAccess,
+  clientIpRestriction: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

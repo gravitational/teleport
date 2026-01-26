@@ -39,9 +39,18 @@ const (
 
 // TokenService defines the required methods to upsert the Provision Token used by the Deploy Service.
 type TokenService interface {
+	TokenGetter
+	TokenCreator
+}
+
+// TokenGetter defines the required method to get a Provision Token.
+type TokenGetter interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+}
 
+// TokenCreator defines the required method to create or update a Provision Token.
+type TokenCreator interface {
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 }

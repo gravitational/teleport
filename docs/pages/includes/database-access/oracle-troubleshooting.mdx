@@ -1,0 +1,194 @@
+### Connection hangs or is refused
+
+A common issue when connecting to an Oracle database is a connection timeout or refusal. This typically indicates a networking problem where the Teleport Database Service cannot reach the Oracle database endpoint.
+Verify that network routing and access controls, such as firewalls and VPC security groups, allow traffic to flow from the Database Service host to the database endpoint.
+
+You can validate connectivity using a native Oracle client, which helps confirm whether the issue is with Teleport or the underlying network configuration. For example, using Oracle SQLcl:
+
+```bash
+# Example: Oracle SQLcl
+sql -L myuser/mypassword@oracle-instance.example.com:2484
+```
+
+Network connectivity issues are often detected by automated [health checks](../../enroll-resources/database-access/guides/health-checks.mdx).
+
+To check the health status of all registered databases:
+
+```bash
+# All databases
+tctl db ls --format=json | jq -r '.[] | [.metadata.name, .status.target_health]'
+```
+
+An unhealthy database will have output similar to the following:
+
+```json
+...
+  "oracle",
+  {
+    "address": "11.22.33.44:2484",
+    "protocol": "TCP",
+    "status": "unhealthy",
+    "transition_timestamp": "2025-09-25T09:47:39.435973Z",
+    "transition_reason": "threshold_reached",
+    "transition_error": "dial tcp 11.22.33.44:2484: i/o timeout",
+    "message": "1 health check failed"
+  }
+...
+```
+
+### TLS negotiation fails
+
+Properly configuring TLS on an Oracle database can be challenging. Different underlying issues can result in the same error message, such as the following from Teleport:
+
+```
+Original Error: *tls.permanentError remote error: tls: handshake failure
+```
+
+Or you might see the following in the Oracle logs:
+
+```
+ORA-00609: could not attach to incoming connection
+ORA-28860: Fatal SSL error
+```
+
+To identify the root cause, follow the debugging steps in the sections below. The output of the following `openssl` command can help diagnose many common TLS issues. Capture the output and use it as you follow the debugging steps.
+
+```
+> openssl s_client -connect oracle.example.com:2484 -showcerts
+```
+
+#### Wrong server certificate
+
+Teleport rejects connections to databases with untrusted server certificates. If you are using Teleport to issue certificates, ensure that the server certificate was issued by the Teleport Database CA. An invalid server certificate will prevent Teleport from establishing a secure connection.
+
+You can view the Teleport Database CA certificate with the following command:
+
+```
+tctl auth export --type=db | openssl x509 -issuer -noout
+...
+issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=200129862304303044762346177566738813560
+```
+
+Compare the `issuer` in the server certificate with the `issuer` of the Teleport Database CA certificate. The `openssl s_client` command from the previous section will show you the server certificate:
+
+
+```
+# openssl s_client output:
+...
+Server certificate
+subject=CN=oracle.example.com
+issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=200129862304303044762346177566738813560
+...
+```
+
+You can also inspect the Oracle wallet directly using the `orapki` utility to verify the server certificate.
+
+```bash
+# Prompt for wallet password
+orapki wallet display -complete -wallet /path/to/wallet
+```
+
+The "User Certificates" section of the output should contain the server's certificate. Its `Issuer` should match the `Subject` of the Teleport Database CA.
+
+```
+User Certificates:
+Subject:        CN=oracle.example.com
+Issuer:         SERIALNUMBER=200129862304303044762346177566738813560,CN=teleport.example.com,O=teleport.example.com
+Serial Number:  ...
+```
+
+#### Wrong client certificate
+
+If the Oracle server rejects client certificates presented by the Teleport Database Service, you should verify that the Oracle database trusts the Teleport Database User CA.
+
+You can view the Teleport Database User CA with this command:
+
+```
+tctl auth export --type=db-client | openssl x509 -issuer -noout
+issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=183359545647055551607366887578713393931
+```
+
+Compare the Teleport Database User CA with the list of CAs trusted by the Oracle database. The `openssl s_client` command from earlier will show the list of CAs the Oracle database trusts:
+
+```
+# openssl s_client output:
+...
+---
+Acceptable client certificate CA names
+O=teleport.example.com, CN=teleport.example.com, serialNumber=183359545647055551607366887578713393931
+```
+
+Ensure that the Teleport Database User CA certificate has been added to the correct wallet and that the Oracle server configuration references this wallet.
+
+You can also inspect the Oracle wallet directly using the `orapki` utility to verify that the Teleport Database User CA is trusted.
+
+```bash
+# Prompt for wallet password
+orapki wallet display -complete -wallet /path/to/wallet
+```
+
+The "Trusted Certificates" section of the output should contain the Teleport Database User CA. Its `Issuer` should match the `issuer` of the Teleport Database User CA.
+
+```
+Trusted Certificates:
+Subject:        SERIALNUMBER=183359545647055551607366887578713393931,CN=teleport.example.com,O=teleport.example.com
+Issuer:         SERIALNUMBER=183359545647055551607366887578713393931,CN=teleport.example.com,O=teleport.example.com
+Serial Number:  ...
+```
+
+#### Wrong TLS version
+
+Teleport rejects connections that use TLS 1.0 or 1.1 due to known weaknesses. Ensure that the `SSL_VERSION` parameter in your Oracle configuration is set to `1.2` or higher to enable TLS 1.2 or a newer version.
+
+#### No common cipher suites
+
+Ensure that the `SQLNET.CIPHER_SUITE` parameter in your Oracle configuration contains modern TLS cipher suites that match the configured TLS version.
+The following cipher suites are secure and widely supported across different Oracle versions.
+
+For TLS 1.2:
+- `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`
+- `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
+
+For TLS 1.3:
+- `TLS_AES_128_GCM_SHA256`
+- `TLS_AES_256_GCM_SHA384`
+
+### `Must be logged on to the server` error
+
+The following error indicates that the login procedure has failed:
+
+```
+ORA-17430: Must be logged on to the server.
+```
+
+This is most commonly caused by the Oracle database enforcing native encryption or data-integrity checksums on a TCPS endpoint. 
+Teleport uses TLS for transport security, and does not support native Oracle encryption.
+
+To disable the redundant encryption requirement for the TCPS endpoint, add the following line to your `sqlnet.ora` file:
+
+`SQLNET.IGNORE_ANO_ENCRYPTION_FOR_TCPS=TRUE`
+
+Make sure to use an up-to-date version of the Oracle database. In older versions, this setting may not disable data-integrity checksums, which will lead to continued failures.
+
+### Invalid username
+
+An incorrectly specified username will result in the following error:
+
+```
+ORA-01017: invalid username/password; logon denied
+```
+
+When using TLS-based authentication, Oracle maps the Common Name (CN) from the client certificate to an external user in the database. Verify the `EXTERNAL_NAME` for your user in the `dba_users` table. It should be in the format `cn=<name>`, where `<name>` matches the value of the `--db-user` flag used in the `tsh db login` command.
+
+You can query the `dba_users` table to check the `EXTERNAL_NAME` of your users:
+
+```sql
+SQL> SELECT username, authentication_type, external_name
+  2  FROM   dba_users
+  3  WHERE  authentication_type = 'EXTERNAL'
+  4  ORDER  BY 1;
+
+USERNAME      AUTHENTICATION_TYPE    EXTERNAL_NAME
+_____________ ______________________ ________________
+ALICE         EXTERNAL               cn=alice
+```

@@ -1,0 +1,20 @@
+{{- if .Values.highAvailability.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "teleport-relay.fullname" . }}
+  labels:
+    {{- include "teleport-relay.labels" . | nindent 4 }}
+    {{- with .Values.extraLabels.podDisruptionBudget }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.annotations.podDisruptionBudget }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  minAvailable: {{ .Values.highAvailability.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "teleport-relay.selectorLabels" . | nindent 6 }}
+{{- end }}

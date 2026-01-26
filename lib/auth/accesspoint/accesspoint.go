@@ -102,7 +102,7 @@ type Config struct {
 	UserLoginStates         services.UserLoginStates
 	Users                   services.UsersService
 	WebSession              types.WebSessionInterface
-	WebToken                types.WebTokenInterface
+	WebToken                services.WebToken
 	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
@@ -114,6 +114,7 @@ type Config struct {
 	HealthCheckConfig       services.HealthCheckConfigReader
 	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
+	AppAuthConfig           services.AppAuthConfigReader
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -200,6 +201,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		BotInstanceService:      cfg.BotInstance,
 		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
+		AppAuthConfig:           cfg.AppAuthConfig,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

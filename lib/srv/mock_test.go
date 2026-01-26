@@ -22,11 +22,13 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/user"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -40,12 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -73,6 +77,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
+		newSessionID:           rsession.NewID(),
 		Logger:                 logtest.NewLogger(),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
@@ -92,12 +97,18 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
+		// If proxy forwarding is being used (proxy recording, agentless), then remote session must be set.
+		// Otherwise, this field is ignored.
+		RemoteSession: mockSSHSession(t),
 	}
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
 
 	scx.cmdr, scx.cmdw, err = os.Pipe()
+	require.NoError(t, err)
+
+	_, scx.logw, err = os.Pipe()
 	require.NoError(t, err)
 
 	scx.contr, scx.contw, err = os.Pipe()
@@ -120,14 +131,15 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 }
 
 func newMockServer(t *testing.T) *mockServer {
-	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bk, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = bk.Close()
+	})
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
@@ -138,31 +150,36 @@ func newMockServer(t *testing.T) *mockServer {
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, bk.Close())
-	})
 
-	authCfg := &auth.InitConfig{
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
+	authServer, err := auth.NewServer(&auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
-		Authority:      testauthority.New(),
+		Authority:      authority,
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
-	}
-
-	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
+		HostUUID:       uuid.NewString(),
+		Clock:          clock,
+	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
 
 	return &mockServer{
 		auth:                authServer,
 		datadir:             t.TempDir(),
 		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 		clock:               clock,
+		component:           teleport.ComponentNode,
 	}
 }
 
 type mockServer struct {
 	*eventstest.MockRecorderEmitter
+	info      types.Server
 	datadir   string
 	auth      *auth.Server
 	component string
@@ -213,8 +230,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return &servicecfg.PAMConfig{}, nil
+func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
@@ -225,8 +242,18 @@ func (m *mockServer) GetClock() clockwork.Clock {
 	return clockwork.NewRealClock()
 }
 
+// setInfo overrides the default result of [mockServer.GetInfo]. Necessary in order to
+// correctly test the behavior of local node rbac that expects specific server attributes.
+func (m *mockServer) setInfo(server types.Server) {
+	m.info = server
+}
+
 // GetInfo returns a services.Server that represents this server.
 func (m *mockServer) GetInfo() types.Server {
+	if m.info != nil {
+		return m.info
+	}
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -308,6 +335,16 @@ func (m *mockServer) GetHostSudoers() HostSudoers {
 // GetSELinuxEnabled
 func (m *mockServer) GetSELinuxEnabled() bool {
 	return false
+}
+
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
+		ExecLogConfig: ExecLogConfig{
+			Level: &slog.LevelVar{},
+		},
+		Writer: io.Discard,
+	}
 }
 
 // Implementation of ssh.Conn interface.

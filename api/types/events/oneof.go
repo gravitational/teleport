@@ -922,6 +922,52 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_BoundKeypairJoinStateVerificationFailed{
 			BoundKeypairJoinStateVerificationFailed: e,
 		}
+	case *SCIMListingEvent:
+		out.Event = &OneOf_SCIMListingEvent{SCIMListingEvent: e}
+	case *SCIMResourceEvent:
+		out.Event = &OneOf_SCIMResourceEvent{SCIMResourceEvent: e}
+	case *ClientIPRestrictionsUpdate:
+		out.Event = &OneOf_ClientIPRestrictionsUpdate{ClientIPRestrictionsUpdate: e}
+	case *AppAuthConfigCreate:
+		out.Event = &OneOf_AppAuthConfigCreate{
+			AppAuthConfigCreate: e,
+		}
+	case *AppAuthConfigUpdate:
+		out.Event = &OneOf_AppAuthConfigUpdate{
+			AppAuthConfigUpdate: e,
+		}
+	case *AppAuthConfigDelete:
+		out.Event = &OneOf_AppAuthConfigDelete{
+			AppAuthConfigDelete: e,
+		}
+	case *AppAuthConfigVerify:
+		out.Event = &OneOf_AppAuthConfigVerify{
+			AppAuthConfigVerify: e,
+		}
+	case *VnetConfigCreate:
+		out.Event = &OneOf_VnetConfigCreate{
+			VnetConfigCreate: e,
+		}
+	case *VnetConfigUpdate:
+		out.Event = &OneOf_VnetConfigUpdate{
+			VnetConfigUpdate: e,
+		}
+	case *VnetConfigDelete:
+		out.Event = &OneOf_VnetConfigDelete{
+			VnetConfigDelete: e,
+		}
+	case *WorkloadClusterCreate:
+		out.Event = &OneOf_WorkloadClusterCreate{
+			WorkloadClusterCreate: e,
+		}
+	case *WorkloadClusterUpdate:
+		out.Event = &OneOf_WorkloadClusterUpdate{
+			WorkloadClusterUpdate: e,
+		}
+	case *WorkloadClusterDelete:
+		out.Event = &OneOf_WorkloadClusterDelete{
+			WorkloadClusterDelete: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

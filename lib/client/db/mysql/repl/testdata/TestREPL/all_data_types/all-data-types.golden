@@ -27,8 +27,8 @@ all_data_types> SET SESSION sql_mode='';
 
 all_data_types> SELECT "thing";
 
-thing   
-------- 
+thing
+-----
 'thing' 
 
 1 row in set
@@ -137,56 +137,56 @@ all_data_types>
 all_data_types> SELECT "c tinyint", `c_smallint`, "c_mediumint" FROM `all_types_
 demo`;
 
-c tinyint c_smallint c_mediumint 
---------- ---------- ----------- 
-127       32767      8388607     
+c tinyint c_smallint c_mediumint
+--------- ---------- -----------
+127       32767      8388607 
 
 1 row in set
 
 all_data_types> SELECT c_int, c_bigint, c_decimal FROM all_types_demo;
 
-c_int      c_bigint            c_decimal  
----------- ------------------- ---------- 
+c_int      c_bigint            c_decimal
+-----      --------            ---------
 2147483647 9223372036854775807 '12345.67' 
 
 1 row in set
 
 all_data_types> SELECT c_float, c_double, c_bit FROM all_types_demo;
 
-c_float c_double     c_bit 
-------- ------------ ----- 
-3.14    2.7182818284 'ª'   
+c_float c_double     c_bit
+------- --------     -----
+3.14    2.7182818284 'ª'  
 
 1 row in set
 
 all_data_types> SELECT c_bool, c_date, c_time FROM all_types_demo;
 
-c_bool c_date       c_time     
------- ------------ ---------- 
+c_bool c_date       c_time
+------ ------       ------
 1      '2024-07-09' '12:34:56' 
 
 1 row in set
 
 all_data_types> SELECT c_datetime, c_timestamp, c_year FROM all_types_demo;
 
-c_datetime            c_timestamp           c_year 
---------------------- --------------------- ------ 
-'2024-07-09 12:34:56' '2024-07-09 12:34:56' 2025   
+c_datetime            c_timestamp           c_year
+----------            -----------           ------
+'2024-07-09 12:34:56' '2024-07-09 12:34:56' 2025 
 
 1 row in set
 
 all_data_types> SELECT c_char, c_varchar, c_binary FROM all_types_demo;
 
-c_char  c_varchar    c_binary 
-------- ------------ -------- 
-'abcde' 'abcdefghij' 'abc'    
+c_char  c_varchar    c_binary
+------  ---------    --------
+'abcde' 'abcdefghij' 'abc' 
 
 1 row in set
 
 all_data_types> SELECT c_varbinary, c_tinyblob, c_blob FROM all_types_demo;
 
-c_varbinary c_tinyblob c_blob 
------------ ---------- ------ 
+c_varbinary c_tinyblob c_blob
+----------- ---------- ------
 'defg'      'a'        'blob' 
 
 1 row in set
@@ -196,16 +196,16 @@ all_data_types> SELECT "c_mediumblob",
              ->        c_tinytext
              -> FROM all_types_demo;
 
-c_mediumblob c_longblob c_tinytext 
------------- ---------- ---------- 
-'medblob'    'longblob' 'tiny'     
+c_mediumblob c_longblob c_tinytext
+------------ ---------- ----------
+'medblob'    'longblob' 'tiny' 
 
 1 row in set
 
 all_data_types> SELECT c_text, c_mediumtext, c_longtext FROM all_types_demo;
 
-c_text c_mediumtext c_longtext 
------- ------------ ---------- 
+c_text c_mediumtext c_longtext
+------ ------------ ----------
 'text' 'mediumtext' 'longtext' 
 
 1 row in set
@@ -213,8 +213,8 @@ c_text c_mediumtext c_longtext
 all_data_types> SELECT c_enum, c_set, ST_AsText(c_geometry) AS c_geometry FROM a
 ll_types_demo;
 
-c_enum c_set c_geometry   
------- ----- ------------ 
+c_enum c_set c_geometry
+------ ----- ----------
 'foo'  'a,b' 'POINT(1 1)' 
 
 1 row in set
@@ -222,8 +222,8 @@ c_enum c_set c_geometry
 all_data_types> SELECT ST_AsText(c_point) AS c_point, ST_AsText(c_linestring) AS
  c_linestring, ST_AsText(c_polygon) AS c_polygon FROM all_types_demo;
 
-c_point      c_linestring              c_polygon                        
------------- ------------------------- -------------------------------- 
+c_point      c_linestring              c_polygon
+-------      ------------              ---------
 'POINT(2 2)' 'LINESTRING(0 0,1 1,2 2)' 'POLYGON((0 0,1 0,1 1,0 1,0 0))' 
 
 1 row in set
@@ -232,8 +232,8 @@ all_data_types> SELECT ST_AsText(c_multipoint) AS c_multipoint, ST_AsText(c_mult
 ilinestring) AS c_multilinestring, ST_AsText(c_multipolygon) AS c_multipolygon F
 ROM all_types_demo;
 
-c_multipoint              c_multilinestring                      c_multipolygon                          
-------------------------- -------------------------------------- --------------------------------------- 
+c_multipoint              c_multilinestring                      c_multipolygon
+------------              -----------------                      --------------
 'MULTIPOINT((0 0),(1 1))' 'MULTILINESTRING((0 0,1 1),(2 2,3 3))' 'MULTIPOLYGON(((0 0,1 0,1 1,0 1,0 0)))' 
 
 1 row in set
@@ -241,8 +241,8 @@ c_multipoint              c_multilinestring                      c_multipolygon
 all_data_types> SELECT ST_AsText(c_geometrycoll) AS c_geometrycoll, c_json FROM 
 all_types_demo;
 
-c_geometrycoll                                       c_json             
----------------------------------------------------- ------------------ 
+c_geometrycoll                                       c_json
+--------------                                       ------
 'GEOMETRYCOLLECTION(POINT(1 2),LINESTRING(0 0,1 1))' '{"x": 1, "y": 2}' 
 
 1 row in set

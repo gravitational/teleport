@@ -31,6 +31,8 @@ lint:
     - api/proto/teleport/legacy/types/events/athena.proto
     - api/proto/teleport/legacy/types/events/events.proto
     - api/proto/teleport/legacy/types/types.proto
+    - api/proto/teleport/legacy/types/metadata.proto
+    - api/proto/teleport/legacy/types/mfa_device.proto
     - api/proto/teleport/legacy/types/wrappers/wrappers.proto
     - proto/teleport/lib/multiplexer/test/ping.proto
     - proto/teleport/lib/web/terminal/envelope.proto
@@ -78,6 +80,7 @@ lint:
       - proto/teleport/lib/teleterm/v1/service.proto
       - api/proto/teleport/recordingmetadata/v1/recordingmetadata_service.proto
       - api/proto/teleport/join/v1/joinservice.proto
+      - proto/teleport/web/teleterm/ptyhost/v1/pty_host_service.proto
 
 breaking:
   use:
@@ -86,6 +89,8 @@ breaking:
   ignore:
     # TODO(codingllama): Remove ignore once the PDP API is stable.
     - api/proto/teleport/decision/v1alpha1
+    # TODO(nklaassen): Remove ignore once the new join API is stable.
+    - api/proto/teleport/join/v1
 
 plugins:
   - plugin:

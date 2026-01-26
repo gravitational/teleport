@@ -70,6 +70,8 @@ type UserCommand struct {
 	hostUserUIDProvided       bool
 	hostUserGID               string
 	hostUserGIDProvided       bool
+	defaultRelayAddr          string
+	defaultRelayAddrProvided  bool
 
 	ttl time.Duration
 
@@ -106,6 +108,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 	u.userAdd.Flag("mcp-tools", "List of allowed MCP tools for the new user").StringsVar(&u.allowedMCPTools)
+	u.userAdd.Flag("default-relay-addr", "Relay address that clients should use by default").StringVar(&u.defaultRelayAddr)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -142,6 +145,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
 	u.userUpdate.Flag("set-mcp-tools", "List of allowed MCP tools for the user, replaces current allowed MCP tools.").StringsVar(&u.allowedMCPTools)
+	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -302,6 +306,10 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		constants.TraitHostUserUID:        {u.hostUserUID},
 		constants.TraitHostUserGID:        {u.hostUserGID},
 		constants.TraitMCPTools:           flattenSlice(u.allowedMCPTools),
+	}
+
+	if u.defaultRelayAddr != "" {
+		traits[constants.TraitDefaultRelayAddr] = []string{u.defaultRelayAddr}
 	}
 
 	user, err := types.NewUser(u.login)
@@ -483,6 +491,11 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		mcpTools := flattenSlice(u.allowedMCPTools)
 		user.SetMCPTools(mcpTools)
 		updateMessages["MCP tools"] = mcpTools
+	}
+
+	if u.defaultRelayAddrProvided {
+		user.SetDefaultRelayAddr(u.defaultRelayAddr)
+		updateMessages["default relay address"] = []string{u.defaultRelayAddr}
 	}
 
 	if len(updateMessages) == 0 {

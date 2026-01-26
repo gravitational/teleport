@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	ecatypes "github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -223,6 +225,7 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 		SQSQueueURL:         params.SQSQueueURL,
 		CloudTrailBucketARN: params.CloudTrailBucketARN,
 		KMSKeyARNs:          params.KMSKeyARNs,
+		EnableEKSAuditLogs:  params.EnableEKSAuditLogs,
 	}
 	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }
@@ -311,4 +314,31 @@ func onIntegrationConfAWSRATrustAnchor(ctx context.Context, clf config.CommandLi
 		AutoConfirm:           clf.IntegrationConfAWSRATrustAnchorArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsra.ConfigureRolesAnywhereIAM(ctx, rolesAnywhereConfigClient, confReq))
+}
+
+func onIntegrationConfSessionSummariesBedrock(ctx context.Context, params config.IntegrationConfSessionSummariesBedrock) error {
+	// Ensure we print output to the user. LogLevel at this point was set to Error.
+	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+
+	awsClient, err := awsoidc.NewBedrockSessionSummariesIAMConfigureClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If AccountID is not provided, retrieve it from the caller identity.
+	if params.AccountID == "" {
+		callerID, err := awsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return trace.Wrap(err, "failed to get AWS account ID from caller identity")
+		}
+		params.AccountID = aws.ToString(callerID.Account)
+	}
+
+	confReq := awsoidc.BedrockSessionSummariesIAMConfigureRequest{
+		IntegrationRole: params.Role,
+		Resource:        params.Resource,
+		AccountID:       params.AccountID,
+		AutoConfirm:     params.AutoConfirm,
+	}
+	return trace.Wrap(awsoidc.ConfigureBedrockSessionSummariesIAM(ctx, awsClient, confReq))
 }

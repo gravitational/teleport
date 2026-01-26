@@ -23,8 +23,9 @@ import cfg, {
 import { ResourcesResponse } from 'teleport/services/agents';
 import api from 'teleport/services/api';
 
-import { makeKube, makeKubeResource } from './makeKube';
-import { Kube, KubeResourceResponse } from './types';
+import { withGenericUnsupportedError } from '../version/unsupported';
+import { makeKube, makeKubeResource, makeKubeServer } from './makeKube';
+import { Kube, KubeResourceResponse, KubeServer } from './types';
 
 class KubeService {
   fetchKubernetes(
@@ -65,3 +66,28 @@ class KubeService {
 }
 
 export default KubeService;
+
+export function fetchKubeServers({
+  clusterId,
+  params,
+  signal,
+}: {
+  clusterId: string;
+  params: UrlResourcesParams;
+  signal?: AbortSignal;
+}): Promise<ResourcesResponse<KubeServer>> {
+  return (
+    api
+      .get(cfg.getKubernetesServerUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
+
+        return {
+          agents: items.map(makeKubeServer),
+          startKey: json?.startKey,
+        };
+      })
+      // TODO(rana): DELETE IN v20.0
+      .catch(err => withGenericUnsupportedError(err, 'v20.0.0'))
+  );
+}

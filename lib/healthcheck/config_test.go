@@ -39,11 +39,17 @@ func Test_newHealthCheckConfig(t *testing.T) {
 		"full",
 		&healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
+				Disabled: true,
 				DbLabels: []*labelv1.Label{{
 					Name:   "foo",
 					Values: []string{"bar", "baz"},
 				}},
 				DbLabelsExpression: `labels["qux"] == "*"`,
+				KubernetesLabels: []*labelv1.Label{{
+					Name:   "app",
+					Values: []string{"web", "api"},
+				}},
+				KubernetesLabelsExpression: `labels["lux"] == "*"`,
 			},
 			Timeout:            durationpb.New(time.Second * 42),
 			Interval:           durationpb.New(time.Second * 43),
@@ -57,7 +63,8 @@ func Test_newHealthCheckConfig(t *testing.T) {
 		"minimal",
 		&healthcheckconfigv1.HealthCheckConfigSpec{
 			Match: &healthcheckconfigv1.Matcher{
-				DbLabelsExpression: `labels["*"] == "*"`,
+				DbLabelsExpression:         `labels["*"] == "*"`,
+				KubernetesLabelsExpression: `labels["*"] == "*"`,
 			},
 		},
 	)
@@ -77,11 +84,18 @@ func Test_newHealthCheckConfig(t *testing.T) {
 				interval:           time.Second * 43,
 				healthyThreshold:   7,
 				unhealthyThreshold: 8,
+				disabled:           true,
 				databaseLabelMatchers: types.LabelMatchers{
 					Labels: types.Labels{
 						"foo": utils.Strings{"bar", "baz"},
 					},
 					Expression: `labels["qux"] == "*"`,
+				},
+				kubernetesLabelMatchers: types.LabelMatchers{
+					Labels: types.Labels{
+						"app": utils.Strings{"web", "api"},
+					},
+					Expression: `labels["lux"] == "*"`,
 				},
 			},
 		},
@@ -95,6 +109,10 @@ func Test_newHealthCheckConfig(t *testing.T) {
 				healthyThreshold:   defaults.HealthCheckHealthyThreshold,
 				unhealthyThreshold: defaults.HealthCheckUnhealthyThreshold,
 				databaseLabelMatchers: types.LabelMatchers{
+					Labels:     types.Labels{},
+					Expression: `labels["*"] == "*"`,
+				},
+				kubernetesLabelMatchers: types.LabelMatchers{
 					Labels:     types.Labels{},
 					Expression: `labels["*"] == "*"`,
 				},
@@ -141,6 +159,7 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 				timeout:            500 * time.Millisecond,
 				healthyThreshold:   3,
 				unhealthyThreshold: 5,
+				disabled:           true,
 			},
 			b: &healthCheckConfig{
 				name:               "test",
@@ -148,26 +167,31 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 				timeout:            500 * time.Millisecond,
 				healthyThreshold:   3,
 				unhealthyThreshold: 5,
+				disabled:           true,
 			},
 			want: true,
 		},
 		{
 			desc: "all fields equal ignoring labels",
 			a: &healthCheckConfig{
-				name:                  "test",
-				interval:              time.Second,
-				timeout:               500 * time.Millisecond,
-				healthyThreshold:      3,
-				unhealthyThreshold:    5,
-				databaseLabelMatchers: types.LabelMatchers{Expression: "a", Labels: types.Labels{"a": {"a"}}},
+				name:                    "test",
+				interval:                time.Second,
+				timeout:                 500 * time.Millisecond,
+				healthyThreshold:        3,
+				unhealthyThreshold:      5,
+				disabled:                true,
+				databaseLabelMatchers:   types.LabelMatchers{Expression: "a", Labels: types.Labels{"a": {"a"}}},
+				kubernetesLabelMatchers: types.LabelMatchers{Expression: "a", Labels: types.Labels{"a": {"a"}}},
 			},
 			b: &healthCheckConfig{
-				name:                  "test",
-				interval:              time.Second,
-				timeout:               500 * time.Millisecond,
-				healthyThreshold:      3,
-				unhealthyThreshold:    5,
-				databaseLabelMatchers: types.LabelMatchers{Expression: "b", Labels: types.Labels{"b": {"b"}}},
+				name:                    "test",
+				interval:                time.Second,
+				timeout:                 500 * time.Millisecond,
+				healthyThreshold:        3,
+				unhealthyThreshold:      5,
+				disabled:                true,
+				databaseLabelMatchers:   types.LabelMatchers{Expression: "b", Labels: types.Labels{"b": {"b"}}},
+				kubernetesLabelMatchers: types.LabelMatchers{Expression: "b", Labels: types.Labels{"b": {"b"}}},
 			},
 			want: true,
 		},
@@ -218,6 +242,16 @@ func TestHealthCheckConfig_equivalent(t *testing.T) {
 			},
 			b: &healthCheckConfig{
 				unhealthyThreshold: 3,
+			},
+			want: false,
+		},
+		{
+			desc: "different disabled",
+			a: &healthCheckConfig{
+				disabled: true,
+			},
+			b: &healthCheckConfig{
+				disabled: false,
 			},
 			want: false,
 		},

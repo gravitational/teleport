@@ -142,3 +142,21 @@ func (l localFS) Readlink(name string) (string, error) {
 func (l localFS) Getwd() (string, error) {
 	return os.Getwd()
 }
+
+func (l localFS) RealPath(path string) (string, error) {
+	return Realpath(path)
+}
+
+func (l localFS) Close() error {
+	return nil
+}
+
+// RealPath canonicalizes a path name, including resolving ".." and
+// following symlinks.
+func Realpath(path string) (string, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(path)
+}

@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -251,7 +252,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
 	c.cache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             5 * time.Minute,
+		TTL:             common.MaxSessionChunkDuration,
 		Context:         c.closeContext,
 		Clock:           c.cfg.Clock,
 		CleanupInterval: time.Second,
@@ -285,6 +286,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		AccessPoint:      c.cfg.AccessPoint,
 		EnableDemoServer: c.cfg.MCPDemoServer,
 		CipherSuites:     c.cfg.CipherSuites,
+		AuthClient:       c.cfg.AuthClient,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -295,7 +297,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	c.tlsConfig = CopyAndConfigureTLS(c.log, c.cfg.AccessPoint, c.cfg.TLSConfig)
 
 	// Figure out the port the proxy is running on.
-	c.proxyPort = c.getProxyPort()
+	c.proxyPort = c.getProxyPort(c.closeContext)
 
 	return c, nil
 }
@@ -325,12 +327,12 @@ func (c *ConnectionsHandler) expireSessions() {
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	ctx := context.Background()
 
-	// Wrap conn in a CloserConn to detect when it is closed.
+	// Wrap conn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
-	closerConn := utils.NewCloserConn(conn)
+	waitConn := utils.NewWaitConn(conn)
 
-	cleanup, err := c.handleConnection(closerConn)
+	cleanup, err := c.handleConnection(waitConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -347,14 +349,14 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	}
 
 	// Wait for connection to close.
-	closerConn.Wait()
+	waitConn.Wait()
 }
 
 // serveSession finds the app session and forwards the request.
 func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application, opts ...sessionOpt) error {
 	// Fetch a cached request forwarder (or create one) that lives about 5
 	// minutes. Used to stream session chunks to the Audit Log.
-	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), 5*time.Minute)
+	ttl := min(identity.Expires.Sub(c.cfg.Clock.Now()), common.MaxSessionChunkDuration)
 	session, err := utils.FnCacheGetWithTTL(r.Context(), c.cache, identity.RouteToApp.SessionID, ttl, func(ctx context.Context) (*sessionChunk, error) {
 		session, err := c.newSessionChunk(ctx, identity, app, c.sessionStartTime(r.Context()), opts...)
 		return session, trace.Wrap(err)
@@ -457,8 +459,11 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.
-func (c *ConnectionsHandler) getProxyPort() string {
-	servers, err := c.cfg.AccessPoint.GetProxies()
+func (c *ConnectionsHandler) getProxyPort(ctx context.Context) string {
+	servers, err := clientutils.CollectWithFallback(ctx, c.cfg.AccessPoint.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return c.cfg.AccessPoint.GetProxies()
+	})
 	if err != nil {
 		return strconv.Itoa(defaults.HTTPListenPort)
 	}
@@ -614,7 +619,7 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		case app.IsTCP():
 			return nil, trace.Wrap(err)
 		case app.IsMCP():
-			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, err))
+			return nil, trace.Wrap(c.mcpServer.HandleUnauthorizedConnection(ctx, conn, app, err))
 		default:
 			c.setConnAuth(tlsConn, err)
 		}

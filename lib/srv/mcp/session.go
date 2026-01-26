@@ -23,18 +23,20 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net"
-	"sync/atomic"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
@@ -57,8 +59,10 @@ type SessionCtx struct {
 	// connection instead of using the web session ID from the app route.
 	sessionID session.ID
 
-	// mcpSessionID is the MCP session ID tracked by remote MCP server.
-	mcpSessionID atomicString
+	// transport is the transport type of the MCP server.
+	transport string
+
+	rewriteAuthDetails rewriteAuthDetails
 }
 
 func (c *SessionCtx) checkAndSetDefaults() error {
@@ -74,9 +78,20 @@ func (c *SessionCtx) checkAndSetDefaults() error {
 	if c.Identity.Username == "" {
 		c.Identity = c.AuthCtx.Identity.GetIdentity()
 	}
-	if c.sessionID == "" {
-		c.sessionID = session.NewID()
+	if c.transport == "" {
+		c.transport = types.GetMCPServerTransportType(c.App.GetURI())
 	}
+	if c.sessionID == "" {
+		if types.MCPTransportHTTP == c.transport {
+			// A single HTTP request is handled at a time so take session ID
+			// from cert.
+			c.sessionID = session.ID(c.Identity.RouteToApp.SessionID)
+		}
+		if c.sessionID == "" {
+			c.sessionID = session.NewID()
+		}
+	}
+	c.rewriteAuthDetails = newRewriteAuthDetails(c.App.GetRewrite())
 	return nil
 }
 
@@ -92,6 +107,7 @@ func (c *SessionCtx) getAccessState(authPref types.AuthPreference) services.Acce
 type sessionHandlerConfig struct {
 	*SessionCtx
 	*sessionAuditor
+	*sessionAuth
 	accessPoint AccessPoint
 	logger      *slog.Logger
 	clock       clockwork.Clock
@@ -104,6 +120,9 @@ func (c *sessionHandlerConfig) checkAndSetDefaults() error {
 	}
 	if c.sessionAuditor == nil {
 		return trace.BadParameter("missing auditor")
+	}
+	if c.sessionAuth == nil {
+		return trace.BadParameter("missing session auth")
 	}
 	if c.accessPoint == nil {
 		return trace.BadParameter("missing accessPoint")
@@ -152,6 +171,11 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Always begins with session start event for single-connection sessions.
+	if cfg.sessionCtx.transport != types.MCPTransportHTTP {
+		cfg.sessionAuditor.appendStartEvent(cfg.parentCtx)
+	}
+
 	return &sessionHandler{
 		sessionHandlerConfig: cfg,
 		idTracker:            idTracker,
@@ -175,12 +199,23 @@ func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string)
 	return trace.NewAggregate(authErr, err)
 }
 
-func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
-	s.emitNotificationEvent(ctx, notification, nil)
+// NOTE: the onClientXXX/onServerXXX functions and the close function below
+// provides helper to single-connection sessions and handles audit events.
+// The streamable-HTTP server handler does not use these function but uses
+// processClientXXX/processServerXXX functions directly instead and handles
+// audit events outside the sessionHandler. Ideally we should do some
+// refactoring to separate handler types.
+
+func (s *sessionHandler) close() {
+	s.sessionAuditor.flush(s.parentCtx)
+	if s.sessionCtx.transport != types.MCPTransportHTTP {
+		s.sessionAuditor.emitEndEvent(s.parentCtx)
+	}
 }
 
 func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
 	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		s.emitNotificationEvent(ctx, notification)
 		s.processClientNotification(ctx, notification)
 		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, notification))
 	}
@@ -188,8 +223,9 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		msg, replyDirection := s.processClientRequest(ctx, request)
-		if replyDirection == replyToClient {
+		msg, authErr := s.processClientRequest(ctx, request)
+		s.emitRequestEvent(ctx, request, eventWithError(authErr))
+		if authErr != nil {
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
 		}
 		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, msg))
@@ -198,45 +234,55 @@ func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWrit
 
 func (s *sessionHandler) onServerNotification(clientResponseWriter mcputils.MessageWriter) mcputils.HandleNotificationFunc {
 	return func(ctx context.Context, notification *mcputils.JSONRPCNotification) error {
+		s.processServerNotification(ctx, notification)
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, notification))
 	}
 }
 
 func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageWriter) mcputils.HandleResponseFunc {
 	return func(ctx context.Context, response *mcputils.JSONRPCResponse) error {
-		msgToClient := s.processServerResponse(ctx, response)
+		method, msgToClient := s.processServerResponse(ctx, response)
+		if method == mcputils.MethodInitialize {
+			s.sessionAuditor.updatePendingSessionStartEventWithInitializeResult(ctx, response)
+		}
 		return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msgToClient))
 	}
 }
 
-type replyDirection bool
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
-const (
-	replyToClient replyDirection = true
-	replyToServer replyDirection = false
-)
-
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, replyDirection) {
+	// TODO(greedy52) add checks to ensure that the initialize request is the
+	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
 	switch req.Method {
-	case mcp.MethodToolsCall:
+	case mcputils.MethodToolsCall:
 		methodName, _ := req.Params.GetName()
 		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
-			s.emitRequestEvent(ctx, req, authErr)
-			return makeToolAccessDeniedResponse(req, authErr), replyToClient
+			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
 		}
 	}
-	s.emitRequestEvent(ctx, req, nil)
-	return req, replyToServer
+	return req, nil
 }
 
-func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
+}
+
+func (s *sessionHandler) processServerResponse(ctx context.Context, response *mcputils.JSONRPCResponse) (string, mcp.JSONRPCMessage) {
 	method, _ := s.idTracker.PopByID(response.ID)
+	messagesFromServer.WithLabelValues(s.transport, "response", reportRequestMethod(method)).Inc()
+
 	switch method {
-	case mcp.MethodToolsList:
-		return s.makeToolsCallResponse(ctx, response)
+	case mcputils.MethodToolsList:
+		return method, s.makeToolsCallResponse(ctx, response)
 	}
-	return response
+	return method, response
+}
+
+func (s *sessionHandler) processServerNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+	s.logger.DebugContext(ctx, "Received server notification.", "method", notification.Method)
+	messagesFromServer.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
 func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
@@ -267,6 +313,25 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 	}
 }
 
+func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
+	jwt, traits, err := s.generateJWTAndTraits(r.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Add in JWT headers. By default, JWT is not put into "Authorization"
+	// headers since the auth token can also come from the client and Teleport
+	// just pass it through. If the remote MCP server does verify the auth token
+	// signed by Teleport, the server can take the token from the
+	// "teleport-jwt-assertion" header or use a rewrite setting to set the JWT
+	// as "Bearer" in "Authorization".
+	r.Header.Set(teleport.AppJWTHeader, jwt)
+	// Add headers from rewrite configuration.
+	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, traits, s.logger)
+	return nil
+}
+
 func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {
 	return mcp.NewJSONRPCError(
 		msg.ID,
@@ -274,16 +339,4 @@ func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) m
 		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
 		authErr,
 	)
-}
-
-type atomicString struct {
-	atomic.Pointer[string]
-}
-
-// String loads the atomic string value. If the point is nil, empty is returned.
-func (s *atomicString) String() string {
-	if loaded := s.Load(); loaded != nil {
-		return *loaded
-	}
-	return ""
 }

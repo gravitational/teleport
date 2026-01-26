@@ -174,6 +174,11 @@ export function useFilterSearch() {
         if (clusters.length === 1) {
           return [];
         }
+        clusters = clusters.map(c => ({
+          ...c,
+          // Name is empty if the user hasn't logged into that cluster yet.
+          name: c.name || routing.parseClusterName(c.uri),
+        }));
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name

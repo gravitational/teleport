@@ -21,6 +21,7 @@ package events
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -266,6 +267,15 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BoundKeypairRecovery:                          &apievents.BoundKeypairRecovery{},
 	BoundKeypairRotation:                          &apievents.BoundKeypairRotation{},
 	BoundKeypairJoinStateVerificationFailed:       &apievents.BoundKeypairJoinStateVerificationFailed{},
+	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
+	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
+	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
+	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
+	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
+	SCIMCreateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
 }
 
 // TestJSON tests JSON marshal events
@@ -685,7 +695,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "failed auth attempt",
-			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
+			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","server_id":"","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
 			event: apievents.AuthAttempt{
 				Metadata: apievents.Metadata{
 					ID:          "ebac95ca-8673-44af-b2cf-65f517acf35a",
@@ -1011,6 +1021,144 @@ func TestJSON(t *testing.T) {
 				StatementID: 222,
 			},
 		},
+		{
+			name: "SCIM List Resources",
+			json: `{"ei":22,"event":"scim.list","uid":"test-id","code":"TSCIM005I","time":"2022-02-22T22:22:22.222Z","cluster_name":"test-cluster","success":true,"request":{"id":"ff5cea87-db00-4fa8-a30f-99f220f61075","source_address":"127.0.0.1","user_agent":"magnetized-needle","method":"GET","path":"/scim/v2/Users"},"integration":"okta","resource_type":"Users","filter":"userName eq \"root@localhost\"","count":1,"resource_count":1}`,
+			event: apievents.SCIMListingEvent{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        SCIMListingEvent,
+					Code:        SCIMListResourcesSuccessCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				SCIMCommonData: apievents.SCIMCommonData{
+					Request: &apievents.SCIMRequest{
+						ID:            "ff5cea87-db00-4fa8-a30f-99f220f61075",
+						SourceAddress: "127.0.0.1",
+						UserAgent:     "magnetized-needle",
+						Method:        http.MethodGet,
+						Path:          "/scim/v2/Users",
+					},
+					Integration:  "okta",
+					ResourceType: "Users",
+				},
+				Filter:        `userName eq "root@localhost"`,
+				Count:         1,
+				ResourceCount: 1,
+			},
+		},
+		{
+			name: "SCIM Update Resources",
+			json: `{"ei":22,"event":"scim.update","uid":"test-id","code":"TSCIM002I","time":"2022-02-22T22:22:22.222Z","cluster_name":"test-cluster","success":true,"request":{"id":"ff5cea87-db00-4fa8-a30f-99f220f61075","source_address":"127.0.0.1","user_agent":"carrier pigeon","method":"PUT","path":"/scim/v2/Users/1234","body":{"active":true,"id":"1234","nickName":"bofh","schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],"userName":"root@localhost"}},"integration":"okta","resource_type":"Users","teleport_id":"root@localhost","external_id":"1234","display":"root user"}`,
+			event: apievents.SCIMResourceEvent{
+				Metadata: apievents.Metadata{
+					Index:       22,
+					ID:          "test-id",
+					Type:        SCIMUpdateEvent,
+					Code:        SCIMResourceUpdateSuccessCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				SCIMCommonData: apievents.SCIMCommonData{
+					Request: &apievents.SCIMRequest{
+						ID:            "ff5cea87-db00-4fa8-a30f-99f220f61075",
+						SourceAddress: "127.0.0.1",
+						UserAgent:     "carrier pigeon",
+						Method:        http.MethodPut,
+						Path:          "/scim/v2/Users/1234",
+						Body: apievents.MustEncodeMap(map[string]any{
+							"schemas":  []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
+							"id":       "1234",
+							"userName": "root@localhost",
+							"nickName": "bofh",
+							"active":   true,
+						}),
+					},
+					Integration:  "okta",
+					ResourceType: "Users",
+				},
+				TeleportID: "root@localhost",
+				ExternalID: "1234",
+				Display:    "root user",
+			},
+		},
+		{
+			name: "VNetConfig Create",
+			json: `{"ei":0,"event":"vnet.config.create","uid":"vnet-create-id","success":true,"code":"TVNET001I","time":"2022-02-22T22:22:22.222Z","cluster_name":"test-cluster","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigCreate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-create-id",
+					Type:        VnetConfigCreateEvent,
+					Code:        VnetConfigCreateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Update",
+			json: `{"ei":0,"event":"vnet.config.update","uid":"vnet-update-id","success":true,"code":"TVNET002I","time":"2022-02-22T22:22:22.222Z","cluster_name":"root","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigUpdate{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-update-id",
+					Type:        VnetConfigUpdateEvent,
+					Code:        VnetConfigUpdateCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "root",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
+		{
+			name: "VNetConfig Delete",
+			json: `{"ei":0,"event":"vnet.config.delete","uid":"vnet-delete-id","success":true,"code":"TVNET003I","time":"2022-02-22T22:22:22.222Z","cluster_name":"leaf","user":"alice@example.com","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902"}`,
+			event: apievents.VnetConfigDelete{
+				Metadata: apievents.Metadata{
+					ID:          "vnet-delete-id",
+					Type:        VnetConfigDeleteEvent,
+					Code:        VnetConfigDeleteCode,
+					Time:        time.Date(2022, 0o2, 22, 22, 22, 22, 222*int(time.Millisecond), time.UTC),
+					ClusterName: "leaf",
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "alice@example.com",
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					LocalAddr:  "127.0.0.1:3022",
+					RemoteAddr: "[::1]:34902",
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1018,6 +1166,7 @@ func TestJSON(t *testing.T) {
 
 			outJSON, err := utils.FastMarshal(tc.event)
 			require.NoError(t, err)
+			t.Log(string(outJSON))
 			require.JSONEq(t, tc.json, string(outJSON))
 
 			// unmarshal back into the type and compare the values
@@ -1091,6 +1240,7 @@ type testingVal interface {
 
 func setProtoFields(msg proto.Message) {
 	m := msg.ProtoReflect()
+
 	fields := m.Descriptor().Fields()
 
 	for i := range fields.Len() {

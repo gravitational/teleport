@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	authzapi "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/version"
@@ -38,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -86,8 +88,10 @@ type kubeDetails struct {
 
 // clusterDetailsConfig contains the configuration for creating a proxied cluster.
 type clusterDetailsConfig struct {
-	// cloudClients is the cloud clients to use for dynamic clusters.
-	cloudClients cloud.Clients
+	// azureClients provides Azure SDK clients
+	azureClients azure.Clients
+	// gcpClients provides GCP SDK clients
+	gcpClients gcp.Clients
 	// awsCloudClients provides AWS SDK clients.
 	awsCloudClients AWSClientGetter
 	// kubeCreds is the credentials to use for the cluster.
@@ -263,6 +267,93 @@ func (k *kubeDetails) getObjectGVK(resource apiResource) *schema.GroupVersionKin
 	}]
 }
 
+// GetProtocol returns the network protocol used for checking health.
+func (t *kubeDetails) GetProtocol() types.TargetHealthProtocol {
+	return types.TargetHealthProtocolHTTP
+}
+
+type operation struct {
+	verb     string
+	resource string
+	display  string
+}
+
+var permissionOps = []operation{
+	{
+		verb:     "impersonate",
+		resource: "users",
+		display:  "impersonate users",
+	},
+	{
+		verb:     "impersonate",
+		resource: "groups",
+		display:  "impersonate groups",
+	},
+	{
+		verb:     "impersonate",
+		resource: "serviceaccounts",
+		display:  "impersonate service accounts",
+	},
+	{
+		verb:     "get",
+		resource: "pods",
+		display:  "get pods",
+	},
+}
+
+const errorGuide = "Please see the Kubernetes Access Troubleshooting guide, https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting."
+
+// CheckHealth checks the health of a Kubernetes cluster.
+func (k *kubeDetails) CheckHealth(ctx context.Context) ([]string, error) {
+	addresses := []string{k.getTargetAddr()}
+	client := k.getKubeClient().AuthorizationV1().SelfSubjectAccessReviews()
+
+	// Check permissions to the Kubernetes cluster.
+	var missingPermissions []string
+	for _, op := range permissionOps {
+		resp, err := client.Create(ctx, &authzapi.SelfSubjectAccessReview{
+			Spec: authzapi.SelfSubjectAccessReviewSpec{
+				ResourceAttributes: &authzapi.ResourceAttributes{
+					Verb:     op.verb,
+					Resource: op.resource,
+				},
+			},
+		}, metav1.CreateOptions{})
+		if err != nil {
+			// Check whether the Kubernetes cluster is down.
+			// Avoid reporting permissions errors when the Kubernetes cluster is down.
+			if readyzErr := k.checkHealthReadyz(ctx); readyzErr != nil {
+				return addresses, trace.Wrap(readyzErr)
+			}
+			return addresses, trace.Wrap(err, "Unable to check Kubernetes permissions. %s", errorGuide)
+		}
+		if !resp.Status.Allowed {
+			missingPermissions = append(missingPermissions, op.display)
+		}
+	}
+	if len(missingPermissions) > 0 {
+		return addresses, trace.AccessDenied("Missing required Kubernetes permissions: %s. %s",
+			strings.Join(missingPermissions, ", "),
+			errorGuide)
+	}
+
+	return addresses, nil
+}
+
+// checkHealthReadyz checks the health of a Kubernetes cluster with the `/readyz` endpoint.
+func (k *kubeDetails) checkHealthReadyz(ctx context.Context) error {
+	readyzResult := k.getKubeClient().Discovery().RESTClient().Get().AbsPath("/readyz").Do(ctx)
+	if err := readyzResult.Error(); err != nil {
+		return trace.ConnectionProblem(err, "Unable to contact the Kubernetes cluster. %s", errorGuide)
+	}
+	var statusCode int
+	readyzResult.StatusCode(&statusCode)
+	if statusCode != http.StatusOK {
+		return trace.ConnectionProblem(nil, "Unhealthy Kubernetes cluster detected with status code %d. %s", statusCode, errorGuide)
+	}
+	return nil
+}
+
 // getKubeClusterCredentials generates kube credentials for dynamic clusters.
 func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (kubeCreds, error) {
 	switch dynCredsCfg := (dynamicCredsConfig{
@@ -276,20 +367,20 @@ func getKubeClusterCredentials(ctx context.Context, cfg clusterDetailsConfig) (k
 	case cfg.cluster.IsKubeconfig():
 		return getStaticCredentialsFromKubeconfig(ctx, cfg.component, cfg.cluster, cfg.log, cfg.checker)
 	case cfg.cluster.IsAzure():
-		return getAzureCredentials(ctx, cfg.cloudClients, dynCredsCfg)
+		return getAzureCredentials(ctx, cfg.azureClients, dynCredsCfg)
 	case cfg.cluster.IsAWS():
 		return getAWSCredentials(ctx, cfg.awsCloudClients, dynCredsCfg)
 	case cfg.cluster.IsGCP():
-		return getGCPCredentials(ctx, cfg.cloudClients, dynCredsCfg)
+		return getGCPCredentials(ctx, cfg.gcpClients, dynCredsCfg)
 	default:
 		return nil, trace.BadParameter("authentication method provided for cluster %q not supported", cfg.cluster.GetName())
 	}
 }
 
 // getAzureCredentials creates a dynamicCreds that generates and updates the access credentials to a AKS Kubernetes cluster.
-func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
+func getAzureCredentials(ctx context.Context, azureClients azure.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
-	cfg.client = azureRestConfigClient(cloudClients)
+	cfg.client = azureRestConfigClient(azureClients)
 
 	creds, err := newDynamicKubeCreds(
 		ctx,
@@ -299,9 +390,9 @@ func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dy
 }
 
 // azureRestConfigClient creates a dynamicCredsClient that returns credentials to a AKS cluster.
-func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
+func azureRestConfigClient(azureClients azure.Clients) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		aksClient, err := cloudClients.GetAzureKubernetesClient(cluster.GetAzureConfig().SubscriptionID)
+		aksClient, err := azureClients.GetKubernetesClient(ctx, cluster.GetAzureConfig().SubscriptionID)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}
@@ -434,17 +525,17 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, component KubeServi
 }
 
 // getGCPCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a GKE kubernetes cluster.
-func getGCPCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
+func getGCPCredentials(ctx context.Context, gcpClients gcp.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
-	cfg.client = gcpRestConfigClient(cloudClients)
+	cfg.client = gcpRestConfigClient(gcpClients)
 	creds, err := newDynamicKubeCreds(ctx, cfg)
 	return creds, trace.Wrap(err)
 }
 
 // gcpRestConfigClient creates a dynamicCredsClient that returns credentials to a GKE cluster.
-func gcpRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
+func gcpRestConfigClient(gcpClients gcp.Clients) dynamicCredsClient {
 	return func(ctx context.Context, cluster types.KubeCluster) (*rest.Config, time.Time, error) {
-		gkeClient, err := cloudClients.GetGCPGKEClient(ctx)
+		gkeClient, err := gcpClients.GetGKEClient(ctx)
 		if err != nil {
 			return nil, time.Time{}, trace.Wrap(err)
 		}

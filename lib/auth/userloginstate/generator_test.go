@@ -20,6 +20,7 @@ package userloginstate
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -101,8 +102,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1"},
-				trait.Traits{"otrait1": {"value1", "value2"}},
+				nil,
+				nil,
 			),
 			expectedRoleCount:           0,
 			expectedTraitCount:          0,
@@ -132,8 +133,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1", "role1", "role2"},
-				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3"}},
+				[]string{"role1", "role2"},
+				trait.Traits{"trait1": {"value1", "value2"}, "trait2": {"value3"}},
 			),
 			expectedRoleCount:           2,
 			expectedTraitCount:          3,
@@ -166,8 +167,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1"},
-				trait.Traits{"otrait1": []string{"value1", "value2"}},
+				nil,
+				nil,
 			),
 			expectedRoleCount:           0,
 			expectedTraitCount:          0,
@@ -197,8 +198,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1", "role1", "role2"},
-				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3"}},
+				[]string{"role1", "role2"},
+				trait.Traits{"trait1": {"value1", "value2"}, "trait2": {"value3"}},
 			),
 			expectedRoleCount:           0,
 			expectedTraitCount:          0,
@@ -227,8 +228,8 @@ func TestAccessLists(t *testing.T) {
 				nil,
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1", "owner-role1", "owner-role2"},
-				trait.Traits{"otrait1": {"value1", "value2"}, "owner-trait1": {"owner-value1"}},
+				[]string{"owner-role1", "owner-role2"},
+				trait.Traits{"owner-trait1": {"owner-value1"}},
 			),
 			expectedRoleCount:           2,
 			expectedTraitCount:          1,
@@ -257,8 +258,8 @@ func TestAccessLists(t *testing.T) {
 				nil,
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1", "owner-role1", "owner-role2", "role1"},
-				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"owner-value1", "value1"}},
+				[]string{"owner-role1", "owner-role2", "role1"},
+				trait.Traits{"trait1": {"owner-value1", "value1"}},
 			),
 			expectedRoleCount:           3,
 			expectedTraitCount:          2,
@@ -288,10 +289,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1", "role1"},
-				trait.Traits{
-					"otrait1": {"value1", "value2"}, "trait1": {"value1"},
-				},
+				[]string{"role1"},
+				trait.Traits{"trait1": {"value1"}},
 			),
 			expectedRoleCount:           1,
 			expectedTraitCount:          1,
@@ -316,8 +315,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1", "role1", "role2", "role3"},
-				trait.Traits{"otrait1": {"value1", "value2"}},
+				[]string{"role1", "role2", "role3"},
+				nil,
 			),
 			expectedRoleCount:           3,
 			expectedTraitCount:          0,
@@ -352,8 +351,8 @@ func TestAccessLists(t *testing.T) {
 				},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
-				[]string{"orole1"},
-				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3", "value4", "value1"}, "trait3": {"value5", "value6"}},
+				nil,
+				trait.Traits{"trait1": {"value1", "value2"}, "trait2": {"value3", "value4", "value1"}, "trait3": {"value5", "value6"}},
 			),
 			expectedRoleCount:           0,
 			expectedTraitCount:          7,
@@ -532,6 +531,34 @@ func TestAccessLists(t *testing.T) {
 			expectedInheritedTraitCount: 1,
 		},
 		{
+			name:  "one level nested ownership inheritance chain",
+			cloud: true,
+			user:  userNoRolesOrTraits,
+			// user is member of acl child that is configured as owner of acl root
+			accessLists: []*accesslist.AccessList{
+				newAccessList(t, clock, "child", emptyGrants, accesslist.Grants{}),
+				newAccessListWithOwners(t, clock, "root", emptyGrants, grants([]string{"roleRoot"}, nil), []accesslist.Owner{{
+					Name:           "child",
+					MembershipKind: accesslist.MembershipKindList},
+				}),
+			},
+
+			members: newAccessListMembers(t, clock, "child", "user"),
+			roles:   []string{"roleRoot"},
+			wantErr: require.NoError,
+			expected: newUserLoginState(t, "user",
+				nil,
+				nil,
+				nil,
+				[]string{"roleRoot"},
+				nil,
+			),
+			expectedRoleCount:           1,
+			expectedTraitCount:          0,
+			expectedInheritedRoleCount:  1,
+			expectedInheritedTraitCount: 0,
+		},
+		{
 			name:  "an access list that references a non-existent role should be skipped entirely",
 			user:  user,
 			cloud: true,
@@ -556,9 +583,9 @@ func TestAccessLists(t *testing.T) {
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				// only role1 will be granted by the access lists, since role2 comes from an invalid access list.
-				[]string{"orole1", "role1"},
+				[]string{"role1"},
 				// traits from the invalid access list won't be granted.
-				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1"}},
+				trait.Traits{"trait1": {"value1"}},
 			),
 			expectedRoleCount:           1,
 			expectedTraitCount:          1,
@@ -604,7 +631,7 @@ func TestAccessLists(t *testing.T) {
 				require.NoError(t, backendSvc.UpsertLock(ctx, lock))
 			}
 
-			state, err := svc.Generate(ctx, test.user, backendSvc)
+			state, err := svc.generate(ctx, test.user, backendSvc, false /* pure */)
 			test.wantErr(t, err)
 
 			if err != nil {
@@ -694,7 +721,7 @@ func TestGitHubIdentity(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			uls, err := svc.Generate(ctx, test.user, backendSvc)
+			uls, err := svc.generate(ctx, test.user, backendSvc, false /* pure */)
 			require.NoError(t, err)
 			require.Equal(t, test.expectGitHubIdentity, uls.Spec.GitHubIdentity)
 
@@ -727,7 +754,10 @@ func initGeneratorSvc() (*Generator, *svc, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessListsSvc, err := local.NewAccessListService(mem, clock)
+	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: mem,
+		Modules: modulestest.EnterpriseModules(),
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -864,18 +894,37 @@ func newAccessListMemberWithKind(t *testing.T, clock clockwork.Clock, accessList
 	return res
 }
 
-func newUserLoginState(t *testing.T, name string, labels map[string]string, originalRoles []string, originalTraits map[string][]string,
-	roles []string, traits map[string][]string) *userloginstate.UserLoginState {
+func newUserLoginState(t *testing.T,
+	name string, labels map[string]string,
+	originalRoles []string, originalTraits map[string][]string,
+	accessListRoles []string, accessListTraits map[string][]string,
+) *userloginstate.UserLoginState {
 	t.Helper()
+
+	roles := append(originalRoles, accessListRoles...)
+	slices.Sort(roles)
+	roles = slices.Compact(roles)
+
+	var traits map[string][]string
+	if len(originalTraits) == 0 {
+		traits = accessListTraits
+	} else {
+		traits = trait.Traits(originalTraits).Clone()
+		trait.Merge(traits, accessListTraits)
+	}
+	trait.Merge(traits, originalTraits)
+	trait.Merge(traits, accessListTraits)
 
 	uls, err := userloginstate.New(header.Metadata{
 		Name:   name,
 		Labels: labels,
 	}, userloginstate.Spec{
-		OriginalRoles:  originalRoles,
-		OriginalTraits: originalTraits,
-		Roles:          roles,
-		Traits:         traits,
+		OriginalRoles:    originalRoles,
+		OriginalTraits:   originalTraits,
+		AccessListRoles:  accessListRoles,
+		AccessListTraits: accessListTraits,
+		Roles:            roles,
+		Traits:           traits,
 	})
 	require.NoError(t, err)
 

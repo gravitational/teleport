@@ -689,7 +689,7 @@ func TestNewAppV3(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
-			name: "mcp with uri",
+			name: "mcp with SSE transport",
 			meta: Metadata{
 				Name: "mcp-everything",
 			},
@@ -707,6 +707,29 @@ func TestNewAppV3(t *testing.T) {
 				},
 				Spec: AppSpecV3{
 					URI: "mcp+sse+http://localhost:12345/sse",
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp with streamable HTTP transport",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+http://localhost:12345/mcp",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+http://localhost:12345/mcp",
 				},
 			},
 			wantErr: require.NoError,

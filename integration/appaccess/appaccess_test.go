@@ -22,7 +22,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -33,8 +33,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -62,10 +62,20 @@ import (
 func TestAppAccess(t *testing.T) {
 	// Enable MCP test servers.
 	sseServerURL := mcptest.MustStartSSETestServer(t)
-	extraApps := []servicecfg.App{{
-		Name: "test-sse",
-		URI:  "mcp+sse+" + sseServerURL,
-	}}
+	streamableHTTPServer := mcpserver.NewTestStreamableHTTPServer(mcptest.NewServer())
+	streamableHTTPServerURL := fmt.Sprintf("mcp+%s/mcp", streamableHTTPServer.URL)
+	t.Cleanup(streamableHTTPServer.Close)
+
+	extraApps := []servicecfg.App{
+		{
+			Name: "test-sse",
+			URI:  "mcp+sse+" + sseServerURL,
+		},
+		{
+			Name: "test-http",
+			URI:  streamableHTTPServerURL,
+		},
+	}
 
 	// Reusing the pack as much as we can.
 	pack := SetupWithOptions(t, AppTestOptions{
@@ -169,7 +179,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 		desc       string
 		inCookies  []*http.Cookie
 		outMessage string
-		err        error
+		wantErr    bool
 	}{
 		{
 			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
@@ -199,7 +209,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 					Value: "foobarbaz",
 				},
 			).ToSlice(),
-			err: errors.New(""),
+			wantErr: true,
 		},
 		{
 			desc: "invalid application session cookie, websocket request fails to dial",
@@ -209,7 +219,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 					Value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
 				},
 			},
-			err: errors.New(""),
+			wantErr: true,
 		},
 	}
 
@@ -217,8 +227,8 @@ func testWebsockets(p *Pack, t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
-			if tt.err != nil {
-				require.IsType(t, tt.err, trace.Unwrap(err))
+			if tt.wantErr {
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.outMessage, body)
@@ -599,7 +609,6 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppPublicAddr: p.rootAppPublicAddr,
 				AppName:       p.rootAppName,
 			},
-			PublicAddr: p.rootAppPublicAddr,
 		}
 		return len(cmp.Diff(
 			expectedEvent,

@@ -22,19 +22,24 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"net"
 	"os"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/mock"
@@ -56,18 +61,25 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/join/joinclient"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
 )
 
 func TestMain(m *testing.M) {
@@ -81,6 +93,7 @@ func newTestTLSServer(t testing.TB, opts ...authtest.TestTLSServerOption) (*auth
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	emitter := &eventstest.MockRecorderEmitter{}
 	opts = append(opts, func(config *authtest.TLSServerConfig) {
@@ -298,7 +311,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	// With the basic setup complete, we can now "fake" a join.
-	botCerts, err := join.Register(ctx, join.RegisterParams{
+	botCerts, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token:      token.GetName(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
@@ -492,7 +505,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				Hint: "Wow - what a lovely hint, {{user.name}}!",
 				X509: &workloadidentityv1pb.WorkloadIdentitySPIFFEX509{
 					DnsSans: []string{
-						"example.com",
+						"*.example.com",
 						"{{user.name}}.example.com",
 					},
 				},
@@ -741,6 +754,33 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 			},
 			requireErr: require.NoError,
 			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				// Checks for a bug where unix epoch timestamps (e.g. the `exp`
+				// and `iat` claims) were represented in scientific notation
+				// rather than as plain integers due to a conversion bug.
+				payloadSection := strings.Split(
+					res.GetCredential().GetJwtSvid().GetJwt(),
+					".",
+				)[1]
+				payload, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(payloadSection, "="))
+				require.NoError(t, err)
+
+				var numericClaims struct {
+					Exp json.Number `json:"exp"`
+					Iat json.Number `json:"iat"`
+				}
+				require.NoError(t, json.Unmarshal(payload, &numericClaims))
+
+				integerExpr, err := regexp.Compile(`^\d+$`)
+				require.NoError(t, err)
+				require.Truef(t,
+					integerExpr.MatchString(numericClaims.Exp.String()),
+					"unexpected number format: %s", numericClaims.Exp.String(),
+				)
+				require.Truef(t,
+					integerExpr.MatchString(numericClaims.Iat.String()),
+					"unexpected number format: %s", numericClaims.Iat.String(),
+				)
+
 				parsed, err := jwt.ParseSigned(res.GetCredential().GetJwtSvid().GetJwt())
 				require.NoError(t, err)
 
@@ -809,7 +849,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				require.WithinDuration(t, tp.clock.Now().Add(-1*time.Minute), cert.NotBefore, time.Second)
 				// Check cert TTL
 				require.Equal(t, cert.NotAfter.Sub(cert.NotBefore), wantTTL+time.Minute)
-				require.Equal(t, []string{"example.com", "dog.example.com"}, cert.DNSNames)
+				require.Equal(t, []string{"*.example.com", "dog.example.com"}, cert.DNSNames)
 
 				// Check against SPIFFE SPEC
 				// References are to https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
@@ -862,7 +902,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 						WorkloadIdentity:         full.GetMetadata().GetName(),
 						WorkloadIdentityRevision: full.GetMetadata().GetRevision(),
 						DNSSANs: []string{
-							"example.com",
+							"*.example.com",
 							"dog.example.com",
 						},
 						NameSelector: full.GetMetadata().GetName(),
@@ -3449,181 +3489,231 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 
 func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
-	revocationsEventCh := make(chan struct{})
-	fakeClock := clockwork.NewFakeClock()
-	srv, _ := newTestTLSServer(t, func(config *authtest.TLSServerConfig) {
-		config.APIConfig.MutateRevocationsServiceConfig = func(config *workloadidentityv1.RevocationServiceConfig) {
-			config.RevocationsEventProcessedCh = revocationsEventCh
-			config.Clock = fakeClock
-		}
-	})
-	ctx := context.Background()
 
-	authorizedUser, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"authorized",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindWorkloadIdentityX509Revocation},
-				Verbs: []string{
-					types.VerbRead,
-					types.VerbList,
-					types.VerbCreate,
-					types.VerbUpdate,
-					types.VerbDelete,
-				},
-			},
-		})
-	require.NoError(t, err)
-	authorizedClient, err := srv.NewClient(authtest.TestUser(authorizedUser.GetName()))
-	require.NoError(t, err)
-	revocationsClient := authorizedClient.WorkloadIdentityRevocationServiceClient()
-
-	// Fetch the SPIFFE CA so we can validate CRL signature.
-	ca, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: srv.ClusterName(),
-	}, false)
-	require.NoError(t, err)
-	caCert, err := tlsca.ParseCertificatePEM(ca.GetActiveKeys().TLS[0].Cert)
-	require.NoError(t, err)
-
-	checkCRL := func(
-		t *testing.T,
-		crlBytes []byte,
-		wantEntries []x509.RevocationListEntry,
-	) {
-		require.NotEmpty(t, crlBytes)
-
-		// Expect a DER encoded CRL directly (e.g no PEM)
-		parsed, err := x509.ParseRevocationList(crlBytes)
+	synctest.Test(t, func(t *testing.T) {
+		// == Setup ==
+		//
+		// Because this test depends on the "testing/synctest" package we can't
+		// use the newTestTLSServer helper, as it binds real listeners which
+		// aren't covered by synctest's "bubble". Instead, we must call the
+		// endpoint method directly, so we have to set up all of the service's
+		// dependencies ourselves.
+		backend, err := memory.New(memory.Config{})
 		require.NoError(t, err)
 
-		// Check CRL has a valid signature
-		require.NoError(t, parsed.CheckSignatureFrom(caCert))
+		store, err := local.NewWorkloadIdentityX509RevocationService(backend)
+		require.NoError(t, err)
 
-		diff := cmp.Diff(
-			wantEntries,
-			parsed.RevokedCertificateEntries,
-			cmp.Comparer(func(a, b *big.Int) bool {
-				return a.Cmp(b) == 0
-			}),
-			cmpopts.IgnoreFields(x509.RevocationListEntry{}, "Raw"),
-			cmpopts.SortSlices(func(a, b x509.RevocationListEntry) bool {
-				return a.SerialNumber.Cmp(b.SerialNumber) < 0
-			}),
+		clusterConfigService, err := local.NewClusterConfigurationService(backend)
+		require.NoError(t, err)
+
+		authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{})
+		require.NoError(t, err)
+
+		_, err = clusterConfigService.CreateAuthPreference(t.Context(), authPreference)
+		require.NoError(t, err)
+
+		clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+			ClusterName: "test.teleport.sh",
+			ClusterID:   uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		keys, err := keystore.NewManager(
+			t.Context(),
+			&servicecfg.KeystoreConfig{},
+			&keystore.Options{
+				ClusterName:          clusterName,
+				AuthPreferenceGetter: clusterConfigService,
+			},
 		)
-		require.Empty(t, diff)
-	}
+		require.NoError(t, err)
 
-	revokedAt := srv.Clock().Now()
-	createRevocation := func(t *testing.T, name string) {
-		_, err = revocationsClient.CreateWorkloadIdentityX509Revocation(
-			ctx,
-			&workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
-				WorkloadIdentityX509Revocation: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
+		tlsKeyPair, err := keys.NewTLSKeyPair(t.Context(), clusterName.GetClusterName(), cryptosuites.SPIFFECATLS)
+		require.NoError(t, err)
+
+		tlsCACert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
+		require.NoError(t, err)
+
+		jwtKeyPair, err := keys.NewJWTKeyPair(t.Context(), cryptosuites.SPIFFECAJWT)
+		require.NoError(t, err)
+
+		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:        types.SPIFFECA,
+			ClusterName: clusterName.GetClusterName(),
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{tlsKeyPair},
+				JWT: []*types.JWTKeyPair{jwtKeyPair},
+			},
+		})
+		require.NoError(t, err)
+
+		caService := local.NewCAService(backend)
+		err = caService.CreateCertAuthority(t.Context(), ca)
+		require.NoError(t, err)
+
+		service, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
+			Store: store,
+			Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+				return &authz.Context{}, nil
+			}),
+			Emitter:             &eventstest.MockAuditLog{},
+			EventsWatcher:       local.NewEventsService(backend),
+			ClusterName:         clusterName.GetClusterName(),
+			KeyStore:            keys,
+			Logger:              logtest.NewLogger(),
+			CertAuthorityGetter: caService,
+		})
+		require.NoError(t, err)
+		go service.RunCRLSigner(t.Context())
+
+		// == Helper Methods ==
+		checkCRL := func(
+			t *testing.T,
+			crlBytes []byte,
+			wantEntries []x509.RevocationListEntry,
+		) {
+			t.Helper()
+			require.NotEmpty(t, crlBytes)
+
+			// Expect a DER encoded CRL directly (e.g no PEM)
+			parsed, err := x509.ParseRevocationList(crlBytes)
+			require.NoError(t, err)
+
+			// Check CRL has a valid signature
+			require.NoError(t, parsed.CheckSignatureFrom(tlsCACert))
+
+			diff := cmp.Diff(
+				wantEntries,
+				parsed.RevokedCertificateEntries,
+				cmp.Comparer(func(a, b *big.Int) bool {
+					return a.Cmp(b) == 0
+				}),
+				cmpopts.IgnoreFields(x509.RevocationListEntry{}, "Raw"),
+				cmpopts.SortSlices(func(a, b x509.RevocationListEntry) bool {
+					return a.SerialNumber.Cmp(b.SerialNumber) < 0
+				}),
+			)
+			require.Empty(t, diff)
+		}
+
+		revokedAt := time.Now()
+		createRevocation := func(t *testing.T, name string) {
+			t.Helper()
+
+			_, err := store.CreateWorkloadIdentityX509Revocation(
+				t.Context(),
+				&workloadidentityv1pb.WorkloadIdentityX509Revocation{
 					Kind:    types.KindWorkloadIdentityX509Revocation,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name:    name,
-						Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
+						Expires: timestamppb.New(time.Now().Add(time.Hour)),
 					},
 					Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 						Reason:    "compromised",
 						RevokedAt: timestamppb.New(revokedAt),
 					},
 				},
-			},
-		)
-		require.NoError(t, err)
-		// Wait for the revocation event to be processed.
-		select {
-		case <-time.After(5 * time.Second):
-			t.Fatalf("timed out waiting for revocation event to be processed")
-		case <-revocationsEventCh:
+			)
+			require.NoError(t, err)
+
+			// Wait for the revocation event to be processed.
+			synctest.Wait()
 		}
-	}
-	deleteRevocation := func(t *testing.T, name string) {
-		_, err = revocationsClient.DeleteWorkloadIdentityX509Revocation(
-			ctx,
-			&workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
-				Name: name,
-			},
-		)
-		require.NoError(t, err)
-		// Wait for the revocation event to be processed.
-		select {
-		case <-time.After(5 * time.Second):
-			t.Fatalf("timed out waiting for revocation event to be processed")
-		case <-revocationsEventCh:
+
+		deleteRevocation := func(t *testing.T, name string) {
+			t.Helper()
+
+			err := store.DeleteWorkloadIdentityX509Revocation(t.Context(), name)
+			require.NoError(t, err)
+
+			// Wait for the revocation event to be processed.
+			synctest.Wait()
 		}
-	}
 
-	// Fetch the initial, empty, CRL
-	stream, err := revocationsClient.StreamSignedCRL(
-		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
-	)
-	require.NoError(t, err)
-	res, err := stream.Recv()
-	require.NoError(t, err)
-	checkCRL(t, res.Crl, nil)
+		// == Test Logic ==
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		stream := grpctest.NewServerStream[workloadidentityv1pb.StreamSignedCRLResponse](ctx)
 
-	// Create new revocations
-	createRevocation(t, "ff")
-	createRevocation(t, "aa")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
-	t.Log("Advancing fake clock to pass debounce period")
-	fakeClock.Advance(6 * time.Second)
-	// The client should now receive a new CRL
-	res, err = stream.Recv()
-	require.NoError(t, err)
-	checkCRL(t, res.Crl, []x509.RevocationListEntry{
-		{
-			SerialNumber:   big.NewInt(170),
-			RevocationTime: revokedAt,
-		},
-		{
-			SerialNumber:   big.NewInt(255),
-			RevocationTime: revokedAt,
-		},
+		rpcErrCh := make(chan error, 1)
+		go func() {
+			rpcErrCh <- service.StreamSignedCRL(
+				&workloadidentityv1pb.StreamSignedCRLRequest{},
+				stream,
+			)
+		}()
+
+		// Fetch the initial, empty, CRL
+		res, err := stream.Recv()
+		require.NoError(t, err)
+		checkCRL(t, res.Crl, nil)
+
+		// Create new revocations
+		createRevocation(t, "ff")
+		createRevocation(t, "aa")
+
+		t.Log("Advancing fake clock to pass debounce period")
+		time.Sleep(6 * time.Second)
+
+		// The client should now receive a new CRL
+		res, err = stream.Recv()
+		require.NoError(t, err)
+		checkCRL(t, res.Crl, []x509.RevocationListEntry{
+			{
+				SerialNumber:   big.NewInt(170),
+				RevocationTime: revokedAt,
+			},
+			{
+				SerialNumber:   big.NewInt(255),
+				RevocationTime: revokedAt,
+			},
+		})
+
+		// Add another revocation, delete one revocation
+		createRevocation(t, "bb")
+		deleteRevocation(t, "aa")
+
+		t.Log("Advancing fake clock to pass debounce period")
+		time.Sleep(6 * time.Second)
+
+		// The client should now receive a new CRL
+		res, err = stream.Recv()
+		require.NoError(t, err)
+		checkCRL(t, res.Crl, []x509.RevocationListEntry{
+			{
+				SerialNumber:   big.NewInt(255),
+				RevocationTime: revokedAt,
+			},
+			{
+				SerialNumber:   big.NewInt(187),
+				RevocationTime: revokedAt,
+			},
+		})
+
+		// Delete all remaining CRL
+		deleteRevocation(t, "bb")
+		deleteRevocation(t, "ff")
+
+		t.Log("Advancing fake clock to pass debounce period")
+		time.Sleep(6 * time.Second)
+
+		// The client should now receive a new CRL
+		res, err = stream.Recv()
+		require.NoError(t, err)
+		checkCRL(t, res.Crl, nil)
+
+		// Wait ten minutes to see if the periodic CRL is sent.
+		t.Log("Advancing fake clock to pass the periodic timer")
+		time.Sleep(11 * time.Minute)
+
+		res, err = stream.Recv()
+		require.NoError(t, err)
+		checkCRL(t, res.Crl, nil)
+
+		// Cancel the RPC context and check it didn't return an error.
+		cancel()
+		require.NoError(t, <-rpcErrCh)
 	})
-
-	// Add another revocation, delete one revocation
-	createRevocation(t, "bb")
-	deleteRevocation(t, "aa")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
-	t.Log("Advancing fake clock to pass debounce period")
-	fakeClock.Advance(6 * time.Second)
-	// The client should now receive a new CRL
-	res, err = stream.Recv()
-	require.NoError(t, err)
-	checkCRL(t, res.Crl, []x509.RevocationListEntry{
-		{
-			SerialNumber:   big.NewInt(255),
-			RevocationTime: revokedAt,
-		},
-		{
-			SerialNumber:   big.NewInt(187),
-			RevocationTime: revokedAt,
-		},
-	})
-
-	// Delete all remaining CRL
-	deleteRevocation(t, "bb")
-	deleteRevocation(t, "ff")
-	require.NoError(t, fakeClock.BlockUntilContext(ctx, 2))
-	t.Log("Advancing fake clock to pass debounce period")
-	fakeClock.Advance(6 * time.Second)
-	// The client should now receive a new CRL
-	res, err = stream.Recv()
-	require.NoError(t, err)
-	checkCRL(t, res.Crl, nil)
-
-	// Wait ten minutes to see if the periodic CRL is sent.
-	t.Log("Advancing fake clock to pass the periodic timer")
-	fakeClock.Advance(11 * time.Minute)
-	res, err = stream.Recv()
-	require.NoError(t, err)
-	checkCRL(t, res.Crl, nil)
 }

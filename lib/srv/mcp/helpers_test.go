@@ -19,11 +19,14 @@
 package mcp
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,6 +35,7 @@ import (
 	docker "github.com/docker/docker/client"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -51,8 +55,9 @@ func TestMain(m *testing.M) {
 }
 
 type setupTestContextOptions struct {
-	roleSet services.RoleSet
-	app     types.Application
+	roleSet    services.RoleSet
+	app        types.Application
+	clientConn net.Conn
 }
 
 type setupTestContextOptionFunc func(*setupTestContextOptions)
@@ -66,6 +71,12 @@ func withApp(app types.Application) setupTestContextOptionFunc {
 func withRole(role types.Role) setupTestContextOptionFunc {
 	return func(opts *setupTestContextOptions) {
 		opts.roleSet = append(opts.roleSet, role)
+	}
+}
+
+func withClientConn(conn net.Conn) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.clientConn = conn
 	}
 }
 
@@ -139,8 +150,13 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 		applyOpt(&opts)
 	}
 
-	// Fake connection.
-	clientSourceConn, clientDestConn := makeDualPipeNetConn(t)
+	// Fake connection if not passed in.
+	var clientSourceConn, clientDestConn net.Conn
+	if opts.clientConn != nil {
+		clientDestConn = opts.clientConn
+	} else {
+		clientSourceConn, clientDestConn = makeDualPipeNetConn(t)
+	}
 
 	// App.
 	if opts.app == nil {
@@ -164,7 +180,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	sessionCtx := &SessionCtx{
 		ClientConn: clientDestConn,
 		App:        opts.app,
-		AuthCtx:    makeTestAuthContext(t, opts.roleSet),
+		AuthCtx:    makeTestAuthContext(t, opts.roleSet, opts.app),
 	}
 	require.NoError(t, sessionCtx.checkAndSetDefaults())
 
@@ -174,7 +190,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	}
 }
 
-func makeTestAuthContext(t *testing.T, roleSet services.RoleSet) *authz.Context {
+func makeTestAuthContext(t *testing.T, roleSet services.RoleSet, app types.Application) *authz.Context {
 	t.Helper()
 
 	user, err := types.NewUser("ai")
@@ -187,8 +203,14 @@ func makeTestAuthContext(t *testing.T, roleSet services.RoleSet) *authz.Context 
 			Username:   user.GetName(),
 			Groups:     user.GetRoles(),
 			Principals: user.GetLogins(),
+			Expires:    time.Now().Add(time.Hour),
 		},
 	}
+	if app != nil {
+		identity.Identity.RouteToApp.Name = app.GetName()
+		identity.Identity.RouteToApp.SessionID = "session-id-for+" + app.GetName()
+	}
+
 	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity.Identity)
 	require.NoError(t, err)
 	checker := services.NewAccessCheckerWithRoleSet(accessInfo, "my-cluster", roleSet)
@@ -211,7 +233,7 @@ func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPC
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
-		Method:  mcp.MethodToolsCall,
+		Method:  mcputils.MethodToolsCall,
 		Params: mcputils.JSONRPCParams{
 			"name": toolName,
 		},
@@ -222,7 +244,7 @@ func (c *requestBuilder) makeToolsListRequest() *mcputils.JSONRPCRequest {
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
-		Method:  mcp.MethodToolsList,
+		Method:  mcputils.MethodToolsList,
 	}
 }
 
@@ -325,5 +347,62 @@ func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerNa
 		if err := dockerClient.ContainerRemove(context.Background(), containerID, container.RemoveOptions{Force: true}); err != nil {
 			t.Log("Failed to remove container", err)
 		}
+	}
+}
+
+type mockAuthClient struct {
+	mu               sync.Mutex
+	appTokenRequests []types.GenerateAppTokenRequest
+}
+
+func (m *mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.appTokenRequests = append(m.appTokenRequests, req)
+	return fmt.Sprintf("app-token-for-%s-by-%s", req.Username, cmp.Or(req.AuthorityType, types.JWTSigner)), nil
+}
+
+func (m *mockAuthClient) getAppTokenRequests() []types.GenerateAppTokenRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.appTokenRequests)
+}
+
+func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {
+	t.Helper()
+	// "notifications/initialized" may or may not slip in so just check the
+	// first two.
+	slices.SortFunc(events, func(a, b apievents.AuditEvent) int {
+		return cmp.Compare(a.GetIndex(), b.GetIndex())
+	})
+	require.GreaterOrEqual(t, len(events), 2)
+	sessionStart, ok := events[0].(*apievents.MCPSessionStart)
+	require.True(t, ok)
+	assert.Equal(t, "test-client/1.0.0", sessionStart.ClientInfo)
+	request, ok := events[1].(*apievents.MCPSessionRequest)
+	require.True(t, ok)
+	assert.Equal(t, string(mcp.MethodInitialize), request.Message.Method)
+
+	for _, check := range extraChecks {
+		check(t, sessionStart)
+	}
+}
+
+func checkSessionStartWithServerInfo(wantName, wantVersion string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantName+"/"+wantVersion, sessionStart.ServerInfo)
+	}
+}
+func checkSessionStartWithEgressAuthType(wantEgress string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantEgress, sessionStart.EgressAuthType)
+	}
+}
+func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.NotEmpty(t, sessionStart.SessionID)
 	}
 }

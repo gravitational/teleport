@@ -39,9 +39,9 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/gravitational/trace"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	staticsign "github.com/sigstore/cosign/v2/pkg/oci/static"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/sigstore/cosign/v3/pkg/oci"
+	staticsign "github.com/sigstore/cosign/v3/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 )
 
@@ -237,7 +237,7 @@ func signPayload(sigPayload payload.Cosign, key *cosign.KeysBytes) (oci.Signatur
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sv, err := cosign.LoadPrivateKey(key.PrivateBytes, []byte{})
+	sv, err := cosign.LoadPrivateKey(key.PrivateBytes, []byte{}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

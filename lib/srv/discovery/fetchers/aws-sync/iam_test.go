@@ -115,7 +115,6 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 		expected,
 		result.SAMLProviders,
 		protocmp.Transform(),
-		protocmp.IgnoreFields(&accessgraphv1alpha.AWSSAMLProviderV1{}, "last_sync_time"),
 	))
 }
 
@@ -266,7 +265,6 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 		expected,
 		result.OIDCProviders,
 		protocmp.Transform(),
-		protocmp.IgnoreFields(&accessgraphv1alpha.AWSOIDCProviderV1{}, "last_sync_time"),
 	))
 }
 

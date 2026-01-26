@@ -22,6 +22,7 @@ import {
   requiredEmailLike,
   requiredField,
   requiredIamRoleName,
+  requiredMaxLength,
   requiredPassword,
   requiredPort,
   requiredRoleArn,
@@ -153,6 +154,25 @@ describe('requiredPort', () => {
     ${'65535'} | ${{ valid: true }}
   `('port: $port', ({ port, expected }) => {
     expect(requiredPort(port)()).toEqual(expected);
+  });
+});
+
+describe('requiredMaxLength', () => {
+  const errMsg = 'message goes here';
+  const validator = requiredMaxLength(errMsg, 10);
+  test.each`
+    value                         | expected
+    ${'Lorem ipsum'}              | ${{ valid: false, message: errMsg }}
+    ${'Lorem ipsu'}               | ${{ valid: true }}
+    ${'   Lorem ipsu   '}         | ${{ valid: true }}
+    ${''}                         | ${{ valid: true }}
+    ${Array.from({ length: 11 })} | ${{ valid: false, message: errMsg }}
+    ${Array.from({ length: 10 })} | ${{ valid: true }}
+    ${[]}                         | ${{ valid: true }}
+    ${1}                          | ${{ valid: false, message: 'value must be a string or an array' }}
+    ${true}                       | ${{ valid: false, message: 'value must be a string or an array' }}
+  `('value: $value', ({ value, expected }) => {
+    expect(validator(value)()).toEqual(expected);
   });
 });
 

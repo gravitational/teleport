@@ -167,7 +167,6 @@ func requireResourceEqual(t *testing.T, want, got *Resources) {
 	opts := []cmp.Option{
 		protocmp.Transform(),
 		protocmp.SortRepeated(tagCmp),
-		protocmp.IgnoreFields(&pb.AWSKMSKeyV1{}, "last_sync_time"),
 	}
 	require.Empty(t, cmp.Diff(want, got, opts...))
 }

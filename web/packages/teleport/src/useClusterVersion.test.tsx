@@ -31,15 +31,15 @@ describe('useClusterVersion', () => {
   });
 
   it.each`
-    clientVersion | compatibility
-    ${'4.4.0'}    | ${{ isCompatible: true, reason: 'match' }}
-    ${'4.4.1'}    | ${{ isCompatible: true, reason: 'match' }}
-    ${'4.3.999'}  | ${{ isCompatible: true, reason: 'upgrade-minor' }}
-    ${'4.3.0'}    | ${{ isCompatible: true, reason: 'upgrade-minor' }}
-    ${'5.0.0'}    | ${{ isCompatible: true, reason: 'match' }}
-    ${'3.0.0'}    | ${{ isCompatible: true, reason: 'upgrade-major' }}
-    ${'6.0.0'}    | ${{ isCompatible: false, reason: 'too-new' }}
-    ${'2.0.0'}    | ${{ isCompatible: false, reason: 'too-old' }}
+    clientVersion  | compatibility
+    ${'4.4.0-dev'} | ${{ isCompatible: true, reason: 'match' }}
+    ${'4.4.0'}     | ${{ isCompatible: false, reason: 'too-new' }}
+    ${'4.4.1'}     | ${{ isCompatible: false, reason: 'too-new' }}
+    ${'4.3.999'}   | ${{ isCompatible: true, reason: 'upgrade-minor' }}
+    ${'4.3.0'}     | ${{ isCompatible: true, reason: 'upgrade-minor' }}
+    ${'5.0.0'}     | ${{ isCompatible: false, reason: 'too-new' }}
+    ${'3.0.0'}     | ${{ isCompatible: true, reason: 'upgrade-major' }}
+    ${'2.0.0'}     | ${{ isCompatible: false, reason: 'too-old' }}
   `(
     'diff("$clientVersion") should be "$compatibility"',
     ({ clientVersion, compatibility }) => {

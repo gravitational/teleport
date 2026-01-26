@@ -309,6 +309,14 @@ message CurrentUserAssignments {
   AccessListUserAssignmentType membership_type = 2;
 }
 
+// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
+message UserAssignments {
+  // ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+  AccessListUserAssignmentType ownership_type = 1;
+  // membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+  AccessListUserAssignmentType membership_type = 2;
+}
+
 // AccessListStatus contains dynamic fields calculated during retrieval.
 message AccessListStatus {
   // member_count is the number of members in the Access List.
@@ -321,4 +329,6 @@ message AccessListStatus {
   repeated string member_of = 4;
   // current_user_assignments describes the current user's ownership and membership status in the access list.
   CurrentUserAssignments current_user_assignments = 5;
+  // user_assignments describes the requested user's ownership and membership assignment types in the access list.
+  UserAssignments user_assignments = 6;
 }

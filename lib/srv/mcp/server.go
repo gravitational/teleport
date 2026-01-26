@@ -32,7 +32,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessPoint defines functions that the MCP server requires from the caching
@@ -40,6 +43,12 @@ import (
 type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.ClusterNameGetter
+}
+
+// AuthClient defines functions that the MCP server requires from the auth
+// client.
+type AuthClient interface {
+	appcommon.AppTokenGenerator
 }
 
 // ServerConfig is the config for the MCP forward server.
@@ -54,6 +63,8 @@ type ServerConfig struct {
 	HostID string
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint AccessPoint
+	// AuthClient is a client directly connected to the Auth server.
+	AuthClient AuthClient
 	// EnableDemoServer enables the "Teleport Demo" MCP server.
 	EnableDemoServer bool
 	// CipherSuites is the list of TLS cipher suites that have been configured
@@ -74,6 +85,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
+	if c.AuthClient == nil {
+		return trace.BadParameter("missing AuthClient")
+	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
 	}
@@ -90,9 +104,10 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 }
 
 // Server handles forwarding client connections to MCP servers.
-// TODO(greedy52) add server metrics.
 type Server struct {
 	cfg ServerConfig
+
+	sessionCache *utils.FnCache
 }
 
 // NewServer creates a new Server.
@@ -100,8 +115,24 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := metrics.RegisterPrometheusCollectors(allPrometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:         10 * time.Minute,
+		Context:     cfg.ParentContext,
+		Clock:       cfg.clock,
+		ReloadOnErr: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Server{
-		cfg: cfg,
+		cfg:          cfg,
+		sessionCache: cache,
 	}, nil
 }
 
@@ -110,27 +141,40 @@ func (s *Server) HandleSession(ctx context.Context, sessionCtx *SessionCtx) erro
 	if err := sessionCtx.checkAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Metrics.
+	accumulatedSessions.WithLabelValues(sessionCtx.transport).Inc()
+	activeSessions.WithLabelValues(sessionCtx.transport).Inc()
+	defer activeSessions.WithLabelValues(sessionCtx.transport).Dec()
+
 	if s.cfg.EnableDemoServer && isDemoServerApp(sessionCtx.App) {
 		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeDemoServerRunner))
 	}
-	transportType := types.GetMCPServerTransportType(sessionCtx.App.GetURI())
-	switch transportType {
+	switch sessionCtx.transport {
 	case types.MCPTransportStdio:
 		return trace.Wrap(s.handleStdio(ctx, sessionCtx, makeExecServerRunner))
 	case types.MCPTransportSSE:
 		return trace.Wrap(s.handleStdioToSSE(ctx, sessionCtx))
+	case types.MCPTransportHTTP:
+		return trace.Wrap(s.handleStreamableHTTP(ctx, sessionCtx))
 	default:
-		return trace.BadParameter("unknown transport type: %v", transportType)
+		return trace.BadParameter("unknown transport type: %v", sessionCtx.transport)
 	}
 }
 
 // HandleUnauthorizedConnection handles an unauthorized client connection.
 // This function has a hardcoded 30 seconds timeout in case the proper error
 // message cannot be delivered to the client.
-func (s *Server) HandleUnauthorizedConnection(ctx context.Context, clientConn net.Conn, authErr error) error {
+func (s *Server) HandleUnauthorizedConnection(ctx context.Context, clientConn net.Conn, app types.Application, authErr error) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
-	return trace.Wrap(s.handleAuthErrStdio(ctx, clientConn, authErr))
+	transportType := types.GetMCPServerTransportType(app.GetURI())
+	switch transportType {
+	case types.MCPTransportHTTP:
+		return trace.Wrap(s.handleAuthErrHTTP(ctx, clientConn, authErr))
+	default:
+		return trace.Wrap(s.handleAuthErrStdio(ctx, clientConn, authErr))
+	}
 }
 
 func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx *SessionCtx, logger *slog.Logger) (*sessionAuditor, error) {
@@ -162,11 +206,29 @@ func (s *Server) makeSessionAuditor(ctx context.Context, sessionCtx *SessionCtx,
 	})
 }
 
+func (s *Server) makeSessionAuth(ctx context.Context, sessionCtx *SessionCtx) (*sessionAuth, error) {
+	auth := &sessionAuth{
+		SessionCtx: sessionCtx,
+		authClient: s.cfg.AuthClient,
+		clock:      s.cfg.clock,
+	}
+
+	// Fail early if cannot generate egress auth tokens. Skip stdio as they
+	// don't intake headers with auth tokens.
+	if sessionCtx.transport != types.MCPTransportStdio {
+		if _, _, err := auth.generateJWTAndTraits(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return auth, nil
+}
+
 func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
 	// Some extra info for debugging purpose.
 	logger := s.cfg.Log.With(
 		"client_ip", sessionCtx.ClientConn.RemoteAddr(),
 		"app", sessionCtx.App.GetName(),
+		"app_uri", sessionCtx.App.GetURI(),
 		"user", sessionCtx.AuthCtx.User.GetName(),
 		"session_id", sessionCtx.sessionID,
 	)
@@ -176,12 +238,25 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx)
 		return nil, trace.Wrap(err)
 	}
 
+	sessionAuth, err := s.makeSessionAuth(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return newSessionHandler(sessionHandlerConfig{
 		SessionCtx:     sessionCtx,
 		sessionAuditor: sessionAuditor,
+		sessionAuth:    sessionAuth,
 		accessPoint:    s.cfg.AccessPoint,
 		logger:         logger,
 		parentCtx:      s.cfg.ParentContext,
 		clock:          s.cfg.clock,
+	})
+}
+
+func (s *Server) getSessionHandlerWithJWT(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
+	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), appcommon.MaxSessionChunkDuration)
+	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, sessionCtx.sessionID, ttl, func(ctx context.Context) (*sessionHandler, error) {
+		return s.makeSessionHandler(ctx, sessionCtx)
 	})
 }

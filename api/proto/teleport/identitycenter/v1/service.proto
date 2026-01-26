@@ -1,0 +1,129 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.identitycenter.v1;
+
+import "teleport/identitycenter/v1/identitycenter.proto";
+import "teleport/provisioning/v1/provisioning.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
+
+// IdentityCenterService provides a remote-access API for the Identity Center
+// integration
+service IdentityCenterService {
+  // DescribePrincipal fetches summary information for a given principal
+  rpc DescribePrincipal(DescribePrincipalRequest) returns (PrincipalSummary);
+
+  // ListPrincipals returns paginated list of principal summaries
+  rpc ListPrincipals(ListPrincipalsRequest) returns (ListPrincipalsResponse);
+
+  // ResetPrincipal resets a principal's external ID and forces them to be re-
+  // provisioned into Identity Center
+  rpc ResetPrincipal(ResetPrincipalRequest) returns (ResetPrincipalResponse);
+}
+
+// PrincipalSummary summarizes the current state of a principal, combining
+// provisioning and account assignment info.
+// buf:lint:ignore PAGINATION_REQUIRED
+message PrincipalSummary {
+  // ProvisioningSummary holds summary details about a principal's SCIM
+  // provisioning state. SCIM provisioning tracks principal creation and group
+  // membership in AWS.
+  message ProvisioningSummary {
+    teleport.provisioning.v1.ProvisioningState status = 1;
+    string external_id = 2;
+    string error = 3;
+  }
+
+  // AssignmentSummary holds summary details about a principal's account assignment
+  // state, tracking whether the Teleport-calculated account assignments have been
+  // propagated to AWS.
+  message AssignmentSummary {
+    ProvisioningState status = 1;
+    string external_id = 2;
+    string error = 3;
+  }
+
+  // PrincipalName holds the principal's name in Teleport
+  string principal_name = 1;
+
+  // PrincipalType indicates the principal's type, either user or group
+  PrincipalType principal_type = 2;
+
+  // Assignment holds summary details for the principal's account assignment
+  // state
+  AssignmentSummary assignment = 3;
+
+  // Provisioning holds summary details about the principal's SCIM provisioning
+  // state
+  ProvisioningSummary provisioning = 4;
+
+  // AccountAssignments lists the teleport-calculated account assignments for
+  // this principal. This will not be populated in a user listing.
+  repeated AccountAssignmentRef account_assignments = 5;
+}
+
+// DescribePrincipalRequest holds the arguments for fetching a principal summary.
+// buf:lint:ignore PAGINATION_REQUIRED
+message DescribePrincipalRequest {
+  // PrincipalName is the Teleport name of the principal to describe
+  string principal_name = 1;
+
+  // PrincipalType is the type of the principal to describe.
+  PrincipalType principal_type = 2;
+}
+
+// ListPrincipalsRequest holds the arguments for a list principals response
+message ListPrincipalsRequest {
+  // PageSize is the requested maximum page size
+  int32 page_size = 1;
+  // PageToken if the page-start token for paged results.
+  string page_token = 2;
+
+  // ListUsers indicates that the client wants to include user principals in the
+  // returned list.
+  bool list_users = 3;
+
+  // ListAccessLists indicates that the client wants to include Access List/
+  // Group principals in the returned list.
+  bool list_access_lists = 4;
+
+  // Pattern is a glob or regex filter for filtering the returned list by the
+  // principal's Teleport name
+  string pattern = 5;
+}
+
+// ListPrincipalsResponse holds a page of principal status objects
+message ListPrincipalsResponse {
+  // NextPageToken is the next page token. If there are no more results, it will be empty.
+  string next_page_token = 1;
+  // Principals is the page of principal statuses returned by the service.
+  repeated PrincipalSummary principals = 2;
+}
+
+// ResetPrincipalRequest holds the arguments for a Principal reset
+message ResetPrincipalRequest {
+  // PrincipalName is the Teleport name of the principal to reset.
+  string principal_name = 1;
+
+  // PrincipalType is the type of the principal to reset, either [PRINCIPAL_TYPE_USER]
+  // or [PRINCIPAL_TYPE_ACCESS_LIST]
+  PrincipalType principal_type = 2;
+}
+
+// ResetPrincipalResponse is the empty response returned by a successful
+// principal reset.
+message ResetPrincipalResponse {}

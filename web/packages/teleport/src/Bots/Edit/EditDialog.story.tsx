@@ -83,7 +83,9 @@ export const Happy: Story = {
             kind: 'role',
           })),
         }),
-        editBotSuccess(),
+        editBotSuccess('v1'),
+        editBotSuccess('v2'),
+        editBotSuccess('v3'),
       ],
     },
   },
@@ -169,7 +171,9 @@ export const WithSubmitFailure: Story = {
             kind: 'role',
           })),
         }),
-        editBotError(500, 'something went wrong'),
+        editBotError('v1', 500, 'something went wrong'),
+        editBotError('v2', 500, 'something went wrong'),
+        editBotError('v3', 500, 'something went wrong'),
       ],
     },
   },
@@ -189,7 +193,25 @@ export const WithSubmitOutdatedProxy: Story = {
             kind: 'role',
           })),
         }),
-        editBotError(404, 'path not found', {
+        editBotError('v1', 404, 'path not found', {
+          proxyVersion: {
+            major: 19,
+            minor: 0,
+            patch: 0,
+            preRelease: 'dev',
+            string: '18.0.0',
+          },
+        }),
+        editBotError('v2', 404, 'path not found', {
+          proxyVersion: {
+            major: 19,
+            minor: 0,
+            patch: 0,
+            preRelease: 'dev',
+            string: '18.0.0',
+          },
+        }),
+        editBotError('v3', 404, 'path not found', {
           proxyVersion: {
             major: 19,
             minor: 0,

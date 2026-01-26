@@ -30,7 +30,6 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -143,7 +142,6 @@ func awsInstanceToProtoInstance(instance ec2types.Instance, region string, accou
 		AccountId:             accountID,
 		Tags:                  tags,
 		LaunchTime:            awsTimeToProtoTime(instance.LaunchTime),
-		LastSyncTime:          timestamppb.Now(),
 	}
 }
 
@@ -203,7 +201,6 @@ func awsInstanceProfileToProtoInstanceProfile(profile iamtypes.InstanceProfile, 
 		AccountId:           accountID,
 		Tags:                tags,
 		CreatedAt:           awsTimeToProtoTime(profile.CreateDate),
-		LastSyncTime:        timestamppb.Now(),
 	}
 	for _, role := range profile.Roles {
 		out.Roles = append(out.Roles, awsRoleToProtoRole(role, accountID))

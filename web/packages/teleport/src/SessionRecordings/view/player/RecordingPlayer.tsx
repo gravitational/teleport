@@ -27,10 +27,15 @@ import {
 } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useEventListener } from 'usehooks-ts';
-import Box from 'web/packages/design/src/Box';
-import Flex from 'web/packages/design/src/Flex';
-import { Pause, Play } from 'web/packages/design/src/Icon';
 
+import { Box, Flex } from 'design';
+import { Pause, Play } from 'design/Icon';
+
+import type { SessionRecordingEvent } from 'teleport/services/recordings';
+import {
+  CurrentEventInfo,
+  type CurrentEventInfoHandle,
+} from 'teleport/SessionRecordings/view/CurrentEventInfo';
 import type { Player } from 'teleport/SessionRecordings/view/player/Player';
 import {
   PlayerControls,
@@ -49,7 +54,7 @@ export interface RecordingPlayerProps<
   TEndEventType extends TEventType = TEventType,
 > {
   duration: number;
-  onTimeChange: (time: number) => void;
+  onTimeChange?: (time: number) => void;
   onToggleSidebar?: () => void;
   onToggleTimeline?: () => void;
   onToggleFullscreen?: () => void;
@@ -58,6 +63,7 @@ export interface RecordingPlayerProps<
   endEventType: TEndEventType;
   decodeEvent: (buffer: ArrayBuffer) => TEvent;
   ref: RefObject<PlayerHandle>;
+  events?: SessionRecordingEvent[];
   ws: WebSocket;
 }
 
@@ -74,13 +80,16 @@ export function RecordingPlayer<
   onToggleFullscreen,
   onToggleSidebar,
   onToggleTimeline,
+  events,
   ref,
   ws,
 }: RecordingPlayerProps<TEvent>) {
   const [playerState, setPlayerState] = useState(PlayerState.Loading);
+  const [speed, setSpeed] = useState(1);
 
   const [showPlayButton, setShowPlayButton] = useState(true);
 
+  const eventInfoRef = useRef<CurrentEventInfoHandle>(null);
   const controlsRef = useRef<PlayerControlsHandle>(null);
   const playerRef = useRef<HTMLDivElement>(null);
 
@@ -95,12 +104,13 @@ export function RecordingPlayer<
     });
 
     stream.on('time', time => {
-      if (!controlsRef.current) {
-        return;
+      if (controlsRef.current) {
+        controlsRef.current.setTime(time);
       }
-
-      controlsRef.current.setTime(time);
-      onTimeChange(time);
+      onTimeChange?.(time);
+      if (eventInfoRef.current) {
+        eventInfoRef.current.setTime(time);
+      }
     });
 
     stream.loadInitial();
@@ -109,6 +119,10 @@ export function RecordingPlayer<
       stream.destroy();
     };
   }, [stream, onTimeChange]);
+
+  useEffect(() => {
+    stream.setSpeed(speed);
+  }, [speed, stream]);
 
   useEffect(() => {
     if (!playerRef.current) {
@@ -161,7 +175,16 @@ export function RecordingPlayer<
         borderColor="spotBackground.1"
         borderRadius={4}
         overflow="hidden"
+        position="relative"
       >
+        {events && (
+          <CurrentEventInfo
+            events={events}
+            onSeek={handleSeek}
+            ref={eventInfoRef}
+          />
+        )}
+
         {showPlayButton && (
           <PlayButton onClick={handlePlay}>
             <AdjustedPlay size="extra-large" />
@@ -185,6 +208,8 @@ export function RecordingPlayer<
           onPlay={handlePlay}
           onPause={handlePause}
           onSeek={handleSeek}
+          onSpeedChange={setSpeed}
+          speed={speed}
           state={playerState}
           ref={controlsRef}
         />

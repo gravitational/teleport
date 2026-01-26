@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils"
@@ -642,7 +641,7 @@ func (u *hostUsersBackendWithExp) CreateUser(name string, groups []string, opts 
 func TestRootLoginAsHostUser(t *testing.T) {
 	testutils.RequireRoot(t)
 	// Create test instance.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -681,8 +680,6 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		require.NoError(t, instance.StopAll())
 	})
 
-	instance.WaitForNodeCount(context.Background(), helpers.Site, 1)
-
 	tests := []struct {
 		name      string
 		command   []string
@@ -701,7 +698,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			stdin := bytes.NewBufferString(tc.stdinText)
-			stdout := utils.NewSyncBuffer()
+			stdout := newSyncBuffer()
 			t.Cleanup(func() {
 				require.NoError(t, stdout.Close())
 			})
@@ -742,7 +739,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 func TestRootStaticHostUsers(t *testing.T) {
 	testutils.RequireRoot(t)
 	// Create test instance.
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	instance := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -760,6 +757,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 		require.NoError(t, instance.StopAll())
 	})
 	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.SSH.DisableCreateHostUser = false
 	nodeCfg.SSH.Labels = map[string]string{
 		"foo": "bar",
 	}

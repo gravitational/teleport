@@ -144,6 +144,10 @@ func ValidateDatabase(db types.Database) error {
 		if err := validateMongoDB(db); err != nil {
 			return trace.Wrap(err)
 		}
+	} else if db.GetProtocol() == defaults.ProtocolOracle {
+		if err := validateOracleURI(db.GetURI()); err != nil {
+			return trace.BadParameter("invalid Oracle database %q address: %q, error: %v", db.GetName(), db.GetURI(), err)
+		}
 	} else if db.GetProtocol() == defaults.ProtocolRedis {
 		_, err := connection.ParseRedisAddress(db.GetURI())
 		if err != nil {
@@ -361,6 +365,20 @@ func ValidateSQLServerURI(uri string) error {
 		return trace.BadParameter("database address must include domain and computer name")
 	}
 
+	return nil
+}
+
+func validateOracleURI(uri string) error {
+	parts := strings.Split(uri, ",")
+	for _, part := range parts {
+		if strings.TrimSpace(part) == "" {
+			return trace.BadParameter("invalid empty part of URI %q", uri)
+		}
+		_, _, err := net.SplitHostPort(part)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 

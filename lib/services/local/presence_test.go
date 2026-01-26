@@ -19,9 +19,11 @@
 package local
 
 import (
+	gocmp "cmp"
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -42,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -53,11 +54,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -159,11 +160,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -195,13 +196,13 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Make sure can't delete with empty namespace or host ID or name.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), "")
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), "", server.GetName())
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	err = presence.DeleteDatabaseServer(ctx, "", server.GetHostID(), server.GetName())
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// Remove the server.
 	err = presence.DeleteDatabaseServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName())
@@ -227,7 +228,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	// Make sure can't delete all with empty namespace.
 	err = presence.DeleteAllDatabaseServers(ctx, "")
 	require.Error(t, err)
-	require.IsType(t, trace.BadParameter(""), err)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 	// Delete all.
 	err = presence.DeleteAllDatabaseServers(ctx, server.GetNamespace())
@@ -242,10 +243,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 func TestNodeCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
+	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
-	presence := NewPresenceService(lite)
+	presence := NewPresenceService(backend)
 
 	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
 	require.NoError(t, err)
@@ -331,7 +333,7 @@ func TestNodeCRUD(t *testing.T) {
 
 		// Expect node not found
 		_, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
-		require.IsType(t, trace.NotFound(""), err)
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("DeleteAllNodes", func(t *testing.T) {
@@ -620,11 +622,11 @@ func TestListResources(t *testing.T) {
 	for testName, test := range tests {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			backend, err := lite.NewWithConfig(ctx, lite.Config{
-				Path:  t.TempDir(),
+			backend, err := memory.New(memory.Config{
 				Clock: clock,
 			})
 			require.NoError(t, err)
+			t.Cleanup(func() { _ = backend.Close() })
 
 			presence := NewPresenceService(backend)
 
@@ -757,11 +759,11 @@ func TestListResources_Helpers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	tests := []struct {
@@ -939,11 +941,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	bend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
@@ -1067,9 +1069,9 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	maxLeases := 5
@@ -1100,6 +1102,15 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.Len(t, semaphores, 1)
 	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
 
+	semaphores, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+	require.NoError(t, err)
+	require.Empty(t, next)
+	require.Len(t, semaphores, 1)
+	require.Len(t, semaphores[0].LeaseRefs(), maxLeases)
+
 	// Cancel the leases concurrently and ensure that all
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
@@ -1122,6 +1133,16 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, semaphores, 1)
 	require.Empty(t, semaphores[0].LeaseRefs())
+
+	semaphores, next, err = presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+		SemaphoreKind: "test",
+		SemaphoreName: "test",
+	})
+
+	require.Empty(t, next)
+	require.NoError(t, err)
+	require.Len(t, semaphores, 1)
+	require.Empty(t, semaphores[0].LeaseRefs())
 }
 
 // TestListResources_DuplicateResourceFilterByLabel tests that we can search for a specific label
@@ -1130,11 +1151,11 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backend, err := lite.NewWithConfig(ctx, lite.Config{
-		Path:  t.TempDir(),
+	backend, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -1255,10 +1276,9 @@ func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, bk.Close()) })
-
+	t.Cleanup(func() { _ = bk.Close() })
 	presence := NewPresenceService(bk)
 
 	serverInfoA, err := types.NewServerInfo(types.Metadata{
@@ -1493,4 +1513,172 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	require.Empty(t, nextPageToken)
 	require.Len(t, shortList, 1)
 	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
+}
+
+func TestPresenceService_ListSemaphores(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { bk.Close() })
+	presence := NewPresenceService(bk)
+
+	newRequest := func(kind, name string) types.AcquireSemaphoreRequest {
+		return types.AcquireSemaphoreRequest{
+			SemaphoreKind: kind,
+			SemaphoreName: name,
+			MaxLeases:     5,
+			Expires:       time.Now().Add(time.Hour),
+			Holder:        "test",
+		}
+	}
+
+	expectedFromReq := func(req types.AcquireSemaphoreRequest) types.Semaphore {
+		sem := &types.SemaphoreV3{
+			SubKind: req.SemaphoreKind,
+			Metadata: types.Metadata{
+				Name: req.SemaphoreName,
+			}}
+		sem.CheckAndSetDefaults()
+		return sem
+	}
+
+	pageSize := 12
+	totalItems := pageSize*2 + (pageSize / 2)
+	expected := make([]types.Semaphore, 0, totalItems)
+
+	for i := range totalItems {
+		kind := types.SemaphoreKindConnection
+		name := fmt.Sprintf("sem-%05d", i)
+		switch {
+		case i%5 == 0:
+			kind = types.SemaphoreKindUploadCompleter
+		case i%3 == 0:
+			// every third name is duplicated with previous item
+			name = expected[i-1].GetName()
+			kind = types.SemaphoreKindKubernetesConnection
+		case i%2 == 0:
+			kind = types.SemaphoreKindAccessListReminderLimiter
+		}
+		request := newRequest(kind, name)
+		_, err := presence.AcquireSemaphore(ctx, request)
+		require.NoError(t, err)
+		expected = append(expected, expectedFromReq(request))
+
+	}
+
+	slices.SortFunc(expected, func(a, b types.Semaphore) int {
+		if c := gocmp.Compare(a.GetSubKind(), b.GetSubKind()); c != 0 {
+			return c
+		}
+		return gocmp.Compare(a.GetName(), b.GetName())
+	})
+	diffopts := cmp.Options{cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.SemaphoreSpecV3{}, "Leases"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Expires")}
+
+	t.Run("filter by name", func(t *testing.T) {
+		wantName := "sem-00002"
+		page, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+			SemaphoreName: wantName,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page, 2)
+		for _, sem := range page {
+			require.Equal(t, wantName, sem.GetName())
+		}
+		require.NotEqual(t, page[0].GetSubKind(), page[1].GetSubKind())
+	})
+
+	t.Run("filter by name and kind returns single item", func(t *testing.T) {
+		wantKind := types.SemaphoreKindUploadCompleter
+		wantName := "sem-00000"
+		page, next, err := presence.ListSemaphores(ctx, 0, "", &types.SemaphoreFilter{
+			SemaphoreKind: wantKind,
+			SemaphoreName: wantName,
+		})
+
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page, 1)
+		require.Equal(t, wantKind, page[0].GetSubKind())
+		require.Equal(t, wantName, page[0].GetName())
+	})
+
+	t.Run("unfiltered list all", func(t *testing.T) {
+		got, gotNext, err := presence.ListSemaphores(ctx, 1000, "", nil)
+		require.NoError(t, err)
+		require.Empty(t, gotNext)
+		require.Len(t, got, totalItems)
+		require.Empty(t, cmp.Diff(expected, got, diffopts...))
+	})
+
+	t.Run("pagination unfiltered", func(t *testing.T) {
+		page1, page2Start, err := presence.ListSemaphores(ctx, pageSize, "", nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, pageSize)
+		require.Empty(t, cmp.Diff(expected[:pageSize], page1, diffopts...))
+
+		page2, page3Start, err := presence.ListSemaphores(ctx, pageSize, page2Start, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page3Start)
+		require.Len(t, page2, pageSize)
+		require.Empty(t, cmp.Diff(expected[pageSize:pageSize*2], page2, diffopts...))
+
+		page3, next, err := presence.ListSemaphores(ctx, pageSize, page3Start, nil)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page3, totalItems-2*pageSize)
+		require.Empty(t, cmp.Diff(expected[pageSize*2:], page3, diffopts...))
+
+		allPages := append(page1, append(page2, page3...)...)
+		require.Empty(t, cmp.Diff(expected, allPages, diffopts...))
+	})
+
+	t.Run("pagination filtered by kind", func(t *testing.T) {
+		filter := &types.SemaphoreFilter{SemaphoreKind: types.SemaphoreKindKubernetesConnection}
+		page1, page2Start, err := presence.ListSemaphores(ctx, 2, "", filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 2)
+
+		page2, page3Start, err := presence.ListSemaphores(ctx, 2, page2Start, filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page3Start)
+		require.Len(t, page2, 2)
+
+		page3, next, err := presence.ListSemaphores(ctx, 0, page3Start, filter)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page3, 4)
+
+		allPages := append(page1, append(page2, page3...)...)
+
+		for _, sem := range allPages {
+			require.Equal(t, types.SemaphoreKindKubernetesConnection, sem.GetSubKind())
+		}
+	})
+
+	t.Run("pagination filtered by name", func(t *testing.T) {
+		wantName := "sem-00002"
+		filter := &types.SemaphoreFilter{SemaphoreName: wantName}
+		page1, page2Start, err := presence.ListSemaphores(ctx, 1, "", filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 1)
+
+		page2, next, err := presence.ListSemaphores(ctx, 0, page2Start, filter)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page2, 1)
+
+		allPages := append(page1, page2...)
+		for _, sem := range allPages {
+			require.Equal(t, wantName, sem.GetName())
+		}
+	})
+
 }

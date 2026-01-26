@@ -18,36 +18,78 @@
 
 package readyz
 
-import "sync"
+import (
+	"os"
+	"sync"
+	"time"
+
+	"github.com/jonboulle/clockwork"
+)
 
 // NewRegistry returns a Registry to track the health of tbot's services.
-func NewRegistry() *Registry {
-	return &Registry{
+func NewRegistry(opts ...NewRegistryOpt) *Registry {
+	r := &Registry{
+		clock:    clockwork.NewRealClock(),
 		services: make(map[string]*ServiceStatus),
+		notifyCh: make(chan struct{}),
 	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
+}
+
+// NewRegistryOpt can be passed to NewRegistry to provide optional configuration.
+type NewRegistryOpt func(r *Registry)
+
+// WithClock sets the registry's clock.
+func WithClock(clock clockwork.Clock) NewRegistryOpt {
+	return func(r *Registry) { r.clock = clock }
 }
 
 // Registry tracks the status/health of tbot's services.
 type Registry struct {
+	clock clockwork.Clock
+
 	mu       sync.Mutex
 	services map[string]*ServiceStatus
+	reported int
+	notifyCh chan struct{}
 }
 
 // AddService adds a service to the registry so that its health will be reported
 // from our readyz endpoints. It returns a Reporter the service can use to report
 // status changes.
-func (r *Registry) AddService(name string) Reporter {
+//
+// Note: you should add all of your services before any service reports its status
+// otherwise AllServicesReported will unblock too early.
+func (r *Registry) AddService(serviceType, name string) Reporter {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	statusCh := make(chan struct{})
+
+	// TODO(boxofrad): If you add the same service multiple times, you could end
+	// up unblocking AllServicesReported prematurely. The impact is low, it just
+	// means we'd send a heartbeat sooner than is desirable, but we should panic
+	// or return an error from this method instead.
 	status, ok := r.services[name]
 	if !ok {
-		status = &ServiceStatus{}
+		status = &ServiceStatus{
+			ServiceType: serviceType,
+			statusCh:    statusCh,
+		}
 		r.services[name] = status
 	}
+
 	return &reporter{
 		mu:     &r.mu,
+		clock:  r.clock,
 		status: status,
+		notify: sync.OnceFunc(func() {
+			close(statusCh)
+			r.maybeNotifyLocked()
+		}),
 	}
 }
 
@@ -83,7 +125,33 @@ func (r *Registry) OverallStatus() *OverallStatus {
 
 	return &OverallStatus{
 		Status:   status,
+		PID:      os.Getpid(),
 		Services: services,
+	}
+}
+
+// AllServicesReported returns a channel you can receive from to be notified
+// when all registered services have reported their initial status. It provides
+// a way for us to hold the initial heartbeat until after the initial flurry of
+// activity.
+func (r *Registry) AllServicesReported() <-chan struct{} { return r.notifyCh }
+
+// maybeNotifyLocked unblocks the AllServicesReported channel if all services
+// have reported their initial status. It's called by each of the Reporters the
+// first time you report a status.
+//
+// Caller must be holding r.mu.
+func (r *Registry) maybeNotifyLocked() {
+	r.reported++
+
+	if r.reported != len(r.services) {
+		return
+	}
+
+	select {
+	case <-r.notifyCh:
+	default:
+		close(r.notifyCh)
 	}
 }
 
@@ -94,6 +162,17 @@ type ServiceStatus struct {
 
 	// Reason string describing why the service has its current status.
 	Reason string `json:"reason,omitempty"`
+
+	// UpdatedAt is the time at which the service's status last changed.
+	UpdatedAt *time.Time `json:"updated_at"`
+
+	// ServiceType is exposed in bot heartbeats, but not the `/readyz` endpoint.
+	ServiceType string `json:"-"`
+
+	// statusCh is a channel that closes when this service reports its first
+	// non-"Initializing" status. A new status should be requested once this
+	// channel closes as the clone will be out of date.
+	statusCh <-chan struct{} `json:"-"`
 }
 
 // Clone the status to avoid data races.
@@ -102,11 +181,20 @@ func (s *ServiceStatus) Clone() *ServiceStatus {
 	return &clone
 }
 
+// Wait returns a channel that closes when this service reports its first
+// status. A new status should be requested when this channel resolves.
+func (s *ServiceStatus) Wait() <-chan struct{} {
+	return s.statusCh
+}
+
 // OverallStatus is tbot's overall aggregate status.
 type OverallStatus struct {
 	// Status of tbot overall. If any service isn't Healthy, the overall status
 	// will be Unhealthy.
 	Status Status `json:"status"`
+
+	// PID is the process PID.
+	PID int `json:"pid"`
 
 	// Services contains the service-specific statuses.
 	Services map[string]*ServiceStatus `json:"services"`

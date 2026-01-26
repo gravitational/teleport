@@ -59,6 +59,7 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   BotInstances = 'Bot Instances',
+  InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -76,6 +77,7 @@ export enum NavTitle {
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
   WorkloadIdentity = 'Workload Identity',
+  AccessAutomations = 'Access Automations',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -207,7 +209,10 @@ export interface FeatureFlags {
   externalAuditStorage: boolean;
   listBots: boolean;
   readBots: boolean;
+  readBotInstances: boolean;
   listBotInstances: boolean;
+  readInstances: boolean;
+  listInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;

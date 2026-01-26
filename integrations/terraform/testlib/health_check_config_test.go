@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"github.com/gravitational/teleport"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
@@ -128,7 +129,7 @@ func (s *TerraformSuiteOSS) TestImportHealthCheckConfig() {
 	waitForResources := func() []*healthcheckconfigv1.HealthCheckConfig {
 		select {
 		case resources := <-w.ResourcesC:
-			return resources
+			return removeVirtualDefaultHealthChecks(resources)
 		case <-w.Done():
 			require.FailNow(t, "Watcher has unexpectedly exited.")
 		case <-time.After(2 * time.Second):
@@ -180,4 +181,17 @@ func (s *TerraformSuiteOSS) TestImportHealthCheckConfig() {
 			},
 		},
 	})
+}
+
+func removeVirtualDefaultHealthChecks(cfgs []*healthcheckconfigv1.HealthCheckConfig) []*healthcheckconfigv1.HealthCheckConfig {
+	filtered := make([]*healthcheckconfigv1.HealthCheckConfig, 0, len(cfgs))
+	for _, cfg := range cfgs {
+		switch cfg.GetMetadata().GetName() {
+		case teleport.VirtualDefaultHealthCheckConfigDBName,
+			teleport.VirtualDefaultHealthCheckConfigKubeName:
+			continue
+		}
+		filtered = append(filtered, cfg)
+	}
+	return filtered
 }

@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
@@ -41,6 +42,7 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -52,7 +54,7 @@ import (
 )
 
 func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -66,14 +68,15 @@ func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.Ser
 			executablePath:            autoupdate.StableExecutable,
 			identityGenerator:         deps.IdentityGenerator,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
 		for _, opt := range opts {
 			opt.applyToV2Output(svc)
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return svc, nil
 	}
+	return bot.NewServiceBuilder(OutputV2ServiceType, cfg.Name, buildFn)
 }
 
 // OutputV1Option is an option that can be provided to customize the service.
@@ -219,12 +222,23 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 	}
 
 	status := &kubernetesStatusV2{
-		clusterAddr:            clusterAddr,
-		tlsServerName:          tlsServerName,
 		credentials:            keyRing,
 		teleportClusterName:    proxyPong.ClusterName,
 		kubernetesClusterNames: clusterNames,
 		defaultNamespaces:      defaultNamespaces,
+	}
+
+	if s.cfg.RelayAddress == "" {
+		status.clusterAddr = clusterAddr
+		status.tlsServerNameFunc = func(teleportClusterName, kubeClusterName string) string {
+			return tlsServerName
+		}
+	} else {
+		status.clusterAddr = (&url.URL{
+			Scheme: "https",
+			Host:   s.cfg.RelayAddress,
+		}).String()
+		status.tlsServerNameFunc = kuberelay.FullSNIForKubeCluster
 	}
 
 	return trace.Wrap(s.render(ctx, status, id.Get(), hostCAs))
@@ -235,12 +249,20 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 type kubernetesStatusV2 struct {
 	clusterAddr            string
 	teleportClusterName    string
-	tlsServerName          string
+	tlsServerNameFunc      func(teleportClusterName, kubeClusterName string) string
 	credentials            *libclient.KeyRing
 	kubernetesClusterNames []string
 	// defaultNamespace is map of the cluster name to the default namespace
 	// which should be used for that cluster.
 	defaultNamespaces map[string]string
+}
+
+func (s kubernetesStatusV2) tlsServerName(teleportClusterName, kubeClusterName string) string {
+	if s.tlsServerNameFunc == nil {
+		return ""
+	}
+
+	return s.tlsServerNameFunc(teleportClusterName, kubeClusterName)
 }
 
 // queryKubeClustersByLabels fetches a list of Kubernetes clusters matching the
@@ -357,7 +379,7 @@ func (s *OutputV2Service) render(
 	if s.cfg.DisableExecPlugin {
 		// If they've disabled the exec plugin, we just write the credentials
 		// directly into the kubeconfig.
-		kubeCfg, err = generateKubeConfigV2WithoutPlugin(status)
+		kubeCfg, err = s.generateKubeConfigV2WithoutPlugin(status)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -369,7 +391,7 @@ func (s *OutputV2Service) render(
 			return trace.Wrap(err)
 		}
 
-		kubeCfg, err = generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
+		kubeCfg, err = s.generateKubeConfigV2WithPlugin(status, destinationDir.Path, executablePath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -400,7 +422,7 @@ func encodePathComponent(input string) string {
 // generateKubeConfigWithPlugin creates a Kubernetes config object with the
 // given cluster config, using the `tbot kube credentials` auth helper plugin to
 // fetch refreshed certificate data at runtime.
-func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
+func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
@@ -442,12 +464,15 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 	}
 
 	for i, cluster := range ks.kubernetesClusterNames {
-		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+		contextName, err := kubeconfig.ContextNameFromTemplate(o.cfg.ContextNameTemplate, ks.teleportClusterName, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating context name")
+		}
 
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			Server:        ks.clusterAddr + suffix,
-			TLSServerName: ks.tlsServerName,
+			TLSServerName: ks.tlsServerName(ks.teleportClusterName, cluster),
 
 			// TODO: consider using CertificateAuthority (path) here to avoid
 			// duplication. This branch (with plugin) already requires a file
@@ -476,7 +501,7 @@ func generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2, destPath string, exe
 	return config, nil
 }
 
-func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
+func (o *OutputV2Service) generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Configure the cluster.
@@ -496,12 +521,15 @@ func generateKubeConfigV2WithoutPlugin(ks *kubernetesStatusV2) (*clientcmdapi.Co
 	}
 
 	for i, cluster := range ks.kubernetesClusterNames {
-		contextName := kubeconfig.ContextName(ks.teleportClusterName, cluster)
+		contextName, err := kubeconfig.ContextNameFromTemplate(o.cfg.ContextNameTemplate, ks.teleportClusterName, cluster)
+		if err != nil {
+			return nil, trace.Wrap(err, "templating context name")
+		}
 
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			Server:                   ks.clusterAddr + suffix,
-			TLSServerName:            ks.tlsServerName,
+			TLSServerName:            ks.tlsServerName(ks.teleportClusterName, cluster),
 			CertificateAuthorityData: cas,
 		}
 

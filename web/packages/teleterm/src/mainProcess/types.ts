@@ -16,7 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import type {
+  ClusterLifecycleEvent,
+  ProfileWatcherError,
+} from 'teleterm/mainProcess/clusterLifecycleManager';
+import type { ClusterStoreUpdate } from 'teleterm/mainProcess/clusterStore';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { FileStorage } from 'teleterm/services/fileStorage';
@@ -50,6 +57,8 @@ export type RuntimeSettings = {
    * - Starting the app in dev mode with the CONNECT_INSECURE env var.
    */
   insecure: boolean;
+  /** User's home directory. */
+  homeDir: string;
   userDataDir: string;
   sessionDataDir: string;
   tempDataDir: string;
@@ -69,7 +78,7 @@ export type RuntimeSettings = {
   tshd: {
     requestedNetworkAddress: string;
     binaryPath: string;
-    homeDir: string;
+    defaultHomeDir: string;
   };
   sharedProcess: {
     requestedNetworkAddress: string;
@@ -139,10 +148,6 @@ export type MainProcessClient = {
   }>;
   configService: ConfigService;
   fileStorage: FileStorage;
-  removeKubeConfig(options: {
-    relativePath: string;
-    isDirectory?: boolean;
-  }): Promise<void>;
   /**
    * Tells the OS to focus the window. If wait is true, polls periodically for window status and
    * resolves when it's focused or after a short timeout.
@@ -195,7 +200,6 @@ export type MainProcessClient = {
    * interacted with the relevant modals during startup and is free to use the app.
    */
   signalUserInterfaceReadiness(args: { success: boolean }): void;
-  refreshClusterList(): void;
   /**
    * Opens the Electron directory picker and sends the selected path to tshd through SetSharedDirectoryForDesktopSession.
    * tshd then verifies whether there is an active session for the specified desktop user and attempts to open the directory.
@@ -210,9 +214,6 @@ export type MainProcessClient = {
   changeAppUpdatesManagingCluster(
     clusterUri: RootClusterUri | undefined
   ): Promise<void>;
-  maybeRemoveAppUpdatesManagingCluster(
-    clusterUri: RootClusterUri
-  ): Promise<void>;
   supportsAppUpdates(): boolean;
   checkForAppUpdates(): Promise<void>;
   downloadAppUpdate(): Promise<void>;
@@ -226,6 +227,23 @@ export type MainProcessClient = {
   };
   subscribeToIsInBackgroundMode(
     listener: (opts: { isInBackgroundMode: boolean }) => void
+  ): {
+    cleanup: () => void;
+  };
+  addCluster(proxyAddress: string): Promise<Cluster>;
+  syncCluster(clusterUri: RootClusterUri): Promise<void>;
+  syncRootClusters(): Promise<Cluster[]>;
+  logout(clusterUri: RootClusterUri): Promise<void>;
+  subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
+    cleanup: () => void;
+  };
+  registerClusterLifecycleHandler(
+    listener: (event: ClusterLifecycleEvent) => Promise<void>
+  ): {
+    cleanup: () => void;
+  };
+  subscribeToProfileWatcherErrors(
+    listener: (args: ProfileWatcherError) => void
   ): {
     cleanup: () => void;
   };
@@ -337,12 +355,12 @@ export enum RendererIpc {
   OpenAppUpdateDialog = 'renderer-open-app-update-dialog',
   AppUpdateEvent = 'renderer-app-update-event',
   IsInBackgroundMode = 'renderer-is-in-background-mode',
+  ProfileWatcherError = 'renderer-profile-watcher-error',
 }
 
 export enum MainProcessIpc {
   GetRuntimeSettings = 'main-process-get-runtime-settings',
   TryRemoveConnectMyComputerAgentBinary = 'main-process-try-remove-connect-my-computer-agent-binary',
-  RefreshClusterList = 'main-process-refresh-cluster-list',
   DownloadConnectMyComputerAgent = 'main-process-connect-my-computer-download-agent',
   VerifyConnectMyComputerAgent = 'main-process-connect-my-computer-verify-agent',
   SaveTextToFile = 'main-process-save-text-to-file',
@@ -353,8 +371,13 @@ export enum MainProcessIpc {
   CancelAppUpdateDownload = 'main-process-cancel-app-update-download',
   QuiteAndInstallAppUpdate = 'main-process-quit-and-install-app-update',
   ChangeAppUpdatesManagingCluster = 'main-process-change-app-updates-managing-cluster',
-  MaybeRemoveAppUpdatesManagingCluster = 'main-process-maybe-remove-app-updates-managing-cluster',
   SupportsAppUpdates = 'main-process-supports-app-updates',
+  InitClusterStoreSubscription = 'main-process-init-cluster-store-subscription',
+  SyncCluster = 'main-process-sync-cluster',
+  AddCluster = 'main-process-add-cluster',
+  SyncRootClusters = 'main-process-sync-root-clusters',
+  Logout = 'main-process-logout',
+  RegisterClusterLifecycleHandler = 'main-process-register-cluster-lifecycle-handler',
 }
 
 export enum WindowsManagerIpc {

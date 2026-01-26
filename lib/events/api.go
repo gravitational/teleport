@@ -942,6 +942,62 @@ const (
 	// BoundKeypairJoinStateVerificationFailed is emitted when join state
 	// document verification fails.
 	BoundKeypairJoinStateVerificationFailed = "join_token.bound_keypair.join_state_verification_failed"
+
+	// SCIMListingEvent is emitted when a SCIM client lists resources managed by
+	// the SCIM service.
+	SCIMListingEvent = "scim.list"
+
+	// SCIMCreateEvent is emitted when a client attempts to fetch a specific SCIM
+	// resource.
+	SCIMGetEvent = "scim.get"
+
+	// SCIMCreateEvent is emitted when a new resource is created by the
+	// SCIM service in response to a request. This includes taking ownership of
+	// existing users.
+	SCIMCreateEvent = "scim.create"
+
+	// SCIMUpdateEvent is emitted when a resource is updated via the SCIM
+	// service. Includes "deactivating" resources (per Okta).
+	SCIMUpdateEvent = "scim.update"
+
+	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
+	SCIMDeleteEvent = "scim.delete"
+
+	// SCIMPatchEvent is emitted when a resource is patched via SCIM.
+	SCIMPatchEvent = "scim.patch"
+
+	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
+	ClientIPRestrictionsUpdateEvent = "cir.update"
+
+	// AppAuthConfigCreateEvent is emitted when an app auth config
+	// resource is created.
+	AppAuthConfigCreateEvent = "app_auth_config.create"
+	// AppAuthConfigUpdateEvent is emitted when an app auth config
+	// resource is updated.
+	AppAuthConfigUpdateEvent = "app_auth_config.update"
+	// AppAuthConfigDeleteEvent is emitted when an app auth config
+	// resource is deleted.
+	AppAuthConfigDeleteEvent = "app_auth_config.delete"
+	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
+	// succeeds.
+	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
+	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
+	// fails.
+	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
+
+	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
+	VnetConfigCreateEvent = "vnet.config.create"
+	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
+	VnetConfigUpdateEvent = "vnet.config.update"
+	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
+	VnetConfigDeleteEvent = "vnet.config.delete"
+
+	// WorkloadClusterCreateEvent is emitted when a WorkloadCluster resource is created.
+	WorkloadClusterCreateEvent = "workload_cluster.create"
+	// WorkloadClusterUpdateEvent is emitted when a WorkloadCluster resource is updated.
+	WorkloadClusterUpdateEvent = "workload_cluster.update"
+	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
+	WorkloadClusterDeleteEvent = "workload_cluster.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -961,11 +1017,18 @@ const (
 )
 
 // SessionRecordingEvents is a list of events that are related to session
-// recorings.
+// recordings.
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
+
+	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
+	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
+	//
+	// TCP application sessions emit AppSessionEndEvent but produce no
+	// recordings, so it is excluded.
+	AppSessionChunkEvent,
 }
 
 // ServerMetadataGetter represents interface
@@ -1067,7 +1130,11 @@ type MultipartUploader interface {
 	// ReserveUploadPart reserves an upload part. Reserve is used to identify
 	// upload errors beforehand.
 	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
-	// UploadPart uploads part and returns the part
+	// UploadPart uploads part and returns the part.
+	//
+	// The part must be greater than [MinUploadPartSizeBytes]. It is the responsibility
+	// of the caller to add padding if needed, or else the upload may fail depending on
+	// storage provider.
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
@@ -1161,6 +1228,8 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
+	// Search is an optional search query to filter events.
+	Search string
 }
 
 type SearchSessionEventsRequest struct {

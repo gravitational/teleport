@@ -46,6 +46,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -64,7 +65,7 @@ func WorkloadAPIServiceBuilder(
 	crlCache CRLGetter,
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
-	return func(deps bot.ServiceDependencies) (bot.Service, error) {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -76,11 +77,12 @@ func WorkloadAPIServiceBuilder(
 			trustBundleCache:          trustBundleCache,
 			crlCache:                  crlCache,
 			clientBuilder:             deps.ClientBuilder,
+			log:                       deps.Logger,
+			statusReporter:            deps.GetStatusReporter(),
 		}
-		svc.log = deps.LoggerForService(svc)
-		svc.statusReporter = deps.StatusRegistry.AddService(svc.String())
 		return bot.NewServicePair(svc, sidecar), nil
 	}
+	return bot.NewServiceBuilder(WorkloadAPIServiceType, cfg.Name, buildFn)
 }
 
 // WorkloadAPIService implements a gRPC server that fulfills the SPIFFE
@@ -167,7 +169,7 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	defer s.client.Close()
 	s.log.DebugContext(ctx, "Completed pre-run initialization")
 
-	srvMetrics := metrics.CreateGRPCServerMetrics(
+	srvMetrics := grpcmetrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{
 			teleport.TagServer: "tbot-workload-identity-api",
 		},
@@ -196,8 +198,10 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
 	sdsHandler, err := sds.NewHandler(sds.HandlerConfig{
-		Logger:           s.log,
-		RenewalInterval:  s.defaultCredentialLifetime.RenewalInterval,
+		Logger: s.log,
+		RenewalInterval: cmp.Or(
+			s.cfg.CredentialLifetime, s.defaultCredentialLifetime,
+		).RenewalInterval,
 		TrustBundleCache: s.trustBundleCache,
 		ClientAuthenticator: func(ctx context.Context) (*slog.Logger, sds.SVIDFetcher, error) {
 			log, attrs, err := s.authenticateClient(ctx)
@@ -317,7 +321,7 @@ func (s *WorkloadAPIService) authenticateClient(
 func (s *WorkloadAPIService) FetchX509SVID(
 	_ *workloadpb.X509SVIDRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509SVIDServer,
-) error {
+) (err error) {
 	ctx := srv.Context()
 
 	log, creds, err := s.authenticateClient(ctx)
@@ -326,7 +330,17 @@ func (s *WorkloadAPIService) FetchX509SVID(
 	}
 
 	log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
-	defer log.InfoContext(ctx, "FetchX509SVID stream has closed")
+	defer func() {
+		if err != nil {
+			s.log.ErrorContext(
+				ctx,
+				"FetchX509SVID stream closed with error",
+				"err", err,
+			)
+			return
+		}
+		s.log.InfoContext(ctx, "FetchX509SVID stream has closed")
+	}()
 
 	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
 	if err != nil {
@@ -428,10 +442,20 @@ func (s *WorkloadAPIService) FetchX509SVID(
 func (s *WorkloadAPIService) FetchX509Bundles(
 	_ *workloadpb.X509BundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509BundlesServer,
-) error {
+) (err error) {
 	ctx := srv.Context()
 	s.log.InfoContext(ctx, "FetchX509Bundles stream opened by workload")
-	defer s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
+	defer func() {
+		if err != nil {
+			s.log.ErrorContext(
+				ctx,
+				"FetchX509Bundles stream closed with error",
+				"err", err,
+			)
+			return
+		}
+		s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
+	}()
 
 	for {
 		bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
@@ -547,14 +571,24 @@ func (s *WorkloadAPIService) fetchX509SVIDs(
 func (s *WorkloadAPIService) FetchJWTSVID(
 	ctx context.Context,
 	req *workloadpb.JWTSVIDRequest,
-) (*workloadpb.JWTSVIDResponse, error) {
+) (res *workloadpb.JWTSVIDResponse, err error) {
 	log, attr, err := s.authenticateClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "authenticating client")
 	}
 
 	log.InfoContext(ctx, "FetchJWTSVID request received from workload")
-	defer log.InfoContext(ctx, "FetchJWTSVID request handled")
+	defer func() {
+		if err != nil {
+			s.log.ErrorContext(
+				ctx,
+				"FetchJWTSVID request handling failed",
+				"err", err,
+			)
+			return
+		}
+		s.log.InfoContext(ctx, "FetchJWTSVID request handled")
+	}()
 	if req.SpiffeId == "" {
 		log = log.With("requested_spiffe_id", req.SpiffeId)
 	}
@@ -659,10 +693,20 @@ func (s *WorkloadAPIService) FetchJWTSVID(
 func (s *WorkloadAPIService) FetchJWTBundles(
 	_ *workloadpb.JWTBundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchJWTBundlesServer,
-) error {
+) (err error) {
 	ctx := srv.Context()
 	s.log.InfoContext(ctx, "FetchJWTBundles stream started by workload")
-	defer s.log.InfoContext(ctx, "FetchJWTBundles stream ended")
+	defer func() {
+		if err != nil {
+			s.log.ErrorContext(
+				ctx,
+				"FetchJWTBundles stream closed with error",
+				"err", err,
+			)
+			return
+		}
+		s.log.InfoContext(ctx, "FetchJWTBundles stream has closed")
+	}()
 
 	for {
 		bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
@@ -702,10 +746,19 @@ func (s *WorkloadAPIService) FetchJWTBundles(
 func (s *WorkloadAPIService) ValidateJWTSVID(
 	ctx context.Context,
 	req *workloadpb.ValidateJWTSVIDRequest,
-) (*workloadpb.ValidateJWTSVIDResponse, error) {
+) (res *workloadpb.ValidateJWTSVIDResponse, err error) {
 	s.log.InfoContext(ctx, "ValidateJWTSVID request received from workload")
-	defer s.log.InfoContext(ctx, "ValidateJWTSVID request handled")
-
+	defer func() {
+		if err != nil {
+			s.log.ErrorContext(
+				ctx,
+				"ValidateJWTSVID request handling failed",
+				"err", err,
+			)
+			return
+		}
+		s.log.InfoContext(ctx, "ValidateJWTSVID request handled")
+	}()
 	// The SPIFFE Workload API (6.2.3):
 	// > All fields in the ValidateJWTSVIDRequest and ValidateJWTSVIDResponse
 	// > message are mandatory.

@@ -79,10 +79,12 @@ test.each([
   render(<ConfiguredTerminal appContext={appContext} />);
 
   await user.keyboard('some-command');
-  const terminalContent = await screen.findByText('some-command');
 
   await navigator.clipboard.writeText(' --flag=test');
-  await user.pointer({ keys: '[MouseRight]', target: terminalContent });
+  await user.pointer({
+    keys: '[MouseRight]',
+    target: await getTerminalElement(),
+  });
 
   await waitFor(() => {
     expect(screen.getByText('some-command --flag=test')).toBeInTheDocument();
@@ -103,9 +105,11 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
   );
 
   await user.keyboard('some-command');
-  const terminalContent = await screen.findByText('some-command');
 
-  await user.pointer({ keys: '[MouseRight]', target: terminalContent });
+  await user.pointer({
+    keys: '[MouseRight]',
+    target: await getTerminalElement(),
+  });
 
   await waitFor(() => {
     expect(openContextMenu).toHaveBeenCalledTimes(1);
@@ -122,12 +126,13 @@ function ConfiguredTerminal(props: {
   const emitter = new EventEmitter();
   const writeFn = jest.fn().mockImplementation(a => {
     emitter.emit('', a);
+    return Promise.resolve();
   });
   return (
     <Terminal
       docKind="doc.terminal_shell"
       ptyProcess={{
-        start: () => '',
+        start: async () => {},
         write: writeFn,
         getPtyId: () => '',
         dispose: async () => {},
@@ -140,7 +145,7 @@ function ConfiguredTerminal(props: {
         onExit: () => () => {},
         onOpen: () => () => {},
         onStartError: () => () => {},
-        resize: () => {},
+        resize: async () => {},
       }}
       reconnect={() => {}}
       visible={true}
@@ -152,4 +157,10 @@ function ConfiguredTerminal(props: {
       keyboardShortcutsService={props.appContext.keyboardShortcutsService}
     />
   );
+}
+
+/** Returns the root element of an xterm DOM renderer. */
+async function getTerminalElement(): Promise<Element> {
+  const container = await screen.findByTestId('terminal-container');
+  return container.querySelector('.xterm')!;
 }

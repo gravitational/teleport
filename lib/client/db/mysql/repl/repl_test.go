@@ -37,6 +37,7 @@ import (
 	"golang.org/x/term"
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -67,7 +68,10 @@ func TestMain(m *testing.M) {
 }
 
 func TestREPL(t *testing.T) {
-	t.Skip()
+	if run, _ := apiutils.ParseBool(os.Getenv("ENABLE_TESTCONTAINERS")); !run {
+		// Docker Hub rate limits cause failures in CI, this test is disabled until we can set up an alternative to Docker Hub
+		t.Skip("Test disabled in CI. Enable it by setting env variable ENABLE_TESTCONTAINERS")
+	}
 	testSrv := newTestServer(t)
 	route := clientproto.RouteToDatabase{
 		ServiceName: "mysql-test-container",
@@ -300,7 +304,7 @@ func TestInteractively(t *testing.T) {
 	require.NoError(t, repl.Run(t.Context()))
 }
 
-func Test_formatResult(t *testing.T) {
+func Test_summarizeResult(t *testing.T) {
 	resultRows, err := mysql.BuildSimpleTextResultset(
 		[]string{"one", "two", "three"},
 		[][]any{{1, 2.2, "3"}, {4, 5.5, "6"}, {7, 8.8, "8"}},
@@ -342,7 +346,11 @@ func Test_formatResult(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			mustParseResult(t, test.input)
-			got := formatResult(test.input, &test.elapsed)
+			var numRows int
+			if test.input.Resultset != nil {
+				numRows = len(test.input.Resultset.Values)
+			}
+			got := summarizeResult(test.input, numRows, &test.elapsed)
 			goldenName := strings.ReplaceAll(test.desc, " ", "-")
 			if golden.ShouldSet() {
 				golden.SetNamed(t, goldenName, []byte(got))

@@ -111,7 +111,7 @@ func TestAWSKMS_DeleteUnusedKeys(t *testing.T) {
 				awsSTSClient: &fakeAWSSTSClient{
 					account: "123456789012",
 				},
-				clockworkOverride: clock,
+				Clock: clock,
 			}
 			keyStore, err := NewManager(ctx, &cfg, opts)
 			require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestAWSKMS_RetryWhilePending(t *testing.T) {
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "111111111111",
 		},
-		clockworkOverride: clock,
+		Clock: clock,
 	}
 	manager, err := NewManager(ctx, cfg, opts)
 	require.NoError(t, err)
@@ -282,7 +282,7 @@ func TestAWSKeyCreationParameters(t *testing.T) {
 		awsSTSClient: &fakeAWSSTSClient{
 			account: "123456789012",
 		},
-		clockworkOverride: clock,
+		Clock: clock,
 	}
 
 	for _, tc := range []struct {
@@ -865,7 +865,7 @@ func TestMultiRegionKeyReplication(t *testing.T) {
 				awsSTSClient: &fakeAWSSTSClient{
 					account: testAccount,
 				},
-				clockworkOverride: clock,
+				Clock: clock,
 			}
 
 			existingPrimary := tc.existingPrimary

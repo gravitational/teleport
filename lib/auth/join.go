@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -44,6 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join"
+	"github.com/gravitational/teleport/lib/join/joinutils"
+	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -66,7 +67,7 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 		return nil, trace.AccessDenied("%q can not join the cluster with role %q, %s", req.NodeName, req.Role, msg)
 	}
 
-	if err := join.ProvisionTokenAllowsRole(provisionToken, req.Role); err != nil {
+	if err := join.TokenAllowsRole(provisionToken, req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return provisionToken, nil
@@ -92,7 +93,7 @@ func (a *Server) handleJoinFailure(
 	}
 
 	// Fetch and encode rawJoinAttrs if they are available.
-	attributesStruct, err := rawJoinAttrsToStruct(rawJoinAttrs)
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(rawJoinAttrs)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
@@ -184,6 +185,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			a.handleJoinFailure(ctx, err, provisionToken, rawClaims, req)
 		}
 	}()
+
+	if legacyjoin.Disabled() {
+		return nil, trace.Wrap(legacyjoin.ErrDisabled)
+	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -344,13 +349,13 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 // of a cluster join attempt.
 func (a *Server) GenerateBotCertsForJoin(
 	ctx context.Context,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 	params *join.BotCertsParams,
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := provisionToken.GetBotName()
-	joinMethod := provisionToken.GetJoinMethod()
+	botName := token.GetBotName()
+	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
 	if !slices.Contains(machineidv1.SupportedJoinMethods, joinMethod) {
@@ -387,14 +392,14 @@ func (a *Server) GenerateBotCertsForJoin(
 		},
 		BotName:   botName,
 		Method:    string(joinMethod),
-		TokenName: provisionToken.GetSafeName(),
+		TokenName: token.GetSafeName(),
 		UserName:  machineidv1.BotResourceName(botName),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
 		},
 	}
 	var err error
-	joinEvent.Attributes, err = rawJoinAttrsToStruct(params.RawJoinClaims)
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(
 			ctx,
@@ -412,7 +417,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		JoinMethod: string(joinMethod),
 	}
 	if joinMethod != types.JoinMethodToken {
-		params.Attrs.Meta.JoinTokenName = provisionToken.GetName()
+		params.Attrs.Meta.JoinTokenName = token.GetName()
 	}
 
 	auth := &machineidv1pb.BotInstanceStatusAuthentication{
@@ -420,8 +425,8 @@ func (a *Server) GenerateBotCertsForJoin(
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
 		// secrets. Should we hash it?
-		JoinToken:  provisionToken.GetSafeName(),
-		JoinMethod: string(provisionToken.GetJoinMethod()),
+		JoinToken:  token.GetSafeName(),
+		JoinMethod: string(token.GetJoinMethod()),
 		PublicKey:  params.PublicTLSKey,
 		JoinAttrs:  params.Attrs,
 	}
@@ -454,9 +459,9 @@ func (a *Server) GenerateBotCertsForJoin(
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
-		if err := a.DeleteToken(ctx, provisionToken.GetName()); err != nil {
+		if err := a.DeleteToken(ctx, token.GetName()); err != nil {
 			a.logger.WarnContext(ctx, "Could not delete bot provision token after generating certs",
-				"provision_token", provisionToken.GetSafeName(),
+				"provision_token", token.GetSafeName(),
 				"error", err,
 			)
 		}
@@ -477,7 +482,7 @@ func (a *Server) GenerateBotCertsForJoin(
 // result of a cluster join attempt.
 func (a *Server) GenerateHostCertsForJoin(
 	ctx context.Context,
-	provisionToken types.ProvisionToken,
+	token provision.Token,
 	params *join.HostCertsParams,
 ) (*proto.Certs, error) {
 	// instance certs include an additional field that specifies the list of
@@ -485,7 +490,7 @@ func (a *Server) GenerateHostCertsForJoin(
 	var systemRoles types.SystemRoles
 	if params.SystemRole == types.RoleInstance {
 		systemRolesSet := make(map[types.SystemRole]struct{})
-		for _, r := range provisionToken.GetRoles() {
+		for _, r := range token.GetRoles() {
 			if r.IsLocalService() {
 				systemRolesSet[r] = struct{}{}
 			} else {
@@ -514,7 +519,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			RemoteAddr:           params.RemoteAddr,
 			DNSNames:             params.DNSNames,
 			SystemRoles:          systemRoles,
-		})
+		}, token.GetAssignedScope())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -544,15 +549,15 @@ func (a *Server) GenerateHostCertsForJoin(
 		},
 		NodeName:     params.HostName,
 		Role:         string(params.SystemRole),
-		Method:       string(provisionToken.GetJoinMethod()),
-		TokenName:    provisionToken.GetSafeName(),
-		TokenExpires: provisionToken.Expiry(),
+		Method:       string(token.GetJoinMethod()),
+		TokenName:    token.GetSafeName(),
+		TokenExpires: token.Expiry(),
 		HostID:       params.HostID,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
 		},
 	}
-	joinEvent.Attributes, err = rawJoinAttrsToStruct(params.RawJoinClaims)
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
 	}
@@ -560,21 +565,6 @@ func (a *Server) GenerateHostCertsForJoin(
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
 	return certs, nil
-}
-
-func rawJoinAttrsToStruct(in any) (*apievents.Struct, error) {
-	if in == nil {
-		return nil, nil
-	}
-	attrBytes, err := json.Marshal(in)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling join attributes")
-	}
-	out := &apievents.Struct{}
-	if err := out.UnmarshalJSON(attrBytes); err != nil {
-		return nil, trace.Wrap(err, "unmarshaling join attributes")
-	}
-	return out, nil
 }
 
 func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
@@ -590,15 +580,4 @@ func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {
 		return nil, trace.Wrap(err, "unmarshaling join attributes")
 	}
 	return out, nil
-}
-
-func generateChallenge(encoding *base64.Encoding, length int) (string, error) {
-	// read crypto-random bytes to generate the challenge
-	challengeRawBytes := make([]byte, length)
-	if _, err := rand.Read(challengeRawBytes); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// encode the challenge to base64 so it can be sent over HTTP
-	return encoding.EncodeToString(challengeRawBytes), nil
 }

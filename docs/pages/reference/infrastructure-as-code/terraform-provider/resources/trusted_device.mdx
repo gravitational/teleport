@@ -2,9 +2,6 @@
 title: Reference for the teleport_trusted_device Terraform resource
 sidebar_label: trusted_device
 description: This page describes the supported values of the teleport_trusted_device resource of the Teleport Terraform provider.
-tags:
- - reference
- - platform-wide
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -25,6 +22,7 @@ This page describes the supported values of the teleport_trusted_device resource
 # Trusted device resource
 
 resource "teleport_trusted_device" "TESTDEVICE1" {
+  version = "v1"
   spec = {
     asset_tag = "TESTDEVICE1"
     os_type   = "macos"

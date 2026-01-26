@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/healthcheck"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -215,8 +216,9 @@ func TestGetServerInfo(t *testing.T) {
 			},
 			AccessPoint:          ap,
 			TLS:                  &tls.Config{},
-			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+			HealthCheckManager:   &mockHealthCheckManager{},
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
@@ -354,3 +356,13 @@ func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
 		})
 	}
 }
+
+type mockHealthCheckManager struct{}
+
+func (m *mockHealthCheckManager) Start(ctx context.Context) error               { return nil }
+func (m *mockHealthCheckManager) AddTarget(target healthcheck.Target) error     { return nil }
+func (m *mockHealthCheckManager) RemoveTarget(r types.ResourceWithLabels) error { return nil }
+func (m *mockHealthCheckManager) GetTargetHealth(r types.ResourceWithLabels) (*types.TargetHealth, error) {
+	return nil, nil
+}
+func (m *mockHealthCheckManager) Close() error { return nil }

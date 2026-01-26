@@ -120,6 +120,8 @@ const (
 	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
+	// AppSessionStartFailureCode is the application session start failure code.
+	AppSessionStartFailureCode = "T2007E"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
@@ -778,6 +780,73 @@ const (
 	// BoundKeypairJoinStateVerificationFailedCode is the event code for
 	// join_token.bound_keypair.join_state_verification_failed.
 	BoundKeypairJoinStateVerificationFailedCode = "TBK003W"
+
+	// SCIMResourceCreateSuccessCode indicates a resource was successfully
+	// provisioned via SCIM
+	SCIMResourceCreateSuccessCode = "TSCIM001I"
+	// SCIMResourceCreateFailureCode indicates a failed attempt to provision
+	// a resource via SCIM
+	SCIMResourceCreateFailureCode = "TSCIM001E"
+	// SCIMResourceUpdateSuccessCode indicates a resource was successfully
+	// updated via SCIM
+	SCIMResourceUpdateSuccessCode = "TSCIM002I"
+	// SCIMResourceUpdateFailureCode indicates a failed attempt to update
+	// a resource via SCIM
+	SCIMResourceUpdateFailureCode = "TSCIM002E"
+	// SCIMResourceDeleteSuccessCode indicates a resource was successfully
+	// deleted via SCIM
+	SCIMResourceDeleteSuccessCode = "TSCIM003I"
+	// SCIMResourceDeleteFailureCode indicates a failed attempt to
+	// delete a resource via SCIM
+	SCIMResourceDeleteFailureCode = "TSCIM003E"
+	// SCIMGetResourceSuccessCode indicates a resource was successfully fetched
+	// from Teleport via SCIM
+	SCIMGetResourceSuccessCode = "TSCIM004I"
+	// SCIMGetResourceFailureCode indicates a failed attempt to fetch a
+	// resource via SCIM
+	SCIMGetResourceFailureCode = "TSCIM004E"
+	// SCIMListResourcesSuccessCode indicates a resource listing was successfully fetched
+	// from Teleport via SCIM
+	SCIMListResourcesSuccessCode = "TSCIM005I"
+	// SCIMListResourcesFailureCode indicates a failed attempt to list resources
+	// via SCIM
+	SCIMListResourcesFailureCode = "TSCIM005E"
+	// SCIMResourcePatchSuccessCode indicates a resource was successfully patched
+	// via SCIM
+	SCIMResourcePatchSuccessCode = "TSCIM006I"
+	// SCIMResourcePatchFailureCode indicates a failed attempt to patch a resource
+	// via SCIM
+	SCIMResourcePatchFailureCode = "TSCIM006E"
+
+	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
+	ClientIPRestrictionsUpdateCode = "CIR001I"
+
+	// AppAuthConfigCreateCode is the app auth config create event code.
+	AppAuthConfigCreateCode = "TAAC001I"
+	// AppAuthConfigUpdateCode is the app auth config update event code.
+	AppAuthConfigUpdateCode = "TAAC002I"
+	// AppAuthConfigDeleteCode is the app auth config delete event code.
+	AppAuthConfigDeleteCode = "TAAC003I"
+	// AppAuthConfigVerifySuccessCode is the app auth verification success event
+	// code.
+	AppAuthConfigVerifySuccessCode = "TAAC004I"
+	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
+	// code.
+	AppAuthConfigVerifyFailureCode = "TAAC004E"
+
+	// VnetConfigCreateCode is the Vnet config create event code.
+	VnetConfigCreateCode = "TVNET001I"
+	// VnetConfigUpdateCode is the Vnet config update event code.
+	VnetConfigUpdateCode = "TVNET002I"
+	// VnetConfigDeleteCode is the Vnet config delete event code.
+	VnetConfigDeleteCode = "TVNET003I"
+
+	// WorkloadClusterCreateCode is the workload cluster create event code.
+	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterUpdateCode is the workload cluster update event code.
+	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterDeleteCode is the workload cluster delete event code.
+	WorkloadClusterDeleteCode = "WC003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

@@ -171,9 +171,6 @@ type GenerateCredentialsRequest struct {
 	// specified by Username. If specified (!= ""), it is
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
 	ActiveDirectorySID string
-	// CAType is the certificate authority type used to generate the certificate.
-	// This is used to proper generate the CRL LDAP path.
-	CAType types.CertAuthType
 	// CreateUser specifies if Windows user should be created if missing
 	CreateUser bool
 	// Groups are groups that user should be member of
@@ -186,6 +183,10 @@ type GenerateCredentialsRequest struct {
 
 	// AD is true if we're connecting to a domain-joined desktop.
 	AD bool
+
+	// DisableWindowsCASupportForTesting does what it says on the tin.
+	// Do not use unless testing.
+	DisableWindowsCASupportForTesting bool
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
@@ -199,9 +200,10 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, 
 		return nil, nil, trace.Wrap(err)
 	}
 	genResp, err := auth.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
-		CSR:       certReq.csrPEM,
-		CRLDomain: certReq.cdpDomain,
-		TTL:       proto.Duration(req.TTL),
+		CSR:               certReq.csrPEM,
+		CRLDomain:         certReq.cdpDomain,
+		TTL:               proto.Duration(req.TTL),
+		SupportsWindowsCA: !req.DisableWindowsCASupportForTesting,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

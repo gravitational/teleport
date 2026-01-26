@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/integration/autoupdate/tools/updater"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/autoupdate/tools"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -59,19 +58,11 @@ import (
 func TestAliasLoginWithUpdater(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, homeDir, installDir := bootstrapTestServer(t)
+	rootServer, homeDir := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
 
 	// Assign alias to the login command for test cluster.
 	proxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Fetch compiled test binary and install to tools dir [v1.0.0].
-	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
-	require.NoError(t, updater.Update(ctx, testVersions[0]))
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
-	require.NoError(t, err)
-	tctlPath, err := updater.ToolPath("tctl", testVersions[0])
 	require.NoError(t, err)
 
 	configPath := filepath.Join(homeDir, client.TSHConfigPath)
@@ -119,16 +110,10 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 func TestSequentialUpdate(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, _, installDir := bootstrapTestServer(t)
+	rootServer, _ := bootstrapTestServer(t)
 
 	// Assign alias to the login command for test cluster.
 	proxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Fetch compiled test binary and install to tools dir [v1.0.0].
-	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
-	require.NoError(t, updater.Update(ctx, testVersions[0]))
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	for _, testVersion := range testVersions[1:] {
@@ -162,16 +147,10 @@ func TestSequentialUpdate(t *testing.T) {
 func TestLoginWithUpdaterAndProfile(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, _, installDir := bootstrapTestServer(t)
+	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Fetch compiled test binary and install to tools dir [v1.0.0].
-	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
-	require.NoError(t, updater.Update(ctx, testVersions[0]))
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	// First login with set version during login process
@@ -205,16 +184,10 @@ func TestLoginWithUpdaterAndProfile(t *testing.T) {
 func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, _, installDir := bootstrapTestServer(t)
+	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Fetch compiled test binary and install to tools dir [v1.0.0].
-	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
-	require.NoError(t, updater.Update(ctx, testVersions[0]))
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	// Set env variable to forcibly request update on version command.
@@ -257,16 +230,10 @@ func TestLoginWithDisabledUpdateInProfile(t *testing.T) {
 func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	ctx := context.Background()
 
-	rootServer, _, installDir := bootstrapTestServer(t)
+	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Fetch compiled test binary and install to tools dir [v1.0.0].
-	updater := tools.NewUpdater(installDir, testVersions[0], tools.WithBaseURL(baseURL))
-	require.NoError(t, updater.Update(ctx, testVersions[0]))
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	// Second login has to update profile and disable further managed updates.
@@ -304,18 +271,6 @@ func TestMigratedUpdateNotReExec(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, testToolsDir)
 	ctx := context.Background()
 
-	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
-	updater := tools.NewUpdater(
-		testToolsDir,
-		testVersions[0],
-		tools.WithBaseURL(baseURL),
-	)
-	err := updater.Update(ctx, testVersions[0])
-	require.NoError(t, err)
-
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
-	require.NoError(t, err)
-
 	require.NoError(t, os.MkdirAll(filepath.Join(testToolsDir, "bin"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(testToolsDir, "bin", "tsh"), []byte("#!/bin/sh\n echo 'Teleport v5.5.5 git'\n"), 0755))
 
@@ -335,22 +290,10 @@ func TestUpdateConfigReExecPath(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
 	ctx := context.Background()
 
-	rootServer, _, _ := bootstrapTestServer(t)
+	rootServer, _ := bootstrapTestServer(t)
 	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
 
 	proxyAddr, err := rootServer.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Fetch compiled test binary with updater logic and install to $TELEPORT_HOME.
-	updater := tools.NewUpdater(
-		toolsDir,
-		testVersions[0],
-		tools.WithBaseURL(baseURL),
-	)
-	err = updater.Update(ctx, testVersions[0])
-	require.NoError(t, err)
-
-	tshPath, err := updater.ToolPath("tsh", testVersions[0])
 	require.NoError(t, err)
 
 	cmd := exec.CommandContext(ctx, tshPath,
@@ -379,12 +322,10 @@ func TestUpdateConfigReExecPath(t *testing.T) {
 	require.Contains(t, string(out), `ProxyCommand "`+tshPath+`" `)
 }
 
-func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string) {
+func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string) {
 	t.Helper()
 	homeDir := filepath.Join(t.TempDir(), "home")
 	require.NoError(t, os.MkdirAll(homeDir, 0700))
-	installDir := filepath.Join(t.TempDir(), "local")
-	require.NoError(t, os.MkdirAll(installDir, 0700))
 
 	t.Setenv(types.HomeEnvVar, homeDir)
 
@@ -425,7 +366,7 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string, string
 	err = authService.UpsertPassword("alice", []byte(password))
 	require.NoError(t, err)
 
-	return rootServer, homeDir, installDir
+	return rootServer, homeDir
 }
 
 func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVersion string) {

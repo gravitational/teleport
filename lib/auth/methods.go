@@ -23,14 +23,18 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -38,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -53,10 +58,62 @@ const (
 	maxUserAgentLen = 2048
 )
 
+func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userState services.UserState) (*services.SplitAccessChecker, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped and unscoped logins use different access checkers and different underlying role types. the scope
+	// parameter is untrusted user input, but we reject attempts to login to a scope for which a user has no
+	// assigned privileges.
+	if scope == "" {
+		// this is an unscoped login attempt, so the user's capabilities are determined solely by their user state.
+		accessInfo := services.AccessInfoFromUserState(userState)
+
+		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return services.NewUnscopedSplitAccessChecker(unscopedChecker), nil
+	}
+
+	// req.Scope is untrusted user input, so perform strong validation before proceeding.
+	if err := scopes.StrongValidate(scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// set up scope pin (invalid until populated)
+	scopePin := &scopesv1.Pin{
+		Scope: scope,
+	}
+
+	// populate the scope pin with the user's assigned scoped roles
+	if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, userState.GetName(), scopePin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// build the user's access info based on the scope pin and userState
+	accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
+
+	// create a scoped access checker "at" the requested scope. Note that this is not what is typically done for
+	// ordinary access checks. Ordinary access checks should always start with an access checker at the root scope
+	// and descend to the resource scope iteratively. In the case of login/cert-gen however, we want to bring all
+	// scoped roles into the access checker that apply to all possible resources the resulting identity may have
+	// access to.
+	scopedChecker, err := services.RiskyNewScopedAccessCheckerAtScope(ctx, scope, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return services.NewScopedSplitAccessChecker(scopedChecker), nil
+}
+
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -104,12 +161,7 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	accessInfo := services.AccessInfoFromUserState(userState)
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	checker, err := a.accessCheckerForScope(ctx, req.Scope, userState)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -149,7 +201,7 @@ type authAuditProps struct {
 	username       string
 	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
-	checker        services.AccessChecker
+	checker        *services.SplitAccessChecker
 	authErr        error
 	userOrigin     apievents.UserOrigin
 }
@@ -201,7 +253,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		privateKeyPolicy, err := props.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		privateKeyPolicy, err := props.checker.Common().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -223,9 +275,10 @@ var (
 )
 
 type verifyMFADeviceLocksParams struct {
-	// Checker used to verify locks.
-	// Optional, created via a [UserState] fetch if nil.
-	Checker services.AccessChecker
+	// Checker is used to verify locks. Lock verification varies depending on whether the checker is
+	// scoped or unscoped, so we use a split checker. If no checker is provided, a default unscoped
+	// checker is created from the user backend state.
+	Checker *services.SplitAccessChecker
 
 	// ClusterLockingMode used to verify locks.
 	// Optional, acquired from [Server.GetAuthPreference] if nil.
@@ -272,11 +325,11 @@ func (a *Server) authenticateUser(
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+			unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			p.Checker = checker
+			p.Checker = services.NewUnscopedSplitAccessChecker(unscopedChecker)
 		}
 
 		if p.ClusterLockingMode == "" {
@@ -651,24 +704,30 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var loginIP, userAgent string
+	var loginIP, userAgent, proxyGroupID string
+	var maxTouchPoints int
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userAgent = cm.UserAgent
+		proxyGroupID = cm.ProxyGroupID
+		maxTouchPoints = cm.MaxTouchPoints
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
 		User:                 user.GetName(),
 		LoginIP:              loginIP,
 		LoginUserAgent:       userAgent,
+		LoginMaxTouchPoints:  maxTouchPoints,
+		ProxyGroupID:         proxyGroupID,
 		Roles:                user.GetRoles(),
 		Traits:               user.GetTraits(),
 		LoginTime:            a.clock.Now().UTC(),
 		AttestWebSession:     true,
 		CreateDeviceWebToken: true,
+		Scope:                req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -728,7 +787,8 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		}
 		clientIP = host
 	}
-	if checker.PinSourceIP() && clientIP == "" {
+
+	if checker.Common().PinSourceIP() && clientIP == "" {
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
@@ -767,7 +827,19 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var userAgent, proxyGroupID string
+	if req.ClientMetadata != nil {
+		userAgent = req.ClientMetadata.UserAgent
+		proxyGroupID = req.ClientMetadata.ProxyGroupID
+	}
 	UserLoginCount.Inc()
+	userAgentType, userAgentVersion := splitClientUserAgent(userAgent)
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: userAgentType,
+		tagVersion:       userAgentVersion,
+		tagProxyGroupID:  proxyGroupID,
+	}).Inc()
 
 	var clientOptions authclient.ClientOptions
 	if o, err := a.ClientOptionsForLogin(user); err == nil {
@@ -847,6 +919,21 @@ func trimUserAgent(userAgent string) string {
 		return userAgent[:maxUserAgentLen-3] + "..."
 	}
 	return userAgent
+}
+
+// splitClientUserAgent strictly splits the user agent into a type and a semantic version.
+// Any other formatting is not allowed and is treated as a third-party client (to be ignored).
+func splitClientUserAgent(userAgent string) (string, string) {
+	agent := strings.SplitN(userAgent, "/", 2)
+	if len(agent) != 2 {
+		return "", ""
+	}
+	ver, err := semver.NewVersion(agent[1])
+	if err != nil {
+		return "", ""
+	}
+
+	return agent[0], ver.String()
 }
 
 const noLocalAuth = "local auth disabled"

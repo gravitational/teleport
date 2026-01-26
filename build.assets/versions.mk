@@ -2,16 +2,13 @@
 # This file can be included in other Makefiles to avoid duplication.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.25.1
-GOLANGCI_LINT_VERSION ?= v2.4.0
+GOLANG_VERSION ?= go1.25.6
+GOLANGCI_LINT_VERSION ?= v2.7.2
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
-NODE_VERSION ?= 22.14.0
+NODE_VERSION ?= 22.21.0
 
-# Run lint-rust check locally before merging code after you bump this.
-RUST_VERSION ?= 1.81.0
 WASM_OPT_VERSION ?= 0.116.1
-LIBBPF_VERSION ?= 1.2.2
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 DEVTOOLSET ?= devtoolset-12

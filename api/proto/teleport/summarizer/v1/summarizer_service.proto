@@ -74,6 +74,10 @@ service SummarizerService {
   // configured. (Note that this doesn't tell anything about actual correctness
   // of the configuration or presence of recording summaries.)
   rpc IsEnabled(IsEnabledRequest) returns (IsEnabledResponse);
+
+  // TestInferenceModel tests an InferenceModel configuration by making a test
+  // request to the configured provider (AWS Bedrock or OpenAI).
+  rpc TestInferenceModel(TestInferenceModelRequest) returns (TestInferenceModelResponse);
 }
 
 // Summarization inference models
@@ -340,4 +344,23 @@ message IsEnabledResponse {
   // (Note that this doesn't tell anything about actual correctness of the
   // configuration or presence of recording summaries.)
   bool enabled = 1;
+}
+
+// TestInferenceModelRequest is a request to test an InferenceModel configuration.
+message TestInferenceModelRequest {
+  // Model is the InferenceModelSpec to test. The model configuration will be used
+  // to make a test request to the configured provider.
+  InferenceModelSpec model = 1;
+  // Secret is the InferenceSecretSpec containing the API key or credentials.
+  // Required for OpenAI models. Optional for Bedrock models when using IAM.
+  InferenceSecretSpec secret = 2;
+}
+
+// TestInferenceModelResponse is a response from testing an InferenceModel.
+message TestInferenceModelResponse {
+  // Success indicates whether the test request was successful.
+  bool success = 1;
+  // Message provides additional information about the test result.
+  // If success is false, this contains the error message.
+  string message = 2;
 }

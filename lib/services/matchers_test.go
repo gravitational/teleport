@@ -139,6 +139,63 @@ func TestMatchResourceLabels(t *testing.T) {
 	}
 }
 
+func TestSimplifyAzureMatchers(t *testing.T) {
+	matchers := []types.AzureMatcher{
+		{
+			Subscriptions: []string{"sub-1", types.Wildcard, "sub-1"},
+			Regions:       []string{"eu-west-1", "eu-west-2"},
+			Types:         []string{"mysql", "mysql", "postgres"},
+			ResourceTags:  types.Labels{"env": []string{"prod"}},
+			Params: &types.InstallerParams{
+				JoinMethod: types.JoinMethodAzure,
+				JoinToken:  "token-1",
+				Azure: &types.AzureInstallerParams{
+					ClientID: "client-1",
+				},
+			},
+			Integration: "integration-1",
+		},
+		{
+			ResourceGroups: []string{
+				"rg-1",
+				types.Wildcard,
+				"rg-1",
+			},
+			Types:       []string{"redis"},
+			Integration: "integration-2",
+		},
+	}
+
+	simplified := SimplifyAzureMatchers(matchers)
+
+	want := []types.AzureMatcher{
+		{
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Regions:        []string{"eu-west-1", "eu-west-2"},
+			Types:          []string{"mysql", "postgres"},
+			ResourceTags:   types.Labels{"env": []string{"prod"}},
+			Params: &types.InstallerParams{
+				JoinMethod: types.JoinMethodAzure,
+				JoinToken:  "token-1",
+				Azure: &types.AzureInstallerParams{
+					ClientID: "client-1",
+				},
+			},
+			Integration: "integration-1",
+		},
+		{
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Regions:        []string{types.Wildcard},
+			Types:          []string{"redis"},
+			Integration:    "integration-2",
+		},
+	}
+
+	require.Equal(t, want, simplified)
+}
+
 func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
@@ -747,6 +804,38 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			require.Equal(t, tt.out, ResourceMatchersToTypes(tt.in))
 		})
 	}
+}
+
+func TestMatchResourcesByFilters(t *testing.T) {
+	appServers := make(types.AppServers, 5)
+	oddOrEven := func(i int) string {
+		if i%2 == 1 {
+			return "odd"
+		}
+		return "even"
+	}
+	for i := range len(appServers) {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   fmt.Sprintf("app-%d", i),
+			Labels: map[string]string{"group": oddOrEven(i)},
+		}, types.AppSpecV3{
+			URI: "http://localhost:8888",
+		})
+		require.NoError(t, err)
+		appServers[i] = newAppServerFromApp(t, app)
+	}
+
+	evenAppServers, err := MatchResourcesByFilters(appServers, MatchResourceFilter{
+		ResourceKind: types.KindAppServer,
+		Labels:       map[string]string{"group": "even"},
+	})
+
+	require.NoError(t, err)
+	require.IsType(t, types.AppServers{}, evenAppServers)
+	require.Equal(t,
+		[]string{"app-0", "app-2", "app-4"},
+		slices.Collect(types.ResourceNames(evenAppServers)),
+	)
 }
 
 func newMCPServerApp(t *testing.T, name string) *types.AppV3 {

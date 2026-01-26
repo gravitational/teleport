@@ -106,7 +106,7 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	defer auditPipeIn.Close()
 
 	// Create child process to handle SFTP connection
-	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubsystem)
+	execRequest, err := srv.NewExecRequest(serverCtx, teleport.SFTPSubCommand)
 	if err != nil {
 		return trace.Wrap(err)
 	}

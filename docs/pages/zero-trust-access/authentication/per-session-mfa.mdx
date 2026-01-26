@@ -20,7 +20,7 @@ when starting new:
 This is an advanced security feature that protects users against compromises of
 their on-disk Teleport certificates.
 
-Per-session MFA checks can be satisfied by a webauthn device or by [delegating MFA checks to your IdP](../sso/sso.mdx#configuring-sso-for-mfa-checks).
+Per-session MFA checks can be satisfied by a webauthn device or by [delegating MFA checks to your IdP](../sso/sso-for-mfa.mdx).
 
 <Admonition type="note">
   In addition to per-session MFA, enable login MFA in your SSO provider and/or
@@ -34,7 +34,7 @@ Per-session MFA checks can be satisfied by a webauthn device or by [delegating M
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- [WebAuthn configured](webauthn.mdx) on this cluster
+- [WebAuthn configured](../management/security/idp-compromise.mdx) on this cluster
 - Hardware device for multi-factor authentication, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
@@ -228,13 +228,11 @@ window, a new MFA check will be requested for new connections.
 
 Current limitations for this feature are:
 
-- For SSH connections besides the Web UI, the `tsh` or Teleport Connect client must be used for per-session MFA.
-  (The OpenSSH `ssh` client does not work with per-session MFA).
+- VNet SSH must be used for per-session MFA when using an OpenSSH client (`ssh`, `scp`).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
-- For desktop access, only WebAuthn devices are supported.
 - When accessing a
-  [multi-port](../../enroll-resources/application-access/guides/tcp.mdx#configuring-access-to-multiple-ports)
-  TCP application through [VNet](../../connect-your-client/vnet.mdx), the first connection over
+  [multi-port](../../enroll-resources/application-access/protect-apps/tcp.mdx#configuring-access-to-multiple-ports)
+  TCP application through [VNet](../../connect-your-client/teleport-clients/vnet.mdx), the first connection over
   each port triggers an MFA check.
 - For the `tsh db exec` command, only WebAuthn devices are supported.
 

@@ -1,9 +1,8 @@
 ---
-title: Teleport Configuration
-h1: Teleport Configuration Reference
+title: Teleport Configuration Reference
+sidebar_label: Teleport Configuration
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
 keywords: [config, file, reference, yaml, etc]
-tocDepth: 3
 tags:
  - reference
  - platform-wide
@@ -72,6 +71,7 @@ Teleport supports the following services:
 |SSH Service|`ssh_service`|✅|
 |Desktop Service|`windows_desktop_service`|❌|
 |Jamf Service|`jamf_service`|❌|
+|Relay Service|`relay_service`|❌|
 |Debug Service|`debug_service`|✅|
 
 Teleport Cloud manages the Auth Service and Proxy Service for you. Instances of
@@ -195,6 +195,12 @@ These settings apply to the Teleport Database Service:
 
 ### Discovery Service
 
+Discovery Service watches your cloud environment and automatically enrolls supported resources into Teleport.
+
+Instead of using the cloud matchers (i.e. `discovery_service.aws`, `discovery_service.gcp` and `discovery_service.azure`) to specify which resources to enroll,
+you can create Discovery Configs via [`tctl`](../infrastructure-as-code/teleport-resources/discovery-config.mdx) or [Terraform](../infrastructure-as-code/terraform-provider/resources/discovery_config.mdx).
+The Discovery Service loads all the Discovery Configs that have the same `discovery_group`.
+
 These settings apply to the Teleport Discovery Service:
 
 ```yaml
@@ -215,6 +221,16 @@ These settings apply to the Jamf Service:
 
 ```yaml
 (!docs/pages/includes/config-reference/jamf-service.yaml!)
+```
+
+### Relay Service
+
+The Relay Service is available in Teleport v18.3.0 and later.
+
+These settings apply to the Relay Service:
+
+```yaml
+(!docs/pages/includes/config-reference/relay-service.yaml!)
 ```
 
 ### Debug Service

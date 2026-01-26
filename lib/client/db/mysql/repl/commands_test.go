@@ -21,7 +21,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
@@ -170,6 +172,10 @@ type fakeMySQLConn struct {
 
 func (c *fakeMySQLConn) Execute(command string, args ...any) (*mysql.Result, error) {
 	return c.exec(command, args...)
+}
+
+func (c *fakeMySQLConn) ExecuteSelectStreaming(command string, result *mysql.Result, perRowCallback client.SelectPerRowCallback, perResultCallback client.SelectPerResultCallback) error {
+	return trace.NotImplemented("ExecuteSelectStreaming not implemented")
 }
 
 func (c *fakeMySQLConn) UseDB(dbName string) error {
