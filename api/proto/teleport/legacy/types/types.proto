@@ -23,6 +23,7 @@ import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
 import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -3217,7 +3218,7 @@ message AccessRequestSpecV3 {
   // that is not a requirement.
   repeated string SuggestedReviewers = 13 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
 
-  // RequestedResourceIDs is a set of resources to which access is being requested.
+  // RequestedResourceIDs is the set of resources to which access is being requested.
   repeated ResourceID RequestedResourceIDs = 14 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
     (gogoproto.nullable) = false
@@ -3276,6 +3277,17 @@ message AccessRequestSpecV3 {
   // LongTermResourceGrouping contains information about how resources can be grouped
   // based on Access List promotions for long-term Access Requests.
   LongTermResourceGrouping LongTermGrouping = 25 [(gogoproto.jsontag) = "long_term_grouping,omitempty"];
+
+  // The set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  // When present, RequestedResourceAccessIDs should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated ResourceAccessID RequestedResourceAccessIDs = 26 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // AccessRequestKind represents the kind of Access Request being made (short/long-term).
@@ -3404,23 +3416,6 @@ message RequestKubernetesResource {
   string kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // APIGroup specifies the Kubernetes Resource API group.
   string APIGroup = 2 [(gogoproto.jsontag) = "api_group,omitempty"];
-}
-
-// ResourceID is a unique identifier for a teleport resource.
-// Must be kept in sync with teleport.decision.v1alpha1.ResourceId.
-message ResourceID {
-  // ClusterName is the name of the cluster the resource is in.
-  string ClusterName = 1 [(gogoproto.jsontag) = "cluster"];
-  // Kind is the resource kind.
-  string Kind = 2 [(gogoproto.jsontag) = "kind"];
-  // Name is the name of the specific resource.
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // SubResourceName is the resource belonging to resource identified by "Name"
-  // that the user is allowed to access to.
-  // When granting access to a subresource, access to other resources is limited.
-  // Currently it just supports resources of Kind=pod and the format is the following
-  // "<kube_namespace>/<kube_pod>".
-  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
