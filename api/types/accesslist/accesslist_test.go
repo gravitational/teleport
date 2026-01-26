@@ -260,7 +260,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}{
 		{
 			name:              "one month, first day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -269,7 +269,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, fifteenth day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -278,7 +278,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, last day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -287,7 +287,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -296,7 +296,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			accessListTypes:   []Type{Static, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Time{},
@@ -305,7 +305,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			accessListTypes:   []Type{Static, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
