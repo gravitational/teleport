@@ -37,7 +37,10 @@ import {
   ViewModeSwitchContainer,
 } from 'shared/components/Controls/ViewModeSwitch';
 import FieldInput from 'shared/components/FieldInput';
-import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+import {
+  InfoGuideConfig,
+  useInfoGuide,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { useToastNotifications } from 'shared/components/ToastNotification';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
@@ -67,6 +70,8 @@ import { Ec2Config, WildcardRegion } from './types';
 
 const INTEGRATION_CHECK_RETRIES = 6;
 const INTEGRATION_CHECK_RETRY_DELAY = 5000;
+
+export type InfoGuideTab = 'info' | 'terraform' | null;
 
 export function EnrollAws() {
   useNoMinWidth();
@@ -103,9 +108,8 @@ export function EnrollAws() {
 
   const copyConfigButtonRef = useRef<HTMLButtonElement>(null);
 
-  const [activeInfoGuideSection, setActiveInfoGuideSection] = useState<
-    'info' | 'terraform'
-  >('terraform');
+  const [activeInfoGuideTab, setActiveInfoGuideTab] =
+    useState<InfoGuideTab>('terraform');
 
   const { infoGuideConfig: currentInfoGuideConfig, setInfoGuideConfig } =
     useInfoGuide();
@@ -113,7 +117,7 @@ export function EnrollAws() {
   const infoGuideConfig = useMemo(
     () => ({
       guide:
-        activeInfoGuideSection === 'terraform' ? (
+        activeInfoGuideTab === 'terraform' ? (
           <TerraformInfoGuide
             terraformConfig={terraformConfig}
             copyConfigButtonRef={copyConfigButtonRef}
@@ -124,27 +128,18 @@ export function EnrollAws() {
         ),
       title: (
         <InfoGuideTitle
-          activeSection={activeInfoGuideSection}
-          onSectionChange={setActiveInfoGuideSection}
+          activeSection={activeInfoGuideTab}
+          onSectionChange={setActiveInfoGuideTab}
         />
       ),
       panelWidth: PANEL_WIDTH,
     }),
-    [terraformConfig, activeInfoGuideSection, configCopied]
+    [terraformConfig, activeInfoGuideTab, configCopied]
   );
 
   useEffect(() => {
     setInfoGuideConfig(infoGuideConfig);
   }, [setInfoGuideConfig, infoGuideConfig]);
-
-  const onInfoGuideClick = (section: 'info' | 'terraform') => {
-    if (!!currentInfoGuideConfig && activeInfoGuideSection === section) {
-      setInfoGuideConfig(null);
-    } else {
-      setActiveInfoGuideSection(section);
-      setInfoGuideConfig(infoGuideConfig);
-    }
-  };
 
   const toastNotifications = useToastNotifications();
   const didShowToast = useRef(false);
@@ -220,6 +215,15 @@ export function EnrollAws() {
 
   const integrationExists = !!integrationData;
 
+  const onInfoGuideClick = (section: InfoGuideTab) => {
+    if (!!currentInfoGuideConfig && activeInfoGuideTab === section) {
+      setInfoGuideConfig(null);
+    } else {
+      setActiveInfoGuideTab(section);
+      setInfoGuideConfig(infoGuideConfig);
+    }
+  };
+
   return (
     <Validation>
       {({ validator }) => (
@@ -227,52 +231,11 @@ export function EnrollAws() {
           <Box flex="1" mr={3}>
             <Flex justifyContent="space-between" alignItems="start" mb={1}>
               <Header>Connect Amazon Web Services</Header>
-              <ViewModeSwitchContainer
-                aria-label="Info Guide Mode Switch"
-                aria-orientation="horizontal"
-                role="radiogroup"
-              >
-                <HoverTooltip tipContent="Info Guide">
-                  <ViewModeSwitchButton
-                    className={
-                      !!currentInfoGuideConfig &&
-                      activeInfoGuideSection === 'info'
-                        ? 'selected'
-                        : ''
-                    }
-                    onClick={() => onInfoGuideClick('info')}
-                    role="radio"
-                    aria-checked={
-                      !!currentInfoGuideConfig &&
-                      activeInfoGuideSection === 'info'
-                    }
-                    aria-label="Info Guide"
-                    first
-                  >
-                    <Info size="small" color="text.main" />
-                  </ViewModeSwitchButton>
-                </HoverTooltip>
-                <HoverTooltip tipContent="Terraform Configuration">
-                  <ViewModeSwitchButton
-                    className={
-                      !!currentInfoGuideConfig &&
-                      activeInfoGuideSection === 'terraform'
-                        ? 'selected'
-                        : ''
-                    }
-                    onClick={() => onInfoGuideClick('terraform')}
-                    role="radio"
-                    aria-checked={
-                      !!currentInfoGuideConfig &&
-                      activeInfoGuideSection === 'terraform'
-                    }
-                    aria-label="Terraform Configuration"
-                    last
-                  >
-                    <ResourceIcon name="terraform" width="16px" height="16px" />
-                  </ViewModeSwitchButton>
-                </HoverTooltip>
-              </ViewModeSwitchContainer>
+              <InfoGuideSwitch
+                currentConfig={currentInfoGuideConfig}
+                activeTab={activeInfoGuideTab}
+                onSwitch={onInfoGuideClick}
+              />
             </Flex>
             <Subtitle1 mb={3}>
               Connect your AWS account to automatically discover and enroll
@@ -384,7 +347,7 @@ export function IntegrationSection({
   );
 }
 
-function ConfigurationScopeSection() {
+export function ConfigurationScopeSection() {
   return (
     <>
       <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
@@ -413,7 +376,54 @@ function ConfigurationScopeSection() {
   );
 }
 
-const Container = styled(Flex)`
+type InfoGuideSwitchProps = {
+  activeTab: InfoGuideTab;
+  currentConfig: InfoGuideConfig | null;
+  onSwitch: (activeTab: InfoGuideTab) => void;
+};
+
+export const InfoGuideSwitch = ({
+  activeTab,
+  currentConfig,
+  onSwitch,
+}: InfoGuideSwitchProps) => {
+  return (
+    <ViewModeSwitchContainer
+      aria-label="Info Guide Mode Switch"
+      aria-orientation="horizontal"
+      role="radiogroup"
+    >
+      <HoverTooltip tipContent="Info Guide">
+        <ViewModeSwitchButton
+          className={!!currentConfig && activeTab === 'info' ? 'selected' : ''}
+          onClick={() => onSwitch('info')}
+          role="radio"
+          aria-checked={!!currentConfig && activeTab === 'info'}
+          aria-label="Info Guide"
+          first
+        >
+          <Info size="small" color="text.main" />
+        </ViewModeSwitchButton>
+      </HoverTooltip>
+      <HoverTooltip tipContent="Terraform Configuration">
+        <ViewModeSwitchButton
+          className={
+            !!currentConfig && activeTab === 'terraform' ? 'selected' : ''
+          }
+          onClick={() => onSwitch('terraform')}
+          role="radio"
+          aria-checked={!!currentConfig && activeTab === 'terraform'}
+          aria-label="Terraform Configuration"
+          last
+        >
+          <ResourceIcon name="terraform" width="16px" height="16px" />
+        </ViewModeSwitchButton>
+      </HoverTooltip>
+    </ViewModeSwitchContainer>
+  );
+};
+
+export const Container = styled(Flex)`
   border-radius: 8px;
   background: ${props => props.theme.colors.levels.elevated};
 
