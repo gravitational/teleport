@@ -54,6 +54,14 @@ if (process.env.TEAMID) {
 }
 
 /**
+ * Describes whether there will be an attempt by electron-builder to sign the app on macOS.
+ */
+const shouldBeSignedOnMacOS =
+  process.env.APPLE_ID ||
+  process.env.APPLE_APP_SPECIFIC_PASSWORD ||
+  process.env.APPLE_TEAM_ID;
+
+/**
  * @type { import('electron-builder').Configuration }
  */
 module.exports = {
@@ -118,7 +126,9 @@ module.exports = {
     gatekeeperAssess: false,
     // Use the same entitlements for Electron subprocesses (e.g., renderer, GPU)
     // as those defined for the main app.
-    entitlementsInherit: 'build_resources/entitlements.mac.plist',
+    entitlementsInherit: shouldBeSignedOnMacOS
+      ? 'build_resources/entitlements.mac.plist'
+      : 'build_resources/entitlements.mac.adhoc-signed.plist',
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
     icon: 'build_resources/icon-mac.png',
