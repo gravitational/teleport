@@ -22,6 +22,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -31,7 +32,7 @@ import (
 // ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
 // completed MFA.
 type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest) error
+	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
 }
 
 // MFAPromptVerifier is a PromptVerifier that marshals and verifies MFA prompts and responses.
@@ -120,7 +121,8 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 			Username:      pv.username,
 		}
 
-		return trace.Wrap(pv.verifier.VerifyValidatedMFAChallenge(ctx, req))
+		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
+		return trace.Wrap(err)
 
 	case nil:
 		return trace.BadParameter("missing Response in MFAPromptResponse")
