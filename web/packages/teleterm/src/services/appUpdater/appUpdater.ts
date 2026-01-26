@@ -41,6 +41,7 @@ import { AbortError } from 'shared/utils/error';
 import { compare } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
+import { isTshdRpcError } from 'teleterm/services/tshd';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
@@ -85,7 +86,12 @@ export class AppUpdater {
       if (this.autoUpdatesStatus.enabled) {
         const [baseUrl, installationMetadata] = await Promise.all([
           client.getDownloadBaseUrl(),
-          client.getInstallationMetadata(),
+          client.getInstallationMetadata().catch(error => {
+            if (isTshdRpcError(error, 'UNIMPLEMENTED')) {
+              return { isPerMachineInstall: false };
+            }
+            throw error;
+          }),
         ]);
 
         return {
