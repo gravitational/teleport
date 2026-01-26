@@ -220,7 +220,7 @@ For example, the following organization could be an actionable short-term soluti
       3. Installing Identity Activity Center | Links to Identity Security -> Self-Host TIS -> IAC
    3. (Move from other sections in ZTA -> Self-Hosting)
 3. Installing Teleport Agents to Connect Resources
-   1. Installing & Configuring Teleport Agents | Links to Enroll Resources
+   1. Installing & Configuring Teleport Agents (Move from Enroll Resources)
    2. Managed Updates for Agents & Bots (v2) (Move from Upgrading)
    3. Manual Upgrades
       1. (Move from Introduction -> Upgrading -> Manual Upgrades -> Teleport Agents running on Kubernetes)
