@@ -94,7 +94,7 @@ func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc ex
 			return trace.Wrap(err)
 		}
 
-		appServer, err := ResolveByName(r.Context(), clusterClient, site, appName)
+		appServer, err := ResolveByName(r.Context(), clusterClient, appName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

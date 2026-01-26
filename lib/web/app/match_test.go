@@ -62,6 +62,20 @@ func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
 }
 
 func TestResolveByName(t *testing.T) {
+	apps := []*types.AppV3{
+		createMCPApp(t, "example-1", nil /* labels */),
+		createMCPApp(t, "example-2", nil /* labels */),
+		createMCPApp(t, "example-3", nil /* labels */),
+	}
+	// appServer, err := types.NewAppServerV3(
+	// 	types.Metadata{Name: name, Labels: labels},
+	// 	types.AppServerSpecV3{
+	// 		HostID: uuid.New().String(),
+	// 		App:    createMCPApp(t, name, labels),
+	// 	},
+	// )
+	// require.NoError(t, err)
+
 	for name, tc := range map[string]struct {
 		appName         string
 		appServers      []types.AppServer
@@ -69,27 +83,40 @@ func TestResolveByName(t *testing.T) {
 		assertAppServer require.ValueAssertionFunc
 	}{
 		"match": {
-			appName: "example-1",
+			appName: apps[0].Metadata.Name,
 			appServers: []types.AppServer{
-				createMCPServer(t, "example-1", nil /* labels */),
-				createMCPServer(t, "example-2", nil /* labels */),
-				createMCPServer(t, "example-3", nil /* labels */),
+				createAppServerWithApp(t, apps[0]),
+				createAppServerWithApp(t, apps[1]),
+				createAppServerWithApp(t, apps[2]),
 			},
 			assertError:     require.NoError,
-			assertAppServer: expectAppServerWithName("example-1"),
+			assertAppServer: expectAppServerWithApp(apps[0].Metadata.Name),
 		},
 		"no match": {
 			appName: "example-x",
 			appServers: []types.AppServer{
-				createMCPServer(t, "example-1", nil /* labels */),
-				createMCPServer(t, "example-2", nil /* labels */),
-				createMCPServer(t, "example-3", nil /* labels */),
+				createAppServerWithApp(t, apps[0]),
+				createAppServerWithApp(t, apps[1]),
+				createAppServerWithApp(t, apps[2]),
 			},
 			assertError:     require.Error,
 			assertAppServer: require.Nil,
 		},
+		"multi servers match": {
+			appName: apps[0].Metadata.Name,
+			appServers: []types.AppServer{
+				// Create multiple app servers for the first app.
+				createAppServerWithApp(t, apps[0]),
+				createAppServerWithApp(t, apps[0]),
+				createAppServerWithApp(t, apps[0]),
+				createAppServerWithApp(t, apps[1]),
+				createAppServerWithApp(t, apps[2]),
+			},
+			assertError:     require.NoError,
+			assertAppServer: expectAppServerWithApp(apps[0].Metadata.Name),
+		},
 		"no servers, no match": {
-			appName:         "example-1",
+			appName:         apps[0].Metadata.Name,
 			appServers:      []types.AppServer{},
 			assertError:     require.Error,
 			assertAppServer: require.Nil,
@@ -110,8 +137,8 @@ func TestResolveByName(t *testing.T) {
 			}
 
 			appService := local.NewAppService(bk)
-			for _, appSrv := range tc.appServers {
-				require.NoError(t, appService.CreateApp(t.Context(), appSrv.GetApp()))
+			for _, app := range apps {
+				require.NoError(t, appService.CreateApp(t.Context(), app))
 			}
 
 			w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
@@ -126,18 +153,18 @@ func TestResolveByName(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			res, err := ResolveByName(t.Context(), &mockCluster{watcher: w}, "example-name", tc.appName)
+			res, err := ResolveByName(t.Context(), &mockCluster{watcher: w}, tc.appName)
 			tc.assertError(t, err)
 			tc.assertAppServer(t, res)
 		})
 	}
 }
 
-func expectAppServerWithName(name string) require.ValueAssertionFunc {
+func expectAppServerWithApp(name string) require.ValueAssertionFunc {
 	return func(t require.TestingT, i1 any, i2 ...any) {
 		require.IsType(t, &types.AppServerV3{}, i1)
 		appServer, _ := i1.(types.AppServer)
-		require.Equal(t, name, appServer.GetName())
+		require.Equal(t, name, appServer.GetApp().GetName())
 	}
 }
 

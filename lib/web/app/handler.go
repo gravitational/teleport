@@ -282,13 +282,13 @@ func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(httpl
 		})
 	}
 
-	router.POST("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
-	router.DELETE("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
-	router.GET("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+	router.POST("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
+	router.DELETE("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
+	router.GET("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
 
-	router.POST("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
-	router.DELETE("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
-	router.GET("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
+	router.POST("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
+	router.DELETE("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
+	router.GET("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
 }
 
 // handleHttp forwards the request to the application service or redirects
@@ -333,9 +333,9 @@ func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *se
 	return nil
 }
 
-// handleHttpResetPath handles app access requests using [handleHttp] function,
-// but before, it resets the request path.
-func (h *Handler) handleHttpResetPath(w http.ResponseWriter, r *http.Request, session *session) error {
+// handleStreamableMCP handles streamable HTTP MCP requests using [handleHttp]
+// function.
+func (h *Handler) handleStreamableMCP(w http.ResponseWriter, r *http.Request, session *session) error {
 	r.URL.Path = "/"
 	return h.handleHttp(w, r, session)
 }

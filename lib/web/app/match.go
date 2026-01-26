@@ -62,12 +62,6 @@ func MatchName(name string) Matcher {
 	}
 }
 
-// ClusterGetter provides a means to retrieve all connected
-// Teleport clusters - either local or remote.
-type ClusterGetter interface {
-	Clusters(context.Context) ([]reversetunnelclient.Cluster, error)
-}
-
 // ResolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
 //
@@ -112,13 +106,13 @@ func ResolveFQDN(ctx context.Context, clusterGetter reversetunnelclient.ClusterG
 
 // ResolveByName resolves app name into an application running on a
 // specific site (cluster).
-func ResolveByName(ctx context.Context, cluster reversetunnelclient.Cluster, site string, appName string) (types.AppServer, error) {
+func ResolveByName(ctx context.Context, cluster reversetunnelclient.Cluster, appName string) (types.AppServer, error) {
 	servers, err := MatchUnshuffled(ctx, cluster, MatchName(appName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(servers) != 1 {
+	if len(servers) == 0 {
 		return nil, trace.BadParameter("unable to solve requested app by name")
 	}
 

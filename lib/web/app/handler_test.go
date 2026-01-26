@@ -1178,20 +1178,41 @@ func startFakeMCPServerOnCluster(t *testing.T, clusterName string, accessPoint a
 }
 
 func createMCPServer(t *testing.T, name string, labels map[string]string) types.AppServer {
+	t.Helper()
 	appServer, err := types.NewAppServerV3(
 		types.Metadata{Name: name, Labels: labels},
 		types.AppServerSpecV3{
 			HostID: uuid.New().String(),
-			App: &types.AppV3{
-				Metadata: types.Metadata{Name: name, Labels: labels},
-				Spec: types.AppSpecV3{
-					URI: "mcp+http://localhost",
-				},
-			},
+			App:    createMCPApp(t, name, labels),
 		},
 	)
 	require.NoError(t, err)
 	return appServer
+}
+
+func createAppServerWithApp(t *testing.T, app *types.AppV3) types.AppServer {
+	t.Helper()
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: uuid.New().String()},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App:    app,
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
+func createMCPApp(t *testing.T, name string, labels map[string]string) *types.AppV3 {
+	t.Helper()
+	app, err := types.NewAppV3(
+		types.Metadata{Name: name, Labels: labels},
+		types.AppSpecV3{
+			URI: "mcp+http://localhost",
+		},
+	)
+	require.NoError(t, err)
+	return app
 }
 
 func addValidSessionCookiesToRequest(appSession types.WebSession, r *http.Request) {
