@@ -87,7 +87,7 @@ export function DeploymentMethodSection({
           </Text>
           <Box>
             <Button
-              ref={copyConfigButtonRef}
+              setRef={copyConfigButtonRef}
               fill="border"
               intent="primary"
               disabled={!terraformConfig}
