@@ -18,12 +18,13 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { setupServer } from 'msw/node';
-import { act, PropsWithChildren } from 'react';
+import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  act,
   render,
   screen,
   testQueryClient,
@@ -40,6 +41,30 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { Finish } from './Finish';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
+
+// Switching the async component for its sync equivalent - the latter is a pain
+// to test without getting act() warnings and errors.
+jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
+  const actual = jest.requireActual(
+    'shared/components/FieldSelect/FieldSelectCreatable'
+  );
+  return {
+    ...actual,
+    FieldSelectCreatableAsync: (props: {
+      loadOptions?: unknown;
+      defaultOptions?: unknown;
+    }) => {
+      const {
+        // eslint-disable-next-line unused-imports/no-unused-vars
+        loadOptions,
+        // eslint-disable-next-line unused-imports/no-unused-vars
+        defaultOptions,
+        ...rest
+      } = props;
+      return <actual.FieldSelectCreatable {...rest} />;
+    },
+  };
+});
 
 const server = setupServer();
 

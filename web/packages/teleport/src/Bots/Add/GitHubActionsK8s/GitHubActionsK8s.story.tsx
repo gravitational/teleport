@@ -52,7 +52,10 @@ export const Happy: Story = {
     msw: {
       handlers: [
         genWizardCiCdSuccess({ prettyFormat: true }),
-        fetchUnifiedResourcesSuccess(),
+        fetchUnifiedResourcesSuccess({
+          delayMs: 1000,
+          mockSearch: true,
+        }),
         userEventCaptureSuccess(),
       ],
     },
