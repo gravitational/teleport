@@ -1993,7 +1993,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 		ident, err := sshca.DecodeIdentity(sshcert)
 		require.NoError(t, err)
 		assert.ElementsMatch(t, expectRoles, ident.Roles)
-		assert.ElementsMatch(t, expectResources, ident.AllowedResourceIDs)
+		assert.ElementsMatch(t, types.ResourceIDsToResourceAccessIDs(expectResources), ident.AllowedResourceAccessIDs)
 	}
 
 	type extendSessionFunc func(*testing.T, *authclient.Client, types.WebSession) (*authclient.Client, types.WebSession)

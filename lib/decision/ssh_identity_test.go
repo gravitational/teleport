@@ -75,17 +75,18 @@ func TestSSHIdentityConversion(t *testing.T) {
 		BotName:       "bot",
 		BotInstanceID: "instance",
 		JoinToken:     "join-token",
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs: []types.ResourceID{{
 			ClusterName:     "cluster",
 			Kind:            types.KindKubePod, // must use a kube resource kind for parsing of sub-resource to work correctly
-			Name:            "name",
+			Name:            "name1",
 			SubResourceName: "sub/sub",
 		}},
 		AllowedResourceAccessIDs: []types.ResourceAccessID{{
 			Id: types.ResourceID{
 				ClusterName:     "cluster",
 				Kind:            types.KindKubePod, // this is not valid in practice; Constraints and KindKube cannot be mixed
-				Name:            "name",
+				Name:            "name2",
 				SubResourceName: "sub/sub",
 			},
 			Constraints: &types.ResourceConstraints{

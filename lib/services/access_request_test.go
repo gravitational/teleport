@@ -2105,7 +2105,7 @@ func TestGetRequestableRoles(t *testing.T) {
 			g.userStates[user].Spec.Roles = []string{tc.userRole}
 			accessCaps, err := CalculateAccessCapabilities(ctx, clockwork.NewFakeClock(), g,
 				tlsca.Identity{
-					AllowedResourceIDs: tc.allowedResourceIDs,
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs(tc.allowedResourceIDs),
 				},
 				types.AccessCapabilitiesRequest{
 					User:                             user,

@@ -462,7 +462,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		AzureIdentities:          tlsID.AzureIdentities,
 		GCPServiceAccounts:       tlsID.GCPServiceAccounts,
 		IsVirtual:                opts.IsVirtual,
-		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(sshIdent.AllowedResourceIDs, sshIdent.AllowedResourceAccessIDs),
+		AllowedResourceAccessIDs: sshIdent.AllowedResourceAccessIDs,
 		SAMLSingleLogoutEnabled:  opts.SAMLSingleLogoutEnabled,
 		SSOHost:                  opts.SSOHost,
 		GitHubIdentity:           gitHubIdentity,

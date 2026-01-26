@@ -1724,8 +1724,6 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	allowedResourceAccessIDs := types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs)
-
 	cluster, err := m.getter.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1734,7 +1732,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		Roles:                    m.getResourceViewingRoles(),
 		Traits:                   m.userState.GetTraits(),
 		Username:                 m.userState.GetName(),
-		AllowedResourceAccessIDs: allowedResourceAccessIDs,
+		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -587,10 +587,10 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 
 	// If we have a legacy 'namespace' in the allowedResourceIDs, we need to add the new 'namespaces' one.
 	// The old one will get mapped to wildcard later.
-	allowedResourceIDs := slices.Clone(a.info.AllowedResourceAccessIDs)
+	allowedResourceAccessIDs := slices.Clone(a.info.AllowedResourceAccessIDs)
 	for _, elem := range a.info.AllowedResourceAccessIDs {
 		if rid := elem.GetResourceID(); rid.Kind == types.KindKubeNamespace {
-			allowedResourceIDs = append(allowedResourceIDs, types.ResourceAccessID{Id: types.ResourceID{
+			allowedResourceAccessIDs = append(allowedResourceAccessIDs, types.ResourceAccessID{Id: types.ResourceID{
 				ClusterName:     rid.ClusterName,
 				Kind:            types.AccessRequestPrefixKindKubeClusterWide + "namespaces",
 				SubResourceName: rid.SubResourceName,
@@ -603,7 +603,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	// the denied resources from the roles take precedence over the allowed
 	// resources from the certificate.
 	denied = rolesDenied
-	for _, wr := range allowedResourceIDs {
+	for _, wr := range allowedResourceAccessIDs {
 		r := wr.GetResourceID()
 		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
 			continue
@@ -1375,7 +1375,7 @@ func AccessInfoFromLocalSSHIdentity(ident *sshca.Identity) *AccessInfo {
 		ScopePin:                 ident.ScopePin,
 		Roles:                    ident.Roles,
 		Traits:                   ident.Traits,
-		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(ident.AllowedResourceIDs, ident.AllowedResourceAccessIDs),
+		AllowedResourceAccessIDs: ident.AllowedResourceAccessIDs,
 	}
 }
 
@@ -1416,7 +1416,7 @@ func AccessInfoFromRemoteSSHIdentity(unmappedIdentity *sshca.Identity, roleMap t
 		Username:                 unmappedIdentity.Username,
 		Roles:                    roles,
 		Traits:                   traits,
-		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(unmappedIdentity.AllowedResourceIDs, unmappedIdentity.AllowedResourceAccessIDs),
+		AllowedResourceAccessIDs: unmappedIdentity.AllowedResourceAccessIDs,
 	}, nil
 }
 
@@ -1433,7 +1433,7 @@ func AccessInfoFromLocalTLSIdentity(identity tlsca.Identity) (*AccessInfo, error
 		ScopePin:                 identity.ScopePin,
 		Roles:                    identity.Groups,
 		Traits:                   identity.Traits,
-		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
+		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 	}, nil
 }
 
@@ -1490,7 +1490,7 @@ func AccessInfoFromRemoteTLSIdentity(identity tlsca.Identity, roleMap types.Role
 		Username:                 identity.Username,
 		Roles:                    roles,
 		Traits:                   traits,
-		AllowedResourceAccessIDs: types.CombineAsResourceAccessIDs(identity.AllowedResourceIDs, identity.AllowedResourceAccessIDs),
+		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
 	}, nil
 }
 

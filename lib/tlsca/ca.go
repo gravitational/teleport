@@ -206,6 +206,8 @@ type Identity struct {
 	JoinToken string
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
+	//
+	// Deprecated: Use [Identity.AllowedResourceAccessIDs].
 	AllowedResourceIDs []types.ResourceID
 	// AllowedResourceAccessIDs lists the resources the user should be able to access,
 	// paired with ResourceConstraints or additional information.
@@ -372,31 +374,32 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:                     id.Username,
-		ScopePin:                 pinning.ToEventsPin(id.ScopePin),
-		Impersonator:             id.Impersonator,
-		Roles:                    id.Groups,
-		Usage:                    id.Usage,
-		Logins:                   id.Principals,
-		KubernetesGroups:         id.KubernetesGroups,
-		KubernetesUsers:          id.KubernetesUsers,
-		Expires:                  id.Expires,
-		RouteToCluster:           id.RouteToCluster,
-		KubernetesCluster:        id.KubernetesCluster,
-		Traits:                   id.Traits,
-		RouteToApp:               routeToApp,
-		TeleportCluster:          id.TeleportCluster,
-		RouteToDatabase:          routeToDatabase,
-		DatabaseNames:            id.DatabaseNames,
-		DatabaseUsers:            id.DatabaseUsers,
-		MFADeviceUUID:            id.MFAVerified,
-		PreviousIdentityExpires:  id.PreviousIdentityExpires,
-		ClientIP:                 id.LoginIP,
-		AWSRoleARNs:              id.AWSRoleARNs,
-		AzureIdentities:          id.AzureIdentities,
-		GCPServiceAccounts:       id.GCPServiceAccounts,
-		AccessRequests:           id.ActiveRequests,
-		DisallowReissue:          id.DisallowReissue,
+		User:                    id.Username,
+		ScopePin:                pinning.ToEventsPin(id.ScopePin),
+		Impersonator:            id.Impersonator,
+		Roles:                   id.Groups,
+		Usage:                   id.Usage,
+		Logins:                  id.Principals,
+		KubernetesGroups:        id.KubernetesGroups,
+		KubernetesUsers:         id.KubernetesUsers,
+		Expires:                 id.Expires,
+		RouteToCluster:          id.RouteToCluster,
+		KubernetesCluster:       id.KubernetesCluster,
+		Traits:                  id.Traits,
+		RouteToApp:              routeToApp,
+		TeleportCluster:         id.TeleportCluster,
+		RouteToDatabase:         routeToDatabase,
+		DatabaseNames:           id.DatabaseNames,
+		DatabaseUsers:           id.DatabaseUsers,
+		MFADeviceUUID:           id.MFAVerified,
+		PreviousIdentityExpires: id.PreviousIdentityExpires,
+		ClientIP:                id.LoginIP,
+		AWSRoleARNs:             id.AWSRoleARNs,
+		AzureIdentities:         id.AzureIdentities,
+		GCPServiceAccounts:      id.GCPServiceAccounts,
+		AccessRequests:          id.ActiveRequests,
+		DisallowReissue:         id.DisallowReissue,
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs:       events.ResourceIDs(id.AllowedResourceIDs),
 		AllowedResourceAccessIDs: events.ToEventResourceAccessIDs(id.AllowedResourceAccessIDs),
 		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
@@ -969,7 +972,9 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 	if len(id.AllowedResourceIDs) > 0 {
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		allowedResourcesStr, err := types.ResourceIDsToString(id.AllowedResourceIDs)
 		if err != nil {
 			return pkix.Name{}, trace.Wrap(err)
@@ -1089,6 +1094,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	var (
+		allowedResourceIDs       []types.ResourceID
+		allowedResourceAccessIDs []types.ResourceAccessID
+	)
 
 	for _, attr := range subject.Names {
 		switch {
@@ -1297,12 +1307,12 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
-				allowedResourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
+				resourceIDs, err := types.ResourceIDsFromString(allowedResourcesStr)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				filteredAllowedResourceIDs := make([]types.ResourceID, 0, len(allowedResourceIDs))
-				for _, rid := range allowedResourceIDs {
+				filteredAllowedResourceIDs := make([]types.ResourceID, 0, len(resourceIDs))
+				for _, rid := range resourceIDs {
 					// AllowedResourceIDs may contain a non-matching sentinel whose sole purpose is to prevent
 					// authorization paths (e.g., older versions operating in mixed-version clusters) that ignore
 					// AllowedResourceAccessIDs from treating an otherwise resource-scoped identity as unconstrained.
@@ -1312,16 +1322,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 						filteredAllowedResourceIDs = append(filteredAllowedResourceIDs, rid)
 					}
 				}
-				id.AllowedResourceIDs = filteredAllowedResourceIDs
+				allowedResourceIDs = filteredAllowedResourceIDs
 			}
 		case attr.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				allowedResourceAccessIDs, err := types.ResourceAccessIDsFromString(val)
+				resourceAccessIDs, err := types.ResourceAccessIDsFromString(val)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+				allowedResourceAccessIDs = resourceAccessIDs
 			}
 		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -1367,6 +1377,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 			}
 		}
+	}
+
+	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {

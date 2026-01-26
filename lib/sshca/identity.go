@@ -126,6 +126,8 @@ type Identity struct {
 	// JoinToken is the name of the join token used by the bot to join, if any.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
+	//
+	// Deprecated: Use [Identity.AllowedResourceAccessIDs].
 	AllowedResourceIDs []types.ResourceID
 	// AllowedResourceAccessIDs lists the resources the user should be able to access,
 	// paired with ResourceConstraints or additional information.
@@ -245,7 +247,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if i.JoinToken != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
 	}
+	//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 	if len(i.AllowedResourceIDs) != 0 {
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		requestedResourcesStr, err := types.ResourceIDsToString(i.AllowedResourceIDs)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -470,6 +474,11 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
 	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
+	var (
+		allowedResourceIDs       []types.ResourceID
+		allowedResourceAccessIDs []types.ResourceAccessID
+	)
+
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResources); ok {
 		resourceIDs, err := types.ResourceIDsFromString(v)
 		if err != nil {
@@ -487,14 +496,17 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 			}
 			filteredResourceIDs = append(filteredResourceIDs, rid)
 		}
-		ident.AllowedResourceIDs = filteredResourceIDs
+		allowedResourceIDs = filteredResourceIDs
 	}
 	if v, ok := takeExtension(teleport.CertExtensionAllowedResourceAccessIDs); ok {
 		resourceAccessIDs, err := types.ResourceAccessIDsFromString(v)
 		if err != nil {
 			return nil, trace.BadParameter("failed to parse value %q for extension %q as resourceAccessIDs: %v", v, teleport.CertExtensionAllowedResourceAccessIDs, err)
 		}
-		ident.AllowedResourceAccessIDs = resourceAccessIDs
+		allowedResourceAccessIDs = resourceAccessIDs
+	}
+	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
+		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)

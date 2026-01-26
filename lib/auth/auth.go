@@ -3791,8 +3791,6 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		allowedResourceAccessIDs = unscopedChecker.GetAllowedResourceAccessIDs()
 	}
 
-	resourceIDs, resourceAccessIDs := types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
-
 	var signedSSHCert []byte
 	if req.sshPublicKey != nil {
 		sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
@@ -3834,8 +3832,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 				BotInstanceID:            req.botInstanceID,
 				JoinToken:                req.joinToken,
 				CertificateExtensions:    certificateExtensions,
-				AllowedResourceIDs:       resourceIDs,
-				AllowedResourceAccessIDs: resourceAccessIDs,
+				AllowedResourceAccessIDs: allowedResourceAccessIDs,
 				ConnectionDiagnosticID:   req.connectionDiagnosticID,
 				PrivateKeyPolicy:         attestedKeyPolicy,
 				DeviceID:                 req.deviceExtensions.DeviceID,
@@ -3976,8 +3973,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		BotName:                  req.botName,
 		BotInstanceID:            req.botInstanceID,
 		JoinToken:                req.joinToken,
-		AllowedResourceIDs:       resourceIDs,
-		AllowedResourceAccessIDs: resourceAccessIDs,
+		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
 		ConnectionDiagnosticID:   req.connectionDiagnosticID,
 		DeviceExtensions: tlsca.DeviceExtensions{
