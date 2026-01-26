@@ -109,7 +109,7 @@ func Install(ctx context.Context, cfg *InstallConfig) (err error) {
 	if err := installEventSource(cfg.EventSourceName); err != nil {
 		return trace.Wrap(err, "creating event source for logging")
 	}
-	if err := logInstallationEvent(cfg.EventSourceName, "service installed"); err != nil {
+	if err := logInstallationEvent(cfg.EventSourceName, fmt.Sprintf("%s service installed", cfg.Name)); err != nil {
 		return trace.Wrap(err, "logging installation event")
 	}
 	return nil
@@ -146,7 +146,7 @@ func Uninstall(ctx context.Context, cfg *UninstallConfig) (err error) {
 		return trace.Wrap(err, "closing VNet Windows service")
 	}
 
-	if err := logInstallationEvent(cfg.EventSourceName, "Service uninstalled"); err != nil {
+	if err := logInstallationEvent(cfg.EventSourceName, fmt.Sprintf("%s service uninstalled", cfg.Name)); err != nil {
 		return trace.Wrap(err, "logging installation event")
 	}
 	if err := eventlogutils.Remove(eventlogutils.LogName, cfg.EventSourceName); err != nil {
