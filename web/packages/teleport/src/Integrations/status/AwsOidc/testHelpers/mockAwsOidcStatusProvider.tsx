@@ -17,12 +17,11 @@
  */
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
-import { Route } from 'teleport/components/Router';
 import {
   awsOidcStatusContext,
   AwsOidcStatusContextState,
@@ -52,7 +51,9 @@ export const MockAwsOidcStatusProvider = ({
       <ContextProvider ctx={ctx}>
         <InfoGuidePanelProvider>
           <awsOidcStatusContext.Provider value={value}>
-            <Route path={path} render={() => <>{children}</>} />
+            <Routes>
+              <Route path={path || '*'} element={<>{children}</>} />
+            </Routes>
           </awsOidcStatusContext.Provider>
         </InfoGuidePanelProvider>
       </ContextProvider>
