@@ -145,7 +145,7 @@ You'll:
 receive SPIFFE SVID-compatible credentials.
 
 Before proceeding, you'll want to determine the SPIFFE ID path that your workload will use. In our example, we'll use `/svc/foo`. 
-We provide more guidance on choosing a SPIFFE ID structure in the [Best Practices](./workload-identity/best-practices.mdx) guide.
+We provide more guidance on choosing a SPIFFE ID structure in the [Best Practices](../workload-identity/best-practices.mdx) guide.
 
 Create a new file called `workload-identity.yaml`:
 
@@ -171,7 +171,7 @@ Use `tctl create ./workload-identity.yaml` to create the Workload Identity.
 ### Using workload attestation
 
 Instead of hard-coding values in the SPIFFE ID, you can also use 
-[workload attestation](../reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx) 
+[workload attestation](../../reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx) 
 to dynamically populate it based on workload attributes. For example, you can include the name of the `systemd` service requesting the identity.
 
 Add the following to your `tbot.yaml` configuration to enable the `systemd` attestor:
@@ -236,8 +236,8 @@ environment variable to point to the socket created by `tbot`.
 
 ## Next steps
 
-- Read the [configuration reference](../reference/machine-workload-identity/configuration.mdx) to explore all available configuration options.
+- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore all available configuration options.
 - Restrict which SVIDs are issued based on characteristics of the workload using [Workload Attestation](../reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx#workload-attestation).
-- Configure [WorkloadIdentity Rules](../reference/machine-workload-identity/workload-identity/sigstore-attestation.mdx) based on the attributes determined via workload attestation.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/machine-workload-identity/telemetry.mdx).
+- Configure [WorkloadIdentity Rules](../../reference/machine-workload-identity/workload-identity/sigstore-attestation.mdx) based on the attributes determined via workload attestation.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx).
 
