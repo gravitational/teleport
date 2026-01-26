@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1245,6 +1246,9 @@ type Server struct {
 	// GlobalNotificationCache is a cache of global notifications.
 	GlobalNotificationCache *services.GlobalNotificationCache
 
+	// inventoryCache is a cache of unified instances (teleport instances and bot instances).
+	inventoryCache *inventorycache.InventoryCache
+
 	// workloadIdentityX509CAOverrideGetter is a getter for CA overrides for
 	// SPIFFE X.509 certificate issuance. Optional, set in enterprise code.
 	workloadIdentityX509CAOverrideGetter services.WorkloadIdentityX509CAOverrideGetter
@@ -1565,6 +1569,20 @@ func (a *Server) SetGlobalNotificationCache(globalNotificationCache *services.Gl
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.GlobalNotificationCache = globalNotificationCache
+}
+
+// SetInventoryCache sets the inventory cache.
+func (a *Server) SetInventoryCache(inventoryCache *inventorycache.InventoryCache) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.inventoryCache = inventoryCache
+}
+
+// GetInventoryCache returns the inventory cache.
+func (a *Server) GetInventoryCache() *inventorycache.InventoryCache {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
+	return a.inventoryCache
 }
 
 func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
@@ -2327,6 +2345,12 @@ func (a *Server) Close() error {
 
 	if err := a.inventory.Close(); err != nil {
 		errs = append(errs, err)
+	}
+
+	if inventoryCache := a.GetInventoryCache(); inventoryCache != nil {
+		if err := inventoryCache.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if a.Services.AuditLogSessionStreamer != nil {

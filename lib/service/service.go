@@ -110,6 +110,7 @@ import (
 	_ "github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	myrepl "github.com/gravitational/teleport/lib/client/db/mysql/repl"
 	pgrepl "github.com/gravitational/teleport/lib/client/db/postgres/repl"
 	dbrepl "github.com/gravitational/teleport/lib/client/db/repl"
@@ -2450,6 +2451,19 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 			as.Cache = cache
 			recordingEncryptionManager.SetCache(cache)
+
+			// Create the inventory cache. This will wait for the primary cache to be ready before starting.
+			invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+				PrimaryCache:       cache,
+				Events:             as.Services,
+				Inventory:          as.Services,
+				BotInstanceBackend: as.Services,
+				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
+			})
+			if err != nil {
+				return trace.Wrap(err, "creating inventory cache")
+			}
+			as.SetInventoryCache(invCache)
 
 			return nil
 		})

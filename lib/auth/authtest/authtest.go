@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
+	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -606,6 +607,19 @@ func InitAuthCache(p AuthCacheParams) error {
 		return trace.Wrap(err)
 	}
 	p.AuthServer.Cache = c
+
+	// Create and set the inventory cache
+	invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
+		PrimaryCache:       c,
+		Events:             p.AuthServer.Services,
+		Inventory:          p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.AuthServer.SetInventoryCache(invCache)
+
 	return nil
 }
 
