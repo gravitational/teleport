@@ -156,13 +156,3 @@ func resolveBaseURL() (string, error) {
 
 	return autoupdate.DefaultBaseURL, nil
 }
-
-// IsPerMachineInstall returns whether updates should target a per-machine installation.
-func (s *Service) IsPerMachineInstall(_ context.Context, _ *api.IsPerMachineInstallRequest) (*api.IsPerMachineInstallResponse, error) {
-	perMachine, err := isPerMachineInstall()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.IsPerMachineInstallResponse{PerMachineInstall: perMachine}, nil
-}

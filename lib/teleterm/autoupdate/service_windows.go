@@ -17,12 +17,15 @@
 package autoupdate
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/registry"
+
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 )
 
 const (
@@ -31,6 +34,16 @@ const (
 	teleportConnectKeyPath = `SOFTWARE\` + teleportConnectGUID
 	installLocationKey     = "InstallLocation"
 )
+
+// GetInstallationMetadata returns installation metadata of the currently running app instance.
+func (s *Service) GetInstallationMetadata(_ context.Context, _ *api.GetInstallationMetadataRequest) (*api.GetInstallationMetadataResponse, error) {
+	perMachine, err := isPerMachineInstall()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &api.GetInstallationMetadataResponse{IsPerMachineInstall: perMachine}, nil
+}
 
 func isPerMachineInstall() (bool, error) {
 	perMachineLocation, err := readPerMachineInstallLocation()
