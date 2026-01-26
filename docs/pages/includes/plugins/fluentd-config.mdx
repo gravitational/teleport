@@ -1,0 +1,32 @@
+<Tabs>
+<TabItem label="Executable">
+
+**`ca`**: Include the path to the CA certificate.
+
+**`cert`**: Include the path to the Fluentd client certificate.
+
+**`key`**: Include the path to the Fluentd client key.
+
+**`url`**: Include the Fluentd URL where the audit event logs will be sent.
+
+**`session-url`**: Include the Fluentd URL where the session logs will be sent.
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+**`url`**: Include the Fluentd URL where the audit event logs will be sent.
+
+**`sessionUrl`**: Include the Fluentd URL where the session logs will be sent.
+
+**`certificate.secretName`**: Include the name of the Kubernetes secret containing the
+Fluentd client credentials. If you have followed the instructions above,
+this will be `teleport-event-handler-client-tls`.
+
+**`certificate.caPath`**: Include the path to the CA certificate inside the secret.
+
+**`certificate.certPath`**: Include the path to the Fluentd client certificate inside the secret.
+
+**`certificate.keyPath`**: Include the path to the Fluentd client key inside the secret.
+
+</TabItem>
+</Tabs>

@@ -53,6 +53,11 @@ from Teleport's events API, and forwards them to Fluentd.
 
 ## Step 2/4. Set up the Event Handler plugin
 
+The Event Handler plugin is a binary that runs independently of your Teleport
+cluster. It authenticates to your Teleport cluster and Fluentd instance using mutual
+TLS. In this section, you will set up the Event Handler plugin 
+and generate credentials that the plugin will use for authentication.
+
 ### Generate a starter config file
 
 Generate a configuration file with placeholder values for the Teleport Event
@@ -183,13 +188,19 @@ environment.
 
 (!docs/pages/includes/plugins/finish-event-handler-config.mdx!)
 
-Update the configuration file as follows. If you are using the `teleport-plugin-event-handler`
-Helm chart with Teleport Kubernetes Operator enabled, you can ignore this step, as we
-replaced the `teleport` section with the `crd` and `tbot` sections.
+Update the following fields. If you are using the `teleport-plugin-event-handler`
+Helm chart with Teleport Kubernetes Operator enabled, you can ignore the `teleport`
+section, as we replaced it with the `crd` and `tbot` sections.
+
+**`teleport`**
 
 (!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 (!docs/pages/includes/plugins/machine-id-exporter-config.mdx!)
+
+**`fluentd`**
+
+(!docs/pages/includes/plugins/fluentd-config.mdx!)
 
 ### Start the Teleport Event Handler
 
