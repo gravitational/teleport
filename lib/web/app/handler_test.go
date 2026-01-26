@@ -1190,7 +1190,7 @@ func TestGetAppSessionAuthConfig(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, err = handler.getAppSessionUsingAuthConfig(req, tc.appServer)
+				_, _, err = handler.getAppSessionUsingAuthConfig(req, tc.appServer)
 				tc.assertError(t, err)
 			})
 		}

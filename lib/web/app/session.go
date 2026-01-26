@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -40,10 +41,12 @@ type session struct {
 	ws types.WebSession
 	// transport allows to dial an application server.
 	tr *transport
+	// appAuthConfig represents the app auth config to serve the session.
+	appAuthConfig *appauthconfigv1.AppAuthConfig
 }
 
 // newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession, appAuthConfig *appauthconfigv1.AppAuthConfig) (*session, error) {
 	// Extract the identity of the user.
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {
@@ -124,8 +127,9 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 	return &session{
-		fwd: fwd,
-		ws:  ws,
-		tr:  transport,
+		fwd:           fwd,
+		ws:            ws,
+		tr:            transport,
+		appAuthConfig: appAuthConfig,
 	}, nil
 }

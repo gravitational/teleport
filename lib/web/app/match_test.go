@@ -170,7 +170,6 @@ func (m *mockAppServersGetter) GetApplicationServers(ctx context.Context, namesp
 
 type mockClusterGetter struct {
 	reversetunnelclient.ClusterGetter
-	ctx     context.Context
 	cluster *mockCluster
 }
 
