@@ -757,9 +757,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
 
-		appHandler.BindMCPEndpoints(&h.Router, func(r *http.Request) error {
-			return rateLimitRequest(r, h.limiter)
-		})
+		appHandler.BindMCPEndpoints(&h.Router, h.WithUnauthenticatedLimiter)
 	}
 
 	go h.startFeatureWatcher()

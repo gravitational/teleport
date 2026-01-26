@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -260,7 +261,7 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 }
 
 // BindMCPEndpoints binds MCP HTTP endpoints to a router.
-func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(*http.Request) error) {
+func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(httplib.HandlerFunc) httprouter.Handle) {
 	extractParams := func(p httprouter.Params) requestedAppParams {
 		return requestedAppParams{
 			appName:     p.ByName("app"),
@@ -273,13 +274,12 @@ func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(*http
 			return handler
 		}
 
-		return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-			if err := limiter(r); err != nil {
-				writeError(w, err)
-				return
-			}
+		return limiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 			handler(w, r, p)
-		}
+
+			// Results and errors are sent by the handler.
+			return nil, nil
+		})
 	}
 
 	router.POST("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleHttpResetPath, extractParams)))
