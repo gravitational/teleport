@@ -53,6 +53,9 @@ export function Prerequisites() {
               <Text fontWeight="medium">Teleport Terraform Provider:</Text>
               <Text>Authenticate to your Teleport cluster</Text>
               <ExternalLink href="#">
+                {
+                  // TODO(alexhemard): add real URL
+                }
                 Teleport Provider Configuration
                 <ArrowSquareOut size="small" />
               </ExternalLink>
@@ -61,6 +64,9 @@ export function Prerequisites() {
               <Text fontWeight="medium">AWS Terraform Provider:</Text>
               <Text>Configure AWS credentials for IAM management</Text>
               <ExternalLink href="#">
+                {
+                  // TODO(alexhemard): add real URL
+                }
                 AWS Provider Configuration <ArrowSquareOut size="small" />
               </ExternalLink>
             </li>

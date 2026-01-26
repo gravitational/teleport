@@ -3,18 +3,18 @@
 ################################################################################
 
 variable "teleport_proxy_public_addr" {
-  description = "Teleport cluster proxy public address."
+  description = "Teleport cluster proxy public address `host:port`."
   type        = string
   nullable    = false
 
   validation {
-    condition     = var.teleport_proxy_public_addr != ""
-    error_message = "Must not be empty."
+    condition     = !strcontains(var.teleport_proxy_public_addr, "://")
+    error_message = "Must not contain a URL scheme"
   }
 
   validation {
-    condition     = !strcontains(var.teleport_proxy_public_addr, "://")
-    error_message = "Must not contain a URL scheme"
+    condition     = var.teleport_proxy_public_addr == "" || strcontains(var.teleport_proxy_public_addr, ":")
+    error_message = "The address must be in the form `host:port`."
   }
 }
 
@@ -22,11 +22,6 @@ variable "teleport_discovery_group_name" {
   description = "Teleport discovery group to use. For discovery configuration to apply, this name must match at least one Teleport Discovery Service instance's configured `discovery_group`. For Teleport Cloud clusters, use \"cloud-discovery-group\"."
   type        = string
   nullable    = false
-
-  validation {
-    condition     = var.teleport_discovery_group_name != ""
-    error_message = "Must not be empty."
-  }
 }
 
 variable "match_aws_resource_types" {
@@ -73,7 +68,7 @@ variable "apply_aws_tags" {
 }
 
 variable "apply_teleport_resource_labels" {
-  description = "Additional Teleport resource labels to apply to all created Teleport."
+  description = "Additional Teleport resource labels to apply to all created Teleport resources."
   type        = map(string)
   default     = {}
   nullable    = false

@@ -1051,7 +1051,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle, WithSubprotocols(protocolTDPB)))
 	// GET /webapi/sites/:site/desktopplayback/:sid/ws
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
@@ -1097,6 +1097,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eks-iam.sh", h.WithLimiter(h.awsOIDCConfigureEKSIAM))
 	h.GET("/webapi/scripts/integrations/configure/access-graph-cloud-sync-iam.sh", h.WithLimiter(h.accessGraphCloudSyncOIDC))
+	h.GET("/webapi/scripts/integrations/configure/aws-oidc-bedrock.sh", h.WithLimiter(h.awsBedrockSummarizerOIDC))
 	h.GET("/webapi/scripts/integrations/configure/aws-app-access-iam.sh", h.WithLimiter(h.awsOIDCConfigureAWSAppAccessIAM))
 	// TODO(kimlisa): DELETE IN 19.0 - Replaced by /v2 equivalent endpoint
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/aws-app-access", h.WithClusterAuth(h.awsOIDCCreateAWSAppAccess))
@@ -1180,6 +1181,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Implements the agent version server.
 	// Channel can contain "/", hence the use of a catch-all parameter
 	h.GET("/webapi/automaticupgrades/channel/*request", h.WithUnauthenticatedHighLimiter(h.automaticUpgrades109))
+
+	// Managed updates
+	h.GET("/webapi/managedupdates", h.WithAuth(h.getManagedUpdatesDetails))
+	h.POST("/webapi/managedupdates/groups/:groupName/start", h.WithAuth(h.startGroupUpdate))
+	h.POST("/webapi/managedupdates/groups/:groupName/done", h.WithAuth(h.markGroupDone))
+	h.POST("/webapi/managedupdates/groups/:groupName/rollback", h.WithAuth(h.rollbackGroup))
 
 	// GET Machine ID bot by name
 	h.GET("/webapi/sites/:site/machine-id/bot/:name", h.WithClusterAuth(h.getBot))
@@ -1418,7 +1425,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 
@@ -1462,7 +1469,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1485,7 +1492,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1504,23 +1511,23 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
-func deviceTrustSettings(cap types.AuthPreference) webclient.DeviceTrustSettings {
+func deviceTrustSettings(cap types.AuthPreference, m modules.Modules) webclient.DeviceTrustSettings {
 	dt := cap.GetDeviceTrust()
 	return webclient.DeviceTrustSettings{
-		Disabled:   deviceTrustDisabled(cap),
+		Disabled:   deviceTrustDisabled(cap, m),
 		AutoEnroll: dt != nil && dt.AutoEnroll,
 	}
 }
 
 // deviceTrustDisabled is used to set its namesake field in
 // [webclient.PingResponse.Auth].
-func deviceTrustDisabled(cap types.AuthPreference) bool {
-	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust()) == constants.DeviceTrustModeOff
+func deviceTrustDisabled(cap types.AuthPreference, m modules.Modules) bool {
+	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust(), m) == constants.DeviceTrustModeOff
 }
 
 func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
@@ -3794,7 +3801,6 @@ func (h *Handler) getClusterLocks(
 			return clt.GetLocks(ctx, inForceOnlyFalse)
 		},
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4938,9 +4944,9 @@ var authnWsUpgrader = websocket.Upgrader{
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket, as well as to grab the remoteSite (which can represent this local
 // cluster or a remote trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httprouter.Handle {
+func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler, opts ...wsUpgraderOption) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p)
+		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4959,8 +4965,8 @@ func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httproute
 // *SessionContext (same as AuthenticateRequest), and also grabs the
 // remoteSite (which can represent this local cluster or a remote
 // trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
-	sctx, ws, err := h.AuthenticateRequestWS(w, r)
+func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, opts ...wsUpgraderOption) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
+	sctx, ws, err := h.AuthenticateRequestWS(w, r, opts...)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -5444,14 +5450,29 @@ type wsStatus struct {
 // open.
 const wsIODeadline = time.Second * 4
 
+type wsUpgraderOption func(*websocket.Upgrader)
+
+// Adds subprotocol(s) to the websocket upgrade response
+func WithSubprotocols(s ...string) wsUpgraderOption {
+	return func(u *websocket.Upgrader) {
+		u.Subprotocols = s
+	}
+}
+
 // AuthenticateRequest authenticates request using combination of a session cookie
 // and bearer token retrieved from a websocket
-func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) (*SessionContext, *websocket.Conn, error) {
+func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request, opts ...wsUpgraderOption) (*SessionContext, *websocket.Conn, error) {
 	sctx, err := h.validateCookie(w, r)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ws, err := authnWsUpgrader.Upgrade(w, r, nil)
+
+	upgrader := authnWsUpgrader
+	for _, opt := range opts {
+		opt(&upgrader)
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error upgrading to websocket: %v", err)
 	}

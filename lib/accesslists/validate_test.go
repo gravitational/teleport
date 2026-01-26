@@ -387,7 +387,7 @@ func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
 	t.Run("audit frequency", func(t *testing.T) {
 		accessList = newAccessList(t, accessListName, clockwork.NewFakeClockAt(time.Now()))
 		t.Run("must be non-zero for reviewable access lists", func(t *testing.T) {
-			for _, typ := range []accesslist.Type{accesslist.Default} {
+			for _, typ := range []accesslist.Type{accesslist.Default, accesslist.SCIM} {
 				t.Run(string(typ), func(t *testing.T) {
 					accessList.Spec.Type = typ
 					accessList.Spec.Audit.Recurrence.Frequency = 0
@@ -397,7 +397,7 @@ func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
 			}
 		})
 		t.Run("can be zero for non-reviewable access lists", func(t *testing.T) {
-			for _, typ := range []accesslist.Type{accesslist.SCIM, accesslist.Static} {
+			for _, typ := range []accesslist.Type{accesslist.Static} {
 				t.Run(string(typ), func(t *testing.T) {
 					accessList.Spec.Type = typ
 					accessList.Spec.Audit.Recurrence.Frequency = 0
@@ -425,7 +425,7 @@ func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
 	t.Run("audit day_of_month", func(t *testing.T) {
 		accessList = newAccessList(t, accessListName, clockwork.NewFakeClockAt(time.Now()))
 		t.Run("must be non-zero for reviewable access lists", func(t *testing.T) {
-			for _, typ := range []accesslist.Type{accesslist.Default} {
+			for _, typ := range []accesslist.Type{accesslist.Default, accesslist.SCIM} {
 				t.Run(string(typ), func(t *testing.T) {
 					accessList.Spec.Type = typ
 					accessList.Spec.Audit.Recurrence.DayOfMonth = 0
@@ -435,7 +435,7 @@ func Test_ValidateAccessListWithMembers_audit(t *testing.T) {
 			}
 		})
 		t.Run("can be zero for non-reviewable access lists", func(t *testing.T) {
-			for _, typ := range []accesslist.Type{accesslist.SCIM, accesslist.Static} {
+			for _, typ := range []accesslist.Type{accesslist.Static} {
 				t.Run(string(typ), func(t *testing.T) {
 					accessList.Spec.Type = typ
 					accessList.Spec.Audit.Recurrence.DayOfMonth = 0

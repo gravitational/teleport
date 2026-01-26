@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -37,6 +38,7 @@ import (
 
 	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
@@ -63,6 +65,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -72,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -80,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth"
@@ -2978,15 +2983,20 @@ func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV
 type mockAzureRunCommandClient struct {
 	mu                 sync.Mutex
 	installedInstances map[string]struct{}
+	runErr             error
 }
 
 func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) error {
 	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.runErr != nil {
+		return m.runErr
+	}
 	if m.installedInstances == nil {
 		m.installedInstances = make(map[string]struct{})
 	}
 	m.installedInstances[req.VMName] = struct{}{}
-	m.mu.Unlock()
 	return nil
 }
 
@@ -3047,7 +3057,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 
 	vmMatcher := vmMatcherFn()
-	defaultDiscoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+
+	cfg, err := discoveryconfig.NewDiscoveryConfig(
 		header.Metadata{Name: uuid.NewString()},
 		discoveryconfig.Spec{
 			DiscoveryGroup: defaultDiscoveryGroup,
@@ -3058,6 +3069,10 @@ func TestAzureVMDiscovery(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+
+	defaultDiscoveryConfig := func() *discoveryconfig.DiscoveryConfig {
+		return cfg.Clone()
+	}
 
 	foundAzureVMs := func() []*armcompute.VirtualMachine {
 		return []*armcompute.VirtualMachine{
@@ -3109,6 +3124,15 @@ func TestAzureVMDiscovery(t *testing.T) {
 	presentNodeAlt := presentNode.DeepCopy().(*types.ServerV2)
 	presentNodeAlt.Metadata.Labels["teleport.internal/vm-id"] = "alternate-vmid"
 
+	azureError := func(statusCode int, errorCode, message string) error {
+		resp := &http.Response{
+			StatusCode: statusCode,
+			Body:       io.NopCloser(strings.NewReader(message)),
+			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
+		}
+		return azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
+	}
+
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
@@ -3116,6 +3140,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 		staticMatchers           Matchers
 		wantInstalledInstances   []string
 		expectedIntegrationNames []string
+		runError                 error
+		userTasksCheck           func(*testing.T, UserTaskLister)
 	}{
 		{
 			name:                   "no nodes present, 1 found",
@@ -3138,9 +3164,74 @@ func TestAzureVMDiscovery(t *testing.T) {
 		{
 			name:                   "no nodes present, 1 found using dynamic matchers",
 			presentVMs:             []types.Server{},
-			discoveryConfig:        defaultDiscoveryConfig,
+			discoveryConfig:        defaultDiscoveryConfig(),
 			staticMatchers:         Matchers{},
 			wantInstalledInstances: []string{"testvm", "testvm-integration"},
+		},
+		{
+			name:                   "installation failure creates user task",
+			presentVMs:             []types.Server{},
+			discoveryConfig:        defaultDiscoveryConfig(),
+			staticMatchers:         Matchers{},
+			wantInstalledInstances: []string{},
+			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+				var tasks []*usertasksv1.UserTask
+				require.EventuallyWithT(t, func(c *assert.CollectT) {
+					var err error
+					tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
+					require.NoError(c, err)
+					require.Len(c, tasks, 1)
+				}, 3*time.Second, 100*time.Millisecond)
+
+				expectedTask := &usertasksv1.UserTask{
+					Kind:    types.KindUserTask,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "d09fef6d-2454-5bdd-80c7-db7edddf2a2e", // stable hash
+					},
+					Spec: &usertasksv1.UserTaskSpec{
+						Integration: dummyIntegration,
+						TaskType:    usertasks.TaskTypeDiscoverAzureVM,
+						IssueType:   usertasks.AutoDiscoverAzureVMIssueMissingRunCommandsPermission,
+						State:       usertasks.TaskStateOpen,
+						DiscoverAzureVm: &usertasksv1.DiscoverAzureVM{
+							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
+								"test-vmid-integration": {
+									VmId:            "test-vmid-integration",
+									Name:            "testvm-integration",
+									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
+									DiscoveryGroup:  defaultDiscoveryGroup,
+								},
+							},
+							SubscriptionId: "testsub",
+							ResourceGroup:  "testrg",
+							Region:         "westcentralus",
+						},
+					},
+					Status: nil,
+				}
+
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
+					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time"),
+				))
+			},
+		},
+		{
+			name:                   "static matcher failure does not create user task",
+			presentVMs:             []types.Server{},
+			staticMatchers:         vmMatcherFn(),
+			wantInstalledInstances: []string{},
+			runError:               azureError(403, "AuthorizationFailed", "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"),
+			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+				require.EventuallyWithT(t, func(c *assert.CollectT) {
+					tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
+					require.NoError(c, err)
+					require.Empty(c, tasks)
+				}, 3*time.Second, 100*time.Millisecond)
+			},
 		},
 	}
 
@@ -3148,7 +3239,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			runClient := &mockAzureRunCommandClient{}
+			runClient := &mockAzureRunCommandClient{
+				runErr: tc.runError,
+			}
 
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
@@ -3237,11 +3330,16 @@ func TestAzureVMDiscovery(t *testing.T) {
 				} else {
 					require.Equal(c, tc.wantInstalledInstances, runClient.getInstalled())
 				}
-				// all current tests install at least one VM, so this cannot be zero.
-				// multiple installations will trigger just one event.
-				const expectedEventCount = 1
-				require.Equal(c, expectedEventCount, reporter.ResourceCreateEventCount())
+				expectedEvents := 1
+				if tc.runError != nil {
+					expectedEvents = 0
+				}
+				require.Equal(c, expectedEvents, reporter.ResourceCreateEventCount())
 			}, 500*time.Millisecond, 50*time.Millisecond)
+
+			if tc.userTasksCheck != nil {
+				tc.userTasksCheck(t, tlsServer.Auth())
+			}
 
 			// make sure azure client cache has expected entries
 			for _, integrationName := range tc.expectedIntegrationNames {
