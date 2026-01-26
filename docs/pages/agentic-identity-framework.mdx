@@ -34,7 +34,7 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 
 <LandingHero
   title="Teleport Agentic Identity Framework"
-  subTitle="Agentic Identity • Agentic Access • Agentic Security • Scheduling and Orchestration"
+  subTitle="Design and reference implementation for the secure deployment of agents on infrastructure."
   image={agenticAiImg}
   links={[
     {
@@ -94,7 +94,8 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
     },
   ]}
 >
-  The Teleport Agentic Identity Framework is a standards-driven security architecture and a reference implementation for deploying AI agents across infrastructure. It provides designs and reference implementations for safe agent adoption across infrastructure with built-in security invariants, observability, and governance. The framework is architected for the pace and scale of AI, enabling engineers to integrate security into agentic systems from the initial design phase.
+  Use cases and solutions with built-in security invariants, observability, and governance.
+  Integrate security into agentic systems from the initial design phase.
 </LandingHero>
 
 <EnrollmentMethods 
@@ -110,27 +111,34 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   >
     Agents operate on behalf of principals while preserving approval/authorization workflows.
    <hr />
-    Delegation flows  
-    Session management  
-    Access Requests
+    <ul>
+    <li><a href="https://github.com/gravitational/teleport/blob/master/rfd/0238-delegating-access-to-ai-workloads.md">Delegation Flows</a></li>
+    <li><a href="https://github.com/gravitational/teleport/blob/master/rfd/0238-delegating-access-to-ai-workloads.md#starting-a-session-from-tsh">Session Management</a></li>
+    <li><a href="https://github.com/gravitational/teleport/blob/master/rfd/0238-delegating-access-to-ai-workloads.md#access-controls">Access Control</a></li>
+    </ul>
   </Method>
   <Method
     title="Identity for long-running agents"
     progressStatus="In-progress"
   >
-    Durable identity for long-running agents with verification and rotation patterns.
+    Identity for long-running agents without shared secrets, with attestation and revocation.
     <hr />
-    Attestation
-    Renewal/issuance
+    <ul>
+        <li>[Issuing Identity](machine-workload-identity/workload-identity/introduction.mdx)</li>
+        <li>[Attestation](reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx)</li>
+        <li>[Revocation](reference/machine-workload-identity/workload-identity/revocations.mdx)</li>
+    </ul>
   </Method>
   <Method
     title="Identity for LLM apps"
-    progressStatus="Started"
+    progressStatus="In-progress"
   >
-    Every agent has a unique cryptographic identity that can be audited.
+    Building LLM applications accessing external resources.
     <hr />
-    Framework integration
-    Identity provider integration
+    <ul>
+        <li>[JWT MCP Authenticaction](enroll-resources/mcp-access/jwt.mdx)</li>
+        <li>Identity provider integration</li>
+    </ul>
   </Method>
 </EnrollmentMethods>
 
@@ -145,11 +153,13 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
     title="MCP Access"
     progressStatus="In-progress"
   >
-   Securely authorize and observe agent calls to databases, services, and infrastructure using MCP.
+   Access and audit agent calls to databases, services, and infrastructure using MCP.
    <hr />
-    Client and server proxying  
-    Authorization
-    Authentication
+   <ul>
+    <li>[MCP Servers](connect-your-client/model-context-protocol/mcp-access.mdx)</li>
+    <li>[Databases](connect-your-client/model-context-protocol/database-access.mdx)</li>
+    <li>[Kubernetes Clusters](connect-your-client/model-context-protocol/kube-access.mdx)</li>
+   </ul>
   </Method>
   <Method
     title="MCP Catalog"
@@ -157,20 +167,24 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
   >
     Discover MCP servers across infrastructure, track drift over time, and reduce unmanaged endpoints.
     <hr />
-    Discovery  
-    Tracking changes and provenance  
-    Access control
+    <ul>
+        <li>[Dynamic Registration](enroll-resources/mcp-access/dynamic-registration.mdx)</li>
+        <li>[Access Control](enroll-resources/mcp-access/rbac.mdx)</li>
+        <li>Tracking Changes and Provenance</li>
+    </ul>
   </Method>
   <Method
     title="LLM Access"
-    progressStatus="In-progress"
+    progressStatus="Not started"
   >
     Control and observe LLM usage across teams with rate limiting, budgeting, model routing, and prompt/response tracking.
     <hr />
-    Guardrails  
-    Rate limiting  
-    Budgeting  
-    Multiplexing
+    <ul>
+        <li>Guardrails</li>
+        <li>Rate limiting</li>
+        <li>Budgeting</li>
+        <li>Multiplexing</li>
+    </ul>
   </Method>
 </EnrollmentMethods>
 
@@ -183,21 +197,25 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 >
   <Method
     title="Visibility & Discovery"
-    progressStatus="Started"
+    progressStatus="In-progress"
   >
    Continuous discovery, detection, and policy violation insights for agents and MCP endpoints.
    <hr />
-    Analytics  
-    Discovery
+    <ul>
+       <li>[Exploring Access Paths and Activity](identity-security/usage/usage.mdx)</li>
+       <li>Discovery</li>
+    </ul>
   </Method>
   <Method
     title="Audit & Security"
-    progressStatus="Started"
+    progressStatus="In-progress"
   >
     Comprehensive audit trails and behavior analysis for agent actions across infrastructure.
     <hr />
-    Session Recording and audit  
-    Behavior analysis  
+    <ul>
+      <li>[Session Recording and Audit](reference/audit-events.mdx#mcpsessionend)</li>
+      <li>Behavior analysis</li>
+    </ul>
   </Method>
 </EnrollmentMethods>
 
