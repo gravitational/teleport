@@ -128,6 +128,17 @@ Additionally, in case of a serious vulnerability, a patch release could
 modify [autoupdate thresholds for the app](https://github.com/gravitational/teleport/blob/07aa75612674e1f19a0f40ae61c9e370f25a876e/web/packages/teleterm/src/services/appUpdater/clientToolsUpdateProvider.ts#L163-L166)
 (and for the service) to disallow updates from a version N-1.x.x to release below certain N.x.x version.
 
+There is an open question whether the no-downgrade policy should also apply to versions specified via the
+`TELEPORT_TOOLS_VERSION` environment variable or the `ToolsVersion` registry value.
+
+The `TELEPORT_TOOLS_VERSION` environment variable was originally designed to pin a specific version for debugging,
+testing, or manual update scenarios for CLI tools. It was implemented in Connect primarily for compatibility; however,
+changing the version of a desktop application through an environment variable is neither common nor convenient. While
+moving update control to the system registry improves the user experience, it does not seem to justify increasing
+the complexity of the autoupdate rules by allowing downgrades in certain cases.
+
+For most users, it is sufficient to disable updates entirely by setting the value to `off`.
+
 #### Update Process
 
 1. Download an update.
@@ -155,6 +166,8 @@ modify [autoupdate thresholds for the app](https://github.com/gravitational/tele
       pipe.
 
 4. Staging the update file.
+    - To prevent excessive disk usage, the service clears the `%ProgramData%\TeleportConnect\Updates` directory before
+      storing the new file.
     - The service stores the binary stream to a new, unique, system-protected directory under:
       ```
       %ProgramData%\TeleportConnect\Updates\<GUID>
@@ -167,8 +180,11 @@ modify [autoupdate thresholds for the app](https://github.com/gravitational/tele
     - The `\Updates\` directory is restricted to Administrators and LocalSystem and cleared before use.
 
 5. Validation.
+    - Read the `ToolsVersion` value from `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\TeleportConnect`.
+        - If the value is set to `off`, the service exits early.
+        - If the value is a semver string, the service checks if update version matches it.
     - Ensure the passed update version is newer than the service (`tsh.exe`) version.
-    - Download and verify the SHA256 checksum for the target Teleprot Connect version to prevent the service from
+    - Download and verify the SHA256 checksum for the target Teleport Connect version to prevent the service from
       installing *any* binary if the service is unsigned.
     - Verify the binary is signed by the same organization (if the service itself is signed).
 
