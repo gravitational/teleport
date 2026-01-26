@@ -176,7 +176,8 @@ func WriteRoleAssignment(pin *scopesv1.Pin, assignment RoleAssignment) error {
 }
 
 // AssignmentTreeFromMap builds an assignment tree from a nested mapping of the form scopeOfOrigin -> scopeOfEffect -> roles. This is useful
-// for tests as it greatly simplifies the construction of asssignment tree literals, which are difficult and verbose to build by hand.
+// for tests as it greatly simplifies the construction of asssignment tree literals, which are difficult and verbose to build by hand. Note that
+// this function does not perform any validation and should not be used to build pins for production use.
 func AssignmentTreeFromMap(m map[string]map[string][]string) *scopesv1.AssignmentNode {
 	var pin scopesv1.Pin
 	for scopeOfOrigin := range m {
@@ -192,6 +193,28 @@ func AssignmentTreeFromMap(m map[string]map[string][]string) *scopesv1.Assignmen
 	}
 
 	return pin.AssignmentTree
+}
+
+// AssignmentTreeIntoMap converts an assignment tree back into a nested map of the form scopeOfOrigin -> scopeOfEffect -> roles.
+// This is the inverse of AssignmentTreeFromMap and is useful for debug logging and tests.
+func AssignmentTreeIntoMap(tree *scopesv1.AssignmentNode) map[string]map[string][]string {
+	if tree == nil {
+		return nil
+	}
+
+	out := make(map[string]map[string][]string)
+
+	for assignment := range EnumerateAllAssignments(&scopesv1.Pin{AssignmentTree: tree}) {
+		if out[assignment.ScopeOfOrigin] == nil {
+			out[assignment.ScopeOfOrigin] = make(map[string][]string)
+		}
+		out[assignment.ScopeOfOrigin][assignment.ScopeOfEffect] = append(
+			out[assignment.ScopeOfOrigin][assignment.ScopeOfEffect],
+			assignment.RoleName,
+		)
+	}
+
+	return out
 }
 
 // WriteRoleAssignmentUnchecked is like WriteRoleAssignment, but does not perform any validation on the pin or assignment. This is useful

@@ -372,13 +372,16 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 	if pin := sshIdent.ScopePin; pin != nil {
 		scope = pin.GetScope()
 		scopedRoles = make(map[string][]string)
+
 		// TODO(fspmarshall/scopes): reassess how we display scoped roles. Should we show scope of origin
 		// in addition to scope of effect? Should we indicate evaluation order? For now, we flatten the
-		// tree by grouping roles by their scope of effect (where they apply).
+		// tree by grouping roles by their scope of effect (where they apply). This is more visually understandable
+		// at a glance, but the oversimplification is potentially misleading and may hamper debugging in certain
+		// scenarios.
+
 		// Enumerate the assignment tree and group roles by their scope of effect for display purposes
 		for assignment := range pinning.EnumerateAllAssignments(pin) {
-			scope := assignment.ScopeOfEffect
-			scopedRoles[scope] = append(scopedRoles[scope], assignment.RoleName)
+			scopedRoles[assignment.ScopeOfEffect] = append(scopedRoles[assignment.ScopeOfEffect], assignment.RoleName)
 		}
 	}
 

@@ -97,10 +97,10 @@ func (a *Server) accessCheckerForScope(ctx context.Context, scope string, userSt
 	// build the user's access info based on the scope pin and userState
 	accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
 
-	// create a scoped access checker context. Note that the context does not itself determine access without
-	// knowing the target resource scope. For certificate generation, we will need to enumerate possible
-	// permissions across all roles in the pin, as we cannot determine upfront which specific role will grant
-	// access to any given resource.
+	// create a scoped access checker context. Note that scoped certificate parameters differ from unscoped
+	// certificate parameters in that they are generally not role-determined. We still need to create the full
+	// checker context as there are select exceptions where scoped roles do matter, and because the checker context
+	// abstraction also handles non-role-determined certificate perameter calculation.
 	scopedCheckerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,6 +252,9 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		// TODO(fspmarshall/scopes): its a little strange to use CertParams here as this isn't really a certificate
+		// specific calculation. Once we have a clearer idea of what PrivateKeyPolicy means in a scoped context,
+		// consider moving this method to a more appropriate location.
 		privateKeyPolicy, err := props.checkerContext.CertParams().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		if err != nil {
 			return trace.Wrap(err)

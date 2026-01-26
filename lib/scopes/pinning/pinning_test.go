@@ -777,3 +777,112 @@ func TestEnumerateAllAssignments(t *testing.T) {
 		})
 	}
 }
+
+// TestAssignmentTreeMapConversions verifies that AssignmentTreeFromMap and AssignmentTreeIntoMap correctly
+// convert between the map and tree representations. This test validates both functions
+// by ensuring that map -> tree -> map produces the same result as the original map.
+func TestAssignmentTreeMapConversions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input map[string]map[string][]string
+	}{
+		{
+			name:  "nil map",
+			input: nil,
+		},
+		{
+			name: "single role at root",
+			input: map[string]map[string][]string{
+				"/": {
+					"/": {"role1"},
+				},
+			},
+		},
+		{
+			name: "multiple roles at single scope combination",
+			input: map[string]map[string][]string{
+				"/foo": {
+					"/foo": {"admin", "developer", "viewer"},
+				},
+			},
+		},
+		{
+			name: "hierarchical assignments",
+			input: map[string]map[string][]string{
+				"/": {
+					"/":        {"root-global"},
+					"/staging": {"root-staging"},
+					"/prod":    {"root-prod"},
+				},
+				"/staging": {
+					"/staging":      {"staging-admin"},
+					"/staging/west": {"staging-west"},
+					"/staging/east": {"staging-east"},
+				},
+				"/staging/west": {
+					"/staging/west": {"west-local"},
+				},
+			},
+		},
+		{
+			name: "complex multi-branch tree",
+			input: map[string]map[string][]string{
+				"/": {
+					"/":        {"global"},
+					"/staging": {"staging-policy"},
+					"/prod":    {"prod-policy"},
+				},
+				"/staging": {
+					"/staging":      {"staging-base"},
+					"/staging/west": {"west-admin", "west-user"},
+					"/staging/east": {"east-admin", "east-user"},
+				},
+				"/prod": {
+					"/prod":    {"prod-base"},
+					"/prod/us": {"us-admin"},
+					"/prod/eu": {"eu-admin", "eu-auditor"},
+				},
+				"/staging/west": {
+					"/staging/west": {"west-dev", "west-ops"},
+				},
+			},
+		},
+		{
+			name: "deep hierarchy",
+			input: map[string]map[string][]string{
+				"/": {
+					"/":                      {"r1"},
+					"/a":                     {"r2"},
+					"/a/b":                   {"r3"},
+					"/a/b/c":                 {"r4"},
+					"/a/b/c/d":               {"r5"},
+					"/a/b/c/d/e":             {"r6"},
+					"/a/b/c/d/e/f":           {"r7"},
+					"/a/b/c/d/e/f/g":         {"r8"},
+					"/a/b/c/d/e/f/g/h":       {"r9"},
+					"/a/b/c/d/e/f/g/h/i":     {"r10"},
+					"/a/b/c/d/e/f/g/h/i/j":   {"r11"},
+					"/a/b/c/d/e/f/g/h/i/j/k": {"r12"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tree := AssignmentTreeFromMap(tt.input)
+
+			got := AssignmentTreeIntoMap(tree)
+
+			if tt.input == nil {
+				require.Nil(t, tree, "tree should be nil for nil input")
+				require.Nil(t, got, "result should be nil for nil input")
+				return
+			}
+
+			require.Equal(t, tt.input, got, "round-trip conversion should preserve all assignments")
+		})
+	}
+}
