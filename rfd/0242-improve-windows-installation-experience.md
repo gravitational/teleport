@@ -166,18 +166,21 @@ For most users, it is sufficient to disable updates entirely by setting the valu
       pipe.
 
 4. Staging the update file.
-    - To prevent excessive disk usage, the service clears the `%ProgramData%\TeleportConnect\Updates` directory before
-      storing the new file.
+    - Ensure `%ProgramData%\TeleportConnect\Updates\` directory exists.
+        - First try to creat a directory with correct ACLs.
+        - If `ERROR_ALREADY_EXISTS` error is returned, open a handle and verify it is a directory and has correct ACLs.
+        - If there is a mismatch, return an error.
+        - Remove all contents (subdirectories and files) within `%ProgramData%\TeleportConnect\Updates\` to ensure an
+          empty staging area (and avoid excessive disk usage).
     - The service stores the binary stream to a new, unique, system-protected directory under:
       ```
       %ProgramData%\TeleportConnect\Updates\<GUID>
       ```
-   An attacker could use the service to simply copy arbitrary files into our secure `%ProgramData%` location. For
-   example, they could first copy a malicious version.dll (loaded by almost every executable out there), then copy a
-   properly signed executable and have it executed. The malicious DLL could then be loaded from the same directory,
-   resulting in another LPE vector. This can be mitigated by creating a unique subdirectory for each service
-   invocation.
-    - The `\Updates\` directory is restricted to Administrators and LocalSystem and cleared before use.
+      An attacker could use the service to simply copy arbitrary files into our secure `%ProgramData%` location. For
+      example, they could first copy a malicious version.dll (loaded by almost every executable out there), then copy a
+      properly signed executable and have it executed. The malicious DLL could then be loaded from the same directory,
+      resulting in another LPE vector. This can be mitigated by creating a unique subdirectory for each service
+      invocation.
 
 5. Validation.
     - Read the `ToolsVersion` value from `HKEY_LOCAL_MACHINE\SOFTWARE\Policies\TeleportConnect`.
