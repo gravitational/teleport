@@ -2620,13 +2620,13 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
-// checkConditionalAccess evaluates access based on the provided resource, traits, states, and matchers.
+// checkConditionalAccess evaluates access based on the provided resource, traits, states, and matchers. If
 func (set RoleSet) checkConditionalAccess(
 	r AccessCheckable,
 	traits wrappers.Traits,
 	state AccessState,
 	matchers ...RoleMatcher,
-) ([]*decisionpb.Precondition, error) {
+) (map[decisionpb.PreconditionKind]struct{}, error) {
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2638,7 +2638,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	// Collect preconditions to return to the caller.
-	preconds := make(preconditionsSet)
+	preconds := make(map[decisionpb.PreconditionKind]struct{})
 
 	// Based on the state, check if MFA is always required and just hasn't been verified yet.
 	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
@@ -2816,7 +2816,7 @@ func (set RoleSet) checkConditionalAccess(
 	}
 
 	if allowed {
-		return preconds.ToSlice(), nil
+		return preconds, nil
 	}
 
 	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
@@ -2854,26 +2854,6 @@ func (set RoleSet) CheckDeviceAccess(state AccessState) error {
 		}
 	}
 	return nil
-}
-
-// preconditionsSet is a set of unique preconditions.
-type preconditionsSet map[decisionpb.PreconditionKind]struct{}
-
-// ToSlice converts the precondition set to a slice. This returns a slice of *decisionpb.Precondition structs for future
-// extensibility, even though currently it only contains the Kind field.
-func (p preconditionsSet) ToSlice() []*decisionpb.Precondition {
-	preconds := make([]*decisionpb.Precondition, 0, len(p))
-
-	for kind := range p {
-		preconds = append(
-			preconds,
-			&decisionpb.Precondition{
-				Kind: kind,
-			},
-		)
-	}
-
-	return preconds
 }
 
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]

@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"slices"
 	"sort"
 	"testing"
 
@@ -730,11 +729,10 @@ func TestAccessChecker_CheckConditionalAccess_StateMFAAlwaysRequired_ReturnsPrec
 		},
 	)
 	require.NoError(t, err)
-	require.True(
+	require.Contains(
 		t,
-		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		}),
+		preconds,
+		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
 		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
 	)
 }
@@ -774,11 +772,10 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ReturnsPreconditio
 		},
 	)
 	require.NoError(t, err)
-	require.True(
+	require.Contains(
 		t,
-		slices.ContainsFunc(preconds, func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		}),
+		preconds,
+		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
 		"got preconditions: %v, expected PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA to be included", preconds,
 	)
 }

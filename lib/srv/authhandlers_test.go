@@ -103,9 +103,9 @@ type mockLoginChecker struct {
 	rbacChecked bool
 }
 
-func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, error) {
+func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, map[decisionpb.PreconditionKind]struct{}, error) {
 	m.rbacChecked = true
-	return nil, nil
+	return nil, nil, nil
 }
 
 type mockGitForwardingChecker struct {
@@ -922,7 +922,7 @@ func TestRBACJoinMFA(t *testing.T) {
 			ident, err := sshca.DecodeIdentity(cert)
 			require.NoError(t, err)
 
-			_, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
+			_, _, err = ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 		})
 	}

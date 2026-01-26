@@ -42,7 +42,7 @@ func TestKeyboardInteractiveAuth_NoPreconds(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
+	preconds := map[decisionpb.PreconditionKind]struct{}{
 		// No preconditions.
 	}
 
@@ -69,10 +69,8 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+	preconds := map[decisionpb.PreconditionKind]struct{}{
+		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA: {},
 	}
 
 	inPerms := &ssh.Permissions{
@@ -142,10 +140,8 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_LegacyPublicKeyCallback_Regula
 
 	id.MFAVerified = "" // Simulate no MFA verification, indicating a regular SSH certificate.
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+	preconds := map[decisionpb.PreconditionKind]struct{}{
+		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA: {},
 	}
 
 	inPerms := &ssh.Permissions{}
@@ -175,10 +171,8 @@ func TestKeyboardInteractiveAuth_ForceInBandMFAEnv_DisablesLegacyPublicKeyCallba
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+	preconds := map[decisionpb.PreconditionKind]struct{}{
+		decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA: {},
 	}
 
 	inPerms := &ssh.Permissions{}
@@ -206,10 +200,8 @@ func TestKeyboardInteractiveAuth_PreCondUnknownKind(t *testing.T) {
 
 	h, id := setupKeyboardInteractiveAuthTest(t)
 
-	preconds := []*decisionpb.Precondition{
-		{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED,
-		},
+	preconds := map[decisionpb.PreconditionKind]struct{}{
+		decisionpb.PreconditionKind_PRECONDITION_KIND_UNSPECIFIED: {},
 	}
 
 	inPerms := &ssh.Permissions{}

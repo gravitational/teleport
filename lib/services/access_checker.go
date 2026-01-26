@@ -66,9 +66,9 @@ type AccessChecker interface {
 	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 
 	// CheckConditionalAccess checks conditional access to the specified resource. If access is granted, it returns a
-	// list of preconditions that must be satisfied. If access is denied, it returns an error. An empty list of
+	// set of preconditions that must be satisfied. If access is denied, it returns an error. An empty set of
 	// preconditions and a nil error indicates that no additional preconditions are required for access.
-	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error)
+	CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) (map[decisionpb.PreconditionKind]struct{}, error)
 
 	// CheckDeviceAccess verifies if the current device state satisfies the
 	// device trust requirements of the user's RoleSet.
@@ -548,7 +548,7 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 }
 
 // CheckConditionalAccess checks if the identity for this AccessChecker has conditional access to the given resource.
-func (a *accessChecker) CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) ([]*decisionpb.Precondition, error) {
+func (a *accessChecker) CheckConditionalAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) (map[decisionpb.PreconditionKind]struct{}, error) {
 	if err := a.checkAllowedResources(r); err != nil {
 		return nil, trace.Wrap(err)
 	}

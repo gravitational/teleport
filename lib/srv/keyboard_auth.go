@@ -21,7 +21,6 @@ package srv
 import (
 	"context"
 	"os"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -37,7 +36,7 @@ import (
 // authentication process.
 func (h *AuthHandlers) KeyboardInteractiveAuth(
 	ctx context.Context,
-	preconds []*decisionpb.Precondition,
+	preconds map[decisionpb.PreconditionKind]struct{},
 	id *sshca.Identity,
 	perms *ssh.Permissions,
 ) (*ssh.Permissions, error) {
@@ -78,8 +77,8 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	keyboardInteractiveCallback := func(metadata ssh.ConnMetadata, challenge ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
 		var verifiers []srvssh.PromptVerifier
 
-		for _, precond := range preconds {
-			switch precond.GetKind() {
+		for kind := range preconds {
+			switch kind {
 			case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 				// TODO(cthach): Use the source cluster name that the client will do the MFA ceremony with.
 				verifier, err := srvssh.NewMFAPromptVerifier(h.c.ValidatedMFAChallengeVerifier, id.ClusterName, id.Username, metadata.SessionID())
@@ -113,14 +112,14 @@ func (h *AuthHandlers) KeyboardInteractiveAuth(
 	}
 }
 
-func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
-	for _, precond := range preconds {
-		switch precond.GetKind() {
+func ensureSupportedPreconditions(preconds map[decisionpb.PreconditionKind]struct{}) error {
+	for kind := range preconds {
+		switch kind {
 		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
 			// OK
 
 		default:
-			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", kind)
 		}
 	}
 
@@ -128,16 +127,11 @@ func ensureSupportedPreconditions(preconds []*decisionpb.Precondition) error {
 }
 
 func denyRegularSSHCertsIfMFARequired(
-	preconds []*decisionpb.Precondition,
+	preconds map[decisionpb.PreconditionKind]struct{},
 	id *sshca.Identity,
 ) error {
 	// Determine if MFA is required based on the provided preconditions.
-	mfaRequired := slices.ContainsFunc(
-		preconds,
-		func(p *decisionpb.Precondition) bool {
-			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA
-		},
-	)
+	_, mfaRequired := preconds[decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA]
 
 	// A regular SSH certificate is one that does not have per-session MFA verification.
 	isRegularSSHCert := id.MFAVerified == "" && !id.PrivateKeyPolicy.MFAVerified()
