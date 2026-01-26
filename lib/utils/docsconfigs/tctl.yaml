@@ -8,3 +8,11 @@ introduction: |-
 
   For a conceptual overview of `tctl`, see [Getting Started with
   `tctl`](../../zero-trust-access/infrastructure-as-code/using-tctl.mdx).
+
+flag_default_overrides:
+  - full_command: tctl recordings download
+    flag: output-dir
+    value: "<current working directory>"
+  - full_command: tctl plugins install github
+    flag: start-date
+    value: "<today>"
