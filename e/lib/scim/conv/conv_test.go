@@ -15,6 +15,9 @@ import (
 func TestUserConv(t *testing.T) {
 	attrs, err := structpb.NewStruct(map[string]any{
 		common.UsernameAttribute: "alice@example.com",
+		"active":                 true,
+		"name":                   map[string]any{"givenName": "Alice", "familyName": "Okta"},
+		"password":               "pa$$word", // should be omitted
 	})
 	require.NoError(t, err)
 	want := &scimpb.Resource{
@@ -42,7 +45,17 @@ func TestUserConv(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.GetMeta().GetCreated())
 	got.Meta.Created = nil
+	deleteProtoField(t, &want.Attributes, "password")
 	require.Equal(t, want, got)
+}
+
+func deleteProtoField(t *testing.T, s **structpb.Struct, field string) {
+	t.Helper()
+	m := (*s).AsMap()
+	delete(m, field)
+	var err error
+	*s, err = structpb.NewStruct(m)
+	require.NoError(t, err)
 }
 
 func TestGroupConv(t *testing.T) {

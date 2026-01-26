@@ -1,6 +1,7 @@
 package conv
 
 import (
+	"encoding/json"
 	"maps"
 
 	"github.com/gravitational/trace"
@@ -12,6 +13,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
 // WithUserOptionClock sets the clock to be used for time-based operations.
@@ -78,9 +80,11 @@ func UserFromResource(r *scimpb.Resource, opts ...UserResourceOption) (types.Use
 		Time:      options.clock.Now().UTC(),
 		Connector: options.connectorRef,
 	})
-
 	user.SetRevision(ResourceVersion(r))
-	addLabel(user, options.labels)
+	if err := SetSCIMAttrsInUserLabel(user, r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	addLabels(user, options.labels)
 	return user, nil
 }
 
@@ -96,7 +100,7 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 	if options.externalIDFn != nil {
 		externalID = options.externalIDFn(user)
 	}
-	resource := scimpb.Resource{
+	resource := &scimpb.Resource{
 		Id:         user.GetName(),
 		ExternalId: externalID,
 		Meta: &scimpb.Meta{
@@ -105,17 +109,67 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 			ResourceType: common.ResourceTypeUser,
 		},
 	}
-	attrs := map[string]any{common.UsernameAttribute: user.GetName()}
-	if len(options.groups) > 0 {
-		attrs[common.GroupsAttribute] = ToSCIMGroups(options.groups)
+	if err := setSCIMAttrsInResource(resource, user, options.groups); err != nil {
+		return nil, trace.Wrap(err, "setting SCIM resource attributes from user label")
 	}
-	protoAttrs, err := structpb.NewStruct(attrs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resource.Attributes = protoAttrs
 
-	return &resource, nil
+	return resource, nil
+}
+
+// SetSCIMAttrsInUserLabel sets "teleport.internal/scim-attrs" label to JSON formatted SCIM
+// attributes present in the provided SCIM resource. This information is used to provide the same
+// attributes in any subsequent SCIM response resource.
+func SetSCIMAttrsInUserLabel(u types.User, r *scimpb.Resource) error {
+	// 100 KB is 1/4 of DynamoDB 400KB per-item limit. In case of Okta we also need roughly as
+	// much for traits from the app profile and traits from SAML attributes.
+	return setSCIMAttrsInUserLabel(u, r, 100*1024)
+}
+
+// setSCIMAttrsInUserLabel is extracted for testing.
+func setSCIMAttrsInUserLabel(u types.User, r *scimpb.Resource, maxSCIMAttrsLabelSize int) error {
+	fields := r.GetAttributes().GetFields()
+	if fields == nil {
+		return nil
+	}
+
+	// delete password field if Okta sets it, we don't want to leak it
+	delete(fields, common.PasswordAttribute)
+
+	scimAttrsJSON, err := json.Marshal(fields)
+	if err != nil {
+		return trace.Wrap(err, "JSON encoding SCIM attributes")
+	}
+	// restrict the label value size to maxSCIMAttrsLabelSize
+	if len(scimAttrsJSON) > maxSCIMAttrsLabelSize {
+		return trace.BadParameter("teleport.internal/scim-attrs label value too large (max = [%d], actual = [%d]); reduce the number or trim the values of the attributes in your Okta SCIM app profile", maxSCIMAttrsLabelSize, len(scimAttrsJSON))
+	}
+
+	addLabel(u, eteleport.SCIMAttrsLabel, string(scimAttrsJSON))
+	return nil
+}
+
+// SetSCIMAttrsLabel sets SCIM resource attributes read  from JSON formatted
+// "teleport.internal/scim-attrs" user label. The only exception is the "userName" attribute which
+// is always set to the Teleport user's name.
+func setSCIMAttrsInResource(r *scimpb.Resource, u types.User, extraGroups []string) error {
+	var attrs map[string]any
+	if attrsJSON, _ := u.GetLabel(eteleport.SCIMAttrsLabel); attrsJSON != "" {
+		if err := json.Unmarshal([]byte(attrsJSON), &attrs); err != nil {
+			return trace.Wrap(err, "JSON encoding user's SCIM attributes")
+		}
+		attrs[common.UsernameAttribute] = u.GetName()
+	} else {
+		attrs = map[string]any{common.UsernameAttribute: u.GetName()}
+	}
+	if len(extraGroups) > 0 {
+		attrs[common.GroupsAttribute] = ToSCIMGroups(extraGroups)
+	}
+	attrsProto, err := structpb.NewStruct(attrs)
+	if err != nil {
+		return trace.Wrap(err, "creating new protobuf struct")
+	}
+	r.Attributes = attrsProto
+	return nil
 }
 
 // UserResourceOption is a function that modifies the user resource options.
@@ -134,10 +188,20 @@ type labelsGetterSetter interface {
 	SetStaticLabels(map[string]string)
 }
 
-func addLabel(r labelsGetterSetter, m map[string]string) {
+func addLabel(r labelsGetterSetter, k, v string) {
 	labels := r.GetStaticLabels()
 	if labels == nil {
-		labels = make(map[string]string)
+		labels = map[string]string{k: v}
+	} else {
+		labels[k] = v
+	}
+	r.SetStaticLabels(labels)
+}
+
+func addLabels(r labelsGetterSetter, m map[string]string) {
+	labels := r.GetStaticLabels()
+	if labels == nil {
+		labels = make(map[string]string, len(m))
 	}
 	maps.Copy(labels, m)
 	r.SetStaticLabels(labels)

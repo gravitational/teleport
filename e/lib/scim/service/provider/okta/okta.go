@@ -134,6 +134,9 @@ func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 	if err := s.evaluateSAMLConnector(ctx, teleportUser); err != nil {
 		return nil, trace.Wrap(err, "setting user %q roles and traits from connector", teleportUser.GetName())
 	}
+	if err := conv.SetSCIMAttrsInUserLabel(teleportUser, res); err != nil {
+		return nil, trace.Wrap(err, "setting user scim-attrs label")
+	}
 
 	return teleportUser, nil
 }
@@ -221,9 +224,7 @@ func (s *oktaShim) OnCreatedUser(ctx context.Context, createdUser types.User, re
 	log := s.Logger.With("user", createdUser.GetName())
 	log.InfoContext(ctx, "Ensuring newly-created user has no SCIM locks")
 
-	err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated},
-		s.oktaOrgURL(), s.LocksService)
-	if err != nil {
+	if err := okta.UnlockUser(ctx, createdUser, []string{okta.LockReasonDeactivated}, s.oktaOrgURL(), s.LocksService); err != nil {
 		// This is probably not enough of a reason to fail the provisioning, but
 		// it should be logged
 		log.ErrorContext(ctx, "Failed unlocking user", "error", err)
@@ -231,64 +232,56 @@ func (s *oktaShim) OnCreatedUser(ctx context.Context, createdUser types.User, re
 	return nil
 }
 
-// oktaUserResource describes the Okta-specific attributes for a user
-type oktaUserResource struct {
+// scimUserResource describes the Okta-specific attributes for a user
+type scimUserResource struct {
 	UserName string `mapstructure:"userName"`
 	Active   *bool  `mapstructure:"active"`
 }
 
 // OnUpdatingUser handles a user update request. Okta piggybacks user activation
 // and deactivation into "update" messages
-func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (types.User, bool, error) {
-	log := s.Logger.With("user", teleportUser.GetName())
-
-	var oktaUser oktaUserResource
-	if err := mapstructure.Decode(res.Attributes.AsMap(), &oktaUser); err != nil {
+func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (_ types.User, needsUpdate bool, _ error) {
+	var scimUser scimUserResource
+	if err := mapstructure.Decode(res.Attributes.AsMap(), &scimUser); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
 
-	// Okta uses the "active" attribute as a signal rather than as a simple
-	// attribute; there are three possible states:
-	//  true:  Okta is signaling that it wants to activate the account, either
-	//         as a new account, or re-activating a suspended account
-	//  false: Okta is signaling that the user has been disabled, and we should
-	//         take action to lock the user out.
-	// absent: Business as usual; a normal status update
-	//
-	//  See: https://developer.okta.com/docs/reference/scim/scim-20/#create-users
-	if oktaUser.Active != nil {
-		// if this is an activation request...
-		if (*oktaUser.Active) == true {
-			log.DebugContext(ctx, "Okta activating user - unlocking")
-			err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated},
-				s.oktaOrgURL(), s.LocksService)
+	needsUpdate = true
+
+	// If the user is deactivated, we create a lock to invalidate their session and delete it
+	// from the backend. Okta doesn't send DELETE requests.
+	// https://developer.okta.com/docs/api/openapi/okta-scim/guides/scim-20/#delete-users
+	if scimUser.Active != nil {
+		if *scimUser.Active {
+			// If active is explicitly set remove all SCIM locks.
+			//
+			// TODO(kopiczko): consider removing the okta.UnlockUser call below. Locks
+			// with okta.LockReasonDeactivated reason are created only by the SCIM
+			// service. OnCreatedUser should remove the lock during users's creation.
+			if err := okta.UnlockUser(ctx, teleportUser, []string{okta.LockReasonDeactivated}, s.oktaOrgURL(), s.LocksService); err != nil {
+				return nil, false, trace.Wrap(err, "removing Okta user locks")
+			}
+		} else {
+			_, err := okta.LockUser(ctx, okta.LockParams{
+				User:     teleportUser,
+				Reason:   okta.LockReasonDeactivated,
+				Message:  "User deactivated by Okta",
+				OrgURL:   s.oktaOrgURL(),
+				Clock:    s.Clock,
+				LocksSvc: s.LocksService,
+				Logger:   s.Logger,
+			})
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			return teleportUser, false, nil
+			if err := s.UsersService.DeleteUser(ctx, teleportUser.GetName()); err != nil {
+				if !trace.IsNotFound(err) {
+					return nil, false, trace.Wrap(err)
+				}
+			}
+			needsUpdate = false // The user is deleted so no update.
 		}
 
-		// if we get to here, this is a deactivation request as per
-		// https://developer.okta.com/docs/reference/scim/scim-20/#delete-users
-		log.DebugContext(ctx, "Okta deactivating user - locking")
-		_, err := okta.LockUser(ctx, okta.LockParams{
-			User:     teleportUser,
-			Reason:   okta.LockReasonDeactivated,
-			Message:  "User deactivated by Okta",
-			OrgURL:   s.oktaOrgURL(),
-			Clock:    s.Clock,
-			LocksSvc: s.LocksService,
-			Logger:   s.Logger,
-		})
-		if err != nil {
-			return nil, false, trace.Wrap(err)
-		}
-		if err := s.UsersService.DeleteUser(ctx, teleportUser.GetName()); err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, false, trace.Wrap(err)
-			}
-		}
-		return teleportUser, false, nil
 	}
 
 	newUser, err := s.ResourceToUser(ctx, res)
@@ -298,9 +291,25 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 
 	// Things like the creation time, original creator, etc need to be preserved
 	// across the update.
-	okta.PreserveUserMetadata(newUser, teleportUser)
+	preserverUserMetadataSkipSCIMLabel(newUser, teleportUser)
 
-	return newUser, true, nil
+	return newUser, needsUpdate, nil
+}
+
+func preserverUserMetadataSkipSCIMLabel(dst, src types.User) {
+	scimAttrsLabelVal, scimAttrsLabelOK := dst.GetLabel(eteleport.SCIMAttrsLabel)
+
+	okta.PreserveUserMetadata(dst, src)
+
+	if scimAttrsLabelOK {
+		labels := dst.GetStaticLabels()
+		if labels == nil {
+			labels = map[string]string{eteleport.SCIMAttrsLabel: scimAttrsLabelVal}
+		} else {
+			labels[eteleport.SCIMAttrsLabel] = scimAttrsLabelVal
+		}
+		dst.SetStaticLabels(labels)
+	}
 }
 
 // resourceToUser constructs an in-memory Teleport user from the supplied

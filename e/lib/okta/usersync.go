@@ -421,6 +421,16 @@ func PreserveUserMetadata(dst, src types.User) {
 	dst.SetCreatedBy(src.GetCreatedBy())
 	dst.SetWeakestDevice(src.GetWeakestDevice())
 	dst.SetPasswordState(src.GetPasswordState())
+
+	if v, ok := src.GetLabel(eteleport.SCIMAttrsLabel); ok {
+		labels := dst.GetStaticLabels()
+		if labels == nil {
+			labels = map[string]string{eteleport.SCIMAttrsLabel: v}
+		} else {
+			labels[eteleport.SCIMAttrsLabel] = v
+		}
+		dst.SetStaticLabels(labels)
+	}
 }
 
 // reconcileUsers pulls the user list from an upstream okta organization and

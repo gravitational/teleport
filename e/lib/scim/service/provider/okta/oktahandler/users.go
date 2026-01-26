@@ -22,7 +22,7 @@ type ProviderUser interface {
 	// ResourceToUser converts a SCIM resource to a Teleport user.
 	ResourceToUser(context.Context, *scimpb.Resource) (types.User, error)
 	// OnUpdatingUser is called before updating a user.
-	OnUpdatingUser(context.Context, types.User, *scimpb.Resource) (types.User, bool, error)
+	OnUpdatingUser(context.Context, types.User, *scimpb.Resource) (_ types.User, needsUpdate bool, _ error)
 	// OnCreatedUser is called after creating a user.
 	OnCreatedUser(ctx context.Context, user types.User, resource *scimpb.Resource) error
 }
@@ -69,11 +69,11 @@ func (h *UserHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCIM
 		return nil, trace.CompareFailed("invalid revision: %q != %q", user.GetRevision(), req.GetResource().GetMeta().GetVersion())
 	}
 
-	updatedUser, saveUpdatedUser, err := h.OnUpdatingUser(ctx, user, req.GetResource())
+	updatedUser, needsUpdate, err := h.OnUpdatingUser(ctx, user, req.GetResource())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if saveUpdatedUser {
+	if needsUpdate {
 		updatedUser, err = h.UsersService.UpdateUser(ctx, updatedUser)
 		if err != nil {
 			return nil, trace.Wrap(err)

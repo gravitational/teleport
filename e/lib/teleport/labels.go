@@ -39,4 +39,9 @@ const (
 
 	// OktaACLReviewerRoleLabel is the label that indicates that a role is an Okta ACL reviewer role.
 	OktaACLReviewerRoleLabel = types.TeleportInternalLabelPrefix + "okta-accesslist-reviewer-role"
+
+	// SCIMAttrsLabel to store SCIM attributes from SCIM create/update requests. They are
+	// needed to be able to adhere to the SCIM spec but we are not yet sure how we'd like to
+	// structure them in the user type.
+	SCIMAttrsLabel = types.TeleportInternalLabelPrefix + "scim-attrs"
 )

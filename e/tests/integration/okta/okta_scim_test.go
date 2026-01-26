@@ -86,12 +86,18 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 	ctx := t.Context()
 	scimUserName := "test-user+001@example.com"
 	scimUserExternalID := "test-user-001"
+	scimUserExtraAttrs := scimsdk.AttributeSet{
+		"arbitrary_attr_name":   []any{"value"},
+		"arbitrary_attr_number": float64(8),
+	}
+
 	t.Run("Create SCIM User", func(t *testing.T) {
-		scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true}
+		scimUser := &scimsdk.User{ExternalID: scimUserExternalID, UserName: scimUserName, Active: true, Attributes: scimUserExtraAttrs}
 		createdUser, err := client.CreateUser(ctx, scimUser)
 		require.NoError(t, err)
 		require.NotNil(t, createdUser)
 		assertSCIMUserSchema(t, createdUser)
+		require.Equal(t, scimUserExtraAttrs, createdUser.Attributes)
 	})
 
 	t.Run("Get SCIM User", func(t *testing.T) {
@@ -99,14 +105,35 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		require.NoError(t, err)
 		require.Equal(t, scimUserName, user.UserName)
 		assertSCIMUserSchema(t, user)
+		require.Equal(t, scimUserExtraAttrs, user.Attributes)
 	})
 
 	t.Run("Update SCIM User", func(t *testing.T) {
 		user, err := client.GetUser(ctx, scimUserName)
 		require.NoError(t, err)
+
+		// update with no changes
 		updatedUser, err := client.UpdateUser(ctx, user)
 		require.NoError(t, err)
 		require.NotNil(t, updatedUser)
+		require.Equal(t, scimUserExtraAttrs, updatedUser.Attributes)
+
+		// attribute addition
+		const additionalAttr = "additional_attr"
+		updatedUser.Attributes[additionalAttr] = "additional_value"
+		extendedAttrs := updatedUser.Attributes
+		updatedUser, err = client.UpdateUser(ctx, updatedUser)
+		require.NoError(t, err)
+		require.NotNil(t, updatedUser)
+		require.NotEqual(t, scimUserExtraAttrs, updatedUser.Attributes)
+		require.Equal(t, extendedAttrs, updatedUser.Attributes)
+
+		// attribute removal
+		delete(updatedUser.Attributes, additionalAttr)
+		updatedUser, err = client.UpdateUser(ctx, updatedUser)
+		require.NoError(t, err)
+		require.NotNil(t, updatedUser)
+		require.Equal(t, scimUserExtraAttrs, updatedUser.Attributes)
 
 		t.Run("should handle nil values", func(t *testing.T) {
 			user, err = client.GetUser(ctx, scimUserName)
@@ -129,6 +156,7 @@ func testSCIMCRUD(t *testing.T, fakeOkta *fakeOktaServer, client scimsdk.Client)
 		// Instead of deleting the user, we deactivate the user.
 		user, err := client.GetUser(ctx, scimUserName)
 		require.NoError(t, err)
+		// Setting `user.Active = false` will not work because of the omitempty json tag.
 		user.Attributes = scimsdk.AttributeSet{"active": false}
 		_, err = client.UpdateUser(ctx, user)
 		require.NoError(t, err)
