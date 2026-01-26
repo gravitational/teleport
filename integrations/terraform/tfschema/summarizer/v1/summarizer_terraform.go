@@ -107,7 +107,7 @@ func GenSchemaInferenceModel(ctx context.Context) (github_com_hashicorp_terrafor
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"integration": {
-							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the auth server machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
+							Description: "Integration is the AWS OIDC Integration name. If unset, Teleport will use AWS credentials available on the Auth Service machine; otherwise, it will use the specified OIDC integration for assuming appropriate role.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
