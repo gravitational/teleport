@@ -11,6 +11,13 @@ export type DbIdentities = Required<
 >;
 
 export const emptyDbIdentities = (): DbIdentities => ({
-  db_names: [],
-  db_users: [],
+  db_names: undefined,
+  db_users: undefined,
 });
+
+/**
+ * Array for iteration in switch statements.
+ */
+export const dbIdentities = Object.keys(emptyDbIdentities()) as Array<
+  keyof DbIdentities
+>;

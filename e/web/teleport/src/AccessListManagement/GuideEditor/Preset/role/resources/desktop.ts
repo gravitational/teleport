@@ -13,3 +13,10 @@ export type DesktopIdentities = Required<
 export const emptyDesktopIdentities = (): DesktopIdentities => ({
   windows_desktop_logins: [],
 });
+
+/**
+ * Array for iteration in switch statements.
+ */
+export const desktopIdentities = Object.keys(emptyDesktopIdentities()) as Array<
+  keyof DesktopIdentities
+>;

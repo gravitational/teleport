@@ -13,3 +13,10 @@ export type ServerIdentities = Required<
 export const emptyServerIdentities = (): ServerIdentities => ({
   logins: [],
 });
+
+/**
+ * Array for iteration in switch statements.
+ */
+export const serverIdentities = Object.keys(emptyServerIdentities()) as Array<
+  keyof ServerIdentities
+>;

@@ -11,7 +11,7 @@ import {
  */
 export type AppIdentities = Required<
   // account_assignments is AWS IC specific - see AwsIcRoleConditions
-  Omit<ApplicationResourceAccess, 'app_labels' | 'account_assignments'>
+  Omit<ApplicationResourceAccess, 'app_labels' | 'account_assignments' | 'mcp'>
 > & {
   // mcp is just re-typed to make all fields in MCPPermissions required
   mcp: Required<MCPPermissions>;

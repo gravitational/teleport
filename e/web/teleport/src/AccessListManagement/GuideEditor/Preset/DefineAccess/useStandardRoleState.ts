@@ -10,19 +10,27 @@ import {
   StandardRoleConditions,
 } from '../role/conditions';
 import {
+  labelBasedResourceAccessFields,
   LabelBasedResourceAccessFields,
   ListResourceAccessFields,
 } from '../role/listaccess';
 import {
+  AppIdentities,
   appIdentityFieldNames,
   emptyAppIdentities,
   emptyRequiredAppIdentitiesWithFetchResult,
   RequiredAppIdentitiesWithFetchResult,
 } from '../role/resources/app';
 import { DbIdentities, emptyDbIdentities } from '../role/resources/db';
-import { emptyDesktopIdentities } from '../role/resources/desktop';
-import { emptyKubeIdentities } from '../role/resources/kube';
-import { emptyServerIdentities } from '../role/resources/server';
+import {
+  DesktopIdentities,
+  emptyDesktopIdentities,
+} from '../role/resources/desktop';
+import { emptyKubeIdentities, KubeIdentities } from '../role/resources/kube';
+import {
+  emptyServerIdentities,
+  ServerIdentities,
+} from '../role/resources/server';
 import { wildcard } from '../role/role';
 
 export type StandardRoleState = {
@@ -38,6 +46,12 @@ export type StandardRoleState = {
    * default empty states.
    */
   reset(): void;
+
+  /**
+   * Sets the entire role conditions state. Useful for initializing state
+   * in tests/stories.
+   */
+  setRoleConditions(conditions: StandardRoleConditions): void;
 
   /**
    * Tracks which app identity fields require user input based on the types
@@ -58,7 +72,10 @@ export type StandardRoleState = {
    * Resets requiredAppIdentities back to empty (no identities required).
    */
   clearRequiredAppIdentities(): void;
-
+  /**
+   * Returns true if any app identity field is marked as required.
+   */
+  hasRequiredAppIdentities(): boolean;
   /**
    * Scans fetched apps to determine which identity fields are required.
    * Sets the identity field to an empty array (required) when a matching
@@ -66,6 +83,29 @@ export type StandardRoleState = {
    * apps in the cluster matching `app_labels` have been fetched.
    */
   markRequiredAppIdentities(fetchedApps: App[], allPagesFetched: boolean): void;
+  /**
+   * Marks specific app identity fields as required.
+   */
+  markAppIdentityFieldsAsRequired(
+    fields: (keyof AppIdentities)[],
+    allPagesFetched: boolean
+  ): void;
+
+  /**
+   * Clears identity fields (e.g., db_users, kubernetes_groups) associated
+   * with the given resource label field. Returns the updated role conditions.
+   */
+  clearIdentities(
+    field: LabelBasedResourceAccessFields
+  ): StandardRoleConditions;
+
+  /**
+   * Returns true if the identity definition step can be skipped. This is
+   * can be the case when no access is defined, or certain types of resources
+   * do not require identities (e.g. certain application kinds do not require
+   * identities)
+   */
+  canSkipDefiningIdentities(): boolean;
 
   /**
    * Clears identity fields (e.g., db_users, kubernetes_groups) associated
@@ -104,6 +144,19 @@ export type StandardRoleState = {
    * Returns true if the given resource field has any access defined.
    */
   definedAccess(field: ListResourceAccessFields): boolean;
+
+  /**
+   * Merges the given identity fields into roleConditions. Use this to
+   * update identity values (e.g., db_users, logins) after user input.
+   */
+  updateIdentity(
+    identities:
+      | DbIdentities
+      | AppIdentities
+      | KubeIdentities
+      | ServerIdentities
+      | DesktopIdentities
+  ): void;
 };
 
 /**
@@ -171,6 +224,59 @@ export function useStandardRoleState(): StandardRoleState {
     setRequiredAppIdentities(emptyRequiredAppIdentitiesWithFetchResult());
   }
 
+  function markAppIdentityFieldsAsRequired(
+    fields: (keyof AppIdentities)[],
+    allPagesFetched: boolean
+  ) {
+    const newIdentities: RequiredAppIdentitiesWithFetchResult = {
+      ...requiredAppIdentities,
+      allPagesFetched,
+    };
+
+    for (const field of fields) {
+      switch (field) {
+        case 'aws_role_arns':
+        case 'azure_identities':
+        case 'gcp_service_accounts':
+          newIdentities[field] = [];
+          break;
+        case 'mcp':
+          newIdentities.mcp = { tools: [] };
+          break;
+        default:
+          field satisfies never;
+      }
+    }
+
+    setRequiredAppIdentities(newIdentities);
+  }
+
+  function hasRequiredAppIdentities() {
+    return appIdentityFieldNames.some(field => {
+      switch (field) {
+        case 'aws_role_arns':
+        case 'azure_identities':
+        case 'gcp_service_accounts':
+          return requiredAppIdentities[field] != null;
+        case 'mcp':
+          return requiredAppIdentities['mcp'].tools != null;
+        default:
+          field satisfies never;
+      }
+    });
+  }
+
+  function updateIdentity(
+    identities:
+      | DbIdentities
+      | AppIdentities
+      | KubeIdentities
+      | ServerIdentities
+      | DesktopIdentities
+  ) {
+    setRoleConditions({ ...roleConditions, ...identities });
+  }
+
   function getEmptyIdentities(field: LabelBasedResourceAccessFields) {
     switch (field) {
       case 'app_labels':
@@ -189,27 +295,7 @@ export function useStandardRoleState(): StandardRoleState {
   }
 
   function clearIdentities(field: LabelBasedResourceAccessFields) {
-    let emptyIdentities;
-    switch (field) {
-      case 'app_labels':
-        emptyIdentities = emptyAppIdentities();
-        break;
-      case 'db_labels':
-        emptyIdentities = emptyDbIdentities();
-        break;
-      case 'kubernetes_labels':
-        emptyIdentities = emptyKubeIdentities();
-        break;
-      case 'node_labels':
-        emptyIdentities = emptyServerIdentities();
-        break;
-      case 'windows_desktop_labels':
-        emptyIdentities = emptyDesktopIdentities();
-        break;
-      default:
-        field satisfies never;
-    }
-
+    const emptyIdentities = getEmptyIdentities(field);
     const updatedConditions = { ...roleConditions, ...emptyIdentities };
     setRoleConditions(updatedConditions);
 
@@ -286,19 +372,54 @@ export function useStandardRoleState(): StandardRoleState {
     }
   }
 
+  function canSkipDefiningIdentities() {
+    for (let i = 0; i < labelBasedResourceAccessFields.length; i++) {
+      const field = labelBasedResourceAccessFields[i];
+      if (definedAccess(field)) {
+        switch (field) {
+          // Not all app kinds will require app identities.
+          case 'app_labels':
+            if (hasRequiredAppIdentities()) {
+              return false;
+            }
+            continue;
+
+          case 'db_labels':
+          case 'kubernetes_labels':
+          case 'node_labels':
+          case 'windows_desktop_labels':
+            return false;
+
+          default:
+            field satisfies never;
+        }
+      }
+    }
+
+    // There was no access defined.
+    return true;
+  }
+
   return {
     roleConditions,
+    setRoleConditions,
     requiredAppIdentities,
     reset,
     definedAccess,
 
+    hasRequiredAppIdentities,
     clearRequiredAppIdentities,
     markRequiredAppIdentities,
+    markAppIdentityFieldsAsRequired,
+
+    canSkipDefiningIdentities,
 
     clearIdentities,
 
     updateLabels,
 
     updateGitHubPermissions,
+
+    updateIdentity,
   };
 }

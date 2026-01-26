@@ -20,6 +20,13 @@ export const emptyGitHubIdentities = (): GitHubIdentities => ({
   github_permissions: [],
 });
 
+/**
+ * Array for iteration in switch statements.
+ */
+export const gitHubIdentities = Object.keys(emptyGitHubIdentities()) as Array<
+  keyof GitHubIdentities
+>;
+
 export function getGitHubOrgs(ghPerm?: GitHubPermission[]): string[] {
   if (!ghPerm || !ghPerm.length) {
     return [];

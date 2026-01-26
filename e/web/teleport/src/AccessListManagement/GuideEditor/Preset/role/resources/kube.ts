@@ -18,3 +18,10 @@ export const emptyKubeIdentities = (): KubeIdentities => ({
   kubernetes_resources: [],
   kubernetes_users: [],
 });
+
+/**
+ * Array for iteration in switch statements.
+ */
+export const kubeIdentities = Object.keys(emptyKubeIdentities()) as Array<
+  keyof KubeIdentities
+>;
