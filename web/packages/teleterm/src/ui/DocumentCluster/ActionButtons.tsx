@@ -43,12 +43,14 @@ import {
   MenuLoginProps,
 } from 'shared/components/MenuLogin';
 import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
+import { AppSubKind } from 'shared/services';
 import { getAppProtocol } from 'shared/services/apps';
 
 import {
   doesMcpAppSupportGateway,
   formatPortRange,
   getAwsAppLaunchUrl,
+  getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
   isMcp,
@@ -304,6 +306,30 @@ function AppButton(props: {
           })
         }
         onLaunchUrl={props.onLaunchUrl}
+      />
+    );
+  }
+
+  if (props.app.subKind === AppSubKind.AwsIcAccount) {
+    const icRoles = props.app.permissionSets.map(ps => ({
+      name: ps.name,
+      arn: ps.name,
+      display: ps.name,
+      accountId: props.app.name,
+    }));
+
+    return (
+      <AwsLaunchButton
+        width={buttonWidth}
+        awsRoles={icRoles}
+        getLaunchUrl={arn =>
+          getAwsIcLaunchUrl({
+            app: props.app,
+            roleName: arn,
+          })
+        }
+        onLaunchUrl={props.onLaunchUrl}
+        isAwsIdentityCenterApp
       />
     );
   }

@@ -1,0 +1,756 @@
+---
+title: Database Server V3 Reference
+description: Provides a reference of fields within the Database Server V3 resource, which you can manage with tctl.
+sidebar_label: Database Server V3
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: types/types.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `db_server`<br/>
+**Version**: `v3`
+
+Represents a database access server.
+
+## Top-level fields
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+scope: "string"
+```
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The database server resource kind.|string|
+|metadata|The database server metadata.|[Metadata](#metadata)|
+|scope|The advertized scope of the server which can not change once assigned.|string|
+|spec|The database server spec.|[Database Server Spec V3](#database-server-spec-v3)|
+|status|The database server status.|[Database Server Status V3](#database-server-status-v3)|
+|sub_kind|An optional resource subkind.|string|
+|version|The resource version.|string|
+
+## AD
+
+Contains Active Directory specific database configuration.
+
+
+Example:
+
+```yaml
+keytab_file: "string"
+krb5_file: "string"
+domain: "string"
+spn: "string"
+ldap_cert: "string"
+kdc_host_name: "string"
+ldap_service_account_name: "string"
+ldap_service_account_sid: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|domain|The Active Directory domain the database resides in.|string|
+|kdc_host_name|The host name for a KDC for x509 Authentication.|string|
+|keytab_file|The path to the Kerberos keytab file.|string|
+|krb5_file|The path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|string|
+|ldap_cert|A certificate from Windows LDAP/AD, optional; only for x509 Authentication.|string|
+|ldap_service_account_name|The name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|string|
+|ldap_service_account_sid|The SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|string|
+|spn|The service principal name for the database.|string|
+
+## AWS
+
+Contains AWS metadata about the database.
+
+
+Example:
+
+```yaml
+region: "string"
+redshift: # [...]
+rds: # [...]
+account_id: "string"
+elasticache: # [...]
+secret_store: # [...]
+memorydb: # [...]
+rdsproxy: # [...]
+redshift_serverless: # [...]
+external_id: "string"
+assume_role_arn: "string"
+opensearch: # [...]
+iam_policy_status: # [...]
+session_tags: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+docdb: # [...]
+elasticache_serverless: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|account_id|The AWS account ID this database belongs to.|string|
+|assume_role_arn|An optional AWS role ARN to assume when accessing a database. Set this field and ExternalID to enable access across AWS accounts.|string|
+|docdb|Contains Amazon DocumentDB-specific metadata.|[DocumentDB](#documentdb)|
+|elasticache|Contains Amazon ElastiCache Redis-specific metadata.|[ElastiCache](#elasticache)|
+|elasticache_serverless|Contains Amazon ElastiCache Serverless metadata.|[ElastiCache Serverless](#elasticache-serverless)|
+|external_id|An optional AWS external ID used to enable assuming an AWS role across accounts.|string|
+|iam_policy_status|Indicates whether the IAM Policy is configured properly for database access. If not, the user must update the AWS profile identity to allow access to the Database. Eg for an RDS Database: the underlying AWS profile allows for `rds-db:connect` for the Database.|[IAM Policy Status](#iam-policy-status)|
+|memorydb|Contains AWS MemoryDB specific metadata.|[MemoryDB](#memorydb)|
+|opensearch|Contains AWS OpenSearch specific metadata.|[OpenSearch](#opensearch)|
+|rds|Contains RDS specific metadata.|[RDS](#rds)|
+|rdsproxy|Contains AWS Proxy specific metadata.|[RDS Proxy](#rds-proxy)|
+|redshift|Contains Redshift specific metadata.|[Redshift](#redshift)|
+|redshift_serverless|Contains metatada specific to Amazon Redshift Serverless.|[Redshift Serverless](#redshift-serverless)|
+|region|A AWS cloud region.|string|
+|secret_store|Contains secret store configurations.|[Secret Store](#secret-store)|
+|session_tags|A list of AWS STS session tags.|map[string]string|
+
+## AlloyDB
+
+Contains AlloyDB specific configuration elements.
+
+
+Example:
+
+```yaml
+endpoint_type: "string"
+endpoint_override: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|endpoint_override|An override of endpoint address to use.|string|
+|endpoint_type|The database endpoint type to use. Should be one of: "private", "public", "psc".|string|
+
+## Azure
+
+Contains Azure specific database metadata.
+
+
+Example:
+
+```yaml
+name: "string"
+resource_id: "string"
+redis: # [...]
+is_flexi_server: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|is_flexi_server|True if the database is an Azure Flexible server.|Boolean|
+|name|The Azure database server name.|string|
+|redis|Contains Azure Cache for Redis specific database metadata.|[Azure Redis](#azure-redis)|
+|resource_id|The Azure fully qualified ID for the resource.|string|
+
+## Azure Redis
+
+Contains Azure Cache for Redis specific database metadata.
+
+
+Example:
+
+```yaml
+clustering_policy: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|clustering_policy|The clustering policy for Redis Enterprise.|string|
+
+## Command Label V2
+
+A label that has a value as a result of the output generated by running command, e.g. hostname
+
+
+Example:
+
+```yaml
+period: # [...]
+command: 
+  - "string"
+  - "string"
+  - "string"
+result: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|command|A command to run|[]string|
+|period|A time between command runs|[Duration](#duration)|
+|result|Captures standard output|string|
+
+## Database Admin User
+
+Contains information about privileged database user used for automatic user provisioning.
+
+
+Example:
+
+```yaml
+name: "string"
+default_database: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|default_database|The database that the privileged database user logs into by default.  Depending on the database type, this database may be used to store procedures or data for managing database users.|string|
+|name|The username of the privileged database user.|string|
+
+## Database Server Spec V3
+
+The database server spec.
+
+
+Example:
+
+```yaml
+version: "string"
+hostname: "string"
+host_id: "string"
+rotation: # [...]
+database: # [...]
+proxy_ids: 
+  - "string"
+  - "string"
+  - "string"
+relay_group: "string"
+relay_ids: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|database|The database proxied by this database server.|[Database V3](#database-v3)|
+|host_id|The ID of the host the database server is running on.|string|
+|hostname|The database server hostname.|string|
+|proxy_ids|A list of proxy IDs this server is expected to be connected to.|[]string|
+|relay_group|The name of the Relay group that the server is connected to|string|
+|relay_ids|The list of Relay host IDs that the server is connected to|[]string|
+|rotation|Contains the server CA rotation information.|[Rotation](#rotation)|
+|version|The Teleport version that the server is running.|string|
+
+## Database Server Status V3
+
+The database server status.
+
+
+Example:
+
+```yaml
+target_health: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|target_health|The health status of network connectivity between the agent and the database.|[Target Health](#target-health)|
+
+## Database Spec V3
+
+The database spec.
+
+
+Example:
+
+```yaml
+protocol: "string"
+uri: "string"
+ca_cert: "string"
+dynamic_labels: 
+  "string": # [...]
+  "string": # [...]
+  "string": # [...]
+aws: # [...]
+gcp: # [...]
+azure: # [...]
+tls: # [...]
+ad: # [...]
+mysql: # [...]
+admin_user: # [...]
+mongo_atlas: # [...]
+oracle: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ad|The Active Directory configuration for the database.|[AD](#ad)|
+|admin_user|The database admin user for automatic user provisioning.|[Database Admin User](#database-admin-user)|
+|aws|Contains AWS specific settings for RDS/Aurora/Redshift databases.|[AWS](#aws)|
+|azure|Contains Azure specific database metadata.|[Azure](#azure)|
+|ca_cert|The PEM-encoded database CA certificate.  DEPRECATED: Moved to TLS.CACert. DELETE IN 10.0.|string|
+|dynamic_labels|The database dynamic labels.|map[string][Command Label V2](#command-label-v2)|
+|gcp|Contains parameters specific to GCP Cloud SQL databases.|[GCP Cloud SQL](#gcp-cloud-sql)|
+|mongo_atlas|Contains Atlas metadata about the database.|[Mongo Atlas](#mongo-atlas)|
+|mysql|An additional section with MySQL database options.|[MySQL Options](#mysql-options)|
+|oracle|An additional Oracle configuration options.|[Oracle Options](#oracle-options)|
+|protocol|The database protocol: postgres, mysql, mongodb, etc.|string|
+|tls|The TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|[Database TLS](#database-tls)|
+|uri|The database connection endpoint.|string|
+
+## Database Status V3
+
+Contains runtime information about the database.
+
+
+Example:
+
+```yaml
+ca_cert: "string"
+aws: # [...]
+mysql: # [...]
+managed_users: 
+  - "string"
+  - "string"
+  - "string"
+azure: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws|The auto-discovered AWS cloud database metadata.|[AWS](#aws)|
+|azure|The auto-discovered Azure cloud database metadata.|[Azure](#azure)|
+|ca_cert|The auto-downloaded cloud database CA certificate.|string|
+|managed_users|A list of database users that are managed by Teleport.|[]string|
+|mysql|An additional section with MySQL runtime database information.|[MySQL Options](#mysql-options)|
+
+## Database TLS
+
+Contains TLS configuration options.
+
+
+Example:
+
+```yaml
+mode: # [...]
+ca_cert: "string"
+server_name: "string"
+trust_system_cert_pool: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|ca_cert|An optional user provided CA certificate used for verifying database TLS connection.|string|
+|mode|A TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".|[Database TLS Mode](#database-tls-mode)|
+|server_name|Allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.|string|
+|trust_system_cert_pool|Allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.|Boolean|
+
+## Database TLS Mode
+
+Represents the level of TLS verification performed by DB agent when connecting to a database.
+
+
+## Database V3
+
+Represents a single proxied database.
+
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|kind|The database resource kind.|string|
+|metadata|The database metadata.|[Metadata](#metadata)|
+|spec|The database spec.|[Database Spec V3](#database-spec-v3)|
+|status|The database runtime information.|[Database Status V3](#database-status-v3)|
+|sub_kind|An optional resource subkind.|string|
+|version|The resource version. It must be specified. Supported values are: `v3`.|string|
+
+## DocumentDB
+
+Contains Amazon DocumentDB-specific metadata.
+
+
+Example:
+
+```yaml
+cluster_id: "string"
+instance_id: "string"
+endpoint_type: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_id|The cluster identifier.|string|
+|endpoint_type|The type of the endpoint.|string|
+|instance_id|The instance identifier.|string|
+
+## Duration
+
+A wrapper around duration to set up custom marshal/unmarshal
+
+
+## ElastiCache
+
+Contains Amazon ElastiCache Redis-specific metadata.
+
+
+Example:
+
+```yaml
+replication_group_id: "string"
+user_group_ids: 
+  - "string"
+  - "string"
+  - "string"
+transit_encryption_enabled: true
+endpoint_type: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|endpoint_type|The type of the endpoint.|string|
+|replication_group_id|The Redis replication group ID.|string|
+|transit_encryption_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
+|user_group_ids|A list of user group IDs.|[]string|
+
+## ElastiCache Serverless
+
+Contains Amazon ElastiCache Serverless metadata.
+
+
+Example:
+
+```yaml
+cache_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|cache_name|An ElastiCache Serverless cache name.|string|
+
+## GCP Cloud SQL
+
+Contains parameters specific to GCP databases. The name "GCPCloudSQL" is a legacy from a time when only GCP Cloud SQL was supported.
+
+
+Example:
+
+```yaml
+project_id: "string"
+instance_id: "string"
+alloydb: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|alloydb|Contains AlloyDB specific configuration elements.|[AlloyDB](#alloydb)|
+|instance_id|The Cloud SQL instance ID.|string|
+|project_id|The GCP project ID the Cloud SQL instance resides in.|string|
+
+## IAM Policy Status
+
+Represents states that describe if an AWS database has its IAM policy properly configured or not. This enum is set in a Sync.Map during an IAM task that checks for the validity of IAM policy, and the database gets updated with the value from this map during a heartbeat.
+
+
+## MemoryDB
+
+Contains AWS MemoryDB specific metadata.
+
+
+Example:
+
+```yaml
+cluster_name: "string"
+acl_name: "string"
+tls_enabled: true
+endpoint_type: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|acl_name|The name of the ACL associated with the cluster.|string|
+|cluster_name|The name of the MemoryDB cluster.|string|
+|endpoint_type|The type of the endpoint.|string|
+|tls_enabled|Indicates whether in-transit encryption (TLS) is enabled.|Boolean|
+
+## Metadata
+
+Resource metadata
+
+
+Example:
+
+```yaml
+name: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Object description|string|
+|expires|A global expiry time header can be set on any resource in the system.||
+|labels|A set of labels|map[string]string|
+|name|An object name|string|
+|revision|An opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+
+## Mongo Atlas
+
+Contains Atlas metadata about the database.
+
+
+Example:
+
+```yaml
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|The Atlas database instance name.|string|
+
+## MySQL Options
+
+Additional MySQL database options.
+
+
+Example:
+
+```yaml
+server_version: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|server_version|The server version reported by DB proxy if the runtime information is not available.|string|
+
+## OpenSearch
+
+Contains AWS OpenSearch specific metadata.
+
+
+Example:
+
+```yaml
+domain_name: "string"
+domain_id: "string"
+endpoint_type: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|domain_id|The ID of the domain.|string|
+|domain_name|The name of the domain.|string|
+|endpoint_type|The type of the endpoint.|string|
+
+## Oracle Options
+
+Contains Oracle-specific configuration options.
+
+
+Example:
+
+```yaml
+audit_user: "string"
+retry_count: 1
+shuffle_hostnames: true
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|audit_user|The name of the Oracle database user that should be used to access the internal audit trail.|string|
+|retry_count|The maximum number of times to retry connecting to a host upon failure. If not specified it defaults to 2, for a total of 3 connection attempts.|number|
+|shuffle_hostnames|, when true, randomizes the order of hosts to connect to from the provided list.|Boolean|
+
+## RDS
+
+Contains AWS RDS specific database metadata.
+
+
+Example:
+
+```yaml
+instance_id: "string"
+cluster_id: "string"
+resource_id: "string"
+iam_auth: true
+subnets: 
+  - "string"
+  - "string"
+  - "string"
+vpc_id: "string"
+security_groups: 
+  - "string"
+  - "string"
+  - "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_id|The RDS cluster (Aurora) identifier.|string|
+|iam_auth|Indicates whether database IAM authentication is enabled.|Boolean|
+|instance_id|The RDS instance identifier.|string|
+|resource_id|The RDS instance resource identifier (db-xxx).|string|
+|security_groups|A list of attached security groups for the RDS instance.|[]string|
+|subnets|A list of subnets for the RDS instance.|[]string|
+|vpc_id|The VPC where the RDS is running.|string|
+
+## RDS Proxy
+
+Contains AWS RDS Proxy specific database metadata.
+
+
+Example:
+
+```yaml
+name: "string"
+custom_endpoint_name: "string"
+resource_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|custom_endpoint_name|The identifier of an RDS Proxy custom endpoint.|string|
+|name|The identifier of an RDS Proxy.|string|
+|resource_id|The RDS instance resource identifier (prx-xxx).|string|
+
+## Redshift
+
+Contains metadata specific to Amazon Redshift.
+
+
+Example:
+
+```yaml
+cluster_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|cluster_id|The Redshift cluster identifier.|string|
+
+## Redshift Serverless
+
+Contains Amazon Redshift Serverless-specific metadata.
+
+
+Example:
+
+```yaml
+workgroup_name: "string"
+endpoint_name: "string"
+workgroup_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|endpoint_name|The VPC endpoint name.|string|
+|workgroup_id|The workgroup ID.|string|
+|workgroup_name|The workgroup name.|string|
+
+## Rotation
+
+A status of the rotation of the certificate authority
+
+
+Example:
+
+```yaml
+state: "string"
+phase: "string"
+mode: "string"
+current_id: "string"
+started: # See description
+grace_period: # [...]
+last_rotated: # See description
+schedule: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|current_id|The ID of the rotation operation to differentiate between rotation attempts.|string|
+|grace_period|A period during which old and new CA are valid for checking purposes, but only new CA is issuing certificates.|[Duration](#duration)|
+|last_rotated|Specifies the last time of the completed rotation.||
+|mode|Sets manual or automatic rotation mode.|string|
+|phase|The current rotation phase.|string|
+|schedule|A rotation schedule - used in automatic mode to switch between phases.|[Rotation Schedule](#rotation-schedule)|
+|started|Set to the time when rotation has been started in case if the state of the rotation is "in_progress".||
+|state|Could be one of "init" or "in_progress".|string|
+
+## Rotation Schedule
+
+A rotation schedule setting time switches for different phases.
+
+
+Example:
+
+```yaml
+update_clients: # See description
+update_servers: # See description
+standby: # See description
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|standby|Specifies time to switch to the "Standby" phase.||
+|update_clients|Specifies time to switch to the "Update clients" phase||
+|update_servers|Specifies time to switch to the "Update servers" phase.||
+
+## Secret Store
+
+Contains secret store configurations.
+
+
+Example:
+
+```yaml
+key_prefix: "string"
+kms_key_id: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|key_prefix|Specifies the secret key prefix.|string|
+|kms_key_id|Specifies the AWS KMS key for encryption.|string|
+
+## Target Health
+
+Describes the health status of network connectivity between an agent and a resource.
+
+
+Example:
+
+```yaml
+address: "string"
+protocol: "string"
+status: "string"
+transition_timestamp: # See description
+transition_reason: "string"
+transition_error: "string"
+message: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|address|The resource address.|string|
+|message|Additional information meant for a user.|string|
+|protocol|The health check protocol such as "tcp".|string|
+|status|The health status, one of "", "unknown", "healthy", "unhealthy".|string|
+|transition_error|Shows the health check error observed when the transition happened. Empty when transitioning to "healthy".|string|
+|transition_reason|A unique single word reason why the last transition occurred.|string|
+|transition_timestamp|The time that the last status transition occurred.||
+

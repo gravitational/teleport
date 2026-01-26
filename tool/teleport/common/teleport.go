@@ -86,7 +86,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelError)
-	app = utils.InitCLIParser("teleport", "Teleport Infrastructure Identity Platform. Learn more at https://goteleport.com")
+	app = utils.InitCLIParser("teleport", "Teleport unifies identities — humans, machines, and AI — with strong identity implementation to speed up engineering, improve resiliency against identity-based attacks, and secure AI in production infrastructure.")
 
 	// define global flags:
 	var (
@@ -143,6 +143,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("token",
 		"Invitation token or path to file with token value. Used to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
+	start.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").
+		StringVar(&ccf.TokenSecret)
 	start.Flag("ca-pin",
 		"CA pin to validate the Auth Server (can be repeated for multiple pins)").
 		StringsVar(&ccf.CAPins)

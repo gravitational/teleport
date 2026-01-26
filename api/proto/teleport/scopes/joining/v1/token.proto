@@ -42,6 +42,9 @@ message ScopedToken {
 
   // Spec is the token specification.
   ScopedTokenSpec spec = 6;
+
+  // The status of a scoped token.
+  ScopedTokenStatus status = 7;
 }
 
 // ScopedTokenSpec is the specification of a scoped token.
@@ -57,4 +60,11 @@ message ScopedTokenSpec {
   // The joining method required in order to use this token.
   // Supported joining methods for scoped tokens only include 'token'.
   string join_method = 3;
+}
+
+// The status of a scoped token.
+message ScopedTokenStatus {
+  // The secret that must be provided as part of the challenge when joining using
+  // the token join method.
+  string secret = 1;
 }

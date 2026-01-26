@@ -33,6 +33,7 @@ func TestUpdateAppUsageTemplate(t *testing.T) {
 		name            string
 		makeApp         func() *kingpin.Application
 		expectSubstring string // The @ character is replaced with a backtick
+		config          generatorConfig
 	}{
 		{
 			name: "subcommand flags and global flags",
@@ -46,13 +47,23 @@ func TestUpdateAppUsageTemplate(t *testing.T) {
 				createRocket.Flag("launch", "Whether to launch the Rocket").Bool()
 				return app
 			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+			},
 			expectSubstring: `---
 title: myapp Reference
 description: Provides a comprehensive list of commands, arguments, and flags for myapp.
+sidebar_label: myapp
+tags:
+  - reference
+  - platform-wide
 ---
+{/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
-myapp: This is the main CLI tool.
+myapp.
+
+This is the main CLI tool.
 
 @@@code
 $ myapp [<flags>] <command> [<args> ...]
@@ -117,8 +128,13 @@ Arguments:
 				app.Flag("dry-run", "Whether to use dry-run mode").Default("false").Bool()
 				return app
 			},
+			config: generatorConfig{
+				Introduction: "This is the main CLI tool.",
+			},
 			expectSubstring: `This guide provides a comprehensive list of commands, arguments, and flags for
-myapp: This is the main CLI tool.
+myapp.
+
+This is the main CLI tool.
 
 @@@code
 $ myapp [<flags>] <command> [<args> ...]
@@ -129,8 +145,8 @@ Global flags:
 |Flag|Default|Description|
 |---|---|---|
 |@--config@|@config.yaml@|The location of the config file|
-|@--verbosity@|@3@|Verbosity level.|
 |@--[no-]dry-run@|@false@|Whether to use dry-run mode|
+|@--verbosity@|@3@|Verbosity level.|
 
 `,
 		},
@@ -158,8 +174,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|@--verbosity@|@3@|Verbosity level.|
 |@--[no-]dry-run@|@false@|Whether to use dry-run mode|
+|@--verbosity@|@3@|Verbosity level.|
 
 `,
 		},
@@ -187,8 +203,8 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|verbosity|@3@ (optional)|Verbosity level.|
 |dry-run|@false@ (optional)|Whether to use dry-run mode|
+|verbosity|@3@ (optional)|Verbosity level.|
 
 `,
 		},
@@ -399,8 +415,8 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|@CREATE_TYPE@|none (optional)|The type of the resource|
 |@CREATE_NAME@|@myresource@|The name of the resource|
+|@CREATE_TYPE@|none (optional)|The type of the resource|
 
 Flags:
 
@@ -428,7 +444,7 @@ Arguments:
 			docsUsageTemplatePath := "docs-usage.md.tmpl"
 			f, err := os.Open(docsUsageTemplatePath)
 			require.NoError(t, err)
-			updateAppUsageTemplate(f, app)
+			updateAppUsageTemplate(f, tt.config, app)
 
 			// kingpin only adds a help command if there is at least
 			// one subcommand. Make sure that all test cases

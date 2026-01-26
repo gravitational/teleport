@@ -327,13 +327,13 @@ func RunCommand() (code int, err error) {
 	// launch the shell under.
 	var pamEnvironment []string
 	if c.PAMConfig != nil {
-		// Connect std{in,out,err} to the TTY if it's a shell request, otherwise
-		// discard std{out,err}. If this was not done, things like MOTD would be
-		// printed for "exec" requests.
+		// Connect std{in,out,err} to the TTY if a terminal has been allocated,
+		// otherwise discard std{out,err}. If this was not done, things like MOTD
+		// would be printed for non-interactive "exec" requests.
 		var stdin io.Reader
 		var stdout io.Writer
 		var stderr io.Writer
-		if c.RequestType == sshutils.ShellRequest {
+		if tty != nil {
 			stdin = tty
 			stdout = tty
 			stderr = tty
@@ -726,10 +726,6 @@ func RunNetworking() (code int, err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	writeErrorToConn := func(conn io.Writer, err error) {
-		conn.Write([]byte(err.Error()))
-	}
-
 	// Maintain a list of file paths to cleanup at the end of the process. This
 	// ensures that file cleanup is handled by the child in cases where the parent
 	// fails to cleanup due to filesystem namespace discrepancy (pam_namespace)
@@ -757,25 +753,25 @@ func RunNetworking() (code int, err error) {
 				// parent connection closed, process should exit.
 				return teleport.RemoteCommandSuccess, nil
 			}
-			writeErrorToConn(parentConn, trace.Wrap(err, "error reading networking request from parent"))
+			slog.ErrorContext(ctx, "error reading networking request from parent", "err", err)
 			continue
 		}
 
 		if fn == 0 {
-			writeErrorToConn(parentConn, trace.BadParameter("networking request requires a control file"))
+			slog.ErrorContext(ctx, "networking request missing control file")
 			continue
 		}
 
 		requestConn, err := uds.FromFile(fbuf[0])
 		_ = fbuf[0].Close()
 		if err != nil {
-			writeErrorToConn(parentConn, trace.Wrap(err, "failed to get a connection from control file"))
+			slog.ErrorContext(ctx, "failed to get a connection from control file", "err", err)
 			continue
 		}
 
 		var req networking.Request
 		if err := json.Unmarshal(buf[:n], &req); err != nil {
-			writeErrorToConn(requestConn, trace.Wrap(err, "error parsing networking request"))
+			requestConn.Write([]byte(trace.Wrap(err, "error parsing networking request").Error()))
 			_ = requestConn.Close()
 			continue
 		}

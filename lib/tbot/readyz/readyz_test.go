@@ -207,8 +207,26 @@ func testDefaultClient(t *testing.T) *http.Client {
 	return client
 }
 
+// requestNotification is minimal helper that is sent when a request starts, and
+// provides a done channel to notify when the request ends.
+type requestNotification struct {
+	done <-chan struct{}
+}
+
+// isComplete checks if the request is still in flight (false) or complete
+// (true).
+func (r *requestNotification) isComplete() bool {
+	select {
+	case <-r.done:
+		return true
+	default:
+		return false
+	}
+}
+
 type inMemoryTransport struct {
-	handler http.Handler
+	handler  http.Handler
+	requests chan<- requestNotification
 }
 
 func (c *inMemoryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -220,8 +238,19 @@ func (c *inMemoryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// another goroutine and manually return an error if the context is
 	// canceled.
 	go func() {
+		// Notify test that the request is in flight.
+		reqDone := make(chan struct{})
+
+		// Attempt to notify the test about the request. Drop any notifications
+		// to a full channel - we never want to block, and the tests in practice
+		// only care about the first request and the existence of future
+		// requests.
+		c.requests <- requestNotification{done: reqDone}
+
 		c.handler.ServeHTTP(rr, r)
+
 		close(done)
+		close(reqDone)
 	}()
 
 	select {
@@ -233,10 +262,11 @@ func (c *inMemoryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 }
 
-func createInMemoryWaitClient(handler http.Handler) *http.Client {
+func createInMemoryWaitClient(handler http.Handler, requests chan<- requestNotification) *http.Client {
 	return &http.Client{
 		Transport: &inMemoryTransport{
-			handler: handler,
+			handler:  handler,
+			requests: requests,
 		},
 	}
 }
@@ -434,11 +464,15 @@ func TestWaitAPI(t *testing.T) {
 }
 
 func TestWaitAPIOngoingWaiter(t *testing.T) {
-	t.Parallel()
+	// TODO: Evaluate reenabling parallel execution if this branch is updated to
+	// go1.25. Otherwise, parallel execution triggers race conditions in go1.24
+	// synctest bubbles and causes spurious failures.
+	// t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		reg := readyz.NewRegistry()
 
+		requests := make(chan requestNotification)
 		handler := readyz.HTTPWaitHandler(reg)
 
 		u, err := url.Parse("http://invalid/wait")
@@ -449,21 +483,19 @@ func TestWaitAPIOngoingWaiter(t *testing.T) {
 		// Start waiting
 		ch := make(chan error)
 		go func() {
-			code, err := testWaitFetch(t, createInMemoryWaitClient(handler), "", u)
+			code, err := testWaitFetch(t, createInMemoryWaitClient(handler, requests), "", u)
 			if err != nil && code != 200 {
 				err = fmt.Errorf("error: %d", code)
 			}
 
 			ch <- err
 		}()
-		synctest.Wait()
 
-		// Delay a bit before reporting status
-		time.Sleep(time.Millisecond * 100)
-		synctest.Wait()
+		req := <-requests
+		require.False(t, req.isComplete())
 
 		a.Report(readyz.Healthy)
-		synctest.Wait()
+		<-req.done
 
 		select {
 		case res := <-ch:

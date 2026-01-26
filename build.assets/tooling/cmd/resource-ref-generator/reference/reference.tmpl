@@ -13,19 +13,26 @@ sidebar_label: {{ .Resource.SectionName }}
 
 {{ .Resource.Description }}
 
+{{- if gt (len .Resource.ResourceExample) 0 }}
+
+Example definition:
+```yaml
+{{ .Resource.ResourceExample }}
+```
+{{- end }}
+
+## Top-level fields
+
 Example:
 
 ```yaml
 {{ .Resource.YAMLExample -}}
 ```
-
-{{- if gt (len .Resource.Fields) 0 }}
 |Field Name|Description|Type|
 |---|---|---|
 {{ range .Resource.Fields -}}
 |{{.Name}}|{{.Description}}|{{.Type}}|
-{{ end }} 
-{{- end }}
+{{ end }}
 
 {{- range .Fields }}
 ## {{ .SectionName }}

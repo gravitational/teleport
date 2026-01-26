@@ -46,7 +46,7 @@ type KubernetesV2Command struct {
 	KubernetesClusterLabels []string
 }
 
-// NewKubernetesCommand initializes the command and flags for kubernetes outputs
+// NewKubernetesV2Command initializes the command and flags for kubernetes outputs
 // and returns a struct to contain the parse result.
 func NewKubernetesV2Command(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *KubernetesV2Command {
 	cmd := parentCmd.Command("kubernetes/v2", fmt.Sprintf("%s tbot with a Kubernetes V2 output.", mode)).Alias("k8s/v2")

@@ -1,0 +1,10 @@
+.version: &version "19.0.0-dev"
+
+name: tbot-spiffe-daemon-set
+apiVersion: v2
+version: *version
+appVersion: *version
+description: This chart deploys the Machine & Workload Identity agent, `tbot`, into your Kubernetes cluster and configures it for issuing SPIFFE SVIDs to other Kubernetes workloads.
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport

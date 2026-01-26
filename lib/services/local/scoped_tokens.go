@@ -18,8 +18,11 @@ package local
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -37,7 +40,8 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	svc     *generic.ServiceWrapper[*joiningv1.ScopedToken]
+	backend backend.Backend
 }
 
 // NewScopedTokenService creates a new ScopedTokenService.
@@ -56,7 +60,30 @@ func NewScopedTokenService(b backend.Backend) (*ScopedTokenService, error) {
 	}
 
 	return &ScopedTokenService{
-		svc: svc,
+		svc:     svc,
+		backend: b,
+	}, nil
+}
+
+func itemFromScopedToken(token *joiningv1.ScopedToken) (backend.Item, error) {
+	key := backend.NewKey(scopedTokenPrefix, token.GetMetadata().GetName())
+	value, err := services.MarshalProtoResource(token)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	// need to make sure expires is the zero value of [time.Time] unless an
+	// expiry is explicitly set, otherwise the backend item will be created
+	// in an expired state
+	var expires time.Time
+	if ex := token.GetMetadata().GetExpires(); ex != nil {
+		expires = ex.AsTime()
+	}
+	return backend.Item{
+		Key:      key,
+		Value:    value,
+		Expires:  expires,
+		Revision: token.GetMetadata().GetRevision(),
 	}, nil
 }
 
@@ -66,10 +93,38 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.svc.CreateResource(ctx, req.GetToken())
+	item, err := itemFromScopedToken(req.GetToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			Key:       backend.NewKey(scopedTokenPrefix, req.GetToken().GetMetadata().GetName()),
+			Condition: backend.NotExists(),
+			Action:    backend.Put(item),
+		},
+		{
+			Key:       backend.NewKey(tokensPrefix, req.GetToken().GetMetadata().GetName()),
+			Condition: backend.NotExists(),
+			// the second action is a no-op because we only need to
+			// execute a single action to create the scoped token,
+			// but both conditions must be met
+			Action: backend.Nop(),
+		},
+	})
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.AlreadyExists("scoped token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	created := proto.CloneOf(req.GetToken())
+	created.Metadata.Revision = revision
 	return &joiningv1.CreateScopedTokenResponse{
 		Token: created,
-	}, trace.Wrap(err)
+	}, nil
 }
 
 // GetScopedToken finds and returns a scoped token by name.

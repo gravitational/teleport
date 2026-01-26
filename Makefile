@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.6.1
+VERSION=18.6.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -926,6 +926,7 @@ test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/access/*
 	helm unittest -3 --with-subchart=false examples/chart/event-handler
 	helm unittest -3 --with-subchart=false examples/chart/tbot
+	helm unittest -3 --with-subchart=false examples/chart/tbot-spiffe-daemon-set
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
@@ -936,6 +937,7 @@ test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/access/*
 	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
 	helm unittest -3 -u --with-subchart=false examples/chart/tbot
+	helm unittest -3 -u --with-subchart=false examples/chart/tbot-spiffe-daemon-set
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -1002,13 +1004,13 @@ endif
 # Race detection is not enabled because it significantly slows down benchmarks.
 # todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
 .PHONY: test-go-bench
-test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
+test-go-bench: PACKAGES = $(shell grep --exclude-dir api --exclude-dir gen --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
 test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
 test-go-bench: | $(TEST_LOG_DIR)
 	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
 		| tee $(TEST_LOG_DIR)/bench.txt
 
-test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --exclude-dir gen --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
 test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
 test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
 test-go-bench-root: | $(TEST_LOG_DIR)
@@ -1340,7 +1342,7 @@ lint-helm:
 		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
 		exit 0; \
 	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot; do \
+	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot ./examples/chart/tbot-spiffe-daemon-set; do \
 		if [ -d $${CHART}/.lint ]; then \
 			for VALUES in $${CHART}/.lint/*.yaml; do \
 				export HELM_TEMP=$$(mktemp); \
@@ -2001,11 +2003,27 @@ test-e2e: ensure-webassets
 
 .PHONY: cli-docs-tsh
 cli-docs-tsh:
-	# Not executing go run since we don't want to redirect linker warnings
-	# along with the docs page content.
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
 	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
+
+.PHONY: cli-docs-tbot
+cli-docs-tbot:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
+	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
+	rm $(BUILDDIR)/tbotdocs
+
+.PHONY: cli-docs-teleport
+cli-docs-teleport:
+# Executing go build instead of go run since we don't want to redirect
+# irrelevant output along with the docs page content.
+	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
+	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	rm $(BUILDDIR)/teleportdocs
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

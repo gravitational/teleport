@@ -215,6 +215,7 @@ const cfg = {
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
+    integrationOverview: '/web/integrations/overview/:type/:name',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -754,6 +755,10 @@ const cfg = {
     subPage?: string
   ) {
     return generatePath(cfg.routes.integrationStatus, { type, name, subPage });
+  },
+
+  getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationOverview, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(
@@ -1396,13 +1401,17 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
+  getIntegrationsUrl(integrationName?: string, withSummaries: boolean = false) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
+    let url = generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
     });
+    if (withSummaries) {
+      url += `?withSummaries=true`;
+    }
+    return url;
   },
 
   getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {

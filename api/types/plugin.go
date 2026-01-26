@@ -361,6 +361,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
 			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
 		}
+		// backfill the Access List owners source if it's not set.
+		if settings.EntraId.SyncSettings.AccessListOwnersSource == EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
+			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
+		}
 
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {

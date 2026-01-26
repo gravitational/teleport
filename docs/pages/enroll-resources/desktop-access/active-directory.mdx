@@ -57,7 +57,8 @@ To use the `tctl` generated configuration script, run the following command:
 tctl desktop bootstrap > configure-ad.ps1
 ```
 
-After generating the script, transfer it to a Windows domain controller and run it in a PowerShell console.
+After generating the script, transfer it to a Windows domain controller and run
+it in a PowerShell console as a domain administrator.
 
 ## Option 2: Manual configuration
 
@@ -546,12 +547,12 @@ To export a CA certificate:
 1. Select your CA computer, right-click, then select **Properties**.
 1. On the General tab, click **View Certificate**.
 1. Select **Details**, then click **Copy to File**.
-1. Click *Next* in the Certificate Export Wizard, and ensure that **DER encoded binary X.509 (.CER)**
+1. Click *Next* in the Certificate Export Wizard, and ensure that **base-64 encoded X.509 (.CER)**
    is selected.
 1. Select a name and location for the certificate and click through the wizard.
 1. Transfer the exported file to the system where you're running Teleport. You
-can either add this certificate to your system's trusted repository or provide
-the file path to the `der_ca_file` configuration variable.
+   can either add this certificate to your system's trusted repository or
+   provide the contents via the `ldap_ca_cert` configuration field.
 
 ### Step 6/7. Configure Teleport
 
@@ -592,8 +593,11 @@ To configure Teleport to protect access to Windows desktops:
        domain: "$LDAP_DOMAIN_NAME"
        username: "$LDAP_USERNAME"
        sid: "$LDAP_USER_SID"
-       # Path to the certificate you exported.
-       der_ca_file: "path/to/exported/cert"
+       # Contents of the LDAP server certificate you exported.
+       ldap_ca_cert: |
+         -----BEGIN CERTIFICATE-----
+         ...
+         -----END CERTIFICATE-----
      discovery_configs:
        - base_dn: "*"
    auth_service:

@@ -133,8 +133,10 @@ type BoundKeypairParams struct {
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
-	// Token is a secure token to join the cluster
+	// Token is the name of a secure token to join the cluster
 	Token string
+	// TokenSecret is the secret value required when using the token join method with a scoped token.
+	TokenSecret string
 	// ID is identity ID
 	ID state.IdentityID
 	// AuthServers is a list of auth servers to dial

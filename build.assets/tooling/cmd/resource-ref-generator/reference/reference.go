@@ -37,8 +37,9 @@ type pageContent struct {
 // resourceSection represents a top-level section of the resource reference
 // dedicated to a dynamic resource.
 type resourceSection struct {
-	Version string
-	Kind    string
+	Version         string
+	Kind            string
+	ResourceExample string
 	resource.ReferenceEntry
 }
 
@@ -77,6 +78,8 @@ type GeneratorConfig struct {
 	// Directory where the generator writes reference pages.
 	DestinationDirectory string   `yaml:"destination"`
 	CamelCaseExceptions  []string `yaml:"camel_case_exceptions"`
+	// Directory where example YAML files are located.
+	ExamplesDirectory string `yaml:"examples_directory"`
 }
 
 type GenerationError struct {
@@ -132,6 +135,11 @@ func Generate(conf GeneratorConfig, tmpl *template.Template) error {
 
 		pc.Resource.Kind = r.KindValue
 		pc.Resource.Version = r.VersionValue
+
+		resourceExampleLocation := filepath.Join(conf.ExamplesDirectory, r.KindValue+".yaml")
+		if exampleBytes, err := os.ReadFile(resourceExampleLocation); err == nil {
+			pc.Resource.ResourceExample = string(exampleBytes)
+		}
 
 		filename := strings.ReplaceAll(strings.ToLower(pc.Resource.SectionName), " ", "-")
 		docpath := filepath.Join(conf.DestinationDirectory, filename+".mdx")

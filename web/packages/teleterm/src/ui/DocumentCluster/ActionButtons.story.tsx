@@ -20,6 +20,7 @@ import { Meta } from '@storybook/react-vite';
 
 import { Box, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
+import { AppSubKind } from 'shared/services';
 
 import {
   makeApp,
@@ -110,6 +111,10 @@ function Buttons(props: StoryProps) {
         <Box>
           <Text>AWS console</Text>
           <AwsConsole />
+        </Box>
+        <Box>
+          <Text>AWS IC</Text>
+          <AwsIc />
         </Box>
         <HoverTooltip tipContent="Connect doesn't support cloud apps properly yet and shows them as TCP apps instead.">
           <Box>
@@ -242,6 +247,26 @@ function AwsConsole() {
           },
         ],
         uri: `${testCluster.uri}/apps/bar`,
+      })}
+    />
+  );
+}
+
+function AwsIc() {
+  return (
+    <ConnectAppActionButton
+      app={makeApp({
+        name: 'bar',
+        subKind: AppSubKind.AwsIcAccount,
+        permissionSets: [
+          { arn: '1234', assignmentId: '5432', name: 'Foo' },
+          { arn: '9123847', assignmentId: '987324', name: 'Quux' },
+        ],
+        uri: `${testCluster.uri}/apps/bar`,
+        endpointUri:
+          'https://f-139847a43e.awsapps.com/start/#/console?account_id=198327403472',
+        publicAddr:
+          'https://f-139847a43e.awsapps.com/start/#/console?account_id=198327403472',
       })}
     />
   );

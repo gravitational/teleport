@@ -24,9 +24,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
+	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 )
 
 const (
@@ -54,33 +57,63 @@ const (
 )
 
 // validateSTSHost returns an error if the given stsHost is not a valid regional
-// endpoint for the AWS STS service, or nil if it is valid. If fips is true, the
-// endpoint must be a valid FIPS endpoint.
+// endpoint for the AWS STS service, or nil if it is valid. If requireFIPS is
+// true, the endpoint must be a valid FIPS endpoint.
 //
 // This is a security-critical check: we are allowing the client to tell us
 // which URL we should use to validate their identity. If the client could pass
 // off an attacker-controlled URL as the STS endpoint, the entire security
 // mechanism of the IAM join method would be compromised.
-//
-// To keep this validation simple and secure, we check the given endpoint
-// against a static list of known valid endpoints. We will need to update this
-// list as AWS adds new regions.
-func validateSTSHost(stsHost string, fips bool) error {
-	valid := slices.Contains(iam.ValidSTSEndpoints(), stsHost)
-	if !valid {
-		return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
-			"This could mean that the Teleport Node attempting to join the cluster is "+
-			"running in a new AWS region which is unknown to this Teleport auth server. "+
-			"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
-			"join your Teleport cluster. "+
-			"Following is the list of valid STS endpoints known to this auth server. "+
-			"If a legitimate STS endpoint is not included, please file an issue at "+
-			"https://github.com/gravitational/teleport. %v",
-			stsHost, iam.ValidSTSEndpoints())
+func validateSTSHost(ctx context.Context, stsHost string, requireFIPS bool) error {
+	// The global endpoint is allowed unless FIPS is required.
+	if stsHost == "sts.amazonaws.com" {
+		if requireFIPS {
+			return trace.AccessDenied("client selected global AWS STS endpoint but server requires FIPS")
+		}
+		return nil
 	}
 
-	if fips && !slices.Contains(iam.FIPSSTSEndpoints(), stsHost) {
-		return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
+	// Valid hosts look like sts(-fips)?.<region>.<suffix>
+	parts := strings.SplitN(stsHost, ".", 3)
+	if len(parts) < 3 {
+		return trace.AccessDenied("AWS STS host is invalid, contains fewer than 3 components")
+	}
+	prefix, region := parts[0], parts[1]
+
+	if !awsregion.IsKnownRegion(region) {
+		return trace.AccessDenied("AWS STS host is for unknown region %q", region)
+	}
+
+	endpointIsFIPS := false
+	switch prefix {
+	case "sts":
+		// All STS endpoints in us-gov- regions are FIPS compliant but use just
+		// "sts" as the prefix.
+		endpointIsFIPS = strings.HasPrefix(region, "us-gov-")
+	case "sts-fips":
+		// sts-fips is accepted as a prefix in any region, whether or not this
+		// auth service is in FIPS mode.
+		endpointIsFIPS = true
+	default:
+		return trace.AccessDenied("invalid AWS STS host prefix")
+	}
+	if requireFIPS && !endpointIsFIPS {
+		return trace.AccessDenied("node selected non-FIPS AWS STS endpoint while the Auth service is in FIPS mode")
+	}
+
+	// To validate the rest of the host suffix, generate the full expected STS
+	// host for this region and compare with what the client sent.
+	expectedSTSHost, err := iam.ExpectedSTSHost(ctx, region, endpointIsFIPS)
+	if err != nil {
+		if errors.Is(err, iam.ErrNoFIPSEndpoint) {
+			return trace.AccessDenied("node selected FIPS AWS STS endpoint in region with no known FIPS endpoint")
+		}
+		return trace.Wrap(err, "resolving expected STS endpoint for region: %q fips: %v", region, endpointIsFIPS)
+	}
+
+	if stsHost != expectedSTSHost {
+		return trace.AccessDenied("expected AWS STS host for (region: %s, fips: %v) is %s",
+			region, endpointIsFIPS, expectedSTSHost)
 	}
 
 	return nil
@@ -91,7 +124,7 @@ func validateSTSHost(stsHost string, fips bool) error {
 // valid request looks like:
 // ```
 // POST / HTTP/1.1
-// Host: sts.amazonaws.com
+// Host: sts.us-west-2.amazonaws.com
 // Accept: application/json
 // Authorization: AWS4-HMAC-SHA256 Credential=AAAAAAAAAAAAAAAAAAAA/20211108/us-east-1/sts/aws4_request, SignedHeaders=accept;content-length;content-type;host;x-amz-date;x-amz-security-token;x-teleport-challenge, Signature=999...
 // Content-Length: 43
@@ -104,8 +137,15 @@ func validateSTSHost(stsHost string, fips bool) error {
 // Action=GetCallerIdentity&Version=2011-06-15
 // ```
 func validateSTSIdentityRequest(req *http.Request, challenge string, fips bool) (err error) {
-	if err := validateSTSHost(req.Host, fips); err != nil {
-		return trace.Wrap(err)
+	if err := validateSTSHost(req.Context(), req.Host, fips); err != nil {
+		return trace.AccessDenied("rejecting IAM join request using STS host %q. "+
+			"This could mean that the Teleport Node attempting to join the cluster is "+
+			"running in a new AWS region which is unknown to this Teleport auth server. "+
+			"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
+			"join your Teleport cluster. "+
+			"If a legitimate STS endpoint is being rejected, please file an issue at "+
+			"https://github.com/gravitational/teleport. Error: %v",
+			req.Host, err)
 	}
 
 	if req.Method != http.MethodPost {

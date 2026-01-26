@@ -38,21 +38,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func scimCommon() apievents.SCIMCommonData {
-	return apievents.SCIMCommonData{
-		Request: &apievents.SCIMRequest{
-			Body: apievents.MustEncodeMap(map[string]any{
-				"zero": nil,
-				"one":  3.14159,
-				"two":  eventString + eventString,
-				"three": map[string]any{
-					"nested": eventString,
-				},
-			}),
-		},
-	}
-}
-
 // eventsMap maps event names to event types for testing. Be sure to update
 // this map if you add a new event type.
 var eventsMap = map[string]apievents.AuditEvent{
@@ -285,20 +270,12 @@ var eventsMap = map[string]apievents.AuditEvent{
 	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
 	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
 	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
-
-	// SCIM events contain a protobuf struct, which will cause the default data
-	// generator to infinitely recurse while trying to populate an infinitely
-	// nested map of maps. Providing a pre-built value bypasses the data generator.
-	// SCIMListingEvent: &apievents.SCIMListingEvent{SCIMCommonData: scimCommon()},
-	// SCIMGetEvent:     &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMCreateEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMUpdateEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	// SCIMDeleteEvent:  &apievents.SCIMResourceEvent{SCIMCommonData: scimCommon()},
-	SCIMListingEvent: &apievents.SCIMListingEvent{SCIMCommonData: scimCommon()},
-	SCIMGetEvent:     &apievents.SCIMResourceEvent{},
-	SCIMCreateEvent:  &apievents.SCIMResourceEvent{},
-	SCIMUpdateEvent:  &apievents.SCIMResourceEvent{},
-	SCIMDeleteEvent:  &apievents.SCIMResourceEvent{},
+	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
+	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
+	SCIMCreateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
+	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
 }
 
 // TestJSON tests JSON marshal events

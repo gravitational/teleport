@@ -1,0 +1,16 @@
+suite: Test Daemonset
+templates:
+  - daemonset.yaml
+tests:
+  - it: should match the snapshot (simple)
+    template: daemonset.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    template: daemonset.yaml
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}

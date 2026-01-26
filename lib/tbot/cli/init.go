@@ -42,7 +42,7 @@ type InitCommand struct {
 // NewInitCommand constructs an InitCommand at the top level of the given
 // application. It will execute `action` when selected by the user.
 func NewInitCommand(app KingpinClause, action func(*InitCommand) error) *InitCommand {
-	cmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
+	cmd := app.Command("init", "Initializes a destination directory for writes from a separate bot user.")
 
 	c := &InitCommand{}
 	c.AuthProxyArgs = newAuthProxyArgs(cmd)
@@ -53,7 +53,7 @@ func NewInitCommand(app KingpinClause, action func(*InitCommand) error) *InitCom
 	cmd.Flag("bot-user", "Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to \"--destination-dir\".").StringVar(&c.BotUser)
 	cmd.Flag("reader-user", "Enables POSIX ACLs and defines Linux user that will read short-lived certificates from \"--destination-dir\".").StringVar(&c.ReaderUser)
 	cmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&c.InitDir)
-	cmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&c.Clean)
+	cmd.Flag("clean", "If set, removes unexpected files and directories from the destination.").BoolVar(&c.Clean)
 
 	return c
 }

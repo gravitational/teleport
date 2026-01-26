@@ -998,42 +998,44 @@ func Test_querier_streamEventsFromChunk(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		// add event parquets (in one .parquet file) to mock S3 getter
-		payloads, err := auditEventsToParquet(tt.events)
-		require.NoError(t, err)
+		t.Run(tt.name, func(t *testing.T) {
+			// add event parquets (in one .parquet file) to mock S3 getter
+			payloads, err := auditEventsToParquet(tt.events)
+			require.NoError(t, err)
 
-		buf := new(bytes.Buffer)
-		writer := parquet.NewGenericWriter[eventParquet](buf)
-		_, err = writer.Write(payloads)
-		require.NoError(t, err)
-		require.NoError(t, writer.Close())
+			buf := new(bytes.Buffer)
+			writer := parquet.NewGenericWriter[eventParquet](buf)
+			_, err = writer.Write(payloads)
+			require.NoError(t, err)
+			require.NoError(t, writer.Close())
 
-		key := fmt.Sprintf("%s/%s/%s.parquet", prefix, date, chunkID)
-		file := filepath.Join(bucketName, key)
-		mockS3 := &mockS3Getter{
-			files: map[string][]byte{
-				file: buf.Bytes(),
-			},
-		}
+			key := fmt.Sprintf("%s/%s/%s.parquet", prefix, date, chunkID)
+			file := filepath.Join(bucketName, key)
+			mockS3 := &mockS3Getter{
+				files: map[string][]byte{
+					file: buf.Bytes(),
+				},
+			}
 
-		q := &querier{
-			querierConfig: querierConfig{
-				tablename:        tableName,
-				locationS3Bucket: bucketName,
-				locationS3Prefix: prefix,
-				logger:           slog.Default(),
-				tracer:           tracing.NoopTracer(teleport.ComponentAthena),
-			},
-			s3Getter: mockS3,
-		}
+			q := &querier{
+				querierConfig: querierConfig{
+					tablename:        tableName,
+					locationS3Bucket: bucketName,
+					locationS3Prefix: prefix,
+					logger:           slog.Default(),
+					tracer:           tracing.NoopTracer(teleport.ComponentAthena),
+				},
+				s3Getter: mockS3,
+			}
 
-		eventStream := q.streamEventsFromChunk(t.Context(), date, chunkID)
-		eventParquets, err := stream.Collect(eventStream)
-		require.NoError(t, err)
-		require.Len(t, eventParquets, len(payloads))
-		for i, e := range eventParquets {
-			require.Equal(t, payloads[i].UID, e.UID)
-		}
+			eventStream := q.streamEventsFromChunk(t.Context(), date, chunkID)
+			eventParquets, err := stream.Collect(eventStream)
+			require.NoError(t, err)
+			require.Len(t, eventParquets, len(payloads))
+			for i, e := range eventParquets {
+				require.Equal(t, payloads[i].UID, e.UID)
+			}
+		})
 	}
 }
 
