@@ -43,9 +43,6 @@ const (
 	// PathMax is the maximum length of a path from linux/limits.h.
 	PathMax = 255
 
-	// ArgvMax is the maximum length of the args vector.
-	ArgvMax = 1024
-
 	// eventArg is an exec event that holds the arguments to a function.
 	eventArg = 0
 

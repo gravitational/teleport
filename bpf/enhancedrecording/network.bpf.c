@@ -96,16 +96,10 @@ static int trace_connect_entry(struct sock *sk)
 
 static int trace_connect_return(int ret, short ipver)
 {
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    u32 session_id = BPF_CORE_READ(task, sessionid);
-    u8 *is_monitored = bpf_map_lookup_elem(&monitored_sessionids, &session_id);
-    if (is_monitored == NULL) {
-        return 0;
-    }
-
     struct sock **skpp;
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 id = (u32)pid_tgid;
+    u32 pid = pid_tgid >> 32;
 
     skpp = bpf_map_lookup_elem(&currsock, &id);
     if (skpp == NULL) {
@@ -123,8 +117,11 @@ static int trace_connect_return(int ret, short ipver)
     struct sock *skp = *skpp;
     u16 dport = BPF_CORE_READ(skp, __sk_common.skc_dport);
 
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    u32 session_id = BPF_CORE_READ(task, sessionid);
+
     if (ipver == IPV4) {
-        struct ipv4_data_t data4 = {.pid = pid_tgid >> 32, .ip = ipver};
+        struct ipv4_data_t data4 = {.pid = pid, .ip = ipver};
         data4.saddr = BPF_CORE_READ(skp, __sk_common.skc_rcv_saddr);
         data4.daddr = BPF_CORE_READ(skp, __sk_common.skc_daddr);
         data4.dport = __builtin_bswap16(dport);
@@ -135,7 +132,7 @@ static int trace_connect_return(int ret, short ipver)
             INCR_COUNTER(lost);
 
     } else /* IPV6 */ {
-        struct ipv6_data_t data6 = {.pid = pid_tgid >> 32, .ip = ipver};
+        struct ipv6_data_t data6 = {.pid = pid, .ip = ipver};
 
         BPF_CORE_READ_INTO(&data6.saddr, skp, __sk_common.skc_v6_rcv_saddr);
         BPF_CORE_READ_INTO(&data6.daddr, skp, __sk_common.skc_v6_daddr);
