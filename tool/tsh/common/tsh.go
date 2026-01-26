@@ -1065,6 +1065,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format \"5h30m40s\".").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
+	exportRecordings.Flag("encoder", "The video encoder to use.").Default("auto").EnumVar(&cf.Format, "ffmpeg", "avi", "auto")
 	exportRecordings.Flag("out", "Override output file name.").StringVar(&cf.OutFile)
 	exportRecordings.Arg("session-id", "ID of the session to export.").Required().StringVar(&cf.SessionID)
 

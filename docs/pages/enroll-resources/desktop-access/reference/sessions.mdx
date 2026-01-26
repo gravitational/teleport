@@ -71,13 +71,30 @@ desktop icon in the first column to distinguish them from SSH recordings.
 
 Click the play button to open the player in a new tab.
 
+### Export to video
+
+Starting in Teleport vTODO, desktop session recordings can be exported to video.
+
+```
+$ tsh recordings export ccd2cfd0-f32c-467d-af49-cac52edd0ddb
+```
+
+For the most performant encoding and smallest file sizes, ensure that
+[`ffmpeg`](https://www.ffmpeg.org/) is installed on your system. If `ffmpeg`
+is installed, Teleport will use it to encode an MP4 video file containing
+the session recording.
+
+If `ffmpeg` is not available, Teleport will fall back to encoding an AVI video
+file. These recordings take significantly longer to encode and often result in
+much larger file sizes.
+
 ## Storage
 
-Be aware, desktop session recordings save PNGs of changing sections of the
-screen, which means they take up significantly more disk space than SSH or
-Kubernetes session recordings. When using async recording modes, ensure that the
-host running Teleport's Desktop Service has sufficient disk space to store
-recordings that are in progress.
+Desktop session recordings contain images of changing sections of the screen,
+which means they take up significantly more disk space than SSH or Kubernetes
+session recordings. When using async recording modes, ensure that the host
+running Teleport's Desktop Service has sufficient disk space to store recordings
+that are in progress.
 
 As a point of reference, when a full 1080p screen is redrawn (for example when
 opening a new full-sized application window), you can expect about 250kb to be

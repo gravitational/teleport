@@ -19,25 +19,20 @@
 package common
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"image"
-	"image/draw"
-	"image/jpeg"
-	"image/png"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/icza/mjpeg"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/tool/tsh/common/internal/recordingexport"
 )
 
 const (
@@ -60,57 +55,124 @@ func onExportRecording(cf *CLIConf) error {
 	filenamePrefix := cf.SessionID
 	if cf.OutFile != "" {
 		// trim the extension if it was provided (we'll add it later on)
-		filenamePrefix = strings.TrimSuffix(
-			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
+		filenamePrefix = strings.TrimSuffix(strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
+		filenamePrefix = strings.TrimSuffix(strings.TrimSuffix(filenamePrefix, ".mp4"), ".MP4")
 	}
 
-	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
-	return trace.Wrap(err)
-}
-
-func makeAVIFileName(prefix string, currentFile int) string {
-	if currentFile == 0 {
-		return prefix + ".avi"
+	exporter := &desktopRecordingExporter{
+		ss:  clusterClient.AuthClient,
+		sid: session.ID(cf.SessionID),
 	}
 
-	return fmt.Sprintf("%v-%d.avi", prefix, currentFile)
+	meta, err := exporter.getSessionMetadata(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Set up the encoder which writes the output video.
+	// Use ffmpeg if it's installed on the system, otherwise fall back to a Go-based AVI encoder.
+	var encoder videoEncoder
+
+	if cf.Format == "auto" {
+		// check for ffmpeg
+		if _, err := exec.LookPath("ffmpeg"); err != nil {
+			fmt.Fprintln(os.Stderr, "WARNING: ffmpeg is not installed, falling back to legacy AVI encoder.")
+			cf.Format = "avi"
+		} else {
+			cf.Format = "ffmpeg"
+		}
+	}
+	switch cf.Format {
+	case "ffmpeg":
+		encoder, err = recordingexport.NewFFMPEGEncoder(filenamePrefix, framesPerSecond)
+		if err != nil {
+			return trace.Wrap(err, "creating ffmpeg encoder")
+		}
+	case "avi":
+		encoder = recordingexport.NewAVIEncoder(filenamePrefix, int32(meta.maxWidth), int32(meta.maxHeight), framesPerSecond)
+	}
+	defer func() {
+		if err := encoder.Close(); err != nil {
+			logger.WarnContext(cf.Context, "failed to close encoder", "error", err)
+		}
+	}()
+
+	// Set up the decoder to decode session data. It's most likely a RemoteFX session recording,
+	// but very old recordings might require a PNG decoder.
+	var decoder imageDecoder
+	if meta.isRemoteFX {
+		decoder, err = recordingexport.NewRemoteFXDecoder(meta.maxWidth, meta.maxHeight)
+		if err != nil {
+			return trace.Wrap(err, "creating RemoteFX decoder")
+		}
+	} else {
+		decoder = recordingexport.NewPNGDecoder(int(meta.maxWidth), int(meta.maxHeight))
+	}
+
+	// Encode the video.
+	// TODO(zmb3): add progress indicator
+	if _, err := exporter.run(cf.Context, meta, decoder, encoder); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
-// writeMovie writes the events for the specified session into one or more movie files
-// beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
+type desktopRecordingExporter struct {
+	ss  events.SessionStreamer
+	sid session.ID
+}
+
+type recordingMetadata struct {
+	totalEvents uint32
+	maxWidth    uint32
+	maxHeight   uint32
+	isRemoteFX  bool
+}
+
+// videoEncoder in an abstraction over the code that produces a video file
+// based on the contents of a desktop session recording.
+type videoEncoder interface {
+	EmitFrames(img image.Image, count int) error
+	// Close releases any resources held by the encoder.
+	// Must be idempotent.
+	Close() error
+}
+
+// imageDecoder decodes image data from a desktop session recording
+type imageDecoder interface {
+	ClearScreen()
+	UpdateScreen(tdp.Message) error
+	Image() image.Image
+	Close() error
+}
+
+func (d *desktopRecordingExporter) run(
+	ctx context.Context,
+	meta *recordingMetadata,
+	decoder imageDecoder,
+	encoder videoEncoder,
+) (frames int, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var screen *image.NRGBA
-	var movie mjpeg.AviWriter
-
+	var frameCount int
+	var gotScreenData bool
 	lastEmitted := int64(-1)
-	buf := new(bytes.Buffer)
 
-	var frameCount, fileCount int
-	var width, height int32
-	currentFilename := makeAVIFileName(prefix, fileCount)
-
-	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
-	fastPathReceived := false
+	evts, errs := d.ss.StreamSessionEvents(ctx, d.sid, 0)
 loop:
 	for {
 		select {
 		case err := <-errs:
-			if movie != nil {
-				if err := movie.Close(); err == nil && write != nil && frames > 0 {
-					write("wrote %v\n", currentFilename)
-				}
+			if err := encoder.Close(); err != nil {
+				logger.WarnContext(ctx, "failed to close encoder", "error", err)
 			}
 			return frameCount, trace.Wrap(err)
 		case <-ctx.Done():
-			if movie != nil {
-				if err := movie.Close(); err == nil && write != nil && frames > 0 {
-					write("wrote %v\n", currentFilename)
-				}
+			if err := encoder.Close(); err != nil {
+				logger.WarnContext(ctx, "failed to close encoder", "error", err)
 			}
-			return frameCount, ctx.Err()
+			return frameCount, trace.Wrap(ctx.Err())
 		case evt, more := <-evts:
 			if !more {
 				logger.WarnContext(ctx, "reached end of stream before seeing session end event")
@@ -120,21 +182,8 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
-				if !fastPathReceived {
-					break loop
-				}
-				if movie != nil {
-					movie.Close()
-					os.Remove(currentFilename)
-				}
-				url := fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d",
-					webProxyAddr,
-					evt.ClusterName,
-					evt.SessionID,
-					evt.EndTime.Sub(evt.StartTime).Milliseconds())
-				return frameCount, trace.BadParameter("this session can't be exported, please visit %s to view it", url)
-			case *apievents.SessionStart:
-				return frameCount, trace.BadParameter("only desktop recordings can be exported")
+				break loop
+
 			case *apievents.DesktopRecording:
 				msg, err := tdp.Decode(evt.Message)
 				if err != nil {
@@ -143,53 +192,27 @@ loop:
 				}
 
 				switch msg := msg.(type) {
-				case tdp.RDPFastPathPDU:
-					fastPathReceived = true
 				case tdp.ClientScreenSpec:
-					if screen != nil {
-						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
-					}
-					// Use the dimensions in the ClientScreenSpec to allocate
-					// our virtual canvas and video file.
-					// Note: this works because we don't currently support resizing
-					// the window during a session. If this changes, we'd have to
-					// find the maximum window size first.
-					logger.DebugContext(ctx, "allocating screen size", "width", msg.Width, "height", msg.Height)
-					width, height = int32(msg.Width), int32(msg.Height)
-					screen = image.NewNRGBA(image.Rectangle{
-						Min: image.Pt(0, 0),
-						Max: image.Pt(int(msg.Width), int(msg.Height)),
-					})
-
-					movie, err = mjpeg.New(currentFilename, width, height, framesPerSecond)
-					if err != nil {
+					decoder.ClearScreen()
+				case tdp.RDPFastPathPDU:
+					gotScreenData = true
+					if err := decoder.UpdateScreen(msg); err != nil {
 						return frameCount, trace.Wrap(err)
 					}
-
 				case tdp.PNGFrame, tdp.PNG2Frame:
-					if screen == nil {
-						return frameCount, trace.BadParameter("this session is missing required start metadata")
-					}
-
-					fragment, err := imgFromPNGMessage(msg)
-					if err != nil {
-						return frameCount, trace.WrapWithMessage(err, "couldn't decode PNG")
-					}
-
-					// draw the fragment from this message on the screen
-					draw.Draw(
-						screen,
-						rectFromPNGMessage(msg),
-						fragment,
-						fragment.Bounds().Min,
-						draw.Src,
-					)
+					gotScreenData = true
+					decoder.UpdateScreen(msg)
 				}
 
-				// if it's the very first bitmap, mark the time and continue
+				// if it's the very first screen fragment, mark the time and continue
 				// (no need to emit a frame yet)
 				if lastEmitted == -1 {
 					lastEmitted = evt.DelayMilliseconds
+					continue loop
+				}
+
+				// If we haven't received any image data yet there's nothing to emit.
+				if !gotScreenData {
 					continue loop
 				}
 
@@ -201,84 +224,72 @@ loop:
 						"last_event_ms", delta,
 						"frames_to_emit", framesToEmit,
 					)
-					buf.Reset()
-					if err := jpeg.Encode(buf, screen, nil); err != nil {
+					if err := encoder.EmitFrames(decoder.Image(), int(framesToEmit)); err != nil {
+						// TODO: close encoder
 						return frameCount, trace.Wrap(err)
 					}
-					for range int(framesToEmit) {
-						err := movie.AddFrame(buf.Bytes())
-						if errors.Is(err, mjpeg.ErrTooLarge) {
-							// this file can't get any larger - time to open a new file
-							if err := movie.Close(); err != nil {
-								return frameCount, trace.WrapWithMessage(err, "failed to write partial recording")
-							}
-							if write != nil {
-								write("wrote %v\n", currentFilename)
-							}
-							fileCount++
-							currentFilename = makeAVIFileName(prefix, fileCount)
-							movie, err = mjpeg.New(currentFilename, width, height, framesPerSecond)
-							if err != nil {
-								return frameCount, trace.Wrap(err)
-							}
-
-							// write the frame to the new file
-							if err := movie.AddFrame(buf.Bytes()); err != nil {
-								return frameCount, trace.Wrap(err)
-							}
-						} else if err != nil {
-							return frameCount, trace.Wrap(err)
-						}
-						frameCount++
-					}
-					lastEmitted = evt.DelayMilliseconds
+					frameCount += int(framesToEmit)
 				}
-
-			default:
-				logger.DebugContext(ctx, "got unexpected audit event", "event", logutils.TypeAttr(evt))
+				lastEmitted = evt.DelayMilliseconds
 			}
 		}
 	}
 
-	// if we received a session start event but the context is canceled
-	// before we received the screen dimensions, then there's no movie to close
-	if movie == nil {
-		return 0, ctx.Err()
+	if err := encoder.Close(); err != nil {
+		return frameCount, trace.Wrap(err, "closing encoder")
 	}
 
-	err = movie.Close()
-	if err == nil && write != nil {
-		write("wrote %v\n", currentFilename)
-	}
-
-	return frameCount, trace.Wrap(err)
+	return frameCount, nil
 }
 
-func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
-	switch msg := msg.(type) {
-	case tdp.PNG2Frame:
-		return png.Decode(bytes.NewReader(msg.Data()))
-	case tdp.PNGFrame:
-		return msg.Img, nil
-	default:
-		// this should never happen based on what we pass at the call site
-		return nil, trace.BadParameter("unsupported TDP message %T", msg)
-	}
-}
+// getSessionMetadata pre-processes the session recording in order to identify
+// metadata necessary for the export.
+func (d *desktopRecordingExporter) getSessionMetadata(ctx context.Context) (*recordingMetadata, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-func rectFromPNGMessage(msg tdp.Message) image.Rectangle {
-	switch msg := msg.(type) {
-	case tdp.PNG2Frame:
-		return image.Rect(
-			// add one to bottom and right dimension, as RDP
-			// bounds are inclusive
-			int(msg.Left()), int(msg.Top()),
-			int(msg.Right()+1), int(msg.Bottom()+1),
-		)
-	case tdp.PNGFrame:
-		return msg.Img.Bounds()
-	default:
-		// this should never happen based on what we pass at the call site
-		return image.Rectangle{}
+	var remoteFX bool
+	total, width, height := uint32(0), uint32(0), uint32(0)
+
+	evts, errs := d.ss.StreamSessionEvents(ctx, d.sid, 0)
+loop:
+	for {
+		select {
+		case err := <-errs:
+			return nil, trace.Wrap(err, "failed to process session")
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case evt, ok := <-evts:
+			if !ok {
+				break loop
+			}
+
+			switch evt.(type) {
+			case *apievents.SessionStart,
+				*apievents.AppSessionStart,
+				*apievents.MCPSessionStart,
+				*apievents.DatabaseSessionStart:
+				return nil, trace.BadParameter("only desktop recordings can be exported")
+			}
+
+			total++
+			dr, ok := evt.(*apievents.DesktopRecording)
+			if !ok {
+				continue
+			}
+			msg, err := tdp.Decode(dr.Message)
+			if err != nil {
+				return nil, trace.Wrap(err, "recording includes invalid data")
+			}
+
+			switch msg := msg.(type) {
+			case tdp.ClientScreenSpec:
+				height = max(height, msg.Height)
+				width = max(width, msg.Width)
+			case tdp.RDPFastPathPDU:
+				remoteFX = true
+			}
+		}
 	}
+	return &recordingMetadata{totalEvents: total, maxWidth: width, maxHeight: height, isRemoteFX: remoteFX}, nil
 }
