@@ -2969,6 +2969,19 @@ message ListSnowflakeSessionsResponse {
   string next_page_token = 2;
 }
 
+// ValidateBrowserMFAChallengeResponseRequest is used to validate an MFA response
+// during a browser-based MFA authentication flow.
+message ValidateBrowserMFAChallengeResponseRequest {
+  string RequestID = 1 [(gogoproto.jsontag) = "request_id,omitempty"];
+  MFAAuthenticateResponse MFAAuthenticateResponse = 2 [(gogoproto.jsontag) = "mfa_authenticate_response,omitempty"];
+}
+
+// ValidateBrowserMFAChallengeResponseResponse contains the redirect URL to send
+// the user back to after successfully completing browser-based MFA authentication.
+message ValidateBrowserMFAChallengeResponseResponse {
+  string ClientRedirectURL = 1 [(gogoproto.jsontag) = "client_redirect_url,omitempty"];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -3871,4 +3884,7 @@ service AuthService {
   // by the proxy on behalf of a cluster that wishes to join to this one as a
   // leaf cluster.
   rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
+
+  // ValidateBrowserMFAChallengeResponse validates browser MFA challenge responses
+  rpc ValidateBrowserMFAChallengeResponse(ValidateBrowserMFAChallengeResponseRequest) returns (ValidateBrowserMFAChallengeResponseResponse);
 }

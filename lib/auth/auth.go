@@ -8054,7 +8054,13 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
+	a.logger.DebugContext(ctx, "Checking SSO MFA conditions",
+		"enable_sso", enableSSO,
+		"has_sso_device", groupedDevs.SSO != nil,
+		"has_redirect_url", ssoClientRedirectURL != "",
+	)
 	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+		fmt.Println("IN SSO BLOCK")
 		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(
 			ctx,
 			mfatypes.BeginSSOMFAChallengeParams{
@@ -8113,6 +8119,20 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	if res.SSO == nil && len(res.Webauthn) > 0 {
+		res.SSO = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Sso{
+				Sso: &types.SSOMFADevice{
+					ConnectorId:   "browser",
+					ConnectorType: "browser",
+					DisplayName:   "Browser",
+				},
+			},
+		}
+	}
+
 	return res
 }
 

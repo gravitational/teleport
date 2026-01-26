@@ -46,6 +46,8 @@ const (
 	cliMFATypeWebauthn = "WEBAUTHN"
 	// cliMFATypeSSO is the CLI display name for SSO.
 	cliMFATypeSSO = "SSO"
+	// cliMFATypeBrowser is the CLI display name for Browser MFA.
+	cliMFATypeBrowser = "BROWSER"
 )
 
 // CLIPromptConfig contains CLI prompt config options.
@@ -65,6 +67,9 @@ type CLIPromptConfig struct {
 	// PreferSSO favors SSO challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferSSO bool
+	// PreferBrowser favors browser-based WebAuthn challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferBrowser bool
 	// StdinFunc allows tests to override prompt.Stdin().
 	// If nil prompt.Stdin() is used.
 	StdinFunc func() prompt.StdinReader
@@ -109,9 +114,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
 	promptSSO := chal.SSOChallenge != nil
+	promptBrowser := chal.WebauthnChallenge != nil
 
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn && !promptSSO {
+	if !promptOTP && !promptWebauthn && !promptSSO && !promptBrowser {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
@@ -125,6 +131,9 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 	if promptOTP && !isPerSessionMFA {
 		availableMethods = append(availableMethods, cliMFATypeOTP)
+	}
+	if promptBrowser {
+		availableMethods = append(availableMethods, cliMFATypeBrowser)
 	}
 
 	// Check off unsupported methods.
@@ -143,21 +152,35 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return nil, trace.AccessDenied("only WebAuthn and SSO MFA methods are supported with per-session MFA, can not specify --mfa-mode=otp")
 	}
 
+	if promptBrowser && !c.cfg.WebauthnSupported && c.cfg.SSOMFACeremony == nil {
+		promptBrowser = false
+		slog.DebugContext(
+			ctx,
+			"Browser MFA not supported, cluster needs to support Webauthn and client needs to support SSO MFA Ceremony",
+			"Webauthn", c.cfg.WebauthnSupported,
+			"SSO MFA Ceremony", c.cfg.SSOMFACeremony != nil,
+		)
+	}
+
 	// Prefer whatever method is requested by the client.
 	var chosenMethods []string
 	var userSpecifiedMethod bool
 	switch {
+	case c.cfg.PreferBrowser && promptBrowser:
+		chosenMethods = []string{cliMFATypeBrowser}
+		promptWebauthn, promptOTP, promptSSO = false, false, false
+		userSpecifiedMethod = true
 	case c.cfg.PreferSSO && promptSSO:
 		chosenMethods = []string{cliMFATypeSSO}
-		promptWebauthn, promptOTP = false, false
+		promptWebauthn, promptOTP, promptBrowser = false, false, false
 		userSpecifiedMethod = true
 	case c.cfg.PreferOTP && promptOTP:
 		chosenMethods = []string{cliMFATypeOTP}
-		promptWebauthn, promptSSO = false, false
+		promptWebauthn, promptSSO, promptBrowser = false, false, false
 		userSpecifiedMethod = true
 	case c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto:
 		chosenMethods = []string{cliMFATypeWebauthn}
-		promptSSO, promptOTP = false, false
+		promptSSO, promptOTP, promptBrowser = false, false, false
 		userSpecifiedMethod = true
 	}
 
@@ -205,6 +228,9 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return resp, trace.Wrap(err)
 	case promptWebauthn:
 		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
+		return resp, trace.Wrap(err)
+	case promptBrowser:
+		resp, err := c.promptBrowser(ctx, chal)
 		return resp, trace.Wrap(err)
 	case promptSSO:
 		resp, err := c.promptSSO(ctx, chal)
@@ -372,6 +398,11 @@ func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
 }
 
 func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	return resp, trace.Wrap(err)
+}
+
+func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }

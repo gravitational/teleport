@@ -1197,6 +1197,8 @@ type IdentityService interface {
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
 	// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
 	WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error)
+	// ValidateBrowserMFAChallengeResponse validates a response from a browser MFA challenge
+	ValidateBrowserMFAChallengeResponse(ctx context.Context, requestID string, mfaResponse *proto.MFAAuthenticateResponse) (string, error)
 }
 
 // ProvisioningService is a service in control
@@ -1417,6 +1419,8 @@ type AuthenticateUserRequest struct {
 	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
+	// SSO is an SSO MFA response
+	SSO *proto.SSOResponse `json:"sso,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client

@@ -6105,3 +6105,17 @@ func (c *Client) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfig
 	}
 	return res.GetSession(), nil
 }
+
+// ValidateBrowserMFAChallengeResponse validates an MFA response during a browser-based
+// MFA authentication flow and returns the redirect URL to send the user back to after
+// successfully completing the authentication challenge.
+func (c *Client) ValidateBrowserMFAChallengeResponse(ctx context.Context, requestID string, mfaResponse *proto.MFAAuthenticateResponse) (string, error) {
+	resp, err := c.grpc.ValidateBrowserMFAChallengeResponse(ctx, &proto.ValidateBrowserMFAChallengeResponseRequest{
+		RequestID:               requestID,
+		MFAAuthenticateResponse: mfaResponse,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.ClientRedirectURL, nil
+}

@@ -955,6 +955,12 @@ func (s *sessionCache) AuthenticateWebUser(
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (*authclient.SSHLoginResponse, error) {
+	slog.DebugContext(ctx, "AuthenticateSSHUser called",
+		"user", c.User,
+		"password_set", c.Password != "",
+		"webauthn", c.WebauthnChallengeResponse != nil,
+		"totp", c.TOTPCode != "",
+		"sso", c.SSOResponse)
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -974,6 +980,18 @@ func (s *sessionCache) AuthenticateSSHUser(
 			Token:    c.TOTPCode,
 		}
 	}
+	if c.SSOResponse != nil {
+		slog.DebugContext(ctx, "Setting authReq.SSO", "request_id", c.SSOResponse.RequestID, "token", c.SSOResponse.Token)
+		authReq.SSO = &proto.SSOResponse{
+			RequestId: c.SSOResponse.RequestID,
+			Token:     c.SSOResponse.Token,
+		}
+	}
+	slog.DebugContext(ctx, "authReq after processing",
+		"pass", authReq.Pass != nil,
+		"webauthn", authReq.Webauthn != nil,
+		"otp", authReq.OTP != nil,
+		"sso", authReq.SSO)
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		CompatibilityMode:       c.Compatibility,
