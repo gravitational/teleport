@@ -3527,6 +3527,13 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		if err := scopes.AssertFeatureEnabled(); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if caType == types.OpenSSHCA {
+			// This restriction *must* not be removed until we rework how logins are handled for openssh certs. Currently, openssh certs contain *all* the
+			// logins the user's role set permits. This isn't sound for scoped access. We will need to instead issue openssh certs with only the subset of
+			// logins that are granted by the specific scoped role that permitted the access attempt.
+			return nil, trace.Errorf("scoped certificates for openssh access are not yet supported")
+		}
 	}
 
 	if unscopedChecker := req.checkerContext.UnscopedChecker(); unscopedChecker != nil {

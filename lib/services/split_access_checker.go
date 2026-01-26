@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -377,7 +378,9 @@ func (c *SplitAccessCheckerContext) CertParams() *CertificateParameterContext {
 // UnscopedCertificateParameters is the subset of AccessChecker methods that are
 // relevant for unscoped certificate generation. This interface is satisfied by
 // AccessChecker and is returned by CertificateParameterContext.Unscoped() when
-// dealing with unscoped identities.
+// dealing with unscoped identities. When implementing a certificate parameter for
+// scopes, remove it from this interface and implement it directly on
+// CertificateParameterContext instead.
 type UnscopedCertificateParameters interface {
 	CertificateFormat() string
 	CertificateExtensions() []*types.CertExtension
@@ -390,9 +393,15 @@ type UnscopedCertificateParameters interface {
 	CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 }
 
-// CertificateParameterContext provides methods for resolving certificate parameters.
-// Methods on this type should only be called during certificate generation and return
-// parameters that need to be embedded in the certificate at issuance time.
+// CertificateParameterContext provides methods for resolving certificate parameters that abstract
+// over scoped and unscoped identities. Methods on this type should only be called during certificate
+// generation and return parameters that need to be embedded in the certificate at issuance time. For
+// unscoped identities these parameters are generally equivalent to those returned by the underlying
+// AccessChecker. For scoped identities things get more complex as most certificate paremeters cannot
+// be determined scoped roles. Instead, parameters for scoped identities are generally hard-coded for
+// the time being, with the intent to revisit them in the future and to provide non-role means of
+// configuring them.  See the Scopes RFD for more details on how scoped permissions intersect with
+// certificate parameters.
 type CertificateParameterContext struct {
 	ctx *SplitAccessCheckerContext
 }
@@ -404,11 +413,22 @@ func (n *CertificateParameterContext) Unscoped() UnscopedCertificateParameters {
 	return n.ctx.unscopedChecker
 }
 
+// TODO(fspmarshall/scopes): determine if we should be supporting an Unscoped() subset
+// of certificate parameters as well.  It seems likely that if/when we introduce scoped
+// cluster configuration for certificate parameters, we may need to increase the amount
+// of branching.  That, or make scoped and unscoped cluster configuration part of the
+// CertificateParameterContext itself and refactor away from some of the global values
+// that are currently being passed in as parameters to specific functions.
+
 // CheckLoginDuration verifies that the requested session TTL is valid and returns
 // the list of allowed logins for the certificate.
-// - Unscoped: Returns logins from roles, restricted by role TTL rules
-// - Scoped: Returns all possible logins across all roles in the pin (cannot
-//   determine which role will grant access without knowing target resource)
+//   - Unscoped: Returns logins from roles, restricted by role TTL rules
+//   - Scoped: Returns all possible logins across all roles in the pin. this behavior is necessary
+//     because we cannot determine the effective role without knowing the target resource, but the ssh
+//     protocol requires all valid principals to be present in the certificate at issuance time. Subsequent
+//     access checks will enforce login restrictions based on the effective role once the target resource
+//     is known. Note that this function is *not* safe to determine the logins to be used for OpenSSH agent
+//     access certs.
 func (n *CertificateParameterContext) CheckLoginDuration(ctx context.Context, ttl time.Duration) ([]string, error) {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.CheckLoginDuration(ttl)
@@ -419,6 +439,8 @@ func (n *CertificateParameterContext) CheckLoginDuration(ctx context.Context, tt
 	// grant access without knowing the target resource.
 	loginSet := make(map[string]struct{})
 
+	// Use of RisyEnumerateCheckers is acceptable here because we are deliberately attempting to aggregate
+	// information across all roles, rather than making a specific access-control decision.
 	for checker, err := range n.ctx.scopedContext.RiskyEnumerateCheckers(ctx) {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -463,87 +485,83 @@ func (n *CertificateParameterContext) CheckLoginDuration(ctx context.Context, tt
 }
 
 // AdjustSessionTTL adjusts the requested session TTL based on role/configuration policies.
-// - Unscoped: Returns the most restrictive TTL across all roles
-// - Scoped: Returns the requested TTL unchanged (cannot determine effective role
-//   without knowing target resource; will use cluster/scope-bound config in future)
 func (n *CertificateParameterContext) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.AdjustSessionTTL(ttl)
 	}
 	// Scoped identities: return the requested TTL unchanged. We cannot restrict TTL based on roles
 	// since we don't know which role will grant access without knowing the target resource.
-	// TODO(fspmarshall/scopes): implement scope-level TTL configuration
+	// TODO(fspmarshall/scopes): determine how to handle session TTL restrictions for scoped identities. This will
+	// likely involve fully decoupling session TTL and certificate TTL, since scoped cert TTLs will need to
+	// be determined by non-role configuration, whereas specific resource access sessions may still be able to
+	// be controlled by roles.
 	return ttl
 }
 
 // PrivateKeyPolicy returns the private key policy to enforce for the certificate.
-// - Unscoped: Returns the most restrictive policy across all roles
-// - Scoped: Returns the cluster default (TODO: scope-bound private key policy config)
 func (n *CertificateParameterContext) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error) {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.PrivateKeyPolicy(defaultPolicy)
 	}
 	// Scoped roles do not currently support custom private key policies. Return the cluster default.
-	// TODO(fspmarshall/scopes): support scope-bound private key policy configuration when that is implemented.
+	// TODO(fspmarshall/scopes): determine what (if any) control should permit setting the private key
+	// policy for scoped certificates.
 	return defaultPolicy, nil
 }
 
 // PinSourceIP returns whether source IP pinning should be enabled in the certificate.
-// - Unscoped: Determined by roles
-// - Scoped: Always false (scope isolation concerns; TODO: reevaluate with scope-level policies)
 func (n *CertificateParameterContext) PinSourceIP() bool {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.PinSourceIP()
 	}
 	// Scoped identities do not support source IP pinning due to scope isolation concerns.
-	// TODO(fspmarshall/scopes): reevaluate if/when scope-level security policies are implemented.
+	// TODO(fspmarshall/scopes): determine what (if any) control should permit setting the source IP
+	// pinning for scoped certificates. Likely this will need to be a cluster configuration rather than
+	// a role-based setting. It is conceivable that we could support a mode where IP pinning was selectively
+	// enforced based on the target resource, but doing so might be prohibitively complex.
 	return false
 }
 
 // CanPortForward returns whether port forwarding should be permitted in the certificate.
-// - Unscoped: Determined by roles
-// - Scoped: Hard-coded default (TODO: scope-level port forwarding configuration)
 func (n *CertificateParameterContext) CanPortForward() bool {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.CanPortForward()
 	}
-	// Scoped identities: return hard-coded default for now
-	// TODO(fspmarshall/scopes): implement scope-level port forwarding configuration
-	return false
+	// Scoped identities: use unstable env var configuration
+	// TODO(fspmarshall/scopes): determine what (if any) control should permit setting the port forwarding
+	// permission for scoped certificates.
+	return scopedaccess.UnstableGetScopedPortForwarding()
 }
 
 // CanForwardAgents returns whether agent forwarding should be permitted in the certificate.
-// - Unscoped: Determined by roles
-// - Scoped: Hard-coded default (TODO: scope-level agent forwarding configuration)
 func (n *CertificateParameterContext) CanForwardAgents() bool {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.CanForwardAgents()
 	}
-	// Scoped identities: return hard-coded default for now
-	// TODO(fspmarshall/scopes): implement scope-level agent forwarding configuration
-	return false
+	// Scoped identities: use unstable env var configuration
+	// TODO(fspmarshall/scopes): determine what (if any) control should permit setting the agent forwarding
+	// extension for scoped certificates.
+	return scopedaccess.UnstableGetScopedForwardAgent()
 }
 
 // PermitX11Forwarding returns whether X11 forwarding should be permitted in the certificate.
-// - Unscoped: Determined by roles
-// - Scoped: Hard-coded default (TODO: scope-level X11 forwarding configuration)
 func (n *CertificateParameterContext) PermitX11Forwarding() bool {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.PermitX11Forwarding()
 	}
-	// Scoped identities: return hard-coded default for now
-	// TODO(fspmarshall/scopes): implement scope-level X11 forwarding configuration
+	// Scoped identities: hard-coded to false (no unstable env var for X11 forwarding)
+	// TODO(fspmarshall/scopes): determine what (if any) control should permit setting the X11 forwarding
+	// permission for scoped certificates.
 	return false
 }
 
 // LockingMode returns the locking mode to apply for the certificate.
-// - Unscoped: Most restrictive mode across all roles
-// - Scoped: Cluster default (TODO: scope-bound locking mode configuration)
 func (n *CertificateParameterContext) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	if n.ctx.unscopedChecker != nil {
 		return n.ctx.unscopedChecker.LockingMode(defaultMode)
 	}
 	// Scoped roles do not currently support custom locking modes. Return the default/cluster mode.
-	// TODO(fspmarshall/scopes): support scope-bound locking mode configuration when that is implemented.
+	// TODO(fspmarshall/scopes): determine how to handle locking mode for scoped certificates given that
+	// role-affected locking behavior during certificate creation doesn't map well to pinned certificates.
 	return defaultMode
 }
