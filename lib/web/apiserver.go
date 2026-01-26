@@ -1425,7 +1425,7 @@ func localSettings(ctx context.Context, cap types.AuthPreference, logger *slog.L
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 
@@ -1469,7 +1469,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1492,7 +1492,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
@@ -1511,23 +1511,23 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap),
+		DeviceTrust:             deviceTrustSettings(cap, modules.GetModules()),
 		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
-func deviceTrustSettings(cap types.AuthPreference) webclient.DeviceTrustSettings {
+func deviceTrustSettings(cap types.AuthPreference, m modules.Modules) webclient.DeviceTrustSettings {
 	dt := cap.GetDeviceTrust()
 	return webclient.DeviceTrustSettings{
-		Disabled:   deviceTrustDisabled(cap),
+		Disabled:   deviceTrustDisabled(cap, m),
 		AutoEnroll: dt != nil && dt.AutoEnroll,
 	}
 }
 
 // deviceTrustDisabled is used to set its namesake field in
 // [webclient.PingResponse.Auth].
-func deviceTrustDisabled(cap types.AuthPreference) bool {
-	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust()) == constants.DeviceTrustModeOff
+func deviceTrustDisabled(cap types.AuthPreference, m modules.Modules) bool {
+	return dtconfig.GetEffectiveMode(cap.GetDeviceTrust(), m) == constants.DeviceTrustModeOff
 }
 
 func getAuthSettings(ctx context.Context, authClient authclient.ClientI, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
