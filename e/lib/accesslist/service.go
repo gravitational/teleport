@@ -2611,6 +2611,10 @@ func (s *Service) checkMembersModificationAllowedByName(ctx context.Context, aut
 // checkMembersModificationAllowed returns AccessDenied if Access List members' modifications are
 // not allowed. It can return any other error.
 func (s *Service) checkMembersModificationAllowed(ctx context.Context, authCtx authz.Context, accessList *accesslist.AccessList) error {
+	if accessList != nil && accessList.Spec.Type == accesslist.SCIM {
+		return trace.BadParameter("SCIM-sourced Access List members modification not allowed")
+	}
+
 	if allowed, err := oktaMembersModificationAllowed(ctx, authCtx, s.plugins, accessList); err != nil {
 		return trace.Wrap(err, "running Okta-specific member modification checks")
 	} else if !allowed {

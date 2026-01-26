@@ -167,7 +167,7 @@ func TestUpdateAccessList(t *testing.T) {
 	ownerWebClt := s.newAuthWebPack(t, owner.GetName(), skipUserCreation()).clt
 
 	t.Run("can update a regular access list", func(t *testing.T) {
-		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default, accesslist.SCIM} {
+		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default} {
 			t.Run(string(typ), func(t *testing.T) {
 				svc := s.testAuthServer.AuthServer.AuthServer.AccessListsInternal
 
@@ -201,6 +201,22 @@ func TestUpdateAccessList(t *testing.T) {
 				testUpdateAccessListRequireOK(t, ownerWebClt, accessList.GetName(), accessList.Spec, accessListMember3)
 			})
 		}
+	})
+
+	t.Run("SCIM access list member modification is blocked", func(t *testing.T) {
+		svc := s.testAuthServer.AuthServer.AuthServer.AccessListsInternal
+		accessList, err := svc.UpsertAccessList(ctx, newAccessList(t,
+			"test_scim",
+			withType(accesslist.SCIM),
+			withOwners([]accesslist.Owner{{Name: owner.GetName()}}),
+		))
+		require.NoError(t, err)
+
+		accessListMember := newAccessListMemberSpec(t, "llama-1", withExpires(time.Now().Add(time.Hour)), withReason("reason"))
+		resp, err := testUpdateAccessList(t, ownerWebClt, accessList.GetName(), accessList.Spec, accessListMember)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "SCIM-sourced Access List members modification not allowed")
+		require.Equal(t, http.StatusBadRequest, resp.Code())
 	})
 
 	t.Run("cannot update  UI RO access list", func(t *testing.T) {
@@ -310,7 +326,7 @@ func TestDeleteAccessList(t *testing.T) {
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
 	t.Run("can delete a regular access list", func(t *testing.T) {
-		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default, accesslist.SCIM} {
+		for _, typ := range []accesslist.Type{accesslist.DeprecatedDynamic, accesslist.Default} {
 			t.Run(string(typ), func(t *testing.T) {
 				accessList, err := authClient.AccessListClient().UpsertAccessList(ctx, newAccessList(t,
 					"access_list_1_"+string(typ), withType(typ),

@@ -17,6 +17,7 @@ import { convertToTraitConvenience } from 'e-teleport/AccessListManagement/Trait
 import {
   AccessListMember,
   AccessListMemberKind,
+  isScim,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
@@ -194,7 +195,7 @@ export const AccessListMemberTable = ({
   accessList: Pick<AccessListModified, 'origin' | 'type'>;
   isReadOnlyOktaList?: boolean;
   members: AccessListModified['members'];
-  perms: Perms | 'skip-permissions-check';
+  perms?: Perms;
   onDeleteMember?(m: AccessListModified['members'][number]): void;
   hideIneligibleReason?: boolean;
   isReviewing?: boolean;
@@ -325,33 +326,31 @@ export const AccessListMemberTable = ({
         {
           altKey: 'options-btn',
           isNonRender: !onDeleteMember,
-          render: member => (
-            <UserRevokeButtonCell
-              disabled={
-                perms !== 'skip-permissions-check' &&
-                isActionForbidden({
-                  accessList,
-                  isReadOnlyOktaList,
-                  action: Action.EditMembers,
-                  perms,
-                })
-              }
-              tooltip={
-                perms !== 'skip-permissions-check'
-                  ? getActionForbiddenInfo({
-                      accessList,
-                      isReadOnlyOktaList,
-                      action: Action.EditMembers,
-                      perms,
-                    })
-                  : undefined
-              }
-              onClick={() => onDeleteMember(member)}
-              ineligibleReason={member.ineligibleReason}
-              hideIneligibleReason={hideIneligibleReason}
-              isReviewing={isReviewing}
-            />
-          ),
+          render: member => {
+            const accessProps = {
+              accessList,
+              isReadOnlyOktaList,
+              action: Action.EditMembers,
+              perms,
+            };
+
+            return (
+              <UserRevokeButtonCell
+                disabled={
+                  perms
+                    ? isActionForbidden(accessProps)
+                    : isScim(accessList.type)
+                }
+                tooltip={
+                  perms ? getActionForbiddenInfo(accessProps) : undefined
+                }
+                onClick={() => onDeleteMember(member)}
+                ineligibleReason={member.ineligibleReason}
+                hideIneligibleReason={hideIneligibleReason}
+                isReviewing={isReviewing}
+              />
+            );
+          },
         },
       ]}
       emptyText="No Members Found"

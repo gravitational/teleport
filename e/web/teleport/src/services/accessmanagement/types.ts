@@ -244,16 +244,19 @@ export enum AccessListType {
    */
   Static = 'static',
   /**
-   * Scim Access Lists are created with the SCIM integration. Audit reviews are not supported
-   * for them and the ownership is optional.
+   * Scim Access Lists are created with the SCIM integration. Ownership is optional.
    */
   Scim = 'scim',
 }
 
 export function isReviewable(type: AccessListType): boolean {
-  return type !== AccessListType.Scim && type !== AccessListType.Static;
+  return type !== AccessListType.Static;
 }
 
 export function isReadOnly(type: AccessListType): boolean {
   return type === AccessListType.Static;
+}
+
+export function isScim(type: AccessListType): boolean {
+  return type === AccessListType.Scim;
 }

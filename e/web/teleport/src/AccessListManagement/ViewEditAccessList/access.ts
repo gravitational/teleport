@@ -1,6 +1,7 @@
 import {
   AccessListOrigin,
   isReadOnly,
+  isScim,
   type AccessList,
 } from 'e-teleport/services/accessmanagement';
 
@@ -56,6 +57,11 @@ export function getActionForbiddenInfo(props: AccessProps): string | undefined {
         accessKind: action,
         extraInfo: readOnlyTypeExtraInfo,
       });
+    case EditAccess.ForbiddenScim:
+      return readOnlyMsg({
+        accessKind: action,
+        extraInfo: scimExtraInfo,
+      });
     default:
       access satisfies never;
   }
@@ -67,6 +73,7 @@ enum EditAccess {
   ForbiddenOkta,
   ForbiddenReadOnlyType,
   ForbiddenOktaReadOnly,
+  ForbiddenScim,
 }
 
 function getEditAccess({
@@ -84,6 +91,7 @@ function getEditAccess({
     if (!canEditMembers) return EditAccess.ForbiddenRbac;
     if (isReadOnlyOktaList) return EditAccess.ForbiddenOktaReadOnly;
     if (isReadOnlyTypeList) return EditAccess.ForbiddenReadOnlyType;
+    if (isScim(accessList.type)) return EditAccess.ForbiddenScim;
     return EditAccess.Allowed;
   }
 
@@ -98,9 +106,7 @@ function getEditAccess({
   if (isOktaList) {
     switch (action) {
       case Action.EditTitleOrDescription:
-        return EditAccess.ForbiddenOkta;
       case Action.EditMembersGrants:
-        return EditAccess.ForbiddenOkta;
       case Action.EditOwnersGrants:
         return EditAccess.ForbiddenOkta;
     }
@@ -124,6 +130,9 @@ const readOnlyTypeExtraInfo =
 
 const oktaReadOnlyExtraInfo =
   'this Access List is managed by Okta and is read-only in Teleport';
+
+const scimExtraInfo =
+  'this Access List membership is managed by your SCIM provider';
 
 function readOnlyMsg({
   accessKind,

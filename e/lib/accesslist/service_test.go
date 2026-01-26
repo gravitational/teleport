@@ -1324,16 +1324,21 @@ func TestService_GetStaticAccessListMember(t *testing.T) {
 	accessLists := []*accesslist.AccessList{
 		staticAccessList, defaultAccessList, scimAccessList,
 	}
+
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, accessLists)
+
 	members := []*accesslist.AccessListMember{}
 
-	for _, accessList := range []*accesslist.AccessList{
-		staticAccessList, defaultAccessList, scimAccessList,
-	} {
+	for _, accessList := range accessLists {
 		members = append(members, newAccessListMember(t, accessList.GetName(), member1, accesslist.MembershipKindUser, c.clock))
 		members = append(members, newAccessListMember(t, accessList.GetName(), member2, accesslist.MembershipKindUser, c.clock))
 	}
 
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, accessLists, members)
+	for _, member := range members {
+		// Add members directly in the backend to bypass service validation
+		_, err := c.testEnv.accessLists.UpsertAccessListMember(c.userCtx, member)
+		require.NoError(t, err)
+	}
 
 	t.Run("getting member of non-static access_list fails", func(t *testing.T) {
 		nonStaticAccessLists := []*accesslist.AccessList{
@@ -1381,6 +1386,7 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	a2 := newAccessList(t, "2", c.clock)
 	a3 := newAccessList(t, "3", c.clock)
 	a4 := newAccessList(t, "4", c.clock)
+	scimList := newAccessList(t, "scim", c.clock, withType(accesslist.SCIM))
 
 	// create two lists without membership/ownership reqs to test nested membership checks
 	a5 := newAccessListWithPartialSpec(t, "5", c.clock.Now().Add(time.Hour*24*365), accesslist.Spec{
@@ -1401,7 +1407,7 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 		"test-label": "test",
 	})
 
-	for _, list := range []*accesslist.AccessList{a1, a2, a3, a4, a5, a6} {
+	for _, list := range []*accesslist.AccessList{a1, a2, a3, a4, a5, a6, scimList} {
 		_, err := c.svc.UpsertAccessList(c.userCtx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToProto(list)})
 		require.NoError(t, err)
 		expectEvent(t, events.AccessListCreateSuccessCode, c.emitter, func(event *apievents.AccessListCreate) {
@@ -1530,6 +1536,15 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	expectEvent(t, events.AccessListMemberCreateFailureCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
 		require.False(t, event.Success)
 	})
+
+	// SCIM-sourced Access Lists should prohibit member addition.
+	scimMember := newAccessListMember(t, scimList.GetName(), externalMember1, accesslist.MembershipKindUser, c.clock)
+	_, err = c.svc.UpsertAccessListMember(c.userCtx, &accesslistv1.UpsertAccessListMemberRequest{
+		Member: conv.ToMemberProto(scimMember),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "SCIM-sourced Access List members modification not allowed")
 }
 
 func TestService_UpsertStaticAccessListMember(t *testing.T) {
@@ -1651,6 +1666,7 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
+	scimList := newAccessList(t, "scim", c.clock, withType(accesslist.SCIM))
 
 	// a1 will have a label attached.
 	a1.SetStaticLabels(map[string]string{
@@ -1666,9 +1682,10 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	a1m2 := newAccessListMember(t, a1.GetName(), member2, accesslist.MembershipKindUser, c.clock)
 	a2m1 := newAccessListMember(t, a2.GetName(), member1, accesslist.MembershipKindUser, c.clock)
 	a2m2 := newAccessListMember(t, a2.GetName(), member2, accesslist.MembershipKindUser, c.clock)
+	scimMember := newAccessListMember(t, scimList.GetName(), externalMember1, accesslist.MembershipKindUser, c.clock)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents,
-		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
+		[]*accesslist.AccessList{a1, a2, scimList}, []*accesslist.AccessListMember{a1m1, a1m2, a2m1, a2m2})
 
 	// userWhere can't delete from a1
 	_, err := c.svc.DeleteAccessListMember(c.userWhereCtx, &accesslistv1.DeleteAccessListMemberRequest{AccessList: a1.GetName(), MemberName: a1m1.GetName()})
@@ -1712,6 +1729,21 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
 		require.Equal(t, a2.GetName(), event.AccessListMemberDelete.Metadata.Id)
 	})
+
+	// Add a member directly in the backend to bypass service validation
+	// This seeds the list with a member so we can test deletion enforcement on a SCIM list.
+	_, err = c.testEnv.accessLists.UpsertAccessListMember(c.userCtx, scimMember)
+	require.NoError(t, err)
+
+	// SCIM-sourced Access Lists should prohibit member removal.
+	_, err = c.svc.DeleteAccessListMember(c.userCtx, &accesslistv1.DeleteAccessListMemberRequest{
+		AccessList: scimList.GetName(),
+		MemberName: scimMember.GetName(),
+	})
+
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "SCIM-sourced Access List members modification not allowed")
 }
 
 func TestService_DeleteStaticAccessListMember(t *testing.T) {
@@ -1724,16 +1756,21 @@ func TestService_DeleteStaticAccessListMember(t *testing.T) {
 	accessLists := []*accesslist.AccessList{
 		staticAccessList, defaultAccessList, scimAccessList,
 	}
+
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, accessLists)
+
 	members := []*accesslist.AccessListMember{}
 
-	for _, accessList := range []*accesslist.AccessList{
-		staticAccessList, defaultAccessList, scimAccessList,
-	} {
+	for _, accessList := range accessLists {
 		members = append(members, newAccessListMember(t, accessList.GetName(), member1, accesslist.MembershipKindUser, c.clock))
 		members = append(members, newAccessListMember(t, accessList.GetName(), member2, accesslist.MembershipKindUser, c.clock))
 	}
 
-	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, accessLists, members)
+	for _, member := range members {
+		// Add members directly in the backend to bypass service validation
+		_, err := c.testEnv.accessLists.UpsertAccessListMember(c.userCtx, member)
+		require.NoError(t, err)
+	}
 
 	t.Run("deleting member of non-static access_list fails", func(t *testing.T) {
 		nonStaticAccessLists := []*accesslist.AccessList{

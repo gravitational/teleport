@@ -164,6 +164,21 @@ test('viewing an okta access list as admin (has access list rbac)', async () => 
   await testEditAccess({ as: 'admin-okta-bidirectionalsync' });
 });
 
+test('viewing a SCIM access list as admin', async () => {
+  jest
+    .spyOn(accessManagementService, 'fetchAccessList')
+    .mockResolvedValue(viewingScimList);
+
+  render(<Provider />);
+
+  await screen.findByText(/mocked title/i);
+
+  const button = screen.getByRole('button', {
+    name: /add new members or access lists/i,
+  });
+  expect(button).toBeDisabled();
+});
+
 type TestAs =
   | 'admin'
   | 'owner-no-rbac'
@@ -484,4 +499,9 @@ const viewingAsMember: AccessList = {
 const viewingOktaDerivedList: AccessList = {
   ...accessList,
   origin: AccessListOrigin.Okta,
+};
+
+const viewingScimList: AccessList = {
+  ...accessList,
+  type: AccessListType.Scim,
 };

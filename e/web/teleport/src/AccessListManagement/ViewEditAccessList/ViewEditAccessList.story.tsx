@@ -16,6 +16,7 @@ import {
   rawAccessListAsMember,
   rawAccessListAsOwner,
   rawAccessListOkta,
+  rawAccessListScim,
   rawAccessListStatic,
   rawEmptyAccessList,
   rawNestedAccessList,
@@ -341,6 +342,74 @@ export const ViewingAsAdminStaticList: StoryObj = {
       >
         <Alert kind="neutral">
           Devs: no audit tab, all buttons are disabled with appropriate tips
+        </Alert>
+        <ViewEditAccessList />
+      </Provider>
+    );
+  },
+};
+
+export const ViewingAsAdminScimList: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [
+        http.get(
+          cfg.getAccessListUrl({
+            action: 'reviews',
+            params: { accessListId: rawAccessListScim.metadata.name },
+          }),
+          () => {
+            return HttpResponse.json(rawReviewsResponse);
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawAccessListScim.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawAccessListScim,
+            });
+          }
+        ),
+        http.get(
+          cfg.getAccessManagementListUrl(rawNestedAccessList.metadata.name),
+          () => {
+            return HttpResponse.json({
+              accessList: rawNestedAccessList,
+            });
+          }
+        ),
+        http.get(cfg.getAccessManagementListUrl(), () => {
+          return new HttpResponse(
+            JSON.stringify({
+              accessLists: [rawAccessListScim, rawNestedAccessList],
+            })
+          );
+        }),
+        http.get(cfg.oss.getUsersUrl(), () => {
+          return HttpResponse.json([
+            { name: 'apple' },
+            {
+              name: 'carrot',
+            },
+          ]);
+        }),
+        http.get(cfg.oss.getRoleUrl({ action: 'list' }), () => {
+          return HttpResponse.json([]);
+        }),
+      ],
+    },
+  },
+  render() {
+    return (
+      <Provider
+        initialEntries={[
+          generatePath(cfg.routes.accessLists, {
+            accessListId: rawAccessListScim.metadata.name,
+          }),
+        ]}
+      >
+        <Alert kind="neutral">
+          Devs: member list add and delete buttons are disabled
         </Alert>
         <ViewEditAccessList />
       </Provider>

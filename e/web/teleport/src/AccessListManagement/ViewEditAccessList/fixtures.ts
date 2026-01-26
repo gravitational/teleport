@@ -144,6 +144,15 @@ export const rawAccessListStatic = {
   },
 };
 
+export const rawAccessListScim = {
+  ...rawAccessList,
+  spec: {
+    ...rawAccessList.spec,
+    title: 'Mock Scim Access List Title',
+    type: AccessListType.Scim,
+  },
+};
+
 export const rawNestedAccessList = {
   metadata: {
     name: 'mock-nested-access-list-id',

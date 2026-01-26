@@ -7,6 +7,7 @@ import {
   AccessListMember,
   AccessListOrigin,
   isReadOnly,
+  isScim,
 } from 'e-teleport/services/accessmanagement';
 
 import { TraitConvenience } from '../../Traits';
@@ -44,7 +45,7 @@ export function ReviewMembers({
     <>
       {isOkta && <DeleteMemberWarning isReviewing={true} />}
       <H2 mb={3}>Members</H2>
-      {isReadOnly(accessList.type) && (
+      {(isReadOnly(accessList.type) || isScim(accessList.type)) && (
         <Alert kind="outline-info">
           <Text>
             Editing members is disabled, this Access List is managed by IaC
@@ -64,7 +65,6 @@ export function ReviewMembers({
         accessList={accessList}
         isReadOnlyOktaList={isReadOnlyOktaList}
         members={editedMembers}
-        perms={'skip-permissions-check'}
         onDeleteMember={onDeleteMember}
         hideIneligibleReason={true}
         isReviewing={true}

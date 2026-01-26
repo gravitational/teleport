@@ -60,6 +60,27 @@ WithFullAccessList.parameters = {
   },
 };
 
+export const WithFullScimAccessList = () => {
+  return (
+    <MemoryRouter>
+      <TeleportProviderBasicE>
+        <Info>Devs: Click the buttons to see each step</Info>
+        <ReviewAccessList
+          cancelReview={() => null}
+          accessList={mockAccessListScim}
+          reviewer="llama"
+          isOwner={false}
+        />
+      </TeleportProviderBasicE>
+    </MemoryRouter>
+  );
+};
+WithFullScimAccessList.parameters = {
+  msw: {
+    handlers: [getRolesHandler],
+  },
+};
+
 export const WithSparseAccessList = () => {
   return (
     <MemoryRouter>
@@ -196,6 +217,12 @@ const mockAccessListFull: AccessListModified = {
   ],
   requiresReview: true,
   inheritedMemberGrants: { roles: [], traits: {} },
+};
+
+const mockAccessListScim: AccessListModified = {
+  ...mockAccessListFull,
+  type: AccessListType.Scim,
+  origin: AccessListOrigin.Unspecified,
 };
 
 const mockAccessListSparse: AccessListModified = {

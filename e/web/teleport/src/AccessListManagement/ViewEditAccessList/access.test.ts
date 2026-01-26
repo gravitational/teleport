@@ -6,11 +6,12 @@ import {
 import { Action, isActionForbidden } from './access';
 
 describe('isEditDisabled', () => {
+  // 'true' means the action is forbidden while 'false' means it is allowed
   test.each`
     desc                                  | forOktaOrigin | forOktaRO | forOwner | forAdminWhoCanEdit | forAdminWhoCanDelete
     ${'EditMembers+undefined'}            | ${false}      | ${true}   | ${false} | ${false}           | ${true}
     ${'EditMembers+Default'}              | ${false}      | ${true}   | ${false} | ${false}           | ${true}
-    ${'EditMembers+Scim'}                 | ${false}      | ${true}   | ${false} | ${false}           | ${true}
+    ${'EditMembers+Scim'}                 | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
     ${'EditMembers+Static'}               | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
     ${'EditOwners+undefined'}             | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditOwners+Default'}               | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
@@ -32,10 +33,10 @@ describe('isEditDisabled', () => {
     ${'EditMembersGrants+Default'}        | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditMembersGrants+Scim'}           | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditMembersGrants+Static'}         | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
-    ${'EditMembersGrants+undefined'}      | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
-    ${'EditMembersGrants+Default'}        | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
-    ${'EditMembersGrants+Scim'}           | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
-    ${'EditMembersGrants+Static'}         | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
+    ${'EditOwnersGrants+undefined'}       | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
+    ${'EditOwnersGrants+Default'}         | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
+    ${'EditOwnersGrants+Scim'}            | ${true}       | ${true}   | ${true}  | ${false}           | ${true}
+    ${'EditOwnersGrants+Static'}          | ${true}       | ${true}   | ${true}  | ${true}            | ${true}
     ${'EditAudit+undefined'}              | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditAudit+Default'}                | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
     ${'EditAudit+Scim'}                   | ${false}      | ${true}   | ${true}  | ${false}           | ${true}
