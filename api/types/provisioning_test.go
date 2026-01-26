@@ -261,6 +261,24 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "iam method with aws_organization_id",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "iam",
+					Allow: []*TokenRule{
+						{
+							AWSOrganizationID: "o-123abcd",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			desc: "github valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{

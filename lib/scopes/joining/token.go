@@ -244,6 +244,12 @@ func (t *Token) GetAWSIIDTTL() types.Duration {
 	return types.NewDuration(0)
 }
 
+// GetIntegration returns the Integration field which is used to provide
+// credentials that will be used when validating the AWS Organization if required by an IAM Token.
+func (t *Token) GetIntegration() string {
+	return ""
+}
+
 // GetSecret returns the token's secret value.
 func (t *Token) GetSecret() (string, bool) {
 	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
