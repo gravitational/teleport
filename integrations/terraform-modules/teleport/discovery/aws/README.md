@@ -72,7 +72,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_apply_aws_tags"></a> [apply\_aws\_tags](#input\_apply\_aws\_tags) | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
-| <a name="input_apply_teleport_resource_labels"></a> [apply\_teleport\_resource\_labels](#input\_apply\_teleport\_resource\_labels) | Additional Teleport resource labels to apply to all created Teleport. | `map(string)` | `{}` | no |
+| <a name="input_apply_teleport_resource_labels"></a> [apply\_teleport\_resource\_labels](#input\_apply\_teleport\_resource\_labels) | Additional Teleport resource labels to apply to all created Teleport resources. | `map(string)` | `{}` | no |
 | <a name="input_aws_iam_policy_document"></a> [aws\_iam\_policy\_document](#input\_aws\_iam\_policy\_document) | Override the AWS IAM policy document attached to the AWS IAM role for resource discovery. | `string` | `""` | no |
 | <a name="input_aws_iam_policy_name"></a> [aws\_iam\_policy\_name](#input\_aws\_iam\_policy\_name) | Name for the AWS IAM policy for discovery. | `string` | `"teleport-discovery"` | no |
 | <a name="input_aws_iam_policy_use_name_prefix"></a> [aws\_iam\_policy\_use\_name\_prefix](#input\_aws\_iam\_policy\_use\_name\_prefix) | Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix. | `bool` | `true` | no |
@@ -91,7 +91,7 @@ No modules.
 | <a name="input_teleport_integration_use_name_prefix"></a> [teleport\_integration\_use\_name\_prefix](#input\_teleport\_integration\_use\_name\_prefix) | Determines whether the name of the Teleport integration (`teleport_integration_name`) is used as a prefix. | `bool` | `true` | no |
 | <a name="input_teleport_provision_token_name"></a> [teleport\_provision\_token\_name](#input\_teleport\_provision\_token\_name) | Name for the `teleport_provision_token` resource. | `string` | `"discovery"` | no |
 | <a name="input_teleport_provision_token_use_name_prefix"></a> [teleport\_provision\_token\_use\_name\_prefix](#input\_teleport\_provision\_token\_use\_name\_prefix) | Determines whether the name of the Teleport provision token (`teleport_provision_token_name`) is used as a prefix. | `bool` | `true` | no |
-| <a name="input_teleport_proxy_public_addr"></a> [teleport\_proxy\_public\_addr](#input\_teleport\_proxy\_public\_addr) | Teleport cluster proxy public address. | `string` | n/a | yes |
+| <a name="input_teleport_proxy_public_addr"></a> [teleport\_proxy\_public\_addr](#input\_teleport\_proxy\_public\_addr) | Teleport cluster proxy public address `host:port`. | `string` | n/a | yes |
 
 ## Outputs
 
