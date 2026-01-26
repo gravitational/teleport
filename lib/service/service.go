@@ -2472,13 +2472,17 @@ func (process *TeleportProcess) initAuthService() error {
 			recordingEncryptionManager.SetCache(cache)
 
 			// Create the inventory cache. This will wait for the primary cache to be ready before starting.
+			metricsReg, err := metrics.NewRegistry(process.metricsRegistry, teleport.MetricNamespace, "")
+			if err != nil {
+				return trace.Wrap(err, "creating metrics registry for inventory cache")
+			}
 			invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
 				PrimaryCache:       cache,
 				Events:             as.Services,
 				Inventory:          as.Services,
 				BotInstanceBackend: as.Services,
 				Logger:             process.logger.With(teleport.ComponentKey, "inventory.cache"),
-				Registerer:         process.metricsRegistry,
+				MetricsRegistry:    metricsReg,
 			})
 			if err != nil {
 				return trace.Wrap(err, "creating inventory cache")

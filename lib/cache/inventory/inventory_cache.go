@@ -38,7 +38,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"rsc.io/ordered"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -46,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/expression"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -81,52 +81,57 @@ type inventoryCacheMetrics struct {
 	requests prometheus.Counter
 }
 
-// newInventoryCacheMetrics creates and registers the inventory cache metrics.
-func newInventoryCacheMetrics(reg prometheus.Registerer) (*inventoryCacheMetrics, error) {
-	m := &inventoryCacheMetrics{
+// newInventoryCacheMetrics creates the inventory cache metrics.
+func newInventoryCacheMetrics(reg *metrics.Registry) *inventoryCacheMetrics {
+	var namespace, subsystem string
+	if reg != nil {
+		namespace = reg.Namespace()
+		subsystem = reg.Subsystem()
+	}
+
+	return &inventoryCacheMetrics{
 		instancesTotal: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricsSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "instances_total",
 			Help:      "Total number of teleport instances in the inventory cache.",
 		}),
 		botInstancesTotal: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricsSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "bot_instances_total",
 			Help:      "Total number of bot instances in the inventory cache.",
 		}),
 		instancesByVersion: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricsSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "instances_by_version",
 			Help:      "Number of teleport instances by teleport version.",
 		}, []string{metricsVersionLabel}),
 		initDurationSeconds: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricsSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "init_duration_seconds",
 			Help:      "Time taken to initialize and populate the inventory cache.",
 		}),
 		requests: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: metricsSubsystem,
+			Namespace: namespace,
+			Subsystem: subsystem,
 			Name:      "requests_total",
 			Help:      "Total number of requests to the inventory cache.",
 		}),
 	}
+}
 
-	if err := trace.NewAggregate(
+// register registers the metrics with the provided registerer.
+func (m *inventoryCacheMetrics) register(reg prometheus.Registerer) error {
+	return trace.NewAggregate(
 		reg.Register(m.instancesTotal),
 		reg.Register(m.botInstancesTotal),
 		reg.Register(m.instancesByVersion),
 		reg.Register(m.initDurationSeconds),
 		reg.Register(m.requests),
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return m, nil
+	)
 }
 
 var (
@@ -338,7 +343,8 @@ type InventoryCacheConfig struct {
 
 	Logger *slog.Logger
 
-	Registerer prometheus.Registerer
+	// MetricsRegistry is the registry for prometheus metrics.
+	MetricsRegistry *metrics.Registry
 }
 
 func (c *InventoryCacheConfig) CheckAndSetDefaults() error {
@@ -357,10 +363,6 @@ func (c *InventoryCacheConfig) CheckAndSetDefaults() error {
 
 	if c.Logger == nil {
 		c.Logger = slog.Default()
-	}
-
-	if c.Registerer == nil {
-		c.Registerer = prometheus.DefaultRegisterer
 	}
 
 	return nil
@@ -390,9 +392,16 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	metrics, err := newInventoryCacheMetrics(cfg.Registerer)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var reg *metrics.Registry
+	if cfg.MetricsRegistry != nil {
+		reg = cfg.MetricsRegistry.Wrap(metricsSubsystem)
+	}
+
+	m := newInventoryCacheMetrics(reg)
+	if reg != nil {
+		if err := m.register(reg); err != nil {
+			cfg.Logger.ErrorContext(context.Background(), "Failed to register inventory cache metrics", "error", err)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -415,7 +424,7 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 
 		ctx:     ctx,
 		cancel:  cancel,
-		metrics: metrics,
+		metrics: m,
 	}
 
 	go func() {

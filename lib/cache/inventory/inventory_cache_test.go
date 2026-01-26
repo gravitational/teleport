@@ -29,7 +29,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"rsc.io/ordered"
@@ -493,8 +492,7 @@ func TestInventoryCache(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "18.2.0",
-			Registerer:         prometheus.NewRegistry(),
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -679,8 +677,7 @@ func TestInventoryCacheWatcher(t *testing.T) {
 			Events:             local.NewEventsService(p.Backend),
 			PrimaryCache:       p.Cache,
 			TargetVersion:      "18.2.0",
-			Registerer:         prometheus.NewRegistry(),
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -803,8 +800,7 @@ func TestInventoryCacheRateLimiting(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "18.2.0",
-			Registerer:         prometheus.NewRegistry(),
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -958,8 +954,7 @@ func TestInventoryCacheFiltering(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "19.0.0",
-			Registerer:         prometheus.NewRegistry(),
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
@@ -1290,8 +1285,7 @@ func TestInventoryCacheSorting(t *testing.T) {
 			Inventory:          mockInventory,
 			BotInstanceBackend: mockBotCache,
 			TargetVersion:      "19.0.0",
-			Registerer:         prometheus.NewRegistry(),
-		})
+					})
 		require.NoError(t, err)
 		defer inventoryCache.Close()
 
