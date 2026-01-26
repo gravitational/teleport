@@ -1,6 +1,5 @@
 # Enrollment failed
 Teleport could not auto enroll the Azure VM due to an unexpected error.
-This issue is used when the failure does not match a known Azure error pattern.
 
 To troubleshoot, check the following:
 
