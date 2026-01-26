@@ -1159,8 +1159,10 @@
   "ignorePaths": [
     "**/includes/access-monitoring-events.mdx",
     "**/includes/reference/code-blocks-no-cspell/**",
+    "**/reference/cli/**",
     "**/reference/infrastructure-as-code/operator-resources/**",
     "**/reference/infrastructure-as-code/teleport-resources/**",
-    "**/reference/infrastructure-as-code/terraform-provider/**"
+    "**/reference/infrastructure-as-code/terraform-provider/**",
+    "pages/reference/cli/**"
   ]
 }

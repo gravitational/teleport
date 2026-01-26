@@ -38,7 +38,7 @@ type DBCommand struct {
 
 // NewDBCommand initializes flags for `tbot db`
 func NewDBCommand(app KingpinClause, action func(*DBCommand) error) *DBCommand {
-	cmd := app.Command("db", "Execute database commands through tsh.")
+	cmd := app.Command("db", "Executes database commands through tsh.")
 
 	c := &DBCommand{}
 	c.genericExecutorHandler = newGenericExecutorHandler(cmd, c, func(c *DBCommand) error {
@@ -56,8 +56,8 @@ func NewDBCommand(app KingpinClause, action func(*DBCommand) error) *DBCommand {
 	// TODO(strideynet): DELETE IN 17.0.0
 	cmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().Envar(ProxyServerEnvVar).StringVar(&c.LegacyProxyFlag)
 
-	cmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
-	cmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&c.DestinationDir)
+	cmd.Flag("proxy-server", "The address of the Teleport proxy server to use, in host:port form.").StringVar(&c.ProxyServer)
+	cmd.Flag("destination-dir", "The destination directory to provide tsh for authentication.").StringVar(&c.DestinationDir)
 	cmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&c.Cluster)
 	c.RemainingArgs = RemainingArgs(cmd.Arg(
 		"args",

@@ -2570,8 +2570,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case types.KindCertAuthority:
-		getAll := rc.ref.SubKind == "" && rc.ref.Name == ""
-		if getAll {
+		switch {
+		// `tctl get cert_authority`.
+		case rc.ref.SubKind == "" && rc.ref.Name == "":
 			var allAuthorities []types.CertAuthority
 			for _, caType := range types.CertAuthTypes {
 				authorities, err := client.GetCertAuthorities(ctx, caType, rc.withSecrets)
@@ -2585,14 +2586,28 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				allAuthorities = append(allAuthorities, authorities...)
 			}
 			return &authorityCollection{cas: allAuthorities}, nil
+		// Eg: `tctl get cert_authority/user`.
+		case rc.ref.SubKind == "":
+			caType := rc.ref.Name // ref.Name is set first.
+			authorities, err := client.GetCertAuthorities(ctx, types.CertAuthType(caType), rc.withSecrets)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &authorityCollection{cas: authorities}, nil
+		// Eg: `tctl get cert_authority/user/example.com`.
+		default:
+			caType := rc.ref.SubKind // ref.SubKind is set first.
+			name := rc.ref.Name
+			id := types.CertAuthID{
+				Type:       types.CertAuthType(caType),
+				DomainName: name,
+			}
+			authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
 		}
-
-		id := types.CertAuthID{Type: types.CertAuthType(rc.ref.SubKind), DomainName: rc.ref.Name}
-		authority, err := client.GetCertAuthority(ctx, id, rc.withSecrets)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &authorityCollection{cas: []types.CertAuthority{authority}}, nil
 	case types.KindNode:
 		var search []string
 		if rc.ref.Name != "" {

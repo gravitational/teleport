@@ -712,9 +712,15 @@ func (process *TeleportProcess) makeJoinParams(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tokenSecret, err := process.Config.TokenSecret()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
 	joinParams := &joinclient.JoinParams{
 		Token:                token,
+		TokenSecret:          tokenSecret,
 		ID:                   id,
 		AuthServers:          process.Config.AuthServerAddresses(),
 		ProxyServer:          process.Config.ProxyServer,
