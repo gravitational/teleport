@@ -709,6 +709,25 @@ func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 	return appServer
 }
 
+func createAppServerWithName(t *testing.T, appName string) types.AppServer {
+	t.Helper()
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: appName},
+				Spec: types.AppSpecV3{
+					URI:        "localhost",
+					PublicAddr: uuid.New().String() + ".invalid",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
 func TestMakeAppRedirectURL(t *testing.T) {
 	for _, test := range []struct {
 		name             string
@@ -1000,6 +1019,7 @@ func TestSelectAppAuthConfig(t *testing.T) {
 func TestMCPEndpoints(t *testing.T) {
 	clusterName := "test-cluster"
 	mcpServerName := "mcp-test-server"
+	appName := "regular-app"
 
 	key, cert, err := tlsca.GenerateSelfSignedCA(
 		pkix.Name{CommonName: clusterName},
@@ -1014,9 +1034,12 @@ func TestMCPEndpoints(t *testing.T) {
 		clusterName:      clusterName,
 		sessionError:     trace.BadParameter("not found"),
 		createAppSession: createAppSession(t, fakeClock, key, cert, clusterName, ""),
-		appServers:       []types.AppServer{createMCPServer(t, mcpServerName, nil /* labels */)},
-		caKey:            key,
-		caCert:           cert,
+		appServers: []types.AppServer{
+			createMCPServer(t, mcpServerName, nil /* labels */),
+			createAppServerWithName(t, appName),
+		},
+		caKey:  key,
+		caCert: cert,
 		appAuthConfigs: []*appauthconfigv1.AppAuthConfig{
 			appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
 				AuthorizationHeader: header,
@@ -1067,6 +1090,28 @@ func TestMCPEndpoints(t *testing.T) {
 			})
 		})
 	}
+
+	t.Run("non-mcp app fails", func(t *testing.T) {
+		for _, endpoint := range []struct {
+			desc string
+			path string
+		}{
+			{
+				desc: "complete",
+				path: "/mcp/sites/" + clusterName + "/apps/" + appName,
+			},
+			{
+				desc: "short",
+				path: "/mcp/apps/" + appName,
+			},
+		} {
+			t.Run(endpoint.desc, func(t *testing.T) {
+				clt := makeMCPClient(t, frontSrv, endpoint.path, map[string]string{header: "Bearer fake-token"})
+				_, err := mcptest.InitializeClient(t.Context(), clt)
+				require.Error(t, err)
+			})
+		}
+	})
 }
 
 func TestGetAppSessionAuthConfig(t *testing.T) {

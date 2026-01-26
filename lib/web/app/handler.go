@@ -262,33 +262,38 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 
 // BindMCPEndpoints binds MCP HTTP endpoints to a router.
 func (h *Handler) BindMCPEndpoints(router *httprouter.Router, limiter func(httplib.HandlerFunc) httprouter.Handle) {
-	extractParams := func(p httprouter.Params) requestedAppParams {
-		return requestedAppParams{
-			appName:     p.ByName("app"),
-			clusterName: p.ByName("site"),
-		}
-	}
-
-	wrapWithLimiter := func(handler httprouter.Handle) httprouter.Handle {
+	limitedHandler := func(handler httprouter.Handle) httprouter.Handle {
 		if limiter == nil {
 			return handler
 		}
 
 		return limiter(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 			handler(w, r, p)
-
 			// Results and errors are sent by the handler.
 			return nil, nil
 		})
 	}
 
-	router.POST("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
-	router.DELETE("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
-	router.GET("/mcp/sites/:site/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
+	handler := limitedHandler(h.withAuthAndAppResolver(
+		h.handleStreamableMCP,
+		func(p httprouter.Params) requestedAppParams {
+			return requestedAppParams{
+				appName:     p.ByName("app"),
+				clusterName: p.ByName("site"),
+			}
 
-	router.POST("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
-	router.DELETE("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
-	router.GET("/mcp/apps/:app", wrapWithLimiter(h.withAuthAndAppResolver(h.handleStreamableMCP, extractParams)))
+		},
+		func(app types.Application) bool {
+			return app.IsMCP()
+		},
+	))
+
+	router.POST("/mcp/sites/:site/apps/:app", handler)
+	router.DELETE("/mcp/sites/:site/apps/:app", handler)
+	router.GET("/mcp/sites/:site/apps/:app", handler)
+	router.POST("/mcp/apps/:app", handler)
+	router.DELETE("/mcp/apps/:app", handler)
+	router.GET("/mcp/apps/:app", handler)
 }
 
 // handleHttp forwards the request to the application service or redirects

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,9 +74,13 @@ type requestedAppParams struct {
 // a request.
 type extracAppParamsFunc func(p httprouter.Params) requestedAppParams
 
+// appQualifierFunc function used to check if the resolved app qualifies for
+// receiving the request.
+type appQualifierFunc func(app types.Application) bool
+
 // withAuthAndAppResolver resolves app based on request then authenticate the
 // request before handling to a http.HandlerFunc.
-func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc extracAppParamsFunc) httprouter.Handle {
+func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc extracAppParamsFunc, appFunc appQualifierFunc) httprouter.Handle {
 	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 		params := extractFunc(p)
 		appName := params.appName
@@ -97,6 +102,10 @@ func (h *Handler) withAuthAndAppResolver(handler handlerAuthFunc, extractFunc ex
 		appServer, err := ResolveByName(r.Context(), clusterClient, appName)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		if !appFunc(appServer.GetApp()) {
+			return trace.NotFound("app not found")
 		}
 
 		session, err := h.authenticate(r.Context(), r, &withAppServer{clusterName: site, appServer: appServer})

@@ -67,14 +67,6 @@ func TestResolveByName(t *testing.T) {
 		createMCPApp(t, "example-2", nil /* labels */),
 		createMCPApp(t, "example-3", nil /* labels */),
 	}
-	// appServer, err := types.NewAppServerV3(
-	// 	types.Metadata{Name: name, Labels: labels},
-	// 	types.AppServerSpecV3{
-	// 		HostID: uuid.New().String(),
-	// 		App:    createMCPApp(t, name, labels),
-	// 	},
-	// )
-	// require.NoError(t, err)
 
 	for name, tc := range map[string]struct {
 		appName         string
