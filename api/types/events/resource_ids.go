@@ -94,7 +94,7 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 	return out
 }
 
-// previewStrings returns up to limit elements from in, and a truncation flag
+// previewStrings returns up to limit elements from in
 func previewStrings(in []string, limit int) []string {
 	if limit <= 0 || len(in) == 0 {
 		return nil
