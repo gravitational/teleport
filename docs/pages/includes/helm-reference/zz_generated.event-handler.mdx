@@ -419,14 +419,16 @@ tokenSpecOverride:
 ## `certManager`
 
 `certManager` controls whether the chart uses `cert-manager` to provision TLS certificates
-for mTLS connection between the plugin and Fluentd.
+for mTLS connection between the plugin and Fluentd. If enabled, `cert-manager` will create two
+Kubernetes secrets in the plugin's release namespace:
+the Fluentd server credentials (CA cert, server cert, server key)
+and the plugin client credentials (CA cert, client cert, client key).
 
 <Admonition type="note" title="Installing cert manager">
 You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
 See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/helm/)
-and the relevant sections of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx)
-and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+for more information.
 </Admonition>
 
 ### `certManager.enabled`
@@ -435,7 +437,7 @@ and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) gui
 |------|---------|
 | `bool` | `false` |
 
-`certManager.enabled` controls if cert-manager should be used to provision TLS certificates for the event handler plugin.
+`certManager.enabled` controls if cert-manager should be used to provision TLS certificates for the plugin.
 
 ### `certManager.issuerName`
 
@@ -443,13 +445,13 @@ and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) gui
 |------|---------|
 | `string` | `""` |
 
-`certManager.issuerName` is the name of the `Issuer` or `ClusterIssuer` to use for issuing certificates.
+`certManager.issuerName` is the name of the `Issuer` or `ClusterIssuer` to use for issuing Fluentd server and client certificates.
+If using `Issuer`, it should be in the same namespace as the plugin's release namespace.
 
 <Admonition type="note" title="Configuring an Issuer">
-You must install and configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
+You must install and configure an appropriate `Issuer` or `ClusterIssuer` yourself.
 
-Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx) and [GCP](../../zero-trust-access/deploy-a-cluster/helm-deployments/gcp.mdx) guides for more information.
+See the [cert-manager Issuers documentation](https://cert-manager.io/docs/configuration/issuers/) for more information.
 </Admonition>
 
 ### `certManager.issuerKind`
@@ -459,7 +461,7 @@ of the [AWS](../../zero-trust-access/deploy-a-cluster/helm-deployments/aws.mdx) 
 | `string` | `"Issuer"` |
 
 `certManager.issuerKind` is the `Kind` of the `Issuer` to be used when issuing certificates with `cert-manager`.
-Defaults to 'Issuer' to keep permissions scoped to the plugin's namespace.
+Defaults to 'Issuer' to keep permissions scoped to the plugin's release namespace.
 
 ### `certManager.issuerGroup`
 
