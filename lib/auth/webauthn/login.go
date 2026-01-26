@@ -252,7 +252,21 @@ type LoginData struct {
 	TargetCluster string
 }
 
-func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
+// mfaValidationResult holds the results of MFA validation needed for subsequent operations.
+type mfaValidationResult struct {
+	user                string
+	device              *types.MFADevice
+	credential          *wan.Credential
+	sessionData         *wantypes.SessionData
+	discoverableLogin   bool
+	challengeAllowReuse bool
+	challenge           string
+	rpID                string
+}
+
+// validateMFAResponseInternal performs all cryptographic validation of an MFA
+// response
+func (f *loginFlow) validateMFAResponseInternal(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*mfaValidationResult, error) {
 	if requiredExtensions == nil {
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
@@ -413,21 +427,42 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 		}
 	}
 
-	// Update last used timestamp and device counter.
-	if err := updateCredentialAndTimestamps(dev, credential, discoverableLogin); err != nil {
+	// Return validation results without modifying any state
+	return &mfaValidationResult{
+		user:                user,
+		device:              dev,
+		credential:          credential,
+		sessionData:         sd,
+		discoverableLogin:   discoverableLogin,
+		challengeAllowReuse: challengeAllowReuse,
+		challenge:           challenge,
+		rpID:                rpID,
+	}, nil
+}
+
+func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) (*LoginData, error) {
+	// Validate the MFA response
+	result, err := f.validateMFAResponseInternal(ctx, user, resp, requiredExtensions)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Retroactively write the credential RPID, now that it cleared authn.
-	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
-		log.DebugContext(ctx, "Recording RPID in device",
-			"rpid", rpID,
-			"user", user,
-			"device", dev.GetName(),
-		)
-		webDev.CredentialRpId = rpID
+
+	// Update last used timestamp and device counter.
+	if err := updateCredentialAndTimestamps(result.device, result.credential, result.discoverableLogin); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if err := f.identity.UpsertMFADevice(ctx, user, dev); err != nil {
+	// Retroactively write the credential RPID, now that it cleared authn.
+	if webDev := result.device.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
+		log.DebugContext(ctx, "Recording RPID in device",
+			"rpid", result.rpID,
+			"user", result.user,
+			"device", result.device.GetName(),
+		)
+		webDev.CredentialRpId = result.rpID
+	}
+
+	if err := f.identity.UpsertMFADevice(ctx, result.user, result.device); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -435,23 +470,29 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	// again, unless reuse is explicitly allowed.
 	// Note that even reusable sessions are deleted when their expiration time
 	// passes.
-	if !challengeAllowReuse {
-		if err := f.sessionData.Delete(ctx, user, challenge); err != nil {
+	if !result.challengeAllowReuse {
+		if err := f.sessionData.Delete(ctx, result.user, result.challenge); err != nil {
 			log.WarnContext(ctx, "failed to delete login SessionData for user",
-				"user", user,
-				"scope", sd.ChallengeExtensions.Scope,
+				"user", result.user,
+				"scope", result.sessionData.ChallengeExtensions.Scope,
 			)
 		}
 	}
 
 	return &LoginData{
-		User:          user,
-		Device:        dev,
-		AllowReuse:    sd.ChallengeExtensions.AllowReuse,
-		Payload:       sd.Payload,
-		SourceCluster: sd.SourceCluster,
-		TargetCluster: sd.TargetCluster,
+		User:          result.user,
+		Device:        result.device,
+		AllowReuse:    result.sessionData.ChallengeExtensions.AllowReuse,
+		Payload:       result.sessionData.Payload,
+		SourceCluster: result.sessionData.SourceCluster,
+		TargetCluster: result.sessionData.TargetCluster,
 	}, nil
+}
+
+// validateOnly validates an MFA response without consuming it
+func (f *loginFlow) validateOnly(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) error {
+	_, err := f.validateMFAResponseInternal(ctx, user, resp, requiredExtensions)
+	return err
 }
 
 func parseCredentialResponse(resp *wantypes.CredentialAssertionResponse) (*protocol.ParsedCredentialAssertionData, error) {

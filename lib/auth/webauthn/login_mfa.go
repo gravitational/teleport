@@ -147,6 +147,27 @@ func (f *LoginFlow) Finish(ctx context.Context, user string, resp *wantypes.Cred
 	return lf.finish(ctx, user, resp, requiredExtensions)
 }
 
+// Validate validates an MFA credential assertion response against the stored
+// challenge without consuming it (i.e., without updating device counters or deleting the session).
+// This is useful for multi-step flows where you want to validate the response early but only
+// consume it later when issuing credentials, such as the Browser MFA flow.
+//
+// Unlike Finish, this function:
+//   - Doesn't update the device counter
+//   - Doesn't persist any changes to the device
+//   - Doesn't delete the session data
+//
+// Returns nil if validation succeeds, error otherwise.
+func (f *LoginFlow) Validate(ctx context.Context, user string, resp *wantypes.CredentialAssertionResponse, requiredExtensions *mfav1.ChallengeExtensions) error {
+	lf := &loginFlow{
+		U2F:         f.U2F,
+		Webauthn:    f.Webauthn,
+		identity:    mfaIdentity{f.Identity},
+		sessionData: (*userSessionStorage)(f),
+	}
+	return lf.validateOnly(ctx, user, resp, requiredExtensions)
+}
+
 type mfaIdentity struct {
 	LoginIdentity
 }

@@ -25,9 +25,8 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
+	"github.com/gravitational/trace"
 )
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.

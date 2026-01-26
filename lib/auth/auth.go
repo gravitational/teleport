@@ -4368,6 +4368,7 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
+	a.logger.WarnContext(ctx, "CreateAuthenticateChallenge", "req", req)
 
 	challengeExtensions := &mfav1.ChallengeExtensions{}
 	if req.ChallengeExtensions != nil {
@@ -4384,6 +4385,23 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 
 		return nil
+	}
+
+	// If a BrowserMFARequestID is provided, look up the request and apply its challenge extensions.
+	if req.BrowserMFARequestID != "" {
+		browserMFAReq, err := a.GetSSOMFASession(ctx, req.BrowserMFARequestID)
+		if err != nil {
+			a.logger.WarnContext(ctx, "Failed to read SSO MFA session for browser MFA request", "error", err)
+			return nil, trace.AccessDenied("invalid browser MFA request")
+		}
+
+		chalExts := browserMFAReq.ChallengeExtensions
+		if chalExts == nil {
+			a.logger.WarnContext(ctx, "SSO MFA session for browser MFA recorded with empty challenge extensions", "request_id", req.BrowserMFARequestID)
+			return nil, trace.BadParameter("no challenge extensions present")
+		}
+
+		challengeExtensions = mfatypes.ChallengeExtensionsToProto(chalExts)
 	}
 
 	switch req.GetRequest().(type) {
@@ -4444,7 +4462,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.BrowserMFATSHRedirectURL, req.ProxyAddress, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -7971,7 +7989,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, browserMFATSHRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -8092,6 +8110,30 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 		}
 	}
 
+	// If the user has a WebAuthn device and no SSO configured, return a Browser
+	// MFA challenge. This challenge is useful in cases where a user only has a
+	// browser-associated WebAuthn device, but is trying to MFA via a CLI tool (tsh, tctl etc.)
+	if groupedDevs.Browser != nil && browserMFATSHRedirectURL != "" {
+		authPref, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if authPref.GetAllowBrowserAuthentication() {
+			if challenge.BrowserMFAChallenge, err = a.BeginBrowserMFAChallenge(
+				ctx,
+				mfatypes.BeginBrowserMFAChallengeParams{
+					User:                     user,
+					BrowserMFATSHRedirectURL: browserMFATSHRedirectURL,
+					ProxyAddress:             proxyAddress,
+					Ext:                      challengeExtensions,
+				},
+			); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -8110,7 +8152,6 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
-
 	return challenge, nil
 }
 
@@ -8118,6 +8159,10 @@ type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
 	SSO      *types.MFADevice
+	// Browser is a synthetic device for browser-based MFA (WebAuthn in browser).
+	// This is used when the user has WebAuthn devices but no actual SSO device,
+	// allowing them to use their WebAuthn devices through the browser MFA flow.
+	Browser *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice) devicesByType {
@@ -8136,6 +8181,18 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	// Create a synthetic Browser device if the user has WebAuthn devices but no SSO device.
+	// This enables browser-based MFA for users who have WebAuthn/passkey devices.
+	if res.SSO == nil && len(res.Webauthn) > 0 {
+		res.Browser = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Browser{
+				Browser: &types.BrowserMFADevice{},
+			},
+		}
+	}
+
 	return res
 }
 
@@ -8147,7 +8204,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8166,8 +8223,9 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
 		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
 		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+		hasBrowser := authPref.GetAllowBrowserAuthentication() && devsByType.Browser != nil
 
-		if hasTOTP || hasWebAuthn || hasSSO {
+		if hasTOTP || hasWebAuthn || hasSSO || hasBrowser {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -8347,6 +8405,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)

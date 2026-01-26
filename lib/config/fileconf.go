@@ -1220,6 +1220,11 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
 
+	// BrowserAuthentication enables/disables browser-based authentication.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true.
+	BrowserAuthentication *types.BoolOption `yaml:"allow_browser_authentication"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
@@ -1302,22 +1307,23 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	ap, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:                    a.Type,
-		SecondFactor:            a.SecondFactor,
-		SecondFactors:           a.SecondFactors,
-		ConnectorName:           a.ConnectorName,
-		U2F:                     u,
-		Webauthn:                w,
-		RequireMFAType:          a.RequireMFAType,
-		LockingMode:             a.LockingMode,
-		AllowLocalAuth:          a.LocalAuth,
-		AllowPasswordless:       a.Passwordless,
-		AllowHeadless:           a.Headless,
-		DeviceTrust:             dt,
-		DefaultSessionTTL:       a.DefaultSessionTTL,
-		HardwareKey:             h,
-		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
-		StableUnixUserConfig:    stableUNIXUserConfig,
+		Type:                       a.Type,
+		SecondFactor:               a.SecondFactor,
+		SecondFactors:              a.SecondFactors,
+		ConnectorName:              a.ConnectorName,
+		U2F:                        u,
+		Webauthn:                   w,
+		RequireMFAType:             a.RequireMFAType,
+		LockingMode:                a.LockingMode,
+		AllowLocalAuth:             a.LocalAuth,
+		AllowPasswordless:          a.Passwordless,
+		AllowHeadless:              a.Headless,
+		AllowBrowserAuthentication: a.BrowserAuthentication,
+		DeviceTrust:                dt,
+		DefaultSessionTTL:          a.DefaultSessionTTL,
+		HardwareKey:                h,
+		SignatureAlgorithmSuite:    a.SignatureAlgorithmSuite,
+		StableUnixUserConfig:       stableUNIXUserConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

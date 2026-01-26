@@ -32,6 +32,9 @@ message AuthenticateChallenge {
   // SSO MFA challenge. If set, the client can go to the IdP redirect URL to perform an MFA check and obtain an MFA
   // token. This token paired with the request id can be used for verification.
   SSOChallenge sso_challenge = 3;
+  // Browser challenge allows a user to MFA in the browser,
+  // to get an MFA token that is returned to the client to be used for verification.
+  BrowserMFAChallenge browser_challenge = 4;
 }
 
 // AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
@@ -45,6 +48,8 @@ message AuthenticateResponse {
     webauthn.CredentialAssertionResponse webauthn = 2;
     // Response to an SSO challenge.
     SSOChallengeResponse sso = 3;
+    // Response to a browser challenge.
+    BrowserMFAResponse browser = 4;
   }
 }
 
@@ -64,4 +69,20 @@ message SSOChallengeResponse {
   string request_id = 1;
   // Secret token used to verify the user's SSO MFA session.
   string token = 2;
+}
+
+// BrowserMFAChallenge contains browser auth request details to perform a browser MFA check.
+message BrowserMFAChallenge {
+  // RequestId is the ID of a browser auth request.
+  string request_id = 1;
+  // ClientRedirectUrl is a redirect URL to initiate the browser MFA flow in the browser.
+  string client_redirect_url = 2;
+}
+
+// BrowserMFAResponse is a response to BrowserMFAChallenge.
+message BrowserMFAResponse {
+  // RequestId is the ID of a browser auth request.
+  string request_id = 1;
+  // WebauthnResponse is the WebAuthn credential assertion response from the browser MFA flow.
+  webauthn.CredentialAssertionResponse webauthn_response = 2;
 }

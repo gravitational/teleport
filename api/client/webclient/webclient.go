@@ -530,6 +530,8 @@ type AuthenticationSettings struct {
 	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
 	// AllowHeadless is true if headless logins are allowed.
 	AllowHeadless bool `json:"allow_headless,omitempty"`
+	// AllowBrowserAuthentication is true if browser authentication is allowed.
+	AllowBrowserAuthentication bool `json:"allow_browser_authentication,omitempty"`
 	// Local contains settings for local authentication.
 	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.

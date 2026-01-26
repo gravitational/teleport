@@ -47,6 +47,7 @@ import { SingleLogoutFailed } from './SingleLogoutFailed';
 import TeleportContext from './teleportContext';
 import TeleportContextProvider from './TeleportContextProvider';
 import { Welcome } from './Welcome';
+import { BrowserMFA } from './BrowserMFA/BrowserMFA';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -221,6 +222,11 @@ export function getSharedPrivateRoutes() {
       key="headlessSSO"
       path={cfg.routes.headlessSso}
       component={HeadlessRequest}
+    />,
+    <Route
+      key="browserMFA"
+      path={cfg.routes.browserMfa}
+      component={BrowserMFA}
     />,
   ];
 }

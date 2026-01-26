@@ -369,6 +369,9 @@ type Config struct {
 	// PreferSSO prefers SSO in favor of other MFA methods.
 	PreferSSO bool
 
+	// PreferBrowser prefers browser-based WebAuthn MFA in favor of other MFA methods.
+	PreferBrowser bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -4226,10 +4229,11 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ co
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:             sshLogin,
-		User:                 tc.Username,
-		Password:             password,
-		MFAPromptConstructor: tc.NewMFAPrompt,
+		SSHLogin:                  sshLogin,
+		User:                      tc.Username,
+		Password:                  password,
+		MFAPromptConstructor:      tc.NewMFAPrompt,
+		SSOMFACeremonyConstructor: tc.NewSSOMFACeremony,
 	})
 	return response, trace.Wrap(err)
 }

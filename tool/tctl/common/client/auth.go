@@ -100,8 +100,11 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 		proxyAddr := resp.ProxyPublicAddr
 		client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 			promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
+			// Set PreferBrowser if mfa-mode is "browser"
+			preferBrowser := ccf.MFAMode == "browser"
 			return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
-				PromptConfig: *promptCfg,
+				PromptConfig:  *promptCfg,
+				PreferBrowser: preferBrowser,
 			})
 		})
 		client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {

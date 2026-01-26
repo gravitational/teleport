@@ -1164,6 +1164,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
+	h.PUT("/webapi/mfa/browser/:request_id", h.WithAuth(h.putBrowserMFA))
+
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
 	// Fetches the user's preferences
@@ -1420,17 +1422,18 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 
 func localSettings(ctx context.Context, cap types.AuthPreference, m modules.Modules, logger *slog.Logger) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:                    constants.Local,
-		SecondFactor:            types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		AllowPasswordless:       cap.GetAllowPasswordless(),
-		AllowHeadless:           cap.GetAllowHeadless(),
-		Local:                   &webclient.LocalSettings{},
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
-		PIVSlot:                 cap.GetPIVSlot(),
-		PIVPINCacheTTL:          cap.GetPIVPINCacheTTL(),
-		DeviceTrust:             deviceTrustSettings(cap, m),
-		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
+		Type:                       constants.Local,
+		SecondFactor:               types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+		PreferredLocalMFA:          cap.GetPreferredLocalMFA(),
+		AllowPasswordless:          cap.GetAllowPasswordless(),
+		AllowHeadless:              cap.GetAllowHeadless(),
+		AllowBrowserAuthentication: cap.GetAllowBrowserAuthentication(),
+		Local:                      &webclient.LocalSettings{},
+		PrivateKeyPolicy:           cap.GetPrivateKeyPolicy(),
+		PIVSlot:                    cap.GetPIVSlot(),
+		PIVPINCacheTTL:             cap.GetPIVPINCacheTTL(),
+		DeviceTrust:                deviceTrustSettings(cap, m),
+		SignatureAlgorithmSuite:    cap.GetSignatureAlgorithmSuite(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -3118,6 +3121,7 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (an
 //
 // {"user": "alex", "pass": "abcdef123456"}
 // {"passwordless": true}
+// {"user": "alex", "pass": "abcdef123456", "BrowserMFATSHRedirectURL": "http://localhost:12345/callback?secret_key=X"}
 //
 // Successful response:
 //
@@ -3148,6 +3152,10 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 
 		mfaReq.ChallengeExtensions = &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		}
+
+		if req.BrowserMFATSHRedirectURL != "" {
+			mfaReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
 		}
 	}
 

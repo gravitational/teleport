@@ -62,7 +62,8 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 	}
 
 	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
-	// request to request an SSO challenge in addition to other challenges.
+	// request to request an SSO challenge (or Browser MFA challenge, if SSO isn't available) in
+	// addition to other challenges.
 	if c.SSOMFACeremonyConstructor != nil {
 		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
 		if err != nil {
@@ -80,6 +81,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 			}
 
 			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+			req.BrowserMFATSHRedirectURL = ssoMFACeremony.GetClientCallbackURL()
 			req.ProxyAddress = ssoMFACeremony.GetProxyAddress()
 			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 		}

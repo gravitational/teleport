@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -116,6 +117,21 @@ func (m *mockAuthServer) VerifySSOMFASession(
 		SourceCluster: "test-cluster",
 		TargetCluster: "test-cluster",
 	}, nil
+}
+
+// ValidateBrowserMFAChallenge mocks the validation of a browser MFA challenge.
+func (m *mockAuthServer) ValidateBrowserMFAChallenge(
+	_ context.Context,
+	requestID string,
+	_ *webauthnpb.CredentialAssertionResponse,
+) (string, error) {
+	_, ok := m.requestIDs.Load(requestID)
+	if !ok {
+		return "", trace.AccessDenied("invalid browser MFA challenge request ID %q", requestID)
+	}
+
+	// Return a mock redirect URL
+	return "https://127.0.0.1:12345/callback", nil
 }
 
 type mockAuthServerIdentity struct {

@@ -440,6 +440,44 @@ func (a *Server) authenticateUserInternal(
 			return res.mfaDev, nil
 		}
 		authErr = authclient.InvalidUserPass2FError
+	case req.SSO != nil:
+		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_SSO{
+					SSO: req.SSO,
+				},
+			}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
+		}
+		authErr = authenticateWebauthnError
+	case req.Browser != nil:
+		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Browser{
+					Browser: req.Browser,
+				},
+			}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
+		}
+		authErr = authenticateWebauthnError
 	}
 	if authenticateFn != nil {
 		err := a.WithUserLock(ctx, user, func() error {

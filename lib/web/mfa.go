@@ -141,6 +141,7 @@ type CreateAuthenticateChallengeRequest struct {
 	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
 	UserVerificationRequirement string                `json:"user_verification_requirement"`
 	ProxyAddress                string                `json:"proxy_address"`
+	BrowserMFARequestID         string                `json:"browser_mfa_request_id"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
@@ -230,6 +231,7 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		},
 		SSOClientRedirectURL: ssoClientRedirectURL.String(),
 		ProxyAddress:         req.ProxyAddress,
+		BrowserMFARequestID:  req.BrowserMFARequestID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -545,6 +547,9 @@ func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge, ssoCha
 	if protoChal.GetSSOChallenge() != nil {
 		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
 		chal.SSOChallenge.ChannelID = ssoChannelID
+	}
+	if protoChal.GetBrowserMFAChallenge() != nil {
+		chal.BrowserChallenge = client.BrowserChallengeFromProto(protoChal.GetBrowserMFAChallenge())
 	}
 	return chal
 }

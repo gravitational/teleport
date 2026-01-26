@@ -30,6 +30,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -53,6 +54,12 @@ type AuthServer interface {
 		token string,
 		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
+
+	ValidateBrowserMFAChallenge(
+		ctx context.Context,
+		requestID string,
+		webauthnResponse *webauthnpb.CredentialAssertionResponse,
+	) (string, error)
 }
 
 // Cache defines the subset of cache methods used by the MFA service.
@@ -290,14 +297,6 @@ func (s *Service) CreateSessionChallenge(
 	}); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
-
-	s.logger.DebugContext(
-		ctx,
-		"Created challenge",
-		"user", username,
-		"has_webauthn_challenge", challenge.MfaChallenge.WebauthnChallenge != nil,
-		"has_sso_challenge", challenge.MfaChallenge.SsoChallenge != nil,
-	)
 
 	return challenge, nil
 }
@@ -772,4 +771,43 @@ func isRemoteProxy(authContext authz.Context) bool {
 	}
 
 	return true
+}
+
+// ValidateBrowserMFAChallenge takes a MFA response from the browser and, if
+// valid, returns it via an encrypted response parameter in a callback URL for
+// the browser to return to tsh.
+func (s *Service) ValidateBrowserMFAChallenge(ctx context.Context, req *mfav1.ValidateBrowserMFAChallengeRequest) (*mfav1.ValidateBrowserMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("this request can only be executed by a proxy")
+	}
+
+	if req.BrowserMfaResponse == nil {
+		return nil, trace.BadParameter("missing browser_mfa_response in request")
+	}
+
+	if req.BrowserMfaResponse.RequestId == "" {
+		return nil, trace.BadParameter("missing request_id in browser_mfa_response")
+	}
+
+	if req.BrowserMfaResponse.WebauthnResponse == nil {
+		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
+	}
+
+	tshRedirectURL, err := s.authServer.ValidateBrowserMFAChallenge(
+		ctx,
+		req.BrowserMfaResponse.RequestId,
+		req.BrowserMfaResponse.WebauthnResponse,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.ValidateBrowserMFAChallengeResponse{
+		TshRedirectUrl: tshRedirectURL,
+	}, nil
 }

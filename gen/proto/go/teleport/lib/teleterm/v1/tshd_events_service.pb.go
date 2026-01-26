@@ -772,7 +772,8 @@ type PromptMFARequest struct {
 	// MFA is required. For example, we invalidate TOTP as an option during
 	// per-session MFA but we may still need to know that the user has TOTP
 	// configured as an option.
-	PerSessionMfa bool `protobuf:"varint,7,opt,name=per_session_mfa,json=perSessionMfa,proto3" json:"per_session_mfa,omitempty"`
+	PerSessionMfa bool                 `protobuf:"varint,7,opt,name=per_session_mfa,json=perSessionMfa,proto3" json:"per_session_mfa,omitempty"`
+	Browser       *BrowserMFAChallenge `protobuf:"bytes,8,opt,name=browser,proto3" json:"browser,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -849,6 +850,13 @@ func (x *PromptMFARequest) GetPerSessionMfa() bool {
 	return false
 }
 
+func (x *PromptMFARequest) GetBrowser() *BrowserMFAChallenge {
+	if x != nil {
+		return x.Browser
+	}
+	return nil
+}
+
 // SSOChallenge contains SSO challenge details.
 type SSOChallenge struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -918,6 +926,52 @@ func (x *SSOChallenge) GetRedirectUrl() string {
 	return ""
 }
 
+// BrowserMFAChallenge contains browser challenge details.
+type BrowserMFAChallenge struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// client_redirect_url is the browser URL that the user will be sent to MFA
+	ClientRedirectUrl string `protobuf:"bytes,1,opt,name=client_redirect_url,json=clientRedirectUrl,proto3" json:"client_redirect_url,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *BrowserMFAChallenge) Reset() {
+	*x = BrowserMFAChallenge{}
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowserMFAChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowserMFAChallenge) ProtoMessage() {}
+
+func (x *BrowserMFAChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowserMFAChallenge.ProtoReflect.Descriptor instead.
+func (*BrowserMFAChallenge) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *BrowserMFAChallenge) GetClientRedirectUrl() string {
+	if x != nil {
+		return x.ClientRedirectUrl
+	}
+	return ""
+}
+
 // Response for PromptMFA.
 type PromptMFAResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -928,7 +982,7 @@ type PromptMFAResponse struct {
 
 func (x *PromptMFAResponse) Reset() {
 	*x = PromptMFAResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[14]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -940,7 +994,7 @@ func (x *PromptMFAResponse) String() string {
 func (*PromptMFAResponse) ProtoMessage() {}
 
 func (x *PromptMFAResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[14]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -953,7 +1007,7 @@ func (x *PromptMFAResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromptMFAResponse.ProtoReflect.Descriptor instead.
 func (*PromptMFAResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{14}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PromptMFAResponse) GetTotpCode() string {
@@ -978,7 +1032,7 @@ type PromptHardwareKeyPINRequest struct {
 
 func (x *PromptHardwareKeyPINRequest) Reset() {
 	*x = PromptHardwareKeyPINRequest{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -990,7 +1044,7 @@ func (x *PromptHardwareKeyPINRequest) String() string {
 func (*PromptHardwareKeyPINRequest) ProtoMessage() {}
 
 func (x *PromptHardwareKeyPINRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[15]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1003,7 +1057,7 @@ func (x *PromptHardwareKeyPINRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromptHardwareKeyPINRequest.ProtoReflect.Descriptor instead.
 func (*PromptHardwareKeyPINRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{15}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *PromptHardwareKeyPINRequest) GetPinOptional() bool {
@@ -1038,7 +1092,7 @@ type PromptHardwareKeyPINResponse struct {
 
 func (x *PromptHardwareKeyPINResponse) Reset() {
 	*x = PromptHardwareKeyPINResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1050,7 +1104,7 @@ func (x *PromptHardwareKeyPINResponse) String() string {
 func (*PromptHardwareKeyPINResponse) ProtoMessage() {}
 
 func (x *PromptHardwareKeyPINResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[16]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1063,7 +1117,7 @@ func (x *PromptHardwareKeyPINResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromptHardwareKeyPINResponse.ProtoReflect.Descriptor instead.
 func (*PromptHardwareKeyPINResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{16}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *PromptHardwareKeyPINResponse) GetPin() string {
@@ -1086,7 +1140,7 @@ type PromptHardwareKeyTouchRequest struct {
 
 func (x *PromptHardwareKeyTouchRequest) Reset() {
 	*x = PromptHardwareKeyTouchRequest{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[17]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1098,7 +1152,7 @@ func (x *PromptHardwareKeyTouchRequest) String() string {
 func (*PromptHardwareKeyTouchRequest) ProtoMessage() {}
 
 func (x *PromptHardwareKeyTouchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[17]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1111,7 +1165,7 @@ func (x *PromptHardwareKeyTouchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromptHardwareKeyTouchRequest.ProtoReflect.Descriptor instead.
 func (*PromptHardwareKeyTouchRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{17}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *PromptHardwareKeyTouchRequest) GetProxyHostname() string {
@@ -1137,7 +1191,7 @@ type PromptHardwareKeyTouchResponse struct {
 
 func (x *PromptHardwareKeyTouchResponse) Reset() {
 	*x = PromptHardwareKeyTouchResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[18]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1149,7 +1203,7 @@ func (x *PromptHardwareKeyTouchResponse) String() string {
 func (*PromptHardwareKeyTouchResponse) ProtoMessage() {}
 
 func (x *PromptHardwareKeyTouchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[18]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1162,7 +1216,7 @@ func (x *PromptHardwareKeyTouchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromptHardwareKeyTouchResponse.ProtoReflect.Descriptor instead.
 func (*PromptHardwareKeyTouchResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{18}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{19}
 }
 
 // Response for PromptHardwareKeyPINChange.
@@ -1176,7 +1230,7 @@ type PromptHardwareKeyPINChangeRequest struct {
 
 func (x *PromptHardwareKeyPINChangeRequest) Reset() {
 	*x = PromptHardwareKeyPINChangeRequest{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1188,7 +1242,7 @@ func (x *PromptHardwareKeyPINChangeRequest) String() string {
 func (*PromptHardwareKeyPINChangeRequest) ProtoMessage() {}
 
 func (x *PromptHardwareKeyPINChangeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1201,7 +1255,7 @@ func (x *PromptHardwareKeyPINChangeRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use PromptHardwareKeyPINChangeRequest.ProtoReflect.Descriptor instead.
 func (*PromptHardwareKeyPINChangeRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{19}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *PromptHardwareKeyPINChangeRequest) GetProxyHostname() string {
@@ -1227,7 +1281,7 @@ type PromptHardwareKeyPINChangeResponse struct {
 
 func (x *PromptHardwareKeyPINChangeResponse) Reset() {
 	*x = PromptHardwareKeyPINChangeResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[20]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1239,7 +1293,7 @@ func (x *PromptHardwareKeyPINChangeResponse) String() string {
 func (*PromptHardwareKeyPINChangeResponse) ProtoMessage() {}
 
 func (x *PromptHardwareKeyPINChangeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[20]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1252,7 +1306,7 @@ func (x *PromptHardwareKeyPINChangeResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use PromptHardwareKeyPINChangeResponse.ProtoReflect.Descriptor instead.
 func (*PromptHardwareKeyPINChangeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{20}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *PromptHardwareKeyPINChangeResponse) GetPin() string {
@@ -1289,7 +1343,7 @@ type ConfirmHardwareKeySlotOverwriteRequest struct {
 
 func (x *ConfirmHardwareKeySlotOverwriteRequest) Reset() {
 	*x = ConfirmHardwareKeySlotOverwriteRequest{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[21]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1301,7 +1355,7 @@ func (x *ConfirmHardwareKeySlotOverwriteRequest) String() string {
 func (*ConfirmHardwareKeySlotOverwriteRequest) ProtoMessage() {}
 
 func (x *ConfirmHardwareKeySlotOverwriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[21]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1314,7 +1368,7 @@ func (x *ConfirmHardwareKeySlotOverwriteRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use ConfirmHardwareKeySlotOverwriteRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmHardwareKeySlotOverwriteRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{21}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ConfirmHardwareKeySlotOverwriteRequest) GetMessage() string {
@@ -1342,7 +1396,7 @@ type ConfirmHardwareKeySlotOverwriteResponse struct {
 
 func (x *ConfirmHardwareKeySlotOverwriteResponse) Reset() {
 	*x = ConfirmHardwareKeySlotOverwriteResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[22]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1354,7 +1408,7 @@ func (x *ConfirmHardwareKeySlotOverwriteResponse) String() string {
 func (*ConfirmHardwareKeySlotOverwriteResponse) ProtoMessage() {}
 
 func (x *ConfirmHardwareKeySlotOverwriteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[22]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1367,7 +1421,7 @@ func (x *ConfirmHardwareKeySlotOverwriteResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use ConfirmHardwareKeySlotOverwriteResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmHardwareKeySlotOverwriteResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{22}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ConfirmHardwareKeySlotOverwriteResponse) GetConfirmed() bool {
@@ -1386,7 +1440,7 @@ type GetUsageReportingSettingsRequest struct {
 
 func (x *GetUsageReportingSettingsRequest) Reset() {
 	*x = GetUsageReportingSettingsRequest{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[23]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1398,7 +1452,7 @@ func (x *GetUsageReportingSettingsRequest) String() string {
 func (*GetUsageReportingSettingsRequest) ProtoMessage() {}
 
 func (x *GetUsageReportingSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[23]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1411,7 +1465,7 @@ func (x *GetUsageReportingSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageReportingSettingsRequest.ProtoReflect.Descriptor instead.
 func (*GetUsageReportingSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{23}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{24}
 }
 
 // Response for GetUsageReportingSettings.
@@ -1424,7 +1478,7 @@ type GetUsageReportingSettingsResponse struct {
 
 func (x *GetUsageReportingSettingsResponse) Reset() {
 	*x = GetUsageReportingSettingsResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[24]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1436,7 +1490,7 @@ func (x *GetUsageReportingSettingsResponse) String() string {
 func (*GetUsageReportingSettingsResponse) ProtoMessage() {}
 
 func (x *GetUsageReportingSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[24]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1449,7 +1503,7 @@ func (x *GetUsageReportingSettingsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use GetUsageReportingSettingsResponse.ProtoReflect.Descriptor instead.
 func (*GetUsageReportingSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{24}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetUsageReportingSettingsResponse) GetUsageReportingSettings() *UsageReportingSettings {
@@ -1470,7 +1524,7 @@ type UsageReportingSettings struct {
 
 func (x *UsageReportingSettings) Reset() {
 	*x = UsageReportingSettings{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[25]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1482,7 +1536,7 @@ func (x *UsageReportingSettings) String() string {
 func (*UsageReportingSettings) ProtoMessage() {}
 
 func (x *UsageReportingSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[25]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1495,7 +1549,7 @@ func (x *UsageReportingSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageReportingSettings.ProtoReflect.Descriptor instead.
 func (*UsageReportingSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{25}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UsageReportingSettings) GetEnabled() bool {
@@ -1517,7 +1571,7 @@ type ReportUnexpectedVnetShutdownRequest struct {
 
 func (x *ReportUnexpectedVnetShutdownRequest) Reset() {
 	*x = ReportUnexpectedVnetShutdownRequest{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[26]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1529,7 +1583,7 @@ func (x *ReportUnexpectedVnetShutdownRequest) String() string {
 func (*ReportUnexpectedVnetShutdownRequest) ProtoMessage() {}
 
 func (x *ReportUnexpectedVnetShutdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[26]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1542,7 +1596,7 @@ func (x *ReportUnexpectedVnetShutdownRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use ReportUnexpectedVnetShutdownRequest.ProtoReflect.Descriptor instead.
 func (*ReportUnexpectedVnetShutdownRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{26}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ReportUnexpectedVnetShutdownRequest) GetError() string {
@@ -1561,7 +1615,7 @@ type ReportUnexpectedVnetShutdownResponse struct {
 
 func (x *ReportUnexpectedVnetShutdownResponse) Reset() {
 	*x = ReportUnexpectedVnetShutdownResponse{}
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[27]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1573,7 +1627,7 @@ func (x *ReportUnexpectedVnetShutdownResponse) String() string {
 func (*ReportUnexpectedVnetShutdownResponse) ProtoMessage() {}
 
 func (x *ReportUnexpectedVnetShutdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[27]
+	mi := &file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1586,7 +1640,7 @@ func (x *ReportUnexpectedVnetShutdownResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use ReportUnexpectedVnetShutdownResponse.ProtoReflect.Descriptor instead.
 func (*ReportUnexpectedVnetShutdownResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{27}
+	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{28}
 }
 
 var File_teleport_lib_teleterm_v1_tshd_events_service_proto protoreflect.FileDescriptor
@@ -1637,7 +1691,7 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12<\n" +
 	"\x1aheadless_authentication_id\x18\x02 \x01(\tR\x18headlessAuthenticationId\x12I\n" +
 	"!headless_authentication_client_ip\x18\x03 \x01(\tR\x1eheadlessAuthenticationClientIp\"+\n" +
-	")SendPendingHeadlessAuthenticationResponse\"\xf5\x01\n" +
+	")SendPendingHeadlessAuthenticationResponse\"\xbe\x02\n" +
 	"\x10PromptMFARequest\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x12\n" +
 	"\x04totp\x18\x03 \x01(\bR\x04totp\x12\x1a\n" +
@@ -1645,12 +1699,15 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\vcluster_uri\x18\x05 \x01(\tR\n" +
 	"clusterUri\x128\n" +
 	"\x03sso\x18\x06 \x01(\v2&.teleport.lib.teleterm.v1.SSOChallengeR\x03sso\x12&\n" +
-	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfaJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
+	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfa\x12G\n" +
+	"\abrowser\x18\b \x01(\v2-.teleport.lib.teleterm.v1.BrowserMFAChallengeR\abrowserJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
 	"\fSSOChallenge\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12%\n" +
 	"\x0econnector_type\x18\x02 \x01(\tR\rconnectorType\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12!\n" +
-	"\fredirect_url\x18\x04 \x01(\tR\vredirectUrl\"0\n" +
+	"\fredirect_url\x18\x04 \x01(\tR\vredirectUrl\"E\n" +
+	"\x13BrowserMFAChallenge\x12.\n" +
+	"\x13client_redirect_url\x18\x01 \x01(\tR\x11clientRedirectUrl\"0\n" +
 	"\x11PromptMFAResponse\x12\x1b\n" +
 	"\ttotp_code\x18\x01 \x01(\tR\btotpCode\"\x99\x01\n" +
 	"\x1bPromptHardwareKeyPINRequest\x12!\n" +
@@ -1707,7 +1764,7 @@ func file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP() []byt
 	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescData
 }
 
-var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*ReloginRequest)(nil),                            // 0: teleport.lib.teleterm.v1.ReloginRequest
 	(*GatewayCertExpired)(nil),                        // 1: teleport.lib.teleterm.v1.GatewayCertExpired
@@ -1723,60 +1780,62 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*SendPendingHeadlessAuthenticationResponse)(nil), // 11: teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
 	(*PromptMFARequest)(nil),                          // 12: teleport.lib.teleterm.v1.PromptMFARequest
 	(*SSOChallenge)(nil),                              // 13: teleport.lib.teleterm.v1.SSOChallenge
-	(*PromptMFAResponse)(nil),                         // 14: teleport.lib.teleterm.v1.PromptMFAResponse
-	(*PromptHardwareKeyPINRequest)(nil),               // 15: teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
-	(*PromptHardwareKeyPINResponse)(nil),              // 16: teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
-	(*PromptHardwareKeyTouchRequest)(nil),             // 17: teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
-	(*PromptHardwareKeyTouchResponse)(nil),            // 18: teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
-	(*PromptHardwareKeyPINChangeRequest)(nil),         // 19: teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
-	(*PromptHardwareKeyPINChangeResponse)(nil),        // 20: teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
-	(*ConfirmHardwareKeySlotOverwriteRequest)(nil),    // 21: teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
-	(*ConfirmHardwareKeySlotOverwriteResponse)(nil),   // 22: teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
-	(*GetUsageReportingSettingsRequest)(nil),          // 23: teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
-	(*GetUsageReportingSettingsResponse)(nil),         // 24: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
-	(*UsageReportingSettings)(nil),                    // 25: teleport.lib.teleterm.v1.UsageReportingSettings
-	(*ReportUnexpectedVnetShutdownRequest)(nil),       // 26: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
-	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 27: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
-	(*RouteToApp)(nil),                                // 28: teleport.lib.teleterm.v1.RouteToApp
-	(*PortRange)(nil),                                 // 29: teleport.lib.teleterm.v1.PortRange
+	(*BrowserMFAChallenge)(nil),                       // 14: teleport.lib.teleterm.v1.BrowserMFAChallenge
+	(*PromptMFAResponse)(nil),                         // 15: teleport.lib.teleterm.v1.PromptMFAResponse
+	(*PromptHardwareKeyPINRequest)(nil),               // 16: teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
+	(*PromptHardwareKeyPINResponse)(nil),              // 17: teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+	(*PromptHardwareKeyTouchRequest)(nil),             // 18: teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
+	(*PromptHardwareKeyTouchResponse)(nil),            // 19: teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+	(*PromptHardwareKeyPINChangeRequest)(nil),         // 20: teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
+	(*PromptHardwareKeyPINChangeResponse)(nil),        // 21: teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+	(*ConfirmHardwareKeySlotOverwriteRequest)(nil),    // 22: teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
+	(*ConfirmHardwareKeySlotOverwriteResponse)(nil),   // 23: teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+	(*GetUsageReportingSettingsRequest)(nil),          // 24: teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
+	(*GetUsageReportingSettingsResponse)(nil),         // 25: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+	(*UsageReportingSettings)(nil),                    // 26: teleport.lib.teleterm.v1.UsageReportingSettings
+	(*ReportUnexpectedVnetShutdownRequest)(nil),       // 27: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 28: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+	(*RouteToApp)(nil),                                // 29: teleport.lib.teleterm.v1.RouteToApp
+	(*PortRange)(nil),                                 // 30: teleport.lib.teleterm.v1.PortRange
 }
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.lib.teleterm.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.lib.teleterm.v1.GatewayCertExpired
 	2,  // 1: teleport.lib.teleterm.v1.ReloginRequest.vnet_cert_expired:type_name -> teleport.lib.teleterm.v1.VnetCertExpired
-	28, // 2: teleport.lib.teleterm.v1.VnetCertExpired.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
+	29, // 2: teleport.lib.teleterm.v1.VnetCertExpired.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
 	5,  // 3: teleport.lib.teleterm.v1.SendNotificationRequest.cannot_proxy_gateway_connection:type_name -> teleport.lib.teleterm.v1.CannotProxyGatewayConnection
 	6,  // 4: teleport.lib.teleterm.v1.SendNotificationRequest.cannot_proxy_vnet_connection:type_name -> teleport.lib.teleterm.v1.CannotProxyVnetConnection
-	28, // 5: teleport.lib.teleterm.v1.CannotProxyVnetConnection.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
+	29, // 5: teleport.lib.teleterm.v1.CannotProxyVnetConnection.route_to_app:type_name -> teleport.lib.teleterm.v1.RouteToApp
 	7,  // 6: teleport.lib.teleterm.v1.CannotProxyVnetConnection.cert_reissue_error:type_name -> teleport.lib.teleterm.v1.CertReissueError
 	8,  // 7: teleport.lib.teleterm.v1.CannotProxyVnetConnection.invalid_local_port:type_name -> teleport.lib.teleterm.v1.InvalidLocalPort
-	29, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
+	30, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
 	13, // 9: teleport.lib.teleterm.v1.PromptMFARequest.sso:type_name -> teleport.lib.teleterm.v1.SSOChallenge
-	25, // 10: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
-	0,  // 11: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
-	4,  // 12: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
-	10, // 13: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
-	12, // 14: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
-	15, // 15: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
-	17, // 16: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
-	19, // 17: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
-	21, // 18: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
-	23, // 19: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
-	26, // 20: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
-	3,  // 21: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
-	9,  // 22: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
-	11, // 23: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
-	14, // 24: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
-	16, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
-	18, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
-	20, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
-	22, // 28: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
-	24, // 29: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
-	27, // 30: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
-	21, // [21:31] is the sub-list for method output_type
-	11, // [11:21] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	14, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.lib.teleterm.v1.BrowserMFAChallenge
+	26, // 11: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
+	0,  // 12: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
+	4,  // 13: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
+	10, // 14: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
+	12, // 15: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
+	16, // 16: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
+	18, // 17: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
+	20, // 18: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
+	22, // 19: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
+	24, // 20: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
+	27, // 21: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+	3,  // 22: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
+	9,  // 23: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
+	11, // 24: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
+	15, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
+	17, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+	19, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+	21, // 28: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+	23, // 29: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+	25, // 30: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+	28, // 31: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+	22, // [22:32] is the sub-list for method output_type
+	12, // [12:22] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() }
@@ -1803,7 +1862,7 @@ func file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

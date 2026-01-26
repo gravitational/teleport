@@ -6197,3 +6197,16 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 	})
 	return trace.Wrap(err)
 }
+
+// ValidateBrowserMFAChallenge validates an MFA response during a browser-based
+// MFA authentication flow and returns the redirect URL to send the user back to after
+// successfully completing the authentication challenge.
+func (c *Client) ValidateBrowserMFAChallenge(ctx context.Context, browserMFAResponse *mfav1.BrowserMFAResponse) (string, error) {
+	resp, err := c.MFAServiceClient().ValidateBrowserMFAChallenge(ctx, &mfav1.ValidateBrowserMFAChallengeRequest{
+		BrowserMfaResponse: browserMFAResponse,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.TshRedirectUrl, nil
+}

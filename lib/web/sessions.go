@@ -51,6 +51,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	webauthntypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -958,6 +959,12 @@ func (s *sessionCache) AuthenticateWebUser(
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (*authclient.SSHLoginResponse, error) {
+	slog.DebugContext(ctx, "AuthenticateSSHUser called",
+		"user", c.User,
+		"password_set", c.Password != "",
+		"webauthn", c.WebauthnChallengeResponse != nil,
+		"totp", c.TOTPCode != "",
+		"sso", c.SSOResponse)
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -975,6 +982,18 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.SSOResponse != nil {
+		authReq.SSO = &proto.SSOResponse{
+			RequestId: c.SSOResponse.RequestID,
+			Token:     c.SSOResponse.Token,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.Browser = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{

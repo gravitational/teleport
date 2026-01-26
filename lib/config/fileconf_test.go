@@ -485,6 +485,46 @@ func TestAuthenticationSection(t *testing.T) {
 					LastUID:  10,
 				},
 			},
+		}, {
+			desc: "Local auth with browser authentication enabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_browser_authentication": "true",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				BrowserAuthentication: types.NewBoolOption(true),
+			},
+		}, {
+			desc: "Local auth with browser authentication disabled",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"allow_browser_authentication": "false",
+				}
+			},
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				BrowserAuthentication: types.NewBoolOption(false),
+			},
 		},
 	}
 	for _, tt := range tests {
