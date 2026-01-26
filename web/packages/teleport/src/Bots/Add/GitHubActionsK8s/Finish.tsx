@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useHistory } from 'react-router';
 import { styled } from 'styled-components';
@@ -35,7 +35,7 @@ import DialogTitle from 'design/Dialog/DialogTitle';
 import Flex from 'design/Flex/Flex';
 import Link from 'design/Link/Link';
 import { H2, P2 } from 'design/Text/Text';
-import { FieldSelectCreatable } from 'shared/components/FieldSelect/FieldSelectCreatable';
+import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import { Rule } from 'shared/components/Validation/rules';
 import Validator, { Validation } from 'shared/components/Validation/Validation';
 
@@ -60,6 +60,7 @@ export function Finish(props: FlowStepProps) {
   const { dispatch, state } = useGitHubK8sFlow();
 
   const [showCloseCheck, setShowCloseCheck] = useState(false);
+  const [kubernetesClusters, setKubernetesClusters] = useState<Kube[]>([]);
 
   const history = useHistory();
   const tracking = useTracking();
@@ -68,30 +69,49 @@ export function Finish(props: FlowStepProps) {
   const flags = ctx.getFeatureFlags();
   const hasKubernetesListPermission = flags.kubernetes;
 
-  const { data, isLoading, error } = useQuery({
-    enabled: hasKubernetesListPermission,
-    queryKey: ['list', 'unified_resources', cfg.proxyCluster, ['kube_cluster']],
-    queryFn: ({ signal }) =>
-      ctx.resourceService.fetchUnifiedResources(
+  const queryClient = useQueryClient();
+
+  const fetchClusters = async (search: string) => {
+    if (!hasKubernetesListPermission) {
+      return [];
+    }
+
+    // Use an imperative query instead of `useQuery` (reactive). Results need to
+    // be returned from this function.
+    const result = await queryClient.fetchQuery({
+      queryKey: [
+        'list',
+        'unified_resources',
         cfg.proxyCluster,
-        {
-          kinds: ['kube_cluster'],
-          limit: 1000,
-        },
-        signal
-      ),
-    staleTime: 30_000,
-  });
+        ['kube_cluster'],
+        search,
+      ],
+      queryFn: ({ signal }) =>
+        ctx.resourceService.fetchUnifiedResources(
+          cfg.proxyCluster,
+          {
+            kinds: ['kube_cluster'],
+            limit: 32,
+            search,
+          },
+          signal
+        ),
+      staleTime: 30_000,
+    });
 
-  const kubernetesClusters =
-    data?.agents?.filter(
+    const clusters = result.agents.filter(
       (resource): resource is Kube => resource.kind === 'kube_cluster'
-    ) ?? [];
+    );
 
-  const kubernetesClusterOptions = kubernetesClusters.map(cluster => ({
-    label: cluster.name,
-    value: cluster.name,
-  }));
+    setKubernetesClusters(clusters);
+
+    const options = clusters.map(cluster => ({
+      label: cluster.name,
+      value: cluster.name,
+    }));
+
+    return options ?? [];
+  };
 
   const handleClose = (validator: Validator) => {
     if (!validator.validate()) {
@@ -142,13 +162,14 @@ export function Finish(props: FlowStepProps) {
               Set Up Workflow
             </H2>
 
-            <FieldSelectCreatable
+            <FieldSelectCreatableAsync
               label="Select a cluster to access"
               mt={2}
               isClearable
-              isLoading={isLoading}
+              isSearchable
+              defaultOptions
+              loadOptions={fetchClusters}
               rule={kubernetesClusterRule}
-              options={kubernetesClusterOptions}
               value={
                 state.kubernetesCluster
                   ? {
@@ -168,13 +189,7 @@ export function Finish(props: FlowStepProps) {
                 );
               }}
               noOptionsMessage={() => {
-                if (isLoading) {
-                  return 'Loading clusters...';
-                }
-                if (error) {
-                  return 'Unable to load clusters';
-                }
-                return 'Enter cluster name manually';
+                return 'Enter a cluster name manually';
               }}
               formatCreateLabel={input => `Use cluster "${input}"`}
             />
