@@ -106,6 +106,12 @@ var computerAttributes = []string{
 	attrPrimaryGroupID,
 }
 
+// certificateStoreClient is a stand in interface for
+// winpki.certificateStoreClient.
+type certificateStoreClient interface {
+	Update(ctx context.Context, tc *tls.Config) error
+}
+
 // WindowsService implements the RDP-based Windows desktop access service.
 //
 // This service accepts mTLS connections from the proxy, establishes RDP
@@ -115,7 +121,7 @@ type WindowsService struct {
 	cfg        WindowsServiceConfig
 	middleware *authz.Middleware
 
-	ca *winpki.CertificateStoreClient
+	ca certificateStoreClient
 
 	// lastDiscoveryResults stores the results of the most recent LDAP search
 	// when desktop discovery is enabled.
