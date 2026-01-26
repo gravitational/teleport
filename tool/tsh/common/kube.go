@@ -1673,7 +1673,7 @@ func probeKubeProxyAddr(ctx context.Context, addr string) error {
 }
 
 const kubeProxyUnreachableWarning = `
-Warning: Unable to connect to Kubernetes proxy at %s
+Warning: Unable to connect to Kubernetes proxy at %q
 
 This may indicate that the proxy is not configured to listen for Kubernetes
 connections. Please contact your Teleport administrator.
