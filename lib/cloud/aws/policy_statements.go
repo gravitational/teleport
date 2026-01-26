@@ -27,8 +27,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-var wildcard = "*"
-var allResources = []string{wildcard}
+var (
+	wildcard     = "*"
+	allResources = []string{wildcard}
+)
 
 // StatementForECSManageService returns the statement that allows managing the ECS Service deployed
 // by DeployService (AWS OIDC Integration).
@@ -600,5 +602,31 @@ func StatementForAWSRolesAnywhereSyncRolePolicy() *Statement {
 			"iam:GetRole",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementForBedrockSessionSummaries returns the statement that allows invoking AWS Bedrock models
+// for the Session Summaries feature. The resource parameter can be either:
+// - A full ARN (e.g., "arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-v2" or app inference profile)
+// - A model ID (e.g., "anthropic.claude-v2" or "*"), which will be converted to an ARN with wildcard region
+func StatementForBedrockSessionSummaries(accountID, resource string) *Statement {
+	var resourceARN string
+
+	// Check if the resource is already an ARN
+	if parsedARN, err := arn.Parse(resource); err == nil && parsedARN.Service == "bedrock" || resource == types.Wildcard {
+		resourceARN = resource
+	} else {
+		// If it's a model ID, create an ARN with wildcard region
+		resourceARN = fmt.Sprintf("arn:aws:bedrock:*:%s:foundation-model/%s", accountID, resource)
+	}
+
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"bedrock:InvokeModel",
+			// we don't use it yet, but we might in the future
+			"bedrock:InvokeModelWithResponseStream",
+		},
+		Resources: SliceOrString{resourceARN},
 	}
 }
