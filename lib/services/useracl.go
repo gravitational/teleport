@@ -126,6 +126,12 @@ type UserACL struct {
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 	// ClientIPRestriction defines access to Cloud IP Restrictions
 	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
+	// InferenceModel defines access to session summaries inference model.
+	InferenceModel ResourceAccess `json:"inferenceModel"`
+	// InferencePolicy defines access to session summaries inference policy.
+	InferencePolicy ResourceAccess `json:"inferencePolicy"`
+	// InferenceSecret defines access to session summaries inference secret.
+	InferenceSecret ResourceAccess `json:"inferenceSecret"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -283,5 +289,8 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		GitServers:              gitServersAccess,
 		WorkloadIdentity:        workloadIdentity,
 		ClientIPRestriction:     clientIPRestrictions,
+		InferenceModel:          newAccess(userRoles, ctx, types.KindInferenceModel),
+		InferencePolicy:         newAccess(userRoles, ctx, types.KindInferencePolicy),
+		InferenceSecret:         newAccess(userRoles, ctx, types.KindInferenceSecret),
 	}
 }
