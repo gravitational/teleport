@@ -252,7 +252,7 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		privateKeyPolicy, err := props.checkerContext.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		privateKeyPolicy, err := props.checkerContext.CertParams().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -787,7 +787,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		clientIP = host
 	}
 
-	if checker.PinSourceIP() && clientIP == "" {
+	if checker.CertParams().PinSourceIP() && clientIP == "" {
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 

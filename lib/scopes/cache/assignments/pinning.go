@@ -86,7 +86,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 					continue
 				}
 
-				// Write the role assignment to the pin's assignment tree. This will automatically handle
+				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
 					ScopeOfOrigin: scopeOfOrigin,
