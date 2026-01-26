@@ -1,6 +1,6 @@
 ---
 title: Deploying tbot with Workload Identity on AWS 
-description: How to deploy a tbot and configure Workload Identity on an AWS EC2 instance
+description: How to deploy tbot and configure Workload Identity on an AWS EC2 instance
 tags:
  - how-to
  - get-started
@@ -10,6 +10,8 @@ tags:
 ---
 
 {/* lint disable page-structure remark-lint */}
+
+Teleport Workload Identity issues short-lived cryptographic identities to workloads, enabling them to securely authenticate and communicate with other workloads or cloud provider APIs.
 
 Teleport Workload Identity issues short-lived cryptographic identities to workloads, enabling them to securely authenticate and communicate with other workloads or cloud provider APIs.
 
@@ -24,13 +26,13 @@ By the end, you'll have a working `tbot` service that issues SPIFFE-compatible c
 - An AWS IAM role that you wish to grant access to your Teleport cluster. This
   role must be granted `sts:GetCallerIdentity`. In this guide, this role will
   be named `teleport-bot-role`.
-- An AWS EC2 instance with the IAM role attached that you'll install Machine ID onto.
+- An AWS EC2 instance with the IAM role attached that you'll install the MWI agent, `tbot`, onto.
 
 ## Step 1/7. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
-Install `tbot` on the EC2 instance that will use Machine ID.
+Install `tbot` on the EC2 instance that will use Machine & Workload Identity.
 
 Download and install the appropriate Teleport package for your platform:
 
@@ -101,7 +103,7 @@ version: v2
 proxy_server: example.teleport.sh:443
 # Onboarding configuration
 onboarding:
-  join_method: token
+  join_method: iam
   token: example-bot
 # Storage configuration for tbot state
 storage:
@@ -139,7 +141,7 @@ You'll:
 - Create a Workload Identity resource that defines your workload's SPIFFE ID.
 - Configure RBAC so your Bot can issue credentials for that identity.
 - Update your `tbot` instance to expose a SPIFFE Workload API endpoint that workloads can connect to 
-SPIFFE SVID-compatible credentials.
+receive SPIFFE SVID-compatible credentials.
 
 Before proceeding, you'll want to determine the SPIFFE ID path that your workload will use. In our example, we'll use `/svc/foo`. 
 We provide more guidance on choosing a SPIFFE ID structure in the [Best Practices](./workload-identity/best-practices.mdx) guide.
