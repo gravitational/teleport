@@ -4,8 +4,8 @@ resource "teleport_inference_policy" "test-policy" {
     name = "test-policy"
   }
   spec = {
-    kinds = ["ssh", "k8s"]
-    model = "dummy-model"
-    filter =  "equals(resource.metadata.labels[\"env\"], \"prod\")"
+    kinds  = ["ssh", "k8s"]
+    model  = "dummy-model"
+    filter = "equals(resource.metadata.labels[\"env\"], \"prod\")"
   }
 }

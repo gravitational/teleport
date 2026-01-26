@@ -5,7 +5,7 @@ resource "teleport_inference_model" "bedrock" {
   }
   spec = {
     bedrock = {
-      region = "us-west-2"
+      region           = "us-west-2"
       bedrock_model_id = "us.amazon.nova-lite-v1:0"
     }
     max_session_length_bytes = 100000
@@ -20,7 +20,7 @@ resource "teleport_inference_model" "openai" {
   spec = {
     openai = {
       openai_model_id = "gpt5"
-      base_url = "http://localhost:4000/"
+      base_url        = "http://localhost:4000/"
     }
   }
 }
