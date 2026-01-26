@@ -16,9 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { arrayBufferToBase64 } from 'shared/utils/base64';
+import { Logger } from 'design/logger';
+import {
+  Envelope,
+  MFA,
+  SharedDirectoryRequest,
+  SharedDirectoryResponse,
+  ClientHello as tdpbClientHello,
+} from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
+import { CredentialAssertion } from 'gen-proto-ts/teleport/legacy/types/webauthn/webauthn_pb';
+import {
+  AuthenticateResponse,
+  SSOChallenge,
+} from 'gen-proto-ts/teleport/mfa/v1/challenge_pb';
+import { arrayBufferToBase64, base64urlToBuffer } from 'shared/utils/base64';
 
-export type Message = ArrayBuffer;
+export type Message = ArrayBufferLike;
 
 export enum MessageType {
   CLIENT_SCREEN_SPEC = 1,
@@ -58,11 +71,22 @@ export enum MessageType {
   LATENCY_STATS = 35,
   // MessageType 36 is a server-side only Ping message
   CLIENT_KEYBOARD_LAYOUT = 37,
+  TDPB_UPGRADE = 38,
   __LAST, // utility value
 }
 
 // 0 is left button, 1 is middle button, 2 is right button
 export type MouseButton = 0 | 1 | 2;
+
+export type MouseMove = {
+  x: number;
+  y: number;
+};
+
+export type MouseButtonState = {
+  button: MouseButton;
+  state: ButtonState;
+};
 
 export enum ButtonState {
   UP = 0,
@@ -332,6 +356,51 @@ export type LatencyStats = {
   server: number;
 };
 
+export type ServerHello = {
+  clipboardSupport: boolean;
+  activationEvent: RdpConnectionActivated;
+};
+
+export type ClientHello = {
+  keyboardLayout: number;
+  screenSpec: ClientScreenSpec;
+};
+
+export type MfaResponse = {
+  totp_code?: string;
+  webauthn_response?: {
+    id: string;
+    type: string;
+    extensions: {
+      appid: boolean;
+    };
+    rawId: string;
+    response: {
+      authenticatorData: string;
+      clientDataJSON: string;
+      signature: string;
+      userHandle: string;
+    };
+  };
+  sso_response?: {
+    requestId: string;
+    token: string;
+  };
+};
+
+// We're not allowed to import from teleport/services/mfa/types, so just
+// define the MfaSsoChallenge structure here.
+type MfaSsoChallenge = {
+  channelId: string;
+  redirectUrl: string;
+  requestId: string;
+  device: {
+    connectorId: string;
+    connectorType: string;
+    displayName: string;
+  };
+};
+
 function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   if (!(errCode in SharedDirectoryErrCode)) {
     throw new Error(`attempted to convert invalid error code ${errCode}`);
@@ -340,16 +409,840 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   return errCode as SharedDirectoryErrCode;
 }
 
-// TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
-// Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
+// Implement a set of encoding methods that the client will use
+// to send outbound messages
+export interface Codec {
+  // Convert incoming messages into a common CodecResult
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage;
+
+  // Shared TDP/TDPB Messages
+  encodeInitialMessages(
+    spec?: ClientScreenSpec,
+    keyboardLayout?: number
+  ): Message[];
+  encodeMouseMove(x: number, y: number): Message;
+  encodeMouseButton(button: MouseButton, state: ButtonState): Message;
+  encodeSyncKeys(syncKeys: SyncKeys): Message;
+  encodeClipboardData(clipboardData: ClipboardData): Message;
+  encodeKeyboardInput(code: string, state: ButtonState): Message[];
+  encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
+  encodeClientScreenSpec(spec: ClientScreenSpec): Message;
+  encodeMfaJson(mfaJson: MfaResponse): Message;
+  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
+  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
+  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message;
+  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message;
+  encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message;
+  encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message;
+  encodeSharedDirectoryCreateResponse(
+    resp: SharedDirectoryCreateResponse
+  ): Message;
+  encodeSharedDirectoryDeleteResponse(
+    resp: SharedDirectoryDeleteResponse
+  ): Message;
+  encodeSharedDirectoryWriteResponse(
+    resp: SharedDirectoryWriteResponse
+  ): Message;
+  encodeSharedDirectoryTruncateResponse(
+    resp: SharedDirectoryTruncateResponse
+  ): Message;
+}
+
+export type DecodedMessage =
+  | { kind: 'pngFrame'; data: PngFrame }
+  | { kind: 'rdpConnectionActivated'; data: RdpConnectionActivated }
+  | { kind: 'serverHello'; data: ServerHello }
+  | { kind: 'rdpFastPathPdu'; data: RdpFastPathPdu }
+  | { kind: 'clipboardData'; data: ClipboardData }
+  | { kind: 'tdpAlert'; data: Alert }
+  | { kind: 'mfaChallenge'; data: MfaJson }
+  | { kind: 'sharedDirectoryAcknowledge'; data: SharedDirectoryAcknowledge }
+  | { kind: 'sharedDirectoryInfoRequest'; data: SharedDirectoryInfoRequest }
+  | { kind: 'sharedDirectoryCreateRequest'; data: SharedDirectoryCreateRequest }
+  | { kind: 'sharedDirectoryDeleteRequest'; data: SharedDirectoryDeleteRequest }
+  | { kind: 'sharedDirectoryReadRequest'; data: SharedDirectoryReadRequest }
+  | { kind: 'sharedDirectoryWriteRequest'; data: SharedDirectoryWriteRequest }
+  | { kind: 'sharedDirectoryMoveRequest'; data: SharedDirectoryMoveRequest }
+  | { kind: 'sharedDirectoryListRequest'; data: SharedDirectoryListRequest }
+  | {
+      kind: 'sharedDirectoryTruncateRequest';
+      data: SharedDirectoryTruncateRequest;
+    }
+  | { kind: 'latencyStats'; data: LatencyStats }
+  | { kind: 'tdpbUpgrade'; data: null }
+  | { kind: 'clientScreenSpec'; data: ClientScreenSpec }
+  | { kind: 'mouseButton'; data: MouseButtonState }
+  | { kind: 'mouseMove'; data: MouseMove }
+  | { kind: 'unsupported'; data: string }
+  | { kind: 'unknown'; data: unknown };
+
+// Assists with type narrowing on SharedDirectory messages by
+// excluding the 'undefined' variant of the generated oneof.
+type OneofWithValue<T extends { oneofKind?: string }> = Exclude<
+  T,
+  { oneofKind: undefined }
+>;
+
+function hasOneof<T extends { oneofKind?: string }>(
+  value: T
+): value is OneofWithValue<T> {
+  return value.oneofKind !== undefined;
+}
+
+export class TdpbCodec implements Codec {
+  encoder = new window.TextEncoder();
+  decoder = new window.TextDecoder();
+  private logger = new Logger('TDPBCodec');
+
+  // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
+  private asBase64Url(buffer: ArrayBufferLike, offset: number): string {
+    return `data:image/png;base64,${arrayBufferToBase64(buffer.slice(offset))}`;
+  }
+
+  protected marshal(msg: Envelope['payload']): Message {
+    const marshalledMessage = Envelope.toBinary({ payload: msg });
+    const len = marshalledMessage.byteLength;
+    let buf = new Uint8Array(len + 4);
+    let outbuf = new DataView(buf.buffer);
+    outbuf.setUint32(0, len, false /* big endian */);
+    buf.set(marshalledMessage, 4);
+    return buf.buffer;
+  }
+
+  private processSharedDirectoryRequest(
+    completionId: number,
+    directoryId: number,
+    op: SharedDirectoryRequest['operation']
+  ): DecodedMessage {
+    // Exclude 'oneOfKind: undefined'
+    // Possibly due to 'strictNullChecks' being disabled, the compiler can't seem to narrow
+    // the discriminated union using control flow analysis alone.
+    if (!hasOneof(op)) {
+      this.logger.debug('unknown shared directory operation');
+      return { kind: 'unknown', data: null };
+    }
+
+    switch (op.oneofKind) {
+      case 'create':
+        return {
+          kind: 'sharedDirectoryCreateRequest',
+          data: {
+            directoryId,
+            completionId,
+            ...op.create,
+          },
+        };
+      case 'delete':
+        return {
+          kind: 'sharedDirectoryDeleteRequest',
+          data: {
+            directoryId,
+            completionId,
+            ...op.delete,
+          },
+        };
+      case 'info':
+        return {
+          kind: 'sharedDirectoryInfoRequest',
+          data: {
+            directoryId,
+            completionId,
+            ...op.info,
+          },
+        };
+      case 'list':
+        return {
+          kind: 'sharedDirectoryListRequest',
+          data: {
+            directoryId,
+            completionId,
+            ...op.list,
+          },
+        };
+      case 'move':
+        return {
+          kind: 'sharedDirectoryMoveRequest',
+          data: {
+            directoryId,
+            completionId,
+            originalPathLength: op.move.originalPath.length,
+            newPathLength: op.move.newPath.length,
+            ...op.move,
+          },
+        };
+      case 'read':
+        return {
+          kind: 'sharedDirectoryReadRequest',
+          data: {
+            directoryId,
+            completionId,
+            pathLength: op.read.path.length,
+            ...op.read,
+          },
+        };
+      case 'truncate':
+        return {
+          kind: 'sharedDirectoryTruncateRequest',
+          data: {
+            directoryId,
+            completionId,
+            ...op.truncate,
+          },
+        };
+      case 'write':
+        return {
+          kind: 'sharedDirectoryWriteRequest',
+          data: {
+            directoryId,
+            completionId,
+            pathLength: op.write.path.length,
+            writeData: op.write.data,
+            ...op.write,
+          },
+        };
+      default:
+        const exhaustiveCheck: never = op;
+        throw new Error(`Unhandled operation: ${exhaustiveCheck}`);
+    }
+  }
+
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage {
+    // Note: TDPB messages are prefixed with a single big endian uint32 containing their length
+    // to act as a simple framing mechanism. This client connects via a websocket which makes this
+    // framing header redundant. Still, to avoid leaking TDPB details to the client implementation,
+    // we'll quietly discard that header here.
+    const envelope = Envelope.fromBinary(
+      new Uint8Array(buffer, 4 /* ignore TDPB header */),
+      { readUnknownField: true }
+    );
+
+    if (!envelope.payload) {
+      // Either the server sent an empty Envelope, or the payload contains a
+      // new message type that this implementation doesn't understand.
+      this.logger.debug('received empty or unknown message payload');
+      return { kind: 'unknown', data: null };
+    }
+
+    switch (envelope.payload.oneofKind) {
+      case 'serverHello':
+        return {
+          kind: 'rdpConnectionActivated',
+          data: envelope.payload.serverHello.activationSpec,
+        };
+      case 'pngFrame':
+        const frame = envelope.payload.pngFrame;
+        let data = new Image();
+        data.src = this.asBase64Url(frame.data.buffer, 0);
+        return {
+          kind: 'pngFrame',
+          data: {
+            top: frame.coordinates.top,
+            left: frame.coordinates.left,
+            bottom: frame.coordinates.bottom,
+            right: frame.coordinates.right,
+            data: data,
+          },
+        };
+      case 'fastPathPdu':
+        return {
+          kind: 'rdpFastPathPdu',
+          data: envelope.payload.fastPathPdu.pdu,
+        };
+      case 'alert':
+        let { message, severity } = envelope.payload.alert;
+        return {
+          kind: 'tdpAlert',
+          data: { message: message, severity: severity.valueOf() - 1 },
+        };
+      case 'clipboardData':
+        return {
+          kind: 'clipboardData',
+          data: {
+            data: this.decoder.decode(envelope.payload.clipboardData.data),
+          },
+        };
+      case 'sharedDirectoryAcknowledge':
+        const { errorCode: errCode, directoryId } =
+          envelope.payload.sharedDirectoryAcknowledge;
+        return {
+          kind: 'sharedDirectoryAcknowledge',
+          data: {
+            errCode,
+            directoryId,
+          },
+        };
+      case 'sharedDirectoryRequest':
+        return this.processSharedDirectoryRequest(
+          envelope.payload.sharedDirectoryRequest.completionId,
+          envelope.payload.sharedDirectoryRequest.directoryId,
+          envelope.payload.sharedDirectoryRequest.operation
+        );
+      case 'latencyStats':
+        const stats = envelope.payload.latencyStats;
+        return {
+          kind: 'latencyStats',
+          data: {
+            client: stats.clientLatencyMs,
+            server: stats.serverLatencyMs,
+          },
+        };
+      case 'mfa':
+        const mfa = envelope.payload.mfa;
+        const challenge = mfa.challenge;
+
+        if (!challenge) {
+          throw new Error('received empty MFA challenge');
+        }
+
+        let challengeData: {
+          webauthn_challenge?: {
+            publicKey: PublicKeyCredentialRequestOptionsJSON;
+          };
+          sso_challenge?: MfaSsoChallenge;
+        } = {};
+
+        if (challenge.webauthnChallenge) {
+          challengeData.webauthn_challenge = this.toMfaWebauthnChallenge(
+            challenge.webauthnChallenge
+          );
+        }
+
+        if (challenge.ssoChallenge) {
+          challengeData.sso_challenge = this.toMfaSsoChallenge(
+            challenge.ssoChallenge,
+            mfa.channelId
+          );
+        }
+
+        if (
+          challengeData.sso_challenge === undefined &&
+          challengeData.webauthn_challenge === undefined
+        ) {
+          throw new Error(
+            'Invalid MFA type - Only SSO or Webauthn are supported'
+          );
+        }
+
+        return {
+          kind: 'mfaChallenge',
+          data: {
+            mfaType: 'n',
+            jsonString: JSON.stringify(challengeData),
+          },
+        };
+
+      default:
+        return { kind: 'unsupported', data: envelope.payload.oneofKind };
+    }
+  }
+
+  toMfaWebauthnChallenge(challenge: CredentialAssertion): {
+    publicKey: PublicKeyCredentialRequestOptionsJSON;
+  } {
+    return {
+      publicKey: {
+        challenge: btoa(String.fromCharCode(...challenge.publicKey.challenge)),
+        rpId: challenge.publicKey.rpId,
+        timeout: Number(challenge.publicKey.timeoutMs),
+        userVerification: challenge.publicKey.userVerification,
+        extensions: challenge.publicKey.extensions,
+        allowCredentials: challenge.publicKey.allowCredentials.map(
+          (cred): PublicKeyCredentialDescriptorJSON => {
+            return {
+              id: btoa(String.fromCharCode(...cred.id)),
+              type: cred.type,
+            };
+          }
+        ),
+      },
+    };
+  }
+
+  toMfaSsoChallenge(challenge: SSOChallenge, name: string): MfaSsoChallenge {
+    const connectorType = challenge.device?.connectorType;
+    switch (connectorType) {
+      case 'oidc':
+      case 'saml':
+      case 'github':
+        break;
+      default:
+        throw new Error(
+          'invalid MFA connector type: ' + challenge.device?.connectorType
+        );
+    }
+
+    return {
+      channelId: name,
+      redirectUrl: challenge.redirectUrl,
+      requestId: challenge.requestId,
+      device: {
+        connectorId: challenge.device.connectorId,
+        connectorType: connectorType,
+        displayName: challenge.device.displayName,
+      },
+    };
+  }
+
+  encodeInitialMessages(
+    spec?: ClientScreenSpec,
+    keyboardLayout?: number
+  ): Message[] {
+    // Send a Hello message regardless of whether or we've been provided a screenspec or keyboardlayout
+    const hello = this.marshal({
+      oneofKind: 'clientHello',
+      clientHello: tdpbClientHello.create({
+        screenSpec: spec,
+        keyboardLayout: keyboardLayout,
+      }),
+    });
+    return [hello];
+  }
+
+  encodeClientScreenSpec(spec: ClientScreenSpec): Message {
+    return this.marshal({
+      oneofKind: 'clientScreenSpec',
+      clientScreenSpec: spec,
+    });
+  }
+
+  encodeRdpResponsePdu(response: ArrayBufferLike): Message {
+    return this.marshal({
+      oneofKind: 'rdpResponsePdu',
+      rdpResponsePdu: { response: new Uint8Array(response) },
+    });
+  }
+
+  encodeMouseMove(x: number, y: number): Message {
+    return this.marshal({ oneofKind: 'mouseMove', mouseMove: { x, y } });
+  }
+  encodeMouseButton(button: MouseButton, state: ButtonState): Message {
+    return this.marshal({
+      oneofKind: 'mouseButton',
+      mouseButton: { button: button + 1, pressed: state == ButtonState.DOWN },
+    });
+  }
+
+  encodeKeyboardInput(code: string, state: ButtonState): Message[] {
+    const scancodes = KEY_SCANCODES[code];
+    if (!scancodes) {
+      this.logger.warn(`unsupported key code: ${code}`);
+      return [];
+    }
+    return scancodes.map(scancode => this.encodeScancode(scancode, state));
+  }
+
+  private encodeScancode(scancode: number, state: ButtonState): Message {
+    return this.marshal({
+      oneofKind: 'keyboardButton',
+      keyboardButton: { keyCode: scancode, pressed: state == ButtonState.DOWN },
+    });
+  }
+
+  encodeSyncKeys(syncKeys: SyncKeys): Message {
+    return this.marshal({
+      oneofKind: 'syncKeys',
+      syncKeys: {
+        scrollLockPressed: syncKeys.scrollLockState == ButtonState.DOWN,
+        numLockState: syncKeys.numLockState == ButtonState.DOWN,
+        capsLockState: syncKeys.capsLockState == ButtonState.DOWN,
+        kanaLockState: syncKeys.kanaLockState == ButtonState.DOWN,
+      },
+    });
+  }
+
+  encodeClipboardData(clipboardData: ClipboardData) {
+    return this.marshal({
+      oneofKind: 'clipboardData',
+      clipboardData: { data: this.encoder.encode(clipboardData.data) },
+    });
+  }
+
+  encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message {
+    return this.marshal({
+      oneofKind: 'mouseWheel',
+      mouseWheel: { axis: axis.valueOf() - 1, delta: Math.round(delta) },
+    });
+  }
+
+  encodeMfaJson(mfaJson: MfaResponse): Message {
+    if (mfaJson.webauthn_response) {
+      const response = AuthenticateResponse.create({
+        response: {
+          oneofKind: 'webauthn',
+          webauthn: {
+            type: mfaJson.webauthn_response.type,
+            // The MFA emitter base64 url encodes the buffers returned by webauthn APIs.
+            // We unfortunately need to reverse that by decoding back to raw buffers.
+            rawId: new Uint8Array(
+              base64urlToBuffer(mfaJson.webauthn_response.rawId)
+            ),
+            response: {
+              userHandle: new Uint8Array(
+                base64urlToBuffer(mfaJson.webauthn_response.response.userHandle)
+              ),
+              clientDataJson: new Uint8Array(
+                base64urlToBuffer(
+                  mfaJson.webauthn_response.response.clientDataJSON
+                )
+              ),
+              authenticatorData: new Uint8Array(
+                base64urlToBuffer(
+                  mfaJson.webauthn_response.response.authenticatorData
+                )
+              ),
+              signature: new Uint8Array(
+                base64urlToBuffer(mfaJson.webauthn_response.response.signature)
+              ),
+            },
+            extensions: {
+              appId: mfaJson.webauthn_response.extensions.appid,
+            },
+          },
+        },
+      });
+
+      return this.marshal({
+        oneofKind: 'mfa',
+        mfa: MFA.create({ authenticationResponse: response }),
+      });
+    } else if (mfaJson.sso_response) {
+      const response = AuthenticateResponse.create({
+        name: '',
+        response: {
+          oneofKind: 'sso',
+          sso: mfaJson.sso_response,
+        },
+      });
+      return this.marshal({
+        oneofKind: 'mfa',
+        mfa: MFA.create({ authenticationResponse: response }),
+      });
+    }
+
+    throw new Error('Invalid MFA response. Must be Webauthn or SSO');
+  }
+
+  encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: res.completionId,
+        errorCode: res.errCode,
+        operation: {
+          oneofKind: 'info',
+          info: { fso: res.fso },
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: res.completionId,
+        errorCode: res.errCode,
+        operation: {
+          oneofKind: 'read',
+          read: { data: res.readData },
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: res.completionId,
+        errorCode: res.errCode,
+        operation: {
+          oneofKind: 'move',
+          move: {},
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: res.completionId,
+        errorCode: res.errCode,
+        operation: {
+          oneofKind: 'list',
+          list: {
+            fsoList: res.fsoList,
+          },
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryAnnounce',
+      sharedDirectoryAnnounce: announce,
+    });
+  }
+
+  encodeSharedDirectoryCreateResponse(
+    resp: SharedDirectoryCreateResponse
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: resp.completionId,
+        errorCode: resp.errCode,
+        operation: {
+          oneofKind: 'create',
+          create: {
+            fso: resp.fso,
+          },
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryDeleteResponse(
+    resp: SharedDirectoryDeleteResponse
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: resp.completionId,
+        errorCode: resp.errCode,
+        operation: {
+          oneofKind: 'delete',
+          delete: {},
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryWriteResponse(
+    resp: SharedDirectoryWriteResponse
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: resp.completionId,
+        errorCode: resp.errCode,
+        operation: {
+          oneofKind: 'write',
+          write: {
+            bytesWritten: resp.bytesWritten,
+          },
+        },
+      }),
+    });
+  }
+
+  encodeSharedDirectoryTruncateResponse(
+    resp: SharedDirectoryTruncateResponse
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryResponse',
+      sharedDirectoryResponse: SharedDirectoryResponse.create({
+        completionId: resp.completionId,
+        errorCode: resp.errCode,
+        operation: {
+          oneofKind: 'truncate',
+          truncate: {},
+        },
+      }),
+    });
+  }
+
+  encodeClientHello(hello: ClientHello): Message {
+    return this.marshal({
+      oneofKind: 'clientHello',
+      clientHello: tdpbClientHello.create({
+        screenSpec: hello.screenSpec,
+        keyboardLayout: hello.keyboardLayout,
+      }),
+    });
+  }
+}
+
+// TdpCodec provides an api for encoding and decoding teleport desktop access protocol messages
+// [1] Buffers in TdpCodec are manipulated as DataView's [2] in order to give us low level control
 // of endianness (defaults to big endian, which is what we want), as opposed to using *Array
 // objects [3] which use the platform's endianness.
 // [1] https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md
 // [2] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 // [3] https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array
-export default class Codec {
+//
+// This legacy protocol is superseded by TDPB (see TdpbCodec) and remains here for backwards
+// compatibility.
+// TODO(rhammmonds): DELETE IN v20.0.0
+export class TdpCodec implements Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
+  private logger = new Logger('TDPCodec');
+
+  decodeMessage(buffer: ArrayBufferLike): DecodedMessage {
+    const messageType = this.decodeMessageType(buffer);
+    switch (messageType) {
+      case MessageType.PNG_FRAME:
+        return {
+          kind: 'pngFrame',
+          data: this.decodePngFrame(buffer, (frame: PngFrame) => {
+            void frame;
+          }),
+        };
+      case MessageType.PNG2_FRAME:
+        return {
+          kind: 'pngFrame',
+          data: this.decodePng2Frame(buffer, (frame: PngFrame) => {
+            void frame;
+          }),
+        };
+      case MessageType.RDP_CONNECTION_ACTIVATED:
+        return {
+          kind: 'rdpConnectionActivated',
+          data: this.decodeRdpConnectionActivated(buffer),
+        };
+      case MessageType.RDP_FASTPATH_PDU:
+        return {
+          kind: 'rdpFastPathPdu',
+          data: this.decodeRdpFastPathPdu(buffer),
+        };
+      case MessageType.CLIPBOARD_DATA:
+        return {
+          kind: 'clipboardData',
+          data: this.decodeClipboardData(buffer),
+        };
+      case MessageType.ERROR:
+        throw new Error(this.decodeErrorMessage(buffer));
+      case MessageType.ALERT:
+        return { kind: 'tdpAlert', data: this.decodeAlert(buffer) };
+      case MessageType.MFA_JSON:
+        return { kind: 'mfaChallenge', data: this.decodeMfaJson(buffer) };
+      case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
+        return {
+          kind: 'sharedDirectoryAcknowledge',
+          data: this.decodeSharedDirectoryAcknowledge(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
+        return {
+          kind: 'sharedDirectoryInfoRequest',
+          data: this.decodeSharedDirectoryInfoRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_CREATE_REQUEST:
+        return {
+          kind: 'sharedDirectoryCreateRequest',
+          data: this.decodeSharedDirectoryCreateRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_DELETE_REQUEST:
+        return {
+          kind: 'sharedDirectoryDeleteRequest',
+          data: this.decodeSharedDirectoryDeleteRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_READ_REQUEST:
+        return {
+          kind: 'sharedDirectoryReadRequest',
+          data: this.decodeSharedDirectoryReadRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_WRITE_REQUEST:
+        return {
+          kind: 'sharedDirectoryWriteRequest',
+          data: this.decodeSharedDirectoryWriteRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_MOVE_REQUEST:
+        return {
+          kind: 'sharedDirectoryMoveRequest',
+          data: this.decodeSharedDirectoryMoveRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
+        return {
+          kind: 'sharedDirectoryListRequest',
+          data: this.decodeSharedDirectoryListRequest(buffer),
+        };
+      case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
+        return {
+          kind: 'sharedDirectoryTruncateRequest',
+          data: this.decodeSharedDirectoryTruncateRequest(buffer),
+        };
+      case MessageType.LATENCY_STATS:
+        return { kind: 'latencyStats', data: this.decodeLatencyStats(buffer) };
+      case MessageType.TDPB_UPGRADE:
+        return { kind: 'tdpbUpgrade', data: null };
+      // Needed by the player client
+      case MessageType.CLIENT_SCREEN_SPEC:
+        return {
+          kind: 'clientScreenSpec',
+          data: this.decodeClientScreenSpec(buffer),
+        };
+      case MessageType.MOUSE_BUTTON:
+        return { kind: 'mouseButton', data: this.decodeMouseButton(buffer) };
+      case MessageType.MOUSE_MOVE:
+        return { kind: 'mouseMove', data: this.decodeMouseMove(buffer) };
+      default:
+        throw new Error(`received unsupported message type", ${messageType}`);
+    }
+  }
+
+  decodeMouseButton(buffer: ArrayBufferLike): MouseButtonState {
+    const view = new DataView(buffer);
+    const isMouseButton = (n: number): MouseButton | undefined => {
+      if (n === 0 || n === 1 || n === 2) {
+        return n;
+      }
+      return undefined;
+    };
+
+    const value = view.getUint8(1);
+    const buttonNum = isMouseButton(value);
+    if (buttonNum === undefined) {
+      throw Error(
+        `MouseButton message contains invalid button value: ${value}`
+      );
+    }
+    return {
+      button: buttonNum,
+      state: view.getUint8(2),
+    };
+  }
+
+  decodeMouseMove(buffer: ArrayBufferLike): MouseMove {
+    const view = new DataView(buffer);
+    return {
+      x: view.getUint8(1),
+      y: view.getUint8(2),
+    };
+  }
+
+  encodeInitialMessages(
+    spec: ClientScreenSpec,
+    keyboardLayout?: number
+  ): Message[] {
+    let messages: Message[] = [];
+    if (spec) {
+      messages.push(this.encodeClientScreenSpec(spec));
+    }
+
+    // 0 represents the default keyboard layout from the point of view of the
+    // remote desktop, so there is no need to send this message. Additionally,
+    // for clients (Connect) that don't support specifying a keyboard layout
+    // and WDS versions that don't support this feature (v17 and earlier), this
+    // avoids the connection crashing.
+    if (keyboardLayout !== undefined && keyboardLayout !== 0) {
+      messages.push(this.encodeClientKeyboardLayout(keyboardLayout));
+    } else {
+      // The proxy expects two messasges (client screen spec and keyboard layout)
+      // before it will initialise the connection to WDS. If no keyboard layout
+      // is sent, the proxy will hang waiting for a second message that won't
+      // arrive. To get around this we send another client screen spec.
+      // TODO (danielashare): Remove this once proxy doesn't block on
+      // keyboardLayout.
+      if (spec) {
+        messages.push(this.encodeClientScreenSpec(spec));
+      }
+    }
+    return messages;
+  }
 
   // encodeClientScreenSpec encodes the client's screen spec.
   // | message type (1) | width uint32 | height uint32 |
@@ -367,7 +1260,7 @@ export default class Codec {
   // decodeClientScreenSpec decodes a raw tdp CLIENT_SCREEN_SPEC message
   // | message type (1) | width uint32 | height uint32 |
   // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#1---client-screen-spec
-  decodeClientScreenSpec(buffer: ArrayBuffer): ClientScreenSpec {
+  decodeClientScreenSpec(buffer: ArrayBufferLike): ClientScreenSpec {
     let dv = new DataView(buffer);
     return {
       width: dv.getUint32(1),
@@ -403,8 +1296,7 @@ export default class Codec {
   encodeKeyboardInput(code: string, state: ButtonState): Message[] {
     const scancodes = KEY_SCANCODES[code];
     if (!scancodes) {
-      // eslint-disable-next-line no-console
-      console.warn(`unsupported key code: ${code}`);
+      this.logger.warn(`unsupported key code: ${code}`);
       return [];
     }
 
@@ -504,8 +1396,8 @@ export default class Codec {
   }
 
   // | message type (10) | mfa_type byte | message_length uint32 | json []byte
-  encodeMfaJson(mfaJson: MfaJson): Message {
-    const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
+  encodeMfaJson(mfaJson: MfaResponse): Message {
+    const dataUtf8array = this.encoder.encode(JSON.stringify(mfaJson));
 
     const bufLen = BYTE_LEN + BYTE_LEN + UINT_32_LEN + dataUtf8array.length;
     const buffer = new ArrayBuffer(bufLen);
@@ -513,7 +1405,7 @@ export default class Codec {
     let offset = 0;
 
     view.setUint8(offset++, MessageType.MFA_JSON);
-    view.setUint8(offset++, mfaJson.mfaType.charCodeAt(0));
+    view.setUint8(offset++, 'n'.charCodeAt(0));
     view.setUint32(offset, dataUtf8array.length);
     offset += UINT_32_LEN;
     dataUtf8array.forEach(byte => {
