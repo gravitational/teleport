@@ -900,7 +900,7 @@ type Services struct {
 	services.UserGroups
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.StatusInternal
+	services.Status
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
