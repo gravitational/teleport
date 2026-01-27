@@ -615,7 +615,6 @@ func testAuditEvents(p *Pack, t *testing.T) {
 				AppPublicAddr: p.rootAppPublicAddr,
 				AppName:       p.rootAppName,
 			},
-			PublicAddr: p.rootAppPublicAddr,
 		}
 		return len(cmp.Diff(
 			expectedEvent,
