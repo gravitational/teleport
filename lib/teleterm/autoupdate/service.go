@@ -138,9 +138,7 @@ func (s *Service) GetDownloadBaseUrl(_ context.Context, _ *api.GetDownloadBaseUr
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetDownloadBaseUrlResponse{
-		BaseUrl: baseURL,
-	}, trace.Wrap(err)
+	return &api.GetDownloadBaseUrlResponse{BaseUrl: baseURL}, nil
 }
 
 // resolveBaseURL generates the base URL using the same logic as the teleport/lib/autoupdate/tools package.

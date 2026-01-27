@@ -35,8 +35,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutoUpdateService_GetClusterVersions_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetClusterVersions"
-	AutoUpdateService_GetDownloadBaseUrl_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetDownloadBaseUrl"
+	AutoUpdateService_GetClusterVersions_FullMethodName      = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetClusterVersions"
+	AutoUpdateService_GetDownloadBaseUrl_FullMethodName      = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetDownloadBaseUrl"
+	AutoUpdateService_GetInstallationMetadata_FullMethodName = "/teleport.lib.teleterm.auto_update.v1.AutoUpdateService/GetInstallationMetadata"
 )
 
 // AutoUpdateServiceClient is the client API for AutoUpdateService service.
@@ -51,6 +52,9 @@ type AutoUpdateServiceClient interface {
 	// Can be overridden with TELEPORT_CDN_BASE_URL env var.
 	// OSS builds require this env var to be set, otherwise an error is returned.
 	GetDownloadBaseUrl(ctx context.Context, in *GetDownloadBaseUrlRequest, opts ...grpc.CallOption) (*GetDownloadBaseUrlResponse, error)
+	// GetInstallationMetadata returns installation metadata of the currently running app instance.
+	// Implemented only on Windows.
+	GetInstallationMetadata(ctx context.Context, in *GetInstallationMetadataRequest, opts ...grpc.CallOption) (*GetInstallationMetadataResponse, error)
 }
 
 type autoUpdateServiceClient struct {
@@ -81,6 +85,16 @@ func (c *autoUpdateServiceClient) GetDownloadBaseUrl(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *autoUpdateServiceClient) GetInstallationMetadata(ctx context.Context, in *GetInstallationMetadataRequest, opts ...grpc.CallOption) (*GetInstallationMetadataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInstallationMetadataResponse)
+	err := c.cc.Invoke(ctx, AutoUpdateService_GetInstallationMetadata_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AutoUpdateServiceServer is the server API for AutoUpdateService service.
 // All implementations must embed UnimplementedAutoUpdateServiceServer
 // for forward compatibility.
@@ -93,6 +107,9 @@ type AutoUpdateServiceServer interface {
 	// Can be overridden with TELEPORT_CDN_BASE_URL env var.
 	// OSS builds require this env var to be set, otherwise an error is returned.
 	GetDownloadBaseUrl(context.Context, *GetDownloadBaseUrlRequest) (*GetDownloadBaseUrlResponse, error)
+	// GetInstallationMetadata returns installation metadata of the currently running app instance.
+	// Implemented only on Windows.
+	GetInstallationMetadata(context.Context, *GetInstallationMetadataRequest) (*GetInstallationMetadataResponse, error)
 	mustEmbedUnimplementedAutoUpdateServiceServer()
 }
 
@@ -108,6 +125,9 @@ func (UnimplementedAutoUpdateServiceServer) GetClusterVersions(context.Context, 
 }
 func (UnimplementedAutoUpdateServiceServer) GetDownloadBaseUrl(context.Context, *GetDownloadBaseUrlRequest) (*GetDownloadBaseUrlResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDownloadBaseUrl not implemented")
+}
+func (UnimplementedAutoUpdateServiceServer) GetInstallationMetadata(context.Context, *GetInstallationMetadataRequest) (*GetInstallationMetadataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInstallationMetadata not implemented")
 }
 func (UnimplementedAutoUpdateServiceServer) mustEmbedUnimplementedAutoUpdateServiceServer() {}
 func (UnimplementedAutoUpdateServiceServer) testEmbeddedByValue()                           {}
@@ -166,6 +186,24 @@ func _AutoUpdateService_GetDownloadBaseUrl_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AutoUpdateService_GetInstallationMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInstallationMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutoUpdateServiceServer).GetInstallationMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutoUpdateService_GetInstallationMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutoUpdateServiceServer).GetInstallationMetadata(ctx, req.(*GetInstallationMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AutoUpdateService_ServiceDesc is the grpc.ServiceDesc for AutoUpdateService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -180,6 +218,10 @@ var AutoUpdateService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetDownloadBaseUrl",
 			Handler:    _AutoUpdateService_GetDownloadBaseUrl_Handler,
+		},
+		{
+			MethodName: "GetInstallationMetadata",
+			Handler:    _AutoUpdateService_GetInstallationMetadata_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

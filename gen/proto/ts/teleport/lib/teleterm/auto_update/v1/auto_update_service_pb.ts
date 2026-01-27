@@ -120,6 +120,26 @@ export interface GetDownloadBaseUrlResponse {
      */
     baseUrl: string;
 }
+/**
+ * Request for GetInstallationMetadata.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest
+ */
+export interface GetInstallationMetadataRequest {
+}
+/**
+ * Response for GetInstallationMetadata.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse
+ */
+export interface GetInstallationMetadataResponse {
+    /**
+     * Determines whether updates should target a per-machine installation.
+     *
+     * @generated from protobuf field: bool is_per_machine_install = 1;
+     */
+    isPerMachineInstall: boolean;
+}
 // @generated message type with reflection information, may provide speed optimized methods
 class GetClusterVersionsRequest$Type extends MessageType<GetClusterVersionsRequest> {
     constructor() {
@@ -398,10 +418,83 @@ class GetDownloadBaseUrlResponse$Type extends MessageType<GetDownloadBaseUrlResp
  * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetDownloadBaseUrlResponse
  */
 export const GetDownloadBaseUrlResponse = new GetDownloadBaseUrlResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetInstallationMetadataRequest$Type extends MessageType<GetInstallationMetadataRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest", []);
+    }
+    create(value?: PartialMessage<GetInstallationMetadataRequest>): GetInstallationMetadataRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetInstallationMetadataRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetInstallationMetadataRequest): GetInstallationMetadataRequest {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: GetInstallationMetadataRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest
+ */
+export const GetInstallationMetadataRequest = new GetInstallationMetadataRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetInstallationMetadataResponse$Type extends MessageType<GetInstallationMetadataResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse", [
+            { no: 1, name: "is_per_machine_install", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetInstallationMetadataResponse>): GetInstallationMetadataResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.isPerMachineInstall = false;
+        if (value !== undefined)
+            reflectionMergePartial<GetInstallationMetadataResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetInstallationMetadataResponse): GetInstallationMetadataResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bool is_per_machine_install */ 1:
+                    message.isPerMachineInstall = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetInstallationMetadataResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bool is_per_machine_install = 1; */
+        if (message.isPerMachineInstall !== false)
+            writer.tag(1, WireType.Varint).bool(message.isPerMachineInstall);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponse
+ */
+export const GetInstallationMetadataResponse = new GetInstallationMetadataResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.auto_update.v1.AutoUpdateService
  */
 export const AutoUpdateService = new ServiceType("teleport.lib.teleterm.auto_update.v1.AutoUpdateService", [
     { name: "GetClusterVersions", options: {}, I: GetClusterVersionsRequest, O: GetClusterVersionsResponse },
-    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse }
+    { name: "GetDownloadBaseUrl", options: {}, I: GetDownloadBaseUrlRequest, O: GetDownloadBaseUrlResponse },
+    { name: "GetInstallationMetadata", options: {}, I: GetInstallationMetadataRequest, O: GetInstallationMetadataResponse }
 ]);
